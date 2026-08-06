@@ -3,7 +3,6 @@ package sqlconnect_test
 import (
 	"os"
 	"testing"
-	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/sqlconnect"
 	"github.com/leancodebox/GooseForum/app/models/chat/imConversations"
@@ -230,7 +229,6 @@ func TestPostgresDefaultData(t *testing.T) {
 	if err := db.Create(&cfg).Error; err != nil {
 		t.Fatalf("Create page_config: %v", err)
 	}
-	_ = time.Now() // keep time import if assertions change
 
 	db.Exec("DELETE FROM categories WHERE id = ?", cat.Id)
 	db.Exec("DELETE FROM page_config WHERE page_type = ?", pageConfig.Version)

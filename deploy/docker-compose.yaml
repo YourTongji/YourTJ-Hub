@@ -35,8 +35,11 @@ services:
       start_period: 10s
 
   # 可选 PostgreSQL 服务（仅当主库 [db.default] connection="postgres" 时需要）。
-  # 默认注释掉；启用后需在 /opt/yourtj/.env 中配置 POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB，
-  # 并在 main/config.toml 的 [db.default] 中把 url 指向本服务（host=postgres ...）。
+  # 默认注释掉；启用后需在 /opt/yourtj/.env 中配置 POSTGRES_USER/POSTGRES_PASSWORD，
+  # 并在 main/config.toml / dev/config.toml 的 [db.default] 中把 url 指向本服务
+  # （host=postgres，Compose 网络内服务名；容器内 127.0.0.1 指向论坛自身，无法连接）。
+  # main 与 dev 必须使用两个独立数据库（yourtj_main / yourtj_dev），
+  # 保持生产/测试隔离（见 docs/operations/deployment.md「PostgreSQL support」）。
   # 文件库 [db.file] 固定使用 SQLite，不受影响。
   # postgres:
   #   image: postgres:16-alpine

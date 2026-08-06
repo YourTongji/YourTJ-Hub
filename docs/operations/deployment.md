@@ -112,15 +112,27 @@ default SQLite and optional MySQL. The file database (`[db.file]`, attachment BL
 ### Enable PostgreSQL
 
 1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
-   `POSTGRES_PASSWORD` / `POSTGRES_DB` in `/opt/yourtj/.env`.
-2. In `main/config.toml` (and `dev/config.toml`), set:
+   `POSTGRES_PASSWORD` in `/opt/yourtj/.env`.
+2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
+   SQLite deployment model (dev is one-way synced from main, never written directly):
+   ```bash
+   # 在 postgres 容器内执行
+   docker compose exec postgres psql -U yourtj -d postgres -c \
+     "CREATE DATABASE yourtj_main; CREATE DATABASE yourtj_dev;"
+   ```
+   Do **not** point both instances at the same database — dev migrations/writes would land on
+   production data.
+3. In `main/config.toml` set:
    ```toml
    [db.default]
    connection = "postgres"
-   url = "host=127.0.0.1 user=yourtj password=<secret> dbname=yourtj port=5432 sslmode=disable"
+   url = "host=postgres user=yourtj password=<secret> dbname=yourtj_main port=5432 sslmode=disable"
    ```
+   In `dev/config.toml` use the same DSN but `dbname=yourtj_dev`. `host=postgres` is the Compose
+   service name: the forum and postgres containers share the compose network, so `127.0.0.1` inside
+   the forum container would point at the forum container itself and fail to connect.
    `url` accepts libpq key=value or URL DSN formats.
-3. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
+4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
    versioned data migrations v1-v12 from scratch, then serves.
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
@@ -138,9 +150,15 @@ instance:
 ### Backup and sync scripts under PostgreSQL
 
 - `backup-db.sh` / `snapshot-db.sh` / `sync-db-from-main.sh` use the SQLite `.backup` API and only
-  apply to SQLite deployments. For a PG deployment, back up with `pg_dump` (e.g. nightly cron) and
-  sync dev from main with `pg_dump | pg_restore` or streaming replication.
-- SQLite deployments are unaffected.
+  apply to SQLite deployments. For a PG deployment, back up main with `pg_dump` (e.g. nightly cron)
+  and sync dev from main with:
+  ```bash
+  # 在 postgres 容器内执行: dev 库重建 + 从 main 库一致性恢复
+  docker compose exec postgres sh -c \
+    'pg_dump -U yourtj -d yourtj_main | psql -U yourtj -d yourtj_dev'
+  ```
+  (drop/recreate `yourtj_dev` first if it must be a clean snapshot). SQLite deployments are
+  unaffected.
 
 ### Logging configuration (issue #11)
 

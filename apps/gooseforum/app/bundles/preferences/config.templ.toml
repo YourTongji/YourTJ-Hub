@@ -62,8 +62,10 @@ rolling = true # 是否开启滚动 true ,false
 maxage = 10 # 最大日期
 maxsize = 256 # 最大文件大小 MB
 maxBackUps = 30 # 最大保留文件数量
-# 日志级别 debug/info/warn/error，默认 info（显式配置后 debug 模式不再自动放宽）
-level = "info"
+# 日志级别 debug/info/warn/error，默认 info。
+# 不配置时 debug 模式（[app] debug=true）自动放宽到 debug；显式配置后以本项为准。
+# 生产环境建议显式配置 level（见 deploy/config.toml.example）。
+# level = "info"
 # 日志格式 json/console，默认 json
 format = "json"
 # ERROR/WARNING 独立轮转文件（便于告警采集），留空则不单独拆分

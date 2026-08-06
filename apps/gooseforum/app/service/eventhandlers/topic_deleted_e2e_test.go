@@ -15,7 +15,8 @@ import (
 // TestHandleTopicDeletedEndToEnd 在真实 Meilisearch 上验证删除主题事件链：
 // 发布主题（Status=1, ProcessStatus=0）→ 索引可搜到 → 置 ProcessStatus=1 →
 // handleTopicDeleted（事件链核心路径）→ 索引中该文档被移除。
-// 由 TEST_MEILI_URL 门控（缺省跳过，CI 默认不跑）。
+// 由 TEST_MEILI_URL 门控（缺省跳过，CI 默认不跑）。该变量仅作为启用开关；
+// Meilisearch 客户端实际连接目标由 config.toml [meilisearch] 决定。
 func TestHandleTopicDeletedEndToEnd(t *testing.T) {
 	if os.Getenv("TEST_MEILI_URL") == "" {
 		t.Skip("TEST_MEILI_URL not set; skipping Meilisearch end-to-end test")
