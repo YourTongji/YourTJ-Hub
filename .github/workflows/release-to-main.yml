@@ -61,13 +61,17 @@ jobs:
       - name: 合并 dev → main 并打 tag
         env:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
+          RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
+          # 用 PAT push(而非 GITHUB_TOKEN), 才能触发 deploy-main workflow
+          # (GITHUB_TOKEN 的 push 不会触发其他 workflow)
           git config user.name "GitHub Actions"
           git config user.email "actions@github.com"
           git checkout -b main origin/main
           git merge origin/dev --no-ff -m "chore: release $NEW_VERSION from dev"
           git tag "$NEW_VERSION"
-          git push origin main
-          git push origin "$NEW_VERSION"
+          REMOTE="https://x-access-token:${RELEASE_TOKEN}@github.com/YourTongji/YourTJ-Hub.git"
+          git push "$REMOTE" main
+          git push "$REMOTE" "$NEW_VERSION"
           echo "已合并 dev → main 并打 tag $NEW_VERSION"
           echo "deploy-main workflow 将自动部署生产"
