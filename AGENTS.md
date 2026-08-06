@@ -75,6 +75,7 @@ docs/        Docs center (product/architecture/development/operations)
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
   (see docs/development/documentation.md).
+- Research files goto research/, and should not be included in git.
 
 ## 4. Verification
 
@@ -89,8 +90,7 @@ docs/        Docs center (product/architecture/development/operations)
 
 - Never develop directly on `main`; create `feat/<topic>` or `fix/<topic>` from `origin/main`.
 - Stage only files this task owns; leave unrelated dirty/untracked files alone.
-- Commit/push/open a PR only when the user explicitly asks. Agent commits must carry the footer
-  `Co-authored-by: synergy-agent <299070056+synergy-agent@users.noreply.github.com>`.
+- Commit/push/open a PR only when the user explicitly asks.
 - Never push to protected branches; releases go through PR + CI.
 - Commit messages use concise conventional types (`feat:`/`fix:`/`docs:`/`refactor:`/`chore:`).
 
