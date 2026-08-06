@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
+	jwtopt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
 	"github.com/leancodebox/GooseForum/app/bundles/setting"
@@ -20,6 +21,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/routes"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/oauthservice"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/spf13/cast"
 
 	"github.com/gin-gonic/gin"
@@ -78,11 +81,19 @@ func pprofMux() *http.ServeMux {
 }
 
 func ginServe() {
+	// 拒绝使用内置默认签名密钥启动：该密钥公开在源码中，攻击者可据此
+	// 伪造 JWT 并解密 TOTP 密钥（见 jwtopt.DefaultSigningKey）。
+	if jwtopt.IsSigningKeyDefault() {
+		slog.Error("app.signingKey 未配置，仍在使用内置默认密钥。请配置一个随机密钥后重试。")
+		return
+	}
 	preferences.OpenConfigChangeEvent()
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
+	oidcservice.InitOIDC()
 	captchaOpt.StartCleanup()
 	mailservice.StartEmailProcessor()
+	sessionservice.CleanupExpired()
 	job.Run()
 
 	port := preferences.GetString("server.port", 8080)

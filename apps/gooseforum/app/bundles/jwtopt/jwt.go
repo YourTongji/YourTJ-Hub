@@ -12,6 +12,8 @@ import (
 type CustomClaims struct {
 	UserId       uint64
 	TokenVersion uint64
+	Jti          string `json:"jti,omitempty"`
+	Purpose      string `json:"purpose,omitempty"`
 	jwt.RegisteredClaims
 }
 
@@ -51,6 +53,11 @@ func (itself *JWT) CreateToken(claims CustomClaims) (string, error) {
 func (itself *JWT) ParseToken(tokenString string) (*CustomClaims, error) {
 	token, err := jwt.ParseWithClaims(tokenString, &CustomClaims{},
 		func(token *jwt.Token) (i any, e error) {
+			// Reject any signing method other than HS256 to prevent
+			// algorithm-confusion attacks if asymmetric keys are ever added.
+			if _, ok := token.Method.(*jwt.SigningMethodHMAC); !ok {
+				return nil, ErrTokenInvalid
+			}
 			return itself.SigningKey, nil
 		},
 	)
