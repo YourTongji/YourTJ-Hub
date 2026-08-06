@@ -23,7 +23,8 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   `app/service` (business) → `app/http/controllers/{api,forum}` (JSON API + GoHTML three-mode rendering).
 - Frontend: `apps/gooseforum/resource` (Vue 3 + Vite, site/admin dual entry), built output
   `resource/static/dist` go:embed; GoHTML templates in `resource/templates` keep server-side rendering (three-mode).
-- Database: SQLite by default, MySQL optional (`config.toml [db]`); **PostgreSQL migration pending decision**.
+- Database: SQLite default, MySQL optional (`config.toml [db]`); **PostgreSQL supported for the main
+  database since issue #11** (file db stays SQLite).
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional; index sync incomplete, to be improved).
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, planned).
 - Auth: GitHub OAuth (goth) today; **Casdoor OIDC planned**, `sub` = numeric user ID (verified).

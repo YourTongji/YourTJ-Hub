@@ -1,12 +1,14 @@
 package api
 
 import (
+	"context"
 	"fmt"
 	"log/slog"
 	"strings"
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
+	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
 	"github.com/leancodebox/GooseForum/app/datastruct"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
@@ -28,6 +30,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
@@ -550,14 +553,11 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 	}
 
 	topic.ProcessStatus = 1
-	firstPost := posts.Get(topic.FirstPostId)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Error("failed to delete topic search document", "topicId", topic.Id, "err", err)
-	}
 	topicCategoryIndex.DeleteByTopicId(topic.Id)
 	if rows := topics.Delete(&topic); rows == 0 {
 		return component.FailResponseCode(component.MessageAdminTopicDeleteFailed, nil)
 	}
+	eventbus.Publish(context.Background(), &eventhandlers.TopicDeletedEvent{Topic: &topic})
 	hotdataserve.ClearTopicListCache()
 	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.deleted", optlogger.MessageParams{
 		"title": topic.Title,

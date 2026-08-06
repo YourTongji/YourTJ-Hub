@@ -31,8 +31,8 @@ conclusions, update this file in the same PR.
 | Domain | Status | Note |
 |---|---|---|
 | Forum itself | `Current` | Upstream features complete and runnable; `make build` single binary verified locally (2026-08-06: go vet/test, pnpm typecheck/build, smoke all green) |
-| Database | `Decision needed` | SQLite default + MySQL optional today; PostgreSQL migration undecided (upstream migration framework in app/migration) |
-| Search | `Partial` | Meilisearch optionally enabled (config [meilisearch]); index sync and search UX incomplete, needs work |
+| Database | `Current` | SQLite default, MySQL optional, PostgreSQL main-db support landed (issue #11); file db stays SQLite; data migration from SQLite→PG is manual |
+| Search | `Partial` | Meilisearch optionally enabled (config [meilisearch]); index sync wired via topic events (publish/update/delete), unavailable-state UI fallback landed; full-text UX still minimal |
 | Auth | `Planned` | GitHub OAuth works; Casdoor unified login not integrated (needs OIDC exchange endpoint) |
 | Contract | `Partial` | No swagger annotations, no openapi.yaml upstream; packages/api-contract is a placeholder; pipeline not built |
 | Mobile | `Planned` | `apps/mobile` is a placeholder dir; Flutter/melos/Riverpod not set up |
@@ -45,7 +45,6 @@ conclusions, update this file in the same PR.
 
 Before expanding features, close these baselines (avoid building on a wrong foundation):
 
-1. Database decision (recommend PostgreSQL) and verify compatibility with the upstream migration framework.
-2. Auth chain closed (Casdoor → exchange → JWT), numeric-ID constraint enforced server-side.
-3. Contract pipeline (swag or manual openapi → TS/Dart generation) before broad API rework, to prevent
+1. Auth chain closed (Casdoor → exchange → JWT), numeric-ID constraint enforced server-side.
+2. Contract pipeline (swag or manual openapi → TS/Dart generation) before broad API rework, to prevent
    contract drift.

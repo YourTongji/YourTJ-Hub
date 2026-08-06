@@ -29,8 +29,8 @@ services (course selection, course reviews, etc.).
 ### Current positioning
 
 - `Current`: monorepo skeleton; the forum runs (three-mode rendering + JSON API, single binary).
-- `Planned`: unified auth integration, search improvement.
-- `Decision needed`: database selection (recommend PostgreSQL), search shape (recommend Meilisearch).
+- `Current`: database selection (PostgreSQL main-db support landed, issue #11; SQLite default retained);
+  search shape via Meilisearch (optional, event-synced index). `Planned`: unified auth integration.
 - Points (credit) are explicitly **phase 2**; not claimed usable in UI or marketing now.
 
 ### Explicitly out of scope

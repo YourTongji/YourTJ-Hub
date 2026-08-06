@@ -541,11 +541,12 @@ type PublishTopicPayload struct {
 }
 
 type SearchPageProps struct {
-	Query      string            `json:"query"`
-	Topics     []TopicPayload    `json:"topics"`
-	Total      int64             `json:"total"`
-	TotalPages int               `json:"totalPages"`
-	Pagination PaginationPayload `json:"pagination"`
+	Query             string            `json:"query"`
+	Topics            []TopicPayload    `json:"topics"`
+	Total             int64             `json:"total"`
+	TotalPages        int               `json:"totalPages"`
+	Pagination        PaginationPayload `json:"pagination"`
+	SearchUnavailable bool              `json:"searchUnavailable,omitempty"`
 }
 
 func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
@@ -2207,6 +2208,10 @@ func buildSearchPageProps(query string, page int) SearchPageProps {
 		Limit:  pageSize,
 		Offset: (page - 1) * pageSize,
 	})
+	if errors.Is(err, searchservice.ErrSearchUnavailable) {
+		props.SearchUnavailable = true
+		return props
+	}
 	if err != nil || result == nil {
 		return props
 	}

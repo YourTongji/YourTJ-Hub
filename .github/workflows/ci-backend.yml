@@ -1,4 +1,4 @@
-name: server
+name: ci-backend
 
 on:
   push:
@@ -7,15 +7,11 @@ on:
       - "apps/gooseforum/main.go"
       - "apps/gooseforum/go.mod"
       - "apps/gooseforum/go.sum"
+  # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
-    paths:
-      - "apps/gooseforum/app/**"
-      - "apps/gooseforum/main.go"
-      - "apps/gooseforum/go.mod"
-      - "apps/gooseforum/go.sum"
 
 jobs:
-  build:
+  ci-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
