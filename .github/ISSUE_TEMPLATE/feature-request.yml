@@ -1,0 +1,75 @@
+name: '✨ Feature Request / 功能需求'
+title: '[Feature] '
+description: Suggest an idea for this platform. / 为平台提出一个功能建议。
+labels: ['enhancement']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for sharing your idea! Please provide as much detail as possible. / 感谢您分享想法！请尽可能提供详细信息。
+
+  - type: textarea
+    attributes:
+      label: Background / 背景
+      description: What problem does the current platform have that needs to be solved? / 当前存在什么问题？为什么需要解决？
+      placeholder: Describe the current pain points.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Target Users / 目标用户
+      description: Which users will use this feature? / 哪些用户会使用该功能？
+      placeholder: e.g., students, teachers, administrators
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: User Story / 用户故事
+      description: As a [type of user], I want [some goal] so that [some reason]. / 作为[某类用户]，我希望[某个目标]，从而[某个原因]。
+      placeholder: As a..., I want..., so that...
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Scope / 范围
+      description: What should be implemented in this feature? / 本次需要实现什么？
+      placeholder: List the key deliverables.
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Out of Scope / 不做什么
+      description: What is explicitly not included to prevent scope creep. / 明确本次不包含的内容，防止范围扩大。
+      placeholder: What won't be covered this time.
+    validations:
+      required: false
+
+  - type: textarea
+    attributes:
+      label: Acceptance Criteria / 验收标准
+      description: Define the conditions that must be met for this feature to be considered complete. / 定义该功能完成的验收条件。
+      placeholder: |
+        - [ ] Users can...
+        - [ ] When..., the system should...
+        - [ ] Works correctly on both mobile and desktop
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Supplementary Materials / 补充材料
+      description: Prototypes, screenshots, discussion records, or related issues. / 原型、截图、讨论记录或相关 Issue。
+      placeholder: Links, designs, or references.
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct / 我同意遵守本项目的行为准则
+          required: true

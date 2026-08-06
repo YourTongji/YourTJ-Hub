@@ -1,0 +1,63 @@
+name: '🐛 Bug Report / 问题反馈'
+title: '[Bug] '
+description: Submit a bug report to help us improve the platform. / 提交问题反馈帮助我们改进平台。
+labels: ['bug']
+body:
+  - type: markdown
+    attributes:
+      value: |
+        Thank you for taking the time to report this issue! Please fill in the information below to help us locate and fix the problem quickly. / 感谢您抽出时间报告问题！请填写以下信息以帮助我们快速定位和修复问题。
+
+  - type: textarea
+    attributes:
+      label: Environment / 环境
+      description: Please provide your device, browser, and page URL. / 请提供您的设备、浏览器和页面地址。
+      placeholder: |
+        Device:
+        Browser:
+        Page URL:
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Problem Description / 问题描述
+      description: A clear and concise description of what the bug is. / 清晰简洁地描述这个 Bug 是什么。
+      placeholder: What went wrong?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Expected Behavior / 预期行为
+      description: What did you expect to happen instead? / 您期望发生什么？
+      placeholder: What should have happened?
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Reproduction Steps / 复现步骤
+      description: Steps to reproduce the issue. / 复现问题的步骤。
+      placeholder: |
+        1. Go to '...'
+        2. Click on '...'
+        3. Scroll down to '...'
+        4. See error
+    validations:
+      required: true
+
+  - type: textarea
+    attributes:
+      label: Screenshots / 截图
+      description: If applicable, add screenshots to help explain the problem. / 如果有，添加截图以帮助解释问题。
+      placeholder: Drag and drop images here.
+    validations:
+      required: false
+
+  - type: checkboxes
+    attributes:
+      label: Code of Conduct
+      options:
+        - label: I agree to follow this project's Code of Conduct / 我同意遵守本项目的行为准则
+          required: true
