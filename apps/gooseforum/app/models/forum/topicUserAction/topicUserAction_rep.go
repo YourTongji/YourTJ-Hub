@@ -26,63 +26,38 @@ func GetByTopicId(userId, topicId any) (entity Entity) {
 	return
 }
 
+// SetLiked 设置主题点赞状态，返回是否发生了状态迁移（false = 状态未变化或写入失败）。
 func SetLiked(userId, topicId uint64, liked bool) bool {
 	return setAt(userId, topicId, "liked_at", timeForState(liked))
 }
 
+// SetBookmarked 设置主题收藏状态，返回是否发生了状态迁移。
 func SetBookmarked(userId, topicId uint64, bookmarked bool) bool {
 	return setAt(userId, topicId, "bookmarked_at", timeForState(bookmarked))
 }
 
+// SetWatched 设置主题关注状态，返回是否发生了状态迁移。
 func SetWatched(userId, topicId uint64, watched bool) bool {
 	return setAt(userId, topicId, "watched_at", timeForState(watched))
 }
 
+// SetLikedAt 强制设定主题点赞时间（幂等 upsert，仅覆盖点赞字段，不改变迁移语义）。
 func SetLikedAt(userId, topicId uint64, likedAt *time.Time) bool {
-	return ensureAt(userId, topicId, "liked_at", likedAt)
+	return upsertAt(userId, topicId, "liked_at", likedAt)
 }
 
+// SetBookmarkedAt 强制设定主题收藏时间（幂等 upsert）。
 func SetBookmarkedAt(userId, topicId uint64, bookmarkedAt *time.Time) bool {
-	return ensureAt(userId, topicId, "bookmarked_at", bookmarkedAt)
+	return upsertAt(userId, topicId, "bookmarked_at", bookmarkedAt)
 }
 
+// SetWatchedAt 强制设定主题关注时间（幂等 upsert）。
 func SetWatchedAt(userId, topicId uint64, watchedAt *time.Time) bool {
-	return ensureAt(userId, topicId, "watched_at", watchedAt)
+	return upsertAt(userId, topicId, "watched_at", watchedAt)
 }
 
-func setAt(userId, topicId uint64, field string, value *time.Time) bool {
-	if userId == 0 || topicId == 0 {
-		return false
-	}
-	if value == nil {
-		result := builder().
-			Where(queryopt.Eq("user_id", userId)).
-			Where(queryopt.Eq("topic_id", topicId)).
-			Where(field + " IS NOT NULL").
-			Updates(map[string]any{field: nil, "updated_at": time.Now()})
-		return result.Error == nil && result.RowsAffected > 0
-	}
-
-	result := builder().
-		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("topic_id", topicId)).
-		Where(field + " IS NULL").
-		Updates(map[string]any{field: value, "updated_at": time.Now()})
-	if result.Error != nil || result.RowsAffected > 0 {
-		return result.Error == nil && result.RowsAffected > 0
-	}
-
-	result = builder().Create(&Entity{
-		UserId:       userId,
-		TopicId:      topicId,
-		LikedAt:      valueForField(field, "liked_at", value),
-		BookmarkedAt: valueForField(field, "bookmarked_at", value),
-		WatchedAt:    valueForField(field, "watched_at", value),
-	})
-	return result.Error == nil
-}
-
-func ensureAt(userId, topicId uint64, field string, value *time.Time) bool {
+// upsertAt 按 user+topic 唯一键幂等写入指定状态时间（行不存在则创建）。
+func upsertAt(userId, topicId uint64, field string, value *time.Time) bool {
 	if userId == 0 || topicId == 0 || value == nil {
 		return false
 	}
@@ -97,6 +72,48 @@ func ensureAt(userId, topicId uint64, field string, value *time.Time) bool {
 		WatchedAt:    valueForField(field, "watched_at", value),
 	})
 	return result.Error == nil
+}
+
+// setAt 原子地设置状态并返回是否发生了迁移：
+//   - 取消状态：UPDATE 命中已设置的行才算迁移；
+//   - 设置状态：先 UPDATE 未设置的行（命中即迁移），未命中再 INSERT（冲突时静默），
+//     只有真正插入新行才算迁移。
+//
+// 并发下只有一个请求能命中迁移，统计/通知副作用必须只在迁移时执行。
+func setAt(userId, topicId uint64, field string, value *time.Time) bool {
+	if userId == 0 || topicId == 0 {
+		return false
+	}
+	if value == nil {
+		result := builder().
+			Where(queryopt.Eq("user_id", userId)).
+			Where(queryopt.Eq("topic_id", topicId)).
+			Where(field + " IS NOT NULL").
+			Updates(map[string]any{field: nil, "updated_at": time.Now()})
+		return result.Error == nil && result.RowsAffected > 0
+	}
+
+	// 1) 更新当前未设置的行：命中即发生 "未设置 → 已设置" 迁移
+	result := builder().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("topic_id", topicId)).
+		Where(field + " IS NULL").
+		Updates(map[string]any{field: value, "updated_at": time.Now()})
+	if result.Error == nil && result.RowsAffected > 0 {
+		return true
+	}
+	// 2) 行不存在时插入；已存在（并发已设置）则冲突静默，不算迁移
+	insert := builder().Clauses(clause.OnConflict{
+		Columns:   []clause.Column{{Name: "user_id"}, {Name: "topic_id"}},
+		DoNothing: true,
+	}).Create(&Entity{
+		UserId:       userId,
+		TopicId:      topicId,
+		LikedAt:      valueForField(field, "liked_at", value),
+		BookmarkedAt: valueForField(field, "bookmarked_at", value),
+		WatchedAt:    valueForField(field, "watched_at", value),
+	})
+	return insert.Error == nil && insert.RowsAffected > 0
 }
 
 func timeForState(active bool) *time.Time {
@@ -170,11 +187,10 @@ type BookmarkedTopicRef struct {
 	BookmarkedAt time.Time `gorm:"column:bookmarked_at"`
 }
 
-// ListBookmarkedTopicRefsBeforeTime 时间游标分页：用户收藏过的主题（按收藏时间倒序）。
-// 与楼层收藏共用时间游标，便于跨表合并排序展示。
-// kind 为游标最后一条的类型（"topic"/"post"）：同类型表用 (time, id) 组合游标，
-// 另一张表的时间等于游标时刻的条目未消费完，需用 <= 继续。
-func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, beforeID uint64, kind string, limit int) []BookmarkedTopicRef {
+// ListBookmarkedTopicRefsBeforeTime 无损时间游标分页：用户收藏过的主题（按收藏时间倒序）。
+// 与楼层收藏共用同一续页谓词（时间 + kindRank + 主键），保证跨表合并不重不漏。
+// topic 表 kindRank 恒为 1（post 为 2，rank 小者先排序）。
+func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, beforeKindRank int, beforeID uint64, limit int) []BookmarkedTopicRef {
 	if userId == 0 || limit <= 0 {
 		return nil
 	}
@@ -184,11 +200,10 @@ func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, beforeID
 		Where(queryopt.Eq("user_id", userId)).
 		Where("bookmarked_at IS NOT NULL")
 	if !before.IsZero() {
-		if kind == "topic" {
-			query = query.Where("bookmarked_at < ? OR (bookmarked_at = ? AND id < ?)", before, before, beforeID)
-		} else {
-			query = query.Where("bookmarked_at <= ?", before)
-		}
+		query = query.Where(
+			`bookmarked_at < ? OR (bookmarked_at = ? AND ? > ?) OR (bookmarked_at = ? AND ? = ? AND id < ?)`,
+			before, before, 1, beforeKindRank, before, 1, beforeKindRank, beforeID,
+		)
 	}
 	query.Order("bookmarked_at DESC, id DESC").Limit(limit).Find(&rows)
 	return rows

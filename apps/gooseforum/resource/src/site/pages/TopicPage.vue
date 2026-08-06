@@ -712,11 +712,25 @@ const nestedRepliesPreviewCount = 3
 const expandedReplyGroups = ref<Set<number>>(new Set())
 
 // 楼层分组：回复其目标楼层在当前窗口内可见的帖子，收进目标楼层的嵌套回复区展示
-// （限制一层缩进；两层及以上的嵌套回复挂到祖父楼层下，用引用条保留对话脉络）
+// （限制一层缩进；任意深度的嵌套回复持续上溯挂到真实 root 下，用引用条保留对话脉络）
 const postGroups = computed<NestedPostGroup[]>(() => {
   const byId = new Map(posts.value.map((post) => [post.id, post]))
   const childrenByParent = new Map<number, PostPayload[]>()
   const roots: PostPayload[] = []
+
+  // 沿 replyToPostId 链持续上溯到真实 root（防环：已访问节点直接截断）
+  const resolveRoot = (post: PostPayload): PostPayload => {
+    const visited = new Set<number>()
+    let cursor: PostPayload = post
+    while (cursor.replyToPostId) {
+      if (visited.has(cursor.id)) break
+      visited.add(cursor.id)
+      const next = byId.get(cursor.replyToPostId)
+      if (!next) break
+      cursor = next
+    }
+    return cursor
+  }
 
   for (const post of posts.value) {
     const parent = post.replyToPostId ? byId.get(post.replyToPostId) : undefined
@@ -724,8 +738,8 @@ const postGroups = computed<NestedPostGroup[]>(() => {
       roots.push(post)
       continue
     }
-    const parentOfParent = parent.replyToPostId ? byId.get(parent.replyToPostId) : undefined
-    const effectiveParent = parentOfParent ?? parent
+    // 持续上溯至真实 root：A→B→C→D 时 D 也必须挂到 A 下，保证有渲染出口
+    const effectiveParent = resolveRoot(post)
     const siblings = childrenByParent.get(effectiveParent.id)
     if (siblings) siblings.push(post)
     else childrenByParent.set(effectiveParent.id, [post])

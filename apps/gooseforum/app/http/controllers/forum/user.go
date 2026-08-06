@@ -29,7 +29,15 @@ func UserProfile(c *gin.Context) {
 		return
 	}
 
-	props := buildUserProfileProps(c, user, resolveUserProfileSection(c.Param("section")), resolveUserProfileActivitySection(c.Param("subsection")))
+	// 收藏列表仅对本人可见：他人（含匿名）访问 /u/:id/bookmarks 一律 404，
+	// 避免泄露他人收藏内容与收藏时间。
+	section := resolveUserProfileSection(c.Param("section"))
+	if section == userProfileSectionBookmarks && component.LoginUserId(c) != user.Id {
+		RenderNotFoundPage(c, component.MessagePageNotFound)
+		return
+	}
+
+	props := buildUserProfileProps(c, user, section, resolveUserProfileActivitySection(c.Param("subsection")))
 	payload := PagePayload{
 		Component: PageComponentUser,
 		Props:     props,

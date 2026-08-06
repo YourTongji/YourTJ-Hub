@@ -1770,48 +1770,58 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 	return res
 }
 
+// bookmarkKindRank 跨表合并的全局排序键：bookmarked_at desc → kindRank asc → refID desc
+const (
+	bookmarkKindRankTopic = 1
+	bookmarkKindRankPost  = 2
+)
+
 // mergedBookmarkRef 主题/楼层收藏的统一引用，用于跨表按收藏时间合并排序
 type mergedBookmarkRef struct {
 	kind         string
+	kindRank     int
 	refID        uint64
 	topicID      uint64
 	postID       uint64
 	bookmarkedAt time.Time
 }
 
-// bookmarkCursor 跨表收藏分页游标：收藏时间（unix 秒）+ 最后一条的 kind 与 user_action 主键。
-// 避免同秒并列时跨页丢条目/重复（同秒条目按 (time desc, id desc) 稳定排序）。
+// bookmarkCursor 跨表收藏分页游标：无损时间（unix 纳秒）+ 最后一条的 kindRank 与主键。
+// 排序键 (bookmarked_at desc, kindRank asc, id desc) 全局一致，两表续页谓词相同，
+// 子秒精度不丢边界记录，跨表同刻记录不重不漏。
 type bookmarkCursor struct {
 	before   time.Time
+	kindRank int
 	beforeID uint64
-	kind     string
 }
 
 // buildUserBookmarksMerged 合并用户收藏的主题与楼层（按收藏时间倒序分页）。
-// 游标为最后一条的 (收藏时间, kind, 主键)，跨表统一分页不丢同秒条目。
 func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPayload, string) {
 	limit := userProfileBookmarksPageSize
 	cur := parseBookmarkCursor(cursor)
 
-	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, cur.before, cur.beforeID, cur.kind, limit+1)
-	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, cur.before, cur.beforeID, cur.kind, limit+1)
+	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, cur.before, cur.kindRank, cur.beforeID, limit+1)
+	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, cur.before, cur.kindRank, cur.beforeID, limit+1)
 
 	merged := make([]mergedBookmarkRef, 0, len(topicRefs)+len(postRefs))
 	for _, ref := range topicRefs {
-		merged = append(merged, mergedBookmarkRef{kind: "topic", refID: ref.ID, topicID: ref.TopicID, bookmarkedAt: ref.BookmarkedAt})
+		merged = append(merged, mergedBookmarkRef{kind: "topic", kindRank: bookmarkKindRankTopic, refID: ref.ID, topicID: ref.TopicID, bookmarkedAt: ref.BookmarkedAt})
 	}
 	for _, ref := range postRefs {
-		merged = append(merged, mergedBookmarkRef{kind: "post", refID: ref.ID, postID: ref.PostID, bookmarkedAt: ref.BookmarkedAt})
+		merged = append(merged, mergedBookmarkRef{kind: "post", kindRank: bookmarkKindRankPost, refID: ref.ID, postID: ref.PostID, bookmarkedAt: ref.BookmarkedAt})
 	}
-	slices.SortStableFunc(merged, func(a, b mergedBookmarkRef) int {
-		if a.bookmarkedAt.Equal(b.bookmarkedAt) {
-			// 与表内排序一致：同秒按主键倒序，保证跨页顺序稳定
-			return cmp.Compare(b.refID, a.refID)
+	// 全局排序键：bookmarked_at desc → kindRank asc → refID desc（与两表续页谓词一致）
+	slices.SortFunc(merged, func(a, b mergedBookmarkRef) int {
+		if !a.bookmarkedAt.Equal(b.bookmarkedAt) {
+			if a.bookmarkedAt.After(b.bookmarkedAt) {
+				return -1
+			}
+			return 1
 		}
-		if a.bookmarkedAt.After(b.bookmarkedAt) {
-			return -1
+		if a.kindRank != b.kindRank {
+			return cmp.Compare(a.kindRank, b.kindRank)
 		}
-		return 1
+		return cmp.Compare(b.refID, a.refID)
 	})
 
 	hasNext := len(merged) > limit
@@ -1822,7 +1832,7 @@ func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPaylo
 	nextCursor := ""
 	if hasNext && len(merged) > 0 {
 		last := merged[len(merged)-1]
-		nextCursor = formatBookmarkCursor(last.bookmarkedAt, last.kind, last.refID)
+		nextCursor = formatBookmarkCursor(last.bookmarkedAt, last.kindRank, last.refID)
 	}
 	return payloads, nextCursor
 }
@@ -1835,17 +1845,18 @@ func parseBookmarkCursor(raw string) bookmarkCursor {
 	if len(parts) != 3 {
 		return bookmarkCursor{}
 	}
-	secs, err := strconv.ParseInt(parts[0], 10, 64)
-	refID, idErr := strconv.ParseUint(parts[1], 10, 64)
-	kind := parts[2]
-	if err != nil || idErr != nil || secs <= 0 || refID <= 0 || (kind != "topic" && kind != "post") {
+	nanos, err := strconv.ParseInt(parts[0], 10, 64)
+	kindRank, rankErr := strconv.Atoi(parts[1])
+	refID, idErr := strconv.ParseUint(parts[2], 10, 64)
+	if err != nil || rankErr != nil || idErr != nil || nanos <= 0 || refID <= 0 ||
+		(kindRank != bookmarkKindRankTopic && kindRank != bookmarkKindRankPost) {
 		return bookmarkCursor{}
 	}
-	return bookmarkCursor{before: time.Unix(secs, 0), beforeID: refID, kind: kind}
+	return bookmarkCursor{before: time.Unix(0, nanos), kindRank: kindRank, beforeID: refID}
 }
 
-func formatBookmarkCursor(t time.Time, kind string, refID uint64) string {
-	return fmt.Sprintf("%d|%d|%s", t.Unix(), refID, kind)
+func formatBookmarkCursor(t time.Time, kindRank int, refID uint64) string {
+	return fmt.Sprintf("%d|%d|%d", t.UnixNano(), kindRank, refID)
 }
 
 func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {

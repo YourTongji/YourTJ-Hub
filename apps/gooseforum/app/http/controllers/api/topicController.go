@@ -533,7 +533,8 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 		return component.SuccessResponse(true)
 	}
 	if topicUserAction.SetLiked(req.UserId, topicEntity.Id, targetLiked) {
-		if req.Params.Action == 1 {
+		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
+		if targetLiked {
 			topics.IncrementLike(topicEntity)
 			userStatistics.LikeTopic(topicEntity.UserId)
 			userStatistics.GivenLike(req.UserId)
@@ -641,7 +642,8 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	}
 
 	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
-		if req.Params.Action == 1 {
+		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
+		if targetLiked {
 			userStatistics.GivenLike(req.UserId)
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
 			userStatistics.LikeTopic(postEntity.UserId)
