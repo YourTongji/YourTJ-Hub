@@ -83,5 +83,7 @@
   "meta.userDesc": "查看 {username} 在 {site} 的主题、动态和社区关系。",
   "meta.categoryDesc": "浏览 {category} 分类下的主题。",
   "terms": "服务条款",
-  "meta.termsDesc": "阅读 {site} 的服务条款。"
+  "meta.termsDesc": "阅读 {site} 的服务条款。",
+  "common.rateLimited": "操作过于频繁，请 {retryAfterSeconds} 秒后再试。",
+  "common.captchaRequired": "请先完成验证码后再提交。"
 }

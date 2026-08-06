@@ -95,14 +95,14 @@ func siteInfoRoute(ginApp *gin.Engine) {
 func apiRoute(ginApp *gin.Engine) {
 	baseApi := ginApp.Group("api")
 
-	baseApi.POST("login", api.Login)
+	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
-	baseApi.POST("register", api.Register)
+	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
 	baseApi.POST("logout", api.Logout)
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
-	baseApi.POST("forgot-password", UpButterReq(api.ForgotPassword))
+	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
@@ -115,7 +115,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
-	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, api.UploadAvatar)
+	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, UpButterReq(api.ChangePassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
@@ -129,16 +129,16 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
-	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, UpButterReq(api.WriteTopic))
+	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, UpButterReq(api.UpdateTopicStatus))
-	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, UpButterReq(api.CreatePost))
+	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))
-	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, UpButterReq(api.LikeTopic))
-	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, UpButterReq(api.BookmarkTopic))
-	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, UpButterReq(api.WatchTopic))
-	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, UpButterReq(api.FollowUser))
-	forumLoginApi.POST("report", middleware.CheckWritableAccount, UpButterReq(forum.CreateReport))
+	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikeTopic))
+	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkTopic))
+	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
+	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.FollowUser))
+	forumLoginApi.POST("report", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(forum.CreateReport))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
@@ -146,7 +146,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
-	chatApi.POST("send", middleware.CheckWritableAccount, UpButterReq(api.SendMessage))
+	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
 
@@ -216,6 +216,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("test-storage-connection", UpButterReq(api.TestStorageConnection)).
 		POST("storage-migrate-task", UpButterReq(api.CreateStorageMigrateTask)).
 		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
+		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
+		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).
@@ -236,6 +238,6 @@ func apiRoute(ginApp *gin.Engine) {
 
 func fileServer(ginApp *gin.Engine) {
 	r := ginApp.Group("file")
-	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.SaveImgByGinContext)
+	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
 	r.GET("/img/*filename", api.GetFileByFileName)
 }

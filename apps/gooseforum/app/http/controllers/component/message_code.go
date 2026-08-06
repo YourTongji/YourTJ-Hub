@@ -32,6 +32,8 @@ const (
 	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败，params.error 可带原始错误。
 	MessageOperationSuccess     MessageCode = "common.operation.success"     // 通用操作成功。
 	MessageOperationFailed      MessageCode = "common.operation.failed"      // 通用操作失败。
+	MessageRateLimited          MessageCode = "common.rateLimited"           // 操作过于频繁，params.action/retryAfterSeconds。
+	MessageCaptchaRequired      MessageCode = "common.captchaRequired"       // 需要完成验证码才能继续，params.action。
 	MessagePageNotFound         MessageCode = "page.notFound"                // 页面不存在。
 	MessageRouteNotFound        MessageCode = "route.notFound"               // 路由未定义。
 	MessageUserFetchFailed      MessageCode = "user.fetchFailed"             // 当前用户信息读取失败。

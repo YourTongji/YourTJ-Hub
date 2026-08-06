@@ -7,6 +7,7 @@ import { renderMarkdownPreview } from '@/runtime/markdown'
 import { createMarkdownTable, fencedCodeBlock, formatMarkdownLines, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock, type MarkdownBlockType } from '@/runtime/markdown-editing'
 import { hasUnsupportedVisualMarkdown, markdownFromClipboard } from '@/runtime/rich-paste'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
+import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VisualMarkdownEditor from '@/site/components/VisualMarkdownEditor.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
@@ -18,6 +19,17 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
+const {
+  captchaRequired: captchaRequired,
+  captchaId: captchaId,
+  captchaImg: captchaImg,
+  captchaCode: captchaCode,
+  captchaLoading: captchaLoading,
+  loadCaptcha: loadCaptcha,
+  clearCaptcha: clearCaptcha,
+  challengeFromError: challengeFromError,
+} = useCaptchaChallenge()
+
 const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
@@ -30,6 +42,7 @@ const dragOver = ref(false)
 const uploadTotal = ref(0)
 const uploadDone = ref(0)
 const message = ref('')
+const website = ref('')
 const error = ref('')
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -468,14 +481,22 @@ async function save() {
       content: content.value.trim(),
       categoryId: categoryIds.value,
       topicStatus: 1,
+      website: website.value,
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value,
     })
+    clearCaptcha()
     currentTopicId.value = id
     syncSavedSnapshot()
     forceNextNavigation()
     message.value = page.props.isEditing ? t('publish.topicUpdated') : t('publish.topicPublished')
     window.location.href = `/p/post/${id}`
   } catch (err) {
-    error.value = err instanceof Error ? err.message : t('publish.saveFailed')
+    if (challengeFromError(err)) {
+      error.value = t('auth.captcha.invalid')
+    } else {
+      error.value = err instanceof Error ? err.message : t('publish.saveFailed')
+    }
   } finally {
     submitting.value = false
   }
@@ -497,14 +518,20 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       content: content.value.trim(),
       categoryId: categoryIds.value,
       topicStatus: 0,
+      website: website.value,
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value,
     })
+    clearCaptcha()
     currentTopicId.value = id
     syncSavedSnapshot()
     forceNextNavigation()
     if (redirect) window.location.href = nextUrl || '/drafts'
     return true
   } catch (err) {
-    error.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+    if (!challengeFromError(err)) {
+      error.value = err instanceof Error ? err.message : t('publish.draftSaveFailed')
+    }
     return false
   } finally {
     submitting.value = false
@@ -690,6 +717,26 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
             <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
             <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
+
+            <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+              <button
+                type="button"
+                class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"
+                :disabled="captchaLoading"
+                @click="loadCaptcha()"
+              >
+                <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
+              </button>
+              <input
+                v-model="captchaCode"
+                class="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
+                :placeholder="t('auth.captcha')"
+                maxlength="8"
+              />
+              <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
+            </div>
+            <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
 
             <div class="flex items-center justify-end gap-2 border-t border-line pt-4">
               <a href="/" class="gf-button gf-button-lg gf-button-muted">{{ t('common.cancel') }}</a>

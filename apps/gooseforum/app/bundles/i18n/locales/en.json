@@ -83,5 +83,7 @@
   "meta.userDesc": "See {username}’s topics, activity, and community connections on {site}.",
   "meta.categoryDesc": "Browse topics in the {category} category.",
   "terms": "Terms of Service",
-  "meta.termsDesc": "Read the Terms of Service of {site}."
+  "meta.termsDesc": "Read the Terms of Service of {site}.",
+  "common.rateLimited": "Too many attempts. Please try again in {retryAfterSeconds} seconds.",
+  "common.captchaRequired": "Please complete the captcha before submitting."
 }

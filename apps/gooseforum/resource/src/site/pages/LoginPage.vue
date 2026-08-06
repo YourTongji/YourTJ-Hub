@@ -41,11 +41,13 @@ const registerForm = reactive({
   confirmPassword: '',
   captcha: '',
   agree: false,
+  website: '',
 })
 
 const forgotForm = reactive({
   email: '',
   captcha: '',
+  website: '',
 })
 
 const title = computed(() => {
@@ -121,7 +123,7 @@ async function handleRegister() {
   loading.register = true
   error.value = ''
   try {
-    const message = await register(registerForm.username, registerForm.email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value))
+    const message = await register(registerForm.username, registerForm.email, registerForm.password, captchaId.value, registerForm.captcha, String(locale.value), registerForm.website)
     queueFlashMessage(message || t('auth.validation.registerSuccess'), 'success')
     window.location.href = homeUrl.value
   } catch (err) {
@@ -141,7 +143,7 @@ async function handleForgot() {
   loading.forgot = true
   error.value = ''
   try {
-    notice.value = await forgotPassword(forgotForm.email, captchaId.value, forgotForm.captcha)
+    notice.value = await forgotPassword(forgotForm.email, captchaId.value, forgotForm.captcha, forgotForm.website)
     forgotForm.captcha = ''
     refreshCaptcha()
   } catch (err) {
@@ -281,6 +283,7 @@ function errorMessage(err: unknown, fallback: string) {
                 <a href="/terms" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.termsLink') }}</a>
               </span>
             </label>
+            <input v-model="registerForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
             <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register">
               <LoaderCircle v-if="loading.register" class="h-4 w-4 animate-spin" />
               {{ t('auth.createAccount') }}
@@ -301,6 +304,7 @@ function errorMessage(err: unknown, fallback: string) {
                 <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
               </button>
             </div>
+            <input v-model="forgotForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
             <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.forgot">
               <LoaderCircle v-if="loading.forgot" class="h-4 w-4 animate-spin" />
               {{ t('auth.sendResetEmail') }}

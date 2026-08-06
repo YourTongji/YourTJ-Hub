@@ -7,6 +7,7 @@ const settingsPages = {
   '/admin/settings/mail': 'mail',
   '/admin/settings/security': 'security',
   '/admin/settings/posting': 'posting',
+  '/admin/settings/rate-limit': 'rate-limit',
   '/admin/settings/announcement': 'announcement',
   '/admin/settings/http-notify': 'http-notify',
   '/admin/settings/storage': 'storage',

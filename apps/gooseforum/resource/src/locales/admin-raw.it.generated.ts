@@ -650,4 +650,16 @@ export default {
   "k00id": "Importazione completata",
   "k00ie": "Attività di migrazione creata",
   "k00if": "Attività di migrazione recenti"
-} as const
+  "k00ig": "Protezione abusi",
+  "k00ih": "Impossibile caricare le impostazioni di limitazione",
+  "k00ii": "Impossibile salvare le impostazioni di limitazione",
+  "k00ij": "Controlla la frequenza delle operazioni di scrittura e la protezione dal traffico bot. Tutti i valori hanno effetto subito dopo il salvataggio.",
+  "k00ik": "Abilita limitazione",
+  "k00il": "Salta amministratori",
+  "k00im": "Richiedi captcha ai nuovi utenti dopo post consecutivi",
+  "k00in": "Finestra nuovi utenti (giorni)",
+  "k00io": "Tempo minimo invio captcha (s)",
+  "k00ip": "Azione",
+  "k00iq": "Finestra (s)",
+  "k00ir": "Limite per IP",
+  "k00is": "Limite per utente",} as const

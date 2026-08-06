@@ -83,5 +83,7 @@
   "meta.userDesc": "{site} での {username} のトピック・アクティビティ・コミュニティのつながりを見る。",
   "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。",
   "terms": "利用規約",
-  "meta.termsDesc": "{site} の利用規約を読む。"
+  "meta.termsDesc": "{site} の利用規約を読む。",
+  "common.rateLimited": "操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。",
+  "common.captchaRequired": "送信前にキャプチャを完了してください。"
 }

@@ -650,4 +650,16 @@ export default {
   "k00id": "Import finished",
   "k00ie": "Migration task created",
   "k00if": "Recent migration tasks"
-} as const
+  "k00ig": "Abuse protection",
+  "k00ih": "Failed to load rate limit settings",
+  "k00ii": "Failed to save rate limit settings",
+  "k00ij": "Control write-operation frequency and bot traffic protection. All values take effect immediately after saving, no restart needed.",
+  "k00ik": "Enable rate limiting",
+  "k00il": "Skip admins",
+  "k00im": "Require captcha for new users after consecutive posts",
+  "k00in": "New-user window (days)",
+  "k00io": "Min captcha submit time (s)",
+  "k00ip": "Action",
+  "k00iq": "Window (s)",
+  "k00ir": "Per-IP limit",
+  "k00is": "Per-user limit",} as const

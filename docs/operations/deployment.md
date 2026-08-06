@@ -17,6 +17,10 @@
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
+- **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
+  (`engine.SetTrustedProxies`). If an additional proxy sits in front of the binary, add it to
+  `server.trusted_proxies` in `config.toml` so rate-limit IP attribution cannot be bypassed via
+  a forged `X-Forwarded-For` header.
 - **Two instances on one VM** (Ubuntu 24.04, ssh alias `yourtj`), managed as one compose project:
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`

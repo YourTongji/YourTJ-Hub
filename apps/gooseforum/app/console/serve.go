@@ -13,6 +13,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
 	"github.com/leancodebox/GooseForum/app/bundles/setting"
 	"github.com/leancodebox/GooseForum/app/bundles/signalwatch"
@@ -85,6 +86,7 @@ func ginServe() {
 	// 初始化OAuth配置
 	oauthservice.InitOAuth()
 	captchaOpt.StartCleanup()
+	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
@@ -143,5 +145,13 @@ func newGinEngine() *gin.Engine {
 		gin.DisableConsoleColor()
 		gin.SetMode(gin.ReleaseMode)
 	}
-	return gin.New()
+	engine := gin.New()
+	// 只信任部署层反向代理（1Panel/openresty → 127.0.0.1），
+	// 防止客户端伪造 X-Forwarded-For 绕过按 IP 的限流。
+	trustedProxies := preferences.GetStringSlice("server.trusted_proxies")
+	if len(trustedProxies) == 0 {
+		trustedProxies = []string{"127.0.0.1", "::1"}
+	}
+	_ = engine.SetTrustedProxies(trustedProxies)
+	return engine
 }

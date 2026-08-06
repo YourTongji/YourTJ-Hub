@@ -23,6 +23,7 @@ type pageConfigDefaults struct {
 	Sponsors     pageConfig.SponsorsConfig
 	Storage      pageConfig.StorageSettings
 	Terms        pageConfig.TermsOfServiceConfig
+	RateLimit    pageConfig.RateLimitConfig
 }
 
 var (
@@ -70,6 +71,10 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("storage.json", &pageConfigDefaultsValue.Storage)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
 	})
 	return pageConfigDefaultsValue, errPageConfigDefaults
 }
@@ -130,6 +135,12 @@ func GetDefaultStorageSettingsConfig() pageConfig.StorageSettings {
 
 func GetDefaultTermsOfServiceConfig() pageConfig.TermsOfServiceConfig {
 	return mustPageConfigDefaults().Terms
+}
+
+func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
+	config := mustPageConfigDefaults().RateLimit
+	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
+	return config
 }
 
 func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {

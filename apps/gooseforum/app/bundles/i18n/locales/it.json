@@ -83,5 +83,7 @@
   "meta.userDesc": "Scopri argomenti, attività e connessioni di {username} su {site}.",
   "meta.categoryDesc": "Sfoglia gli argomenti nella categoria {category}.",
   "terms": "Termini di servizio",
-  "meta.termsDesc": "Leggi i Termini di servizio di {site}."
+  "meta.termsDesc": "Leggi i Termini di servizio di {site}.",
+  "common.rateLimited": "Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.",
+  "common.captchaRequired": "Completa il captcha prima di inviare."
 }

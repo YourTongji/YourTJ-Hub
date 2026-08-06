@@ -30,6 +30,7 @@ import {
   getHttpNotifySettings,
   getMailSettings,
   getPostingSettings,
+  getRateLimitSettings,
   getSecuritySettings,
   getSiteSettings,
   getStorageMigrateTasks,
@@ -39,6 +40,7 @@ import {
   saveHttpNotifySettings,
   saveMailSettings,
   savePostingSettings,
+  saveRateLimitSettings,
   saveSecuritySettings,
   saveSiteSettings,
   saveStorageSettings,
@@ -58,13 +60,14 @@ import type {
   MailSettings,
   ManageHomeProps,
   PostingSettings,
+  RateLimitSettings,
   SecuritySettings,
   SiteSettings,
   StorageSettings,
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -117,6 +120,16 @@ const securityForm = reactive<SecuritySettings>({
   bannedUsernames: [],
   sensitiveWords: [],
   sensitiveAction: 'block',
+  captchaRequired: true,
+})
+
+const rateLimitForm = reactive<RateLimitSettings>({
+  enabled: true,
+  skipAdmin: true,
+  actions: [],
+  newUserCaptchaAfterPosts: 3,
+  newUserCaptchaDays: 7,
+  minSubmitSeconds: 1,
 })
 
 const postingForm = reactive<PostingSettings>({
@@ -187,6 +200,7 @@ const pageMeta = computed(() => {
     mail: { title: adminText('k0003'), description: adminText('k0004') },
     security: { title: adminText('k0005'), description: adminText('k0006') },
     posting: { title: adminText('k0007'), description: adminText('k0008') },
+    'rate-limit': { title: adminText('k00fk'), description: adminText('k00fn') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -261,7 +275,26 @@ function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
       ? settings.sensitiveWords.map(item => String(item).trim()).filter(Boolean)
       : [],
     sensitiveAction: settings.sensitiveAction === 'review' ? 'review' : 'block',
+    captchaRequired: toBool(settings.captchaRequired, true),
   } satisfies SecuritySettings
+}
+
+function normalizeRateLimit(settings: Partial<RateLimitSettings> = {}) {
+  return {
+    enabled: toBool(settings.enabled, true),
+    skipAdmin: toBool(settings.skipAdmin, true),
+    actions: Array.isArray(settings.actions)
+      ? settings.actions.map(rule => ({
+        action: rule.action ?? '',
+        windowSeconds: Math.max(Number(rule.windowSeconds ?? 60), 1),
+        limitPerIp: Math.max(Number(rule.limitPerIp ?? 0), 0),
+        limitPerUser: Math.max(Number(rule.limitPerUser ?? 0), 0),
+      }))
+      : [],
+    newUserCaptchaAfterPosts: Math.max(Number(settings.newUserCaptchaAfterPosts ?? 0), 0),
+    newUserCaptchaDays: Math.max(Number(settings.newUserCaptchaDays ?? 7), 0),
+    minSubmitSeconds: Math.max(Number(settings.minSubmitSeconds ?? 1), 0),
+  } satisfies RateLimitSettings
 }
 
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
@@ -402,6 +435,7 @@ async function load() {
     else if (props.kind === 'mail') Object.assign(mailForm, normalizeMail(await getMailSettings()))
     else if (props.kind === 'security') Object.assign(securityForm, normalizeSecurity(await getSecuritySettings()))
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
+    else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
@@ -426,6 +460,7 @@ async function save() {
     else if (props.kind === 'mail') await saveMailSettings(normalizeMail(mailForm))
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
+    else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -701,6 +736,10 @@ onMounted(load)
           <div><div class="flex items-center gap-2 text-base font-medium"><MailCheck class="size-4" />{{ adminText('k0090') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0091') }}</p></div>
           <Switch v-model="securityForm.enableEmailVerification" />
         </div>
+        <div class="flex items-center justify-between">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00fo') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fq') }}</p></div>
+          <Switch v-model="securityForm.captchaRequired" />
+        </div>
         <div class="space-y-4">
           <div><div class="text-base font-medium">{{ adminText('k0092') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k0093') }}</p></div>
           <div class="flex gap-2">
@@ -788,6 +827,33 @@ onMounted(load)
             </button>
           </div>
         </div>
+      </form>
+
+      <form v-else-if="kind === 'rate-limit'" class="max-w-4xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00fo') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fn') }}</p></div>
+          <Switch v-model="rateLimitForm.enabled" />
+        </div>
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="text-base font-medium">{{ adminText('k00fp') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fn') }}</p></div>
+          <Switch v-model="rateLimitForm.skipAdmin" :disabled="!rateLimitForm.enabled" />
+        </div>
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k00ft') }}</div>
+          <div class="grid gap-3">
+            <div v-for="(rule, index) in rateLimitForm.actions" :key="rule.action" class="grid grid-cols-[minmax(120px,1fr)_110px_110px_110px] items-center gap-3 rounded-lg border p-3">
+              <span class="truncate font-mono text-sm">{{ rule.action }}</span>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fu') }}<Input v-model.number="rateLimitForm.actions[index].windowSeconds" :disabled="!rateLimitForm.enabled" type="number" min="1" /></label>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fv') }}<Input v-model.number="rateLimitForm.actions[index].limitPerIp" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fw') }}<Input v-model.number="rateLimitForm.actions[index].limitPerUser" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+            </div>
+          </div>
+        </section>
+        <section class="grid gap-6 sm:grid-cols-3">
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fq') }}<Input v-model.number="rateLimitForm.newUserCaptchaAfterPosts" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fr') }}<Input v-model.number="rateLimitForm.newUserCaptchaDays" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fs') }}<Input v-model.number="rateLimitForm.minSubmitSeconds" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+        </section>
       </form>
 
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">

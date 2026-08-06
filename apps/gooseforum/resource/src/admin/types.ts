@@ -243,6 +243,7 @@ export interface SecuritySettings {
   bannedUsernames: string[]
   sensitiveWords: string[]
   sensitiveAction: 'block' | 'review'
+  captchaRequired: boolean
 }
 
 export interface StorageSettings {
@@ -292,6 +293,22 @@ export interface ImportReport {
   failed: number
   errors: Array<{ line: number; table: string; reason: string }>
   importedTables: string[]
+}
+
+export interface RateLimitRule {
+  action: string
+  windowSeconds: number
+  limitPerIp: number
+  limitPerUser: number
+}
+
+export interface RateLimitSettings {
+  enabled: boolean
+  skipAdmin: boolean
+  actions: RateLimitRule[]
+  newUserCaptchaAfterPosts: number
+  newUserCaptchaDays: number
+  minSubmitSeconds: number
 }
 
 export interface PostingSettings {
