@@ -46,3 +46,12 @@ func GetUserTimeline(userId uint64, lastId uint64, limit int) (entities []*Entit
 		Find(&entities).Error
 	return
 }
+
+// HasRecord 检查是否存在指定目标的行为记录（用于审核批准时判断是新建还是编辑）。
+func HasRecord(action ActionType, subjectType string, subjectId uint64) bool {
+	var count int64
+	builder().
+		Where("action = ? AND subject_type = ? AND subject_id = ?", int(action), subjectType, subjectId).
+		Count(&count)
+	return count > 0
+}

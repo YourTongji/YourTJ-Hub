@@ -184,7 +184,9 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		hotdataserve.ClearTopicListCache()
-		if topic.Status == 1 {
+		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
+		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
+		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
@@ -220,7 +222,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-		if topic.Status == 1 {
+		if topic.Status == 1 && !pendingReview {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -228,7 +230,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		hotdataserve.ClearTopicListCache()
-		if topic.Status == 1 {
+		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicunseenservice.MarkVisited(req.UserId, topic.Id, firstPost.Id, time.Now()); err != nil {
@@ -363,7 +365,9 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 		slog.Warn("mark created post visited failed", "userId", req.UserId, "topicId", topicEntity.Id, "postId", postEntity.Id, "error", err)
 	}
 	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
-	userStatistics.WriteComment(req.UserId)
+	if !pendingReview {
+		userStatistics.WriteComment(req.UserId)
+	}
 	userservice.InvalidateUserPublicProfileCache(req.UserId)
 	hotdataserve.ClearTopicListCache()
 
@@ -373,16 +377,19 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 		parentPostAuthorID = parentPost.UserId
 	}
 
-	// 发布统一的评论创建事件
-	eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
-		TopicId:             topicEntity.Id,
-		PostId:              postEntity.Id,
-		UserId:              req.UserId,
-		Content:             req.Params.Content,
-		TopicAuthorId:       topicEntity.UserId,
-		ReplyToPostId:       req.Params.ReplyToPostId,
-		ReplyToPostAuthorId: parentPostAuthorID,
-	})
+	// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
+	// 批准后由 ReviewAction 补发对应事件，避免敏感内容在审核前外泄。
+	if !pendingReview {
+		eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
+			TopicId:             topicEntity.Id,
+			PostId:              postEntity.Id,
+			UserId:              req.UserId,
+			Content:             req.Params.Content,
+			TopicAuthorId:       topicEntity.UserId,
+			ReplyToPostId:       req.Params.ReplyToPostId,
+			ReplyToPostAuthorId: parentPostAuthorID,
+		})
+	}
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
