@@ -11,7 +11,7 @@ on:
   pull_request:
 
 jobs:
-  build:
+  ci-backend:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
