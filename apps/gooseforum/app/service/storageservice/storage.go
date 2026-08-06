@@ -58,6 +58,11 @@ func IsLocalProvider() bool {
 	return cfg.Provider != ProviderS3
 }
 
+// GetStorageSettings returns the active storage settings config.
+func GetStorageSettings() pageConfig.StorageSettings {
+	return hotdataserve.GetStorageSettingsConfigCache()
+}
+
 // Current returns the active provider, rebuilt whenever storage settings change.
 func Current() Provider {
 	cfg := hotdataserve.GetStorageSettingsConfigCache()

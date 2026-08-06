@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 
 	"log/slog"
@@ -60,6 +61,12 @@ func Register(c *gin.Context) {
 
 	if !component.ValidateUsername(r.Username) {
 		c.JSON(200, component.FailDataCode(component.MessageAuthUsernameInvalid, nil))
+		return
+	}
+
+	// 保留/禁用用户名检查
+	if _, err := moderationservice.CheckUsernameAllowed(r.Username); err != nil {
+		c.JSON(200, component.FailDataError(err))
 		return
 	}
 

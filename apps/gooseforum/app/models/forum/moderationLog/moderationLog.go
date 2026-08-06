@@ -14,15 +14,17 @@ const (
 )
 
 const (
-	ActionTopicBlocked   = "topicBlocked"
-	ActionTopicUnblocked = "topicUnblocked"
-	ActionPostBlocked    = "postBlocked"
-	ActionPostUnblocked  = "postUnblocked"
-	ActionReportResolved = "reportResolved"
-	ActionReportRejected = "reportRejected"
-	ActionUserFrozen     = "userFrozen"
-	ActionExport         = "dataExported"
-	ActionImport         = "dataImported"
+	ActionTopicBlocked     = "topicBlocked"
+	ActionTopicUnblocked   = "topicUnblocked"
+	ActionPostBlocked      = "postBlocked"
+	ActionPostUnblocked    = "postUnblocked"
+	ActionReportResolved   = "reportResolved"
+	ActionReportRejected   = "reportRejected"
+	ActionUserFrozen       = "userFrozen"
+	ActionExport           = "dataExported"
+	ActionImport           = "dataImported"
+	ActionSensitiveBlocked = "contentSensitiveBlocked"
+	ActionSensitiveReview  = "contentSensitiveReview"
 )
 
 const (
