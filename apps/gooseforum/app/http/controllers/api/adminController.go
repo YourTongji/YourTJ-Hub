@@ -1321,6 +1321,22 @@ func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) co
 	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, hotdataserve.ClearPostingSettingsConfigCache)
 }
 
+// GetRateLimitSettings 获取滥用防护（限流）设置
+func GetRateLimitSettings(req component.BetterRequest[component.Null]) component.Response {
+	defaultSettings := defaultconfig.GetDefaultRateLimitConfig()
+	res := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultSettings)
+	return component.SuccessResponse(res)
+}
+
+type SaveRateLimitSettingsReq struct {
+	Settings pageConfig.RateLimitConfig `json:"settings" validate:"required"`
+}
+
+// SaveRateLimitSettings 保存滥用防护（限流）设置
+func SaveRateLimitSettings(req component.BetterRequest[SaveRateLimitSettingsReq]) component.Response {
+	return savePageConfig(pageConfig.RateLimitSettings, req.Params.Settings, hotdataserve.ClearRateLimitConfigCache)
+}
+
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {
 	config := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig())
 	return component.SuccessResponse(config)

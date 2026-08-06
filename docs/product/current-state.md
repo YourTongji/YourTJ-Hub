@@ -39,6 +39,7 @@ conclusions, update this file in the same PR.
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
 | Branding | `Partial` | GooseForum branding not yet replaced with yourtj (CLI name, UI copy, config keys) |
 | Structural governance | `Partial` | Upstream giant controllers (payload.go 72KB etc.) not split; architecture decisions in note |
+| Abuse protection | `Current` | Per-action rate limiting (memory fixed-window, IP+user) on register/login/forgot-password/topic.write/post.create/message.send/upload/interact; 429 + Retry-After; captcha switch + new-user post threshold + honeypot + submit-timing detection; all limits hot-tunable in admin settings |
 
 ## Correctness first
 

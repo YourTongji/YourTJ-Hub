@@ -505,13 +505,24 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 // ForgotPasswordReq is the password reset email request.
 type ForgotPasswordReq struct {
 	Email       string `json:"email" validate:"required,email"`
-	CaptchaId   string `json:"captchaId" validate:"required"`
-	CaptchaCode string `json:"captchaCode" validate:"required"`
+	CaptchaId   string `json:"captchaId,omitempty"`
+	CaptchaCode string `json:"captchaCode,omitempty"`
+	Website     string `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 }
 
 // ForgotPassword 忘记密码 - 发送重置邮件
 func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Response {
-	if !captchaOpt.VerifyCaptcha(req.Params.CaptchaId, req.Params.CaptchaCode) {
+	// 蜜罐字段：填了即机器，静默拒绝（返回成功但不发邮件）。
+	if strings.TrimSpace(req.Params.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "forgot-password", "ip", "unknown", "userId", uint64(0))
+		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+	}
+
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, securityConfig.CaptchaRequired, minSubmitSecondsFor(), "forgot-password"); !ok {
+		if needCaptcha {
+			return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "forgot-password"})
+		}
 		return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 	}
 

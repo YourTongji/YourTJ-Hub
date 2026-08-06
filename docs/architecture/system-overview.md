@@ -52,7 +52,7 @@
 | `app/service` | Business logic (users/topics/mail/oauth/theme ...) |
 | `app/http/controllers/api` | JSON API (auth/topic/user/admin/chat/notification/file ...) |
 | `app/http/controllers/forum` | Page rendering (GoHTML three-mode: payload + render + SEO) |
-| `app/http/middleware` | JWT auth, access log, maintenance mode ... |
+| `app/http/middleware` | JWT auth, access log, maintenance mode, rate limiting (per-action, IP+user, 429 + Retry-After) ... |
 | `resource/` | Vue 3 frontend (site/admin dual entry) + templates (gohtml) + static (badges/pic) |
 
 **Boundary rules**
