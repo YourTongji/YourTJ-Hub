@@ -79,6 +79,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
+	viewRouteApp.GET("/terms", forum.Terms)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -210,6 +211,11 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-security-settings", UpButterReq(api.SaveSecuritySettings)).
 		GET("posting-settings", UpButterReq(api.GetPostingSettings)).
 		POST("save-posting-settings", UpButterReq(api.SavePostingSettings)).
+		GET("storage-settings", UpButterReq(api.GetStorageSettings)).
+		POST("save-storage-settings", UpButterReq(api.SaveStorageSettings)).
+		POST("test-storage-connection", UpButterReq(api.TestStorageConnection)).
+		POST("storage-migrate-task", UpButterReq(api.CreateStorageMigrateTask)).
+		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).

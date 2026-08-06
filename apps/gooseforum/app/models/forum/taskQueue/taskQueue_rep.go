@@ -4,6 +4,7 @@ import (
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"gorm.io/gorm"
 )
 
 func Create(entity *Entity) error {
@@ -60,4 +61,23 @@ func UpdateStatus(id uint64, status uint8, err error) error {
 // IncrementRetryCount 增加重试次数
 func IncrementRetryCount(id uint64) error {
 	return builder().Exec("UPDATE task_queue SET retry_count = retry_count + 1 where id = ?", id).Error
+}
+
+// QueryByTypeDesc returns tasks of the given type prefix, newest first.
+func QueryByTypeDesc(typePrefix string, limit int) *gorm.DB {
+	return builder().
+		Where("type LIKE ?", typePrefix+"%").
+		Order("id desc").
+		Limit(limit)
+}
+
+// UpdateTaskJson updates a task's payload without touching its status.
+func UpdateTaskJson(id uint64, taskJSON string) error {
+	return builder().Where("id = ?", id).Update("task_json", taskJSON).Error
+}
+
+// GetByID returns a single task by id.
+func GetByID(id any) (entity Entity, err error) {
+	err = builder().Where("id = ?", id).First(&entity).Error
+	return
 }

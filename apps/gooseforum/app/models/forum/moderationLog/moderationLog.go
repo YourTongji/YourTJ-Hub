@@ -20,6 +20,9 @@ const (
 	ActionPostUnblocked  = "postUnblocked"
 	ActionReportResolved = "reportResolved"
 	ActionReportRejected = "reportRejected"
+	ActionUserFrozen     = "userFrozen"
+	ActionExport         = "dataExported"
+	ActionImport         = "dataImported"
 )
 
 const (

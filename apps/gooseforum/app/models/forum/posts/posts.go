@@ -8,6 +8,13 @@ import (
 
 const tableName = "posts"
 
+// 管理处理状态
+const (
+	ProcessStatusNormal  int8 = 0 // 正常
+	ProcessStatusBlocked int8 = 1 // 封禁
+	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
+)
+
 type Entity struct {
 	Id              uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_id,priority:2;" json:"id"`
 	TopicId         uint64         `gorm:"column:topic_id;type:bigint unsigned;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;" json:"topicId"`

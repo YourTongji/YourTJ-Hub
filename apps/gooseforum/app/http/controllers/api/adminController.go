@@ -1,11 +1,17 @@
 package api
 
 import (
+	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
 	"github.com/leancodebox/GooseForum/app/datastruct"
@@ -21,6 +27,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/role"
 	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
+	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
@@ -28,11 +35,14 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/leancodebox/GooseForum/app/service/storageservice"
 	"github.com/leancodebox/GooseForum/app/service/themeservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/samber/lo"
@@ -1332,4 +1342,171 @@ type SaveHttpNotifySettingsReq struct {
 
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	return savePageConfig(pageConfig.HttpNotify, req.Params.Settings, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+// GetStorageSettings 获取存储设置
+func GetStorageSettings(req component.BetterRequest[component.Null]) component.Response {
+	cfg := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig())
+	return component.SuccessResponse(cfg)
+}
+
+type SaveStorageSettingsReq struct {
+	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+}
+
+// SaveStorageSettings 保存存储设置
+func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) component.Response {
+	cfg := req.Params.Settings
+	if cfg.Provider == "" {
+		cfg.Provider = storageservice.ProviderLocal
+	}
+	if cfg.Provider != storageservice.ProviderLocal && cfg.Provider != storageservice.ProviderS3 {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	if cfg.Provider == storageservice.ProviderS3 && (cfg.Endpoint == "" || cfg.Bucket == "") {
+		return component.FailResponseCode(component.MessageAdminStorageSaveFailed,
+			component.MessageParams{"error": "S3 模式需要填写 Endpoint 与 Bucket"})
+	}
+	return savePageConfig(pageConfig.StorageSettingsPage, cfg, hotdataserve.ClearStorageSettingsConfigCache)
+}
+
+type TestStorageConnectionReq struct {
+	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+}
+
+type TestStorageConnectionResp struct {
+	Success     bool                    `json:"success"`
+	MessageCode component.MessageCode   `json:"messageCode"`
+	Params      component.MessageParams `json:"params,omitempty"`
+}
+
+// TestStorageConnection 测试存储连接（不落库）
+func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]) component.Response {
+	cfg := req.Params.Settings
+	if cfg.Provider == "" {
+		cfg.Provider = storageservice.ProviderLocal
+	}
+	if cfg.Provider == storageservice.ProviderLocal {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     true,
+			MessageCode: component.MessageAdminStorageTestSuccess,
+		})
+	}
+	if err := storageservice.TestConnection(context.Background(), cfg); err != nil {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminStorageTestFailed,
+			Params:      component.MessageParams{"error": err.Error()},
+		})
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminStorageTestSuccess,
+	})
+}
+
+type CreateStorageMigrateReq struct {
+	ClearAfterMigrate bool `json:"clearAfterMigrate"`
+}
+
+// CreateStorageMigrateTask 创建文件迁移到对象存储的后台任务
+func CreateStorageMigrateTask(req component.BetterRequest[CreateStorageMigrateReq]) component.Response {
+	taskID, err := filemigrateservice.CreateMigrateTask(req.Params.ClearAfterMigrate)
+	if err != nil {
+		if errors.Is(err, errStorageProviderInvalid) {
+			return component.FailResponseCode(component.MessageAdminStorageMigrateInvalidProvider, nil)
+		}
+		return component.FailResponseCode(component.MessageAdminStorageMigrateFailed,
+			component.MessageParams{"error": err.Error()})
+	}
+	return successDataMap("taskId", taskID)
+}
+
+// GetStorageMigrateTasks 获取文件迁移任务列表
+func GetStorageMigrateTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := filemigrateservice.ListMigrateTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+// errStorageProviderInvalid marks "provider is not s3" without leaking details.
+var errStorageProviderInvalid = errors.New("storage provider is not s3")
+
+// 数据管理：导出
+type CreateExportTaskReq struct {
+	Tables []string `json:"tables" validate:"required"`
+	Format string   `json:"format" validate:"required,oneof=json csv"`
+}
+
+// CreateExportTask 创建数据导出后台任务
+func CreateExportTask(req component.BetterRequest[CreateExportTaskReq]) component.Response {
+	taskID, err := dataservice.ExportData(req.Params.Tables, req.Params.Format)
+	if err != nil {
+		return component.FailResponseCode(component.MessageAdminDataExportFailed,
+			component.MessageParams{"error": err.Error()})
+	}
+	return successDataMap("taskId", taskID)
+}
+
+// ListExportTasks 获取导出任务列表
+func ListExportTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := dataservice.ListExportTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+// DownloadExportTask 下载导出文件
+func DownloadExportTask(c *gin.Context) {
+	taskID := c.Param("taskId")
+	task, err := taskQueue.GetByID(taskID)
+	if err != nil || task.Id == 0 {
+		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessageAdminDataTaskNotFound, nil))
+		return
+	}
+	if task.Status != taskQueue.StatusSuccess {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataTaskNotReady, nil))
+		return
+	}
+	path, err := dataservice.ExportFilePath(&task)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataDownloadDenied, nil))
+		return
+	}
+	fileName := filepath.Base(path)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	c.File(path)
+}
+
+// ImportData 导入 JSON 数据（multipart file 字段）
+func ImportData(c *gin.Context) {
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "未获取到上传文件"}))
+		return
+	}
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	defer func() { _ = src.Close() }()
+	data, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	report, err := dataservice.ImportData(context.Background(), data, "json")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	c.JSON(http.StatusOK, component.SuccessData(report))
 }

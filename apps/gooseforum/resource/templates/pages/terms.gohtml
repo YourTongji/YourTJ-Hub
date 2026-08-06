@@ -1,0 +1,20 @@
+{{template "layout/app.gohtml" .}}
+
+{{define "noscript"}}
+{{template "page" .}}
+{{end}}
+
+{{define "page"}}
+<main>
+    <header>
+        <h1>{{ t .Lang "terms" }}</h1>
+    </header>
+    {{if not .Payload.Props.Enabled}}
+    <p>{{ t .Lang "termsUnavailable" }}</p>
+    {{else}}
+    <div class="prose">
+        {{SafeHTML .Payload.Props.ContentHTML}}
+    </div>
+    {{end}}
+</main>
+{{end}}
