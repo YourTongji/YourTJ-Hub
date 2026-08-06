@@ -21,6 +21,7 @@ type pageConfigDefaults struct {
 	Site         pageConfig.SiteSettingsConfig
 	SiteTheme    pageConfig.SiteThemeConfig
 	Sponsors     pageConfig.SponsorsConfig
+	RateLimit    pageConfig.RateLimitConfig
 }
 
 var (
@@ -60,6 +61,10 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("sponsors.json", &pageConfigDefaultsValue.Sponsors)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
 	})
 	return pageConfigDefaultsValue, errPageConfigDefaults
 }
@@ -108,6 +113,12 @@ func GetDefaultHttpNotifyConfig() pageConfig.HttpNotifyConfig {
 func GetDefaultSecuritySettingsConfig() pageConfig.SecurityAndRegistration {
 	config := mustPageConfigDefaults().Security
 	config.AllowedDomains = append([]string(nil), config.AllowedDomains...)
+	return config
+}
+
+func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
+	config := mustPageConfigDefaults().RateLimit
+	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
 	return config
 }
 

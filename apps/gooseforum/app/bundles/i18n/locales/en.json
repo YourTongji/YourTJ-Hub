@@ -81,5 +81,7 @@
   "meta.topicDesc": "Read “{title}” and join the discussion on {site}.",
   "meta.communityDesc": "Join the community discussion on {site}.",
   "meta.userDesc": "See {username}’s topics, activity, and community connections on {site}.",
-  "meta.categoryDesc": "Browse topics in the {category} category."
+  "meta.categoryDesc": "Browse topics in the {category} category.",
+  "common.rateLimited": "Too many attempts. Please try again in {retryAfterSeconds} seconds.",
+  "common.captchaRequired": "Please complete the captcha before submitting."
 }

@@ -1,5 +1,6 @@
 {
   "enableSignup": true,
   "enableEmailVerification": false,
-  "allowedDomains": []
+  "allowedDomains": [],
+  "captchaRequired": true
 }

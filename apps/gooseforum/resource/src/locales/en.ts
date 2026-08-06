@@ -1137,6 +1137,8 @@ export default {
     },
   },
   serverMessages: {
+'common.captchaRequired': 'Please complete the captcha before submitting.',
+    'common.rateLimited': 'Too many attempts. Please try again in {retryAfterSeconds} seconds.',
     'page.notFound': 'The page does not exist or has been deleted.',
     'route.notFound': 'Route not found. Please check the URL and request method.',
     'admin.moderator.userRequired': 'Please enter a moderator user.',

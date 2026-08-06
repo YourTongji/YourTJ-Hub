@@ -1137,6 +1137,8 @@ export default {
     },
   },
   serverMessages: {
+'common.captchaRequired': '请先完成验证码后再提交。',
+    'common.rateLimited': '操作过于频繁，请 {retryAfterSeconds} 秒后再试。',
     'page.notFound': '页面不存在，或已经被删除。',
     'route.notFound': '路由未定义，请确认 URL 和请求方法是否正确。',
     'admin.moderator.userRequired': '请输入版主用户。',

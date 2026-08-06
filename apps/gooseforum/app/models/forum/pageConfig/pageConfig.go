@@ -34,18 +34,19 @@ func (itself *Entity) TableName() string {
 }
 
 const (
-	FriendShipLinks  = `friendShipLinks`
-	SponsorsPage     = `sponsors`
-	SiteSettings     = `siteSettings`
-	EmailSettings    = `emailSetting`
-	Announcement     = `announcement`
-	SecuritySettings = `securitySettings`
-	PostingSettings  = `postingSettings`
-	HttpNotify       = `httpNotify`
-	SiteTheme        = `siteTheme`
-	SiteChrome       = `siteChrome`
-	Version          = `version`
-	Migration        = `migration`
+	FriendShipLinks   = `friendShipLinks`
+	SponsorsPage      = `sponsors`
+	SiteSettings      = `siteSettings`
+	EmailSettings     = `emailSetting`
+	Announcement      = `announcement`
+	SecuritySettings  = `securitySettings`
+	PostingSettings   = `postingSettings`
+	HttpNotify        = `httpNotify`
+	SiteTheme         = `siteTheme`
+	SiteChrome        = `siteChrome`
+	RateLimitSettings = `rateLimitSettings`
+	Version           = `version`
+	Migration         = `migration`
 )
 
 type LinkItem struct {
@@ -192,6 +193,7 @@ type SecurityAndRegistration struct {
 	EnableSignup            bool     `json:"enableSignup"`
 	EnableEmailVerification bool     `json:"enableEmailVerification"`
 	AllowedDomains          []string `json:"allowedDomains"`
+	CaptchaRequired         bool     `json:"captchaRequired"` // 注册/登录/找回密码是否要求验证码
 }
 
 type PostingContent struct {
@@ -209,6 +211,24 @@ type PostingContent struct {
 		MaxDailyUploadsPerUser       int      `json:"maxDailyUploadsPerUser"`
 		NewUserUploadCooldownMinutes int      `json:"newUserUploadCooldownMinutes"`
 	} `json:"uploadControl"`
+}
+
+// RateLimitRule 单个动作的限流配额。Action 取值见 rateLimitActions。
+type RateLimitRule struct {
+	Action        string `json:"action"`
+	WindowSeconds int    `json:"windowSeconds"`
+	LimitPerIp    int    `json:"limitPerIp"`
+	LimitPerUser  int    `json:"limitPerUser"`
+}
+
+// RateLimitConfig 滥用防护配置，全部数值可在管理面板热修改。
+type RateLimitConfig struct {
+	Enabled                  bool            `json:"enabled"`                  // 总开关
+	SkipAdmin                bool            `json:"skipAdmin"`                // 管理员豁免
+	Actions                  []RateLimitRule `json:"actions"`                  // 各动作配额
+	NewUserCaptchaAfterPosts int             `json:"newUserCaptchaAfterPosts"` // 新用户窗口内连发 N 帖后要求验证码，0 关闭
+	NewUserCaptchaDays       int             `json:"newUserCaptchaDays"`       // 新用户判定窗口（注册 N 天内），0 表示所有用户
+	MinSubmitSeconds         int             `json:"minSubmitSeconds"`         // 验证码提交耗时下限（秒），低于判定为机器
 }
 
 type HttpNotifyConfig struct {

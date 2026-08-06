@@ -34,6 +34,9 @@ type WriteTopicReq struct {
 	Title       string   `json:"title" validate:"required"`
 	CategoryId  []uint64 `json:"categoryId" validate:"min=1,max=3"`
 	TopicStatus int8     `json:"topicStatus" validate:"oneof=0 1"`
+	Website     string   `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
+	CaptchaId   string   `json:"captchaId,omitempty"`
+	CaptchaCode string   `json:"captchaCode,omitempty"`
 }
 
 // WriteTopic creates or updates a topic and its first post.
@@ -44,6 +47,23 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	userEntity, err := req.GetUser()
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+
+	// 蜜罐字段：填了即机器，静默拒绝。
+	if strings.TrimSpace(req.Params.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "topic.write", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
+		return component.SuccessResponse(true)
+	}
+
+	// 新用户高频发帖触发验证码
+	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
+			if needCaptcha {
+				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "topic.write"})
+			}
+			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
+		}
 	}
 
 	// 统一权限检查
@@ -185,6 +205,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 			slog.Warn("mark created topic visited failed", "userId", req.UserId, "topicId", topic.Id, "error", err)
 		}
 	}
+	recordSuccessfulWrite(req.UserId, "topic.write")
 	return component.SuccessResponse(topic.Id)
 }
 
@@ -221,6 +242,9 @@ type CreatePostReq struct {
 	TopicId       uint64 `json:"topicId"`
 	Content       string `json:"content"`
 	ReplyToPostId uint64 `json:"replyToPostId"`
+	Website       string `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
+	CaptchaId     string `json:"captchaId,omitempty"`
+	CaptchaCode   string `json:"captchaCode,omitempty"`
 }
 
 func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
@@ -230,6 +254,23 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 	userEntity, err := req.GetUser()
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+
+	// 蜜罐字段：填了即机器，静默拒绝。
+	if strings.TrimSpace(req.Params.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "post.create", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
+		return component.SuccessResponse(true)
+	}
+
+	// 新用户高频发帖触发验证码
+	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "post.create", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "post.create"); !ok {
+			if needCaptcha {
+				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "post.create"})
+			}
+			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
+		}
 	}
 
 	// 统一权限检查
@@ -324,6 +365,7 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 		ReplyToPostId:       req.Params.ReplyToPostId,
 		ReplyToPostAuthorId: parentPostAuthorID,
 	})
+	recordSuccessfulWrite(req.UserId, "post.create")
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
