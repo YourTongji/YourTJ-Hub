@@ -61,6 +61,17 @@ func TotpSetup(req component.BetterRequest[TotpSetupReq]) component.Response {
 		nil)
 }
 
+// TotpStatusReq 查询两步验证状态（无参数）。
+type TotpStatusReq struct{}
+
+// TotpStatus 返回当前用户是否已启用两步验证。
+func TotpStatus(req component.BetterRequest[TotpStatusReq]) component.Response {
+	return component.SuccessResponseCode(
+		component.DataMap{"enabled": totpservice.IsEnabled(req.UserId)},
+		component.MessageOperationSuccess,
+		nil)
+}
+
 // TotpEnable 校验验证码并启用两步验证，返回一次性恢复码。
 func TotpEnable(req component.BetterRequest[TotpEnableReq]) component.Response {
 	codes, err := totpservice.Enable(req.UserId, req.Params.Code)

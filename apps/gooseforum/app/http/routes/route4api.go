@@ -127,6 +127,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
 	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
 	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
+	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))

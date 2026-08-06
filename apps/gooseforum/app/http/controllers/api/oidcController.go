@@ -66,6 +66,13 @@ func OidcCallback(c *gin.Context) {
 			return
 		}
 
+		// 与 goth 路径一致：每个用户每个 provider 只允许一条绑定，
+		// 防止同一用户绑定多个 Casdoor 身份（UI 不可见但每个都能登录）。
+		if userOAuth.GetByUserIDAndProvider(currentUserId, oidcservice.ProviderCasdoor) != nil {
+			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOidcBindConflict)
+			return
+		}
+
 		if err := userOAuth.Create(&userOAuth.Entity{
 			UserId:      currentUserId,
 			Provider:    oidcservice.ProviderCasdoor,

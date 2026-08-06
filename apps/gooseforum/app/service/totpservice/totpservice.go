@@ -3,6 +3,7 @@
 package totpservice
 
 import (
+	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
 	"encoding/base32"
@@ -290,9 +291,21 @@ func normalizeCode(code string) string {
 	return strings.ReplaceAll(code, "-", "")
 }
 
+// hashRecoveryCode derives a per-purpose HMAC-SHA256 of the normalized code
+// using a server-side pepper (securestore.Pepper). The pepper never enters the
+// database, so a DB leak alone does not allow offline brute force of the
+// 40-bit recovery-code space.
 func hashRecoveryCode(code string) string {
-	sum := sha256.Sum256([]byte(normalizeCode(code)))
-	return hex.EncodeToString(sum[:])
+	pepper, err := securestore.Pepper("yourtj-recovery-code")
+	if err != nil {
+		// 密钥派生失败意味着签名密钥配置异常，此时所有 TOTP 功能本就不可用；
+		// 回退到裸 SHA-256 保持旧记录可校验（Pepper 只在配置正常时使用）。
+		sum := sha256.Sum256([]byte(normalizeCode(code)))
+		return hex.EncodeToString(sum[:])
+	}
+	mac := hmac.New(sha256.New, pepper)
+	mac.Write([]byte(normalizeCode(code)))
+	return hex.EncodeToString(mac.Sum(nil))
 }
 
 // ---- 内存滑动窗口限流 ----
