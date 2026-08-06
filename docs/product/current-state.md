@@ -15,7 +15,8 @@ conclusions, update this file in the same PR.
 ## Solid foundations
 
 - **The forum itself runs**: GooseForum fork (`apps/gooseforum`, Go 1.26 + Gin + Vue 3 + Tailwind),
-  single binary (frontend go:embed), cobra CLI (`serve` / mock / rebuild-search-index subcommands).
+  single binary (frontend go:embed, `make build` verified locally 2026-08-06), cobra CLI (`serve` /
+  mock / rebuild-search-index subcommands).
 - **Three-mode rendering**: GoHTML server-side rendering (SEO/no-JS fallback) + JSON payload (SPA
   no-refresh navigation) + pure API; frontend has site/admin dual entry.
 - **Feature coverage**: Markdown topics/replies, categories, notifications, direct messages, drafts,
@@ -29,7 +30,7 @@ conclusions, update this file in the same PR.
 
 | Domain | Status | Note |
 |---|---|---|
-| Forum itself | `Current` | Upstream features complete and runnable; `make build` single binary pending local verification |
+| Forum itself | `Current` | Upstream features complete and runnable; `make build` single binary verified locally (2026-08-06: go vet/test, pnpm typecheck/build, smoke all green) |
 | Database | `Decision needed` | SQLite default + MySQL optional today; PostgreSQL migration undecided (upstream migration framework in app/migration) |
 | Search | `Partial` | Meilisearch optionally enabled (config [meilisearch]); index sync and search UX incomplete, needs work |
 | Auth | `Planned` | GitHub OAuth works; Casdoor unified login not integrated (needs OIDC exchange endpoint) |
