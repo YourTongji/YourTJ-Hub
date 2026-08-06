@@ -1,82 +1,92 @@
-# 系统概览与域边界
+# System Overview & Domain Boundaries
 
-> 文档类型：架构
+> Doc type: architecture
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 系统形态
+## System shape
 
 ```
                         ┌─────────────────────┐
-                        │     Casdoor (OIDC)   │  统一认证（数字用户 ID，已实测）
+                        │     Casdoor (OIDC)   │  Unified auth (numeric user ID, planned)
                         └──────────┬──────────┘
-              OIDC/PKCE            │            OIDC 浏览器流
+              OIDC/PKCE            │            OIDC browser flow
        ┌───────────────────────────┼───────────────────────────┐
        │                           │                           │
 ┌──────▼──────┐           ┌────────▼────────┐          ┌───────▼───────┐
-│ apps/mobile │           │   apps/web      │          │ services/     │
-│  Flutter    │           │   Vue 3         │          │ credit(二期)   │
-└──────┬──────┘           └────────┬────────┘          └───────────────┘
+│ apps/mobile │           │ apps/gooseforum │          │ services/     │
+│  Flutter    │           │  forum (Go+Vue, │          │ credit (p2)   │
+└──────┬──────┘           │  single binary) │          └───────────────┘
+       │                  └────────┬────────┘
        │                           │
        └──────────┬────────────────┘
                   │ JSON API (JWT Bearer)
            ┌──────▼──────┐     ┌──────────────┐
-           │ apps/server  │────▶│ services/    │  Meilisearch 索引同步
-           │ Go 后端      │     │ search       │
-           └──────┬──────┘     └──────────────┘
+           │ apps/gooseforum │──▶│ services/    │  Meilisearch index sync
+           │  Go backend     │   │ search       │  (optional, to be improved)
+           └──────┬──────┘   └──────────────┘
                   │
            ┌──────▼──────┐
-           │ PostgreSQL  │（选型待定，建议 PG15+）
+           │ SQLite/MySQL │ (PostgreSQL migration pending)
            └─────────────┘
 ```
 
-## 部署形态
+## Deployment shape
 
-- **单二进制**：web 构建产物 go:embed 进 server。开发时 vite 代理同源联调，
-  生产零 CORS/nginx/CDN。
-- 依赖服务（Casdoor/Meilisearch/PostgreSQL/Redis）以 docker-compose 编排，`services/` 只放
-  部署配置不放源码。
+- **Single binary**: forum frontend (Vue 3 output static/dist + GoHTML templates) is fully go:embed'd
+  into the Go binary; vite :3010 hits the backend in dev, one file in production. No nginx/CDN split.
+- Dependency services (Casdoor/Meilisearch/PostgreSQL/Redis) are orchestrated with docker-compose;
+  `services/` holds deployment configs only, not third-party source.
 
-## 域边界（apps/server internal 分层）
+## Domain boundaries (apps/gooseforum upstream layers)
 
-| 层 | 职责 | 依赖 |
-|---|---|---|
-| `http` | handlers、middleware、路由（gin） | service |
-| `service` | 业务逻辑、事务编排、领域事件 | repository、domain |
-| `repository` | 数据访问（DB 抽象，可换库） | domain |
-| `domain` | 纯领域模型与业务规则（无 IO） | 无 |
-| `auth` | Casdoor 验签、JWT 签发/校验 | config |
-| `search` | Meilisearch 索引同步/查询代理 | config |
-| `config` | 环境配置加载 | 无 |
+| Layer | Responsibility |
+|---|---|
+| `app/console` | cobra CLI (serve / mock / rebuild-search-index ...) |
+| `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
+| `app/models` | GORM models + migrations (app/migration) |
+| `app/service` | Business logic (users/topics/mail/oauth/theme ...) |
+| `app/http/controllers/api` | JSON API (auth/topic/user/admin/chat/notification/file ...) |
+| `app/http/controllers/forum` | Page rendering (GoHTML three-mode: payload + render + SEO) |
+| `app/http/middleware` | JWT auth, access log, maintenance mode ... |
+| `resource/` | Vue 3 frontend (site/admin dual entry) + templates (gohtml) + static (badges/pic) |
 
 **Boundary rules**
-- 只有 `repository` 触碰 DB；禁止 service/http 直接 SQL。
-- 跨域（如论坛→通知）走 owner 的公开 service API，禁止 foreign SQL。
-- Web/Mobile 消费 api-contract 生成类型，禁止手写重复 DTO。
+- Business logic in `service`; data access in `models`/repository layer; HTTP in `http/controllers`.
+- Cross-domain access (e.g. forum→notifications) goes through the owner's public service API; no
+  foreign SQL.
+- Frontend output only via `resource/static/dist` (go:embed); do not hand-write DTOs duplicating the
+  backend (once the contract pipeline exists).
+- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
 
-## 关键流程
+## Key flows
 
-### 认证（规划中）
+### Auth (planned)
 
-- Web：标准 OIDC 授权码（浏览器重定向）→ server 换 token → 验签 → 本地用户 upsert → JWT。
-- Mobile：appauth + PKCE → id_token → `POST /api/auth/oidc/exchange` → 论坛 JWT。
-- 数字 ID 约束：`sub` 必须 uint64；server 侧强校验（见 identity-and-access.md）。
+- Today: GitHub OAuth (goth, config [github]).
+- Planned: Casdoor OIDC unified login (Web standard authorization code; Mobile appauth+PKCE →
+  id_token → `POST /api/auth/oidc/exchange` → forum JWT); numeric-ID constraint enforced server-side
+  (see identity-and-access.md).
 
-### 搜索（规划中）
+### Search (Partial)
 
-- server 写帖/回帖时异步同步索引到 Meilisearch（topic/posts）。
-- 搜索 API 由 server 代理（统一鉴权），web/mobile 共用；索引可全量重建。
+- Meilisearch optionally enabled (config [meilisearch]); index sync and search UX incomplete, to be
+  improved.
 
-### 积分（二期）
+### Points (phase 2)
 
-- credit 是 OIDC 客户端 + 独立账本；论坛作为商户调分发 API（见 credit-and-escrow.md）。
+- credit is an OIDC client + standalone ledger; the forum acts as a merchant calling the distribution
+  API (see credit-and-escrow.md).
 
-## 一致性原则
+## Consistency principles
 
-- PostgreSQL（或选定 DB）是业务事实源；搜索、缓存、计数、热榜、feed 都是可重建投影。
-- 关键副作用（通知、索引同步、积分分发）幂等、可重试、可观测。
-- 契约变更同 PR 更新 Go struct → openapi.yaml → 生成物 → fixture 测试。
+- The chosen DB is the business fact source; search, cache, counters, hot lists, and feeds are
+  rebuildable projections.
+- Critical side effects (notifications, index sync, points distribution) are idempotent, retryable,
+  observable.
+- Contract changes ship in the same PR: Go struct → openapi.yaml → generated output → fixture tests
+  (once the pipeline exists).

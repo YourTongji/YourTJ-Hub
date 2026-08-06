@@ -1,7 +1,8 @@
-# Placeholder：M3 起由 swag 从 apps/server 注解生成 openapi.yaml
-# 生成：cd apps/server && swag init -g cmd/server/main.go --output ../../packages/api-contract
-# 消费：gen-ts.sh → apps/web/src/api/*.ts
-#       gen-dart.sh → apps/mobile/packages/core/lib/src/gen/*.dart
+# Placeholder: once the contract pipeline exists, openapi.yaml is generated from the
+# Go structs in apps/gooseforum.
+# Generation: cd apps/gooseforum && swag init --output ../../packages/api-contract
+# Consumers: gen-ts.sh → apps/gooseforum/resource/packages/client
+#            gen-dart.sh → apps/mobile/packages/core/lib/src/gen/*.dart
 openapi: 3.1.0
 info:
   title: yourtj-hub API

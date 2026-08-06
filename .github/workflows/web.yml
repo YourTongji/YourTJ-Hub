@@ -3,10 +3,10 @@ name: web
 on:
   push:
     paths:
-      - "apps/web/**"
+      - "apps/gooseforum/resource/**"
   pull_request:
     paths:
-      - "apps/web/**"
+      - "apps/gooseforum/resource/**"
 
 jobs:
   build:
@@ -20,13 +20,13 @@ jobs:
         with:
           node-version: 24
           cache: pnpm
-          cache-dependency-path: apps/web/pnpm-lock.yaml
+          cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
       - name: Install
-        working-directory: apps/web
+        working-directory: apps/gooseforum/resource
         run: pnpm install --frozen-lockfile
       - name: Typecheck
-        working-directory: apps/web
+        working-directory: apps/gooseforum/resource
         run: pnpm typecheck
       - name: Build
-        working-directory: apps/web
+        working-directory: apps/gooseforum/resource
         run: pnpm build

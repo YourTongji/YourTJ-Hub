@@ -1,13 +1,14 @@
 # Go
-apps/server/webdist/*
-!apps/server/webdist/.gitkeep
 bin/
 *.exe
 *.test
 
-# Node
+# Node（apps/gooseforum/resource 自带 pnpm workspace，产物在 resource/static/dist）
 node_modules/
-apps/web/dist/
+**/resource/static/dist/
+apps/gooseforum/storage/
+apps/gooseforum/tmp/
+apps/gooseforum/config.toml
 
 # Flutter / Dart
 apps/mobile/**/.dart_tool/

@@ -1,82 +1,90 @@
-# 产品愿景与原则
+# Product Vision & Principles
 
-> 文档类型：产品基线
+> Doc type: product baseline
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Product owner、Platform maintainers
+> Owner: Product owner, Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-yourtj 是面向同济校园成员的社区平台。论坛是核心公共讨论空间；统一认证（Casdoor）、搜索
-（Meilisearch）和积分（credit，二期）是共享身份、基础设施和结算的子域。产品目标是沉淀校园
-信息、建立可信讨论，并让用户在论坛与未来更多服务（选课、评课等）之间共享一个身份和一套
-积分体系。
+yourtj is a community platform for Tongji campus members. The forum is the core public discussion space;
+unified auth (Casdoor), search (Meilisearch), and points (credit, phase 2) are shared identity,
+infrastructure, and settlement subdomains. The product goal is to accumulate campus information, build
+trusted discussion, and let users share one identity and one points system between the forum and future
+services (course selection, course reviews, etc.).
 
-## 用户价值
+## User value
 
-- 学生用一个账号访问论坛与未来所有 campus 服务，无需重复注册。
-- 论坛内容有明确板块、上下文和可恢复的治理流程，不退化为无结构的短内容流。
-- 全站内容可被统一检索（中文友好），信息能长期沉淀而不是淹没在时间线里。
-- 参与社区的贡献以积分形式在跨平台可结算，但不构成可充值的货币。
-- 移动端（iOS/Android）与 Web 共享同一套 API 和体验语义。
+- Students use one account for the forum and all future campus services — no repeated registration.
+- Forum content has clear boards, context, and a recoverable governance process; it does not degrade
+  into an unstructured short-content stream.
+- Site content is uniformly searchable (Chinese-friendly), and information accumulates long-term
+  instead of drowning in a timeline.
+- Contributions earn points that settle across platforms, but points are not a rechargeable currency.
+- Mobile (iOS/Android) and Web share the same API and experience semantics.
 
-## 产品边界
+## Product boundaries
 
-### 当前定位
+### Current positioning
 
-- `Current`：monorepo 骨架；server 可运行（健康检查 + API + embed Web SPA，单二进制）。
-- `Planned`：论坛核心（板块/主题/评论/通知/私信）、统一认证接入、搜索接入。
-- `Decision needed`：数据库选型（建议 PostgreSQL）、搜索形态（建议 Meilisearch 独立服务）。
-- 积分（credit）明确为**二期**，当前不在界面或宣传中声称可用。
+- `Current`: monorepo skeleton; the forum runs (three-mode rendering + JSON API, single binary).
+- `Planned`: unified auth integration, search improvement.
+- `Decision needed`: database selection (recommend PostgreSQL), search shape (recommend Meilisearch).
+- Points (credit) are explicitly **phase 2**; not claimed usable in UI or marketing now.
 
-### 明确不做
+### Explicitly out of scope
 
-- 不把校园邮箱、学号等资格信息作为公开社交身份（认证与公开身份分离，沿用 YourTJ 原则）。
-- 不提供积分充值、提现、法币兑换或无理由自由转账。
-- 不让管理员通过普通编辑接口冒充用户改写其内容。
-- 不在社交图、隐私和治理基础未稳定时优先建设算法推荐、群聊或复杂广告定向。
-- 不引入 nginx/CDN 分离部署（单二进制是刻意选择）。
+- Campus email / student ID are not exposed as public social identity (auth is separate from public
+  identity, per the YourTJ principle).
+- No points top-up, withdrawal, fiat exchange, or unrestricted transfers.
+- Admins cannot impersonate users by rewriting their content through normal edit endpoints.
+- No algorithm feeds, group chat, or complex ad targeting before the social graph, privacy, and
+  governance foundations are stable.
+- No nginx/CDN split deployment (single binary is a deliberate choice).
 
-## 产品原则
+## Product principles
 
-1. 认证唯一来源是 Casdoor；论坛 JWT 只是会话凭证，不是身份事实源。
-2. 用户 ID 必须是数字（uint64）——credit 的 `GetID()` 只接受数字 sub，UUID 会导致用户互相覆盖。
-3. PostgreSQL（或选定 DB）是业务事实源；搜索、缓存、计数和 feed 都是可重建投影。
-4. 契约以 `packages/api-contract/openapi.yaml` 为单一事实源，Web/移动端类型均为生成物。
-5. 部署形态是单二进制（go:embed webdist），源码分目录、部署合并。
-6. 所有用户媒体由平台控制的 asset id、状态和引用关系管理，不接受任意外链作为持久事实。
-7. 管理权限按 capability 判断；前端按钮隐藏不构成授权。
-8. 治理优先可逆，要求理由、审计、当事人通知和可申诉性。
-9. 业务生命周期使用显式状态机；不能依靠多个含义不清的布尔字段拼接。
-10. 关键副作用必须幂等、可重试、可观测；不能依赖无监督的 fire-and-forget。
-11. 通知事件、发送渠道和用户偏好是三个独立模型。
-12. 新数据在落库前必须回答用途、可见者、保留期、导出方式和删除方式。
+1. Auth's only source is Casdoor (once integrated); the forum JWT is a session credential, not identity truth.
+2. User IDs must be numeric (uint64) — credit's `GetID()` only accepts numeric sub; UUID collapses all
+   users to 0.
+3. The chosen DB is the business fact source; search, cache, counters, and feeds are rebuildable projections.
+4. Contracts center on `packages/api-contract/openapi.yaml` (once the pipeline exists); Web/mobile types
+   are generated artifacts.
+5. Deployment is a single binary (go:embed), source separated by directory, deployment merged.
+6. All user media is managed via platform-controlled asset ids, states, and reference relations; no
+   arbitrary external links as persistent facts.
+7. Admin permissions are judged by capability; hiding a button in the frontend is not authorization.
+8. Governance prefers reversibility: reasons, audit, user notification, and appealability are required.
+9. Business lifecycles use explicit state machines; not ambiguous boolean combinations.
+10. Critical side effects must be idempotent, retryable, observable; no unsupervised fire-and-forget.
+11. Notification events, delivery channels, and user preferences are three independent models.
+12. New data must answer purpose, visibility, retention, export, and deletion before persisting.
 
-## 参与者
+## Actors
 
-| 参与者 | 主要能力 | 硬边界 |
+| Actor | Main capabilities | Hard boundaries |
 |---|---|---|
-| 匿名访客 | 读取被政策允许公开的页面 | 不创建内容或关系 |
-| 校园成员 | 资料、发帖、评论、互动、关注、私信 | 受状态、信任等级、隐私和限流约束 |
-| 版主 | 内容审核、有限用户处置、审计读取 | 不能管理同级/更高角色，不能查看任意私信 |
-| 管理员 | 平台配置、用户角色、结构与运营管理 | 仍受理由、审计和合规红线约束 |
-| 系统/服务 | 投影、调度、通知和治理自动化 | 使用独立 actor kind，不伪装成人类账号 |
+| Anonymous visitor | Read pages policy allows to be public | Cannot create content or relations |
+| Campus member | Profile, post, comment, interact, follow, DM | Constrained by state, trust level, privacy, rate limits |
+| Moderator | Content moderation, limited user actions, audit read | Cannot manage same/higher roles, cannot read arbitrary DMs |
+| Admin | Platform config, user roles, structure & ops | Still bounded by reason, audit, and compliance red lines |
+| System/service | Projections, scheduling, notifications, governance automation | Uses a distinct actor kind; never impersonates a human |
 
-## 待产品负责人确认的决策
+## Decisions pending product owner
 
-| 决策 | 推荐默认值 | 未决影响 |
+| Decision | Recommended default | Impact if undecided |
 |---|---|---|
-| 数据库 | PostgreSQL 15+ | 迁移、查询、部署全套 |
-| 搜索形态 | Meilisearch 独立服务 | 部署拓扑、索引同步、中文分词 |
-| 匿名访客可见范围 | 板块声明可见性 | 搜索索引、SEO、隐私设置 |
-| 登录方式 | Casdoor 统一登录（OIDC），数字 ID | 与 credit、移动端 exchange 的对接 |
-| 积分来源 | credit 商户分发（论坛事件驱动） | 结算模型、防刷、审计 |
+| Database | PostgreSQL 15+ | Migration, queries, deployment |
+| Search shape | Meilisearch standalone | Topology, index sync, Chinese tokenization |
+| Anonymous visibility | Board-declared visibility | Search index, SEO, privacy settings |
+| Login method | Casdoor unified login (OIDC), numeric ID | credit & mobile exchange integration |
+| Points source | credit merchant distribution (forum event-driven) | Settlement model, anti-abuse, audit |
 
-未决项可以做技术调研，但不得通过一个局部 UI 或 migration 默认替产品作出不可逆决定。
+Undecided items may be researched but must not be irreversibly decided by a local UI or migration.
 
-## 产品健康指标
+## Product health metrics
 
-指标必须服务于社区质量，不以"停留时长越长越好"为唯一目标。建议跟踪：周活/注册转化、
-发帖回帖比、举报处理时长、搜索命中率、积分系统对账差异（二期）。具体指标在核心 API
-交付时确定并记录于本文件。
+Metrics must serve community quality, not "longer dwell time at all costs". Suggested tracking: weekly
+actives/registration conversion, post-to-reply ratio, report resolution time, search hit rate, points
+reconciliation variance (phase 2). Concrete metrics are defined and recorded here when the core API ships.

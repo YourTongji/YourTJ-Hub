@@ -1,61 +1,75 @@
-# 本地环境
+# Local Environment
 
-> 文档类型：开发指南
+> Doc type: development guide
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 依赖
+## Dependencies
 
 - Go 1.26+
-- Node 24 + pnpm 11（**注意**：主目录 `/Users/yzxoi/pnpm-workspace.yaml` 会干扰 pnpm
-  向上查找；仓库内 `pnpm-workspace.yaml` 必须存在，勿删）
-- Docker + Compose（本地依赖服务）
-- Flutter SDK（移动端规划中，当前未安装）
+- Node 24 + pnpm 11 (the forum frontend workspace lives in `apps/gooseforum/resource/` with its own
+  pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
+  with pnpm's upward lookup — run pnpm from inside `resource/`)
+- Docker + Compose (local dependency services)
+- Flutter SDK (mobile planned, not installed yet)
 
-## 启动
+## Startup
 
 ```bash
-# 1. 起本地依赖（postgres + meilisearch + mariadb + casdoor）
+# 1. Start local dependencies (postgres + meilisearch + mariadb + casdoor)
 make dev
 
-# 2. 起后端（:8080）
-make server
+# 2. Forum backend (default port 5234)
+#    First-time setup: place a config.toml in apps/gooseforum (gitignored), based on upstream config
+make server        # = cd apps/gooseforum && go run . serve
 
-# 3. 起前端 dev（:5173，代理 /api 到 :8080）
-make web
+# 3. Frontend dev server (:3010, vite; run pnpm install first)
+make web           # = cd apps/gooseforum/resource && pnpm dev
 
-# 4. 生产构建：web → webdist → server 单二进制
+# 4. Production build: resource → static/dist → go build single binary
 make build
 ```
 
-## 服务地址
+## Service addresses
 
-| 服务 | 地址 | 说明 |
+| Service | Address | Note |
 |---|---|---|
-| server | http://localhost:8080 | `/healthz`、`/api/ping` |
-| web dev | http://localhost:5173 | vite，代理 /api |
-| casdoor | http://localhost:8001 | 统一认证（admin/123，开发） |
+| Forum backend | http://localhost:5234 | config.toml `[server] port` |
+| Frontend dev | http://localhost:3010 | vite, hits backend directly |
+| casdoor | http://localhost:8001 | unified auth (admin/123, dev) |
 | meilisearch | http://localhost:7700 | master key: `yourtj-dev-master-key` |
-| postgres | localhost:5432 | yourtj/yourtj，库 yourtj |
-| mariadb | localhost:13306 | casdoor 专用 |
+| postgres | localhost:5432 | yourtj/yourtj, db yourtj (reserved) |
+| mariadb | localhost:13306 | casdoor-only |
 
-## 移动端连后端
+## Mobile → backend
 
-- iOS 模拟器：`http://localhost:8080` 直连
-- Android 模拟器：`http://10.0.2.2:8080`
-- 真机：局域网 IP（dart-define 注入 baseUrl，移动端落地时）
+- iOS simulator: `http://localhost:5234` directly
+- Android emulator: `http://10.0.2.2:5234`
+- Physical device: LAN IP (inject baseUrl via dart-define, when mobile lands)
 
-## 环境变量
+## Configuration (config.toml)
 
-复制 `deploy/env.example` 为 `deploy/.env` 并按环境修改。server 通过环境变量读配置
-（`YOURTJ_ENV`/`YOURTJ_PORT`，后续扩展 DB/Meili/Casdoor）。
+GooseForum is configured by `apps/gooseforum/config.toml` (not environment variables):
 
-## 已知问题
+| Section | Note |
+|---|---|
+| `[app]` | env (local binds 127.0.0.1), debug, maintenance, signingKey, cdn_url |
+| `[server]` | url, port (default 5234), accessLog, gzip |
+| `[jwtopt]` | validTime (seconds, default 604800 = 7 days) |
+| `[db]` / `[db.default]` / `[db.file]` | SQLite by default, MySQL optional; migration, backup, pool |
+| `[meilisearch]` | url, masterkey (optional search) |
+| `[log]` | log type/rolling/slow SQL |
+| `[github]` | GitHub OAuth client (currently the only third-party login) |
 
-- Go module 拉取：官方 proxy 偶发超时，用 `GOPROXY=https://goproxy.cn,direct`。
-- pnpm `ERR_PNPM_IGNORED_BUILDS`：esbuild 已在 `pnpm-workspace.yaml` 放行；新增原生依赖时
-  需同步更新 `allowBuilds`。
+> config.toml contains signingKey — sensitive; it is gitignored, never commit it.
+
+## Known issues
+
+- Go module fetch: the official proxy can time out; use `GOPROXY=https://goproxy.cn,direct`.
+- pnpm `ERR_PNPM_IGNORED_BUILDS`: esbuild must be allowed in
+  `apps/gooseforum/resource/pnpm-workspace.yaml`; update `allowBuilds` when adding native deps
+  (upstream already handles esbuild, so usually no change needed).

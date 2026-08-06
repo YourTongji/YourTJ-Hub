@@ -1,4 +1,4 @@
 #!/usr/bin/env bash
-# M3 起：从 openapi.yaml 生成 TS 客户端 → apps/web/src/api/
+# Generate TS client from openapi.yaml → apps/gooseforum/resource/packages/client (once the contract pipeline exists)
 set -euo pipefail
-echo "TODO(M3): openapi-generator / openapi-typescript 生成 TS"
+echo "TODO: generate TS with openapi-generator / openapi-typescript"

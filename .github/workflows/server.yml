@@ -3,10 +3,16 @@ name: server
 on:
   push:
     paths:
-      - "apps/server/**"
+      - "apps/gooseforum/app/**"
+      - "apps/gooseforum/main.go"
+      - "apps/gooseforum/go.mod"
+      - "apps/gooseforum/go.sum"
   pull_request:
     paths:
-      - "apps/server/**"
+      - "apps/gooseforum/app/**"
+      - "apps/gooseforum/main.go"
+      - "apps/gooseforum/go.mod"
+      - "apps/gooseforum/go.sum"
 
 jobs:
   build:
@@ -17,11 +23,11 @@ jobs:
         with:
           go-version: "1.26"
       - name: Vet
-        working-directory: apps/server
+        working-directory: apps/gooseforum
         run: go vet ./...
       - name: Test
-        working-directory: apps/server
+        working-directory: apps/gooseforum
         run: go test ./...
       - name: Build
-        working-directory: apps/server
-        run: go build ./cmd/server
+        working-directory: apps/gooseforum
+        run: go build .

@@ -1,62 +1,62 @@
-# 测试策略与命令
+# Testing Strategy & Commands
 
-> 文档类型：开发指南
+> Doc type: development guide
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 原则
+## Principles
 
-- 测试与验证的强度与变更的风险成正比（auth/PII/治理/积分/搜索必须含负例、重放、隐私、
-  失败与对账用例）。
-- 本地子集不等于 CI 通过；报告实际运行的命令与结果。
-- 契约测试（fixture 反序列化）是防契约漂移的第一道防线，契约管线接入后强制。
+- Verification strength scales with change risk (auth/PII/governance/points/search must include
+  negative, replay, privacy, failure, and reconciliation cases).
+- A local subset is not CI passing; report the commands actually run and their results.
+- Upstream already has solid Go unit tests (controller layer, i18n rendering, SEO meta); keep them and
+  add tests when modifying.
 
-## 命令
+## Commands
 
 ```bash
-# 后端
-cd apps/server && go vet ./... && go test ./...
+# Backend
+cd apps/gooseforum && go vet ./... && go test ./...
 
-# Web
-cd apps/web && pnpm typecheck && pnpm build
+# Frontend
+cd apps/gooseforum/resource && pnpm typecheck && pnpm build
 
-# 全量
+# Full
 make test
 
-# 契约（管线接入后）
-cd packages/api-contract && dart test test/contracts   # 或脚本封装
+# Contract (once the contract pipeline exists)
+cd packages/api-contract && dart test test/contracts   # or a script wrapper
 
-# 构建冒烟
-make build && ./bin/yourtj-hub   # 然后 curl /healthz
+# Build smoke
+make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 ```
 
-## 分层
+## Layers
 
-| 层 | 测试类型 | 工具 |
+| Layer | Test type | Tool |
 |---|---|---|
-| domain | 单元测试（纯逻辑） | go test |
-| service | 单测 + 事务用例 | go test + sqlmock 或 testcontainers（落地时定） |
-| repository | 集成测试（真实 DB） | testcontainers / 本地 postgres |
-| http | handler 测试 | httptest |
-| web | typecheck + 组件测试 | vue-tsc + Vitest（页面层接入后） |
-| contract | fixture 反序列化 | dart test / jest |
-| mobile | widget/unit | flutter test（移动端搭建后） |
+| bundles | unit tests (utilities) | go test |
+| models | model/migration tests | go test |
+| service | business unit + transaction cases | go test + sqlmock or testcontainers (when decided) |
+| http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
+| resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
+| contract | fixture deserialization | dart test / jest (once pipeline exists) |
+| mobile | widget/unit | flutter test (when mobile lands) |
 
-## CI 对应
+## CI mapping
 
-- server.yml：go vet + go test + go build（apps/server/**）
-- web.yml：pnpm typecheck + build（apps/web/**）
-- contract.yml：openapi 校验 + 生成无 diff + fixture（apps/server/**、packages/**）
+- server.yml: go vet + go test + go build (apps/gooseforum/app/**, main.go, go.mod, go.sum)
+- web.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
+- contract.yml: openapi validation + no-diff generation + fixture (apps/gooseforum/app/**, packages/**)
 
-## 冒烟验证清单（骨架）
+## Smoke checklist
 
 ```bash
-curl localhost:8080/healthz          # {"status":"ok"}
-curl localhost:8080/api/ping         # {"message":"pong"}
-curl localhost:8080/                 # SPA index.html（embed）
-curl localhost:8080/p/post/123       # 200 SPA fallback
+curl http://localhost:5234/            # homepage HTML (three-mode rendering, GoHTML)
+curl http://localhost:5234/api/...     # JSON API (per upstream routes)
+# Frontend dev: http://localhost:3010
 ```

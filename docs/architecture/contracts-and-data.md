@@ -1,50 +1,63 @@
-# 契约、数据与派生投影
+# Contracts, Data & Derived Projections
 
-> 文档类型：架构
+> Doc type: architecture
 >
-> 状态：Active（契约管线 `Partial`，swag 接入后完整）
+> Status: Active (contract pipeline `Partial`, not built)
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 契约管线
+## Contract status
+
+- Upstream GooseForum has **no swagger annotations, no openapi.yaml**; JSON is serialized directly
+  from Go structs.
+- The frontend `@gooseforum/client` package (resource/packages/client) is hand-written TS contracts,
+  manually kept in sync with Go structs.
+- `packages/api-contract/openapi.yaml` is currently a placeholder (`paths: {}`).
+
+## Contract pipeline (planned)
 
 ```
-apps/server（Go 注解 swag）
-   │  make gen
+apps/gooseforum (Go structs + swag annotations, or manually maintained first)
+   │  gen script
    ▼
-packages/api-contract/openapi.yaml      ← CI 校验：生成结果无 diff
+packages/api-contract/openapi.yaml      ← CI checks: generated output has no diff
    │  gen-ts.sh                 │  gen-dart.sh
    ▼                           ▼
-apps/web/src/api/*.ts          apps/mobile/packages/core/lib/src/gen/*.dart
+apps/gooseforum/resource/packages/client  apps/mobile/packages/core/lib/src/gen/*.dart
 ```
 
-- **后端是事实源**：Go struct + swag 注解 → openapi.yaml。
-- **web/mobile 都是生成物**：类型永不同步失败；CI 校验"生成结果无 diff"防漂移。
-- **fixtures 契约测试**：真实 API 响应样本，反序列化测试兜底运行时行为。
-- 当前 openapi.yaml 为占位（`paths: {}`）；swag 接入后生成。
+- **Backend is the fact source**: Go structs → openapi.yaml.
+- **Web/mobile are generated artifacts**: types never silently drift; CI checks "generated output has
+  no diff".
+- **Fixture contract tests**: real API response samples; deserialization tests back runtime behavior.
+- Transition path: since upstream has no annotations, use go-json-schema or progressive swag
+  annotation (annotate each API as you touch it).
 
-## 数据模型
+## Data model
 
-- 数据库迁移：golang-migrate（SQL 文件版本化，append-only），迁移框架落地后执行。
-- 状态机：业务生命周期用显式状态机（如 topic: draft/published/archived/deleted），
-  不靠多个布尔字段拼接（产品原则 9）。
-- 软删除/硬删除策略在数据建模时定，决策记录见项目 note。
+- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); SQLite default, MySQL
+  optional.
+- State machines: business lifecycles use explicit state machines (e.g. topic:
+  draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
+- Soft/hard delete policy is decided with the database migration decision; record in the note.
 
-## 派生投影
+## Derived projections
 
-| 投影 | 来源 | 可重建 |
+| Projection | Source | Rebuildable |
 |---|---|---|
-| 搜索索引 | Meilisearch | ✅ 全量重建 |
-| 计数（回帖数/点赞数） | DB 聚合或 Redis 计数 | ✅ 重算 |
-| 热榜/feed | 派生查询 | ✅ |
-| 通知已读/未读 | 用户指针表 | ✅ |
+| Search index | Meilisearch | ✅ full rebuild (rebuild-search-index CLI) |
+| Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
+| Hot lists / feeds | derived queries | ✅ |
+| Notification read/unread | user pointer table | ✅ |
 
-原则：投影必须可从事实源重建；禁止把投影当唯一事实。
+Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
 
-## 契约变更纪律
+## Contract change discipline
 
-- 后端字段变更必须同 PR 更新：Go struct → openapi.yaml → TS/Dart 生成物 → fixture。
-- CI 的 contract.yml 在 `apps/server/**`、`packages/**` 变更时校验生成无 diff。
-- 文档状态词同步更新（docs/README.md）。
+- Backend field changes ship in the same PR: Go struct → openapi.yaml → TS/Dart generated output →
+  fixture (once the pipeline exists).
+- Until the pipeline exists, at least keep `@gooseforum/client` manually in sync with Go structs and
+  note it in the PR.
+- Docs status words updated in step (docs/README.md).

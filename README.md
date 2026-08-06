@@ -1,75 +1,66 @@
 # YourTJ-Hub
 
-同济大学校级论坛平台 monorepo（品牌：yourtj，Go + Vue + Flutter，统一认证 Casdoor，积分 credit 二期）。
+Tongji university campus forum platform monorepo (brand: yourtj). Built directly on [GooseForum](https://github.com/leancodebox/GooseForum) (MIT) with a single-binary deployment; unified auth (Casdoor), search (Meilisearch), and points (credit, phase 2) live as shared infrastructure subdomains.
 
-## 文档
+## Documentation
 
-**[文档中心 → docs/README.md](docs/README.md)**（事实来源表 + 实现状态词）
+**[Docs center → docs/README.md](docs/README.md)** (fact-source table + status words)
 
-- 产品：[愿景与原则](docs/product/vision-and-principles.md) · [当前能力与差距](docs/product/current-state.md) · [身份与登录](docs/product/identity-and-access.md) · [积分](docs/product/credit-and-escrow.md)
-- 架构：[系统概览与域边界](docs/architecture/system-overview.md) · [契约与数据](docs/architecture/contracts-and-data.md)
-- 开发：[开发入口](docs/development/README.md) · [本地环境](docs/development/local-development.md) · [测试](docs/development/testing.md) · [PR](docs/development/pull-requests.md) · [文档治理](docs/development/documentation.md)
-- 运维：[部署与发布](docs/operations/deployment.md)
+- Product: [Vision & principles](docs/product/vision-and-principles.md) · [Current state & gaps](docs/product/current-state.md) · [Identity & access](docs/product/identity-and-access.md) · [Points & settlement](docs/product/credit-and-escrow.md)
+- Architecture: [System overview & domain boundaries](docs/architecture/system-overview.md) · [Contracts & data](docs/architecture/contracts-and-data.md)
+- Development: [Entry point](docs/development/README.md) · [Local environment](docs/development/local-development.md) · [Testing](docs/development/testing.md) · [Pull requests](docs/development/pull-requests.md) · [Documentation governance](docs/development/documentation.md)
+- Operations: [Deployment & release](docs/operations/deployment.md)
 
-开发前必须阅读 [AGENTS.md](AGENTS.md) 和需求对应的文档。仓库级 `$yourtj-development` skill 位于 `.agents/skills/yourtj-development`。
+Read [AGENTS.md](AGENTS.md) and the documents relevant to your change before developing. The repository-level `$yourtj-development` skill lives in `.agents/skills/yourtj-development`.
 
-## 结构
+## Layout
 
 ```
 yourtj-hub/
-├── apps/                  # 可独立部署的应用
-│   ├── server/            # Go 论坛后端 API（web 产物 go:embed 进单二进制）
-│   ├── web/               # Vue 3 Web 端源码（构建产物 → server/webdist）
-│   └── mobile/            # Flutter（melos workspace：core/auth/ui_kit/forum_app，规划中）
+├── apps/                  # Deployable applications
+│   ├── gooseforum/        # Forum (Go + Vue in one binary; fork of upstream, keeps upstream module name)
+│   │   ├── main.go        # Entry point (cobra CLI: serve / mock / rebuild-index ...)
+│   │   ├── app/           # Go backend (bundles/console/http/models/service/migration)
+│   │   └── resource/      # Vue 3 frontend + gohtml templates (vite output go:embed)
+│   └── mobile/            # Flutter (melos workspace: core/auth/ui_kit/forum_app, planned)
 ├── packages/
-│   └── api-contract/      # openapi.yaml 契约中心（swag 接入后生成）
-├── services/              # 基础服务部署配置（casdoor / search / credit）
-├── third_party/           # 第三方参考源码快照（gooseforum，不参与构建）
-├── deploy/                # 分环境部署配置
-└── docs/                  # 文档中心（product/architecture/development/operations）
+│   └── api-contract/      # openapi.yaml contract center (planned)
+├── services/              # Base service deployment configs (casdoor / search / credit)
+├── deploy/                # Per-environment deployment configs
+└── docs/                  # Docs center (product/architecture/development/operations)
 ```
 
-## 参考上游（Reference）
-
-本仓库**不 fork** [GooseForum](https://github.com/leancodebox/GooseForum)（MIT），以其为参考蓝本自研，
-允许在数据库、搜索和结构上大改。上游源码快照保留在
-[`third_party/gooseforum/`](third_party/gooseforum/)，供实现时对照借鉴（架构分层、数据模型、
-三模渲染、契约组织等）。
-
-- 上游仓库：https://github.com/leancodebox/GooseForum
-- 快照版本：`63949f2d`（2026-08-04，feat(resource): extract reusable client SDK）
-- 许可证：MIT（见 `third_party/gooseforum/LICENSE`）
-- 更新方式：手动 rsync 更新快照并记录新的上游 commit（上游不活跃，按需更新）
-
-> 注意：快照仅供参考，**不参与构建**，也不作为事实来源（见 [docs/README.md](docs/README.md) 事实来源表）。
-
-## 快速开始
+## Quick start
 
 ```bash
-# 1. 起本地依赖（postgres + meilisearch + mariadb + casdoor）
+# 1. Start local dependencies (postgres + meilisearch + mariadb + casdoor)
 make dev
 
-# 2. 起后端（:8080）
+# 2. Forum backend (default port 5234; place a config.toml in apps/gooseforum first)
 make server
 
-# 3. 起前端 dev（:5173，代理 /api 到 :8080）
+# 3. Frontend dev server (:3010, vite; run pnpm install in apps/gooseforum/resource first)
 make web
 
-# 4. 生产构建：web → webdist → server 单二进制
+# 4. Production build: resource → static/dist → go build single binary
 make build
 ```
 
-详见 [docs/development/local-development.md](docs/development/local-development.md)。
+See [docs/development/local-development.md](docs/development/local-development.md).
 
-## 决策速览
+## Reference
 
-| 主题 | 决策 | 记录 |
+We build on [GooseForum](https://github.com/leancodebox/GooseForum) (MIT) — thanks to its author and contributors.
+
+## Decision summary
+
+| Topic | Decision | Record |
 |---|---|---|
-| 代码组织 | apps/server + apps/web 源码分目录，部署合并（go:embed 单二进制） | 决策记录见 note |
-| 认证 | Casdoor 统一认证（OIDC，数字用户 ID，已实测） | docs/product/identity-and-access.md |
-| 状态管理（移动端） | Riverpod | docs/architecture/system-overview.md |
-| 数据库 / 搜索 | 待定（建议 PostgreSQL + Meilisearch） | 待决策，记录见 note |
+| Code organization | apps/gooseforum single binary (Go+Vue in one, upstream fork), no frontend/backend split | Decision records live in note |
+| Auth | Planned: Casdoor unified auth (OIDC, numeric user ID, verified) | docs/product/identity-and-access.md |
+| Mobile state management | Riverpod | docs/architecture/system-overview.md |
+| Database / Search | Pending (recommend PostgreSQL + Meilisearch) | Pending decision, recorded in note |
 
-## 当前状态
+## Current state
 
-实现状态与差距见 [docs/product/current-state.md](docs/product/current-state.md)（用 `Current`/`Partial`/`Planned`/`Decision needed` 标注，不写时间线）。
+Implementation status and gaps: [docs/product/current-state.md](docs/product/current-state.md) (marked with `Current`/`Partial`/`Planned`/`Decision needed`, no timeline).

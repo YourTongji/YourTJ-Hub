@@ -1,47 +1,52 @@
-# 文档治理
+# Documentation Governance
 
-> 文档类型：开发指南
+> Doc type: development guide
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 文档是代码的邻居
+## Docs are code's neighbors
 
-- 任何改变产品行为、契约、schema、安全边界或部署的 PR，必须同步更新受影响文档。
-- 文档不是"之后补"；在同一个 PR 内完成，否则视为缺陷。
-- 代码是权威。代码改变这些契约时，在同一变更中更新所属文档；不要为历史版本保留平行叙述。
+- Any PR that changes product behavior, contracts, schema, security boundaries, or deployment must
+  update the affected docs in the same PR.
+- Docs are not "write later"; if they are not updated in the same PR, it is a defect.
+- Code is authoritative. When code changes a contract, update the owning document in the same change;
+  do not keep parallel narratives for historical versions.
 
-## 文档只描述当前模型
+## Docs describe only the current model
 
-- 文档描述**当前支持的行为模型**（产品如何工作、系统不变式、命令与验证），
-  不写时间线、阶段计划、里程碑或 PR 交付清单。
-- 规划中的能力用实现状态词标注（见下），不写成"第 N 阶段"。
-- 历史叙事（已退役 schema、旧流程、方案稿）不属于当前文档树；Git 历史承担归档职责。
+- Docs describe the **currently supported behavior model** (how the product works, system invariants,
+  commands and verification) — no timelines, phase plans, milestones, or PR delivery checklists.
+- Planned capabilities are marked with implementation status words (below), not "phase N".
+- Historical narrative (retired schemas, old processes, drafts) does not belong in the current doc
+  tree; git history owns archival.
 
-## 状态词（强制）
+## Status words (mandatory)
 
-- 功能实现状态：`Current` / `Partial` / `Planned` / `Decision needed`，作用于具体可验证行为。
-- 文档生命周期：`Active` / `Draft` / `Deprecated`，与功能状态是两回事。
-- 禁止 PR-relative "本次已交付/以后再做"标签作为长期状态。
+- Implementation status: `Current` / `Partial` / `Planned` / `Decision needed`, applied to concrete
+  verifiable behavior.
+- Doc lifecycle: `Active` / `Draft` / `Deprecated` — separate from implementation status.
+- No PR-relative "shipped this / later" labels as long-term status.
 
-## 事实来源（见 docs/README.md）
+## Fact sources (see docs/README.md)
 
-| 问题 | 权威来源 |
+| Question | Authoritative source |
 |---|---|
-| 产品应如何工作 | docs/product/ |
-| 安全/隐私/合规 | AGENTS.md、docs/security/（未建前以 AGENTS.md 为准） |
-| HTTP 结构 | packages/api-contract/openapi.yaml |
-| DB 结构 | apps/server/migrations/ |
-| 当前行为 | 源码、测试、部署版本 |
+| How the product should work | docs/product/ |
+| Security/privacy/compliance | AGENTS.md, docs/security/ (until then AGENTS.md) |
+| HTTP structure | apps/gooseforum/app/http/controllers, packages/api-contract/openapi.yaml |
+| DB structure | apps/gooseforum/app/migration/ |
+| Current behavior | source, tests, deployed version |
 
-来源不一致时视为缺陷，同 PR 修正，或明确记录 `Partial`。
+When sources disagree, treat it as a defect and fix it in the same PR, or record it explicitly as `Partial`.
 
-## 文档变更流程
+## Doc change process
 
-1. 改文档前先确认事实（读源码/测试/契约，不凭记忆）。
-2. 更新受影响产品/架构/开发/运维文档与状态词。
-3. 大决策写入项目 note 的架构决策记录（yourtj-hub 架构决策记录），编号递增、只追加不改历史。
-4. 删除过时内容而不是留"已废弃但仍有用"的副本；Git 历史承担归档。
+1. Confirm facts before writing (read source/tests/contracts; never from memory).
+2. Update affected product/architecture/development/operations docs and status words.
+3. Big decisions go into the project note's ADR record (yourtj-hub ADR note), append-only numbering,
+   history never rewritten.
+4. Delete stale content instead of keeping "deprecated but useful" copies; git history owns archival.

@@ -1,6 +1,6 @@
 ---
 name: yourtj-development
-description: Develop, fix, refactor, review, test, document, or publish changes in the yourtj-hub repository. Use for any task involving Go backend (apps/server), Vue Web (apps/web), Flutter mobile (apps/mobile), OpenAPI contract (packages/api-contract), migrations, CI/deployment, repository documentation, commits, pushes, or pull requests so layer boundaries, verification, documentation impact, and publication authority are handled consistently.
+description: Develop, fix, refactor, review, test, document, or publish changes in the yourtj-hub repository. Use for any task involving the GooseForum forum (apps/gooseforum Go backend + Vue resource), Flutter mobile (apps/mobile), OpenAPI contract (packages/api-contract), services/deployment, repository documentation, commits, pushes, or pull requests so layer boundaries, verification, documentation impact, and publication authority are handled consistently.
 ---
 
 # yourtj Development
@@ -29,7 +29,8 @@ Read completely before implementation:
 2. [`docs/README.md`](../../../docs/README.md) — fact-source table and status words;
 3. [`docs/development/README.md`](../../../docs/development/README.md);
 4. the directly affected product, architecture, and operations documents;
-5. `packages/api-contract/openapi.yaml`, relevant migrations, source, and tests as needed.
+5. `apps/gooseforum` source (app/ + resource/), `packages/api-contract/openapi.yaml`,
+   relevant migrations, and tests as needed.
 
 Do not use deleted historical plans, old PR descriptions, or chat messages as a second source of truth.
 
@@ -37,14 +38,14 @@ Do not use deleted historical plans, old PR descriptions, or chat messages as a 
 
 Before editing, state whether the change affects:
 
-- backend layer (domain / repository / service / http) and cross-layer access;
-- Web behavior and generated types;
+- forum backend layer (bundles / models / service / http controllers) and cross-layer access;
+- forum frontend (`resource/`, generated types, GoHTML templates);
 - HTTP/OpenAPI compatibility (packages/api-contract);
-- PostgreSQL migration/backfill/concurrency (once the migration framework exists);
-- auth (Casdoor), JWT sessions, PII, privacy, retention, or audit;
-- credit compliance / signatures / replay (only when credit work is in scope);
+- database migration/backfill/concurrency (app/migration, SQLite/MySQL, PostgreSQL pending);
+- auth (GitHub OAuth current; Casdoor OIDC planned), JWT sessions, PII, privacy, retention, or audit;
+- credit compliance / signatures / replay (phase 2, only when credit work is in scope);
 - search (Meilisearch), cache, counters, notifications, or background jobs;
-- deployment/config/provider secrets;
+- deployment/config/provider secrets (config.toml);
 - product, architecture, development, operations, and decision documents.
 
 Stop and escalate if the request crosses the credit compliance line, needs new PII without lifecycle
@@ -55,22 +56,21 @@ answers, or requires a product decision that changes access or data semantics.
 Use this order where applicable:
 
 1. product semantics and acceptance criteria;
-2. OpenAPI contract (swag annotations → openapi.yaml);
+2. OpenAPI contract (once the contract pipeline exists; otherwise keep `@gooseforum/client` in sync);
 3. append-only migration and compatibility plan;
-4. owner-layer implementation: domain → repository → service → http;
+4. owner-layer implementation: service → models → http controllers;
 5. generated Web types and user/admin surfaces;
 6. focused tests, then scope-wide verification;
 7. documentation and operational runbooks.
 
 Hard constraints that must never be violated:
 
-- **Casdoor is the only identity source.** The forum JWT is a session credential, not identity truth.
-- **User IDs must be numeric (uint64).** credit's `GetID()` only parses numeric sub; UUID collapses all
-  users to 0. Enforce and test this in the server auth layer once auth lands.
-- **Only `repository` touches the DB.** No raw SQL in service/http.
-- **Contract changes ship with generated output and fixtures in the same PR** (once the contract
-  pipeline exists).
-- **Deployment stays a single binary** (go:embed webdist). No nginx/CDN split.
+- **Deployment stays a single binary** (resource/static/dist + templates go:embed). No nginx/CDN split.
+- **User IDs must be numeric (uint64)** once Casdoor auth lands — credit's `GetID()` only parses
+  numeric sub; UUID collapses all users to 0. Enforce and test in the auth layer.
+- **Casdoor is the only identity source** once integrated; the forum JWT is a session credential.
+- **Contract changes ship with generated output and fixtures in the same PR** (once the pipeline exists).
+- config.toml contains signingKey — never commit it (gitignored).
 
 ## 5. Verify proportionally
 
@@ -82,10 +82,11 @@ git diff --check
 
 Then run the exact gates for changed paths:
 
-- Backend: `cd apps/server && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
+- Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out).
-- Web: `cd apps/web && pnpm typecheck && pnpm build` (output lands in server/webdist).
-- Full build: `make build` then smoke-test the binary (`curl /healthz`, `/api/ping`, SPA fallback).
+- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output lands in static/dist).
+- Full build: `make build` then smoke-test the binary (`./bin/yourtj-hub serve`, then curl the
+  configured port, default 5234).
 - Contract (once the pipeline exists): regenerate openapi.yaml + TS/Dart, inspect diff, run fixture
   contract tests.
 - Auth/PII/governance/credit/search: include documented negative, replay, privacy, failure, and

@@ -1,24 +1,24 @@
 .PHONY: dev down server web build test gen
 
-dev: ## 起本地依赖（postgres + meilisearch + mariadb + casdoor）
+dev: ## Start local dependencies (postgres + meilisearch + mariadb + casdoor)
 	docker compose up -d
 
-down: ## 停本地依赖
+down: ## Stop local dependencies
 	docker compose down
 
-server: ## 跑后端（:8080）
-	cd apps/server && go run ./cmd/server
+server: ## Run forum backend (default port 5234; place config.toml in apps/gooseforum first)
+	cd apps/gooseforum && go run . serve
 
-web: ## 跑前端 dev（:5173，代理 /api 到 :8080）
-	cd apps/web && pnpm dev
+web: ## Run frontend dev server (:3010; run pnpm install first)
+	cd apps/gooseforum/resource && pnpm dev
 
-build: ## 构建 web 产物 + server 单二进制（go:embed）
-	cd apps/web && pnpm build
-	cd apps/server && go build -o ../../bin/yourtj-hub ./cmd/server
+build: ## Build frontend output + forum single binary
+	cd apps/gooseforum/resource && pnpm build
+	cd apps/gooseforum && go build -o ../../bin/yourtj-hub .
 
-test: ## 全量测试
-	cd apps/server && go vet ./... && go test ./...
-	cd apps/web && pnpm typecheck
+test: ## Run all tests
+	cd apps/gooseforum && go vet ./... && go test ./...
+	cd apps/gooseforum/resource && pnpm typecheck
 
-gen: ## 契约生成（openapi → ts/dart），M3 接入 swag 后启用
-	@echo "TODO(M3): swag 生成 openapi.yaml + gen-ts/gen-dart"
+gen: ## Contract generation (openapi → ts/dart), enabled once the contract pipeline exists
+	@echo "TODO: swag generates openapi.yaml + gen-ts/gen-dart"

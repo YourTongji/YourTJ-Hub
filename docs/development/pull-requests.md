@@ -1,33 +1,35 @@
-# 分支、提交与 Pull Request
+# Branches, Commits & Pull Requests
 
-> 文档类型：开发指南
+> Doc type: development guide
 >
-> 状态：Active
+> Status: Active
 >
-> 负责人：Platform maintainers
+> Owner: Platform maintainers
 >
-> 最近核验：2026-08-06
+> Last verified: 2026-08-06
 
-## 分支
+## Branches
 
-- 不在 `main` 上直接开发；从 `origin/main` 建 `feat/<topic>` / `fix/<topic>` / `docs/<topic>`。
-- 多任务并行时优先 worktree（`git worktree add`），不要在同一 checkout 混多分支。
+- Never develop directly on `main`; create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from `origin/main`.
+- Prefer worktrees (`git worktree add`) for parallel tasks; do not mix branches in one checkout.
 
-## 提交
+## Commits
 
-- Conventional Commits：`feat:` / `fix:` / `docs:` / `refactor:` / `chore:` / `test:`。
-- 只 stage 本任务明确拥有的文件；保留无关 dirty/untracked 文件。
-- 不 push 到受保护分支；发布走 PR + CI。
-- Agent 提交必须带尾注：`Co-authored-by: synergy-agent <299070056+synergy-agent@users.noreply.github.com>`
+- Conventional Commits: `feat:` / `fix:` / `docs:` / `refactor:` / `chore:` / `test:`.
+- Stage only files this task owns; leave unrelated dirty/untracked files alone.
+- Never push to protected branches; releases go through PR + CI.
+- Agent commits must carry the footer:
+  `Co-authored-by: synergy-agent <299070056+synergy-agent@users.noreply.github.com>`
 
-## Pull Request
+## Pull Requests
 
-- PR 描述说明：动机、行为变化、验证（命令+结果）、文档/契约影响、已知空白。
-- 契约变更的 PR 必须包含生成物 diff 与 fixture 更新。
-- 不 merge 自己的 PR（除非单人仓库且明确许可）；至少一次 review。
+- PR description states: motivation, behavior change, verification (commands + results),
+  documentation/contract impact, known gaps.
+- Contract-changing PRs must include generated-output diffs and fixture updates.
+- Do not merge your own PR (unless a solo repo and explicitly allowed); at least one review.
 
-## 禁止
+## Forbidden
 
-- 不 push --force 到共享分支；不改 git config。
-- 不把本地路径、密钥、日志、内部地址写进 commit/PR/评论。
-- 不 merge 生产部署或外部变更（除非用户明确要求）。
+- No `push --force` to shared branches; never change git config.
+- No local paths, secrets, logs, or internal addresses in commits/PRs/comments.
+- No merging production deployments or external changes (unless the user explicitly asks).
