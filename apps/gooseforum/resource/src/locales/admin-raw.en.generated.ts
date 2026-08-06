@@ -649,7 +649,7 @@ export default {
   "k00ic": "Export task created",
   "k00id": "Import finished",
   "k00ie": "Migration task created",
-  "k00if": "Recent migration tasks"
+  "k00if": "Recent migration tasks",
   "k00ig": "Abuse protection",
   "k00ih": "Failed to load rate limit settings",
   "k00ii": "Failed to save rate limit settings",
@@ -662,4 +662,5 @@ export default {
   "k00ip": "Action",
   "k00iq": "Window (s)",
   "k00ir": "Per-IP limit",
-  "k00is": "Per-user limit",} as const
+  "k00is": "Per-user limit",
+} as const

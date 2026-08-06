@@ -649,7 +649,7 @@ export default {
   "k00ic": "Attività di esportazione creata",
   "k00id": "Importazione completata",
   "k00ie": "Attività di migrazione creata",
-  "k00if": "Attività di migrazione recenti"
+  "k00if": "Attività di migrazione recenti",
   "k00ig": "Protezione abusi",
   "k00ih": "Impossibile caricare le impostazioni di limitazione",
   "k00ii": "Impossibile salvare le impostazioni di limitazione",
@@ -662,4 +662,5 @@ export default {
   "k00ip": "Azione",
   "k00iq": "Finestra (s)",
   "k00ir": "Limite per IP",
-  "k00is": "Limite per utente",} as const
+  "k00is": "Limite per utente",
+} as const
