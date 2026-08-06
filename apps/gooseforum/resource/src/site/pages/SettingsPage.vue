@@ -21,6 +21,7 @@ import {
   enableTotp,
   getOAuthBindings,
   getTotpSetup,
+  getTotpStatus,
   listSessions,
   resendActivationEmail,
   revokeAllSessions,
@@ -233,6 +234,7 @@ onMounted(() => {
   }
   void loadBindings()
   void loadSessions()
+  void loadTotpStatus()
 })
 
 function buildExternalInfo() {
@@ -456,6 +458,15 @@ async function loadSessions() {
   }
 }
 
+async function loadTotpStatus() {
+  try {
+    const status = await getTotpStatus()
+    totpEnabled.value = Boolean(status.enabled)
+  } catch {
+    // 状态查询失败时保持当前值（默认未启用），不打断设置页其余功能。
+  }
+}
+
 async function handleRevokeSession(id: number) {
   revokingSessionId.value = id
   try {
@@ -474,8 +485,8 @@ async function handleRevokeAll() {
   revokingAll.value = true
   try {
     await revokeAllSessions()
-    sessions.value = []
-    showStatus(t('settings.status.sessionsRevokedAll'))
+    // 当前会话已被吊销，后续请求都会 401；直接跳登录页让中间件重定向。
+    window.location.href = '/login'
   } catch (err) {
     showError(err instanceof Error ? err.message : t('api.sessionRevokeAllFailed'))
   } finally {

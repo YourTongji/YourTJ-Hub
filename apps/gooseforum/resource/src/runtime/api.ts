@@ -716,6 +716,19 @@ export async function verifyTotp(code: string): Promise<boolean> {
   return true
 }
 
+export interface TotpStatusPayload {
+  enabled: boolean
+}
+
+export async function getTotpStatus(): Promise<TotpStatusPayload> {
+  const response = await fetch('/api/user/totp/status', {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<TotpStatusPayload>(response, t('api.totpSetupFailed'))
+}
+
 interface CaptchaPayload {
   captchaId: string
   captchaImg: string

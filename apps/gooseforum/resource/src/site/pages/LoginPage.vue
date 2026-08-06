@@ -253,9 +253,9 @@ function errorMessage(err: unknown, fallback: string) {
                 v-model="totpCode"
                 class="gf-input text-center text-lg tracking-[0.4em]"
                 :placeholder="t('auth.twoFactorCode')"
-                inputmode="numeric"
+                inputmode="text"
                 autocomplete="one-time-code"
-                maxlength="8"
+                autocapitalize="characters"
               />
             </label>
             <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.totp">

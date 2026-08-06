@@ -1,5 +1,7 @@
 # Casdoor unified auth deployment config (local dev is already in the root docker-compose.yml)
 # Init checklist (based on the verified setup):
+# 0. 修改内置 admin 默认口令（admin/123）并禁用内置 organization 的公开注册。
+#    生产按文档建议放到反代后面，等于对公网开放默认凭证，必须先改。
 # 1. Create organization forum (owner=admin)
 # 2. Create application forum-app:
 #    - organization=forum (bare org name)
@@ -8,7 +10,12 @@
 #    - grantTypes: authorization_code, password, refresh_token, token, id_token
 # 3. Admin-created accounts must pass an explicit numeric id (API-created users need
 #    passwordType=bcrypt fixed)
-# 4. Record client_id / client_secret into deploy/.env (CASDOOR_CLIENT_ID/SECRET)
+# 4. 将 client_id / client_secret 写入论坛 config.toml 的 [casdoor] 段
+#    （或运行 init-server.sh 前 export CASDOOR_CLIENT_ID/CASDOOR_CLIENT_SECRET 环境变量）。
+#    注意：写入 deploy/.env 不会生效——论坛从 config.toml 读取，init-server.sh 读的是
+#    shell 环境变量；照旧文档第 4 步操作会发现凭证不生效。
+#    存量实例升级：init-server.sh 只在 config.toml 不存在时生成，已有 config.toml 的实例
+#    需手工补 [casdoor] 段，否则 OIDC 静默降级（IsConfigured 检查，仅日志 Warn）。
 #
 # Note: the user id defaults to UUID; credit's GetID() requires numeric uint64 —
 #       the numeric-ID config above is mandatory, otherwise all users parse to 0 and collide.

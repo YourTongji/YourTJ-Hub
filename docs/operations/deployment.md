@@ -105,6 +105,22 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
+### Unique-index preflight (user_o_auth provider_uid)
+
+Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
+already contain rows, `AutoMigrate` fails silently if duplicates exist (the schema logger records the
+error and startup continues). Before deploying a build containing this index, run the duplicate check
+on the live database and clean up any duplicates:
+
+```sql
+-- SQLite / MySQL
+SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
+-- PostgreSQL
+SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
+```
+
+If duplicates exist, keep the row with the earliest `created_at` (or the one owned by the active
+account) and delete the rest before the upgrade; the index creation will then succeed.
 ## PostgreSQL support
 
 Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
