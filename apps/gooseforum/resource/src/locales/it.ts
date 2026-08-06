@@ -194,6 +194,9 @@ export default {
     announcement: 'Annuncio',
     markAnnouncementRead: 'Segna come letto',
     markAnnouncementUnread: 'Riprendi promemoria',
+    feedMode: 'Cambia stile feed',
+    feedModeTable: 'Elenco',
+    feedModeCard: 'Schede',
     tabs: {
       latest: 'Recenti',
       hot: 'Di tendenza',

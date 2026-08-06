@@ -1186,6 +1186,11 @@ function isFirstPost(post: PostPayload) {
   return post.postNo === 1
 }
 
+// 优先展示用户昵称，未设置昵称时回退到账号名
+function authorDisplayName(author: { username: string; nickname?: string }) {
+  return author.nickname || author.username
+}
+
 function canEditPost(post: PostPayload) {
   return post.isOwnPost && !post.isHidden
 }
@@ -1518,7 +1523,7 @@ async function removePost(postId: number) {
             @click="showUserCard(page.props.topic.author, $event)"
           >
             <UserAvatar :src="page.props.topic.author.avatarUrl" :alt="page.props.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
-            {{ page.props.topic.author.username }}
+            {{ authorDisplayName(page.props.topic.author) }}
           </a>
           <span class="inline-flex items-center gap-1.5">
             <Clock class="h-3.5 w-3.5" />
@@ -1590,8 +1595,7 @@ async function removePost(postId: number) {
                 <div class="mb-1.5 flex min-w-0 items-start justify-between gap-2">
                   <div class="min-w-0">
                     <div class="flex min-w-0 items-center gap-2">
-                      <a :href="`/u/${group.root.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ group.root.author.username }}</a>
-                      <span v-if="isFirstPost(group.root)" class="rounded bg-base-200 px-1.5 py-0.5 text-xs font-semibold text-base-content/55">{{ t('topic.originalPost') }}</span>
+                      <a :href="`/u/${group.root.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(group.root.author) }}</a>
                       <span v-if="group.root.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(group.root.postNo) }}</span>
                     </div>
                     <div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/55 sm:hidden">
@@ -1603,7 +1607,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="canEditPost(group.root)"
                       type="button"
-                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="savingEditPostId === group.root.id || deletingPostId === group.root.id"
                       :title="t('common.edit')"
                       @click="startEditPost(group.root)"
@@ -1614,7 +1618,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="canDeleteRenderedPost(group.root)"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :disabled="deletingPostId === group.root.id"
                       :title="deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete')"
                       @click="requestDeletePost(group.root)"
@@ -1625,7 +1629,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="page.props.permissions.canPost && !group.root.isHidden"
                       type="button"
-                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8""
                       :title="t('topic.reply')"
                       @click="replyTo(group.root)"
                     >
@@ -1635,20 +1639,20 @@ async function removePost(postId: number) {
                     <button
                       v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
                       type="button"
-                      class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
                       :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
                       :title="t('topic.like')"
                       :disabled="postActionState(group.root).actingLike"
                       @click="togglePostLike(group.root)"
                     >
                       <Heart class="h-3.5 w-3.5" :fill="postActionState(group.root).isLiked ? 'currentColor' : 'none'" />
-                      <span v-if="postActionState(group.root).likeCount" class="text-xs font-semibold tabular-nums">{{ formatNumber(postActionState(group.root).likeCount) }}</span>
+                      <span v-if="postActionState(group.root).likeCount" class="hidden text-xs font-semibold tabular-nums sm:inline">{{ formatNumber(postActionState(group.root).likeCount) }}</span>
                       <span class="sr-only">{{ t('topic.like') }}</span>
                     </button>
                     <button
                       v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="{ 'text-primary hover:text-primary': postActionState(group.root).isBookmarked }"
                       :title="postActionState(group.root).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
                       :disabled="postActionState(group.root).actingBookmark"
@@ -1659,7 +1663,7 @@ async function removePost(postId: number) {
                     </button>
                     <button
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
                       :title="t('topic.share')"
                       @click="sharePost(group.root)"
                     >
@@ -1669,7 +1673,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
                       :title="t('topic.report')"
                       @click="requestPostReport(group.root)"
                     >
@@ -1679,7 +1683,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 0"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-50"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-50"
                       :disabled="postModerationBusy(group.root.id)"
                       :title="t('topic.moderationBan')"
                       @click="moderatePost(group.root, 'ban')"
@@ -1690,7 +1694,7 @@ async function removePost(postId: number) {
                     <button
                       v-else-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 1"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
                       :disabled="postModerationBusy(group.root.id)"
                       :title="t('topic.moderationUnban')"
                       @click="moderatePost(group.root, 'unban')"
@@ -1699,6 +1703,12 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ t('topic.moderationUnban') }}</span>
                     </button>
                     <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(group.root.createdAt) }}</time>
+                    <span
+                      v-if="isFirstPost(group.root)"
+                      class="shrink-0 self-center rounded bg-base-200 px-1 py-0.5 text-[11px] font-semibold text-base-content/55 sm:px-1.5 sm:text-xs"
+                    >
+                      {{ t('topic.originalPost') }}
+                    </span>
                   </div>
                 </div>
                 <PostReplyReference v-if="group.root.replyToPostId" :target="replyTargetFor(group.root)" />
@@ -1792,7 +1802,7 @@ async function removePost(postId: number) {
                       <a :href="`/u/${reply.author.id}`" class="shrink-0" @click="showUserCard(reply.author, $event)">
                         <UserAvatar :src="reply.author.avatarUrl" :alt="reply.author.username" :badge="reply.author.wornBadge" class="h-6 w-6 rounded-full ring-1 ring-line" img-class="rounded-full" />
                       </a>
-                      <a :href="`/u/${reply.author.id}`" class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary" @click="showUserCard(reply.author, $event)">{{ reply.author.username }}</a>
+                      <a :href="`/u/${reply.author.id}`" class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary" @click="showUserCard(reply.author, $event)">{{ authorDisplayName(reply.author) }}</a>
                       <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(reply.postNo) }}</span>
                       <time class="ml-auto shrink-0 truncate text-xs text-base-content/55">{{ formatDateTime(reply.createdAt) }}</time>
                     </div>

@@ -194,6 +194,9 @@ export default {
     announcement: 'Announcement',
     markAnnouncementRead: 'Mark as read',
     markAnnouncementUnread: 'Resume reminders',
+    feedMode: 'Toggle feed style',
+    feedModeTable: 'List',
+    feedModeCard: 'Cards',
     tabs: {
       latest: 'Latest',
       hot: 'Hot',
