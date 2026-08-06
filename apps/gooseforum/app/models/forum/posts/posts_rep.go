@@ -3,6 +3,7 @@ package posts
 import (
 	"errors"
 
+	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
 	"gorm.io/gorm"
 )
@@ -187,4 +188,28 @@ func reversePosts(entities []*Entity) {
 	for i, j := 0, len(entities)-1; i < j; i, j = i+1, j-1 {
 		entities[i], entities[j] = entities[j], entities[i]
 	}
+}
+
+// PagePendingReview 列出待审（ProcessStatus=2）的回复。
+func PagePendingReview(page, pageSize int) struct {
+	Page     int
+	PageSize int
+	Total    int64
+	Data     []Entity
+} {
+	var list []Entity
+	page = max(page-1, 0)
+	pageSize = pageutil.BoundPageSize(pageSize)
+	b := builder().
+		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Order(queryopt.Desc("id"))
+	var total int64
+	b.Session(&gorm.Session{}).Count(&total)
+	b.Limit(pageSize).Offset(pageSize * page).Find(&list)
+	return struct {
+		Page     int
+		PageSize int
+		Total    int64
+		Data     []Entity
+	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
 }

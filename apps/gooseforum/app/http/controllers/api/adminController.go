@@ -1510,3 +1510,148 @@ func ImportData(c *gin.Context) {
 	}
 	c.JSON(http.StatusOK, component.SuccessData(report))
 }
+
+// 审核队列：待审内容（ProcessStatus=2）
+type ReviewQueueReq struct {
+	Kind     string `json:"kind" validate:"required,oneof=topic post"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+
+type ReviewQueueItem struct {
+	Id            uint64 `json:"id"`
+	Title         string `json:"title"`
+	Excerpt       string `json:"excerpt"`
+	UserId        uint64 `json:"userId"`
+	Username      string `json:"username"`
+	ProcessStatus int8   `json:"processStatus"`
+	CreatedAt     string `json:"createdAt"`
+	TopicId       uint64 `json:"topicId,omitempty"`
+	PostNo        uint64 `json:"postNo,omitempty"`
+}
+
+// ReviewQueue 列出待审的主题或回复。
+func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	page := req.Params.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := req.Params.PageSize
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+	items := make([]ReviewQueueItem, 0, pageSize)
+	var total int64
+	if req.Params.Kind == "topic" {
+		result := topics.PagePendingReview(page, pageSize)
+		total = result.Total
+		userIDs := make([]uint64, 0, len(result.Data))
+		for _, t := range result.Data {
+			userIDs = append(userIDs, t.UserId)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		for _, t := range result.Data {
+			username := ""
+			if u, ok := userMap[t.UserId]; ok {
+				username = u.Username
+			}
+			excerpt := t.Excerpt
+			if excerpt == "" {
+				excerpt = t.Title
+			}
+			items = append(items, ReviewQueueItem{
+				Id: t.Id, Title: t.Title, Excerpt: excerpt,
+				UserId: t.UserId, Username: username,
+				ProcessStatus: t.ProcessStatus,
+				CreatedAt:     t.CreatedAt.Format(time.DateTime),
+			})
+		}
+	} else {
+		result := posts.PagePendingReview(page, pageSize)
+		total = result.Total
+		userIDs := make([]uint64, 0, len(result.Data))
+		for _, p := range result.Data {
+			userIDs = append(userIDs, p.UserId)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		topicIDs := make([]uint64, 0, len(result.Data))
+		for _, p := range result.Data {
+			topicIDs = append(topicIDs, p.TopicId)
+		}
+		topicMap := topics.GetMapByIds(topicIDs)
+		for _, p := range result.Data {
+			username := ""
+			if u, ok := userMap[p.UserId]; ok {
+				username = u.Username
+			}
+			title := ""
+			if t, ok := topicMap[p.TopicId]; ok {
+				title = t.Title
+			}
+			excerpt := p.Content
+			if len(excerpt) > 120 {
+				excerpt = excerpt[:120]
+			}
+			items = append(items, ReviewQueueItem{
+				Id: p.Id, Title: title, Excerpt: excerpt,
+				UserId: p.UserId, Username: username,
+				ProcessStatus: p.ProcessStatus,
+				CreatedAt:     p.CreatedAt.Format(time.DateTime),
+				TopicId:       p.TopicId, PostNo: p.PostNo,
+			})
+		}
+	}
+	return component.SuccessResponse(map[string]any{
+		"items": items, "total": total, "page": page, "pageSize": pageSize,
+	})
+}
+
+type ReviewActionReq struct {
+	Kind    string `json:"kind" validate:"required,oneof=topic post"`
+	Id      uint64 `json:"id" validate:"required"`
+	Approve bool   `json:"approve"`
+}
+
+// ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
+func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	targetStatus := int8(0)
+	if !req.Params.Approve {
+		targetStatus = 1
+	}
+	if req.Params.Kind == "topic" {
+		topic := topics.Get(req.Params.Id)
+		if topic.Id == 0 {
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		if topic.ProcessStatus != topics.ProcessStatusPending {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		if err := topics.UpdateProcessStatus(topic.Id, targetStatus); err != nil {
+			return component.FailResponseCode(component.MessageAdminReviewFailed,
+				component.MessageParams{"error": err.Error()})
+		}
+		// 首楼同步状态
+		if topic.FirstPostId > 0 {
+			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
+		}
+		hotdataserve.ClearTopicListCache()
+		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
+			optlogger.MessageParams{"id": topic.Id, "approve": req.Params.Approve})
+	} else {
+		post := posts.Get(req.Params.Id)
+		if post.Id == 0 {
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		if post.ProcessStatus != posts.ProcessStatusPending {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		if err := posts.UpdateProcessStatus(post.Id, targetStatus); err != nil {
+			return component.FailResponseCode(component.MessageAdminReviewFailed,
+				component.MessageParams{"error": err.Error()})
+		}
+		hotdataserve.ClearTopicListCache()
+		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
+			optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": req.Params.Approve})
+	}
+	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+}
