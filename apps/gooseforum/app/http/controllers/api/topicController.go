@@ -430,8 +430,10 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 			ReplyToPostId:       req.Params.ReplyToPostId,
 			ReplyToPostAuthorId: parentPostAuthorID,
 		})
-		recordSuccessfulWrite(req.UserId, "post.create")
 	}
+	// 发帖计数无条件累加（与 WriteTopic 的 topic.write 一致），
+	// 保证待审内容也计入"新用户连续发帖"验证码门槛，避免滥用防护被绕过。
+	recordSuccessfulWrite(req.UserId, "post.create")
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,

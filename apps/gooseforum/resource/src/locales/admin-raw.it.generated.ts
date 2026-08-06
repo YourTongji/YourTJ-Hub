@@ -663,4 +663,7 @@ export default {
   "k00iq": "Finestra (s)",
   "k00ir": "Limite per IP",
   "k00is": "Limite per utente",
+  "k00it": "Richiedi captcha su registrazione/accesso/recupero password",
+  "k00iu": "Quando attivo, registrazione, accesso e recupero password richiedono un captcha per resistere al traffico bot.",
+
 } as const

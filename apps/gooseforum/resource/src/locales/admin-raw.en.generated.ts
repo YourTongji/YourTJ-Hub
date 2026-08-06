@@ -663,4 +663,7 @@ export default {
   "k00iq": "Window (s)",
   "k00ir": "Per-IP limit",
   "k00is": "Per-user limit",
+  "k00it": "Require captcha on register/login/forgot-password",
+  "k00iu": "When enabled, registration, login and password reset require a captcha to resist bot traffic.",
+
 } as const

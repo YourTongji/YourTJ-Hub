@@ -149,7 +149,11 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 		if !selected[table] {
 			continue
 		}
-		total += countTable(table)
+		count, err := countTable(table)
+		if err != nil {
+			return err
+		}
+		total += count
 	}
 	processed := int64(0)
 
@@ -234,11 +238,13 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 	return nil
 }
 
-func countTable(table string) int64 {
+func countTable(table string) (int64, error) {
 	db := dbconnect.Connect()
 	var count int64
-	db.Table(table).Count(&count)
-	return count
+	if err := db.Table(table).Count(&count).Error; err != nil {
+		return 0, fmt.Errorf("统计 %s 表行数失败: %w", table, err)
+	}
+	return count, nil
 }
 
 // writeExportTable streams one table to the file, returning rows written.
@@ -250,7 +256,10 @@ func writeExportTable(ctx context.Context, file *os.File, writer *csv.Writer, en
 		if err := ctx.Err(); err != nil {
 			return total, err
 		}
-		rows := fetchExportRows(table, lastID, exportBatchSize)
+		rows, err := fetchExportRows(table, lastID, exportBatchSize)
+		if err != nil {
+			return total, err
+		}
 		if len(rows) == 0 {
 			break
 		}
@@ -284,12 +293,14 @@ type exportRow struct {
 	Fields map[string]any
 }
 
-func fetchExportRows(table string, lastID uint64, limit int) []exportRow {
+func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error) {
 	db := dbconnect.Connect()
 	switch table {
 	case "users":
 		var list []users.EntityComplete
-		db.Table("users").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list)
+		if err := db.Table("users").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
+			return nil, fmt.Errorf("查询 users 表失败: %w", err)
+		}
 		rows := make([]exportRow, 0, len(list))
 		for _, u := range list {
 			rows = append(rows, exportRow{ID: u.Id, Fields: map[string]any{
@@ -300,10 +311,12 @@ func fetchExportRows(table string, lastID uint64, limit int) []exportRow {
 				"createdAt": u.CreatedAt.Format(time.RFC3339), "updatedAt": u.UpdatedAt.Format(time.RFC3339),
 			}})
 		}
-		return rows
+		return rows, nil
 	case "topics":
 		var list []topics.Entity
-		db.Table("topics").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list)
+		if err := db.Table("topics").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
+			return nil, fmt.Errorf("查询 topics 表失败: %w", err)
+		}
 		rows := make([]exportRow, 0, len(list))
 		for _, t := range list {
 			cats, _ := json.Marshal(t.CategoryIds)
@@ -314,10 +327,12 @@ func fetchExportRows(table string, lastID uint64, limit int) []exportRow {
 				"createdAt": t.CreatedAt.Format(time.RFC3339), "updatedAt": t.UpdatedAt.Format(time.RFC3339),
 			}})
 		}
-		return rows
+		return rows, nil
 	case "posts":
 		var list []posts.Entity
-		db.Table("posts").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list)
+		if err := db.Table("posts").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
+			return nil, fmt.Errorf("查询 posts 表失败: %w", err)
+		}
 		rows := make([]exportRow, 0, len(list))
 		for _, p := range list {
 			rows = append(rows, exportRow{ID: p.Id, Fields: map[string]any{
@@ -326,9 +341,9 @@ func fetchExportRows(table string, lastID uint64, limit int) []exportRow {
 				"createdAt": p.CreatedAt.Format(time.RFC3339), "updatedAt": p.UpdatedAt.Format(time.RFC3339),
 			}})
 		}
-		return rows
+		return rows, nil
 	}
-	return nil
+	return nil, fmt.Errorf("未知导出表: %s", table)
 }
 
 var exportCSVHeaders = map[string][]string{
@@ -351,6 +366,11 @@ func csvValue(v any) string {
 	case nil:
 		return ""
 	case string:
+		// CSV 公式注入防护：以 = + - @ 开头的单元格加单引号前缀，
+		// 防止 Excel/Sheets 打开导出文件时执行公式。
+		if len(val) > 0 && strings.ContainsRune("=+-@", rune(val[0])) {
+			return "'" + val
+		}
 		return val
 	case int64:
 		return strconv.FormatInt(val, 10)

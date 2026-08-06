@@ -198,6 +198,10 @@ func importTopics(rows []map[string]any, report *ImportReport) {
 				break
 			}
 		}
+		if categoryIDs == nil && len(rowString(row, "categoryIds")) > 0 {
+			// 分类校验失败：仅记一次失败，跳过该行，避免 Failed/Success 双计数
+			continue
+		}
 		var existing topics.Entity
 		if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
 			report.Skipped++
