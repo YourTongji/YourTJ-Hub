@@ -2,10 +2,12 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
   Award,
+  Database,
   FileText,
   Files,
   ExternalLink,
   GalleryVerticalEnd,
+  HardDrive,
   Heart,
   Link,
   ListChecks,
@@ -13,6 +15,7 @@ import {
   Megaphone,
   Monitor,
   PanelsTopLeft,
+  ScrollText,
   ShieldCheck,
   PanelLeft,
   Tags,
@@ -78,6 +81,8 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k0058'), url: '/admin/badges', icon: Award, permission: AdminPermission.SiteManager },
       { title: adminText('k00f6'), url: '/admin/files/resources', icon: Files, permission: AdminPermission.SiteManager },
       { title: adminText('k007c'), url: '/admin/opt-records', icon: ListChecks, permission: AdminPermission.Admin },
+      { title: adminText('k00ge'), url: '/admin/review-queue', icon: ListChecks, permission: AdminPermission.SiteManager },
+      { title: adminText('k00h0'), url: '/admin/data', icon: Database, permission: AdminPermission.SiteManager },
     ],
   },
   {
@@ -90,6 +95,8 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k007w'), url: '/admin/settings/posting', icon: FileText, permission: AdminPermission.SiteManager },
       { title: adminText('k0009'), url: '/admin/settings/announcement', icon: Megaphone, permission: AdminPermission.PageManager },
       { title: adminText('k00cj'), url: '/admin/settings/http-notify', icon: Webhook, permission: AdminPermission.SiteManager },
+      { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },
+      { title: adminText('k00gp'), url: '/admin/settings/terms', icon: ScrollText, permission: AdminPermission.SiteManager },
     ],
   },
   ].map(group => ({

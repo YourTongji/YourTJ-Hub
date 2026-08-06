@@ -28,6 +28,7 @@ export const pageComponents = [
   'links.index',
   'sponsors.index',
   'notifications.index',
+  'drafts.index',
   'terms.index',
   'messages.index',
   'moderation.index',
