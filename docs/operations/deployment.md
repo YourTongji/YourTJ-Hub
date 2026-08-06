@@ -166,6 +166,30 @@ instance:
 `errorPath` (WARN/ERROR go to a separate rotating file, e.g. `run.error.log`), and `logIp`
 (default false — access logs omit the client IP for privacy). Changing these requires a restart.
 
+## Storage (object storage) configuration
+
+- Files default to SQLite BLOB (no external dependency). To move uploads to an S3-compatible
+  object store (MinIO / Tencent COS / Alibaba OSS / Cloudflare R2), configure it in the admin panel
+  (设置 → 存储设置): provider `s3`, endpoint, bucket, region, bucket lookup, access/secret keys,
+  optional public URL prefix (CDN direct reads).
+- Credentials are stored in `page_config` (same handling as SMTP password today). Keep the bucket
+  private; the forum proxies reads through `/file/img/*` unless a public prefix is configured.
+- Addressing: Alibaba OSS and Tencent COS (buckets created after 2024-01-01) only support
+  virtual-hosted style — set bucket lookup `dns` and the bucket region explicitly. MinIO/R2 accept
+  `auto`/`path`. The endpoint may include `https://`; the forum strips the scheme and derives TLS
+  from it (or from the secure toggle).
+- Migrating existing BLOB files: admin panel (存储设置 → 迁移文件) creates a background task with
+  progress; or run `./bin/yourtj-hub migrate-files --endpoint ... --bucket ... [--clear-after-migrate]`
+  on the server. Migration is cursor-driven and resumable; the BLOB column is kept unless
+  `--clear-after-migrate` is set, so reads stay correct during/after migration.
+
+## Data export/import
+
+- Admin panel (数据管理): export users/topics/posts as JSON or CSV via a background task, then
+  download; import JSON with a per-row validation report and idempotent skip.
+- Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
+  (daily cron). Export contains user emails — treat downloads as sensitive.
+
 ## Runbooks to write
 
 - Casdoor production config (domain, certs, client registration)

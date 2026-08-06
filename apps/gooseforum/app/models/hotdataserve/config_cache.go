@@ -73,6 +73,32 @@ func GetSecuritySettingsConfigCache() pageConfig.SecurityAndRegistration {
 	}, configFastCacheTTL)
 }
 
+var storageSettingsConfigCache = &localcache.Cache[pageConfig.StorageSettings]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetStorageSettingsConfigCache() pageConfig.StorageSettings {
+	return storageSettingsConfigCache.GetOrLoad("", func() (pageConfig.StorageSettings, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+var termsOfServiceConfigCache = &localcache.Cache[pageConfig.TermsOfServiceConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetTermsOfServiceConfigCache() pageConfig.TermsOfServiceConfig {
+	return termsOfServiceConfigCache.GetOrLoad("", func() (pageConfig.TermsOfServiceConfig, error) {
+		config := pageConfig.GetConfigByPageType(pageConfig.TermsOfService, defaultconfig.GetDefaultTermsOfServiceConfig())
+		config.PrepareHTML()
+		return config, nil
+	}, configFastCacheTTL)
+}
+
+func ClearStorageSettingsConfigCache() {
+	storageSettingsConfigCache.Clear()
+}
+
+func ClearTermsOfServiceConfigCache() {
+	termsOfServiceConfigCache.Clear()
+}
+
 var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{MaxEntries: cacheconfig.Current().PageConfig}
 
 func GetPostingSettingsConfigCache() pageConfig.PostingContent {

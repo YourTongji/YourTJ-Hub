@@ -20,10 +20,45 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
+
+// checkContentPolicy 检查内容是否命中敏感词。
+// 返回 (pendingReview, word, err)：
+//   - pendingReview=true：命中且配置为转人工审核，调用方应将 ProcessStatus 置为待审（2）。
+//   - err!=nil：命中且配置为直接拦截，调用方应拒绝写入并返回错误。
+func checkContentPolicy(userId uint64, content string, subjectType string, subjectId uint64) (bool, string, error) {
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	hit, word := moderationservice.CheckContentAllowedWithConfig(content, securityConfig)
+	if !hit {
+		return false, "", nil
+	}
+	excerpt := content
+	if len(excerpt) > 100 {
+		excerpt = excerpt[:100]
+	}
+	if securityConfig.SensitiveAction == "review" {
+		moderationservice.SensitiveContentReview(userId, subjectType, subjectId, word, excerpt)
+		return true, word, nil
+	}
+	moderationservice.SensitiveContentBlocked(userId, subjectType, subjectId, word, excerpt)
+	return false, word, component.NewMessageError(
+		component.MessageContentSensitiveBlocked,
+		"内容包含敏感词，已被拦截",
+		component.MessageParams{"word": word},
+	)
+}
+
+// truncateExcerpt 截断内容为审核日志摘要。
+func truncateExcerpt(content string) string {
+	if len(content) <= 100 {
+		return content
+	}
+	return content[:100]
+}
 
 func GetSiteStatistics() component.Response {
 	return component.SuccessResponse(hotdataserve.GetSiteStatisticsData())
@@ -105,6 +140,11 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	if topics.CantWriteNew(req.UserId, 10) {
 		return component.FailResponseCode(component.MessageTopicDailyLimit, nil)
 	}
+	// 敏感词检查（标题+内容）
+	pendingReview, _, policyErr := checkContentPolicy(req.UserId, req.Params.Title+"\n"+req.Params.Content, "topic", req.Params.TopicId)
+	if policyErr != nil {
+		return component.FailResponseError(policyErr)
+	}
 	var topic topics.Entity
 	var firstPost posts.Entity
 	if req.Params.TopicId != 0 {
@@ -125,6 +165,9 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
 	topic.ImageUrls = markdown2html.ExtractImageURLs(req.Params.Content)
+	if pendingReview {
+		topic.ProcessStatus = topics.ProcessStatusPending
+	}
 	if topic.Id > 0 {
 		if firstPost.Id == 0 {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
@@ -132,13 +175,13 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 		firstPost.Content = req.Params.Content
 		firstPost.RenderedHTML = ""
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
+		if pendingReview {
+			firstPost.ProcessStatus = posts.ProcessStatusPending
+		}
 		if err := topics.Save(&topic); err != nil {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		if err := posts.Save(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
@@ -160,6 +203,10 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 			Content:         req.Params.Content,
 			RenderedHTML:    "",
 			RenderedVersion: markdown2html.GetPostVersion(),
+			ProcessStatus:   posts.ProcessStatusNormal,
+		}
+		if pendingReview {
+			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
 		if err := posts.Create(&firstPost); err != nil {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
@@ -294,6 +341,15 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 		ReplyToPostId:   req.Params.ReplyToPostId,
 	}
 
+	// 敏感词检查
+	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", 0)
+	if policyErr != nil {
+		return component.FailResponseError(policyErr)
+	}
+	if pendingReview {
+		postEntity.ProcessStatus = posts.ProcessStatusPending
+	}
+
 	err = postservice.CreateTopicPost(postEntity, topicEntity)
 	if err != nil {
 		return component.FailResponseCode(
@@ -372,10 +428,15 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 
+	// 敏感词检查
+	_, _, policyErr := checkContentPolicy(req.UserId, content, "post", postEntity.Id)
+	if policyErr != nil {
+		return component.FailResponseError(policyErr)
+	}
+
 	postEntity.Content = content
 	postEntity.RenderedHTML = markdown2html.PostMarkdownToHTML(content)
 	postEntity.RenderedVersion = markdown2html.GetPostVersion()
-
 	if err := posts.Save(&postEntity); err != nil {
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,

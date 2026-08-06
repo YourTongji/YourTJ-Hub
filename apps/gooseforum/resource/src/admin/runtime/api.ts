@@ -2,6 +2,7 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  AdminTaskRow,
   AdminTopic,
   AdminBadge,
   AdminCategory,
@@ -12,6 +13,7 @@ import type {
   AdminRole,
   AdminUser,
   AnnouncementConfig,
+  ImportReport,
   TopicSource,
   DailyTraffic,
   FriendLinkGroup,
@@ -20,12 +22,15 @@ import type {
   MailSettings,
   PageResult,
   PostingSettings,
+  ReviewQueueItem,
   SecuritySettings,
   ServerVersion,
   SiteChromeConfig,
   SiteSettings,
   SiteStatistics,
   SponsorsConfig,
+  StorageSettings,
+  TermsOfServiceConfig,
   UserBadgeOptions,
 } from '@/admin/types'
 
@@ -318,4 +323,66 @@ export function saveHttpNotifySettings(settings: HttpNotifySettings) {
 
 export function saveAnnouncement(settings: AnnouncementConfig) {
   return postJson<unknown>('/api/admin/save-announcement', { settings }, adminText('k001o'))
+}
+
+export function getStorageSettings() {
+  return getJson<StorageSettings>('/api/admin/storage-settings', adminText('k00fk'))
+}
+
+export function saveStorageSettings(settings: StorageSettings) {
+  return postJson<unknown>('/api/admin/save-storage-settings', { settings }, adminText('k00fk'))
+}
+
+export function testStorageConnection(settings: StorageSettings) {
+  return postJson<{ success: boolean, messageCode: string, params?: { error?: string } }>(
+    '/api/admin/test-storage-connection',
+    { settings },
+    adminText('k00fl'),
+  )
+}
+
+export function createStorageMigrateTask(clearAfterMigrate: boolean) {
+  return postJson<{ taskId: number }>('/api/admin/storage-migrate-task', { clearAfterMigrate }, adminText('k00fm'))
+}
+
+export function getStorageMigrateTasks() {
+  return getJson<AdminTaskRow[]>('/api/admin/storage-migrate-tasks', adminText('k00fm'))
+}
+
+export function getTermsOfService() {
+  return getJson<TermsOfServiceConfig>('/api/admin/terms-of-service', adminText('k00go'))
+}
+
+export function saveTermsOfService(settings: TermsOfServiceConfig) {
+  return postJson<unknown>('/api/admin/save-terms-of-service', { settings }, adminText('k00go'))
+}
+
+export function getReviewQueue(kind: 'topic' | 'post', page: number, pageSize: number) {
+  return postJson<{ items: ReviewQueueItem[], total: number, page: number, pageSize: number }>(
+    '/api/admin/review-queue',
+    { kind, page, pageSize },
+    adminText('k00gd'),
+  )
+}
+
+export function reviewAction(kind: 'topic' | 'post', id: number, approve: boolean) {
+  return postJson<unknown>('/api/admin/review-action', { kind, id, approve }, adminText('k00gd'))
+}
+
+export function createExportTask(tables: string[], format: 'json' | 'csv') {
+  return postJson<{ taskId: number }>('/api/admin/data/export', { tables, format }, adminText('k00h5'))
+}
+
+export function getExportTasks() {
+  return getJson<AdminTaskRow[]>('/api/admin/data/export/tasks', adminText('k00h5'))
+}
+
+export function downloadExportTask(taskId: number) {
+  window.open(`/api/admin/data/export/download/${taskId}`, '_blank')
+}
+
+export function importData(file: File) {
+  const body = new FormData()
+  body.append('file', file)
+  return postForm<ImportReport>('/api/admin/data/import', body, adminText('k00hk'))
 }

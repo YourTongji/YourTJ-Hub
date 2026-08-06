@@ -34,18 +34,20 @@ func (itself *Entity) TableName() string {
 }
 
 const (
-	FriendShipLinks  = `friendShipLinks`
-	SponsorsPage     = `sponsors`
-	SiteSettings     = `siteSettings`
-	EmailSettings    = `emailSetting`
-	Announcement     = `announcement`
-	SecuritySettings = `securitySettings`
-	PostingSettings  = `postingSettings`
-	HttpNotify       = `httpNotify`
-	SiteTheme        = `siteTheme`
-	SiteChrome       = `siteChrome`
-	Version          = `version`
-	Migration        = `migration`
+	FriendShipLinks     = `friendShipLinks`
+	SponsorsPage        = `sponsors`
+	SiteSettings        = `siteSettings`
+	EmailSettings       = `emailSetting`
+	Announcement        = `announcement`
+	SecuritySettings    = `securitySettings`
+	StorageSettingsPage = `storageSettings`
+	TermsOfService      = `termsOfService`
+	PostingSettings     = `postingSettings`
+	HttpNotify          = `httpNotify`
+	SiteTheme           = `siteTheme`
+	SiteChrome          = `siteChrome`
+	Version             = `version`
+	Migration           = `migration`
 )
 
 type LinkItem struct {
@@ -219,6 +221,44 @@ type SecurityAndRegistration struct {
 	EnableSignup            bool     `json:"enableSignup"`
 	EnableEmailVerification bool     `json:"enableEmailVerification"`
 	AllowedDomains          []string `json:"allowedDomains"`
+	ReservedUsernames       []string `json:"reservedUsernames"` // 保留用户名：注册/改名拒绝
+	BannedUsernames         []string `json:"bannedUsernames"`   // 禁用用户名：注册/改名拒绝，存量账号自动冻结
+	SensitiveWords          []string `json:"sensitiveWords"`    // 敏感词：命中后按 SensitiveAction 处理
+	SensitiveAction         string   `json:"sensitiveAction"`   // block=直接拦截 review=转人工审核
+}
+
+// StorageSettingsConfig 存储设置配置（本地 SQLite BLOB 或 S3 兼容对象存储）
+type StorageSettings struct {
+	Provider        string `json:"provider"`        // local | s3
+	Endpoint        string `json:"endpoint"`        // S3 兼容 endpoint，如 https://cos.ap-shanghai.myqcloud.com
+	Bucket          string `json:"bucket"`          // 存储桶
+	Region          string `json:"region"`          // 区域（COS/OSS 必须，R2 可忽略）
+	BucketLookup    string `json:"bucketLookup"`    // auto | dns | path（COS 需 dns，MinIO/R2 可 auto/path）
+	Secure          bool   `json:"secure"`          // 是否使用 HTTPS
+	AccessKey       string `json:"accessKey"`       // 访问密钥
+	SecretKey       string `json:"secretKey"`       // 私密密钥
+	PublicUrlPrefix string `json:"publicUrlPrefix"` // 可选公开访问前缀（CDN），留空则走 /file/img 代理
+}
+
+// TermsOfServiceConfig 服务条款配置
+type TermsOfServiceConfig struct {
+	Enabled     bool   `json:"enabled"` // 是否启用服务条款
+	Content     string `json:"content"` // 条款内容（markdown）
+	HtmlContent string `json:"-"`       // 预渲染后的 HTML，仅服务端使用
+}
+
+func (itself *TermsOfServiceConfig) PrepareHTML() {
+	if itself == nil || itself.HtmlContent != "" || itself.Content == "" {
+		return
+	}
+	itself.HtmlContent = markdown2html.MarkdownToHTML(itself.Content)
+}
+
+func (itself TermsOfServiceConfig) GetHtmlContent() string {
+	if itself.HtmlContent != "" || itself.Content == "" {
+		return itself.HtmlContent
+	}
+	return markdown2html.MarkdownToHTML(itself.Content)
 }
 
 type PostingContent struct {

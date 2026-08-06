@@ -276,7 +276,10 @@ function errorMessage(err: unknown, fallback: string) {
             </div>
             <label class="flex items-start gap-2 text-sm leading-5 text-base-content/55">
               <input v-model="registerForm.agree" type="checkbox" class="mt-1 h-4 w-4 rounded border-line text-primary focus:ring-primary" />
-              <span>{{ t('auth.agreeTerms') }}</span>
+              <span>
+                {{ t('auth.agreeTerms') }}
+                <a href="/terms" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.termsLink') }}</a>
+              </span>
             </label>
             <button type="submit" class="gf-button gf-button-xl gf-button-neutral w-full" :disabled="loading.register">
               <LoaderCircle v-if="loading.register" class="h-4 w-4 animate-spin" />

@@ -10,6 +10,7 @@ const (
 	PageComponentLinks         PageComponent = "links.index"
 	PageComponentSponsors      PageComponent = "sponsors.index"
 	PageComponentNotifications PageComponent = "notifications.index"
+	PageComponentTerms         PageComponent = "terms.index"
 	PageComponentMessages      PageComponent = "messages.index"
 	PageComponentDrafts        PageComponent = "drafts.index"
 	PageComponentModeration    PageComponent = "moderation.index"

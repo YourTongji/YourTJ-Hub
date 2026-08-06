@@ -9,6 +9,8 @@ const settingsPages = {
   '/admin/settings/posting': 'posting',
   '/admin/settings/announcement': 'announcement',
   '/admin/settings/http-notify': 'http-notify',
+  '/admin/settings/storage': 'storage',
+  '/admin/settings/terms': 'terms',
 } as const
 
 export const adminRouter = createRouter({
@@ -47,12 +49,16 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/BadgesManagementPage.vue'),
     },
     {
-      path: '/admin/files/resources',
-      component: () => import('@/admin/pages/management/FileResourcesManagementPage.vue'),
-    },
-    {
       path: '/admin/opt-records',
       component: () => import('@/admin/pages/management/OptRecordsManagementPage.vue'),
+    },
+    {
+      path: '/admin/review-queue',
+      component: () => import('@/admin/pages/management/ReviewQueueManagementPage.vue'),
+    },
+    {
+      path: '/admin/data',
+      component: () => import('@/admin/pages/management/DataManagementPage.vue'),
     },
     {
       path: '/admin/settings/site-chrome',
