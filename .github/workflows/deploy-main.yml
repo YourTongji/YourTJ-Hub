@@ -60,6 +60,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
@@ -69,6 +70,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
             # 1. 部署前一致性备份(保留最近 7 份)

@@ -59,6 +59,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
@@ -68,6 +69,7 @@ jobs:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
