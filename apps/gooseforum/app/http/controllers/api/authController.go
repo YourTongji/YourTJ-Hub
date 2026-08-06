@@ -11,6 +11,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 
 	"log/slog"
@@ -124,8 +126,13 @@ func Register(c *gin.Context) {
 		})
 	}
 
-	token, err := jwt.CreateNewTokenDefaultWithVersion(userEntity.Id, userEntity.TokenVersion)
+	token, jti, err := jwt.CreateSessionToken(userEntity.Id, userEntity.TokenVersion)
 	if err != nil {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterRetryLogin, nil))
+		return
+	}
+	if err = sessionservice.Create(userEntity.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+		slog.Error("注册创建会话失败", "userId", userEntity.Id, "error", err)
 		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterRetryLogin, nil))
 		return
 	}
@@ -214,9 +221,38 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	token, err := jwt.CreateNewTokenDefaultWithVersion(userEntity.Id, userEntity.TokenVersion)
+	// 封禁用户不允许登录（与 OIDC/goth 路径的冻结检查一致）。
+	if userEntity.IsFrozen == users.StatusFrozen {
+		c.JSON(200, component.FailDataCode(component.MessageAuthAccountFrozen, nil))
+		return
+	}
+	if totpservice.IsEnabled(userEntity.Id) {
+		challengeToken, err := jwt.CreateChallengeToken(userEntity.Id, userEntity.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+		if err != nil {
+			slog.Error("生成两步验证 challenge token 失败", "userId", userEntity.Id, "error", err)
+			c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+			return
+		}
+		jwt.TokenSettingWithMaxAge(c, challengeToken, 5*time.Minute)
+		c.JSON(http.StatusOK, component.SuccessDataCode(
+			map[string]any{
+				"twoFactorRequired": true,
+				"message":           "请输入两步验证码",
+			},
+			component.MessageAuthTotpRequired,
+			nil,
+		))
+		return
+	}
+
+	token, jti, err := jwt.CreateSessionToken(userEntity.Id, userEntity.TokenVersion)
 	if err != nil {
 		slog.Error("生成 token 失败", "userId", userEntity.Id, "error", err)
+		c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+		return
+	}
+	if err = sessionservice.Create(userEntity.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+		slog.Error("创建会话失败", "userId", userEntity.Id, "error", err)
 		c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
 		return
 	}

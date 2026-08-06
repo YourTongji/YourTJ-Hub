@@ -32,6 +32,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/chatservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/notificationservice"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
@@ -115,6 +116,7 @@ type LoginPageProps struct {
 	RedirectURL string `json:"redirectUrl"`
 	GitHubURL   string `json:"githubUrl"`
 	GoogleReady bool   `json:"googleReady"`
+	CasdoorURL  string `json:"casdoorUrl,omitempty"`
 }
 
 type ResetPasswordPageProps struct {
@@ -795,11 +797,16 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
+	casdoorURL := ""
+	if oidcservice.IsConfigured() {
+		casdoorURL = "/api/auth/oidc/login"
+	}
 	return LoginPageProps{
 		InitialMode: mode,
 		RedirectURL: redirectURL,
 		GitHubURL:   githubURL,
 		GoogleReady: false,
+		CasdoorURL:  casdoorURL,
 	}
 }
 
@@ -2139,6 +2146,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			{Key: "account", URL: "/settings?tab=account"},
 			{Key: "privacy", URL: "/settings?tab=privacy"},
 			{Key: "binding", URL: "/settings?tab=binding"},
+			{Key: "security", URL: "/settings?tab=security"},
 		},
 	}
 }

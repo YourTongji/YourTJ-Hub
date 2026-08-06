@@ -156,3 +156,9 @@ func IncrementPrestige(addNumber int64, userId uint64) int64 {
 	result := builder().Exec("UPDATE users SET prestige = prestige+? where id = ?", addNumber, userId)
 	return result.RowsAffected
 }
+
+// IncrementTokenVersion bumps the user's token version, invalidating every
+// previously issued access token (used by "revoke all devices").
+func IncrementTokenVersion(userId uint64) {
+	builder().Exec("UPDATE users SET token_version = token_version + 1 where id = ?", userId)
+}
