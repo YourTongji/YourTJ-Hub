@@ -80,6 +80,17 @@ const (
 )
 
 const (
+	MessageAuthTotpRequired   MessageCode = "auth.totp.required"  // 需要完成两步验证。
+	MessageTotpCodeInvalid    MessageCode = "totp.code.invalid"   // 两步验证码错误。
+	MessageTotpAlreadyEnabled MessageCode = "totp.alreadyEnabled" // 两步验证已启用。
+	MessageTotpNotEnabled     MessageCode = "totp.notEnabled"     // 两步验证未启用。
+	MessageTotpRateLimited    MessageCode = "totp.rateLimited"    // 两步验证尝试过于频繁。
+	MessageTotpSetupFailed    MessageCode = "totp.setupFailed"    // 生成两步验证密钥失败，params.error 可带原始错误。
+	MessageTotpEnableFailed   MessageCode = "totp.enableFailed"   // 启用两步验证失败，params.error 可带原始错误。
+	MessageTotpDisableFailed  MessageCode = "totp.disableFailed"  // 关闭两步验证失败，params.error 可带原始错误。
+)
+
+const (
 	MessagePermissionResolveFailed MessageCode = "permission.resolveFailed" // 权限信息读取失败。
 	MessagePermissionDenied        MessageCode = "permission.denied"        // 当前用户没有执行该操作的权限。
 	MessagePermissionUserFrozen    MessageCode = "permission.userFrozen"    // 用户已被冻结，params.action 表示操作名称。
@@ -141,9 +152,20 @@ const (
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"             // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed"    // OAuth 用户激活状态更新失败。
 	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"               // OAuth 登录 token 生成失败。
+	MessageOAuthNumericSubRequired     MessageCode = "oauth.numericSubRequired"         // OAuth 账号标识必须为数字ID。
+	MessageOidcStartFailed             MessageCode = "oidc.start.failed"                // OIDC 登录发起失败。
+	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"             // OIDC 登录回调失败。
+	MessageOidcBindFailed              MessageCode = "oidc.bind.failed"                 // OIDC 账号绑定失败。
+	MessageOidcBindConflict            MessageCode = "oidc.bind.conflict"               // 该 OIDC 账号已被其他用户绑定。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"                 // 私信发送失败，params.error 可带原始错误。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"             // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"             // 标记私信已读失败。
+	MessageSessionListFailed           MessageCode = "session.list.failed"              // 获取登录会话列表失败。
+	MessageSessionRevokeFailed         MessageCode = "session.revoke.failed"            // 吊销会话失败。
+	MessageSessionRevokeSuccess        MessageCode = "session.revoke.success"           // 会话已吊销。
+	MessageSessionRevokeAllSuccess     MessageCode = "session.revokeAll.success"        // 已退出所有设备。
+	MessageSessionCurrentNotRevocable  MessageCode = "session.current.notRevocable"     // 当前会话不可吊销。
+	MessageSessionNotFound             MessageCode = "session.notFound"                 // 会话不存在。
 )
 
 const (
