@@ -34,6 +34,7 @@ const (
 	ProviderGoogle   = "google"
 	ProviderFacebook = "facebook"
 	ProviderTwitter  = "twitter"
+	ProviderCasdoor  = "casdoor"
 )
 
 // InitOAuth configures available OAuth providers.
@@ -295,7 +296,7 @@ func ProcessOAuthBind(userID uint64, gothUser goth.User) error {
 
 // GetUserOAuthBindings returns active OAuth bindings keyed by provider.
 func GetUserOAuthBindings(userID uint64) map[string]*userOAuth.Entity {
-	providers := []string{ProviderGitHub, ProviderGoogle}
+	providers := []string{ProviderGitHub, ProviderGoogle, ProviderCasdoor}
 	return lo.PickBy(lo.Associate(providers, func(p string) (string, *userOAuth.Entity) {
 		return p, userOAuth.GetByUserIDAndProvider(userID, p)
 	}), func(_ string, v *userOAuth.Entity) bool {
