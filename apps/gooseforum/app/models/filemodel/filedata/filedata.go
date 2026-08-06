@@ -3,7 +3,7 @@ package filedata
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/leancodebox/GooseForum/app/service/storageservice"
 )
 
 const tableName = "file_data"
@@ -42,5 +42,5 @@ func (itself *Entity) GetAccessPath() string {
 }
 
 func accessPath(name string) string {
-	return urlconfig.FilePath(name)
+	return storageservice.PublicAccessPath(name)
 }

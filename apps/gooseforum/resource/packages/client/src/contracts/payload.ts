@@ -631,6 +631,11 @@ export interface SponsorsPageProps {
   rules: SponsorsRulePayload[]
 }
 
+export interface TermsPageProps {
+  enabled: boolean
+  contentHtml: string
+}
+
 export interface SponsorSectionPayload {
   key: string
   label: string

@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { FileText, Globe, GripVertical, Loader2, MailCheck, Plus, Save, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -25,6 +25,7 @@ import {
   DialogTitle,
 } from '@/admin/components/ui/dialog'
 import {
+  createStorageMigrateTask,
   getAnnouncement,
   getHttpNotifySettings,
   getMailSettings,
@@ -32,6 +33,9 @@ import {
   getRateLimitSettings,
   getSecuritySettings,
   getSiteSettings,
+  getStorageMigrateTasks,
+  getStorageSettings,
+  getTermsOfService,
   saveAnnouncement,
   saveHttpNotifySettings,
   saveMailSettings,
@@ -39,13 +43,17 @@ import {
   saveRateLimitSettings,
   saveSecuritySettings,
   saveSiteSettings,
+  saveStorageSettings,
+  saveTermsOfService,
   testMailConnection,
+  testStorageConnection,
   uploadAdminImage,
 } from '@/admin/runtime/api'
 import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  AdminTaskRow,
   AnnouncementConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
@@ -55,9 +63,12 @@ import type {
   RateLimitSettings,
   SecuritySettings,
   SiteSettings,
+  StorageSettings,
+  TermsOfServiceConfig,
 } from '@/admin/types'
 
 type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -73,6 +84,13 @@ const error = ref('')
 const testEmail = ref('')
 const newAllowedDomain = ref('')
 const newExtension = ref('')
+const newReservedUsername = ref('')
+const newBannedUsername = ref('')
+const newSensitiveWord = ref('')
+const clearAfterMigrate = ref(false)
+const migrateTasks = ref<AdminTaskRow[]>([])
+const migrateConfirm = ref(false)
+const migrating = ref(false)
 
 const siteForm = reactive<SiteSettings>({
   siteName: '',
@@ -109,6 +127,10 @@ const rateLimitForm = reactive<RateLimitSettings>({
   newUserCaptchaAfterPosts: 3,
   newUserCaptchaDays: 7,
   minSubmitSeconds: 1,
+  reservedUsernames: [],
+  bannedUsernames: [],
+  sensitiveWords: [],
+  sensitiveAction: 'block',
 })
 
 const postingForm = reactive<PostingSettings>({
@@ -126,6 +148,23 @@ const postingForm = reactive<PostingSettings>({
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
   },
+})
+
+const storageForm = reactive<StorageSettings>({
+  provider: 'local',
+  endpoint: '',
+  bucket: '',
+  region: '',
+  bucketLookup: 'auto',
+  secure: true,
+  accessKey: '',
+  secretKey: '',
+  publicUrlPrefix: '',
+})
+
+const termsForm = reactive<TermsOfServiceConfig>({
+  enabled: false,
+  content: '',
 })
 
 const httpNotifyEvents = computed(() => {
@@ -166,6 +205,8 @@ const pageMeta = computed(() => {
     'rate-limit': { title: adminText('k00fk'), description: adminText('k00fn') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
+    storage: { title: adminText('k00fn'), description: adminText('k00fo') },
+    terms: { title: adminText('k00gp'), description: adminText('k00gq') },
   }
   return meta[props.kind]
 })
@@ -227,6 +268,16 @@ function normalizeSecurity(settings: Partial<SecuritySettings> = {}) {
       ? settings.allowedDomains.map(item => String(item).trim().toLowerCase()).filter(Boolean)
       : [],
     captchaRequired: toBool(settings.captchaRequired, true),
+    reservedUsernames: Array.isArray(settings.reservedUsernames)
+      ? settings.reservedUsernames.map(item => String(item).trim()).filter(Boolean)
+      : [],
+    bannedUsernames: Array.isArray(settings.bannedUsernames)
+      ? settings.bannedUsernames.map(item => String(item).trim()).filter(Boolean)
+      : [],
+    sensitiveWords: Array.isArray(settings.sensitiveWords)
+      ? settings.sensitiveWords.map(item => String(item).trim()).filter(Boolean)
+      : [],
+    sensitiveAction: settings.sensitiveAction === 'review' ? 'review' : 'block',
   } satisfies SecuritySettings
 }
 
@@ -352,8 +403,6 @@ function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}) {
   } satisfies AnnouncementConfig
 }
 
-// 保存时序列化：仅保留一条 legacy 时写回单则 content（兼容旧字段），
-// 多则时完整下发 items。
 function serializeAnnouncement(): AnnouncementConfig {
   const items = (announcementForm.items ?? []).filter((item) => item.content.trim())
   const isLegacyOnly = items.length === 1 && items[0].id === 'legacy'
@@ -417,6 +466,28 @@ function moveAnnouncementItem(fromIndex: number | null, toIndex: number) {
   items.splice(toIndex, 0, moved)
 }
 
+function normalizeStorage(settings: Partial<StorageSettings> = {}) {
+  return {
+    provider: settings.provider === 's3' ? 's3' : 'local',
+    endpoint: settings.endpoint ?? '',
+    bucket: settings.bucket ?? '',
+    region: settings.region ?? '',
+    bucketLookup: settings.bucketLookup === 'dns' || settings.bucketLookup === 'path' ? settings.bucketLookup : 'auto',
+    secure: toBool(settings.secure, true),
+    accessKey: settings.accessKey ?? '',
+    secretKey: settings.secretKey ?? '',
+    publicUrlPrefix: settings.publicUrlPrefix ?? '',
+  } satisfies StorageSettings
+}
+
+function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    content: settings.content ?? '',
+  } satisfies TermsOfServiceConfig
+}
+
+
 async function uploadImage(target: 'siteLogo', event: Event) {
   const input = event.target as HTMLInputElement
   const file = input.files?.[0]
@@ -442,6 +513,11 @@ async function load() {
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
+    else if (props.kind === 'storage') {
+      Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
+      await loadMigrateTasks()
+    }
+    else if (props.kind === 'terms') Object.assign(termsForm, normalizeTerms(await getTermsOfService()))
     else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
@@ -462,6 +538,8 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
+    else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
+    else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
     else await saveAnnouncement(serializeAnnouncement())
     adminToast.success(adminText('k000e'))
   } catch (err) {
@@ -485,6 +563,83 @@ async function sendTestMail() {
   } finally {
     testing.value = false
   }
+}
+
+async function testStorage() {
+  testing.value = true
+  try {
+    const response = await testStorageConnection(normalizeStorage(storageForm))
+    if (response.success) {
+      adminToast.success(resolveApiMessage(response, adminText('k00g7')))
+    } else {
+      adminToast.error(new Error(resolveApiMessage(response, adminText('k00g8'))), adminText('k00g8'))
+    }
+  } catch (err) {
+    adminToast.error(err, adminText('k00g8'))
+  } finally {
+    testing.value = false
+  }
+}
+
+async function loadMigrateTasks() {
+  try {
+    migrateTasks.value = await getStorageMigrateTasks()
+  } catch (err) {
+    adminToast.error(err, adminText('k00ii'))
+  }
+}
+
+async function confirmMigrate() {
+  if (storageForm.provider !== 's3') return
+  migrateConfirm.value = false
+  migrating.value = true
+  try {
+    await createStorageMigrateTask(clearAfterMigrate.value)
+    adminToast.success(adminText('k00ie'))
+    await loadMigrateTasks()
+  } catch (err) {
+    adminToast.error(err, adminText('k00ii'))
+  } finally {
+    migrating.value = false
+  }
+}
+
+function migrateTaskStatus(status: number) {
+  const statusKey = ['k00i0', 'k00i1', 'k00i2', 'k00i3', 'k00i4'][status] || 'k00i3'
+  return adminText(statusKey)
+}
+
+function addReservedUsername() {
+  const name = newReservedUsername.value.trim()
+  if (!name || securityForm.reservedUsernames.includes(name)) return
+  securityForm.reservedUsernames.push(name)
+  newReservedUsername.value = ''
+}
+
+function removeReservedUsername(name: string) {
+  securityForm.reservedUsernames = securityForm.reservedUsernames.filter(item => item !== name)
+}
+
+function addBannedUsername() {
+  const name = newBannedUsername.value.trim()
+  if (!name || securityForm.bannedUsernames.includes(name)) return
+  securityForm.bannedUsernames.push(name)
+  newBannedUsername.value = ''
+}
+
+function removeBannedUsername(name: string) {
+  securityForm.bannedUsernames = securityForm.bannedUsernames.filter(item => item !== name)
+}
+
+function addSensitiveWord() {
+  const word = newSensitiveWord.value.trim()
+  if (!word || securityForm.sensitiveWords.includes(word)) return
+  securityForm.sensitiveWords.push(word)
+  newSensitiveWord.value = ''
+}
+
+function removeSensitiveWord(word: string) {
+  securityForm.sensitiveWords = securityForm.sensitiveWords.filter(item => item !== word)
 }
 
 function addAllowedDomain() {
@@ -671,6 +826,77 @@ onMounted(load)
             </Badge>
           </div>
         </div>
+        <div class="space-y-4">
+          <div><div class="text-base font-medium">{{ adminText('k00hr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hs') }}</p></div>
+          <div class="flex gap-2">
+            <Input v-model="newReservedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addReservedUsername" />
+            <Button type="button" variant="secondary" @click="addReservedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span v-if="securityForm.reservedUsernames.length === 0" class="text-sm italic text-muted-foreground">{{ adminText('k00et') }}</span>
+            <Badge v-for="name in securityForm.reservedUsernames" :key="name" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">
+              {{ name }}
+              <AdminActionButton compact tone="danger" class="-mr-1 size-5" :title="adminText('k005i')" @click="removeReservedUsername(name)">
+                <Trash2 class="size-3.5" />
+              </AdminActionButton>
+            </Badge>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div><div class="text-base font-medium">{{ adminText('k00ht') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hu') }}</p></div>
+          <div class="flex gap-2">
+            <Input v-model="newBannedUsername" class="max-w-sm" :placeholder="adminText('k00eu')" @keydown.enter.prevent="addBannedUsername" />
+            <Button type="button" variant="secondary" @click="addBannedUsername"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span v-if="securityForm.bannedUsernames.length === 0" class="text-sm italic text-muted-foreground">{{ adminText('k00et') }}</span>
+            <Badge v-for="name in securityForm.bannedUsernames" :key="name" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">
+              {{ name }}
+              <AdminActionButton compact tone="danger" class="-mr-1 size-5" :title="adminText('k005i')" @click="removeBannedUsername(name)">
+                <Trash2 class="size-3.5" />
+              </AdminActionButton>
+            </Badge>
+          </div>
+        </div>
+        <div class="space-y-4">
+          <div><div class="text-base font-medium">{{ adminText('k00hv') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00hw') }}</p></div>
+          <div class="flex gap-2">
+            <Input v-model="newSensitiveWord" class="max-w-sm" @keydown.enter.prevent="addSensitiveWord" />
+            <Button type="button" variant="secondary" @click="addSensitiveWord"><Plus class="size-4" />{{ adminText('k0094') }}</Button>
+          </div>
+          <div class="flex flex-wrap gap-2">
+            <span v-if="securityForm.sensitiveWords.length === 0" class="text-sm italic text-muted-foreground">{{ adminText('k00et') }}</span>
+            <Badge v-for="word in securityForm.sensitiveWords" :key="word" variant="secondary" class="gap-2 px-3 py-1.5 text-sm font-normal">
+              {{ word }}
+              <AdminActionButton compact tone="danger" class="-mr-1 size-5" :title="adminText('k005i')" @click="removeSensitiveWord(word)">
+                <Trash2 class="size-3.5" />
+              </AdminActionButton>
+            </Badge>
+          </div>
+        </div>
+        <div>
+          <div class="text-base font-medium">{{ adminText('k00hx') }}</div>
+          <div class="mt-3 inline-flex rounded-lg border bg-muted/20 p-1">
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              :class="securityForm.sensitiveAction === 'block' ? 'bg-background shadow-xs' : 'text-muted-foreground hover:text-foreground'"
+              @click="securityForm.sensitiveAction = 'block'"
+            >
+              <Shield class="size-4" />
+              {{ adminText('k00hy') }}
+            </button>
+            <button
+              type="button"
+              class="inline-flex items-center gap-2 rounded-md px-3 py-1.5 text-sm font-medium transition-colors"
+              :class="securityForm.sensitiveAction === 'review' ? 'bg-background shadow-xs' : 'text-muted-foreground hover:text-foreground'"
+              @click="securityForm.sensitiveAction = 'review'"
+            >
+              <CheckCircle2 class="size-4" />
+              {{ adminText('k00hz') }}
+            </button>
+          </div>
+        </div>
       </form>
 
       <form v-else-if="kind === 'rate-limit'" class="max-w-4xl space-y-8" @submit.prevent="save">
@@ -832,6 +1058,81 @@ onMounted(load)
         </Tabs>
       </div>
 
+      <form v-else-if="kind === 'storage'" class="max-w-3xl space-y-8" @submit.prevent="save">
+        <div class="grid gap-6 md:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fp') }}
+            <select v-model="storageForm.provider" class="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring">
+              <option value="local">{{ adminText('k00fq') }}</option>
+              <option value="s3">{{ adminText('k00fr') }}</option>
+            </select>
+          </label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fv') }}
+            <select v-model="storageForm.bucketLookup" class="h-10 rounded-md border bg-background px-3 text-sm outline-none focus-visible:ring-2 focus-visible:ring-ring" :disabled="storageForm.provider !== 's3'">
+              <option value="auto">{{ adminText('k00fw') }}</option>
+              <option value="dns">{{ adminText('k00g0') }}</option>
+              <option value="path">{{ adminText('k00g1') }}</option>
+            </select>
+          </label>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fs') }}<Input v-model="storageForm.endpoint" :disabled="storageForm.provider !== 's3'" placeholder="https://s3.example.com" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00ft') }}<Input v-model="storageForm.bucket" :disabled="storageForm.provider !== 's3'" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fu') }}<Input v-model="storageForm.region" :disabled="storageForm.provider !== 's3'" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g5') }}<Input v-model="storageForm.publicUrlPrefix" :disabled="storageForm.provider !== 's3'" placeholder="https://cdn.example.com" /></label>
+        </div>
+        <div class="grid gap-6 md:grid-cols-2">
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g3') }}<Input v-model="storageForm.accessKey" :disabled="storageForm.provider !== 's3'" autocomplete="off" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00g4') }}<Input v-model="storageForm.secretKey" :disabled="storageForm.provider !== 's3'" type="password" autocomplete="new-password" /></label>
+        </div>
+        <div class="flex items-center justify-between rounded-lg border bg-muted/20 p-4">
+          <div><div class="flex items-center gap-2 font-medium"><HardDrive class="size-4" />{{ adminText('k00g2') }}</div></div>
+          <Switch v-model="storageForm.secure" :disabled="storageForm.provider !== 's3'" />
+        </div>
+
+        <div class="flex flex-wrap items-center gap-3 border-t pt-6">
+          <Button type="button" variant="secondary" :disabled="testing" @click="testStorage">
+            <Loader2 v-if="testing" class="size-4 animate-spin" />
+            <CheckCircle2 v-else class="size-4" />
+            {{ adminText('k00g6') }}
+          </Button>
+          <Button type="button" variant="outline" :disabled="storageForm.provider !== 's3'" @click="migrateConfirm = true">
+            <HardDrive class="size-4" />
+            {{ adminText('k00g9') }}
+          </Button>
+          <label class="inline-flex items-center gap-2 text-sm text-muted-foreground">
+            <input v-model="clearAfterMigrate" type="checkbox" class="size-4 rounded border" :disabled="storageForm.provider !== 's3'" />
+            {{ adminText('k00ga') }}
+          </label>
+        </div>
+
+        <section class="space-y-3">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><HardDrive class="size-5 text-muted-foreground" />{{ adminText('k00if') }}</div>
+          <div v-if="migrateTasks.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
+          <div v-for="task in migrateTasks" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
+            <div class="flex flex-wrap items-center justify-between gap-2">
+              <div class="flex items-center gap-2">
+                <span class="font-mono text-xs text-muted-foreground">#{{ task.id }}</span>
+                <Badge :variant="task.status === 2 ? 'default' : task.status === 3 ? 'destructive' : 'secondary'" class="px-2 py-0 text-xs">{{ migrateTaskStatus(task.status) }}</Badge>
+              </div>
+              <span class="text-xs text-muted-foreground">{{ task.createdAt || '-' }}</span>
+            </div>
+            <div v-if="task.lastError" class="truncate text-xs text-destructive">{{ task.lastError }}</div>
+          </div>
+        </section>
+      </form>
+
+      <form v-else-if="kind === 'terms'" class="max-w-3xl space-y-6" @submit.prevent="save">
+        <div class="flex items-center justify-between">
+          <div><div class="flex items-center gap-2 text-base font-medium"><ScrollText class="size-4" />{{ adminText('k00gr') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00gq') }}</p></div>
+          <Switch v-model="termsForm.enabled" />
+        </div>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00gs') }}
+          <Textarea v-model="termsForm.content" class="min-h-64 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+        </label>
+      </form>
+
+
       <form v-else class="max-w-3xl space-y-6" @submit.prevent="save">
         <div class="flex items-center justify-between">
           <div><div class="text-base font-medium">{{ adminText('k009j') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k009k') }}</p></div>
@@ -855,7 +1156,7 @@ onMounted(load)
           >
             <div class="mb-3 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 text-sm font-medium">
-                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00fm')" />
+                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00ii')" />
                 {{ adminText('k0009') }} #{{ index + 1 }}
               </div>
               <div class="flex items-center gap-3">
@@ -865,13 +1166,13 @@ onMounted(load)
                 </label>
                 <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
                   <Trash2 class="size-4" />
-                  <span class="sr-only">{{ adminText('k00fl') }}</span>
+                  <span class="sr-only">{{ adminText('k00ih') }}</span>
                 </Button>
               </div>
             </div>
             <label class="grid gap-1.5 text-sm font-medium">
-              {{ adminText('k00fk') }}
-              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00fk')" />
+              {{ adminText('k00ig') }}
+              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00ig')" />
             </label>
             <label class="mt-3 grid gap-1.5 text-sm font-medium">
               {{ adminText('k009l') }}
@@ -881,10 +1182,27 @@ onMounted(load)
 
           <Button variant="outline" type="button" @click="addAnnouncementItem">
             <Plus class="size-4" />
-            {{ adminText('k00fm') }}
+            {{ adminText('k00ii') }}
           </Button>
         </div>
       </form>
+
+      <Dialog :open="migrateConfirm" @update:open="migrateConfirm = $event">
+        <DialogContent class="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{{ adminText('k00g9') }}</DialogTitle>
+            <DialogDescription>{{ adminText('k00gc') }}</DialogDescription>
+          </DialogHeader>
+          <DialogFooter>
+            <Button variant="outline" type="button" @click="migrateConfirm = false">{{ adminText('k009q') }}</Button>
+            <Button type="button" :disabled="migrating" @click="confirmMigrate">
+              <Loader2 v-if="migrating" class="size-4 animate-spin" />
+              <HardDrive v-else class="size-4" />
+              {{ adminText('k00gb') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
 
     </BasicPage>
 </template>

@@ -1,0 +1,11 @@
+{
+  "provider": "local",
+  "endpoint": "",
+  "bucket": "",
+  "region": "",
+  "bucketLookup": "auto",
+  "secure": true,
+  "accessKey": "",
+  "secretKey": "",
+  "publicUrlPrefix": ""
+}

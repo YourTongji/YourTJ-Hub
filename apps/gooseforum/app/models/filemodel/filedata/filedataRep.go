@@ -1,6 +1,7 @@
 package filedata
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"path"
@@ -8,6 +9,7 @@ import (
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/leancodebox/GooseForum/app/service/storageservice"
 
 	"github.com/google/uuid"
 )
@@ -72,6 +74,14 @@ func SaveFile(userId uint64, name string, fileType string, data []byte) (*Entity
 	if affected == 0 {
 		return nil, errors.New("failed to save file, possibly duplicate name")
 	}
+	// In object storage mode the bytes are mirrored to the provider. The BLOB
+	// column is kept as fallback so reads stay correct during migration.
+	if !storageservice.IsLocalProvider() {
+		if err := storageservice.Current().Save(context.Background(), name, data, fileType); err != nil {
+			_ = DeleteByName(name)
+			return nil, fmt.Errorf("save to storage provider: %w", err)
+		}
+	}
 	return entity, nil
 }
 
@@ -80,7 +90,51 @@ func GetFileByName(name string) (*Entity, error) {
 	if entity.Id == 0 {
 		return nil, errors.New("file not found")
 	}
-	return &entity, nil
+	if storageservice.IsLocalProvider() {
+		return &entity, nil
+	}
+	data, contentType, err := storageservice.Current().Get(context.Background(), name)
+	if err == nil {
+		entity.Data = data
+		entity.Type = contentType
+		return &entity, nil
+	}
+	if !errors.Is(err, storageservice.ErrNotFound) {
+		return nil, err
+	}
+	// Fall back to the BLOB column for legacy rows not yet migrated.
+	if entity.Data != nil {
+		return &entity, nil
+	}
+	return nil, errors.New("file not found")
+}
+
+// DeleteByName removes the file row and, in object storage mode, the object.
+func DeleteByName(name string) error {
+	if !storageservice.IsLocalProvider() {
+		if err := storageservice.Current().Delete(context.Background(), name); err != nil && !errors.Is(err, storageservice.ErrNotFound) {
+			return err
+		}
+	}
+	return builder().Where(queryopt.Eq(fieldName, name)).Delete(&Entity{}).Error
+}
+
+// QueryById returns rows with id greater than startId, ascending (migration cursor).
+func QueryById(startId uint64, limit int) (entities []*Entity) {
+	builder().Where(queryopt.Gt("id", startId)).Limit(limit).Order(queryopt.Asc("id")).Find(&entities)
+	return
+}
+
+// CountFiles returns the total number of file rows.
+func CountFiles() int64 {
+	var count int64
+	builder().Count(&count)
+	return count
+}
+
+// ClearContentByName clears the BLOB column after a successful migration.
+func ClearContentByName(name string) error {
+	return builder().Where(queryopt.Eq(fieldName, name)).Update("content", nil).Error
 }
 
 func FileResourcePage(page, pageSize int) FileResourcePageResult {

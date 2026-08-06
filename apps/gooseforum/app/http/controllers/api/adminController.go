@@ -2,11 +2,16 @@ package api
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"log/slog"
+	"net/http"
+	"path/filepath"
 	"strings"
 	"time"
 
+	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
@@ -24,6 +29,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/role"
 	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
+	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
@@ -32,11 +38,14 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/badgeservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/leancodebox/GooseForum/app/service/storageservice"
 	"github.com/leancodebox/GooseForum/app/service/themeservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/samber/lo"
@@ -1353,4 +1362,338 @@ type SaveHttpNotifySettingsReq struct {
 
 func SaveHttpNotifySettings(req component.BetterRequest[SaveHttpNotifySettingsReq]) component.Response {
 	return savePageConfig(pageConfig.HttpNotify, req.Params.Settings, hotdataserve.ClearHttpNotifyConfigCache)
+}
+
+// GetStorageSettings 获取存储设置
+func GetStorageSettings(req component.BetterRequest[component.Null]) component.Response {
+	cfg := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig())
+	return component.SuccessResponse(cfg)
+}
+
+type SaveStorageSettingsReq struct {
+	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+}
+
+// SaveStorageSettings 保存存储设置
+func SaveStorageSettings(req component.BetterRequest[SaveStorageSettingsReq]) component.Response {
+	cfg := req.Params.Settings
+	if cfg.Provider == "" {
+		cfg.Provider = storageservice.ProviderLocal
+	}
+	if cfg.Provider != storageservice.ProviderLocal && cfg.Provider != storageservice.ProviderS3 {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	if cfg.Provider == storageservice.ProviderS3 && (cfg.Endpoint == "" || cfg.Bucket == "") {
+		return component.FailResponseCode(component.MessageAdminStorageSaveFailed,
+			component.MessageParams{"error": "S3 模式需要填写 Endpoint 与 Bucket"})
+	}
+	return savePageConfig(pageConfig.StorageSettingsPage, cfg, hotdataserve.ClearStorageSettingsConfigCache)
+}
+
+type TestStorageConnectionReq struct {
+	Settings pageConfig.StorageSettings `json:"settings" validate:"required"`
+}
+
+type TestStorageConnectionResp struct {
+	Success     bool                    `json:"success"`
+	MessageCode component.MessageCode   `json:"messageCode"`
+	Params      component.MessageParams `json:"params,omitempty"`
+}
+
+// TestStorageConnection 测试存储连接（不落库）
+func TestStorageConnection(req component.BetterRequest[TestStorageConnectionReq]) component.Response {
+	cfg := req.Params.Settings
+	if cfg.Provider == "" {
+		cfg.Provider = storageservice.ProviderLocal
+	}
+	if cfg.Provider == storageservice.ProviderLocal {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     true,
+			MessageCode: component.MessageAdminStorageTestSuccess,
+		})
+	}
+	if err := storageservice.TestConnection(context.Background(), cfg); err != nil {
+		return component.SuccessResponse(TestStorageConnectionResp{
+			Success:     false,
+			MessageCode: component.MessageAdminStorageTestFailed,
+			Params:      component.MessageParams{"error": err.Error()},
+		})
+	}
+	return component.SuccessResponse(TestStorageConnectionResp{
+		Success:     true,
+		MessageCode: component.MessageAdminStorageTestSuccess,
+	})
+}
+
+type CreateStorageMigrateReq struct {
+	ClearAfterMigrate bool `json:"clearAfterMigrate"`
+}
+
+// CreateStorageMigrateTask 创建文件迁移到对象存储的后台任务
+func CreateStorageMigrateTask(req component.BetterRequest[CreateStorageMigrateReq]) component.Response {
+	taskID, err := filemigrateservice.CreateMigrateTask(req.Params.ClearAfterMigrate)
+	if err != nil {
+		if errors.Is(err, errStorageProviderInvalid) {
+			return component.FailResponseCode(component.MessageAdminStorageMigrateInvalidProvider, nil)
+		}
+		return component.FailResponseCode(component.MessageAdminStorageMigrateFailed,
+			component.MessageParams{"error": err.Error()})
+	}
+	return successDataMap("taskId", taskID)
+}
+
+// GetStorageMigrateTasks 获取文件迁移任务列表
+func GetStorageMigrateTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := filemigrateservice.ListMigrateTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+// errStorageProviderInvalid marks "provider is not s3" without leaking details.
+var errStorageProviderInvalid = errors.New("storage provider is not s3")
+
+// 数据管理：导出
+type CreateExportTaskReq struct {
+	Tables []string `json:"tables" validate:"required"`
+	Format string   `json:"format" validate:"required,oneof=json csv"`
+}
+
+// CreateExportTask 创建数据导出后台任务
+func CreateExportTask(req component.BetterRequest[CreateExportTaskReq]) component.Response {
+	taskID, err := dataservice.ExportData(req.Params.Tables, req.Params.Format)
+	if err != nil {
+		return component.FailResponseCode(component.MessageAdminDataExportFailed,
+			component.MessageParams{"error": err.Error()})
+	}
+	return successDataMap("taskId", taskID)
+}
+
+// ListExportTasks 获取导出任务列表
+func ListExportTasks(req component.BetterRequest[component.Null]) component.Response {
+	tasks, err := dataservice.ListExportTasks(20)
+	if err != nil {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	return component.SuccessResponse(tasks)
+}
+
+// DownloadExportTask 下载导出文件
+const maxDataImportSize = 50 << 20 // 50MB
+func DownloadExportTask(c *gin.Context) {
+	taskID := c.Param("taskId")
+	task, err := taskQueue.GetByID(taskID)
+	if err != nil || task.Id == 0 {
+		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessageAdminDataTaskNotFound, nil))
+		return
+	}
+	if task.Type != dataservice.TaskTypeExport {
+		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessageAdminDataTaskNotFound, nil))
+		return
+	}
+	if task.Status != taskQueue.StatusSuccess {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataTaskNotReady, nil))
+		return
+	}
+	path, err := dataservice.ExportFilePath(&task)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataDownloadDenied, nil))
+		return
+	}
+	fileName := filepath.Base(path)
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=%q", fileName))
+	c.File(path)
+}
+
+// ImportData 导入 JSON 数据（multipart file 字段）
+func ImportData(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDataImportSize)
+	file, err := c.FormFile("file")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": "未获取到上传文件"}))
+		return
+	}
+	src, err := file.Open()
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	defer func() { _ = src.Close() }()
+	data, err := io.ReadAll(src)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	report, err := dataservice.ImportData(context.Background(), data, "json")
+	if err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportInvalidFormat,
+			component.MessageParams{"error": err.Error()}))
+		return
+	}
+	c.JSON(http.StatusOK, component.SuccessData(report))
+}
+
+// 审核队列：待审内容（ProcessStatus=2）
+type ReviewQueueReq struct {
+	Kind     string `json:"kind" validate:"required,oneof=topic post"`
+	Page     int    `json:"page"`
+	PageSize int    `json:"pageSize"`
+}
+
+type ReviewQueueItem struct {
+	Id            uint64 `json:"id"`
+	Title         string `json:"title"`
+	Excerpt       string `json:"excerpt"`
+	UserId        uint64 `json:"userId"`
+	Username      string `json:"username"`
+	ProcessStatus int8   `json:"processStatus"`
+	CreatedAt     string `json:"createdAt"`
+	TopicId       uint64 `json:"topicId,omitempty"`
+	PostNo        uint64 `json:"postNo,omitempty"`
+}
+
+// ReviewQueue 列出待审的主题或回复。
+func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response {
+	page := req.Params.Page
+	if page < 1 {
+		page = 1
+	}
+	pageSize := req.Params.PageSize
+	if pageSize < 1 || pageSize > 50 {
+		pageSize = 20
+	}
+	items := make([]ReviewQueueItem, 0, pageSize)
+	var total int64
+	if req.Params.Kind == "topic" {
+		result := topics.PagePendingReview(page, pageSize)
+		total = result.Total
+		userIDs := make([]uint64, 0, len(result.Data))
+		for _, t := range result.Data {
+			userIDs = append(userIDs, t.UserId)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		for _, t := range result.Data {
+			username := ""
+			if u, ok := userMap[t.UserId]; ok {
+				username = u.Username
+			}
+			excerpt := t.Excerpt
+			if excerpt == "" {
+				excerpt = t.Title
+			}
+			items = append(items, ReviewQueueItem{
+				Id: t.Id, Title: t.Title, Excerpt: excerpt,
+				UserId: t.UserId, Username: username,
+				ProcessStatus: t.ProcessStatus,
+				CreatedAt:     t.CreatedAt.Format(time.DateTime),
+			})
+		}
+	} else {
+		result := posts.PagePendingReview(page, pageSize)
+		total = result.Total
+		userIDs := make([]uint64, 0, len(result.Data))
+		for _, p := range result.Data {
+			userIDs = append(userIDs, p.UserId)
+		}
+		userMap := users.GetMapByIds(userIDs)
+		topicIDs := make([]uint64, 0, len(result.Data))
+		for _, p := range result.Data {
+			topicIDs = append(topicIDs, p.TopicId)
+		}
+		topicMap := topics.GetMapByIds(topicIDs)
+		for _, p := range result.Data {
+			username := ""
+			if u, ok := userMap[p.UserId]; ok {
+				username = u.Username
+			}
+			title := ""
+			if t, ok := topicMap[p.TopicId]; ok {
+				title = t.Title
+			}
+			excerpt := p.Content
+			if len(excerpt) > 120 {
+				excerpt = excerpt[:120]
+			}
+			items = append(items, ReviewQueueItem{
+				Id: p.Id, Title: title, Excerpt: excerpt,
+				UserId: p.UserId, Username: username,
+				ProcessStatus: p.ProcessStatus,
+				CreatedAt:     p.CreatedAt.Format(time.DateTime),
+				TopicId:       p.TopicId, PostNo: p.PostNo,
+			})
+		}
+	}
+	return component.SuccessResponse(map[string]any{
+		"items": items, "total": total, "page": page, "pageSize": pageSize,
+	})
+}
+
+type ReviewActionReq struct {
+	Kind    string `json:"kind" validate:"required,oneof=topic post"`
+	Id      uint64 `json:"id" validate:"required"`
+	Approve bool   `json:"approve"`
+}
+
+// ReviewAction 审核通过（ProcessStatus=0）或拒绝（ProcessStatus=1）。
+func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Response {
+	targetStatus := int8(0)
+	if !req.Params.Approve {
+		targetStatus = 1
+	}
+	if req.Params.Kind == "topic" {
+		topic := topics.Get(req.Params.Id)
+		if topic.Id == 0 {
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		if topic.ProcessStatus != topics.ProcessStatusPending {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		if err := topics.UpdateProcessStatus(topic.Id, targetStatus); err != nil {
+			return component.FailResponseCode(component.MessageAdminReviewFailed,
+				component.MessageParams{"error": err.Error()})
+		}
+		// 首楼同步状态
+		if topic.FirstPostId > 0 {
+			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
+		}
+		hotdataserve.ClearTopicListCache()
+		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
+			optlogger.MessageParams{"id": topic.Id, "approve": req.Params.Approve})
+	} else {
+		post := posts.Get(req.Params.Id)
+		if post.Id == 0 {
+			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		if post.ProcessStatus != posts.ProcessStatusPending {
+			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
+		}
+		if err := posts.UpdateProcessStatus(post.Id, targetStatus); err != nil {
+			return component.FailResponseCode(component.MessageAdminReviewFailed,
+				component.MessageParams{"error": err.Error()})
+		}
+		hotdataserve.ClearTopicListCache()
+		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
+			optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": req.Params.Approve})
+	}
+	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
+}
+
+// GetTermsOfService 获取服务条款配置
+func GetTermsOfService(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.TermsOfService, defaultconfig.GetDefaultTermsOfServiceConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveTermsOfServiceReq struct {
+	Settings pageConfig.TermsOfServiceConfig `json:"settings" validate:"required"`
+}
+
+// SaveTermsOfService 保存服务条款配置
+func SaveTermsOfService(req component.BetterRequest[SaveTermsOfServiceReq]) component.Response {
+	req.Params.Settings.HtmlContent = ""
+	return savePageConfig(pageConfig.TermsOfService, req.Params.Settings, hotdataserve.ClearTermsOfServiceConfigCache)
 }
