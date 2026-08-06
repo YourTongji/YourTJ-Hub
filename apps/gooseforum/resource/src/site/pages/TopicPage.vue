@@ -662,6 +662,16 @@ async function syncPostHash() {
 
 function highlightPost(postId: number) {
   highlightedPostId.value = postId
+  // 深层链接：若目标回复被折叠在"前 3 条预览"之外，自动展开所在分组
+  const group = postGroups.value.find((g) => g.root.id === postId || g.replies.some((reply) => reply.id === postId))
+  if (group && group.root.id !== postId) {
+    const replyIndex = group.replies.findIndex((reply) => reply.id === postId)
+    if (replyIndex >= nestedRepliesPreviewCount) {
+      const next = new Set(expandedReplyGroups.value)
+      next.add(group.root.id)
+      expandedReplyGroups.value = next
+    }
+  }
   window.clearTimeout(highlightTimer)
   highlightTimer = window.setTimeout(() => {
     highlightedPostId.value = null
@@ -1648,7 +1658,7 @@ async function removePost(postId: number) {
                     <button
                       v-if="page.props.permissions.canPost && !group.root.isHidden"
                       type="button"
-                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8""
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
                       :title="t('topic.reply')"
                       @click="replyTo(group.root)"
                     >

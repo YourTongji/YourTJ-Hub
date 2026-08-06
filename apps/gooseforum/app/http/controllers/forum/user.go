@@ -8,9 +8,9 @@ import (
 )
 
 const (
-	userProfileSectionSummary  = "summary"
-	userProfileSectionActivity = "activity"
-	userProfileSectionBadges   = "badges"
+	userProfileSectionSummary   = "summary"
+	userProfileSectionActivity  = "activity"
+	userProfileSectionBadges    = "badges"
 	userProfileSectionBookmarks = "bookmarks"
 
 	userProfileActivityTimeline  = "timeline"

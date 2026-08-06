@@ -162,6 +162,7 @@ export default {
       topicPost: 'ha pubblicato in un topic che segui',
       follow: 'ha iniziato a seguirti',
       badge: 'ha ottenuto il badge "{badge}"',
+      like: 'ha messo mi piace alla tua risposta',
     },
     verb: {
       follow: 'ha iniziato a seguirti',

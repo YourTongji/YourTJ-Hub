@@ -162,6 +162,7 @@ export default {
       topicPost: 'posted in a topic you watch',
       follow: 'followed you',
       badge: 'earned the "{badge}" badge',
+      like: 'liked your reply',
     },
     verb: {
       follow: 'followed you',

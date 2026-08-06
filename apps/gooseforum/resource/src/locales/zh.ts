@@ -162,6 +162,7 @@ export default {
       topicPost: '在你关注的话题下发表了新内容',
       follow: '关注了你',
       badge: '获得了「{badge}」徽章',
+      like: '赞了你的回复',
     },
     verb: {
       follow: '关注了你',

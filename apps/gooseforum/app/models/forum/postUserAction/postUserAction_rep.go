@@ -45,31 +45,11 @@ func setAt(userId, postId uint64, field string, value *time.Time) bool {
 		return result.Error == nil && result.RowsAffected > 0
 	}
 
-	result := builder().
-		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("post_id", postId)).
-		Where(field + " IS NULL").
-		Updates(map[string]any{field: value, "updated_at": time.Now()})
-	if result.Error != nil || result.RowsAffected > 0 {
-		return result.Error == nil && result.RowsAffected > 0
-	}
-
-	result = builder().Create(&Entity{
-		UserId:       userId,
-		PostId:       postId,
-		LikedAt:      valueForField(field, "liked_at", value),
-		BookmarkedAt: valueForField(field, "bookmarked_at", value),
-	})
-	return result.Error == nil
-}
-
-func ensureAt(userId, postId uint64, field string, value *time.Time) bool {
-	if userId == 0 || postId == 0 || value == nil {
-		return false
-	}
+	// 原子 upsert：避免并发请求（如双端同时点赞）下 update-then-insert 的竞态。
+	// 冲突时只更新当前字段，不影响另一个状态字段。
 	result := builder().Clauses(clause.OnConflict{
 		Columns:   []clause.Column{{Name: "user_id"}, {Name: "post_id"}},
-		DoUpdates: clause.Assignments(map[string]any{field: value}),
+		DoUpdates: clause.Assignments(map[string]any{field: value, "updated_at": time.Now()}),
 	}).Create(&Entity{
 		UserId:       userId,
 		PostId:       postId,
@@ -109,7 +89,9 @@ type BookmarkedPostRef struct {
 
 // ListBookmarkedPostRefsBeforeTime 时间游标分页：用户收藏过的楼层（按收藏时间倒序）。
 // 与主题收藏共用时间游标，便于跨表合并排序展示。
-func ListBookmarkedPostRefsBeforeTime(userId uint64, before time.Time, limit int) []BookmarkedPostRef {
+// kind 为游标最后一条的类型（"post"/"topic"）：同类型表用 (time, id) 组合游标，
+// 另一张表的时间等于游标时刻的条目未消费完，需用 <= 继续。
+func ListBookmarkedPostRefsBeforeTime(userId uint64, before time.Time, beforeID uint64, kind string, limit int) []BookmarkedPostRef {
 	if userId == 0 || limit <= 0 {
 		return nil
 	}
@@ -119,7 +101,11 @@ func ListBookmarkedPostRefsBeforeTime(userId uint64, before time.Time, limit int
 		Where(queryopt.Eq("user_id", userId)).
 		Where("bookmarked_at IS NOT NULL")
 	if !before.IsZero() {
-		query = query.Where("bookmarked_at < ?", before)
+		if kind == "post" {
+			query = query.Where("bookmarked_at < ? OR (bookmarked_at = ? AND id < ?)", before, before, beforeID)
+		} else {
+			query = query.Where("bookmarked_at <= ?", before)
+		}
 	}
 	query.Order("bookmarked_at DESC, id DESC").Limit(limit).Find(&rows)
 	return rows

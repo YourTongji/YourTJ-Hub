@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -21,8 +22,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
+	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
@@ -230,9 +231,9 @@ type PaginationPayload struct {
 }
 
 type AnnouncementPayload struct {
-	Enabled     bool                     `json:"enabled"`
-	HTML        string                   `json:"html"`
-	PublishedAt string                   `json:"publishedAt,omitempty"`
+	Enabled     bool                      `json:"enabled"`
+	HTML        string                    `json:"html"`
+	PublishedAt string                    `json:"publishedAt,omitempty"`
 	Items       []AnnouncementItemPayload `json:"items,omitempty"`
 }
 
@@ -1509,9 +1510,9 @@ func parsePayloadTime(value string) time.Time {
 }
 
 const (
-	userProfileTopicPageSize    = 20
-	userProfileTimelinePageSize = 20
-	userProfileConnectionLimit  = 24
+	userProfileTopicPageSize     = 20
+	userProfileTimelinePageSize  = 20
+	userProfileConnectionLimit   = 24
 	userProfileBookmarksPageSize = 20
 )
 
@@ -1540,9 +1541,12 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 
 	switch section {
 	case userProfileSectionBookmarks:
-		var nextCursor string
-		bookmarks, nextCursor = buildUserBookmarksMerged(user.Id, c.Query("cursor"))
-		pagination = buildUserBookmarkPagination(user.Id, nextCursor)
+		// 收藏列表仅对本人可见：他人访问时返回空数据（前端也不展示该 Tab）
+		if currentUserID == user.Id {
+			var nextCursor string
+			bookmarks, nextCursor = buildUserBookmarksMerged(user.Id, c.Query("cursor"))
+			pagination = buildUserBookmarkPagination(user.Id, nextCursor)
+		}
 	case userProfileSectionActivity:
 		switch activityTab {
 		case userProfileActivityTopics:
@@ -1558,10 +1562,6 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
 			likes = buildUserLikes(refs)
 			pagination = buildUserActivityLikePagination(user.Id, nextCursor)
-		case userProfileActivityBookmarks:
-			refs, nextCursor := topicUserAction.ListBookmarkedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
-			bookmarks = buildUserBookmarks(refs)
-			pagination = buildUserActivityBookmarkPagination(user.Id, nextCursor)
 		case userProfileActivityFollowing:
 			following = buildUserConnections(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit))
 		case userProfileActivityFollowers:
@@ -1590,7 +1590,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		User:         userCard,
 		Section:      section,
 		ActivityTab:  activityTab,
-		Tabs:         buildUserProfileTabs(user.Id, section),
+		Tabs:         buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
 		ActivityTabs: buildUserProfileActivityTabs(user.Id, section, activityTab),
 		Pagination:   pagination,
 		Badges:       badges,
@@ -1638,15 +1638,6 @@ func buildUserActivityLikePagination(userID uint64, nextCursor string) Paginatio
 	}
 }
 
-func buildUserActivityBookmarkPagination(userID uint64, nextCursor string) PaginationPayload {
-	return PaginationPayload{
-		Page:     1,
-		NextPage: 0,
-		HasNext:  nextCursor != "",
-		NextURL:  buildUserActivityBookmarkCursorURL(userID, nextCursor),
-	}
-}
-
 func buildUserActivityTimelinePagination(userID uint64, activities []*userActivities.Entity, hasNext bool) PaginationPayload {
 	nextCursor := uint64(0)
 	if hasNext && len(activities) > 0 {
@@ -1672,13 +1663,6 @@ func buildUserActivityLikeCursorURL(userID uint64, cursor string) string {
 		return ""
 	}
 	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityLikes, url.QueryEscape(cursor))
-}
-
-func buildUserActivityBookmarkCursorURL(userID uint64, cursor string) string {
-	if cursor == "" {
-		return ""
-	}
-	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityBookmarks, url.QueryEscape(cursor))
 }
 
 // buildUserBookmarkCursorURL 一级收藏页的下一页链接
@@ -1707,14 +1691,18 @@ func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
 	return fmt.Sprintf("/u/%d/%s?cursor=%d", userID, userProfileSectionActivity, cursor)
 }
 
-func buildUserProfileTabs(userID uint64, active string) []TabPayload {
+func buildUserProfileTabs(userID uint64, active string, isOwnProfile bool) []TabPayload {
 	baseURL := "/u/" + strconv.FormatUint(userID, 10)
-	return []TabPayload{
+	tabs := []TabPayload{
 		{Key: userProfileSectionSummary, URL: baseURL, Active: active == userProfileSectionSummary},
 		{Key: userProfileSectionActivity, URL: baseURL + "/" + userProfileSectionActivity, Active: active == userProfileSectionActivity},
-		{Key: userProfileSectionBookmarks, URL: baseURL + "/" + userProfileSectionBookmarks, Active: active == userProfileSectionBookmarks},
 		{Key: userProfileSectionBadges, URL: baseURL + "/" + userProfileSectionBadges, Active: active == userProfileSectionBadges},
 	}
+	if isOwnProfile {
+		// 收藏列表仅对本人可见，他人主页不展示该 Tab
+		tabs = append(tabs, TabPayload{Key: userProfileSectionBookmarks, URL: baseURL + "/" + userProfileSectionBookmarks, Active: active == userProfileSectionBookmarks})
+	}
+	return tabs
 }
 
 func buildUserProfileActivityTabs(userID uint64, section string, active string) []TabPayload {
@@ -1791,14 +1779,22 @@ type mergedBookmarkRef struct {
 	bookmarkedAt time.Time
 }
 
+// bookmarkCursor 跨表收藏分页游标：收藏时间（unix 秒）+ 最后一条的 kind 与 user_action 主键。
+// 避免同秒并列时跨页丢条目/重复（同秒条目按 (time desc, id desc) 稳定排序）。
+type bookmarkCursor struct {
+	before   time.Time
+	beforeID uint64
+	kind     string
+}
+
 // buildUserBookmarksMerged 合并用户收藏的主题与楼层（按收藏时间倒序分页）。
-// 游标为最后一条的收藏时间（unix 秒），跨表统一分页。
+// 游标为最后一条的 (收藏时间, kind, 主键)，跨表统一分页不丢同秒条目。
 func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPayload, string) {
 	limit := userProfileBookmarksPageSize
-	before := parseBookmarkTimeCursor(cursor)
+	cur := parseBookmarkCursor(cursor)
 
-	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, before, limit+1)
-	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, before, limit+1)
+	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, cur.before, cur.beforeID, cur.kind, limit+1)
+	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, cur.before, cur.beforeID, cur.kind, limit+1)
 
 	merged := make([]mergedBookmarkRef, 0, len(topicRefs)+len(postRefs))
 	for _, ref := range topicRefs {
@@ -1809,7 +1805,8 @@ func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPaylo
 	}
 	slices.SortStableFunc(merged, func(a, b mergedBookmarkRef) int {
 		if a.bookmarkedAt.Equal(b.bookmarkedAt) {
-			return 0
+			// 与表内排序一致：同秒按主键倒序，保证跨页顺序稳定
+			return cmp.Compare(b.refID, a.refID)
 		}
 		if a.bookmarkedAt.After(b.bookmarkedAt) {
 			return -1
@@ -1824,24 +1821,31 @@ func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPaylo
 	payloads := buildBookmarkPayloads(merged)
 	nextCursor := ""
 	if hasNext && len(merged) > 0 {
-		nextCursor = formatBookmarkTimeCursor(merged[len(merged)-1].bookmarkedAt)
+		last := merged[len(merged)-1]
+		nextCursor = formatBookmarkCursor(last.bookmarkedAt, last.kind, last.refID)
 	}
 	return payloads, nextCursor
 }
 
-func parseBookmarkTimeCursor(raw string) time.Time {
+func parseBookmarkCursor(raw string) bookmarkCursor {
 	if raw == "" {
-		return time.Time{}
+		return bookmarkCursor{}
 	}
-	secs, err := strconv.ParseInt(raw, 10, 64)
-	if err != nil || secs <= 0 {
-		return time.Time{}
+	parts := strings.Split(raw, "|")
+	if len(parts) != 3 {
+		return bookmarkCursor{}
 	}
-	return time.Unix(secs, 0)
+	secs, err := strconv.ParseInt(parts[0], 10, 64)
+	refID, idErr := strconv.ParseUint(parts[1], 10, 64)
+	kind := parts[2]
+	if err != nil || idErr != nil || secs <= 0 || refID <= 0 || (kind != "topic" && kind != "post") {
+		return bookmarkCursor{}
+	}
+	return bookmarkCursor{before: time.Unix(secs, 0), beforeID: refID, kind: kind}
 }
 
-func formatBookmarkTimeCursor(t time.Time) string {
-	return strconv.FormatInt(t.Unix(), 10)
+func formatBookmarkCursor(t time.Time, kind string, refID uint64) string {
+	return fmt.Sprintf("%d|%d|%s", t.Unix(), refID, kind)
 }
 
 func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {

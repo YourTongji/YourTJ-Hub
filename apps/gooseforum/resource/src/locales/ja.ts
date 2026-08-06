@@ -162,6 +162,7 @@ export default {
       topicPost: 'ウォッチ中のトピックに投稿しました',
       follow: 'あなたをフォローしました',
       badge: '「{badge}」バッジを獲得しました',
+      like: 'あなたの返信にいいねしました',
     },
     verb: {
       follow: 'あなたをフォローしました',

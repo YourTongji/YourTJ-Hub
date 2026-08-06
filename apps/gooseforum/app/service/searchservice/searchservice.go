@@ -95,13 +95,21 @@ func searchTopicsFromDatabase(req SearchRequest) (*SearchResponse, error) {
 
 	var total int64
 	countDB := db.Connect().Table(tableName).Where(condition, 1, 0, keyword, keyword)
+	// 与 Meilisearch 路径一致：categories 过滤走 topic_category_index 关联表
+	if len(req.Categories) > 0 {
+		countDB = countDB.Where("EXISTS (SELECT 1 FROM topic_category_index idx WHERE idx.topic_id = topics.id AND idx.category_id IN (?) AND idx.effective = 1)", req.Categories)
+	}
 	if err := countDB.Count(&total).Error; err != nil {
 		return nil, fmt.Errorf("搜索计数失败: %w", err)
 	}
 
 	entities := make([]topics.Entity, 0)
 	resultDB := db.Connect().Table(tableName).
-		Where(condition, 1, 0, keyword, keyword).
+		Where(condition, 1, 0, keyword, keyword)
+	if len(req.Categories) > 0 {
+		resultDB = resultDB.Where("EXISTS (SELECT 1 FROM topic_category_index idx WHERE idx.topic_id = topics.id AND idx.category_id IN (?) AND idx.effective = 1)", req.Categories)
+	}
+	resultDB = resultDB.
 		Order("pin_weight DESC, updated_at DESC").
 		Limit(req.Limit).
 		Offset(req.Offset).

@@ -53,11 +53,12 @@ func assertRouter(ginApp *gin.Engine) {
 }
 
 func viteDevServerURL() string {
-	devServer := preferences.GetString("resource.devServer", "")
-	if devServer == "" && !setting.IsProduction() {
-		devServer = "http://localhost:3010"
+	// 生产环境无条件禁用 Vite 代理：即使配置了 resource.devServer，
+	// 也不能把 /assets/* 代理到开发服务器（避免生产事故）。
+	if setting.IsProduction() {
+		return ""
 	}
-	return devServer
+	return preferences.GetString("resource.devServer", "http://localhost:3010")
 }
 
 func viewRoute(ginApp *gin.Engine) {

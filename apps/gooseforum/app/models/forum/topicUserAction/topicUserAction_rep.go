@@ -172,7 +172,9 @@ type BookmarkedTopicRef struct {
 
 // ListBookmarkedTopicRefsBeforeTime 时间游标分页：用户收藏过的主题（按收藏时间倒序）。
 // 与楼层收藏共用时间游标，便于跨表合并排序展示。
-func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, limit int) []BookmarkedTopicRef {
+// kind 为游标最后一条的类型（"topic"/"post"）：同类型表用 (time, id) 组合游标，
+// 另一张表的时间等于游标时刻的条目未消费完，需用 <= 继续。
+func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, beforeID uint64, kind string, limit int) []BookmarkedTopicRef {
 	if userId == 0 || limit <= 0 {
 		return nil
 	}
@@ -182,7 +184,11 @@ func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, limit in
 		Where(queryopt.Eq("user_id", userId)).
 		Where("bookmarked_at IS NOT NULL")
 	if !before.IsZero() {
-		query = query.Where("bookmarked_at < ?", before)
+		if kind == "topic" {
+			query = query.Where("bookmarked_at < ? OR (bookmarked_at = ? AND id < ?)", before, before, beforeID)
+		} else {
+			query = query.Where("bookmarked_at <= ?", before)
+		}
 	}
 	query.Order("bookmarked_at DESC, id DESC").Limit(limit).Find(&rows)
 	return rows

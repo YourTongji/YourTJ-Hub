@@ -9,8 +9,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
+	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
@@ -643,8 +643,19 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
 		if req.Params.Action == 1 {
 			userStatistics.GivenLike(req.UserId)
+			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
+			userStatistics.LikeTopic(postEntity.UserId)
+			topicEntity := topics.Get(postEntity.TopicId)
+			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
+				UserId:     postEntity.UserId,
+				PostId:     postEntity.Id,
+				TopicId:    postEntity.TopicId,
+				TopicTitle: topicEntity.Title,
+				LikerId:    req.UserId,
+			})
 		} else {
 			userStatistics.CancelGivenLike(req.UserId)
+			userStatistics.CancelLikeTopic(postEntity.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(postEntity.UserId)
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
