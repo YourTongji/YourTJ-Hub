@@ -49,6 +49,10 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: yourtj-hub
+          path: ./bin
       - name: Upload binary to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -58,7 +62,7 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
-      - name: Deploy to dev (sync db from main + restart + smoke)
+      - name: Deploy to dev (sync db from main + build image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
@@ -67,6 +71,6 @@ jobs:
           script: |
             set -e
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
-            /srv/yourtj/scripts/sync-db-from-main.sh
-            # 2. 上传的新二进制已在 /tmp, 交给 deploy.sh 统一安装/重启/回滚
-            /srv/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub 5235
+            /opt/yourtj/scripts/sync-db-from-main.sh
+            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
+            /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235

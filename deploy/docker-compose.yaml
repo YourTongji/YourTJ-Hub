@@ -1,0 +1,35 @@
+# yourtj-hub 双实例编排(main 正式 / dev 测试)
+# 用法: docker compose up -d [main|dev]
+# 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
+services:
+  main:
+    image: yourtj-hub:${MAIN_TAG:-latest}
+    container_name: yourtj-main
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${MAIN_PORT:-5234}:5234"
+    volumes:
+      - ./main/config.toml:/app/config.toml:ro
+      - ./main/storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s
+
+  dev:
+    image: yourtj-hub:${DEV_TAG:-latest}
+    container_name: yourtj-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${DEV_PORT:-5235}:5234"
+    volumes:
+      - ./dev/config.toml:/app/config.toml:ro
+      - ./dev/storage:/app/storage
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 10s

@@ -63,7 +63,7 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
-      - name: Deploy to main (backup db + install + restart + smoke + rollback)
+      - name: Deploy to main (backup db + build image + restart + smoke + rollback)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
@@ -72,7 +72,6 @@ jobs:
           script: |
             set -e
             # 1. 部署前一致性备份(保留最近 7 份)
-            /srv/yourtj/scripts/backup-db.sh main
-            # 2. 安装/重启/健康检查, 失败自动回滚到上一版二进制
-            #    main 生产端口来自 config.toml(默认 5234), 如不同请调整此处
-            /srv/yourtj/scripts/deploy.sh main /tmp/yourtj-hub 5234
+            /opt/yourtj/scripts/backup-db.sh main
+            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
+            /opt/yourtj/scripts/deploy.sh main /tmp/yourtj-hub main-${{ github.sha }} 5234
