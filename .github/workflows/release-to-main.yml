@@ -1,0 +1,73 @@
+name: release-to-main
+
+on:
+  workflow_dispatch:
+    inputs:
+      bump:
+        description: "版本递增类型(patch=x.y.z+1, minor=x.y+1.0, major=x+1.0.0)"
+        required: true
+        type: choice
+        options:
+          - patch
+          - minor
+          - major
+
+permissions:
+  contents: write
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: 计算新版本号
+        id: version
+        run: |
+          set -euo pipefail
+          BUMP="${{ github.event.inputs.bump }}"
+          LATEST_TAG=$(git tag --sort=-v:refname | head -n1 || true)
+          if [ -z "$LATEST_TAG" ]; then
+            MAJOR=0; MINOR=0; PATCH=0
+            echo "latest_tag=(无,首次发布)"
+          else
+            VER=$(echo "$LATEST_TAG" | sed 's/^v//')
+            MAJOR=$(echo "$VER" | cut -d. -f1)
+            MINOR=$(echo "$VER" | cut -d. -f2)
+            PATCH=$(echo "$VER" | cut -d. -f3)
+            echo "latest_tag=$LATEST_TAG"
+          fi
+          case "$BUMP" in
+            patch) PATCH=$((PATCH + 1)) ;;
+            minor) MINOR=$((MINOR + 1)); PATCH=0 ;;
+            major) MAJOR=$((MAJOR + 1)); MINOR=0; PATCH=0 ;;
+          esac
+          NEW_VERSION="v${MAJOR}.${MINOR}.${PATCH}"
+          echo "new_version=$NEW_VERSION" >> "$GITHUB_OUTPUT"
+          echo "将发布版本: $NEW_VERSION"
+
+      - name: 检查 dev 是否有待发布内容
+        run: |
+          git fetch origin dev main
+          BEHIND=$(git rev-list --count origin/main..origin/dev)
+          echo "dev 领先 main: $BEHIND 个提交"
+          if [ "$BEHIND" -eq 0 ]; then
+            echo "::error::dev 与 main 一致,没有需要发布的内容"
+            exit 1
+          fi
+
+      - name: 合并 dev → main 并打 tag
+        env:
+          NEW_VERSION: ${{ steps.version.outputs.new_version }}
+        run: |
+          git config user.name "GitHub Actions"
+          git config user.email "actions@github.com"
+          git checkout -b main origin/main
+          git merge origin/dev --no-ff -m "chore: release $NEW_VERSION from dev"
+          git tag "$NEW_VERSION"
+          git push origin main
+          git push origin "$NEW_VERSION"
+          echo "已合并 dev → main 并打 tag $NEW_VERSION"
+          echo "deploy-main workflow 将自动部署生产"
