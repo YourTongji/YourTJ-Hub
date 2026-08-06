@@ -34,31 +34,19 @@ func (itself *Entity) TableName() string {
 }
 
 const (
-	FriendShipLinks   = `friendShipLinks`
-	SponsorsPage      = `sponsors`
-	SiteSettings      = `siteSettings`
-	EmailSettings     = `emailSetting`
-	Announcement      = `announcement`
-	SecuritySettings  = `securitySettings`
-	PostingSettings   = `postingSettings`
-	HttpNotify        = `httpNotify`
-	SiteTheme         = `siteTheme`
-	SiteChrome        = `siteChrome`
-	RateLimitSettings = `rateLimitSettings`
-	Version           = `version`
-	Migration         = `migration`
 	FriendShipLinks     = `friendShipLinks`
 	SponsorsPage        = `sponsors`
 	SiteSettings        = `siteSettings`
 	EmailSettings       = `emailSetting`
 	Announcement        = `announcement`
 	SecuritySettings    = `securitySettings`
-	StorageSettingsPage = `storageSettings`
-	TermsOfService      = `termsOfService`
 	PostingSettings     = `postingSettings`
 	HttpNotify          = `httpNotify`
 	SiteTheme           = `siteTheme`
 	SiteChrome          = `siteChrome`
+	RateLimitSettings   = `rateLimitSettings`
+	StorageSettingsPage = `storageSettings`
+	TermsOfService      = `termsOfService`
 	Version             = `version`
 	Migration           = `migration`
 )

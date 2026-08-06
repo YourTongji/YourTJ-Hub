@@ -240,6 +240,10 @@ export interface SecuritySettings {
   enableEmailVerification: boolean
   allowedDomains: string[]
   captchaRequired: boolean
+  reservedUsernames: string[]
+  bannedUsernames: string[]
+  sensitiveWords: string[]
+  sensitiveAction: 'block' | 'review'
 }
 
 export interface RateLimitRule {
@@ -256,10 +260,6 @@ export interface RateLimitSettings {
   newUserCaptchaAfterPosts: number
   newUserCaptchaDays: number
   minSubmitSeconds: number
-  reservedUsernames: string[]
-  bannedUsernames: string[]
-  sensitiveWords: string[]
-  sensitiveAction: 'block' | 'review'
 }
 
 export interface StorageSettings {

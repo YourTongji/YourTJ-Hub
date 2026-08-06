@@ -67,8 +67,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement'
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -118,6 +117,10 @@ const securityForm = reactive<SecuritySettings>({
   enableEmailVerification: false,
   allowedDomains: [],
   captchaRequired: true,
+  reservedUsernames: [],
+  bannedUsernames: [],
+  sensitiveWords: [],
+  sensitiveAction: 'block',
 })
 
 const rateLimitForm = reactive<RateLimitSettings>({
@@ -127,10 +130,6 @@ const rateLimitForm = reactive<RateLimitSettings>({
   newUserCaptchaAfterPosts: 3,
   newUserCaptchaDays: 7,
   minSubmitSeconds: 1,
-  reservedUsernames: [],
-  bannedUsernames: [],
-  sensitiveWords: [],
-  sensitiveAction: 'block',
 })
 
 const postingForm = reactive<PostingSettings>({
@@ -202,7 +201,7 @@ const pageMeta = computed(() => {
     mail: { title: adminText('k0003'), description: adminText('k0004') },
     security: { title: adminText('k0005'), description: adminText('k0006') },
     posting: { title: adminText('k0007'), description: adminText('k0008') },
-    'rate-limit': { title: adminText('k00fk'), description: adminText('k00fn') },
+    'rate-limit': { title: adminText('k00j3'), description: adminText('k00j6') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -807,7 +806,7 @@ onMounted(load)
           <Switch v-model="securityForm.enableEmailVerification" />
         </div>
         <div class="flex items-center justify-between">
-          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00fo') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fq') }}</p></div>
+          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00j7') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00j9') }}</p></div>
           <Switch v-model="securityForm.captchaRequired" />
         </div>
         <div class="space-y-4">
@@ -901,28 +900,28 @@ onMounted(load)
 
       <form v-else-if="kind === 'rate-limit'" class="max-w-4xl space-y-8" @submit.prevent="save">
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
-          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00fo') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fn') }}</p></div>
+          <div><div class="flex items-center gap-2 text-base font-medium"><Shield class="size-4" />{{ adminText('k00j7') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00j6') }}</p></div>
           <Switch v-model="rateLimitForm.enabled" />
         </div>
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
-          <div><div class="text-base font-medium">{{ adminText('k00fp') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00fn') }}</p></div>
+          <div><div class="text-base font-medium">{{ adminText('k00j8') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00j6') }}</p></div>
           <Switch v-model="rateLimitForm.skipAdmin" :disabled="!rateLimitForm.enabled" />
         </div>
         <section class="space-y-3">
-          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k00ft') }}</div>
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k00jc') }}</div>
           <div class="grid gap-3">
             <div v-for="(rule, index) in rateLimitForm.actions" :key="rule.action" class="grid grid-cols-[minmax(120px,1fr)_110px_110px_110px] items-center gap-3 rounded-lg border p-3">
               <span class="truncate font-mono text-sm">{{ rule.action }}</span>
-              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fu') }}<Input v-model.number="rateLimitForm.actions[index].windowSeconds" :disabled="!rateLimitForm.enabled" type="number" min="1" /></label>
-              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fv') }}<Input v-model.number="rateLimitForm.actions[index].limitPerIp" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
-              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00fw') }}<Input v-model.number="rateLimitForm.actions[index].limitPerUser" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00jd') }}<Input v-model.number="rateLimitForm.actions[index].windowSeconds" :disabled="!rateLimitForm.enabled" type="number" min="1" /></label>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00je') }}<Input v-model.number="rateLimitForm.actions[index].limitPerIp" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+              <label class="grid gap-1 text-xs text-muted-foreground">{{ adminText('k00jf') }}<Input v-model.number="rateLimitForm.actions[index].limitPerUser" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
             </div>
           </div>
         </section>
         <section class="grid gap-6 sm:grid-cols-3">
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fq') }}<Input v-model.number="rateLimitForm.newUserCaptchaAfterPosts" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fr') }}<Input v-model.number="rateLimitForm.newUserCaptchaDays" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
-          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00fs') }}<Input v-model.number="rateLimitForm.minSubmitSeconds" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00j9') }}<Input v-model.number="rateLimitForm.newUserCaptchaAfterPosts" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00ja') }}<Input v-model.number="rateLimitForm.newUserCaptchaDays" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
+          <label class="grid gap-2 text-sm font-medium">{{ adminText('k00jb') }}<Input v-model.number="rateLimitForm.minSubmitSeconds" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
         </section>
       </form>
 

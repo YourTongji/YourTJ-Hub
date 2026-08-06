@@ -130,6 +130,8 @@ func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 	config := mustPageConfigDefaults().RateLimit
 	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
 	return config
+}
+
 func GetDefaultStorageSettingsConfig() pageConfig.StorageSettings {
 	return mustPageConfigDefaults().Storage
 }

@@ -319,11 +319,11 @@ export function savePostingSettings(settings: PostingSettings) {
 }
 
 export function getRateLimitSettings() {
-  return getJson<RateLimitSettings>('/api/admin/rate-limit-settings', adminText('k00fl'))
+  return getJson<RateLimitSettings>('/api/admin/rate-limit-settings', adminText('k00j4'))
 }
 
 export function saveRateLimitSettings(settings: RateLimitSettings) {
-  return postJson<unknown>('/api/admin/save-rate-limit-settings', { settings }, adminText('k00fl'))
+  return postJson<unknown>('/api/admin/save-rate-limit-settings', { settings }, adminText('k00j4'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {
