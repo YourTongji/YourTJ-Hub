@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
+	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
@@ -36,9 +37,12 @@ func TestTotpChallengeAuthAcceptsChallengeToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser() error = %v", err)
 	}
-	token, err := jwt.CreateChallengeToken(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+	token, jti, err := jwt.CreateChallengeTokenWithJti(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
 	if err != nil {
 		t.Fatalf("create challenge token: %v", err)
+	}
+	if err := totpservice.SaveChallenge(user.Id, jti, 5*time.Minute); err != nil {
+		t.Fatalf("save challenge: %v", err)
 	}
 	recorder, userID := requestWithTotpChallenge(token)
 	if recorder.Code != http.StatusOK {
@@ -71,9 +75,12 @@ func TestTotpChallengeAuthRejectsExpiredToken(t *testing.T) {
 	if err != nil {
 		t.Fatalf("CreateUser() error = %v", err)
 	}
-	token, err := jwt.CreateChallengeToken(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, -1*time.Minute)
+	token, jti, err := jwt.CreateChallengeTokenWithJti(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, -1*time.Minute)
 	if err != nil {
 		t.Fatalf("create expired challenge token: %v", err)
+	}
+	if err := totpservice.SaveChallenge(user.Id, jti, -1*time.Minute); err != nil {
+		t.Fatalf("save expired challenge: %v", err)
 	}
 	recorder, _ := requestWithTotpChallenge(token)
 	if recorder.Code != http.StatusUnauthorized {
@@ -100,6 +107,28 @@ func TestTotpChallengeAuthRejectsStaleTokenVersion(t *testing.T) {
 
 func TestTotpChallengeAuthRejectsMissingToken(t *testing.T) {
 	recorder, _ := requestWithTotpChallenge("")
+	if recorder.Code != http.StatusUnauthorized {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestTotpChallengeAuthRejectsConsumedChallengeToken(t *testing.T) {
+	setupSessionAuthTestDB(t)
+	user, err := userservice.CreateUser("totpconsumed", "password", "totpconsumed@example.com", false)
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	token, jti, err := jwt.CreateChallengeTokenWithJti(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("create challenge token: %v", err)
+	}
+	if err := totpservice.SaveChallenge(user.Id, jti, 5*time.Minute); err != nil {
+		t.Fatalf("save challenge: %v", err)
+	}
+	if err := totpservice.ConsumeChallenge(user.Id, jti); err != nil {
+		t.Fatalf("consume challenge: %v", err)
+	}
+	recorder, _ := requestWithTotpChallenge(token)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
 	}

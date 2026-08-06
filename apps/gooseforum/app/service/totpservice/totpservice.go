@@ -19,6 +19,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/securestore"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
@@ -340,4 +341,32 @@ func clearFailures(userID uint64) {
 	rateMu.Lock()
 	defer rateMu.Unlock()
 	delete(failures, userID)
+}
+
+// SaveChallenge records a short-lived TOTP challenge token so it can be consumed once.
+func SaveChallenge(userID uint64, jti string, ttl time.Duration) error {
+	return userTotpChallenges.Create(&userTotpChallenges.Entity{
+		UserId:    userID,
+		Jti:       jti,
+		ExpiresAt: time.Now().Add(ttl),
+	})
+}
+
+// ChallengeValid reports whether a challenge token has a live, unconsumed record.
+func ChallengeValid(userID uint64, jti string) bool {
+	entity := userTotpChallenges.GetByUserIDAndJti(userID, jti)
+	if entity == nil || entity.ConsumedAt != nil || entity.ExpiresAt.Before(time.Now()) {
+		return false
+	}
+	return true
+}
+
+// ConsumeChallenge marks a challenge token as used.
+func ConsumeChallenge(userID uint64, jti string) error {
+	return userTotpChallenges.MarkConsumed(userID, jti)
+}
+
+// CleanupExpiredChallenges removes stale challenge rows.
+func CleanupExpiredChallenges() {
+	_ = userTotpChallenges.DeleteExpired()
 }

@@ -39,6 +39,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 )
@@ -82,6 +83,7 @@ func migrateSchema() {
 		&userSessions.Entity{},
 		&userTotp.Entity{},
 		&userTotpRecoveryCodes.Entity{},
+		&userTotpChallenges.Entity{},
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&imConversations.Entity{},

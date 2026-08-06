@@ -139,6 +139,16 @@ func TotpVerify(c *gin.Context) {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))
 		return
 	}
+	jti := c.GetString("currentJti")
+	if jti == "" {
+		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
+		return
+	}
+	if err := totpservice.ConsumeChallenge(userId, jti); err != nil {
+		slog.Error("TOTP verify: consume challenge failed", "userId", userId, "jti", jti, "error", err)
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))
+		return
+	}
 	userInfo, ok := userservice.GetUserInfo(userId)
 	if !ok {
 		slog.Error("TOTP verify: user info missing", "userId", userId)
