@@ -1,0 +1,27 @@
+{{template "layout/app.gohtml" .}}
+
+{{define "noscript"}}
+{{template "page" .}}
+{{end}}
+
+{{define "page"}}
+<main>
+    <header>
+        <h1>{{ t .Lang "sponsors" }}</h1>
+        <p>{{ t .Lang "sponsorsThanks" }}</p>
+    </header>
+    {{range .Payload.Props.Sections}}
+    <section>
+        <h2>{{.Label}}</h2>
+        <ul>
+            {{range .Sponsors}}
+            <li>
+                {{if .Link}}<a href="{{.Link}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>{{else}}{{.Name}}{{end}}
+                {{if .Message}}<p>{{.Message}}</p>{{end}}
+            </li>
+            {{end}}
+        </ul>
+    </section>
+    {{end}}
+</main>
+{{end}}

@@ -1,0 +1,242 @@
+<!DOCTYPE html>
+<html lang="{{.Lang}}">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{.Data.Title}} - GooseForum</title>
+    <style>
+        :root {
+            color-scheme: light;
+            --bg: #f9fafb;
+            --panel: #ffffff;
+            --border: #e5e7eb;
+            --text: #030712;
+            --muted: #6b7280;
+            --blue: #315ef4;
+            --blue-dark: #244bd6;
+            --success: #059669;
+            --danger: #dc2626;
+        }
+
+        * {
+            box-sizing: border-box;
+        }
+
+        body {
+            min-height: 100vh;
+            margin: 0;
+            background: var(--bg);
+            color: var(--text);
+            font-family: ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+            -webkit-font-smoothing: antialiased;
+        }
+
+        main {
+            min-height: 100vh;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            padding: 32px 18px;
+        }
+
+        .card {
+            width: min(100%, 520px);
+            overflow: hidden;
+            border: 1px solid var(--border);
+            border-radius: 18px;
+            background: var(--panel);
+            box-shadow: 0 20px 60px rgba(15, 23, 42, 0.08);
+        }
+
+        .content {
+            padding: 42px 40px 36px;
+        }
+
+        .topline {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            margin-bottom: 34px;
+            gap: 18px;
+        }
+
+        .brand {
+            display: inline-flex;
+            align-items: baseline;
+            color: var(--blue);
+            text-decoration: none;
+            font-size: 30px;
+            font-weight: 650;
+            line-height: 1;
+            letter-spacing: -0.04em;
+        }
+
+        .brand span {
+            color: var(--text);
+        }
+
+        .status {
+            display: inline-flex;
+            align-items: center;
+            gap: 8px;
+            color: var(--muted);
+            font-size: 13px;
+            font-weight: 700;
+            white-space: nowrap;
+        }
+
+        .status.success {
+            color: var(--success);
+        }
+
+        .status.fail {
+            color: var(--danger);
+        }
+
+        h1 {
+            margin: 0;
+            font-size: 30px;
+            line-height: 1.15;
+            font-weight: 800;
+            letter-spacing: -0.03em;
+        }
+
+        .message {
+            margin: 12px 0 0;
+            font-size: 15px;
+            line-height: 1.7;
+            color: var(--muted);
+        }
+
+        .result {
+            margin: 18px 0 0;
+            font-size: 14px;
+            font-weight: 650;
+            line-height: 1.5;
+            color: var(--muted);
+        }
+
+        .result.success {
+            color: var(--success);
+        }
+
+        .result.fail {
+            color: var(--danger);
+        }
+
+        .actions {
+            display: flex;
+            gap: 10px;
+            margin-top: 28px;
+        }
+
+        .button {
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            min-height: 42px;
+            padding: 0 18px;
+            border-radius: 12px;
+            font-size: 14px;
+            font-weight: 700;
+            text-decoration: none;
+            transition: background-color 0.16s ease, border-color 0.16s ease, color 0.16s ease;
+        }
+
+        .button.primary {
+            flex: 1;
+            color: #ffffff;
+            background: var(--blue);
+            box-shadow: 0 12px 24px rgba(49, 94, 244, 0.2);
+        }
+
+        .button.primary:hover {
+            background: var(--blue-dark);
+        }
+
+        .button.secondary {
+            color: #374151;
+            border: 1px solid var(--border);
+            background: #ffffff;
+        }
+
+        .button.secondary:hover {
+            background: #f9fafb;
+        }
+
+        @media (max-width: 520px) {
+            main {
+                align-items: stretch;
+                padding: 16px;
+            }
+
+            .card {
+                align-self: center;
+            }
+
+            .content {
+                padding: 30px 24px 26px;
+            }
+
+            .topline {
+                margin-bottom: 28px;
+                align-items: flex-start;
+                flex-direction: column;
+                gap: 14px;
+            }
+
+            .brand {
+                font-size: 27px;
+            }
+
+            h1 {
+                font-size: 26px;
+            }
+
+            .actions {
+                flex-direction: column;
+            }
+        }
+    </style>
+</head>
+<body>
+<main>
+    <section class="card" aria-labelledby="activation-title">
+        <div class="content">
+            <div class="topline">
+                <a class="brand" href="/" aria-label="GooseForum">Goose<span>Forum</span></a>
+
+                <div class="status {{if .Data.Success}}success{{else}}fail{{end}}" aria-hidden="true">
+                    {{if .Data.Success}}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="M20 6 9 17l-5-5" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/>
+                    </svg>
+                    <span>{{call .T "completed"}}</span>
+                    {{else}}
+                    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+                        <path d="m15 9-6 6m0-6 6 6" stroke="currentColor" stroke-width="2.4" stroke-linecap="round"/>
+                        <path d="M12 22a10 10 0 1 0 0-20 10 10 0 0 0 0 20Z" stroke="currentColor" stroke-width="2"/>
+                    </svg>
+                    <span>{{call .T "incomplete"}}</span>
+                    {{end}}
+                </div>
+            </div>
+
+            <h1 id="activation-title">{{.Data.Title}}</h1>
+            <p class="result {{if .Data.Success}}success{{else}}fail{{end}}">{{.Data.Message}}</p>
+            <p class="message">{{.Data.Description}}</p>
+
+            <div class="actions">
+                {{if .Data.Success}}
+                <a href="/login" class="button primary">{{call .T "login_now"}}</a>
+                <a href="/" class="button secondary">{{call .T "back_home"}}</a>
+                {{else}}
+                <a href="/" class="button primary">{{call .T "back_home"}}</a>
+                <a href="mailto:support@gooseforum.online" class="button secondary">{{call .T "contact_support"}}</a>
+                {{end}}
+            </div>
+        </div>
+    </section>
+</main>
+</body>
+</html>

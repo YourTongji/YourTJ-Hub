@@ -1,0 +1,56 @@
+package articleCategory
+
+import (
+	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"gorm.io/gorm/clause"
+)
+
+func create(entity *Entity) int64 {
+	result := builder().Create(entity)
+	return result.RowsAffected
+}
+
+func save(entity *Entity) int64 {
+	result := builder().Save(entity)
+	return result.RowsAffected
+}
+
+func SaveOrCreateById(entity *Entity) int64 {
+	if entity.Id == 0 {
+		return create(entity)
+	}
+
+	return save(entity)
+}
+
+func Get(id any) (entity Entity) {
+	if id == 0 {
+		return entity
+	}
+	builder().First(&entity, id)
+	return
+}
+
+func GetOne() (entity Entity) {
+	builder().Order(queryopt.Desc(pid)).First(&entity)
+	return
+}
+
+func DeleteEntity(entity *Entity) int64 {
+	result := builder().Delete(entity)
+	return result.RowsAffected
+}
+
+func All() (entities []*Entity) {
+	builder().
+		Order(clause.OrderByColumn{Column: clause.Column{Name: fieldSort}, Desc: true}).
+		Order(clause.OrderByColumn{Column: clause.Column{Name: pid}}).
+		Find(&entities)
+	return
+}
+
+func Count() int64 {
+	var total int64
+	builder().Count(&total)
+	return total
+}

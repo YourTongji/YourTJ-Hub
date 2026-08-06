@@ -38,6 +38,8 @@ services/
   casdoor/   统一认证部署配置（数字 ID 初始化清单）
   search/    Meilisearch 部署配置
   credit/    积分（二期占位）
+third_party/
+  gooseforum/  上游参考源码快照（不参与构建，见 README「参考上游」）
 deploy/      分环境 compose + env.example
 docs/        文档中心（product/architecture/development/operations）
 ```
@@ -47,6 +49,7 @@ docs/        文档中心（product/architecture/development/operations）
 - 跨域访问走 owner 的公开 API，禁止 foreign SQL 直读其他域的表。
 - Web/Mobile 消费 `packages/api-contract` 生成的类型，禁止手写与后端重复的 DTO。
 - `services/` 只放部署配置，不放第三方源码（Casdoor/Meilisearch/credit 是现成组件）。
+- `third_party/` 只读参考，不参与构建、不改动（更新走 README 记录的 rsync 流程）。
 
 ## 3. Hard constraints
 
@@ -79,4 +82,4 @@ docs/        文档中心（product/architecture/development/operations）
 - [文档中心](docs/README.md)（事实来源表 + 状态词）
 - [开发入口](docs/development/README.md)
 - 架构决策记录保存在项目 note（yourtj-hub 架构决策记录），不落盘 git
-- 上游参考：GooseForum（本地 gooseforum-src）、YourTJ-Platform（本地，同品牌已归档仓库）
+- 上游参考：GooseForum（`third_party/gooseforum/` 快照）、YourTJ-Platform（本地，同品牌已归档仓库）

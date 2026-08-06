@@ -1,5 +1,7 @@
 # YourTJ-Hub
 
+同济大学校级论坛平台 monorepo（品牌：yourtj，Go + Vue + Flutter，统一认证 Casdoor，积分 credit 二期）。
+
 ## 文档
 
 **[文档中心 → docs/README.md](docs/README.md)**（事实来源表 + 实现状态词）
@@ -22,9 +24,24 @@ yourtj-hub/
 ├── packages/
 │   └── api-contract/      # openapi.yaml 契约中心（swag 接入后生成）
 ├── services/              # 基础服务部署配置（casdoor / search / credit）
+├── third_party/           # 第三方参考源码快照（gooseforum，不参与构建）
 ├── deploy/                # 分环境部署配置
 └── docs/                  # 文档中心（product/architecture/development/operations）
 ```
+
+## 参考上游（Reference）
+
+本仓库**不 fork** [GooseForum](https://github.com/leancodebox/GooseForum)（MIT），以其为参考蓝本自研，
+允许在数据库、搜索和结构上大改。上游源码快照保留在
+[`third_party/gooseforum/`](third_party/gooseforum/)，供实现时对照借鉴（架构分层、数据模型、
+三模渲染、契约组织等）。
+
+- 上游仓库：https://github.com/leancodebox/GooseForum
+- 快照版本：`63949f2d`（2026-08-04，feat(resource): extract reusable client SDK）
+- 许可证：MIT（见 `third_party/gooseforum/LICENSE`）
+- 更新方式：手动 rsync 更新快照并记录新的上游 commit（上游不活跃，按需更新）
+
+> 注意：快照仅供参考，**不参与构建**，也不作为事实来源（见 [docs/README.md](docs/README.md) 事实来源表）。
 
 ## 快速开始
 

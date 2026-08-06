@@ -1,0 +1,33 @@
+root = "."
+tmp_dir = "storage/tmp"
+
+[build]
+bin = "./storage/tmp/GooseForum"
+args_bin = ["serve"]# 最新版配置
+cmd = "go build -o ./storage/tmp/ ."
+delay = 1000
+exclude_dir = [".git", ".idea", "assets", "tmp", "vendor", "actor", "actor", "web", "storage", "dist", "resource/node_modules","resource/static/dist"," admin"]
+exclude_file = []
+exclude_regex = []
+exclude_unchanged = false
+follow_symlink = false
+full_bin = ""
+include_dir = []
+include_ext = ["go", "tpl", "tmpl", "html", "env", "toml"] # ,"gohtml","css"
+kill_delay = 1000000000
+log = "build-errors.log"
+send_interrupt = true
+stop_on_error = true
+
+[color]
+app = ""
+build = "yellow"
+main = "magenta"
+runner = "green"
+watcher = "cyan"
+
+[log]
+time = true
+
+[misc]
+clean_on_exit = false

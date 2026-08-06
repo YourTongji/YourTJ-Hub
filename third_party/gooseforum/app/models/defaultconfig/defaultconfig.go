@@ -1,0 +1,191 @@
+package defaultconfig
+
+import (
+	"embed"
+	"encoding/json"
+	"fmt"
+	"sync"
+
+	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+)
+
+//go:embed pageconfig/*.json
+var defaultConfigFS embed.FS
+
+type pageConfigDefaults struct {
+	Announcement pageConfig.AnnouncementConfig
+	Email        pageConfig.MailSettingsConfig
+	FriendLinks  []pageConfig.FriendLinksGroup
+	Posting      pageConfig.PostingContent
+	Security     pageConfig.SecurityAndRegistration
+	Site         pageConfig.SiteSettingsConfig
+	SiteTheme    pageConfig.SiteThemeConfig
+	Sponsors     pageConfig.SponsorsConfig
+}
+
+var (
+	loadPageConfigDefaultsOnce sync.Once
+	pageConfigDefaultsValue    pageConfigDefaults
+	errPageConfigDefaults      error
+)
+
+func loadPageConfigDefaults() (pageConfigDefaults, error) {
+	loadPageConfigDefaultsOnce.Do(func() {
+		errPageConfigDefaults = loadJSON("announcement.json", &pageConfigDefaultsValue.Announcement)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("email.json", &pageConfigDefaultsValue.Email)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("friend_links.json", &pageConfigDefaultsValue.FriendLinks)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("posting.json", &pageConfigDefaultsValue.Posting)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("security.json", &pageConfigDefaultsValue.Security)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("site.json", &pageConfigDefaultsValue.Site)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("site_theme.json", &pageConfigDefaultsValue.SiteTheme)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("sponsors.json", &pageConfigDefaultsValue.Sponsors)
+	})
+	return pageConfigDefaultsValue, errPageConfigDefaults
+}
+
+func mustPageConfigDefaults() pageConfigDefaults {
+	defaults, err := loadPageConfigDefaults()
+	if err != nil {
+		panic(err)
+	}
+	return defaults
+}
+
+func loadJSON(name string, out any) error {
+	data, err := defaultConfigFS.ReadFile("pageconfig/" + name)
+	if err != nil {
+		return fmt.Errorf("read default page config %s: %w", name, err)
+	}
+	if err := json.Unmarshal(data, out); err != nil {
+		return fmt.Errorf("decode default page config %s: %w", name, err)
+	}
+	return nil
+}
+
+func GetDefaultAnnouncementConfig() pageConfig.AnnouncementConfig {
+	return mustPageConfigDefaults().Announcement
+}
+
+func GetDefaultEmailSettingsConfig() pageConfig.MailSettingsConfig {
+	return mustPageConfigDefaults().Email
+}
+
+func GetDefaultFriendLinksConfig() []pageConfig.FriendLinksGroup {
+	return cloneFriendLinks(mustPageConfigDefaults().FriendLinks)
+}
+
+func GetDefaultPostingSettingsConfig() pageConfig.PostingContent {
+	config := mustPageConfigDefaults().Posting
+	config.UploadControl.AuthorizedExtensions = append([]string(nil), config.UploadControl.AuthorizedExtensions...)
+	return config
+}
+
+func GetDefaultHttpNotifyConfig() pageConfig.HttpNotifyConfig {
+	return pageConfig.HttpNotifyConfig{Endpoints: []pageConfig.HttpNotifyEndpoint{}}
+}
+
+func GetDefaultSecuritySettingsConfig() pageConfig.SecurityAndRegistration {
+	config := mustPageConfigDefaults().Security
+	config.AllowedDomains = append([]string(nil), config.AllowedDomains...)
+	return config
+}
+
+func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {
+	return mustPageConfigDefaults().Site
+}
+
+func GetDefaultSiteChromeConfig() pageConfig.SiteChromeConfig {
+	return pageConfig.SiteChromeConfig{
+		Header:        GetDefaultSiteChromeHeader(),
+		MainMenu:      []pageConfig.ChromeItem{},
+		Resources:     []pageConfig.ChromeItem{},
+		SidebarGroups: []pageConfig.ChromeGroup{},
+		FooterInfo: pageConfig.FooterInfo{
+			Primary: []pageConfig.PItem{{Content: "Providing reliable tech since 2025"}},
+			List: []pageConfig.FooterItem{
+				{Name: "Github", Url: "https://github.com/leancodebox/GooseForum"},
+				{Name: "License", Url: "https://github.com/leancodebox/GooseForum/blob/main/LICENSE"},
+				{Name: "LeanCodeBox", Url: "https://github.com/leancodebox"},
+			},
+		},
+		BrandType: "default",
+	}
+}
+
+func GetDefaultSiteChromeHeader() []pageConfig.ChromeItem {
+	return []pageConfig.ChromeItem{
+		{ID: "sponsors", Enabled: true, Type: "link", Label: "Sponsors", I18nLabel: "shell.nav.sponsors", URL: "/sponsors"},
+		{ID: "links", Enabled: true, Type: "link", Label: "Links", I18nLabel: "shell.nav.links", URL: "/links"},
+	}
+}
+
+func GetDefaultSiteThemeConfig() pageConfig.SiteThemeConfig {
+	config := mustPageConfigDefaults().SiteTheme
+	config.Themes = cloneSiteThemeDefinitions(config.Themes)
+	config.Prepublish = cloneSiteThemePrepublish(config.Prepublish)
+	return config
+}
+
+func GetDefaultSponsorsConfig() pageConfig.SponsorsConfig {
+	return cloneSponsorsConfig(mustPageConfigDefaults().Sponsors)
+}
+
+func cloneFriendLinks(groups []pageConfig.FriendLinksGroup) []pageConfig.FriendLinksGroup {
+	if groups == nil {
+		return nil
+	}
+	cloned := make([]pageConfig.FriendLinksGroup, len(groups))
+	for i, group := range groups {
+		cloned[i] = group
+		cloned[i].Links = append([]pageConfig.LinkItem(nil), group.Links...)
+	}
+	return cloned
+}
+
+func cloneSponsorsConfig(config pageConfig.SponsorsConfig) pageConfig.SponsorsConfig {
+	config.Sponsors.Level0 = append([]pageConfig.SponsorItem(nil), config.Sponsors.Level0...)
+	config.Sponsors.Level1 = append([]pageConfig.SponsorItem(nil), config.Sponsors.Level1...)
+	config.Sponsors.Level2 = append([]pageConfig.SponsorItem(nil), config.Sponsors.Level2...)
+	config.Sponsors.Level3 = append([]pageConfig.SponsorItem(nil), config.Sponsors.Level3...)
+	config.Rules = append([]pageConfig.SponsorsRule(nil), config.Rules...)
+	return config
+}
+
+func cloneSiteThemeDefinitions(items []pageConfig.SiteThemeDefinition) []pageConfig.SiteThemeDefinition {
+	if items == nil {
+		return nil
+	}
+	cloned := make([]pageConfig.SiteThemeDefinition, len(items))
+	copy(cloned, items)
+	return cloned
+}
+
+func cloneSiteThemePrepublish(item *pageConfig.SiteThemePrepublish) *pageConfig.SiteThemePrepublish {
+	if item == nil {
+		return nil
+	}
+	cloned := *item
+	cloned.Themes = cloneSiteThemeDefinitions(item.Themes)
+	return &cloned
+}

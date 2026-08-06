@@ -1,0 +1,139 @@
+package users
+
+import (
+	"strings"
+	"time"
+
+	"gorm.io/gorm"
+
+	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+
+	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
+)
+
+const tableName = "users"
+
+// pid
+const pid = "id"
+
+// fieldRoleId
+const fieldRoleId = "role_id"
+
+// fieldUsername
+const fieldUsername = "username"
+
+// fieldNickname
+const fieldNickname = "nickname"
+
+// fieldEmail
+const fieldEmail = "email"
+
+// fieldPassword
+const fieldPassword = "password"
+
+// fieldMobileAreaCode
+const fieldMobileAreaCode = "mobile_area_code"
+
+// fieldMobilePhoneNumber
+const fieldMobilePhoneNumber = "mobile_phone_number"
+
+// fieldIsFrozen 状态：0正常 1冻结
+const fieldIsFrozen = "is_frozen"
+
+// fieldIsActivated 是否验证通过: 0未激活 1 已激活
+const fieldIsActivated = "is_activated"
+
+const (
+	StatusNormal = 0
+	StatusFrozen = 1
+)
+
+const (
+	ActivationPending = 0
+	ActivationSuccess = 1
+)
+
+// fieldPrestige 声望
+const fieldPrestige = "prestige"
+
+// fieldCreatedAt
+const fieldCreatedAt = "created_at"
+
+// fieldUpdatedAt
+const fieldUpdatedAt = "updated_at"
+
+// fieldDeletedAt
+const fieldDeletedAt = "deleted_at"
+
+type ExternalInformationItem struct {
+	Link string `json:"link"`
+}
+
+type ExternalInformation struct {
+	Github   ExternalInformationItem `json:"github"`
+	Weibo    ExternalInformationItem `json:"weibo"`
+	Bilibili ExternalInformationItem `json:"bilibili"`
+	Twitter  ExternalInformationItem `json:"twitter"`
+	LinkedIn ExternalInformationItem `json:"linkedIn"`
+	Zhihu    ExternalInformationItem `json:"zhihu"`
+}
+
+type EntityComplete struct {
+	// base
+	Id           uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                      //
+	Username     string     `gorm:"column:username;index;type:varchar(64);not null;default:'';" json:"username"` //
+	Email        string     `gorm:"column:email;index;type:varchar(128);not null;default:'';" json:"email"`      //
+	Password     string     `gorm:"column:password;type:varchar(128);not null;default:'';" json:"-"`             //
+	TokenVersion uint64     `gorm:"column:token_version;type:bigint unsigned;not null;default:0;" json:"-"`      // 登录令牌版本，改密后自增
+	Locale       string     `gorm:"column:locale;type:varchar(16);not null;default:'';" json:"locale"`           // 用户语言偏好
+	IsFrozen     int8       `gorm:"column:is_frozen;type:tinyint;not null;default:0;" json:"isFrozen"`           // 状态：0正常 1冻结
+	IsActivated  int8       `gorm:"column:is_activated;type:tinyint;not null;default:0;" json:"isActivated"`     // 是否验证通过: 0未激活 1 已激活
+	ActivatedAt  *time.Time `gorm:"column:activated_at;type:datetime;" json:"activatedAt"`                       // 激活时间
+
+	// info
+	Nickname            string              `gorm:"column:nickname;type:varchar(64);not null;default:'';" json:"nickname"`                                  //
+	RoleId              uint64              `gorm:"column:role_id;type:bigint unsigned;not null;default:0;" json:"roleId"`                                  //
+	Prestige            int64               `gorm:"column:prestige;type:bigint;not null;default:0;" json:"prestige"`                                        // 声望
+	AvatarUrl           string              `gorm:"column:avatar_url;type:varchar(255);" json:"avatarUrl"`                                                  // 头像URL
+	ProfileCoverUrl     string              `gorm:"column:profile_cover_url;type:varchar(512);not null;default:'';" json:"profileCoverUrl"`                 // 个人主页封面URL
+	Bio                 string              `gorm:"column:bio;type:varchar(500);not null;default:'';" json:"bio"`                                           // 个人简介
+	Signature           string              `gorm:"column:signature;type:varchar(255);not null;default:'';" json:"signature"`                               // 署名
+	WebsiteName         string              `gorm:"column:website_name;type:varchar(64);not null;default:'';" json:"websiteName"`                           // 个人网站名
+	Website             string              `gorm:"column:website;type:varchar(255);not null;default:'';" json:"website"`                                   // 个人网站
+	ExternalInformation ExternalInformation `gorm:"column:external_information;type:varchar(2048);default:'{}';serializer:json" json:"externalInformation"` // 外部信息
+	WornBadgeCode       string              `gorm:"column:worn_badge_code;type:varchar(64);not null;default:'';" json:"wornBadgeCode"`                      // 当前佩戴的徽章
+
+	// status
+	CreatedAt time.Time      `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"` //
+	UpdatedAt time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+	DeletedAt gorm.DeletedAt //
+}
+
+func (itself *EntityComplete) GetWebAvatarUrl() string {
+	if itself.IsFrozen == StatusFrozen {
+		return urlconfig.GetBannedAvatar()
+	}
+	if itself.AvatarUrl == "" {
+		return urlconfig.GetDefaultAvatar()
+	}
+	if strings.HasPrefix(itself.AvatarUrl, "/static/pic/") {
+		return itself.AvatarUrl
+	}
+	return strings.ReplaceAll(urlconfig.FilePath(itself.AvatarUrl), "\\", "/")
+}
+
+func (itself *EntityComplete) TableName() string {
+	return tableName
+}
+
+func (itself *EntityComplete) SetPassword(password string) *EntityComplete {
+	itself.Password, _ = algorithm.MakePassword(password)
+	itself.TokenVersion++
+	return itself
+}
+
+func (itself *EntityComplete) Activate() {
+	itself.IsActivated = ActivationSuccess
+	activatedAt := time.Now()
+	itself.ActivatedAt = &activatedAt
+}

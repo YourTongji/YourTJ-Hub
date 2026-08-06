@@ -1,0 +1,71 @@
+[app]
+# 运行环境配置 (local/production/staging等)
+# 当设置为 'local' 时会自动绑定到 127.0.0.1，其他值则监听所有接口
+env = "production"
+# 调试模式开关，可选覆盖项
+# 不配置时：local 默认 true，其他环境默认 false
+# debug = false
+# 维护模式开关
+# 为 true 时所有请求返回503维护页面
+maintenance = false
+# 安全签名密钥
+signingKey = "{{.SigningKey}}"
+# CDN URL (可选，留空则使用本地资源)
+# 例如: https://cdn.example.com
+cdn_url = ""
+
+[server]
+url = "http://localhost"
+port = 5234
+accessLog = false
+gzip = true # 应用层 gzip 开关
+
+[jwtopt]
+validTime = 604800
+
+[db]
+migration = "on" # on,off
+backupSqlite = true
+backupDir = "./storage/databasebackup/"
+keep = 7
+spec = "0 3 * * *"
+
+[db.default]
+connection = "sqlite"# in mysql sqlite
+url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+path = "./storage/database/sqlite.db"# :memory:|./storage/database/sqlite.db
+
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+[db.file]
+connection = "sqlite"# in mysql sqlite
+url = "root:root_password@tcp(127.0.0.1:3306)/goose_forum?charset=utf8mb4&parseTime=True&loc=Local"
+path = "./storage/database/file.db"# :memory:|./storage/database/sqlite.db
+
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+[meilisearch]
+url = "http://localhost:7700"
+masterkey = ""
+
+[log]
+type = "file"# LOG_TYPE stdout,file
+path = "./storage/logs/run.log"
+rolling = true # 是否开启滚动 true ,false
+maxage = 10 # 最大日期
+maxsize = 256 # 最大文件大小 MB
+maxBackUps = 30 # 最大保留文件数量
+# 慢 SQL 日志。默认生产环境建议开启，local 可按需关闭。
+slowSQL = true
+slowSQLThreshold = "200ms"
+
+# GitHub OAuth配置
+[github]
+client_id = ""
+client_secret = ""
+
+# end #

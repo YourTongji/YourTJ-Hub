@@ -1,0 +1,88 @@
+package userFollow
+
+import (
+	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
+)
+
+func create(entity *Entity) int64 {
+	result := builder().Create(entity)
+	return result.RowsAffected
+}
+
+func save(entity *Entity) int64 {
+	result := builder().Save(entity)
+	return result.RowsAffected
+}
+
+func SaveOrCreateById(entity *Entity) int64 {
+	if entity.UserId == 0 {
+		return create(entity)
+	}
+
+	return save(entity)
+}
+
+func GetByUserId(userId, followUserId uint64) (entity Entity) {
+	builder().Where(queryopt.Eq(fieldUserId, userId)).Where(queryopt.Eq(fieldFollowUserId, followUserId)).First(&entity)
+	return
+}
+
+// IsFollowing reports whether userId follows followUserId.
+func IsFollowing(userId, followUserId uint64) bool {
+	if userId == 0 || followUserId == 0 {
+		return false
+	}
+	var count int64
+	builder().Where(queryopt.Eq(fieldUserId, userId)).
+		Where(queryopt.Eq(fieldFollowUserId, followUserId)).
+		Where(queryopt.Eq(fieldStatus, 1)).
+		Count(&count)
+	return count > 0
+}
+
+// GetFollowingList returns followed users for a page.
+func GetFollowingList(userId uint64, page, pageSize int) []*users.EntityComplete {
+	offset := (page - 1) * pageSize
+	var userList []*users.EntityComplete
+
+	var followUserIds []uint64
+	builder().Select(fieldFollowUserId).Where(queryopt.Eq(fieldUserId, userId)).Where(queryopt.Eq(fieldStatus, 1)).Offset(offset).Limit(pageSize).Order(fieldCreatedAt+" DESC").Order(pid+" DESC").Pluck(fieldFollowUserId, &followUserIds)
+
+	if len(followUserIds) > 0 {
+		userList = orderUsersByIDs(users.GetByIds(followUserIds), followUserIds)
+	}
+
+	return userList
+}
+
+// GetFollowerList returns followers for a page.
+func GetFollowerList(userId uint64, page, pageSize int) []*users.EntityComplete {
+	offset := (page - 1) * pageSize
+	var userList []*users.EntityComplete
+
+	var followerUserIds []uint64
+	builder().Select(fieldUserId).Where(queryopt.Eq(fieldFollowUserId, userId)).Where(queryopt.Eq(fieldStatus, 1)).Offset(offset).Limit(pageSize).Order(fieldCreatedAt+" DESC").Order(pid+" DESC").Pluck(fieldUserId, &followerUserIds)
+
+	if len(followerUserIds) > 0 {
+		userList = orderUsersByIDs(users.GetByIds(followerUserIds), followerUserIds)
+	}
+
+	return userList
+}
+
+func orderUsersByIDs(items []*users.EntityComplete, ids []uint64) []*users.EntityComplete {
+	byID := make(map[uint64]*users.EntityComplete, len(items))
+	for _, item := range items {
+		if item != nil {
+			byID[item.Id] = item
+		}
+	}
+	result := make([]*users.EntityComplete, 0, len(items))
+	for _, id := range ids {
+		if item := byID[id]; item != nil {
+			result = append(result, item)
+		}
+	}
+	return result
+}

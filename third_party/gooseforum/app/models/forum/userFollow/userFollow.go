@@ -1,0 +1,48 @@
+package userFollow
+
+import (
+	"time"
+)
+
+const tableName = "user_follow"
+
+// pid
+const pid = "id"
+
+// fieldUserId
+const fieldUserId = "user_id"
+
+// fieldFollowUserId
+const fieldFollowUserId = "follow_user_id"
+
+// fieldStatus
+const fieldStatus = "status"
+
+// fieldCreatedAt
+const fieldCreatedAt = "created_at"
+
+// fieldUpdatedAt
+const fieldUpdatedAt = "updated_at"
+
+type Entity struct {
+	Id           uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_following_list,priority:4,sort:desc;index:idx_follower_list,priority:4,sort:desc" json:"id"`                    //
+	UserId       uint64    `gorm:"column:user_id;type:bigint unsigned;not null;uniqueIndex:uniq_user_follow,priority:1;index:idx_following_list,priority:1" json:"userId"`                              // 主体
+	FollowUserId uint64    `gorm:"column:follow_user_id;type:bigint unsigned;not null;uniqueIndex:uniq_user_follow,priority:2;index:idx_follow;index:idx_follower_list,priority:1" json:"followUserId"` // 被关注者
+	Status       int       `gorm:"column:status;type:int;not null;default:1;index:idx_following_list,priority:2;index:idx_follower_list,priority:2" json:"status"`                                      // 1 关注 0 取消关注
+	CreatedAt    time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;index:idx_following_list,priority:3;index:idx_follower_list,priority:3" json:"createdAt"`                            //
+	UpdatedAt    time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
+}
+
+// func (itself *Entity) BeforeSave(tx *gorm.DB) (err error) {}
+// func (itself *Entity) BeforeCreate(tx *gorm.DB) (err error) {}
+// func (itself *Entity) AfterCreate(tx *gorm.DB) (err error) {}
+// func (itself *Entity) BeforeUpdate(tx *gorm.DB) (err error) {}
+// func (itself *Entity) AfterUpdate(tx *gorm.DB) (err error) {}
+// func (itself *Entity) AfterSave(tx *gorm.DB) (err error) {}
+// func (itself *Entity) BeforeDelete(tx *gorm.DB) (err error) {}
+// func (itself *Entity) AfterDelete(tx *gorm.DB) (err error) {}
+// func (itself *Entity) AfterFind(tx *gorm.DB) (err error) {}
+
+func (itself *Entity) TableName() string {
+	return tableName
+}

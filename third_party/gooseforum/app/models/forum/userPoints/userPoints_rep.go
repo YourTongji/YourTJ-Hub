@@ -1,0 +1,36 @@
+package userPoints
+
+import (
+	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"gorm.io/gorm"
+)
+
+func Create(entity *Entity) int64 {
+	result := builder().Create(entity)
+	return result.RowsAffected
+}
+
+func Get(id any) (entity Entity) {
+	builder().First(&entity, id)
+	return
+}
+
+func Increment(userId uint64, points int64) error {
+	return builder().Where(queryopt.Eq(pid, userId)).
+		Update(fieldCurrentPoints, gorm.Expr(fieldCurrentPoints+" + ?", points)).Error
+}
+
+//func saveAll(entities []*Entity) int64 {
+//	result := builder().Save(entities)
+//	return result.RowsAffected
+//}
+
+//func deleteEntity(entity *Entity) int64 {
+//	result := builder().Delete(entity)
+//	return result.RowsAffected
+//}
+
+//func all() (entities []*Entity) {
+//	builder().Find(&entities)
+//	return
+//}

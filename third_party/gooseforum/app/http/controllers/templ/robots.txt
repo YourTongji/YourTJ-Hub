@@ -1,0 +1,14 @@
+User-agent: *
+Allow: /
+
+# Sitemaps
+Sitemap: %s/sitemap.xml
+
+# Feeds
+Sitemap: %s/rss.xml
+
+# Disallow
+Disallow: /api/
+Disallow: /admin
+Disallow: /login
+Disallow: /publish

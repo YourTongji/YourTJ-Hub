@@ -1,0 +1,27 @@
+{{template "layout/app.gohtml" .}}
+
+{{define "noscript"}}
+{{template "page" .}}
+{{end}}
+
+{{define "page"}}
+<main>
+    <header>
+        <h1>{{ t .Lang "friendLinks" }}</h1>
+        <p>{{ t .Lang "partnersSummary" "count" .Payload.Props.TotalCount }}</p>
+    </header>
+    {{range .Payload.Props.Groups}}
+    <section>
+        <h2>{{.Name}}</h2>
+        <ul>
+            {{range .Links}}
+            <li>
+                <a href="{{.URL}}" target="_blank" rel="noopener noreferrer">{{.Name}}</a>
+                {{if .Desc}}<p>{{.Desc}}</p>{{end}}
+            </li>
+            {{end}}
+        </ul>
+    </section>
+    {{end}}
+</main>
+{{end}}

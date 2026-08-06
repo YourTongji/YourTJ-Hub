@@ -1,0 +1,124 @@
+package userStatistics
+
+import (
+	"time"
+
+	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+)
+
+func create(entity *Entity) int64 {
+	result := builder().Create(entity)
+	return result.RowsAffected
+}
+
+func save(entity *Entity) int64 {
+	result := builder().Save(entity)
+	return result.RowsAffected
+}
+
+func SaveOrCreateById(entity *Entity) int64 {
+	if entity.UserId == 0 {
+		return create(entity)
+	}
+
+	return save(entity)
+}
+
+func Get(id any) (entity Entity) {
+	builder().First(&entity, id)
+	return
+}
+
+func WriteTopic(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET topic_count = topic_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+func WriteComment(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET reply_count = reply_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// LikeTopic 收到的点赞
+func LikeTopic(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET like_received_count = like_received_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// GivenLike 给出的点赞数
+func GivenLike(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET like_given_count = like_given_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+func CancelLikeTopic(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET like_received_count = like_received_count-1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+func CancelGivenLike(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET like_given_count = like_given_count-1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// Following 增加关注
+func Following(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET following_count = following_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// CancelFollowing 取消关注
+func CancelFollowing(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET following_count = following_count-1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// Follower 增加粉丝数
+func Follower(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET follower_count = follower_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// CancelFollower 取消粉丝数量
+func CancelFollower(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET follower_count = follower_count-1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// Collection 增加收藏数
+func Collection(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET collection_count = collection_count+1 where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// CancelCollection 取消收藏数
+func CancelCollection(userId uint64) int64 {
+	result := builder().Exec("UPDATE user_statistics SET collection_count = CASE WHEN collection_count > 0 THEN collection_count-1 ELSE 0 END where user_id = ?", userId)
+	return result.RowsAffected
+}
+
+// UpdateUserActivity 更新活跃时间
+func UpdateUserActivity(userId uint64, lastActiveTime time.Time) int64 {
+	result := builder().Updates(Entity{UserId: userId, LastActiveTime: lastActiveTime})
+	return result.RowsAffected
+}
+
+func GetByUserIds(userIds []uint64) (entities []*Entity) {
+	builder().Where(queryopt.In(pid, userIds)).Find(&entities)
+	return
+}
+
+//func saveAll(entities []*Entity) int64 {
+//	result := builder().Save(entities)
+//	return result.RowsAffected
+//}
+
+//func deleteEntity(entity *Entity) int64 {
+//	result := builder().Delete(entity)
+//	return result.RowsAffected
+//}
+
+//func all() (entities []*Entity) {
+//	builder().Find(&entities)
+//	return
+//}

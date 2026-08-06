@@ -1,0 +1,2261 @@
+package forum
+
+import (
+	"errors"
+	"fmt"
+	"log/slog"
+	"maps"
+	"net/url"
+	"slices"
+	"strconv"
+	"strings"
+	"time"
+
+	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/bundles/i18n"
+	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
+	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
+	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
+	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
+	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
+	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
+	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
+	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/leancodebox/GooseForum/app/service/chatservice"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
+	"github.com/leancodebox/GooseForum/app/service/notificationservice"
+	"github.com/leancodebox/GooseForum/app/service/permission"
+	"github.com/leancodebox/GooseForum/app/service/postservice"
+	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/leancodebox/GooseForum/app/service/themeservice"
+	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
+	"github.com/leancodebox/GooseForum/app/service/unreadservice"
+	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/samber/lo"
+)
+
+const payloadVersion = "1.0"
+
+func siteTitle() string {
+	siteConfig := hotdataserve.GetSiteSettingsConfigCache()
+	if siteConfig.SiteName != "" {
+		return siteConfig.SiteName
+	}
+	return "GooseForum"
+}
+
+func pageTitle(title string) string {
+	siteName := siteTitle()
+	if title == "" || title == siteName {
+		return siteName
+	}
+	return title + " - " + siteName
+}
+
+type PagePayload struct {
+	Component PageComponent `json:"component"`
+	Props     any           `json:"props"`
+	Meta      PageMeta      `json:"meta"`
+	Layout    LayoutPayload `json:"layout"`
+	URL       string        `json:"url"`
+	Version   string        `json:"version"`
+}
+
+type PageMeta struct {
+	Title       string         `json:"title"`
+	Description string         `json:"description,omitempty"`
+	Canonical   string         `json:"canonical,omitempty"`
+	PrevURL     string         `json:"prevUrl,omitempty"`
+	NextURL     string         `json:"nextUrl,omitempty"`
+	Robots      string         `json:"robots,omitempty"`
+	OpenGraph   *OpenGraphMeta `json:"openGraph,omitempty"`
+	Twitter     *TwitterMeta   `json:"twitter,omitempty"`
+	JSONLD      any            `json:"jsonLd,omitempty"`
+}
+
+type OpenGraphMeta struct {
+	Title         string   `json:"title,omitempty"`
+	Description   string   `json:"description,omitempty"`
+	Type          string   `json:"type,omitempty"`
+	URL           string   `json:"url,omitempty"`
+	SiteName      string   `json:"siteName,omitempty"`
+	Image         string   `json:"image,omitempty"`
+	PublishedTime string   `json:"publishedTime,omitempty"`
+	ModifiedTime  string   `json:"modifiedTime,omitempty"`
+	Author        string   `json:"author,omitempty"`
+	Section       string   `json:"section,omitempty"`
+	Tags          []string `json:"tags,omitempty"`
+}
+
+type TwitterMeta struct {
+	Card        string `json:"card,omitempty"`
+	Title       string `json:"title,omitempty"`
+	Description string `json:"description,omitempty"`
+	Image       string `json:"image,omitempty"`
+}
+
+type ErrorPageProps struct {
+	Code        string                  `json:"code"`
+	Title       string                  `json:"title"`
+	MessageCode component.MessageCode   `json:"messageCode,omitempty"`
+	Params      component.MessageParams `json:"params,omitempty"`
+}
+
+type LoginPageProps struct {
+	InitialMode string `json:"initialMode"`
+	RedirectURL string `json:"redirectUrl"`
+	GitHubURL   string `json:"githubUrl"`
+	GoogleReady bool   `json:"googleReady"`
+}
+
+type ResetPasswordPageProps struct {
+	Token string `json:"token"`
+}
+
+type LayoutPayload struct {
+	Site    SitePayload         `json:"site"`
+	Viewer  ViewerPayload       `json:"viewer"`
+	Header  []NavItemPayload    `json:"header,omitempty"`
+	Sidebar SidebarPayload      `json:"sidebar"`
+	Footer  FooterPayload       `json:"footer"`
+	Unread  UnreadStatusPayload `json:"unread"`
+	Theme   ThemePayload        `json:"theme"`
+}
+
+type ThemePayload struct {
+	Enabled    bool              `json:"enabled"`
+	Href       string            `json:"href,omitempty"`
+	Colors     map[string]string `json:"colors,omitempty"`
+	Current    string            `json:"current"`
+	ThemeColor string            `json:"themeColor"`
+}
+
+type UnreadStatusPayload struct {
+	Notifications          bool   `json:"notifications"`
+	Messages               bool   `json:"messages"`
+	ModerationReports      bool   `json:"moderationReports"`
+	LatestNotificationType string `json:"latestNotificationType,omitempty"`
+}
+
+type SitePayload struct {
+	Name          string `json:"name"`
+	Description   string `json:"description"`
+	Logo          string `json:"logo"`
+	Favicon       string `json:"favicon"`
+	ExternalLinks string `json:"externalLinks,omitempty"`
+	BrandType     string `json:"brandType"`
+	BrandText     string `json:"brandText"`
+	BrandImage    string `json:"brandImage"`
+}
+
+type ViewerPayload struct {
+	ID                        uint64   `json:"id"`
+	Username                  string   `json:"username"`
+	Email                     string   `json:"email"`
+	AvatarURL                 string   `json:"avatarUrl"`
+	IsAuthenticated           bool     `json:"isAuthenticated"`
+	CanAccessAdmin            bool     `json:"canAccessAdmin"`
+	IsModerator               bool     `json:"isModerator"`
+	RequiresEmailVerification bool     `json:"requiresEmailVerification"`
+	AdminPermissions          []uint64 `json:"adminPermissions"`
+}
+
+type NavItemPayload struct {
+	Key       string `json:"key"`
+	Label     string `json:"label"`
+	I18nLabel string `json:"i18nLabel,omitempty"`
+	URL       string `json:"url"`
+}
+
+type CategoryNavPayload struct {
+	ID    uint64 `json:"id"`
+	Label string `json:"label"`
+	URL   string `json:"url"`
+	Color string `json:"color"`
+}
+
+type SidebarGroupPayload struct {
+	Key       string           `json:"key"`
+	Title     string           `json:"title"`
+	I18nLabel string           `json:"i18nLabel,omitempty"`
+	Items     []NavItemPayload `json:"items"`
+}
+
+type SidebarPayload struct {
+	Main       []NavItemPayload      `json:"main,omitempty"`
+	Resources  []NavItemPayload      `json:"resources,omitempty"`
+	Groups     []SidebarGroupPayload `json:"groups,omitempty"`
+	Categories []CategoryNavPayload  `json:"categories"`
+	ActiveKey  string                `json:"activeKey"`
+}
+
+type FooterPayload struct {
+	Links   []pageConfig.FooterItem `json:"links"`
+	Primary []string                `json:"primary"`
+}
+
+type HomeProps struct {
+	Sort         string              `json:"sort"`
+	Tabs         []TabPayload        `json:"tabs"`
+	Topics       []TopicPayload      `json:"topics"`
+	Pagination   PaginationPayload   `json:"pagination"`
+	Announcement AnnouncementPayload `json:"announcement"`
+}
+
+type TabPayload struct {
+	Key    string `json:"key"`
+	Label  string `json:"label"`
+	URL    string `json:"url"`
+	Active bool   `json:"active"`
+}
+
+type PaginationPayload struct {
+	Page     int    `json:"page"`
+	NextPage int    `json:"nextPage"`
+	HasNext  bool   `json:"hasNext"`
+	NextURL  string `json:"nextUrl"`
+}
+
+type AnnouncementPayload struct {
+	Enabled     bool   `json:"enabled"`
+	HTML        string `json:"html"`
+	PublishedAt string `json:"publishedAt,omitempty"`
+}
+
+type TopicPayload struct {
+	ID             uint64                 `json:"id"`
+	Title          string                 `json:"title"`
+	Description    string                 `json:"description"`
+	FirstImageURL  string                 `json:"firstImageUrl,omitempty"`
+	URL            string                 `json:"url"`
+	PinWeight      int                    `json:"pinWeight"`
+	ProcessStatus  int8                   `json:"processStatus"`
+	Author         TopicAuthorPayload     `json:"author"`
+	Participants   []TopicAuthorPayload   `json:"participants"`
+	Categories     []TopicCategoryPayload `json:"categories"`
+	ReplyCount     uint64                 `json:"replyCount"`
+	ViewCount      uint64                 `json:"viewCount"`
+	ActivityText   string                 `json:"activityText"`
+	LastUpdateTime string                 `json:"lastUpdateTime"`
+	Unseen         bool                   `json:"unseen,omitempty"`
+}
+
+type TopicAuthorPayload struct {
+	ID        uint64                  `json:"id"`
+	Username  string                  `json:"username"`
+	AvatarURL string                  `json:"avatarUrl"`
+	WornBadge *badgeservice.UserBadge `json:"wornBadge,omitempty"`
+}
+
+type TopicCategoryPayload struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	URL   string `json:"url"`
+	Color string `json:"color"`
+}
+
+type TopicDetailProps struct {
+	Topic       TopicDetailPayload `json:"topic"`
+	PostStream  PostWindowPayload  `json:"postStream"`
+	HotTopics   []TopicPayload     `json:"hotTopics"`
+	Permissions TopicPermissions   `json:"permissions"`
+}
+
+type TopicDetailPayload struct {
+	ID            uint64                 `json:"id"`
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description"`
+	FirstImageURL string                 `json:"firstImageUrl,omitempty"`
+	URL           string                 `json:"url"`
+	TopicStatus   int8                   `json:"topicStatus"`
+	ProcessStatus int8                   `json:"processStatus"`
+	Author        TopicAuthorPayload     `json:"author"`
+	Participants  []TopicAuthorPayload   `json:"participants"`
+	Categories    []TopicCategoryPayload `json:"categories"`
+	ReplyCount    uint64                 `json:"replyCount"`
+	MaxPostNo     uint64                 `json:"maxPostNo"`
+	ViewCount     uint64                 `json:"viewCount"`
+	LikeCount     uint64                 `json:"likeCount"`
+	IsLiked       bool                   `json:"isLiked"`
+	IsBookmarked  bool                   `json:"isBookmarked"`
+	IsWatched     bool                   `json:"isWatched"`
+	CreatedAt     string                 `json:"createdAt"`
+	UpdatedAt     string                 `json:"updatedAt"`
+}
+
+type PostPayload struct {
+	ID              uint64             `json:"id"`
+	TopicID         uint64             `json:"topicId"`
+	PostNo          uint64             `json:"postNo"`
+	Content         string             `json:"content"`
+	RenderedContent string             `json:"renderedContent"`
+	ProcessStatus   int8               `json:"processStatus"`
+	IsHidden        bool               `json:"isHidden"`
+	CanModerate     bool               `json:"canModerate"`
+	Author          TopicAuthorPayload `json:"author"`
+	CreatedAt       string             `json:"createdAt"`
+	ReplyToPostID   uint64             `json:"replyToPostId,omitempty"`
+	ReplyToUserID   uint64             `json:"replyToUserId,omitempty"`
+	ReplyToUsername string             `json:"replyToUsername,omitempty"`
+	IsOwnPost       bool               `json:"isOwnPost"`
+	UpdatedAt       string             `json:"updatedAt"`
+}
+
+type ReplyTargetPayload struct {
+	ID              uint64             `json:"id"`
+	PostNo          uint64             `json:"postNo,omitempty"`
+	Author          TopicAuthorPayload `json:"author"`
+	RenderedContent string             `json:"renderedContent,omitempty"`
+	Unavailable     bool               `json:"unavailable,omitempty"`
+}
+
+type PostWindowPayload struct {
+	Posts        []PostPayload        `json:"posts"`
+	ReplyTargets []ReplyTargetPayload `json:"replyTargets"`
+	AnchorPostID uint64               `json:"anchorPostId,omitempty"`
+	BeforePostNo uint64               `json:"beforePostNo,omitempty"`
+	AfterPostNo  uint64               `json:"afterPostNo,omitempty"`
+	HasBefore    bool                 `json:"hasBefore"`
+	HasAfter     bool                 `json:"hasAfter"`
+	Total        int64                `json:"total"`
+	MaxPostNo    uint64               `json:"maxPostNo"`
+}
+
+type TopicPermissions struct {
+	IsOwnTopic       bool `json:"isOwnTopic"`
+	CanPost          bool `json:"canPost"`
+	CanModerateTopic bool `json:"canModerateTopic"`
+}
+
+type UserProfileProps struct {
+	User         *vo.UserCard             `json:"user"`
+	Section      string                   `json:"section"`
+	ActivityTab  string                   `json:"activityTab"`
+	Tabs         []TabPayload             `json:"tabs"`
+	ActivityTabs []TabPayload             `json:"activityTabs"`
+	Pagination   PaginationPayload        `json:"pagination"`
+	Badges       []badgeservice.UserBadge `json:"badges"`
+	Topics       []TopicPayload           `json:"topics"`
+	Activities   []UserActivityPayload    `json:"activities"`
+	Likes        []UserLikePayload        `json:"likes"`
+	Following    []UserConnectionPayload  `json:"following"`
+	Followers    []UserConnectionPayload  `json:"followers"`
+	IsOwnProfile bool                     `json:"isOwnProfile"`
+	CanMessage   bool                     `json:"canMessage"`
+	CanFollow    bool                     `json:"canFollow"`
+	MessageURL   string                   `json:"messageUrl"`
+	SettingsURL  string                   `json:"settingsUrl"`
+}
+
+type UserActivityPayload struct {
+	ID             uint64 `json:"id"`
+	Action         int    `json:"action"`
+	SubjectType    string `json:"subjectType"`
+	SubjectID      uint64 `json:"subjectId"`
+	ContentPreview string `json:"contentPreview"`
+	URL            string `json:"url"`
+	Label          string `json:"label"`
+	CreatedAt      string `json:"createdAt"`
+}
+
+type UserLikePayload struct {
+	ID      uint64 `json:"id"`
+	TopicID uint64 `json:"topicId"`
+	Title   string `json:"title"`
+	URL     string `json:"url"`
+	LikedAt string `json:"likedAt"`
+}
+
+type UserConnectionPayload struct {
+	ID        uint64 `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatarUrl"`
+	Bio       string `json:"bio"`
+	URL       string `json:"url"`
+}
+
+type CategoryPageProps struct {
+	Category   CategoryHeaderPayload `json:"category"`
+	Sort       string                `json:"sort"`
+	Tabs       []TabPayload          `json:"tabs"`
+	Topics     []TopicPayload        `json:"topics"`
+	Pagination PaginationPayload     `json:"pagination"`
+}
+
+type CategoryHeaderPayload struct {
+	ID          uint64 `json:"id"`
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Icon        string `json:"icon"`
+	Color       string `json:"color"`
+	URL         string `json:"url"`
+}
+
+type LinksPageProps struct {
+	Groups     []LinkGroupPayload `json:"groups"`
+	TotalCount int                `json:"totalCount"`
+}
+
+type LinkGroupPayload struct {
+	Name  string              `json:"name"`
+	Emoji string              `json:"emoji"`
+	Color string              `json:"color"`
+	Links []FriendLinkPayload `json:"links"`
+}
+
+type FriendLinkPayload struct {
+	Name    string `json:"name"`
+	Desc    string `json:"desc"`
+	URL     string `json:"url"`
+	LogoURL string `json:"logoUrl"`
+}
+
+type SponsorsPageProps struct {
+	Sections   []SponsorSectionPayload  `json:"sections"`
+	TotalCount int                      `json:"totalCount"`
+	Content    SponsorsPageIntroPayload `json:"content"`
+	Contact    SponsorsContactPayload   `json:"contact"`
+	Rules      []SponsorsRulePayload    `json:"rules"`
+}
+
+type SponsorSectionPayload struct {
+	Key      string           `json:"key"`
+	Label    string           `json:"label"`
+	Tone     string           `json:"tone"`
+	Sponsors []SponsorPayload `json:"sponsors"`
+}
+
+type SponsorPayload struct {
+	Name      string `json:"name"`
+	Message   string `json:"message"`
+	Link      string `json:"link"`
+	AvatarURL string `json:"avatarUrl"`
+}
+
+type SponsorsPageIntroPayload = pageConfig.SponsorsPageIntro
+
+type SponsorsContactPayload = pageConfig.SponsorsContact
+
+type SponsorsRulePayload = pageConfig.SponsorsRule
+
+type NotificationsPageProps struct {
+	Total         int64                 `json:"total"`
+	UnreadCount   int64                 `json:"unreadCount"`
+	Notifications []NotificationPayload `json:"notifications"`
+	Pagination    PaginationPayload     `json:"pagination"`
+}
+
+type DraftsPageProps struct {
+	Total      int64             `json:"total"`
+	Drafts     []DraftPayload    `json:"drafts"`
+	Pagination PaginationPayload `json:"pagination"`
+}
+
+type DraftPayload struct {
+	ID            uint64                 `json:"id"`
+	Title         string                 `json:"title"`
+	Description   string                 `json:"description"`
+	EditURL       string                 `json:"editUrl"`
+	ReplyCount    uint64                 `json:"replyCount"`
+	ViewCount     uint64                 `json:"viewCount"`
+	ProcessStatus int8                   `json:"processStatus"`
+	UpdatedAt     string                 `json:"updatedAt"`
+	CreatedAt     string                 `json:"createdAt"`
+	Categories    []TopicCategoryPayload `json:"categories"`
+}
+
+type NotificationPayload struct {
+	ID        uint64                                `json:"id"`
+	EventType string                                `json:"eventType"`
+	IsRead    bool                                  `json:"isRead"`
+	CreatedAt string                                `json:"createdAt"`
+	Title     string                                `json:"title"`
+	Content   string                                `json:"content"`
+	Actor     TopicAuthorPayload                    `json:"actor"`
+	Topic     *NotificationTopicPayload             `json:"topic,omitempty"`
+	Payload   eventNotification.NotificationPayload `json:"payload"`
+}
+
+type NotificationTopicPayload struct {
+	ID    uint64 `json:"id"`
+	Title string `json:"title"`
+	URL   string `json:"url"`
+}
+
+type MessagesPageProps struct {
+	Conversations  []*vo.ChatItemVo        `json:"conversations"`
+	SuggestedUsers []UserConnectionPayload `json:"suggestedUsers"`
+}
+
+type SettingsPageProps struct {
+	User  *vo.UserDetailedVo   `json:"user"`
+	Stats SettingsStatsPayload `json:"stats"`
+	Tabs  []TabPayload         `json:"tabs"`
+}
+
+type SettingsStatsPayload struct {
+	TopicCount        uint   `json:"topicCount"`
+	ReplyCount        uint   `json:"replyCount"`
+	FollowerCount     uint   `json:"followerCount"`
+	FollowingCount    uint   `json:"followingCount"`
+	LikeReceivedCount uint   `json:"likeReceivedCount"`
+	LikeGivenCount    uint   `json:"likeGivenCount"`
+	CollectionCount   uint   `json:"collectionCount"`
+	CreatedAt         string `json:"createdAt"`
+}
+
+type PublishPageProps struct {
+	TopicID    uint64                   `json:"topicId"`
+	IsEditing  bool                     `json:"isEditing"`
+	Categories []PublishCategoryPayload `json:"categories"`
+	Topic      PublishTopicPayload      `json:"topic"`
+}
+
+type PublishCategoryPayload struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Color string `json:"color"`
+}
+
+type ModerationPageProps struct {
+	CategoryTabs []TabPayload      `json:"categoryTabs"`
+	Topics       []TopicPayload    `json:"topics"`
+	Pagination   PaginationPayload `json:"pagination"`
+}
+
+type PublishTopicPayload struct {
+	Title       string   `json:"title"`
+	Content     string   `json:"content"`
+	CategoryIDs []uint64 `json:"categoryIds"`
+	TopicStatus int8     `json:"topicStatus"`
+}
+
+type SearchPageProps struct {
+	Query      string            `json:"query"`
+	Topics     []TopicPayload    `json:"topics"`
+	Total      int64             `json:"total"`
+	TotalPages int               `json:"totalPages"`
+	Pagination PaginationPayload `json:"pagination"`
+}
+
+func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
+	siteConfig := hotdataserve.GetSiteSettingsConfigCache()
+	chrome := hotdataserve.GetSiteChromeConfigCache()
+	currentUser := component.GetLoginUser(c)
+	viewer := ViewerPayload{}
+	if currentUser != nil {
+		securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+		viewer = ViewerPayload{
+			ID:                        currentUser.UserId,
+			Username:                  currentUser.Username,
+			Email:                     currentUser.Email,
+			AvatarURL:                 currentUser.AvatarUrl,
+			IsAuthenticated:           currentUser.UserId > 0,
+			CanAccessAdmin:            currentUser.CanAccessAdmin,
+			IsModerator:               moderationservice.CanAccessModeration(currentUser.UserId),
+			RequiresEmailVerification: currentUser.UserId > 0 && securityConfig.EnableEmailVerification && currentUser.IsActivated == users.ActivationPending,
+			AdminPermissions:          buildAdminPermissions(currentUser.UserId),
+		}
+	}
+	unread := buildUnreadStatus(viewer.ID)
+
+	footerInfo := chrome.FooterInfo
+	footerPrimary := make([]string, 0, len(footerInfo.Primary))
+	for _, item := range footerInfo.Primary {
+		footerPrimary = append(footerPrimary, item.Content)
+	}
+	brandType := chrome.BrandType
+	brandText := chrome.BrandText
+	brandImage := chrome.BrandImage
+
+	return LayoutPayload{
+		Site: SitePayload{
+			Name:          siteConfig.SiteName,
+			Description:   siteConfig.SiteDescription,
+			Logo:          siteConfig.SiteLogo,
+			Favicon:       siteConfig.SiteLogo,
+			ExternalLinks: siteConfig.ExternalLinks,
+			BrandType:     brandType,
+			BrandText:     brandText,
+			BrandImage:    brandImage,
+		},
+		Viewer: viewer,
+		Header: buildChromeNavItems(chrome.Header),
+		Sidebar: buildSidebarPayload(
+			hotdataserve.GetCategory(),
+			activeKey,
+		),
+		Footer: FooterPayload{
+			Links:   footerInfo.List,
+			Primary: footerPrimary,
+		},
+		Unread: unread,
+		Theme:  buildThemePayload(c),
+	}
+}
+
+func buildThemePayload(c *gin.Context) ThemePayload {
+	runtimeTheme := themeservice.Runtime()
+	colors := runtimeTheme.Colors.Payload()
+	current := currentThemeFromCookie(c)
+	return ThemePayload{
+		Enabled:    runtimeTheme.Enabled,
+		Href:       runtimeTheme.Href,
+		Colors:     colors,
+		Current:    current,
+		ThemeColor: themeColor(colors, current),
+	}
+}
+
+func currentThemeFromCookie(c *gin.Context) string {
+	if c != nil {
+		if value, err := c.Cookie("goose-site-theme"); err == nil && isSiteTheme(value) {
+			return value
+		}
+	}
+	return themeservice.LightName
+}
+
+func isSiteTheme(value string) bool {
+	return value == themeservice.LightName || value == themeservice.DarkName
+}
+
+func themeColor(colors map[string]string, current string) string {
+	if color := colors[current]; color != "" {
+		return color
+	}
+	if color := colors[themeservice.LightName]; color != "" {
+		return color
+	}
+	if current == themeservice.DarkName {
+		return "#101010"
+	}
+	return "#fbfdff"
+}
+
+func buildAdminPermissions(userID uint64) []uint64 {
+	roleID, ok := userservice.GetUserRoleId(userID)
+	if !ok || roleID == 0 {
+		return []uint64{}
+	}
+	items := permission.GetPermissionByRoleId(roleID)
+	if slices.Contains(items, permission.Admin) {
+		items = permission.All()
+	}
+	all := permission.All()
+	items = lo.Filter(items, func(item permission.Enum, _ int) bool {
+		return slices.Contains(all, item)
+	})
+	return lo.Map(items, func(item permission.Enum, _ int) uint64 {
+		return item.Id()
+	})
+}
+
+func buildUnreadStatus(userID uint64) UnreadStatusPayload {
+	status := unreadservice.GetStatus(userID)
+	return UnreadStatusPayload{
+		Notifications:          status.Notifications,
+		Messages:               status.Messages,
+		ModerationReports:      moderationservice.HasOpenReports(userID),
+		LatestNotificationType: status.LatestNotificationType,
+	}
+}
+
+func buildSidebarPayload(categories []*category.Entity, activeKey string) SidebarPayload {
+	chrome := hotdataserve.GetSiteChromeConfigCache()
+	categoryItems := make([]CategoryNavPayload, 0, len(categories))
+	for _, category := range categories {
+		if category == nil {
+			continue
+		}
+		categoryItems = append(categoryItems, CategoryNavPayload{
+			ID:    category.Id,
+			Label: category.Name,
+			URL:   categoryURL(category),
+			Color: category.Color,
+		})
+	}
+
+	return SidebarPayload{
+		Main:       buildChromeNavItems(chrome.MainMenu),
+		Resources:  buildChromeNavItems(chrome.Resources),
+		Groups:     buildChromeSidebarGroups(chrome.SidebarGroups),
+		Categories: categoryItems,
+		ActiveKey:  activeKey,
+	}
+}
+
+func buildChromeSidebarGroups(groups []pageConfig.ChromeGroup) []SidebarGroupPayload {
+	result := make([]SidebarGroupPayload, 0, len(groups))
+	for _, group := range groups {
+		items := buildChromeNavItems(group.Items)
+		if (group.Title == "" && group.I18nLabel == "") || len(items) == 0 {
+			continue
+		}
+		result = append(result, SidebarGroupPayload{
+			Key:       group.ID,
+			Title:     group.Title,
+			I18nLabel: group.I18nLabel,
+			Items:     items,
+		})
+	}
+	return result
+}
+
+func buildChromeNavItems(items []pageConfig.ChromeItem) []NavItemPayload {
+	result := make([]NavItemPayload, 0, len(items))
+	for _, item := range items {
+		if !item.Enabled || (item.Label == "" && item.I18nLabel == "") {
+			continue
+		}
+		url := item.URL
+		if url == "" {
+			url = "#"
+		}
+		result = append(result, NavItemPayload{
+			Key:       item.ID,
+			Label:     item.Label,
+			I18nLabel: item.I18nLabel,
+			URL:       url,
+		})
+	}
+	return result
+}
+
+func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSimpleVo, hasNext bool) HomeProps {
+	nextPage := 0
+	if hasNext {
+		nextPage = page + 1
+	}
+
+	announcement := hotdataserve.GetAnnouncementConfigCache()
+	return HomeProps{
+		Sort:   sort,
+		Tabs:   buildHomeTabs(sort),
+		Topics: buildTrackedTopicPayloads(userID, topics),
+		Pagination: PaginationPayload{
+			Page:     page,
+			NextPage: nextPage,
+			HasNext:  nextPage > 0,
+			NextURL:  buildHomePageURL(sort, nextPage),
+		},
+		Announcement: AnnouncementPayload{
+			Enabled:     announcement.Enabled,
+			HTML:        announcement.GetHtmlContent(),
+			PublishedAt: announcement.PublishedAt,
+		},
+	}
+}
+
+func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []TopicPayload {
+	payloads := buildTopicPayloads(topics)
+	if userID == 0 || len(payloads) == 0 {
+		return payloads
+	}
+	activities := make([]topicunseenservice.TopicActivity, 0, len(topics))
+	for _, topic := range topics {
+		if topic == nil || topic.Id == 0 {
+			continue
+		}
+		activities = append(activities, topicunseenservice.TopicActivity{
+			TopicID:      topic.Id,
+			LastPostID:   topic.LastPostId,
+			LastPostedAt: topic.LastPostedAt,
+		})
+	}
+	unseen, err := topicunseenservice.Resolve(userID, activities, time.Now())
+	if err != nil {
+		slog.Warn("resolve topic unseen state failed", "userId", userID, "error", err)
+		return payloads
+	}
+	for i := range payloads {
+		payloads[i].Unseen = unseen[payloads[i].ID]
+	}
+	return payloads
+}
+
+func buildLoginPageProps(c *gin.Context) LoginPageProps {
+	mode := "login"
+	if c.Query("register") == "true" || c.Query("model") == "register" {
+		mode = "register"
+	}
+	redirectURL := c.Query("redirect")
+	githubURL := "/api/auth/github"
+	if redirectURL != "" {
+		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
+	}
+	return LoginPageProps{
+		InitialMode: mode,
+		RedirectURL: redirectURL,
+		GitHubURL:   githubURL,
+		GoogleReady: false,
+	}
+}
+
+func buildHomeTabs(sort string) []TabPayload {
+	return []TabPayload{
+		{Key: "latest", URL: "/", Active: sort == "latest" || sort == ""},
+		{Key: "hot", URL: "/?sort=hot", Active: sort == "hot"},
+		{Key: "popular", URL: "/?sort=popular", Active: sort == "popular"},
+	}
+}
+
+func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
+	categoryMap := hotdataserve.CategoryMap()
+	res := make([]TopicPayload, 0, len(topics))
+	for _, topic := range topics {
+		if topic == nil {
+			continue
+		}
+		categories := make([]TopicCategoryPayload, 0, len(topic.CategoriesId))
+		for i, categoryID := range topic.CategoriesId {
+			name := ""
+			color := "#9ca3af"
+			categoryPath := ""
+			if i < len(topic.Categories) {
+				name = topic.Categories[i]
+			}
+			if category, ok := categoryMap[categoryID]; ok && category != nil {
+				name = category.Name
+				color = category.Color
+				categoryPath = categoryURL(category)
+			}
+			if name == "" {
+				continue
+			}
+			if categoryPath == "" {
+				categoryPath = urlconfig.Category(name, categoryID)
+			}
+			categories = append(categories, TopicCategoryPayload{
+				ID:    categoryID,
+				Name:  name,
+				URL:   categoryPath,
+				Color: color,
+			})
+		}
+
+		res = append(res, TopicPayload{
+			ID:            topic.Id,
+			Title:         topic.Title,
+			Description:   topic.Description,
+			FirstImageURL: topic.FirstImageURL,
+			URL:           urlconfig.PostDetail(topic.Id),
+			PinWeight:     topic.PinWeight,
+			ProcessStatus: topic.ProcessStatus,
+			Author: TopicAuthorPayload{
+				ID:        topic.AuthorId,
+				Username:  topic.Username,
+				AvatarURL: topic.AvatarUrl,
+			},
+			Participants:   buildParticipants(topic),
+			Categories:     categories,
+			ReplyCount:     topic.CommentCount,
+			ViewCount:      topic.ViewCount,
+			ActivityText:   topic.LastUpdateTime,
+			LastUpdateTime: topic.LastUpdateTime,
+		})
+	}
+	return res
+}
+
+func buildParticipants(topic *vo.TopicsSimpleVo) []TopicAuthorPayload {
+	participants := make([]TopicAuthorPayload, 0, len(topic.Posters)+1)
+	seen := map[uint64]bool{}
+	add := func(user TopicAuthorPayload) {
+		if user.ID == 0 || seen[user.ID] {
+			return
+		}
+		seen[user.ID] = true
+		participants = append(participants, user)
+	}
+	for _, poster := range topic.Posters {
+		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, AvatarURL: poster.AvatarUrl})
+	}
+	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, AvatarURL: topic.AvatarUrl})
+	if len(participants) > 4 {
+		return participants[:4]
+	}
+	return participants
+}
+
+func buildHomePageURL(sort string, page int) string {
+	if page <= 0 {
+		return ""
+	}
+	if page == 1 {
+		if sort != "" && sort != "latest" {
+			values := url.Values{}
+			values.Set("sort", sort)
+			return "/?" + values.Encode()
+		}
+		return "/"
+	}
+	values := url.Values{}
+	if sort != "" && sort != "latest" {
+		values.Set("sort", sort)
+	}
+	values.Set("page", strconv.Itoa(page))
+	return "/?" + values.Encode()
+}
+
+func categoryURL(category *category.Entity) string {
+	slug := category.Slug
+	if slug == "" {
+		slug = category.Name
+	}
+	return urlconfig.Category(slug, category.Id)
+}
+
+func activeKeyForHome(sort string) string {
+	switch sort {
+	case "hot":
+		return "hot"
+	case "popular":
+		return "popular"
+	default:
+		return "topics"
+	}
+}
+
+func buildPageURL(c *gin.Context) string {
+	return component.GetBaseUri(c) + c.Request.URL.String()
+}
+
+func buildHomeMeta(c *gin.Context, page int, sort string, hasNext bool) PageMeta {
+	siteConfig := hotdataserve.GetSiteSettingsConfigCache()
+	canonicalPath := "/"
+	if sort == "latest" && page > 1 {
+		canonicalPath = buildHomePageURL(sort, page)
+	}
+	meta := PageMeta{
+		Title:       siteTitle(),
+		Description: siteConfig.SiteDescription,
+		Canonical:   component.GetBaseUri(c) + canonicalPath,
+	}
+	if page > 1 {
+		meta.PrevURL = buildHomePageURL(sort, page-1)
+	}
+	if hasNext {
+		meta.NextURL = buildHomePageURL(sort, page+1)
+	}
+	return meta
+}
+
+func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *posts.Entity, anchorPostNo uint64) TopicDetailProps {
+	currentUserID := component.LoginUserId(c)
+	postEntities, hasBefore, hasAfter := topicInitialPosts(topic, anchorPostNo)
+	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
+		postEntities = append(postEntities, firstPost)
+	}
+	userIDs := make([]uint64, 0, len(postEntities)+1)
+	seenUserIDs := make(map[uint64]struct{}, len(postEntities)+1)
+	if topic.UserId > 0 {
+		seenUserIDs[topic.UserId] = struct{}{}
+		userIDs = append(userIDs, topic.UserId)
+	}
+	for _, item := range postEntities {
+		if item == nil {
+			continue
+		}
+		if _, seen := seenUserIDs[item.UserId]; seen {
+			continue
+		}
+		seenUserIDs[item.UserId] = struct{}{}
+		userIDs = append(userIDs, item.UserId)
+	}
+	userMap := users.GetMapByIds(userIDs)
+	canModerate := moderationservice.CanModerateAnyCategory(currentUserID, topic.CategoryIds)
+
+	return TopicDetailProps{
+		Topic: buildTopicDetailPayload(c, topic, firstPost, userMap),
+		PostStream: buildPostWindowPayloadFromEntities(
+			postEntities,
+			userMap,
+			currentUserID,
+			canModerate,
+			hasBefore,
+			hasAfter,
+			int64(topic.PostSeq),
+			topic.PostSeq,
+			0,
+		),
+		HotTopics: buildTopicHotTopics(topic.Id),
+		Permissions: TopicPermissions{
+			IsOwnTopic:       currentUserID == topic.UserId,
+			CanPost:          currentUserID > 0,
+			CanModerateTopic: canModerate,
+		},
+	}
+}
+
+func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Entity, bool, bool) {
+	if anchorPostNo <= 1 {
+		items := posts.GetFirstPageByTopicId(topic.Id)
+		return items, false, topic.PostSeq > uint64(len(items))
+	}
+
+	items := posts.GetByTopicPostNoAfter(topic.Id, anchorPostNo-1, postWindowLimit+1)
+	hasAfter := len(items) > postWindowLimit
+	if hasAfter {
+		items = items[:postWindowLimit]
+	}
+	return items, true, hasAfter
+}
+
+func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64) PostWindowPayload {
+	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate)
+	var beforePostNo uint64
+	var afterPostNo uint64
+	if len(postEntities) > 0 {
+		beforePostNo = postEntities[0].PostNo
+		afterPostNo = postEntities[len(postEntities)-1].PostNo
+	}
+	return PostWindowPayload{
+		Posts:        payloadPosts,
+		ReplyTargets: replyTargets,
+		AnchorPostID: anchorPostID,
+		BeforePostNo: beforePostNo,
+		AfterPostNo:  afterPostNo,
+		HasBefore:    hasBefore,
+		HasAfter:     hasAfter,
+		Total:        total,
+		MaxPostNo:    maxPostNo,
+	}
+}
+
+func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool) ([]PostPayload, []ReplyTargetPayload) {
+	postMap := make(map[uint64]*posts.Entity, len(postEntities))
+	for _, item := range postEntities {
+		if item != nil {
+			postMap[item.Id] = item
+		}
+	}
+
+	missingParentIDs := make([]uint64, 0)
+	seenMissingParentIDs := make(map[uint64]struct{})
+	for _, item := range postEntities {
+		if item == nil || item.ReplyToPostId == 0 {
+			continue
+		}
+		if _, ok := postMap[item.ReplyToPostId]; !ok {
+			if _, seen := seenMissingParentIDs[item.ReplyToPostId]; seen {
+				continue
+			}
+			seenMissingParentIDs[item.ReplyToPostId] = struct{}{}
+			missingParentIDs = append(missingParentIDs, item.ReplyToPostId)
+		}
+	}
+	for _, parent := range posts.GetByIds(missingParentIDs) {
+		if parent != nil {
+			postMap[parent.Id] = parent
+		}
+	}
+
+	missingUserIDs := make([]uint64, 0, len(postMap))
+	seenMissingUserIDs := make(map[uint64]struct{}, len(postMap))
+	for _, parent := range postMap {
+		if parent == nil {
+			continue
+		}
+		if _, loaded := userMap[parent.UserId]; loaded {
+			continue
+		}
+		if _, seen := seenMissingUserIDs[parent.UserId]; !seen {
+			seenMissingUserIDs[parent.UserId] = struct{}{}
+			missingUserIDs = append(missingUserIDs, parent.UserId)
+		}
+	}
+	maps.Copy(userMap, users.GetMapByIds(missingUserIDs))
+	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
+	authorPayload := func(userID uint64) TopicAuthorPayload {
+		return userPayloadWithWornBadge(userID, userMap, wornBadges[userID])
+	}
+
+	res := make([]PostPayload, 0, len(postEntities))
+	replyTargets := make([]ReplyTargetPayload, 0, len(seenMissingParentIDs))
+	seenReplyTargets := make(map[uint64]struct{}, len(seenMissingParentIDs))
+	for _, item := range postEntities {
+		if item == nil {
+			continue
+		}
+		author := authorPayload(item.UserId)
+		postservice.EnsureRenderedHTML(item)
+		replyToName, replyToUserID := "", uint64(0)
+		if item.ReplyToPostId > 0 {
+			if parent, ok := postMap[item.ReplyToPostId]; ok && parent != nil && parent.TopicId == item.TopicId && (parent.ProcessStatus == 0 || canModerate) {
+				parentAuthor := authorPayload(parent.UserId)
+				replyToName = parentAuthor.Username
+				replyToUserID = parentAuthor.ID
+			}
+			if _, seen := seenReplyTargets[item.ReplyToPostId]; !seen {
+				seenReplyTargets[item.ReplyToPostId] = struct{}{}
+				replyTargets = append(replyTargets, buildReplyTargetPayload(item.TopicId, item.ReplyToPostId, postMap, userMap, wornBadges, canModerate))
+			}
+		}
+		content := item.Content
+		renderedContent := item.RenderedHTML
+		isHidden := item.ProcessStatus != 0
+		if isHidden && !canModerate {
+			content = ""
+			renderedContent = ""
+		}
+		res = append(res, PostPayload{
+			ID:              item.Id,
+			TopicID:         item.TopicId,
+			PostNo:          item.PostNo,
+			Content:         content,
+			RenderedContent: renderedContent,
+			ProcessStatus:   item.ProcessStatus,
+			IsHidden:        isHidden,
+			CanModerate:     canModerate,
+			Author:          author,
+			CreatedAt:       item.CreatedAt.Format(time.DateTime),
+			ReplyToPostID:   item.ReplyToPostId,
+			ReplyToUserID:   replyToUserID,
+			ReplyToUsername: replyToName,
+			IsOwnPost:       currentUserID == item.UserId,
+			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
+		})
+	}
+	return res, replyTargets
+}
+
+func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.Entity, userMap map[uint64]*users.EntityComplete, wornBadges map[uint64]*badgeservice.UserBadge, canModerate bool) ReplyTargetPayload {
+	target := ReplyTargetPayload{ID: postID, Unavailable: true}
+	parent, ok := postMap[postID]
+	if !ok || parent == nil || parent.TopicId != topicID {
+		return target
+	}
+	if parent.ProcessStatus != 0 && !canModerate {
+		return target
+	}
+	target.PostNo = parent.PostNo
+	target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
+	target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	target.Unavailable = false
+	return target
+}
+
+func buildTopicHotTopics(currentTopicID uint64) []TopicPayload {
+	topicPage := hotdataserve.GetLatestTopicsSimpleVoPaginated(1, "hot")
+	filtered := make([]*vo.TopicsSimpleVo, 0, 6)
+	for _, topic := range topicPage.Topics {
+		if topic == nil || topic.Id == currentTopicID {
+			continue
+		}
+		filtered = append(filtered, topic)
+		if len(filtered) >= 6 {
+			break
+		}
+	}
+	return buildTopicPayloads(filtered)
+}
+
+func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *posts.Entity, userMap map[uint64]*users.EntityComplete) TopicDetailPayload {
+	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
+	authorPayload := func(userID uint64) TopicAuthorPayload {
+		return userPayloadWithWornBadge(userID, userMap, wornBadges[userID])
+	}
+	participants := make([]TopicAuthorPayload, 0, len(userMap))
+	seen := map[uint64]bool{}
+	addParticipant := func(userID uint64) {
+		if userID == 0 || seen[userID] {
+			return
+		}
+		seen[userID] = true
+		participants = append(participants, authorPayload(userID))
+	}
+	addParticipant(topic.UserId)
+	for userID := range userMap {
+		addParticipant(userID)
+	}
+	if len(participants) > 12 {
+		participants = participants[:12]
+	}
+
+	currentUserID := component.LoginUserId(c)
+	isLiked := false
+	isBookmarked := false
+	isWatched := false
+	if currentUserID > 0 {
+		state := topicUserAction.GetByTopicId(currentUserID, topic.Id)
+		isLiked = state.LikedAt != nil
+		isBookmarked = state.BookmarkedAt != nil
+		isWatched = state.WatchedAt != nil
+	}
+
+	createdAt := topic.CreatedAt
+	updatedAt := topic.UpdatedAt
+	if firstPost != nil {
+		createdAt = firstPost.CreatedAt
+		updatedAt = firstPost.UpdatedAt
+	}
+
+	return TopicDetailPayload{
+		ID:            topic.Id,
+		Title:         topic.Title,
+		Description:   topic.Excerpt,
+		FirstImageURL: topic.FirstImageURL,
+		URL:           urlconfig.PostDetail(topic.Id),
+		TopicStatus:   topic.Status,
+		ProcessStatus: topic.ProcessStatus,
+		Author:        authorPayload(topic.UserId),
+		Participants:  participants,
+		Categories:    categoryPayloads(topic.CategoryIds),
+		ReplyCount:    topic.ReplyCount,
+		MaxPostNo:     topic.PostSeq,
+		ViewCount:     topic.ViewCount,
+		LikeCount:     topic.LikeCount,
+		IsLiked:       isLiked,
+		IsBookmarked:  isBookmarked,
+		IsWatched:     isWatched,
+		CreatedAt:     createdAt.Format(time.DateTime),
+		UpdatedAt:     updatedAt.Format(time.DateTime),
+	}
+}
+
+func categoryPayloads(ids []uint64) []TopicCategoryPayload {
+	categoryMap := hotdataserve.CategoryMap()
+	res := make([]TopicCategoryPayload, 0, len(ids))
+	for _, id := range ids {
+		category, ok := categoryMap[id]
+		if !ok || category == nil {
+			continue
+		}
+		res = append(res, TopicCategoryPayload{
+			ID:    category.Id,
+			Name:  category.Name,
+			URL:   categoryURL(category),
+			Color: category.Color,
+		})
+	}
+	return res
+}
+
+func userPayload(userID uint64, userMap map[uint64]*users.EntityComplete) TopicAuthorPayload {
+	user, ok := userMap[userID]
+	if !ok || user == nil {
+		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+	}
+	return userPayloadWithWornBadge(userID, userMap, badgeservice.GetWornBadge(userID, user.WornBadgeCode))
+}
+
+func selectedWornBadges(userMap map[uint64]*users.EntityComplete) map[uint64]string {
+	selected := make(map[uint64]string, len(userMap))
+	for userID, user := range userMap {
+		if user != nil && user.WornBadgeCode != "" {
+			selected[userID] = user.WornBadgeCode
+		}
+	}
+	return selected
+}
+
+func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityComplete, wornBadge *badgeservice.UserBadge) TopicAuthorPayload {
+	user, ok := userMap[userID]
+	if !ok || user == nil {
+		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+	}
+	return TopicAuthorPayload{ID: userID, Username: user.Username, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
+}
+
+func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]PostPayload) PageMeta {
+	baseURL := component.GetBaseUri(c)
+	canonical := baseURL + topic.URL
+	description := topic.Description
+	if description == "" {
+		description = i18n.T(requestLang(c), "meta.topicDesc", "title", topic.Title, "site", siteTitle())
+	}
+	inlineImages := topicImageURLs(topic, baseURL)
+	categoryNames := lo.Map(topic.Categories, func(item TopicCategoryPayload, _ int) string { return item.Name })
+	section := ""
+	if len(categoryNames) > 0 {
+		section = categoryNames[0]
+	}
+	publishedAt := parsePayloadTime(topic.CreatedAt)
+	modifiedAt := parsePayloadTime(topic.UpdatedAt)
+	publishedTime := ""
+	modifiedTime := ""
+	if !publishedAt.IsZero() {
+		publishedTime = publishedAt.Format(time.RFC3339)
+	}
+	if !modifiedAt.IsZero() {
+		modifiedTime = modifiedAt.Format(time.RFC3339)
+	}
+	jsonLD := vo.ArticleJSONLD{
+		Context:          "https://schema.org",
+		Type:             "DiscussionForumPosting",
+		Headline:         topic.Title,
+		Description:      description,
+		Text:             topicPlainText(requestLang(c), topic),
+		Image:            inlineImages,
+		Author:           vo.Person{Type: "Person", Name: topic.Author.Username, URL: baseURL + "/u/" + strconv.FormatUint(topic.Author.ID, 10)},
+		Publisher:        vo.Organization{Type: "Organization", Name: siteTitle(), URL: baseURL},
+		DatePublished:    publishedTime,
+		DateModified:     modifiedTime,
+		URL:              canonical,
+		MainEntityOfPage: canonical,
+		ArticleSection:   section,
+		Keywords:         categoryNames,
+		CommentCount:     topic.ReplyCount,
+		InteractionStatistic: []vo.InteractionCounter{
+			{Type: "InteractionCounter", InteractionType: "https://schema.org/CommentAction", UserInteractionCount: topic.ReplyCount},
+			{Type: "InteractionCounter", InteractionType: "https://schema.org/LikeAction", UserInteractionCount: topic.LikeCount},
+			{Type: "InteractionCounter", InteractionType: "https://schema.org/ViewAction", UserInteractionCount: topic.ViewCount},
+		},
+	}
+	if len(postStream) > 0 {
+		jsonLD.Comment = buildTopicJSONLDComments(postStream[0], canonical)
+	}
+	return PageMeta{
+		Title:       pageTitle(topic.Title),
+		Description: description,
+		Canonical:   canonical,
+		OpenGraph: &OpenGraphMeta{
+			Title:         topic.Title,
+			Description:   description,
+			Type:          "article",
+			URL:           canonical,
+			SiteName:      siteTitle(),
+			PublishedTime: publishedTime,
+			ModifiedTime:  modifiedTime,
+			Author:        topic.Author.Username,
+			Section:       section,
+			Tags:          categoryNames,
+			Image:         firstString(inlineImages),
+		},
+		Twitter: &TwitterMeta{
+			Card:        "summary",
+			Title:       topic.Title,
+			Description: description,
+			Image:       firstString(inlineImages),
+		},
+		JSONLD: jsonLD,
+	}
+}
+
+const (
+	topicJSONLDCommentLimit     = 5
+	topicJSONLDCommentTextLimit = 300
+)
+
+func buildTopicJSONLDComments(posts []PostPayload, canonical string) []vo.Comment {
+	comments := make([]vo.Comment, 0, min(len(posts), topicJSONLDCommentLimit))
+	for _, post := range posts {
+		if post.PostNo <= 1 || post.IsHidden || post.ProcessStatus != 0 {
+			continue
+		}
+		text := truncateSEOText(post.Content, topicJSONLDCommentTextLimit)
+		if text == "" {
+			continue
+		}
+		publishedAt := parsePayloadTime(post.CreatedAt)
+		publishedTime := ""
+		if !publishedAt.IsZero() {
+			publishedTime = publishedAt.Format(time.RFC3339)
+		}
+		comments = append(comments, vo.Comment{
+			Type:          "Comment",
+			Text:          text,
+			Author:        vo.Person{Type: "Person", Name: post.Author.Username},
+			DatePublished: publishedTime,
+			URL:           canonical + "#post-" + strconv.FormatUint(post.ID, 10),
+		})
+		if len(comments) >= topicJSONLDCommentLimit {
+			break
+		}
+	}
+	return comments
+}
+
+func topicPlainText(lang string, topic TopicDetailPayload) string {
+	text := truncateSEOText(topic.Description, 1000)
+	if text != "" {
+		return text
+	}
+	if topic.Title != "" {
+		return i18n.T(lang, "meta.topicDesc", "title", topic.Title, "site", siteTitle())
+	}
+	return i18n.T(lang, "meta.communityDesc", "site", siteTitle())
+}
+
+func topicImageURLs(topic TopicDetailPayload, baseURL string) []string {
+	if imageURL := absolutePublicURL(topic.FirstImageURL, baseURL); imageURL != "" {
+		return []string{imageURL}
+	}
+	return nil
+}
+
+func absolutePublicURL(value string, baseURL string) string {
+	if value == "" || strings.HasPrefix(value, "data:") || strings.HasPrefix(value, "blob:") {
+		return ""
+	}
+	parsed, err := url.Parse(value)
+	if err != nil {
+		return ""
+	}
+	if parsed.IsAbs() {
+		if parsed.Scheme == "http" || parsed.Scheme == "https" {
+			return parsed.String()
+		}
+		return ""
+	}
+	base, err := url.Parse(strings.TrimRight(baseURL, "/") + "/")
+	if err != nil {
+		return ""
+	}
+	return base.ResolveReference(parsed).String()
+}
+
+func firstString(values []string) string {
+	if len(values) == 0 {
+		return ""
+	}
+	return values[0]
+}
+
+func truncateSEOText(value string, limit int) string {
+	runes := []rune(strings.TrimSpace(value))
+	if len(runes) <= limit {
+		return string(runes)
+	}
+	return string(runes[:limit])
+}
+
+func parsePayloadTime(value string) time.Time {
+	if value == "" {
+		return time.Time{}
+	}
+	parsed, err := time.ParseInLocation(time.DateTime, value, time.Local)
+	if err == nil {
+		return parsed
+	}
+	parsed, err = time.Parse(time.RFC3339, value)
+	if err == nil {
+		return parsed
+	}
+	return time.Time{}
+}
+
+const (
+	userProfileTopicPageSize    = 20
+	userProfileTimelinePageSize = 20
+	userProfileConnectionLimit  = 24
+)
+
+func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
+	currentUserID := component.LoginUserId(c)
+	isFollowing := userFollow.IsFollowing(currentUserID, user.Id)
+	userCard, ok := userservice.GetUserCard(user.Id)
+	if !ok {
+		userCard = &vo.UserCard{}
+	}
+	userBadges := userCard.Badges
+	card := *userCard
+	userCard = &card
+	userCard.Badges = nil
+	userCard.IsFollowing = isFollowing
+	userCard.IsSelf = currentUserID == user.Id
+
+	badges := []badgeservice.UserBadge{}
+	topicPayloads := []TopicPayload{}
+	activities := []UserActivityPayload{}
+	likes := []UserLikePayload{}
+	following := []UserConnectionPayload{}
+	followers := []UserConnectionPayload{}
+	pagination := PaginationPayload{Page: 1}
+
+	switch section {
+	case userProfileSectionActivity:
+		switch activityTab {
+		case userProfileActivityTopics:
+			cursor := positiveUint(c.Query("cursor"))
+			topicPage, _ := topics.GetPublishedByUserBeforeId(user.Id, cursor, userProfileTopicPageSize+1)
+			hasNext := len(topicPage) > userProfileTopicPageSize
+			if hasNext {
+				topicPage = topicPage[:userProfileTopicPageSize]
+			}
+			topicPayloads = buildTopicPayloads(transform.Topics2Vo(topicPage, hotdataserve.CategoryMap()))
+			pagination = buildUserActivityTopicPagination(user.Id, topicPage, hasNext)
+		case userProfileActivityLikes:
+			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
+			likes = buildUserLikes(refs)
+			pagination = buildUserActivityLikePagination(user.Id, nextCursor)
+		case userProfileActivityFollowing:
+			following = buildUserConnections(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit))
+		case userProfileActivityFollowers:
+			followers = buildUserConnections(userFollow.GetFollowerList(user.Id, 1, userProfileConnectionLimit))
+		default:
+			cursor := positiveUint(c.Query("cursor"))
+			timeline, _ := userActivities.GetUserTimeline(user.Id, cursor, userProfileTimelinePageSize+1)
+			hasNext := len(timeline) > userProfileTimelinePageSize
+			if hasNext {
+				timeline = timeline[:userProfileTimelinePageSize]
+			}
+			activities = buildUserActivities(timeline)
+			pagination = buildUserActivityTimelinePagination(user.Id, timeline, hasNext)
+		}
+	case userProfileSectionBadges:
+		badges = userBadges
+	default:
+		badges = userBadges
+		latestTopics, _ := topics.GetLatestPublishedByUserId(user.Id, 8)
+		topicPayloads = buildTopicPayloads(transform.Topics2Vo(latestTopics, hotdataserve.CategoryMap()))
+		timeline, _ := userActivities.GetUserTimeline(user.Id, 0, 5)
+		activities = buildUserActivities(timeline)
+	}
+
+	return UserProfileProps{
+		User:         userCard,
+		Section:      section,
+		ActivityTab:  activityTab,
+		Tabs:         buildUserProfileTabs(user.Id, section),
+		ActivityTabs: buildUserProfileActivityTabs(user.Id, section, activityTab),
+		Pagination:   pagination,
+		Badges:       badges,
+		Topics:       topicPayloads,
+		Activities:   activities,
+		Likes:        likes,
+		Following:    following,
+		Followers:    followers,
+		IsOwnProfile: currentUserID == user.Id,
+		CanMessage:   currentUserID > 0 && currentUserID != user.Id,
+		CanFollow:    currentUserID > 0 && currentUserID != user.Id,
+		MessageURL:   "/messages?userId=" + strconv.FormatUint(user.Id, 10) + "&username=" + url.QueryEscape(userCard.Nickname) + "&avatar=" + url.QueryEscape(userCard.AvatarUrl),
+		SettingsURL:  "/settings",
+	}
+}
+
+func positiveUint(raw string) uint64 {
+	value, err := strconv.ParseUint(raw, 10, 64)
+	if err != nil {
+		return 0
+	}
+	return value
+}
+
+func buildUserActivityTopicPagination(userID uint64, topics []*topics.Entity, hasNext bool) PaginationPayload {
+	nextCursor := uint64(0)
+	if hasNext && len(topics) > 0 {
+		nextCursor = topics[len(topics)-1].Id
+	}
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextCursor > 0,
+		NextURL:  buildUserActivityTopicCursorURL(userID, nextCursor),
+	}
+}
+
+func buildUserActivityLikePagination(userID uint64, nextCursor string) PaginationPayload {
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextCursor != "",
+		NextURL:  buildUserActivityLikeCursorURL(userID, nextCursor),
+	}
+}
+
+func buildUserActivityTimelinePagination(userID uint64, activities []*userActivities.Entity, hasNext bool) PaginationPayload {
+	nextCursor := uint64(0)
+	if hasNext && len(activities) > 0 {
+		nextCursor = activities[len(activities)-1].Id
+	}
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextCursor > 0,
+		NextURL:  buildUserActivityTimelineCursorURL(userID, nextCursor),
+	}
+}
+
+func buildUserActivityTopicCursorURL(userID uint64, cursor uint64) string {
+	if cursor == 0 {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s/%s?cursor=%d", userID, userProfileSectionActivity, userProfileActivityTopics, cursor)
+}
+
+func buildUserActivityLikeCursorURL(userID uint64, cursor string) string {
+	if cursor == "" {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityLikes, url.QueryEscape(cursor))
+}
+
+func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
+	if cursor == 0 {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s?cursor=%d", userID, userProfileSectionActivity, cursor)
+}
+
+func buildUserProfileTabs(userID uint64, active string) []TabPayload {
+	baseURL := "/u/" + strconv.FormatUint(userID, 10)
+	return []TabPayload{
+		{Key: userProfileSectionSummary, URL: baseURL, Active: active == userProfileSectionSummary},
+		{Key: userProfileSectionActivity, URL: baseURL + "/" + userProfileSectionActivity, Active: active == userProfileSectionActivity},
+		{Key: userProfileSectionBadges, URL: baseURL + "/" + userProfileSectionBadges, Active: active == userProfileSectionBadges},
+	}
+}
+
+func buildUserProfileActivityTabs(userID uint64, section string, active string) []TabPayload {
+	if section != userProfileSectionActivity {
+		return nil
+	}
+	baseURL := "/u/" + strconv.FormatUint(userID, 10) + "/" + userProfileSectionActivity
+	return []TabPayload{
+		{Key: userProfileActivityTimeline, URL: baseURL, Active: active == userProfileActivityTimeline},
+		{Key: userProfileActivityTopics, URL: baseURL + "/" + userProfileActivityTopics, Active: active == userProfileActivityTopics},
+		{Key: userProfileActivityLikes, URL: baseURL + "/" + userProfileActivityLikes, Active: active == userProfileActivityLikes},
+		{Key: userProfileActivityFollowing, URL: baseURL + "/" + userProfileActivityFollowing, Active: active == userProfileActivityFollowing},
+		{Key: userProfileActivityFollowers, URL: baseURL + "/" + userProfileActivityFollowers, Active: active == userProfileActivityFollowers},
+	}
+}
+
+func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
+	ids := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
+		if ref.TopicID > 0 {
+			ids = append(ids, ref.TopicID)
+		}
+	}
+	topicMap := topics.GetPointerMapByIds(ids)
+	res := make([]UserLikePayload, 0, len(refs))
+	for _, ref := range refs {
+		topic := topicMap[ref.TopicID]
+		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			continue
+		}
+		res = append(res, UserLikePayload{
+			ID:      ref.ID,
+			TopicID: ref.TopicID,
+			Title:   topic.Title,
+			URL:     urlconfig.PostDetail(ref.TopicID),
+			LikedAt: ref.LikedAt.Format(time.DateTime),
+		})
+	}
+	return res
+}
+
+func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayload {
+	res := make([]UserActivityPayload, 0, len(activities))
+	replyByID := userActivityReplyMap(activities)
+	for _, activity := range activities {
+		if activity == nil {
+			continue
+		}
+		contentPreview := activity.ContentPreview
+		switch userActivities.ActionType(activity.Action) {
+		case userActivities.ActionSignUp, userActivities.ActionFollow:
+			contentPreview = ""
+		}
+		res = append(res, UserActivityPayload{
+			ID:             activity.Id,
+			Action:         activity.Action,
+			SubjectType:    activity.SubjectType,
+			SubjectID:      activity.SubjectId,
+			ContentPreview: contentPreview,
+			URL:            userActivityURL(activity, replyByID),
+			Label:          userActivityLabel(activity.Action),
+			CreatedAt:      activity.CreatedAt.Format(time.DateTime),
+		})
+	}
+	return res
+}
+
+func userActivityReplyMap(activities []*userActivities.Entity) map[uint64]*posts.Entity {
+	ids := make([]uint64, 0)
+	seen := map[uint64]struct{}{}
+	for _, activity := range activities {
+		if activity == nil ||
+			userActivities.ActionType(activity.Action) != userActivities.ActionComment ||
+			activity.SubjectType != userActivities.SubjectPost ||
+			activity.SubjectId == 0 {
+			continue
+		}
+		if _, ok := seen[activity.SubjectId]; ok {
+			continue
+		}
+		seen[activity.SubjectId] = struct{}{}
+		ids = append(ids, activity.SubjectId)
+	}
+
+	rows := posts.GetByIds(ids)
+	res := make(map[uint64]*posts.Entity, len(rows))
+	for _, row := range rows {
+		if row != nil && row.Id > 0 {
+			res[row.Id] = row
+		}
+	}
+	return res
+}
+
+func userActivityURL(activity *userActivities.Entity, replyByID map[uint64]*posts.Entity) string {
+	if userActivities.ActionType(activity.Action) == userActivities.ActionComment && activity.SubjectType == userActivities.SubjectPost {
+		if activity.SubjectId == 0 {
+			return ""
+		}
+		post := replyByID[activity.SubjectId]
+		if post == nil || post.TopicId == 0 {
+			return ""
+		}
+		return urlconfig.PostDetail(post.TopicId) + "#post-" + strconv.FormatUint(post.Id, 10)
+	}
+
+	switch activity.SubjectType {
+	case userActivities.SubjectTopic, userActivities.SubjectPost:
+		if activity.SubjectId > 0 {
+			return urlconfig.PostDetail(activity.SubjectId)
+		}
+	case userActivities.SubjectUser:
+		if activity.SubjectId > 0 {
+			return "/u/" + strconv.FormatUint(activity.SubjectId, 10)
+		}
+	}
+	return ""
+}
+
+func userActivityLabel(action int) string {
+	switch userActivities.ActionType(action) {
+	case userActivities.ActionSignUp:
+		return "signup"
+	case userActivities.ActionPost:
+		return "post"
+	case userActivities.ActionLike:
+		return "like"
+	case userActivities.ActionFollow:
+		return "follow"
+	case userActivities.ActionComment:
+		return "comment"
+	default:
+		return "default"
+	}
+}
+
+func buildUserConnections(list []*users.EntityComplete) []UserConnectionPayload {
+	res := make([]UserConnectionPayload, 0, len(list))
+	for _, user := range list {
+		if user == nil || user.Id == 0 {
+			continue
+		}
+		res = append(res, UserConnectionPayload{
+			ID:        user.Id,
+			Username:  user.Username,
+			Nickname:  user.Nickname,
+			AvatarURL: user.GetWebAvatarUrl(),
+			Bio:       user.Bio,
+			URL:       "/u/" + strconv.FormatUint(user.Id, 10),
+		})
+	}
+	return res
+}
+
+func buildUserMeta(c *gin.Context, user *vo.UserCard) PageMeta {
+	description := user.Bio
+	if description == "" {
+		description = user.Signature
+	}
+	if description == "" {
+		description = i18n.T(requestLang(c), "meta.userDesc", "username", user.Username, "site", siteTitle())
+	}
+	meta := PageMeta{
+		Title:       pageTitle(user.Username),
+		Description: description,
+		Canonical:   component.GetBaseUri(c) + "/u/" + strconv.FormatUint(user.UserId, 10),
+	}
+	return meta
+}
+
+func buildCategoryPageProps(userID uint64, category *category.Entity, page int, sort string, topics []*vo.TopicsSimpleVo, hasNext bool) CategoryPageProps {
+	nextPage := 0
+	if hasNext {
+		nextPage = page + 1
+	}
+	return CategoryPageProps{
+		Category: CategoryHeaderPayload{
+			ID:          category.Id,
+			Name:        category.Name,
+			Description: category.Desc,
+			Icon:        category.Icon,
+			Color:       category.Color,
+			URL:         categoryURL(category),
+		},
+		Sort:   sort,
+		Tabs:   buildCategoryTabs(category, sort),
+		Topics: buildTrackedTopicPayloads(userID, topics),
+		Pagination: PaginationPayload{
+			Page:     page,
+			NextPage: nextPage,
+			HasNext:  nextPage > 0,
+			NextURL:  buildCategoryPageURL(category, sort, nextPage),
+		},
+	}
+}
+
+func buildCategoryTabs(category *category.Entity, sort string) []TabPayload {
+	return []TabPayload{
+		{Key: "latest", URL: categorySortURL(category, "latest"), Active: sort == "" || sort == "latest"},
+		{Key: "new", URL: categorySortURL(category, "new"), Active: sort == "new"},
+	}
+}
+
+func categorySortURL(category *category.Entity, sort string) string {
+	if sort == "" || sort == "latest" {
+		return categoryURL(category)
+	}
+	return categoryURL(category) + "/l/" + url.PathEscape(sort)
+}
+
+func buildCategoryPageURL(category *category.Entity, sort string, page int) string {
+	if page <= 0 {
+		return ""
+	}
+	if page == 1 {
+		return categorySortURL(category, sort)
+	}
+	values := url.Values{}
+	values.Set("page", strconv.Itoa(page))
+	return categorySortURL(category, sort) + "?" + values.Encode()
+}
+
+func buildCategoryMeta(c *gin.Context, category *category.Entity, page int, sort string, hasNext bool) PageMeta {
+	description := category.Desc
+	if description == "" {
+		description = i18n.T(requestLang(c), "meta.categoryDesc", "category", category.Name)
+	}
+	canonicalPath := categoryURL(category)
+	if sort == "latest" && page > 1 {
+		canonicalPath = buildCategoryPageURL(category, sort, page)
+	}
+	meta := PageMeta{
+		Title:       pageTitle(category.Name),
+		Description: description,
+		Canonical:   component.GetBaseUri(c) + canonicalPath,
+	}
+	if page > 1 {
+		meta.PrevURL = buildCategoryPageURL(category, sort, page-1)
+	}
+	if hasNext {
+		meta.NextURL = buildCategoryPageURL(category, sort, page+1)
+	}
+	return meta
+}
+
+func buildLinksPageProps(groups []pageConfig.FriendLinksGroup) LinksPageProps {
+	res := make([]LinkGroupPayload, 0, len(groups))
+	total := 0
+	for _, group := range groups {
+		links := make([]FriendLinkPayload, 0, len(group.Links))
+		for _, link := range group.Links {
+			if link.Status != 1 {
+				continue
+			}
+			links = append(links, FriendLinkPayload{
+				Name:    link.Name,
+				Desc:    link.Desc,
+				URL:     link.Url,
+				LogoURL: link.LogoUrl,
+			})
+		}
+		if len(links) == 0 {
+			continue
+		}
+		total += len(links)
+		res = append(res, LinkGroupPayload{
+			Name:  group.Name,
+			Emoji: group.Emoji,
+			Color: group.Color,
+			Links: links,
+		})
+	}
+	return LinksPageProps{Groups: res, TotalCount: total}
+}
+
+func buildLinksMeta(c *gin.Context) PageMeta {
+	lang := requestLang(c)
+	return PageMeta{
+		Title:       pageTitle(i18n.T(lang, "friendLinks")),
+		Description: i18n.T(lang, "meta.friendLinksDesc", "site", siteTitle()),
+		Canonical:   component.GetBaseUri(c) + "/links",
+	}
+}
+
+func buildSponsorsPageProps(config pageConfig.SponsorsConfig) SponsorsPageProps {
+	defaultConfig := defaultconfig.GetDefaultSponsorsConfig()
+	sections := []SponsorSectionPayload{
+		{Key: "diamond", Label: "Diamond Partners", Tone: "diamond", Sponsors: buildSponsorPayloads(config.Sponsors.Level0)},
+		{Key: "gold", Label: "Gold Sponsors", Tone: "gold", Sponsors: buildSponsorPayloads(config.Sponsors.Level1)},
+		{Key: "silver", Label: "Silver Sponsors", Tone: "silver", Sponsors: buildSponsorPayloads(config.Sponsors.Level2)},
+		{Key: "supporter", Label: "Supporters", Tone: "supporter", Sponsors: buildSponsorPayloads(config.Sponsors.Level3)},
+	}
+	visibleSections := make([]SponsorSectionPayload, 0, len(sections))
+	total := 0
+	for _, section := range sections {
+		if len(section.Sponsors) == 0 {
+			continue
+		}
+		total += len(section.Sponsors)
+		visibleSections = append(visibleSections, section)
+	}
+	return SponsorsPageProps{
+		Sections:   visibleSections,
+		TotalCount: total,
+		Content: SponsorsPageIntroPayload{
+			Title:       sponsorText(config.Content.Title, defaultConfig.Content.Title),
+			Description: sponsorText(config.Content.Description, defaultConfig.Content.Description),
+		},
+		Contact: SponsorsContactPayload{
+			Title:       sponsorText(config.Contact.Title, defaultConfig.Contact.Title),
+			Description: sponsorText(config.Contact.Description, defaultConfig.Contact.Description),
+			ButtonText:  sponsorText(config.Contact.ButtonText, defaultConfig.Contact.ButtonText),
+			ButtonLink:  sponsorText(config.Contact.ButtonLink, defaultConfig.Contact.ButtonLink),
+		},
+		Rules: buildSponsorsRules(config.Rules),
+	}
+}
+
+func sponsorText(value string, fallback string) string {
+	if value != "" {
+		return value
+	}
+	return fallback
+}
+
+func buildSponsorsRules(items []pageConfig.SponsorsRule) []SponsorsRulePayload {
+	if len(items) == 0 {
+		items = defaultconfig.GetDefaultSponsorsConfig().Rules
+	}
+	res := make([]SponsorsRulePayload, 0, len(items))
+	for _, item := range items {
+		if item.Content == "" {
+			continue
+		}
+		res = append(res, SponsorsRulePayload{Content: item.Content})
+	}
+	return res
+}
+
+func buildSponsorPayloads(items []pageConfig.SponsorItem) []SponsorPayload {
+	res := make([]SponsorPayload, 0, len(items))
+	for _, item := range items {
+		if item.Name == "" {
+			continue
+		}
+		res = append(res, SponsorPayload{
+			Name:      item.Name,
+			Message:   item.Message,
+			Link:      item.Link,
+			AvatarURL: sponsorAvatar(item.AvatarUrl),
+		})
+	}
+	return res
+}
+
+func sponsorAvatar(avatar string) string {
+	if avatar != "" {
+		return avatar
+	}
+	return "/static/pic/default-avatar.webp"
+}
+
+func buildSponsorsMeta(c *gin.Context) PageMeta {
+	lang := requestLang(c)
+	return PageMeta{
+		Title:       pageTitle(i18n.T(lang, "sponsors")),
+		Description: i18n.T(lang, "meta.sponsorsDesc", "site", siteTitle()),
+		Canonical:   component.GetBaseUri(c) + "/sponsors",
+	}
+}
+
+func buildNotificationsPageProps(c *gin.Context) NotificationsPageProps {
+	userID := component.LoginUserId(c)
+	notifications, nextCursor, hasNext, _ := notificationservice.GetNotificationCursorList(userID, notificationservice.DefaultNotificationPageSize, 0, false)
+	unreadCount, _ := eventNotification.GetUnreadCount(userID)
+	items := BuildNotificationPayloads(notifications)
+	return NotificationsPageProps{
+		Total:         int64(len(items)),
+		UnreadCount:   unreadCount,
+		Notifications: items,
+		Pagination: PaginationPayload{
+			Page:     1,
+			NextPage: lo.Ternary(hasNext, 2, 0),
+			HasNext:  hasNext,
+			NextURL:  fmt.Sprintf("/api/forum/notifications?filter=all&cursor=%d&limit=%d", nextCursor, notificationservice.DefaultNotificationPageSize),
+		},
+	}
+}
+
+func buildDraftPayloads(entities []*topics.Entity) []DraftPayload {
+	categoryMap := hotdataserve.CategoryMap()
+	items := make([]DraftPayload, 0, len(entities))
+	for _, entity := range entities {
+		if entity == nil {
+			continue
+		}
+		categories := make([]TopicCategoryPayload, 0, len(entity.CategoryIds))
+		for _, categoryID := range entity.CategoryIds {
+			category, ok := categoryMap[categoryID]
+			if !ok || category == nil {
+				continue
+			}
+			categories = append(categories, TopicCategoryPayload{
+				ID:    categoryID,
+				Name:  category.Name,
+				URL:   categoryURL(category),
+				Color: category.Color,
+			})
+		}
+		items = append(items, DraftPayload{
+			ID:            entity.Id,
+			Title:         entity.Title,
+			Description:   entity.Excerpt,
+			EditURL:       urlconfig.Publish() + "?id=" + strconv.FormatUint(entity.Id, 10),
+			ReplyCount:    entity.ReplyCount,
+			ViewCount:     entity.ViewCount,
+			ProcessStatus: entity.ProcessStatus,
+			UpdatedAt:     entity.UpdatedAt.Format(time.DateTime),
+			CreatedAt:     entity.CreatedAt.Format(time.DateTime),
+			Categories:    categories,
+		})
+	}
+	return items
+}
+
+func buildDraftsPageProps(c *gin.Context) DraftsPageProps {
+	userID := component.LoginUserId(c)
+	drafts, _ := topics.GetDraftsByUserId(userID, 100)
+	return DraftsPageProps{
+		Total:  int64(len(drafts)),
+		Drafts: buildDraftPayloads(drafts),
+		Pagination: PaginationPayload{
+			Page:     1,
+			NextPage: 0,
+			HasNext:  false,
+			NextURL:  "",
+		},
+	}
+}
+
+func BuildNotificationPayloads(notifications []*eventNotification.Entity) []NotificationPayload {
+	items := make([]NotificationPayload, 0, len(notifications))
+	for _, notification := range notifications {
+		if notification == nil {
+			continue
+		}
+		items = append(items, BuildNotificationPayload(notification))
+	}
+	return items
+}
+
+func BuildNotificationPayload(notification *eventNotification.Entity) NotificationPayload {
+	payload := notification.Payload
+	item := NotificationPayload{
+		ID:        notification.Id,
+		EventType: notification.EventType,
+		IsRead:    notification.IsRead,
+		CreatedAt: notification.CreatedAt.Format(time.DateTime),
+		Title:     notificationTitle(notification.EventType, payload),
+		Content:   payload.Content,
+		Actor: TopicAuthorPayload{
+			ID:       payload.ActorId,
+			Username: payload.ActorName,
+		},
+		Payload: payload,
+	}
+	if item.Actor.Username == "" && payload.Extra.FollowerName != "" {
+		item.Actor.Username = payload.Extra.FollowerName
+	}
+	if payload.TopicId > 0 {
+		topicURL := urlconfig.PostDetail(payload.TopicId)
+		if payload.PostId > 0 {
+			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
+		}
+		item.Topic = &NotificationTopicPayload{
+			ID:    payload.TopicId,
+			Title: payload.TopicTitle,
+			URL:   topicURL,
+		}
+	}
+	return item
+}
+
+func notificationTitle(eventType string, payload eventNotification.NotificationPayload) string {
+	if payload.Title != "" {
+		return payload.Title
+	}
+	if payload.TemplateKey != "" {
+		return ""
+	}
+	switch eventType {
+	case eventNotification.EventTypeComment:
+		return ""
+	case eventNotification.EventTypePostReply:
+		return ""
+	case eventNotification.EventTypeTopicPost:
+		return ""
+	case eventNotification.EventTypeFollow:
+		return ""
+	default:
+		return ""
+	}
+}
+
+func buildMessagesPageProps(c *gin.Context) MessagesPageProps {
+	userID := component.LoginUserId(c)
+	list, _ := chatservice.GetChatList(userID)
+	return MessagesPageProps{
+		Conversations:  list,
+		SuggestedUsers: buildUserConnections(userFollow.GetFollowingList(userID, 1, 12)),
+	}
+}
+
+func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
+	stats := userStatistics.Get(user.Id)
+	return SettingsPageProps{
+		User: transform.User2UserDetailedVo(user),
+		Stats: SettingsStatsPayload{
+			TopicCount:        stats.TopicCount,
+			ReplyCount:        stats.ReplyCount,
+			FollowerCount:     stats.FollowerCount,
+			FollowingCount:    stats.FollowingCount,
+			LikeReceivedCount: stats.LikeReceivedCount,
+			LikeGivenCount:    stats.LikeGivenCount,
+			CollectionCount:   stats.CollectionCount,
+			CreatedAt:         user.CreatedAt.Format(time.DateTime),
+		},
+		Tabs: []TabPayload{
+			{Key: "profile", URL: "/settings", Active: true},
+			{Key: "account", URL: "/settings?tab=account"},
+			{Key: "privacy", URL: "/settings?tab=privacy"},
+			{Key: "binding", URL: "/settings?tab=binding"},
+		},
+	}
+}
+
+func buildPublishPageProps(c *gin.Context, topicID uint64) (PublishPageProps, error) {
+	props := PublishPageProps{
+		TopicID:    topicID,
+		IsEditing:  topicID > 0,
+		Categories: buildPublishCategories(),
+		Topic:      PublishTopicPayload{},
+	}
+	if topicID == 0 {
+		return props, nil
+	}
+
+	topic := topics.Get(topicID)
+	if topic.Id == 0 || topic.UserId != component.LoginUserId(c) {
+		return props, errors.New("topic not found")
+	}
+	firstPost := posts.Get(topic.FirstPostId)
+	if firstPost.Id == 0 {
+		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+	}
+	props.Topic = PublishTopicPayload{
+		Title:       topic.Title,
+		Content:     firstPost.Content,
+		CategoryIDs: topic.CategoryIds,
+		TopicStatus: topic.Status,
+	}
+	return props, nil
+}
+
+func buildPublishCategories() []PublishCategoryPayload {
+	categories := hotdataserve.GetCategory()
+	res := make([]PublishCategoryPayload, 0, len(categories))
+	for _, category := range categories {
+		if category == nil {
+			continue
+		}
+		res = append(res, PublishCategoryPayload{
+			ID:    category.Id,
+			Name:  category.Name,
+			Color: category.Color,
+		})
+	}
+	return res
+}
+
+func buildSearchPageProps(query string, page int) SearchPageProps {
+	const pageSize = 10
+	props := SearchPageProps{
+		Query:  query,
+		Topics: []TopicPayload{},
+		Pagination: PaginationPayload{
+			Page: page,
+		},
+	}
+	if query == "" {
+		return props
+	}
+
+	if page < 1 {
+		page = 1
+	}
+	result, err := searchservice.SearchTopics(searchservice.SearchRequest{
+		Query:  query,
+		Limit:  pageSize,
+		Offset: (page - 1) * pageSize,
+	})
+	if err != nil || result == nil {
+		return props
+	}
+
+	ids := lo.Map(result.Results, func(item searchservice.SearchResult, _ int) uint64 {
+		return item.ID
+	})
+	topicMap := topics.GetPointerMapByIds(ids)
+	orderedTopics := lo.FilterMap(ids, func(id uint64, _ int) (*topics.Entity, bool) {
+		topic, ok := topicMap[id]
+		return topic, ok && topic != nil
+	})
+	totalPageCount := totalPages(result.Total, pageSize)
+	nextPage := 0
+	if page < totalPageCount {
+		nextPage = page + 1
+	}
+
+	props.Topics = buildTopicPayloads(transform.Topics2Vo(orderedTopics, hotdataserve.CategoryMap()))
+	props.Total = result.Total
+	props.TotalPages = totalPageCount
+	props.Pagination = PaginationPayload{
+		Page:     page,
+		NextPage: nextPage,
+		HasNext:  nextPage > 0,
+		NextURL:  buildSearchURL(query, nextPage),
+	}
+	return props
+}
+
+func buildSearchURL(query string, page int) string {
+	values := url.Values{}
+	if query != "" {
+		values.Set("q", query)
+	}
+	if page > 1 {
+		values.Set("page", strconv.Itoa(page))
+	}
+	encoded := values.Encode()
+	if encoded == "" {
+		return "/search"
+	}
+	return "/search?" + encoded
+}
+
+func parsePositiveInt(value string, fallback int) int {
+	n, err := strconv.Atoi(value)
+	if err != nil || n < 1 {
+		return fallback
+	}
+	return n
+}

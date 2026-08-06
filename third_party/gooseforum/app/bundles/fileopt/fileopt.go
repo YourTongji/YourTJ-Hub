@@ -1,0 +1,75 @@
+// Package fileopt provides small filesystem read, write, and creation helpers.
+package fileopt
+
+import (
+	"os"
+	"path/filepath"
+)
+
+// GetContents reads filename and returns its contents.
+func GetContents(filename string) ([]byte, error) {
+	return os.ReadFile(filename)
+}
+
+// FileGetContents reads filename and returns its contents.
+func FileGetContents(filename string) ([]byte, error) {
+	return os.ReadFile(filename)
+}
+
+// PutContents writes data to filename, appending when isAppend is true.
+func PutContents[DType string | []byte](filename string, data DType, isAppend ...bool) error {
+	return FilePutContents(filename, data, isAppend...)
+}
+
+// FilePutContents writes data to filename, creating parent directories as needed.
+func FilePutContents[DType string | []byte](filename string, data DType, isAppend ...bool) error {
+	if dir := filepath.Dir(filename); dir != "" && dir != "." {
+		err := os.MkdirAll(dir, 0750)
+		if err != nil {
+			return err
+		}
+	}
+	byteDate := []byte(data)
+	needAppend := len(isAppend) > 0 && isAppend[0]
+	// write to file
+	if !needAppend {
+		return os.WriteFile(filename, byteDate, 0600)
+	}
+	// append to file
+	fl, err := os.OpenFile(filename, os.O_APPEND|os.O_CREATE|os.O_RDWR, 0600)
+	if err != nil {
+		return err
+	}
+	_, err = fl.Write(byteDate)
+	if err1 := fl.Close(); err1 != nil && err == nil {
+		err = err1
+	}
+	return err
+}
+
+// IsExist reports whether path exists.
+func IsExist(path string) bool {
+	_, err := os.Stat(path)
+	return err == nil
+}
+
+// IsExistOrCreate creates path with optional initial content when it is missing.
+func IsExistOrCreate[T string | []byte](path string, init ...T) error {
+	if IsExist(path) {
+		return nil
+	}
+	var initData []byte
+	if len(init) == 1 {
+		initData = []byte(init[0])
+	}
+	return FilePutContents(path, initData)
+}
+
+// DirExistOrCreate creates dirPath and parent directories when they are missing.
+func DirExistOrCreate(dirPath string) error {
+	if IsExist(dirPath) {
+		return nil
+	}
+
+	return os.MkdirAll(dirPath, 0750)
+}

@@ -1,0 +1,16 @@
+{{template "layout/app.gohtml" .}}
+
+{{define "noscript"}}
+{{template "page" .}}
+{{end}}
+
+{{define "page"}}
+<main>
+    <section>
+        <p>{{.Payload.Props.Code}}</p>
+        <h1>{{.Payload.Props.Title}}</h1>
+        <p>{{.Payload.Props.MessageCode}}</p>
+        <p><a href="/">{{ t .Lang "back_home" }}</a></p>
+    </section>
+</main>
+{{end}}

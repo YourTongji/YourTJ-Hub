@@ -1,0 +1,8 @@
+{{template "layout/admin.gohtml" .}}
+
+{{define "noscript"}}
+<main>
+    <h1>{{ t .Lang "adminNoscriptTitle" }}</h1>
+    <p>{{ t .Lang "adminEnableJs" }}</p>
+</main>
+{{end}}
