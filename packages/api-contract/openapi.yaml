@@ -1,0 +1,9 @@
+# Placeholder：M3 起由 swag 从 apps/server 注解生成 openapi.yaml
+# 生成：cd apps/server && swag init -g cmd/server/main.go --output ../../packages/api-contract
+# 消费：gen-ts.sh → apps/web/src/api/*.ts
+#       gen-dart.sh → apps/mobile/packages/core/lib/src/gen/*.dart
+openapi: 3.1.0
+info:
+  title: yourtj-hub API
+  version: 0.1.0
+paths: {}

@@ -1,0 +1,24 @@
+name: contract
+
+on:
+  push:
+    paths:
+      - "apps/server/**"
+      - "packages/api-contract/**"
+  pull_request:
+    paths:
+      - "apps/server/**"
+      - "packages/api-contract/**"
+
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Validate openapi.yaml (placeholder until M3)
+        working-directory: packages/api-contract
+        run: |
+          test -f openapi.yaml && echo "openapi.yaml exists" || echo "TODO(M3): swag 接入后生成 openapi.yaml"

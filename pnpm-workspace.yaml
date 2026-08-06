@@ -1,0 +1,12 @@
+# yourtj-hub pnpm workspace
+# 注意：本文件必须存在，否则 pnpm 会向上查找并命中 /Users/yzxoi/pnpm-workspace.yaml（主目录），
+# 导致 install 作用到错误位置。
+packages:
+  - apps/web
+
+# 明确允许/禁止构建脚本，消除 ERR_PNPM_IGNORED_BUILDS 误报
+allowBuilds:
+  esbuild: true
+  onnxruntime-node: false
+  protobufjs: false
+  sharp: false

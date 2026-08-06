@@ -1,0 +1,30 @@
+# Go
+apps/server/webdist/*
+!apps/server/webdist/.gitkeep
+bin/
+*.exe
+*.test
+
+# Node
+node_modules/
+apps/web/dist/
+
+# Flutter / Dart
+apps/mobile/**/.dart_tool/
+apps/mobile/**/build/
+apps/mobile/.melos/
+apps/mobile/.flutter-plugins*
+apps/mobile/.packages
+
+# 环境变量
+.env
+deploy/.env
+
+# OS
+.DS_Store
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.tsbuildinfo

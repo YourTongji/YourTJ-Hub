@@ -1,0 +1,54 @@
+# yourtj-hub 本地开发依赖（dev 环境）
+# 生产环境见 deploy/compose/
+
+services:
+  postgres:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: yourtj
+      POSTGRES_PASSWORD: yourtj
+      POSTGRES_DB: yourtj
+    ports:
+      - "5432:5432"
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U yourtj"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    environment:
+      MEILI_MASTER_KEY: yourtj-dev-master-key
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "7700:7700"
+
+  # Casdoor 使用自己的 MariaDB（已验证配置）
+  mariadb:
+    image: mariadb:11
+    environment:
+      MYSQL_ROOT_PASSWORD: casdoor
+      MYSQL_DATABASE: casdoor
+    ports:
+      - "13306:3306"
+    volumes:
+      - mariadbdata:/var/lib/mysql
+
+  casdoor:
+    image: casbin/casdoor:latest
+    ports:
+      - "8001:8000"
+    environment:
+      driverName: mysql
+      dataSourceName: "root:casdoor@tcp(mariadb:3306)/"
+      dbName: casdoor
+    depends_on:
+      mariadb:
+        condition: service_healthy
+
+volumes:
+  pgdata:
+  mariadbdata:
