@@ -56,6 +56,11 @@ func List(userID uint64) ([]userSessions.Entity, error) {
 }
 
 // RevokeByID deletes one session owned by the user.
+// RevokeByJti deletes one session owned by the user, keyed by its jti.
+func RevokeByJti(userID uint64, jti string) error {
+	return userSessions.DeleteByJtiAndUserID(userID, jti)
+}
+
 func RevokeByID(userID uint64, id uint64) error {
 	return userSessions.DeleteByID(userID, id)
 }

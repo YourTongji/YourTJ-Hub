@@ -83,7 +83,11 @@ func ProviderCallback(c *gin.Context) {
 			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthTokenFailed)
 			return
 		}
-		_ = sessionservice.Create(user.Id, jti, c.Request.UserAgent(), c.ClientIP())
+		if err = sessionservice.Create(user.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+			slog.Error("Create OAuth session failed", "userId", user.Id, "error", err)
+			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
+			return
+		}
 
 		jwtopt.TokenSetting(c, token)
 		c.Redirect(http.StatusFound, "/")

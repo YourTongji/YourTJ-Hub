@@ -20,6 +20,11 @@ func GetByJti(jti string) *Entity {
 }
 
 // DeleteByID 根据id删除会话记录（限用户）
+// DeleteByJtiAndUserID deletes one session owned by the user, keyed by jti.
+func DeleteByJtiAndUserID(userID uint64, jti string) error {
+	return builder().Where(fieldJti, jti).Where(fieldUserId, userID).Delete(&Entity{}).Error
+}
+
 func DeleteByID(userID uint64, id uint64) error {
 	return builder().Where(pid, id).Where(fieldUserId, userID).Delete(&Entity{}).Error
 }
