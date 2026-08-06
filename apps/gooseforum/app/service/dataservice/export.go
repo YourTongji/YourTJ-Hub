@@ -8,6 +8,7 @@ import (
 	"encoding/csv"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -334,4 +335,36 @@ func updateExportProgress(taskID uint64, payload ExportTask) {
 // categoryExists reports whether a category id exists.
 func categoryExists(id uint64) bool {
 	return category.Get(id).Id != 0
+}
+
+// exportRetentionDays 导出文件保留天数，超过后由定时任务清理。
+const exportRetentionDays = 7
+
+// CleanupExpiredExports 删除超过保留期的导出文件（任务记录保留）。
+func CleanupExpiredExports() {
+	entries, err := os.ReadDir(exportDir)
+	if err != nil {
+		if !os.IsNotExist(err) {
+			slog.Warn("read export dir failed", "err", err)
+		}
+		return
+	}
+	cutoff := time.Now().AddDate(0, 0, -exportRetentionDays)
+	for _, entry := range entries {
+		if entry.IsDir() || strings.HasSuffix(entry.Name(), ".tmp") {
+			continue
+		}
+		info, err := entry.Info()
+		if err != nil {
+			continue
+		}
+		if info.ModTime().Before(cutoff) {
+			path := filepath.Join(exportDir, entry.Name())
+			if err := os.Remove(path); err != nil {
+				slog.Warn("remove expired export file failed", "path", path, "err", err)
+			} else {
+				slog.Info("removed expired export file", "path", path)
+			}
+		}
+	}
 }

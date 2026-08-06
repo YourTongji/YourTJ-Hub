@@ -11,6 +11,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/logging"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
+	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/robfig/cron/v3"
 )
 
@@ -44,6 +45,11 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", backupSpec, "err", err)
+	entryID, err = scheduler.AddFunc("4 3 * * *", upCmd(func() {
+		// 清理超过保留期的数据导出文件
+		dataservice.CleanupExpiredExports()
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "4 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }
