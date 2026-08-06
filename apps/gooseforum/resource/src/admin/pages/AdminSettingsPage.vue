@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { FileText, Globe, Loader2, MailCheck, Plus, Save, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { FileText, Globe, GripVertical, Loader2, MailCheck, Plus, Save, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -343,6 +343,45 @@ function addAnnouncementItem() {
 
 function removeAnnouncementItem(index: number) {
   announcementForm.items?.splice(index, 1)
+}
+
+// 拖拽排序状态：dragstart 记录源下标，dragover 记录目标下标
+const draggingAnnouncementIndex = ref<number | null>(null)
+const dragOverAnnouncementIndex = ref<number | null>(null)
+
+function onAnnouncementDragStart(index: number, event: DragEvent) {
+  if (!event.dataTransfer) return
+  draggingAnnouncementIndex.value = index
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', String(index))
+}
+
+function onAnnouncementDragOver(index: number, event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (index !== draggingAnnouncementIndex.value) {
+    dragOverAnnouncementIndex.value = index
+  }
+}
+
+function onAnnouncementDrop(index: number, event: DragEvent) {
+  event.preventDefault()
+  moveAnnouncementItem(draggingAnnouncementIndex.value, index)
+  dragOverAnnouncementIndex.value = null
+}
+
+function onAnnouncementDragEnd() {
+  draggingAnnouncementIndex.value = null
+  dragOverAnnouncementIndex.value = null
+}
+
+// 将公告从 fromIndex 移动到 toIndex（数组顺序即首页轮播的展示顺序）
+function moveAnnouncementItem(fromIndex: number | null, toIndex: number) {
+  if (fromIndex === null || fromIndex === toIndex) return
+  const items = announcementForm.items ?? []
+  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex > items.length) return
+  const [moved] = items.splice(fromIndex, 1)
+  items.splice(toIndex, 0, moved)
 }
 
 async function uploadImage(target: 'siteLogo', event: Event) {
@@ -737,10 +776,20 @@ onMounted(load)
           <div
             v-for="(item, index) in announcementForm.items"
             :key="item.id"
-            class="rounded-lg border border-border bg-card p-4"
+            draggable="true"
+            class="rounded-lg border border-border bg-card p-4 transition-[opacity,box-shadow] duration-150"
+            :class="[
+              draggingAnnouncementIndex === index && 'opacity-50',
+              dragOverAnnouncementIndex === index && 'ring-2 ring-primary/60',
+            ]"
+            @dragstart="onAnnouncementDragStart(index, $event)"
+            @dragover="onAnnouncementDragOver(index, $event)"
+            @drop="onAnnouncementDrop(index, $event)"
+            @dragend="onAnnouncementDragEnd"
           >
             <div class="mb-3 flex items-center justify-between gap-2">
               <div class="flex items-center gap-2 text-sm font-medium">
+                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00fm')" />
                 {{ adminText('k0009') }} #{{ index + 1 }}
               </div>
               <div class="flex items-center gap-3">
