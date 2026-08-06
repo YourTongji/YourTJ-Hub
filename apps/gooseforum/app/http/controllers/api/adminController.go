@@ -10,6 +10,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/datastruct"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
@@ -1334,7 +1335,11 @@ type SaveRateLimitSettingsReq struct {
 
 // SaveRateLimitSettings 保存滥用防护（限流）设置
 func SaveRateLimitSettings(req component.BetterRequest[SaveRateLimitSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.RateLimitSettings, req.Params.Settings, hotdataserve.ClearRateLimitConfigCache)
+	res := savePageConfig(pageConfig.RateLimitSettings, req.Params.Settings, hotdataserve.ClearRateLimitConfigCache)
+	// 窗口/配额调整需对已存在的计数立即生效：清空内存计数，避免旧窗口的 entry.window
+	// 继续作用于新配置（如 3600s → 60s 时旧 key 仍按 3600s 计数）。
+	ratelimit.Default().ResetAll()
+	return res
 }
 
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {

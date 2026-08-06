@@ -13,6 +13,7 @@ import PostPositionRail from '@/site/components/PostPositionRail.vue'
 import PostReplyReference from '@/site/components/PostReplyReference.vue'
 import TopicFloatingControls from '@/site/components/TopicFloatingControls.vue'
 import TopicList from '@/site/components/TopicList.vue'
+import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { TopicDetailProps, LayoutPayload, PostPayload, ReplyTargetPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
@@ -1749,6 +1750,7 @@ async function removePost(postId: number) {
 
       <PostComposer
         v-if="composerMounted"
+        v-model="postContent"
         v-model:captcha-code="captchaCode"
         :open="composerOpen"
         :authenticated="page.layout.viewer.isAuthenticated"
