@@ -70,8 +70,9 @@ jobs:
           set -euo pipefail
           GH_USER=$(curl -sS -H "Authorization: token ${RELEASE_TOKEN}" \
             https://api.github.com/user | jq -r .login)
-          GH_EMAIL=$(curl -sS -H "Authorization: token ${RELEASE_TOKEN}" \
-            https://api.github.com/user/emails | jq -r '.[0].email')
+          [ -n "$GH_USER" ] && [ "$GH_USER" != "null" ] || { echo "::error::无法获取 PAT 账号身份"; exit 1; }
+          # GitHub noreply 邮箱, 无需额外 email scope
+          GH_EMAIL="${GH_USER}@users.noreply.github.com"
           echo "pushing as: ${GH_USER} <${GH_EMAIL}>"
 
           git config user.name "${GH_USER}"
