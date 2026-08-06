@@ -105,6 +105,23 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
+### Upgrade note: `app.signingKey` is now mandatory
+
+Since the issue #8 build, `serve` refuses to start with the built-in default
+signing key (it exits with code 1 instead of silently continuing). Existing
+`config.toml` files created before this change may omit `app.signingKey`;
+**before upgrading an existing instance, add a random signing key** to
+`main/config.toml` and `dev/config.toml`:
+
+```toml
+[app]
+signingKey = "<random 32+ byte base64 string>"
+```
+
+Generate one with `openssl rand -base64 32`. Without it the new binary exits
+immediately on startup; `init-server.sh` already generates a random key for
+new installs.
+
 ### Unique-index preflight (user_o_auth provider_uid)
 
 Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
