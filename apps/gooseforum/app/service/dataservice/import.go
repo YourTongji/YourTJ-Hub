@@ -117,8 +117,7 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			continue
 		}
 		var existing users.EntityComplete
-		// 幂等：优先按原始 id（导出/导入往返保留外键关系），其次按 username/email
-		id := rowUint64(row, "id")
+		// 幂等：id 已在上方检查；此处按 username/email 兜底
 		if id > 0 {
 			if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
 				report.Skipped++
@@ -135,7 +134,7 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			}
 		}
 		user := users.EntityComplete{
-			Id:            id,
+			Id:          id,
 			Username:    username,
 			Email:       rowString(row, "email"),
 			Nickname:    rowString(row, "nickname"),
