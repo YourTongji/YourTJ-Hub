@@ -42,13 +42,20 @@ EOF
   echo "init: $ROOT/.env created"
 fi
 
-# 5. 生成 config.toml(随机 signingKey, 域名参数化)
+# 5. 生成 config.toml(随机 signingKey, 域名参数化, 可选 Casdoor 配置)
 GEN_KEY="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)"
+CASDOOR_ENDPOINT="${CASDOOR_ENDPOINT:-http://127.0.0.1:8001}"
+CASDOOR_CLIENT_ID="${CASDOOR_CLIENT_ID:-}"
+CASDOOR_CLIENT_SECRET="${CASDOOR_CLIENT_SECRET:-}"
 for inst in main dev; do
   if [ ! -f "$ROOT/$inst/config.toml" ]; then
     domain="$MAIN_DOMAIN"
     [ "$inst" = "dev" ] && domain="$DEV_DOMAIN"
-    sed -e "s|REPLACE_SIGNING_KEY|$GEN_KEY|" -e "s|REPLACE_SERVER_URL|$domain|" \
+    sed -e "s|REPLACE_SIGNING_KEY|$GEN_KEY|" \
+        -e "s|REPLACE_SERVER_URL|$domain|" \
+        -e "s|REPLACE_CASDOOR_ENDPOINT|$CASDOOR_ENDPOINT|" \
+        -e "s|REPLACE_CASDOOR_CLIENT_ID|$CASDOOR_CLIENT_ID|" \
+        -e "s|REPLACE_CASDOOR_CLIENT_SECRET|$CASDOOR_CLIENT_SECRET|" \
       "$ROOT/config.toml.example" > "$ROOT/$inst/config.toml"
     echo "init: $ROOT/$inst/config.toml created (domain: $domain)"
   fi

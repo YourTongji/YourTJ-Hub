@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (auth chain `Planned`; numeric-ID premise verified)
+> Status: Active (auth chain `Partial`; Casdoor OIDC integrated, session/TOTP implemented)
 >
 > Owner: Platform maintainers, Security reviewer
 >
@@ -10,44 +10,69 @@
 
 ## Identity model
 
-- **Identity's only source = Casdoor (OIDC)**. The forum does not maintain its own password system;
-  Casdoor issues id_token with `sub` = numeric user ID (uint64).
+- **Identity's only source = Casdoor (OIDC)**. Casdoor issues id_token with `sub` = numeric user ID
+  (uint64). The forum keeps its own password login only as a legacy path; GitHub OAuth (goth) remains
+  available.
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
-  fails to parse and falls back to 0, making all users collide. Casdoor must:
+  fails to parse and falls back to 0, making all users collide. The OIDC callback enforces this
+  server-side (`ParseUint` failure rejects the login). Casdoor must:
   1. set the app SignupItems ID rule to `Incremental` (self-registered users get auto-increment numeric
      IDs); and
   2. explicitly pass numeric `id` when admins create accounts.
-- The forum JWT is only a **session credential** (HS256, self-signed, refresh_token possible); it is not
-  identity truth. Bans/state changes come from Casdoor; the server syncs a local projection via exchange.
+- The forum JWT is only a **session credential** (HS256, self-signed, 7-day TTL, carries a `jti`); it is
+  not identity truth. Bans/state changes come from Casdoor; the server syncs a local projection via
+  exchange.
 
 ## Login flows
 
 ### Web
 
-Standard OIDC authorization-code flow: browser redirects to Casdoor → callback → server exchanges code
-for id_token → verify (iss/aud/nonce/exp) → find or create local user → issue forum JWT (HttpOnly cookie
-or Authorization header, decided at implementation).
+- Password login: RSA-OAEP encrypted password → forum `users.Verify` → if the user enabled TOTP 2FA,
+  the server issues a 5-minute `totp_challenge` token instead of a session token; the client posts the
+  code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
+- GitHub OAuth (goth): unchanged; callback binds or signs in and issues a session token.
+- Casdoor OIDC: `GET /api/auth/oidc/login` (PKCE + state + nonce) → Casdoor → callback exchanges code
+  for id_token → verify (iss/aud/nonce/exp) → find or create local user → issue forum JWT. The callback
+  also serves account binding for already-signed-in users (`/settings?tab=binding`).
 
 ### Mobile (Flutter)
 
 1. appauth + PKCE → Casdoor auth page (external browser) → callback with code;
 2. token endpoint exchanges code for id_token (verify nonce);
-3. `POST /api/auth/oidc/exchange` (body: idToken, nonce) → server verifies → returns forum JWT;
+3. `POST /api/auth/oidc/exchange` (planned; body: idToken, nonce) → server verifies → returns forum JWT;
 4. JWT stored in Keychain/Keystore (flutter_secure_storage); id_token stays in memory only.
+
+## Two-factor authentication
+
+- **Password login** is protected by forum-side TOTP (RFC 6238, optional, opt-in). Secrets are stored
+  AES-256-GCM encrypted (key derived from `app.signingKey`); recovery codes are stored hashed and are
+  single-use; verification attempts are rate-limited per user (10 failures / 15 min).
+- **OAuth/Casdoor logins** do not run forum TOTP; their MFA is handled by Casdoor itself
+  (Casdoor-native TOTP/MFA, Passkey/WebAuthn). This keeps a single identity source for those paths.
+- Passkey: enabled on the Casdoor side (WebAuthn native support); the forum has no WebAuthn code.
 
 ## Account lifecycle
 
-- Registration: Casdoor self-service (Incremental ID) or admin-created (explicit numeric id).
-- Session: forum JWT valid 7 days (GooseForum scale, tunable at implementation); with refresh_token,
-  short access + long refresh; password change/kick → TokenVersion invalidates old tokens.
+- Registration: Casdoor self-service (Incremental ID) or admin-created (explicit numeric id); forum
+  password registration still available.
+- Session: forum JWT valid 7 days (GooseForum scale, tunable). Every session-scoped token carries a
+  `jti` that maps to a row in `user_sessions`; the auth middleware rejects tokens whose session row is
+  missing or expired, so revocation is immediate.
+- Revocation: users can list sessions (IP masked, device/UA) in Settings → Security, revoke a single
+  session, or sign out of all devices. "Sign out of all devices" also bumps `TokenVersion`, which
+  invalidates every previously issued token as a second line of defense.
+- Password change: `TokenVersion` bumps, invalidating old tokens (existing behavior preserved).
 - Ban/disable: Casdoor's active/forbidden is authoritative; server syncs at exchange and every check.
 - Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
   deletion before persisting).
 
 ## Security notes
 
-- PKCE required (appauth default); nonce prevents replay (the exchange endpoint must verify it).
-- id_token never persisted; forum JWT goes into OS secure storage.
-- Enumeration resistance: login errors do not distinguish "user not found / wrong password"
-  (Casdoor-side config).
-- Session revocation: TokenVersion or refresh rotation (decided at implementation; record in note).
+- PKCE required (Casdoor flow); nonce prevents replay; state prevents CSRF on the callback.
+- id_token never persisted; forum JWT goes into an HttpOnly cookie (Secure + SameSite=Lax when the site
+  is served over HTTPS).
+- Enumeration resistance: login errors do not distinguish "user not found / wrong password".
+- Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
+  TokenVersion remains as a global invalidation fallback.
+- TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,
+  recovery codes hashed, codes shown exactly once during setup).

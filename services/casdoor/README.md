@@ -12,3 +12,15 @@
 #
 # Note: the user id defaults to UUID; credit's GetID() requires numeric uint64 —
 #       the numeric-ID config above is mandatory, otherwise all users parse to 0 and collide.
+#
+# Forum-side integration (implemented):
+# - GET /api/auth/oidc/login — PKCE + state + nonce, redirects to Casdoor
+# - GET /api/auth/oidc/callback — exchanges code, verifies iss/aud/nonce/exp, enforces
+#   numeric sub (ParseUint), then binds (signed-in) or signs in (creates local user)
+# - config keys: casdoor.endpoint / casdoor.client_id / casdoor.client_secret
+#
+# MFA / Passkey (Casdoor-side, recommended for OAuth/Casdoor logins):
+# - TOTP/MFA and Passkey (WebAuthn) are enabled inside Casdoor's app settings; the
+#   forum does not re-implement them for OIDC logins (forum TOTP covers password login only)
+# - Passkey: enable the WebAuthn provider / passkey sign-in in the Casdoor application,
+#   then users can register passkeys from Casdoor's account pages
