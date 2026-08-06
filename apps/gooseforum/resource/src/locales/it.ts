@@ -307,6 +307,8 @@ export default {
     replyTargetUnavailable: 'La risposta originale non è disponibile',
     expandReply: 'Mostra tutto',
     collapseReply: 'Riduci',
+    expandReplies: 'Mostra altre {count} risposte',
+    collapseReplies: 'Mostra meno risposte',
     replyPlaceholder: 'Scrivi la tua risposta...',
     publishing: 'Pubblicazione...',
     delete: 'Elimina',

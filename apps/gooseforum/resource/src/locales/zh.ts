@@ -307,6 +307,8 @@ export default {
     replyTargetUnavailable: '原回复不可见',
     expandReply: '展开全部',
     collapseReply: '收起',
+    expandReplies: '展开 {count} 条回复',
+    collapseReplies: '收起回复',
     replyPlaceholder: '写下你的回复...',
     publishing: '发布中...',
     delete: '删除',
