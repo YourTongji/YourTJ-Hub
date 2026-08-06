@@ -14,6 +14,8 @@ func RegisterByGin(ginApp *gin.Engine) {
 	// 访问日志中间件
 	ginApp.Use(middleware.AccessLog)
 
+	// 健康检查(部署冒烟/负载均衡探测,匿名可访问)
+	ginApp.GET("/health", controllers.Health)
 	siteInfoRoute(ginApp)
 	// 接口
 	apiRoute(ginApp)
