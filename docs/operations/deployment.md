@@ -44,7 +44,8 @@
 
 ## Branch model & CI/CD
 
-- `dev` is the main development line; merges to `dev` trigger `.github/workflows/deploy-dev.yml`:
+- `dev` is the default branch and the main development line; merges to `dev` trigger
+  `.github/workflows/deploy-dev.yml`:
   1. Build single binary (frontend + go build) on GitHub Actions.
   2. Upload binary via scp; SSH: `sync-db-from-main.sh` (SQLite `.backup` snapshot of main db → dev db).
   3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
@@ -53,6 +54,10 @@
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
      auto-rollback to previous image tag on failure.
+- **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
+  `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
+  release is `v0.1.0` for patch / `v0.1.0` minor / `v1.0.0` major), tags it, and pushes — which triggers
+  `deploy-main`. Run it from Actions → Release to main → Run workflow → choose bump type.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.

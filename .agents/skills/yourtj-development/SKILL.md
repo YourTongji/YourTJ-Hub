@@ -18,8 +18,12 @@ Classify the request before changing state:
   authorization for the requested publication action; change authorization alone is insufficient.
 
 Run `git status --short --branch`, inspect worktrees, and preserve existing changes. Never work directly on
-`main`. Create a branch from current `origin/main`; use `feat/<topic>` / `fix/<topic>` / `docs/<topic>`.
-Prefer a worktree when the current checkout is dirty. Never discard or include unrelated work.
+`dev` or `main`. `dev` is the default branch and the main development line: create branches from current
+`origin/dev` using `feat/<topic>` / `fix/<topic>` / `docs/<topic>` and open PRs against `dev`. `main` is
+the production site: merges to `main` go through PR + CI and auto-deploy to the production instance; the
+dev instance syncs a consistent snapshot of the main database on each deploy so DB migrations are
+rehearsed on dev before reaching main. Prefer a worktree when the current checkout is dirty. Never discard
+or include unrelated work.
 
 ## 2. Read the governing sources
 
