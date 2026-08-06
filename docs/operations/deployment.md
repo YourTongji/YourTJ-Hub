@@ -26,7 +26,7 @@
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
   docker-compose.yaml     # main + dev services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
   build/
@@ -39,8 +39,8 @@
     config.toml           # dev config
     storage/
   snapshots/
-    main/sqlite-*.db      # pre-deploy backups (keep 7)
-    dev-prev/             # previous dev db before sync (troubleshooting)
+    main/sqlite-*.db      # pre-deploy backups (keep 7) — SQLite 部署
+    main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 ```
 
 ## Branch model & CI/CD
@@ -48,7 +48,8 @@
 - `dev` is the default branch and the main development line; merges to `dev` trigger
   `.github/workflows/deploy-dev.yml`:
   1. Build single binary (frontend + go build) on GitHub Actions.
-  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (SQLite `.backup` snapshot of main db → dev db).
+  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
+     or PG `pg_dump|psql` rebuild of dev db).
   3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
@@ -149,16 +150,18 @@ instance:
 
 ### Backup and sync scripts under PostgreSQL
 
-- `backup-db.sh` / `snapshot-db.sh` / `sync-db-from-main.sh` use the SQLite `.backup` API and only
-  apply to SQLite deployments. For a PG deployment, back up main with `pg_dump` (e.g. nightly cron)
-  and sync dev from main with:
+- `backup-db.sh` / `sync-db-from-main.sh` auto-detect the main-db mode from each instance's
+  `config.toml`:
+  - SQLite: use the SQLite `.backup` API (unchanged legacy path).
+  - PostgreSQL: `backup-db.sh` runs `pg_dump` into `snapshots/<instance>/pg-<db>-<ts>.sql`;
+    `sync-db-from-main.sh` drops/recreates `yourtj_dev` and pipes
+    `pg_dump -d yourtj_main | psql -d yourtj_dev` (dev is a clean one-way snapshot of main).
+- Manual equivalent inside the postgres container:
   ```bash
-  # 在 postgres 容器内执行: dev 库重建 + 从 main 库一致性恢复
   docker compose exec postgres sh -c \
     'pg_dump -U yourtj -d yourtj_main | psql -U yourtj -d yourtj_dev'
   ```
-  (drop/recreate `yourtj_dev` first if it must be a clean snapshot). SQLite deployments are
-  unaffected.
+- `snapshot-db.sh` remains a generic SQLite snapshot helper; it is not used by PG deployments.
 
 ### Logging configuration (issue #11)
 

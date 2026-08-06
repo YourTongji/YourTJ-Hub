@@ -34,30 +34,39 @@ services:
       retries: 30
       start_period: 10s
 
-  # 可选 PostgreSQL 服务（仅当主库 [db.default] connection="postgres" 时需要）。
-  # 默认注释掉；启用后需在 /opt/yourtj/.env 中配置 POSTGRES_USER/POSTGRES_PASSWORD，
-  # 并在 main/config.toml / dev/config.toml 的 [db.default] 中把 url 指向本服务
-  # （host=postgres，Compose 网络内服务名；容器内 127.0.0.1 指向论坛自身，无法连接）。
-  # main 与 dev 必须使用两个独立数据库（yourtj_main / yourtj_dev），
-  # 保持生产/测试隔离（见 docs/operations/deployment.md「PostgreSQL support」）。
-  # 文件库 [db.file] 固定使用 SQLite，不受影响。
-  # postgres:
-  #   image: postgres:16-alpine
-  #   container_name: yourtj-postgres
-  #   restart: unless-stopped
-  #   environment:
-  #     POSTGRES_USER: ${POSTGRES_USER:-yourtj}
-  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yourtj}
-  #     POSTGRES_DB: ${POSTGRES_DB:-yourtj}
-  #   volumes:
-  #     - pgdata:/var/lib/postgresql/data
-  #   healthcheck:
-  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yourtj}"]
-  #     interval: 10s
-  #     timeout: 5s
-  #     retries: 10
-  #   networks:
-  #     - default
+  postgres:
+    image: postgres:16-alpine
+    container_name: yourtj-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-yourtj}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: postgres
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yourtj}"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+
+  meilisearch:
+    image: getmeili/meilisearch:v1.11
+    container_name: yourtj-meilisearch
+    restart: unless-stopped
+    environment:
+      MEILI_MASTER_KEY: ${MEILI_MASTER_KEY}
+      MEILI_NO_ANALYTICS: "true"
+    ports:
+      - "127.0.0.1:7700:7700"
+    volumes:
+      - meilidata:/meili_data
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:7700/health >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
 volumes:
   pgdata:
+  meilidata:
