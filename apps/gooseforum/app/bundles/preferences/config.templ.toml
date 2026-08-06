@@ -31,7 +31,10 @@ keep = 7
 spec = "0 3 * * *"
 
 [db.default]
-connection = "sqlite"# in mysql sqlite
+# 主库连接类型: sqlite / mysql / postgres（文件库 [db.file] 固定 sqlite）
+connection = "sqlite"
+# mysql: "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+# postgres: "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
 url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
 path = "./storage/database/sqlite.db"# :memory:|./storage/database/sqlite.db
 
@@ -59,6 +62,16 @@ rolling = true # 是否开启滚动 true ,false
 maxage = 10 # 最大日期
 maxsize = 256 # 最大文件大小 MB
 maxBackUps = 30 # 最大保留文件数量
+# 日志级别 debug/info/warn/error，默认 info。
+# 不配置时 debug 模式（[app] debug=true）自动放宽到 debug；显式配置后以本项为准。
+# 生产环境建议显式配置 level（见 deploy/config.toml.example）。
+# level = "info"
+# 日志格式 json/console，默认 json
+format = "json"
+# ERROR/WARNING 独立轮转文件（便于告警采集），留空则不单独拆分
+errorPath = "./storage/logs/run.error.log"
+# 访问日志是否记录客户端 IP，默认关闭（隐私最小化）
+logIp = false
 # 慢 SQL 日志。默认生产环境建议开启，local 可按需关闭。
 slowSQL = true
 slowSQLThreshold = "200ms"

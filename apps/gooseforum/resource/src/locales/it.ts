@@ -234,6 +234,8 @@ export default {
     noResultsTitle: 'Nessun risultato',
     noResultsForQuery: 'Nessun risultato per "{query}"',
     noResultsDescription: 'Prova con un’altra parola chiave o accorcia la ricerca.',
+    unavailableTitle: 'Ricerca non disponibile',
+    unavailableDescription: 'Il servizio di ricerca è temporaneamente non disponibile. Riprova più tardi.',
     startTitle: 'Inizia la ricerca',
     startDescription: 'Inserisci un titolo, una parola chiave o una frase per cercare nel forum.',
   },

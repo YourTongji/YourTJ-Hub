@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 	"strings"
@@ -11,6 +12,9 @@ import (
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
 )
+
+// ErrSearchUnavailable 表示搜索服务不可用
+var ErrSearchUnavailable = errors.New("search service unavailable")
 
 // SearchRequest is a topic search request.
 type SearchRequest struct {
