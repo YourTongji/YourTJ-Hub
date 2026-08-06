@@ -160,9 +160,28 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 	jsonEncoder := json.NewEncoder(file)
 	jsonEncoder.SetEscapeHTML(false)
 
+	// JSON 模式输出与导入兼容的对象结构：{"users":[...],"topics":[...],"posts":[...]}
+	firstTable := true
+	if payload.Format == "json" {
+		if _, err := file.WriteString("{"); err != nil {
+			return fmt.Errorf("写入导出 JSON 失败: %w", err)
+		}
+	}
+
 	for _, table := range order {
 		if !selected[table] {
 			continue
+		}
+		if payload.Format == "json" {
+			if !firstTable {
+				if _, err := file.WriteString(","); err != nil {
+					return fmt.Errorf("写入导出 JSON 失败: %w", err)
+				}
+			}
+			firstTable = false
+			if _, err := fmt.Fprintf(file, "%q:[", table); err != nil {
+				return fmt.Errorf("写入导出 JSON 失败: %w", err)
+			}
 		}
 		count, err := writeExportTable(ctx, file, writer, jsonEncoder, payload.Format, table, func(n int64) {
 			processed += n
@@ -180,6 +199,17 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 			return err
 		}
 		processed += count
+		if payload.Format == "json" {
+			if _, err := file.WriteString("]"); err != nil {
+				return fmt.Errorf("写入导出 JSON 失败: %w", err)
+			}
+		}
+	}
+
+	if payload.Format == "json" {
+		if _, err := file.WriteString("}"); err != nil {
+			return fmt.Errorf("写入导出 JSON 失败: %w", err)
+		}
 	}
 
 	if writer != nil {
@@ -219,12 +249,18 @@ func writeExportTable(ctx context.Context, file *os.File, writer *csv.Writer, en
 			break
 		}
 		lastID = rows[len(rows)-1].ID
-		for _, row := range rows {
+		for i, row := range rows {
 			if format == "csv" {
 				if err := writeCSVRow(writer, table, row); err != nil {
 					return total, err
 				}
 			} else {
+				// JSON 数组内元素间加逗号分隔
+				if i > 0 {
+					if _, err := file.WriteString(","); err != nil {
+						return total, err
+					}
+				}
 				if err := encoder.Encode(row.Fields); err != nil {
 					return total, err
 				}

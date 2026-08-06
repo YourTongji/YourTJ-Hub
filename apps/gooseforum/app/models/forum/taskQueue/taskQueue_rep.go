@@ -34,11 +34,11 @@ func GetPendingTasksByType(typePrefix string, limit int) (tasks []*Entity) {
 }
 
 // GetPendingEmailTasks 获取邮件 worker 专属的待处理任务。
-// 新任务 type 带 "email." 前缀；存量任务（无 "." 前缀）仍按邮件任务处理，
-// 避免历史邮件丢失。
+// 新任务 type 带 "email." 前缀；存量任务仅 activation/reset_password 两种
+// （历史邮件任务），显式白名单避免 export/file-migrate 等无前缀任务被误消费。
 func GetPendingEmailTasks(limit int) (tasks []*Entity) {
 	builder().
-		Where("(type LIKE 'email.%' OR type NOT LIKE '%.%')").
+		Where("(type LIKE 'email.%' OR type IN (?, ?))", "activation", "reset_password").
 		Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
 		Order("id asc").
 		Limit(limit).

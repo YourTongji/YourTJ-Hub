@@ -5,6 +5,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net/url"
 	"strings"
 
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
@@ -39,17 +40,27 @@ func NewS3Provider(cfg pageConfig.StorageSettings) (*S3Provider, error) {
 	case "path":
 		lookup = minio.BucketLookupPath
 	}
+	// minio-go 的 New() 期望 endpoint 不含 scheme（Secure 选项控制协议）。
+	// 用户配置可能带 scheme（如 https://cos.ap-shanghai.myqcloud.com），
+	// 这里剥离 scheme 并据此确定 Secure。
 	endpoint := cfg.Endpoint
-	if !strings.Contains(endpoint, "://") {
-		scheme := "https"
-		if !cfg.Secure {
-			scheme = "http"
+	secure := cfg.Secure
+	if strings.Contains(endpoint, "://") {
+		parsed, err := url.Parse(endpoint)
+		if err != nil {
+			return nil, fmt.Errorf("parse s3 endpoint: %w", err)
 		}
-		endpoint = scheme + "://" + endpoint
+		endpoint = parsed.Host
+		switch parsed.Scheme {
+		case "http":
+			secure = false
+		case "https":
+			secure = true
+		}
 	}
 	client, err := minio.New(endpoint, &minio.Options{
 		Creds:        credentials.NewStaticV4(cfg.AccessKey, cfg.SecretKey, ""),
-		Secure:       cfg.Secure,
+		Secure:       secure,
 		Region:       cfg.Region,
 		BucketLookup: lookup,
 	})

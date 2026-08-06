@@ -100,11 +100,13 @@ func buildFromConfig(cfg pageConfig.StorageSettings) Provider {
 }
 
 // PublicAccessPath returns the public URL path for a stored file name.
-// When a public URL prefix is configured, it is used instead of the
-// local /file/img proxy route so clients can load from CDN/object storage
-// directly. Existing markdown content keeps working through the proxy route.
 func PublicAccessPath(name string) string {
-	cfg := hotdataserve.GetStorageSettingsConfigCache()
+	return PublicAccessPathWithConfig(hotdataserve.GetStorageSettingsConfigCache(), name)
+}
+
+// PublicAccessPathWithConfig 使用给定配置计算公开访问路径，便于测试。
+// 配置了公开前缀时直接使用前缀（CDN/对象存储直读）；否则走本地 /file/img 代理路由。
+func PublicAccessPathWithConfig(cfg pageConfig.StorageSettings, name string) string {
 	if cfg.PublicUrlPrefix != "" {
 		return trimRightSlash(cfg.PublicUrlPrefix) + "/" + trimLeftSlash(name)
 	}
