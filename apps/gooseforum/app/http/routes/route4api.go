@@ -3,6 +3,8 @@ package routes
 import (
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
@@ -32,10 +34,30 @@ func assertRouter(ginApp *gin.Engine) {
 	} else {
 		slog.Info("static assets gzip disabled", "cache", false)
 	}
+	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
+	if devServer := viteDevServerURL(); devServer != "" {
+		target, err := url.Parse(devServer)
+		if err != nil {
+			slog.Error("vite dev server url parse", "err", err)
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			staticRoute.Any("assets/*path", gin.WrapH(proxy))
+			slog.Info("assets proxied to vite dev server", "target", devServer)
+		}
+	} else {
+		staticRoute.StaticFS("assets", http.FS(assetsFs))
+	}
 	staticRoute.
 		Use(middleware.BrowserCache).
-		StaticFS("assets", http.FS(assetsFs)).
 		StaticFS("static", http.FS(staticFS))
+}
+
+func viteDevServerURL() string {
+	devServer := preferences.GetString("resource.devServer", "")
+	if devServer == "" && !setting.IsProduction() {
+		devServer = "http://localhost:3010"
+	}
+	return devServer
 }
 
 func viewRoute(ginApp *gin.Engine) {
