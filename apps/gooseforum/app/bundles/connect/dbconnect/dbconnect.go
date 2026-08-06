@@ -1,6 +1,7 @@
 package dbconnect
 
 import (
+	"fmt"
 	"sync"
 
 	"github.com/leancodebox/GooseForum/app/bundles/closer"
@@ -27,6 +28,10 @@ func Connect() *gorm.DB {
 		} else {
 			dbConfig := preferences.GetExclusivePreferences("db.default")
 			dbConnect = sqlconnect.GetConnectByPreferences(dbConfig)
+		}
+		if dbConnect.Error != nil {
+			// 连接失败时立即失败，避免 nil *gorm.DB 在后续 AutoMigrate 上解引用崩溃
+			panic(fmt.Sprintf("dbconnect: %v", dbConnect.Error))
 		}
 		// 注册到全局关闭管理器
 		closer.RegisterPriority(closer.PriorityDatabase, func() error {

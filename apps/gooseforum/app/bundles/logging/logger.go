@@ -32,12 +32,14 @@ func ErrIf(err error) bool {
 }
 
 var (
-	debug      = setting.IsDebug()
-	logType    = preferences.Get("log.type", LogTypeStdout)
-	logPath    = preferences.Get("log.path", "./storage/logs/run.log")
-	maxAge     = preferences.GetInt("log.maxAge", 30)
-	maxSize    = preferences.GetInt("log.maxSize", 1024)
-	maxBackUps = preferences.GetInt("log.maxBackUps", 1024)
+	debug        = setting.IsDebug()
+	logType      = preferences.Get("log.type", LogTypeStdout)
+	logPath      = preferences.Get("log.path", "./storage/logs/run.log")
+	logFormat    = preferences.Get("log.format", "json")
+	logErrorPath = preferences.Get("log.errorPath", "./storage/logs/run.error.log")
+	maxAge       = preferences.GetInt("log.maxAge", 30)
+	maxSize      = preferences.GetInt("log.maxSize", 1024)
+	maxBackUps   = preferences.GetInt("log.maxBackUps", 1024)
 )
 
 func init() {
@@ -60,9 +62,11 @@ func getRootDir() string {
 
 var lumberJackLogger *lumberjack.Logger
 var asyncWriter *zapcore.BufferedWriteSyncer
+var errorLumberJackLogger *lumberjack.Logger
+var errorAsyncWriter *zapcore.BufferedWriteSyncer
 var zapLogger *zap.Logger
 
-func newZapCore(ws zapcore.WriteSyncer) zapcore.Core {
+func newZapCore(ws zapcore.WriteSyncer, level zapcore.Level) zapcore.Core {
 	encoderConfig := zap.NewProductionEncoderConfig()
 	encoderConfig.EncodeTime = func(t time.Time, enc zapcore.PrimitiveArrayEncoder) {
 		enc.AppendString(t.Format("2006-01-02 15:04:05.000"))
@@ -75,16 +79,40 @@ func newZapCore(ws zapcore.WriteSyncer) zapcore.Core {
 		enc.AppendString(fmt.Sprintf("%s:%d", path, caller.Line))
 	}
 
-	level := zap.InfoLevel
-	if debug {
-		level = zap.DebugLevel
+	var encoder zapcore.Encoder
+	if logFormat == "console" {
+		encoder = zapcore.NewConsoleEncoder(encoderConfig)
+	} else {
+		encoder = zapcore.NewJSONEncoder(encoderConfig)
 	}
 
-	return zapcore.NewCore(
-		zapcore.NewJSONEncoder(encoderConfig),
-		ws,
-		level,
-	)
+	return zapcore.NewCore(encoder, ws, level)
+}
+
+// parseLogLevel 解析日志级别配置。explicit 为 false 时按 debug 模式放宽。
+func parseLogLevel(raw string, isDebug, explicit bool) (zapcore.Level, error) {
+	if explicit {
+		var level zapcore.Level
+		if err := level.UnmarshalText([]byte(raw)); err != nil {
+			return zapcore.InfoLevel, err
+		}
+		return level, nil
+	}
+	if isDebug {
+		return zapcore.DebugLevel, nil
+	}
+	return zapcore.InfoLevel, nil
+}
+
+// configuredLogLevel 返回配置的日志级别；未显式配置时 debug 模式放宽为 debug。
+func configuredLogLevel() zapcore.Level {
+	raw := preferences.Get("log.level", "info")
+	level, err := parseLogLevel(raw, debug, preferences.IsSet("log.level"))
+	if err != nil {
+		slog.Warn("invalid log.level, fallback to info", "value", raw, "err", err)
+		return zapcore.InfoLevel
+	}
+	return level
 }
 
 func Init() {
@@ -110,8 +138,24 @@ func Init() {
 		writeSyncer = zapcore.AddSync(os.Stdout)
 	}
 
-	// 3. 构建 Zap Core
-	zapCore := newZapCore(writeSyncer)
+	// 3. 构建 Zap Core（主日志按配置级别；ERROR/WARNING 单独拆分到错误文件）
+	mainCore := newZapCore(writeSyncer, configuredLogLevel())
+	zapCore := zapcore.Core(mainCore)
+	if logType == LogTypeFile && logErrorPath != "" {
+		errorLumberJackLogger = &lumberjack.Logger{
+			Filename:   logErrorPath,
+			MaxSize:    maxSize,
+			MaxBackups: maxBackUps,
+			MaxAge:     maxAge,
+			Compress:   preferences.GetBool("log.compress", true),
+		}
+		errorAsyncWriter = &zapcore.BufferedWriteSyncer{
+			WS:            zapcore.AddSync(errorLumberJackLogger),
+			Size:          256 * 1024,
+			FlushInterval: 3 * time.Second,
+		}
+		zapCore = zapcore.NewTee(mainCore, newZapCore(errorAsyncWriter, zapcore.WarnLevel))
+	}
 	zapLogger = zap.New(zapCore)
 
 	// 4. 将 Zap 注入 slog (桥接)
@@ -140,9 +184,16 @@ func Shutdown() {
 	if lumberJackLogger != nil {
 		_ = lumberJackLogger.Close()
 	}
+	if errorAsyncWriter != nil {
+		_ = errorAsyncWriter.Stop()
+		errorAsyncWriter = nil
+	}
+	if errorLumberJackLogger != nil {
+		_ = errorLumberJackLogger.Close()
+	}
 
 	// 恢复默认 logger (保持与 Init 中的 Stdout 配置一致)
-	core := newZapCore(zapcore.AddSync(os.Stdout))
+	core := newZapCore(zapcore.AddSync(os.Stdout), configuredLogLevel())
 	slog.SetDefault(slog.New(zapslog.NewHandler(core, zapslog.WithCaller(true))))
 	slog.Info("logging 👋")
 	zapLogger = nil

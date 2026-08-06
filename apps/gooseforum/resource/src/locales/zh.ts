@@ -236,6 +236,8 @@ export default {
     inputPlaceholder: '搜索主题...',
     noResultsTitle: '没有找到结果',
     noResultsDescription: '换个关键词，或者缩短搜索词再试试。',
+    unavailableTitle: '搜索服务暂不可用',
+    unavailableDescription: '搜索服务暂时不可用，请稍后重试。',
     startTitle: '开始搜索',
     startDescription: '输入主题标题、关键词或短语来搜索论坛。',
   },

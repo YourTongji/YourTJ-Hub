@@ -62,11 +62,13 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 		}
 		slog.Info(fmt.Sprintf("处理主题 ID:%v, TaskUID: %v\n", doc.ID, getTaskUID(task)))
 	} else {
-		_, err = index.Delete(cast.ToString(topic.Id))
+		// DeleteDocument 删除单个文档；index.Delete(uid) 会误删整个索引
+		task, err = index.DeleteDocument(cast.ToString(topic.Id), nil)
 		if err != nil {
 			slog.Warn(fmt.Sprintf("Meilisearch 删除文档失败: %v, Error: %v\n", topic.Id, err))
 			return nil, fmt.Errorf("delete search document: %w", err)
 		}
+		slog.Info(fmt.Sprintf("删除主题 ID:%v, TaskUID: %v\n", topic.Id, getTaskUID(task)))
 	}
 	return task, nil
 }
