@@ -81,6 +81,18 @@ func GetPostingSettingsConfigCache() pageConfig.PostingContent {
 	}, configFastCacheTTL)
 }
 
+var rateLimitConfigCache = &localcache.Cache[pageConfig.RateLimitConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
+	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearRateLimitConfigCache() {
+	rateLimitConfigCache.Clear()
+}
+
 var httpNotifyConfigCache = &localcache.Cache[pageConfig.HttpNotifyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
 func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {

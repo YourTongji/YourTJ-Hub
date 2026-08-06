@@ -81,5 +81,7 @@
   "meta.topicDesc": "阅读 {title}，参与 {site} 的社区讨论。",
   "meta.communityDesc": "参与 {site} 的社区讨论。",
   "meta.userDesc": "查看 {username} 在 {site} 的话题、动态和社区关系。",
-  "meta.categoryDesc": "浏览 {category} 分类下的话题。"
+  "meta.categoryDesc": "浏览 {category} 分类下的话题。",
+  "common.rateLimited": "操作过于频繁，请 {retryAfterSeconds} 秒后再试。",
+  "common.captchaRequired": "请先完成验证码后再提交。"
 }

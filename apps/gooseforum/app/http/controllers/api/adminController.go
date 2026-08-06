@@ -10,6 +10,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/datastruct"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
@@ -1319,6 +1320,26 @@ type SavePostingSettingsReq struct {
 // SavePostingSettings 保存发布内容设置
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
 	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, hotdataserve.ClearPostingSettingsConfigCache)
+}
+
+// GetRateLimitSettings 获取滥用防护（限流）设置
+func GetRateLimitSettings(req component.BetterRequest[component.Null]) component.Response {
+	defaultSettings := defaultconfig.GetDefaultRateLimitConfig()
+	res := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultSettings)
+	return component.SuccessResponse(res)
+}
+
+type SaveRateLimitSettingsReq struct {
+	Settings pageConfig.RateLimitConfig `json:"settings" validate:"required"`
+}
+
+// SaveRateLimitSettings 保存滥用防护（限流）设置
+func SaveRateLimitSettings(req component.BetterRequest[SaveRateLimitSettingsReq]) component.Response {
+	res := savePageConfig(pageConfig.RateLimitSettings, req.Params.Settings, hotdataserve.ClearRateLimitConfigCache)
+	// 窗口/配额调整需对已存在的计数立即生效：清空内存计数，避免旧窗口的 entry.window
+	// 继续作用于新配置（如 3600s → 60s 时旧 key 仍按 3600s 计数）。
+	ratelimit.Default().ResetAll()
+	return res
 }
 
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {

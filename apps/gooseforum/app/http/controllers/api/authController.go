@@ -5,7 +5,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/bundles/logincrypto"
@@ -50,6 +49,13 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// 蜜罐字段：正常用户不可见，填了即机器，静默拒绝（返回成功但不创建账号）。
+	if strings.TrimSpace(r.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "register", "ip", c.ClientIP(), "userId", uint64(0))
+		c.JSON(http.StatusOK, component.SuccessDataCode("登录成功", component.MessageAuthLoginSuccess, nil))
+		return
+	}
+
 	r.Username = strings.TrimSpace(r.Username)
 	r.Email = strings.TrimSpace(strings.ToLower(r.Email))
 
@@ -68,8 +74,12 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	if !captchaOpt.VerifyCaptcha(r.CaptchaId, r.CaptchaCode) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+	if ok, needCaptcha := checkCaptchaForRequest(c, r.CaptchaId, r.CaptchaCode, securityConfig.CaptchaRequired, minSubmitSecondsFor(), "register"); !ok {
+		if needCaptcha {
+			c.JSON(200, component.FailDataCode(component.MessageCaptchaRequired, component.MessageParams{"action": "register"}))
+		} else {
+			c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+		}
 		return
 	}
 
@@ -182,8 +192,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	if !captchaOpt.VerifyCaptcha(captchaId, captchaCode) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+	if ok, needCaptcha := checkCaptchaForRequest(c, captchaId, captchaCode, hotdataserve.GetSecuritySettingsConfigCache().CaptchaRequired, minSubmitSecondsFor(), "login"); !ok {
+		if needCaptcha {
+			c.JSON(200, component.FailDataCode(component.MessageCaptchaRequired, component.MessageParams{"action": "login"}))
+		} else {
+			c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+		}
 		return
 	}
 

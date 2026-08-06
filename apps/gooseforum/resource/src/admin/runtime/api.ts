@@ -20,6 +20,7 @@ import type {
   MailSettings,
   PageResult,
   PostingSettings,
+  RateLimitSettings,
   SecuritySettings,
   ServerVersion,
   SiteChromeConfig,
@@ -310,6 +311,14 @@ export function saveSecuritySettings(settings: SecuritySettings) {
 
 export function savePostingSettings(settings: PostingSettings) {
   return postJson<unknown>('/api/admin/save-posting-settings', { settings }, adminText('k001n'))
+}
+
+export function getRateLimitSettings() {
+  return getJson<RateLimitSettings>('/api/admin/rate-limit-settings', adminText('k00fl'))
+}
+
+export function saveRateLimitSettings(settings: RateLimitSettings) {
+  return postJson<unknown>('/api/admin/save-rate-limit-settings', { settings }, adminText('k00fl'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

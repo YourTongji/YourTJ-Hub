@@ -10,14 +10,23 @@ interface ApiResponse<T> {
   data?: T
 }
 
-class ApiResponseError extends Error {
+export class ApiResponseError extends Error {
   readonly messageCode?: string
+  readonly retryAfterSeconds?: number
 
-  constructor(message: string, messageCode?: string) {
+  constructor(message: string, messageCode?: string, retryAfterSeconds?: number) {
     super(message)
     this.name = 'ApiResponseError'
     this.messageCode = messageCode
+    this.retryAfterSeconds = retryAfterSeconds
   }
+}
+
+function rateLimitMessage(data: ApiResponse<unknown>, fallback: string, retryAfterSeconds?: number) {
+  return resolveApiMessage({
+    ...data,
+    params: { ...(data.params ?? {}), retryAfterSeconds },
+  }, fallback)
 }
 
 function responseMessage(data: ApiResponse<unknown>, fallback: string) {
@@ -30,6 +39,17 @@ function t(key: string) {
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   const data = await response.json().catch(() => undefined) as ApiResponse<T> | undefined
+  if (response.status === 429) {
+    const retryHeader = Number(response.headers.get('Retry-After'))
+    const retryAfterSeconds = Number.isFinite(retryHeader) && retryHeader > 0
+      ? retryHeader
+      : Number(data?.params?.retryAfterSeconds) || undefined
+    throw new ApiResponseError(
+      data?.messageCode ? rateLimitMessage(data, fallback, retryAfterSeconds) : fallback,
+      data?.messageCode,
+      retryAfterSeconds,
+    )
+  }
   if (data?.code !== undefined && data.code !== 0) {
     throw new ApiResponseError(responseMessage(data, fallback), data.messageCode)
   }
@@ -67,20 +87,6 @@ export interface UpdatePostResult {
   updatedAt: string
 }
 
-export async function createPost(topicId: number, content: string, replyToPostId = 0): Promise<CreatePostResult | number | boolean> {
-  const response = await fetch('/api/forum/posts/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      topicId,
-      content,
-      replyToPostId,
-    }),
-  })
-  return readApiResponse<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
-}
 
 export async function updatePost(postId: number, content: string): Promise<UpdatePostResult> {
   const response = await fetch('/api/forum/posts/update', {
@@ -372,6 +378,9 @@ export interface SubmitTopicInput {
   content: string
   categoryId: number[]
   topicStatus: 0 | 1
+  website?: string
+  captchaId?: string
+  captchaCode?: string
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
@@ -382,15 +391,34 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
     },
     body: JSON.stringify(topic),
   })
+  if (response.status === 429) {
+    return readApiResponse<number>(response, t('api.topicSaveFailed'))
+  }
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
 
   const data = (await response.json()) as ApiResponse<number>
   if (data.code !== undefined && data.code !== 0) {
-    throw new Error(responseMessage(data, t('api.topicSaveFailed')))
+    throw new ApiResponseError(responseMessage(data, t('api.topicSaveFailed')), data.messageCode)
   }
   return data.result ?? data.data ?? topic.topicId
+}
+
+export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string }): Promise<CreatePostResult | number | boolean> {
+  const response = await fetch('/api/forum/posts/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topicId,
+      content,
+      replyToPostId,
+      ...(extra ?? {}),
+    }),
+  })
+  return readApiResponse<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
 }
 
 export async function uploadImage(file: File): Promise<string> {
@@ -727,6 +755,7 @@ export async function register(
   captchaId: string,
   captchaCode: string,
   locale?: string,
+  website = '',
 ): Promise<string> {
   const response = await fetch('/api/register', {
     method: 'POST',
@@ -740,12 +769,13 @@ export async function register(
       locale,
       captchaId,
       captchaCode,
+      website,
     }),
   })
   return readApiSuccessMessage(response, t('auth.validation.registerSuccess'), t('api.registerFailed'))
 }
 
-export async function forgotPassword(email: string, captchaId: string, captchaCode: string): Promise<string> {
+export async function forgotPassword(email: string, captchaId: string, captchaCode: string, website = ''): Promise<string> {
   const response = await fetch('/api/forgot-password', {
     method: 'POST',
     headers: {
@@ -755,10 +785,12 @@ export async function forgotPassword(email: string, captchaId: string, captchaCo
       email,
       captchaId,
       captchaCode,
+      website,
     }),
   })
   return readApiSuccessMessage(response, t('server.auth.passwordReset.mailQueued'), t('api.resetEmailFailed'))
 }
+
 
 export async function resetPassword(token: string, newPassword: string): Promise<string> {
   const response = await fetch('/api/reset-password', {

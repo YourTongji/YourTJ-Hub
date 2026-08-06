@@ -557,8 +557,24 @@ export default {
   "k00fh": "Apri risorsa",
   "k00fi": "Dimensione",
   "k00fj": "ID massimo",
+<<<<<<< HEAD
   "k00fl": "Elimina annuncio",
   "k00fm": "Aggiungi annuncio",
   "k00fk": "Titolo annuncio",
 
+=======
+  "k00fk": "Protezione abusi",
+  "k00fl": "Impossibile caricare le impostazioni di limitazione",
+  "k00fm": "Impossibile salvare le impostazioni di limitazione",
+  "k00fn": "Controlla la frequenza delle operazioni di scrittura e la protezione dal traffico bot. Tutti i valori hanno effetto subito dopo il salvataggio.",
+  "k00fo": "Abilita limitazione",
+  "k00fp": "Salta amministratori",
+  "k00fq": "Richiedi captcha ai nuovi utenti dopo post consecutivi",
+  "k00fr": "Finestra nuovi utenti (giorni)",
+  "k00fs": "Tempo minimo invio captcha (s)",
+  "k00ft": "Azione",
+  "k00fu": "Finestra (s)",
+  "k00fv": "Limite per IP",
+  "k00fw": "Limite per utente",
+>>>>>>> origin/dev
 } as const

@@ -36,6 +36,9 @@ const props = defineProps<{
   submitting: boolean
   successMessage: string
   target?: PostPayload
+  captchaRequired?: boolean
+  captchaImg?: string
+  captchaLoading?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -44,9 +47,11 @@ const emit = defineEmits<{
   imageError: [message: string]
   imageInserted: [count: number]
   submit: []
+  refreshCaptcha: []
   'update:open': [value: boolean]
 }>()
 
+const captchaCode = defineModel<string>('captchaCode', { default: '' })
 const content = defineModel<string>({ default: '' })
 const { t } = useI18n()
 
@@ -443,6 +448,23 @@ function submit() {
             </div>
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
             <p v-if="successMessage" class="mt-2 text-sm text-success">{{ successMessage }}</p>
+            <div v-if="captchaRequired" class="mt-2 flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="relative h-9 w-24 shrink-0 overflow-hidden rounded-md border border-line"
+                :disabled="captchaLoading"
+                @click="emit('refreshCaptcha')"
+              >
+                <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-4 w-4 animate-spin text-base-content/55" />
+                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
+              </button>
+              <input
+                v-model="captchaCode"
+                class="h-9 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
+                :placeholder="t('auth.captcha')"
+                maxlength="8"
+              />
+            </div>
             <div class="mt-3 flex items-center justify-between gap-2">
               <label class="gf-icon-button h-9 w-9 cursor-pointer" :class="{ 'cursor-wait opacity-60': uploadingImage }" :title="t('publish.uploadImageTitle')">
                 <Loader2 v-if="uploadingImage" class="h-4 w-4 animate-spin" />

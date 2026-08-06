@@ -20,6 +20,7 @@ type captchaStore struct {
 type captchaInfo struct {
 	code      string    // 存储验证码答案
 	expiredAt time.Time // 过期时间
+	issuedAt  time.Time // 签发时间，用于提交耗时检测
 }
 
 // 实现 base64Captcha.Store 接口
@@ -32,6 +33,7 @@ func (s *customStore) Set(id string, value string) error {
 	s.data[id] = captchaInfo{
 		code:      value,
 		expiredAt: time.Now().Add(captchaExpiration),
+		issuedAt:  time.Now(),
 	}
 	s.Unlock()
 	return nil
@@ -153,4 +155,19 @@ func VerifyCaptcha(captchaId, captchaCode string) bool {
 		return false
 	}
 	return customCaptchaStore.Verify(captchaId, captchaCode, true)
+}
+
+// SubmittedTooFast 报告验证码从签发到提交是否短于 minSeconds（机器特征）。
+// 不消费验证码，调用方随后仍需 VerifyCaptcha 校验答案。
+func SubmittedTooFast(captchaId string, minSeconds int) bool {
+	if minSeconds <= 0 || captchaId == "" {
+		return false
+	}
+	store.RLock()
+	info, exists := store.data[captchaId]
+	store.RUnlock()
+	if !exists {
+		return false
+	}
+	return time.Since(info.issuedAt) < time.Duration(minSeconds)*time.Second
 }

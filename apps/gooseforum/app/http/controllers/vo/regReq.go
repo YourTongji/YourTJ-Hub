@@ -7,6 +7,7 @@ type RegReq struct {
 	Password       string `json:"passWord"  validate:"required"`
 	Locale         string `json:"locale,omitempty"`
 	InvitationCode string `json:"invitationCode,omitempty"`
-	CaptchaId      string `json:"captchaId" validate:"required"`
-	CaptchaCode    string `json:"captchaCode" validate:"required"`
+	CaptchaId      string `json:"captchaId,omitempty"`
+	CaptchaCode    string `json:"captchaCode,omitempty"`
+	Website        string `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 }

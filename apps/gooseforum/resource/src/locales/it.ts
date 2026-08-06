@@ -1157,6 +1157,8 @@ export default {
     },
   },
   serverMessages: {
+'common.captchaRequired': 'Completa il captcha prima di inviare.',
+    'common.rateLimited': 'Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.',
     'page.notFound': 'La pagina non esiste o è stata eliminata.',
     'route.notFound': 'Route non trovata. Controlla l’URL e il metodo della richiesta.',
     'admin.moderator.userRequired': 'Inserisci un utente moderatore.',

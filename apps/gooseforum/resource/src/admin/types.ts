@@ -239,6 +239,23 @@ export interface SecuritySettings {
   enableSignup: boolean
   enableEmailVerification: boolean
   allowedDomains: string[]
+  captchaRequired: boolean
+}
+
+export interface RateLimitRule {
+  action: string
+  windowSeconds: number
+  limitPerIp: number
+  limitPerUser: number
+}
+
+export interface RateLimitSettings {
+  enabled: boolean
+  skipAdmin: boolean
+  actions: RateLimitRule[]
+  newUserCaptchaAfterPosts: number
+  newUserCaptchaDays: number
+  minSubmitSeconds: number
 }
 
 export interface PostingSettings {

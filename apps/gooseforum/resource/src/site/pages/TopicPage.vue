@@ -16,6 +16,7 @@ import TopicList from '@/site/components/TopicList.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { TopicDetailProps, LayoutPayload, PostPayload, ReplyTargetPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
+import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -27,6 +28,16 @@ const { push: pushFlash } = useFlashMessages()
 const PostComposer = defineAsyncComponent(() => import('@/site/components/PostComposer.vue'))
 const initialPostStream = page.props.postStream
 const initialPosts = initialPostStream.posts
+const {
+  captchaRequired,
+  captchaId,
+  captchaImg,
+  captchaCode,
+  captchaLoading,
+  loadCaptcha,
+  clearCaptcha,
+  challengeFromError,
+} = useCaptchaChallenge()
 const postContent = ref('')
 const targetPostId = ref(0)
 const likeCount = ref(page.props.topic.likeCount)
@@ -1295,7 +1306,11 @@ async function submitPost() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const createdPost = await createPost(page.props.topic.id, content, postId)
+    const createdPost = await createPost(page.props.topic.id, content, postId, {
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value,
+    })
+    clearCaptcha()
     postContent.value = ''
     targetPostId.value = 0
     composerOpen.value = false
@@ -1311,7 +1326,11 @@ async function submitPost() {
       postWindowError.value = error instanceof Error ? error.message : t('api.repliesLoadFailed')
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+    if (challengeFromError(error)) {
+      errorMessage.value = t('auth.captcha.invalid')
+    } else {
+      errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+    }
   } finally {
     submitting.value = false
   }
@@ -2029,8 +2048,12 @@ async function removePost(postId: number) {
       <PostComposer
         v-if="composerMounted"
         v-model="postContent"
+        v-model:captcha-code="captchaCode"
         :open="composerOpen"
         :authenticated="page.layout.viewer.isAuthenticated"
+        :captcha-img="captchaImg"
+        :captcha-loading="captchaLoading"
+        :captcha-required="captchaRequired"
         :error-message="errorMessage"
         :mode="composerMode"
         :submitting="editingPostId ? savingEditPostId > 0 : submitting"
@@ -2040,6 +2063,7 @@ async function removePost(postId: number) {
         @clear-validation="clearPostValidation"
         @image-error="handlePostImageError"
         @image-inserted="handlePostImageInserted"
+        @refresh-captcha="loadCaptcha()"
         @submit="submitPost"
         @update:open="updateComposerOpen"
       />

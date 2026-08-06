@@ -557,8 +557,24 @@ export default {
   "k00fh": "Open resource",
   "k00fi": "Size",
   "k00fj": "Max ID",
+<<<<<<< HEAD
   "k00fl": "Delete announcement",
   "k00fm": "Add announcement",
   "k00fk": "Announcement title",
 
+=======
+  "k00fk": "Abuse protection",
+  "k00fl": "Failed to load rate limit settings",
+  "k00fm": "Failed to save rate limit settings",
+  "k00fn": "Control write-operation frequency and bot traffic protection. All values take effect immediately after saving, no restart needed.",
+  "k00fo": "Enable rate limiting",
+  "k00fp": "Skip admins",
+  "k00fq": "Require captcha for new users after consecutive posts",
+  "k00fr": "New-user window (days)",
+  "k00fs": "Min captcha submit time (s)",
+  "k00ft": "Action",
+  "k00fu": "Window (s)",
+  "k00fv": "Per-IP limit",
+  "k00fw": "Per-user limit",
+>>>>>>> origin/dev
 } as const
