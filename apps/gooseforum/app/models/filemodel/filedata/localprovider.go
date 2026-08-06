@@ -25,7 +25,7 @@ func (localProvider) Save(_ context.Context, name string, data []byte, contentTy
 	}
 	entity.Data = data
 	entity.Type = contentType
-	return builder().Where("id = ?", entity.Id).Update("content", data).Error
+	return builder().Where("id = ?", entity.Id).Updates(map[string]any{"content": data, "assert_type": contentType}).Error
 }
 
 func (localProvider) Get(_ context.Context, name string) ([]byte, string, error) {
