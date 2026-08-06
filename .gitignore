@@ -11,6 +11,8 @@ node_modules/
 apps/gooseforum/storage/
 apps/gooseforum/tmp/
 apps/gooseforum/config.toml
+/config.toml
+/storage/
 
 # Flutter / Dart
 apps/mobile/**/.dart_tool/
