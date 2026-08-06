@@ -213,6 +213,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
 		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
+		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).

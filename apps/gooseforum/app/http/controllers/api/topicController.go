@@ -51,7 +51,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 
 	// 蜜罐字段：填了即机器，静默拒绝。
 	if strings.TrimSpace(req.Params.Website) != "" {
-		slog.Warn("honeypot_hit", "action", "topic.write", "ip", "unknown", "userId", req.UserId)
+		slog.Warn("honeypot_hit", "action", "topic.write", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 
@@ -258,7 +258,7 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 
 	// 蜜罐字段：填了即机器，静默拒绝。
 	if strings.TrimSpace(req.Params.Website) != "" {
-		slog.Warn("honeypot_hit", "action", "post.create", "ip", "unknown", "userId", req.UserId)
+		slog.Warn("honeypot_hit", "action", "post.create", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 

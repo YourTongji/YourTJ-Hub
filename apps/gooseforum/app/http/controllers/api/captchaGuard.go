@@ -20,20 +20,31 @@ func checkCaptchaForRequest(c *gin.Context, captchaId, captchaCode string, requi
 	if !required {
 		return true, false
 	}
-	if captchaId == "" || captchaCode == "" {
-		return false, true
-	}
 	var ip string
 	var userId uint64
 	if c != nil {
 		ip = c.ClientIP()
 		userId = c.GetUint64("userId")
 	}
+	if captchaId == "" || captchaCode == "" {
+		// 触发验证码（前端应弹出）：记录结构化日志，count 为窗口内成功发帖数。
+		count := ratelimit.Default().Count(captchaCountKey(action, userId))
+		slog.Warn("captcha_triggered", "action", action, "ip", ip, "userId", userId, "count", count)
+		return false, true
+	}
 	if captchaOpt.SubmittedTooFast(captchaId, minSubmitSeconds) {
 		slog.Warn("captcha_submit_too_fast", "action", action, "ip", ip, "userId", userId)
 		return false, false
 	}
 	return captchaOpt.VerifyCaptcha(captchaId, captchaCode), false
+}
+
+// clientIPOf 返回请求客户端 IP；c 为 nil（单测直调）时返回空串。
+func clientIPOf(c *gin.Context) string {
+	if c == nil {
+		return ""
+	}
+	return c.ClientIP()
 }
 
 // minSubmitSecondsFor 返回当前限流配置中的验证码提交耗时下限。

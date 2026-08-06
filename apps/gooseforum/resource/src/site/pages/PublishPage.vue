@@ -42,6 +42,7 @@ const dragOver = ref(false)
 const uploadTotal = ref(0)
 const uploadDone = ref(0)
 const message = ref('')
+const website = ref('')
 const error = ref('')
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
@@ -480,7 +481,7 @@ async function save() {
       content: content.value.trim(),
       categoryId: categoryIds.value,
       topicStatus: 1,
-      website: '',
+      website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
     })
@@ -517,7 +518,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       content: content.value.trim(),
       categoryId: categoryIds.value,
       topicStatus: 0,
-      website: '',
+      website: website.value,
       captchaId: captchaId.value,
       captchaCode: captchaCode.value,
     })
@@ -735,6 +736,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
               />
               <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
             </div>
+            <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
 
             <div class="flex items-center justify-end gap-2 border-t border-line pt-4">
               <a href="/" class="gf-button gf-button-lg gf-button-muted">{{ t('common.cancel') }}</a>

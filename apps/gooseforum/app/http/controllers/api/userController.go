@@ -514,7 +514,7 @@ type ForgotPasswordReq struct {
 func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Response {
 	// 蜜罐字段：填了即机器，静默拒绝（返回成功但不发邮件）。
 	if strings.TrimSpace(req.Params.Website) != "" {
-		slog.Warn("honeypot_hit", "action", "forgot-password", "ip", "unknown", "userId", uint64(0))
+		slog.Warn("honeypot_hit", "action", "forgot-password", "ip", clientIPOf(req.GinContext), "userId", uint64(0))
 		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 	}
 

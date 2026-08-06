@@ -366,6 +366,7 @@ async function load() {
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
+    else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
   } finally {

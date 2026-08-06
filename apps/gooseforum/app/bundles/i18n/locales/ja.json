@@ -81,5 +81,7 @@
   "meta.topicDesc": "「{title}」を読んで、{site} のコミュニティで議論に参加しましょう。",
   "meta.communityDesc": "{site} のコミュニティで議論に参加しましょう。",
   "meta.userDesc": "{site} での {username} のトピック・アクティビティ・コミュニティのつながりを見る。",
-  "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。"
+  "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。",
+  "common.rateLimited": "操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。",
+  "common.captchaRequired": "送信前にキャプチャを完了してください。"
 }
