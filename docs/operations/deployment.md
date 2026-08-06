@@ -56,8 +56,9 @@
      auto-rollback to previous image tag on failure.
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
-  release is `v0.1.0` for patch / `v0.1.0` minor / `v1.0.0` major), tags it, and pushes — which triggers
-  `deploy-main`. Run it from Actions → Release to main → Run workflow → choose bump type.
+  release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
+  (secret `RELEASE_TOKEN`) so `deploy-main` triggers. Run it from Actions → Release to main → Run
+  workflow → choose bump type.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
