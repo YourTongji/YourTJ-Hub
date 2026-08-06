@@ -556,5 +556,9 @@ export default {
   "k00fg": "Copia URL",
   "k00fh": "Apri risorsa",
   "k00fi": "Dimensione",
-  "k00fj": "ID massimo"
+  "k00fj": "ID massimo",
+  "k00fl": "Elimina annuncio",
+  "k00fm": "Aggiungi annuncio",
+  "k00fk": "Titolo annuncio",
+
 } as const

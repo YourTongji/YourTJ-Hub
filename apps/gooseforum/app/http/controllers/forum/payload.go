@@ -14,6 +14,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
 	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
@@ -227,9 +228,16 @@ type PaginationPayload struct {
 }
 
 type AnnouncementPayload struct {
-	Enabled     bool   `json:"enabled"`
-	HTML        string `json:"html"`
-	PublishedAt string `json:"publishedAt,omitempty"`
+	Enabled     bool                     `json:"enabled"`
+	HTML        string                   `json:"html"`
+	PublishedAt string                   `json:"publishedAt,omitempty"`
+	Items       []AnnouncementItemPayload `json:"items,omitempty"`
+}
+
+type AnnouncementItemPayload struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	HTML  string `json:"html"`
 }
 
 type TopicPayload struct {
@@ -752,6 +760,7 @@ func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSim
 	}
 
 	announcement := hotdataserve.GetAnnouncementConfigCache()
+	activeItems := announcement.GetActiveItems()
 	return HomeProps{
 		Sort:   sort,
 		Tabs:   buildHomeTabs(sort),
@@ -766,6 +775,13 @@ func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSim
 			Enabled:     announcement.Enabled,
 			HTML:        announcement.GetHtmlContent(),
 			PublishedAt: announcement.PublishedAt,
+			Items: lo.Map(activeItems, func(item pageConfig.AnnouncementItem, _ int) AnnouncementItemPayload {
+				return AnnouncementItemPayload{
+					ID:    item.ID,
+					Title: item.Title,
+					HTML:  markdown2html.MarkdownToHTML(item.Content),
+				}
+			}),
 		},
 	}
 }

@@ -280,6 +280,14 @@ export interface AnnouncementConfig {
   enabled: boolean
   content: string
   publishedAt?: string
+  items?: AnnouncementItemConfig[]
+}
+
+export interface AnnouncementItemConfig {
+  id: string
+  title: string
+  content: string
+  enabled: boolean
 }
 
 export interface SiteStatistics {

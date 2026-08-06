@@ -556,5 +556,9 @@ export default {
   "k00fg": "Copy URL",
   "k00fh": "Open resource",
   "k00fi": "Size",
-  "k00fj": "Max ID"
+  "k00fj": "Max ID",
+  "k00fl": "Delete announcement",
+  "k00fm": "Add announcement",
+  "k00fk": "Announcement title",
+
 } as const

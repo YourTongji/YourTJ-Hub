@@ -280,6 +280,7 @@ export interface HomeProps {
     enabled: boolean
     html: string
     publishedAt?: string
+    items?: Array<{ id: string; title: string; html: string }>
   }
 }
 

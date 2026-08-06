@@ -28,6 +28,43 @@ let observer: IntersectionObserver | undefined
 const hasTopics = computed(() => topics.value.length > 0)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
 
+const announcementItems = computed(() => page.props.announcement.items || [])
+const hasMultipleAnnouncements = computed(() => announcementItems.value.length > 1)
+const activeAnnouncementIndex = ref(0)
+const activeAnnouncement = computed(() => announcementItems.value[activeAnnouncementIndex.value] || null)
+const announcementPaused = ref(false)
+let announcementTimer: number | undefined
+
+function startAnnouncementRotation() {
+  stopAnnouncementRotation()
+  if (!hasMultipleAnnouncements.value) return
+  if (typeof window !== 'undefined' && window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+  announcementTimer = window.setInterval(() => {
+    activeAnnouncementIndex.value = (activeAnnouncementIndex.value + 1) % announcementItems.value.length
+  }, 6000)
+}
+
+function stopAnnouncementRotation() {
+  if (announcementTimer !== undefined) {
+    window.clearInterval(announcementTimer)
+    announcementTimer = undefined
+  }
+}
+
+function pauseAnnouncementRotation() {
+  announcementPaused.value = true
+  stopAnnouncementRotation()
+}
+
+function resumeAnnouncementRotation() {
+  announcementPaused.value = false
+  startAnnouncementRotation()
+}
+
+function selectAnnouncement(index: number) {
+  activeAnnouncementIndex.value = index
+}
+
 watch(
   () => page.pageUrl,
   () => {
@@ -53,6 +90,11 @@ watch(
   () => [page.props.announcement.enabled, page.props.announcement.publishedAt] as const,
   () => refreshAnnouncementReminder(),
 )
+
+watch(hasMultipleAnnouncements, (multiple) => {
+  if (multiple) startAnnouncementRotation()
+  else stopAnnouncementRotation()
+})
 
 async function loadMore() {
   if (loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
@@ -135,17 +177,21 @@ function observeSentinel() {
 onMounted(() => {
   observeSentinel()
   window.addEventListener('storage', syncAnnouncementRead)
+  startAnnouncementRotation()
 })
 onActivated(() => {
   void nextTick(observeSentinel)
+  startAnnouncementRotation()
 })
 onDeactivated(() => {
   observer?.disconnect()
+  stopAnnouncementRotation()
 })
 
 onBeforeUnmount(() => {
   observer?.disconnect()
   window.removeEventListener('storage', syncAnnouncementRead)
+  stopAnnouncementRotation()
 })
 
 </script>
@@ -171,9 +217,11 @@ onBeforeUnmount(() => {
       </aside>
 
       <aside
-        v-if="page.props.announcement.enabled"
-        class="gf-panel gf-announcement-panel mb-0 border-l-2 border-l-primary/45 bg-base-100 px-3 py-2 sm:mb-3 sm:px-4 sm:py-2.5"
+        v-if="page.props.announcement.enabled && (announcementItems.length > 0 || page.props.announcement.html)"
+        class="gf-panel gf-announcement-panel mb-0 overflow-hidden border border-primary/15 bg-gradient-to-r from-primary/5 via-base-100 to-base-100 px-3 py-2.5 sm:mb-3 sm:px-4 sm:py-3"
         :aria-label="t('topicList.announcement')"
+        @mouseenter="pauseAnnouncementRotation"
+        @mouseleave="resumeAnnouncementRotation"
       >
         <div class="flex items-start gap-2 sm:gap-2.5">
           <button
@@ -186,9 +234,40 @@ onBeforeUnmount(() => {
           >
             <Bell class="announcement-unread-bell h-4 w-4" />
           </button>
-          <Bell v-else class="mt-1 h-4 w-4 shrink-0 text-primary" aria-hidden="true" />
+          <span v-else class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
+            <Bell class="h-4 w-4" />
+          </span>
           <div class="min-w-0 flex-1">
-            <div class="gf-prose gf-prose-announcement" v-html="page.props.announcement.html" />
+            <template v-if="activeAnnouncement">
+              <div class="gf-prose gf-prose-announcement">
+                <span
+                  v-if="activeAnnouncement.title"
+                  class="mb-1 block text-[11px] font-bold uppercase tracking-wide text-primary"
+                >
+                  {{ activeAnnouncement.title }}
+                </span>
+                <div v-html="activeAnnouncement.html" />
+              </div>
+              <div
+                v-if="hasMultipleAnnouncements"
+                class="mt-1.5 flex items-center gap-1"
+                role="tablist"
+                :aria-label="t('topicList.announcement')"
+              >
+                <button
+                  v-for="(item, index) in announcementItems"
+                  :key="item.id"
+                  type="button"
+                  class="h-1.5 rounded-full transition-all duration-200"
+                  :class="index === activeAnnouncementIndex ? 'w-4 bg-primary' : 'w-1.5 bg-base-300 hover:bg-base-content/40'"
+                  :aria-label="t('topicList.announcement') + ' ' + (index + 1)"
+                  :aria-selected="index === activeAnnouncementIndex"
+                  role="tab"
+                  @click="selectAnnouncement(index)"
+                />
+              </div>
+            </template>
+            <div v-else class="gf-prose gf-prose-announcement" v-html="page.props.announcement.html" />
           </div>
         </div>
       </aside>

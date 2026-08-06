@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Code, FileText, Globe, Loader2, MailCheck, Plus, Save, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { FileText, Globe, Loader2, MailCheck, Plus, Save, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -140,6 +140,7 @@ const guideMarkdown = new MarkdownIt({
 const announcementForm = reactive<AnnouncementConfig>({
   enabled: false,
   content: '',
+  items: [],
 })
 
 const pageMeta = computed(() => {
@@ -302,10 +303,46 @@ function validateHttpNotify(settings: HttpNotifySettings) {
 }
 
 function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}) {
+  const items = settings.items ?? []
+  // 旧版单则数据迁移为一条 legacy 公告，保证编辑入口不丢失
+  if (items.length === 0 && settings.content) {
+    return {
+      enabled: toBool(settings.enabled, false),
+      content: settings.content ?? '',
+      items: [{ id: 'legacy', title: '', content: settings.content, enabled: true }],
+    } satisfies AnnouncementConfig
+  }
   return {
     enabled: toBool(settings.enabled, false),
     content: settings.content ?? '',
+    items,
   } satisfies AnnouncementConfig
+}
+
+// 保存时序列化：仅保留一条 legacy 时写回单则 content（兼容旧字段），
+// 多则时完整下发 items。
+function serializeAnnouncement(): AnnouncementConfig {
+  const items = (announcementForm.items ?? []).filter((item) => item.content.trim())
+  const isLegacyOnly = items.length === 1 && items[0].id === 'legacy'
+  return {
+    enabled: announcementForm.enabled,
+    content: isLegacyOnly ? items[0].content : announcementForm.content,
+    items: isLegacyOnly ? [] : items,
+  }
+}
+
+function addAnnouncementItem() {
+  if (!announcementForm.items) announcementForm.items = []
+  announcementForm.items.push({
+    id: `ann-${Date.now().toString(36)}`,
+    title: '',
+    content: '',
+    enabled: true,
+  })
+}
+
+function removeAnnouncementItem(index: number) {
+  announcementForm.items?.splice(index, 1)
 }
 
 async function uploadImage(target: 'siteLogo', event: Event) {
@@ -351,7 +388,7 @@ async function save() {
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
-    else await saveAnnouncement(normalizeAnnouncement(announcementForm))
+    else await saveAnnouncement(serializeAnnouncement())
     adminToast.success(adminText('k000e'))
   } catch (err) {
     adminToast.error(err, adminText('k000f'))
@@ -436,12 +473,6 @@ function toggleEndpointEvent(endpoint: HttpNotifyEndpoint, eventName: string, ch
 
 function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, event: Event) {
   toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
-}
-
-function addAnnouncementExample() {
-  if (!announcementForm.content) {
-    announcementForm.content = adminText('k000k')
-  }
 }
 
 watch(() => props.kind, () => {
@@ -701,12 +732,43 @@ onMounted(load)
           <div><div class="text-base font-medium">{{ adminText('k009j') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k009k') }}</p></div>
           <Switch v-model="announcementForm.enabled" />
         </div>
-        <label class="grid gap-2 text-sm font-medium">
-          {{ adminText('k009l') }}
-          <span class="text-sm font-normal text-muted-foreground">{{ adminText('k009m') }}</span>
-          <Textarea v-model="announcementForm.content" class="min-h-64 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
-        </label>
-        <Button variant="outline" type="button" @click="addAnnouncementExample"><Code class="size-4" />{{ adminText('k009n') }}</Button>
+
+        <div class="space-y-4">
+          <div
+            v-for="(item, index) in announcementForm.items"
+            :key="item.id"
+            class="rounded-lg border border-border bg-card p-4"
+          >
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-sm font-medium">
+                {{ adminText('k0009') }} #{{ index + 1 }}
+              </div>
+              <div class="flex items-center gap-3">
+                <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {{ adminText('k00e2') }}
+                  <Switch v-model="item.enabled" />
+                </label>
+                <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
+                  <Trash2 class="size-4" />
+                  <span class="sr-only">{{ adminText('k00fl') }}</span>
+                </Button>
+              </div>
+            </div>
+            <label class="grid gap-1.5 text-sm font-medium">
+              {{ adminText('k00fk') }}
+              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00fk')" />
+            </label>
+            <label class="mt-3 grid gap-1.5 text-sm font-medium">
+              {{ adminText('k009l') }}
+              <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+            </label>
+          </div>
+
+          <Button variant="outline" type="button" @click="addAnnouncementItem">
+            <Plus class="size-4" />
+            {{ adminText('k00fm') }}
+          </Button>
+        </div>
       </form>
 
     </BasicPage>
