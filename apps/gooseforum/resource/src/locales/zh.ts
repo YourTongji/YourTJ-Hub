@@ -88,6 +88,7 @@ export default {
     captchaAlt: '验证码',
     forgotPassword: '忘记密码？',
     agreeTerms: '我已阅读并同意服务条款和隐私政策',
+    termsLink: '《服务条款》',
     createAccount: '创建账号',
     sendResetEmail: '发送重置邮件',
     backToLogin: '返回登录',
@@ -253,6 +254,12 @@ export default {
       relevant: '优先技术、开源、社区相关站点。',
       stable: '站点信息清晰，Logo 可稳定加载。',
     },
+  },
+
+  termsPage: {
+    title: '服务条款',
+    subtitle: '使用本社区前请阅读并同意以下条款。',
+    unavailable: '服务条款暂未发布。',
   },
   sponsors: {
     defaultMessage: '感谢支持 GooseForum。',

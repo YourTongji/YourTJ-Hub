@@ -88,6 +88,7 @@ export default {
     captchaAlt: 'Captcha',
     forgotPassword: 'Password dimenticata?',
     agreeTerms: 'Ho letto e accetto i termini e l’informativa sulla privacy',
+    termsLink: 'Termini di servizio',
     createAccount: 'Crea account',
     sendResetEmail: 'Invia email di reimpostazione',
     backToLogin: 'Torna all’accesso',
@@ -253,6 +254,12 @@ export default {
       relevant: 'Sono preferiti siti di tecnologia, open-source e community.',
       stable: 'Informazioni chiare sul sito e URL del logo stabile.',
     },
+  },
+
+  termsPage: {
+    title: 'Termini di servizio',
+    subtitle: 'Prima di usare questa community, leggi e accetta i seguenti termini.',
+    unavailable: 'I termini di servizio non sono ancora stati pubblicati.',
   },
   sponsors: {
     defaultMessage: 'Grazie per il supporto a GooseForum.',
@@ -1147,6 +1154,11 @@ export default {
     'report.notFound': 'Segnalazione non trovata.',
     'upload.dailyLimit': 'Hai caricato {count} file oggi e hai raggiunto il limite giornaliero',
     'upload.dailyLimit.avatar': 'Hai caricato {count} file oggi. Caricare un avatar richiede {fileCount} slot e supererebbe il limite giornaliero',
+    'auth.username.reserved': 'Questo nome utente è riservato e non può essere usato.',
+    'auth.username.banned': 'Questo nome utente è vietato e non può essere usato.',
+    'content.sensitive.blocked': 'Il contenuto contiene una parola sensibile ed è stato bloccato.',
+    'content.sensitive.pendingReview': 'Il contenuto contiene una parola sensibile ed è in attesa di revisione.',
+    'chat.sensitive.blocked': 'Questo messaggio contiene una parola sensibile ed è stato bloccato.',
   },
   serverActions: {
     uploadAttachment: 'caricare allegati',

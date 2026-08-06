@@ -7,10 +7,10 @@
 {{define "page"}}
 <main>
     <header>
-        <h1>{{ t .Lang "terms" }}</h1>
+        <h1>{{ t .Lang "termsPage.title" }}</h1>
     </header>
     {{if not .Payload.Props.Enabled}}
-    <p>{{ t .Lang "termsUnavailable" }}</p>
+    <p>{{ t .Lang "termsPage.unavailable" }}</p>
     {{else}}
     <div class="prose">
         {{SafeHTML .Payload.Props.ContentHTML}}

@@ -88,6 +88,7 @@ export default {
     captchaAlt: '認証コード',
     forgotPassword: 'パスワードを忘れましたか？',
     agreeTerms: '利用規約とプライバシーポリシーに同意します',
+    termsLink: '利用規約',
     createAccount: 'アカウント作成',
     sendResetEmail: '再設定メールを送信',
     backToLogin: 'ログインへ戻る',
@@ -253,6 +254,12 @@ export default {
       relevant: '技術、オープンソース、コミュニティ関連サイトを優先します。',
       stable: 'サイト情報が明確で、ロゴが安定して読み込めること。',
     },
+  },
+
+  termsPage: {
+    title: '利用規約',
+    subtitle: 'このコミュニティを利用する前に以下の規約をお読みください。',
+    unavailable: '利用規約はまだ公開されていません。',
   },
   sponsors: {
     defaultMessage: 'GooseForum を支援していただきありがとうございます。',
@@ -1147,6 +1154,11 @@ export default {
     'report.notFound': '通報が見つかりません。',
     'upload.dailyLimit': '本日すでに {count} 個のファイルをアップロードし、上限に達しました',
     'upload.dailyLimit.avatar': '本日すでに {count} 個のファイルをアップロードしています。アバターのアップロードには {fileCount} 枠が必要で、上限を超えます',
+    'auth.username.reserved': 'このユーザー名は予約されており、使用できません。',
+    'auth.username.banned': 'このユーザー名は使用禁止です。',
+    'content.sensitive.blocked': '内容にセンシティブな単語が含まれているため、ブロックされました。',
+    'content.sensitive.pendingReview': '内容にセンシティブな単語が含まれているため、審査待ちです。',
+    'chat.sensitive.blocked': 'このメッセージにはセンシティブな単語が含まれているため、ブロックされました。',
   },
   serverActions: {
     uploadAttachment: '添付ファイルをアップロード',

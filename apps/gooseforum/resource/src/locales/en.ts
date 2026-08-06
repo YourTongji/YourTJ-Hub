@@ -88,6 +88,7 @@ export default {
     captchaAlt: 'Captcha',
     forgotPassword: 'Forgot password?',
     agreeTerms: 'I have read and agree to the terms and privacy policy',
+    termsLink: 'Terms of Service',
     createAccount: 'Create account',
     sendResetEmail: 'Send reset email',
     backToLogin: 'Back to login',
@@ -253,6 +254,12 @@ export default {
       relevant: 'Tech, open-source, and community sites are preferred.',
       stable: 'Clear site information and a stable logo URL.',
     },
+  },
+
+  termsPage: {
+    title: 'Terms of Service',
+    subtitle: 'Please read and agree to the following terms before using this community.',
+    unavailable: 'Terms of service are not published yet.',
   },
   sponsors: {
     defaultMessage: 'Thanks for supporting GooseForum.',
