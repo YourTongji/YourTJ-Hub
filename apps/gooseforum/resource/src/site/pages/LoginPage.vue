@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, LockKeyhole, Mail, UserRound } from '@lucide/vue'
+import { LoaderCircle, LockKeyhole, Mail, ShieldCheck, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { forgotPassword, getCaptcha, login, register } from '@/runtime/api'
+import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
@@ -16,16 +16,18 @@ type Mode = 'login' | 'register' | 'forgot'
 
 const { t, locale } = useI18n()
 const mode = ref<Mode>(page.props.initialMode || 'login')
+const twoFactorPending = ref(false)
+const totpCode = ref('')
 const captchaImg = ref('')
 const captchaId = ref('')
 const captchaLoading = ref(false)
 const notice = ref('')
 const error = ref('')
-
 const loading = reactive({
   login: false,
   register: false,
   forgot: false,
+  totp: false,
 })
 
 const loginForm = reactive({
@@ -89,6 +91,10 @@ async function refreshCaptcha() {
 }
 
 async function handleLogin() {
+  if (twoFactorPending.value) {
+    await handleTotpVerify()
+    return
+  }
   if (!loginForm.username || !loginForm.password || !loginForm.captcha) {
     error.value = t('auth.validation.loginRequired')
     return
@@ -96,7 +102,12 @@ async function handleLogin() {
   loading.login = true
   error.value = ''
   try {
-    await login(loginForm.username, loginForm.password, captchaId.value, loginForm.captcha)
+    const result = await login(loginForm.username, loginForm.password, captchaId.value, loginForm.captcha)
+    if (result.twoFactorRequired) {
+      twoFactorPending.value = true
+      notice.value = t('auth.validation.twoFactorRequired')
+      return
+    }
     window.location.href = homeUrl.value
   } catch (err) {
     error.value = errorMessage(err, t('auth.validation.loginFailed'))
@@ -105,6 +116,31 @@ async function handleLogin() {
   } finally {
     loading.login = false
   }
+}
+
+async function handleTotpVerify() {
+  if (!totpCode.value) {
+    error.value = t('auth.validation.twoFactorRequired')
+    return
+  }
+  loading.totp = true
+  error.value = ''
+  try {
+    await verifyTotp(totpCode.value)
+    window.location.href = homeUrl.value
+  } catch (err) {
+    error.value = errorMessage(err, t('api.totpVerifyFailed'))
+    totpCode.value = ''
+  } finally {
+    loading.totp = false
+  }
+}
+
+function backToPasswordLogin() {
+  twoFactorPending.value = false
+  totpCode.value = ''
+  notice.value = ''
+  error.value = ''
 }
 
 async function handleRegister() {
@@ -207,7 +243,33 @@ function errorMessage(err: unknown, fallback: string) {
           <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
 
-          <form v-if="mode === 'login'" class="space-y-3" @submit.prevent="handleLogin">
+          <form v-if="mode === 'login' && twoFactorPending" class="space-y-3" @submit.prevent="handleTotpVerify">
+            <div class="flex items-center gap-2 text-sm font-semibold text-base-content">
+              <ShieldCheck class="h-4 w-4 text-primary" />
+              {{ t('auth.twoFactorTitle') }}
+            </div>
+            <p class="text-sm text-base-content/55">{{ t('auth.twoFactorDescription') }}</p>
+            <label class="block">
+              <span class="sr-only">{{ t('auth.twoFactorCode') }}</span>
+              <input
+                v-model="totpCode"
+                class="gf-input text-center text-lg tracking-[0.4em]"
+                :placeholder="t('auth.twoFactorCode')"
+                inputmode="text"
+                autocomplete="one-time-code"
+                autocapitalize="characters"
+              />
+            </label>
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.totp">
+              <LoaderCircle v-if="loading.totp" class="h-4 w-4 animate-spin" />
+              {{ t('auth.twoFactorVerify') }}
+            </button>
+            <button type="button" class="w-full text-sm font-medium text-base-content/55 hover:text-base-content" @click="backToPasswordLogin">
+              {{ t('auth.twoFactorBack') }}
+            </button>
+          </form>
+
+          <form v-else-if="mode === 'login'" class="space-y-3" @submit.prevent="handleLogin">
             <label class="block">
               <span class="sr-only">{{ t('auth.usernameOrEmail') }}</span>
               <span class="relative block">
@@ -321,6 +383,12 @@ function errorMessage(err: unknown, fallback: string) {
                 </svg>
                 GitHub
               </a>
+              <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-md gf-button-secondary w-full">
+                <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                  <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
+                </svg>
+                Casdoor
+              </a>
               <button type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70">
                 {{ t('auth.googleUnavailable') }}
               </button>
@@ -338,6 +406,12 @@ function errorMessage(err: unknown, fallback: string) {
                     <path d="M12 0C5.37 0 0 5.37 0 12c0 5.3 3.44 9.8 8.21 11.39.6.11.79-.26.79-.58v-2.03c-3.34.73-4.04-1.42-4.04-1.42-.55-1.39-1.34-1.76-1.34-1.76-1.09-.75.08-.73.08-.73 1.21.08 1.85 1.24 1.85 1.24 1.07 1.83 2.81 1.3 3.49 1 .11-.78.42-1.3.76-1.6-2.67-.31-5.47-1.34-5.47-5.93 0-1.31.47-2.38 1.24-3.22-.12-.3-.54-1.52.12-3.18 0 0 1.01-.32 3.3 1.23A11.5 11.5 0 0 1 12 6c1.02 0 2.05.14 3.01.4 2.29-1.55 3.3-1.23 3.3-1.23.65 1.66.24 2.88.12 3.18.77.84 1.24 1.91 1.24 3.22 0 4.61-2.81 5.62-5.48 5.92.43.37.81 1.1.81 2.22v3.29c0 .32.19.69.8.58A12.01 12.01 0 0 0 24 12c0-6.63-5.37-12-12-12Z" />
                   </svg>
                   GitHub
+                </a>
+                <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
+                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
+                  </svg>
+                  Casdoor
                 </a>
                 <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70">
                   {{ t('auth.googleUnavailable') }}

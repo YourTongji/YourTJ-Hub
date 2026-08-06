@@ -106,6 +106,9 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
+	baseApi.GET("auth/oidc/login", api.OidcLogin)
+	baseApi.GET("auth/oidc/callback", middleware.JWTAuth, api.OidcCallback)
+	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 
 	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
@@ -119,6 +122,13 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("change-password", middleware.CheckWritableAccount, UpButterReq(api.ChangePassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
+	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
+	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
+	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
+	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
+	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
