@@ -49,9 +49,9 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 
 ## CI mapping
 
-- server.yml: go vet + go test + go build (apps/gooseforum/app/**, main.go, go.mod, go.sum)
-- web.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
-- contract.yml: openapi validation + no-diff generation + fixture (apps/gooseforum/app/**, packages/**)
+- ci-backend.yml: go vet + go test + go build (apps/gooseforum/app/**, main.go, go.mod, go.sum)
+- ci-frontend.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
+- ci-contract.yml: openapi validation + no-diff generation + fixture (apps/gooseforum/app/**, packages/**)
 
 ## Smoke checklist
 
