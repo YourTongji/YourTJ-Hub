@@ -8,6 +8,7 @@ on:
       - "research/**"
       - "**.md"
       - ".playwright-mcp/**"
+  workflow_dispatch:
 
 concurrency:
   group: deploy-dev
