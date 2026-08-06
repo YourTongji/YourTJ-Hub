@@ -63,10 +63,19 @@ jobs:
           NEW_VERSION: ${{ steps.version.outputs.new_version }}
           RELEASE_TOKEN: ${{ secrets.RELEASE_TOKEN }}
         run: |
-          # 用 PAT push(而非 GITHUB_TOKEN), 才能触发 deploy-main workflow
-          # (GITHUB_TOKEN 的 push 不会触发其他 workflow)
-          git config user.name "GitHub Actions"
-          git config user.email "actions@github.com"
+          # 用 PAT 获取真实账号身份提交并 push:
+          # - GITHUB_TOKEN 的 push 不触发其他 workflow
+          # - 作者为 actions-user / GitHub bot 的 push 也不触发(GitHub 防循环规则)
+          # 所以必须用 PAT 的账号身份 commit + push
+          set -euo pipefail
+          GH_USER=$(curl -sS -H "Authorization: token ${RELEASE_TOKEN}" \
+            https://api.github.com/user | jq -r .login)
+          GH_EMAIL=$(curl -sS -H "Authorization: token ${RELEASE_TOKEN}" \
+            https://api.github.com/user/emails | jq -r '.[0].email')
+          echo "pushing as: ${GH_USER} <${GH_EMAIL}>"
+
+          git config user.name "${GH_USER}"
+          git config user.email "${GH_EMAIL}"
           git checkout -b main origin/main
           git merge origin/dev --no-ff -m "chore: release $NEW_VERSION from dev"
           git tag "$NEW_VERSION"
