@@ -193,6 +193,7 @@ export default {
     pinned: '置顶',
     announcement: '公告',
     markAnnouncementRead: '标记为已读',
+    markAnnouncementUnread: '恢复提醒',
     tabs: {
       latest: '最新',
       hot: '热门',

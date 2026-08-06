@@ -193,6 +193,7 @@ export default {
     pinned: '固定',
     announcement: 'お知らせ',
     markAnnouncementRead: '既読にする',
+    markAnnouncementUnread: '通知を再開',
     tabs: {
       latest: '最新',
       hot: '人気',

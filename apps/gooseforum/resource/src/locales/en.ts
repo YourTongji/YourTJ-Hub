@@ -193,6 +193,7 @@ export default {
     pinned: 'Pinned',
     announcement: 'Announcement',
     markAnnouncementRead: 'Mark as read',
+    markAnnouncementUnread: 'Resume reminders',
     tabs: {
       latest: 'Latest',
       hot: 'Hot',

@@ -193,6 +193,7 @@ export default {
     pinned: 'In evidenza',
     announcement: 'Annuncio',
     markAnnouncementRead: 'Segna come letto',
+    markAnnouncementUnread: 'Riprendi promemoria',
     tabs: {
       latest: 'Recenti',
       hot: 'Di tendenza',

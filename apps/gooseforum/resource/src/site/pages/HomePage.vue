@@ -124,12 +124,18 @@ function sortTabLabel(key: string, fallback?: string) {
   return fallback || key
 }
 
-function markAnnouncementRead() {
-  announcementUnread.value = false
+// 铃铛为提醒开关：摇铃（未读提醒）↔ 静止（已读静音），
+// 按下停止/恢复，用运动与静止两种状态指示。
+function toggleAnnouncementRead() {
+  announcementUnread.value = !announcementUnread.value
   const publishedAt = parseAnnouncementTime(page.props.announcement.publishedAt)
   if (!Number.isFinite(publishedAt)) return
   try {
-    window.localStorage.setItem(announcementReadStorageKey, String(publishedAt))
+    if (announcementUnread.value) {
+      window.localStorage.removeItem(announcementReadStorageKey)
+    } else {
+      window.localStorage.setItem(announcementReadStorageKey, String(publishedAt))
+    }
   } catch {
     // Storage may be unavailable in private or restricted browsing contexts.
   }
@@ -227,18 +233,18 @@ onBeforeUnmount(() => {
       >
         <div class="flex items-start gap-2 sm:gap-2.5">
           <button
-            v-if="announcementUnread"
             type="button"
-            class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-primary/15 active:bg-primary/25 focus-visible:bg-primary/10 focus-visible:outline-none"
-            :title="t('topicList.markAnnouncementRead')"
-            :aria-label="t('topicList.markAnnouncementRead')"
-            @click="markAnnouncementRead"
+            class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full transition"
+            :class="announcementUnread
+              ? 'text-primary hover:bg-primary/15 active:bg-primary/25'
+              : 'text-base-content/45 hover:bg-base-300/70 hover:text-base-content/75'"
+            :title="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+            :aria-label="announcementUnread ? t('topicList.markAnnouncementRead') : t('topicList.markAnnouncementUnread')"
+            :aria-pressed="announcementUnread"
+            @click="toggleAnnouncementRead"
           >
-            <Bell class="announcement-unread-bell h-4 w-4" />
+            <Bell class="h-4 w-4" :class="announcementUnread ? 'announcement-unread-bell' : ''" />
           </button>
-          <span v-else class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
-            <Bell class="h-4 w-4" />
-          </span>
           <div class="min-w-0 flex-1">
             <template v-if="activeAnnouncement">
               <div class="gf-prose gf-prose-announcement">
@@ -321,8 +327,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  /* 未读提示摇铃 2 轮后静止，避免无限动画干扰阅读 */
-  animation: announcement-bell-ring 2s ease-in-out 2;
+  /* 未读提醒：持续摇铃标识运动状态；点击后移除该类进入静止态 */
+  animation: announcement-bell-ring 2s ease-in-out infinite;
   transform-origin: 50% 15%;
 }
 
