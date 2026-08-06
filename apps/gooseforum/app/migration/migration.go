@@ -37,7 +37,10 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
 	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
 	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
+	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 )
 
@@ -78,6 +81,9 @@ func migrateSchema() {
 		&userBadges.Entity{},
 		&userOAuth.Entity{},
 		&userPoints.Entity{},
+		&userSessions.Entity{},
+		&userTotp.Entity{},
+		&userTotpRecoveryCodes.Entity{},
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&imConversations.Entity{},
