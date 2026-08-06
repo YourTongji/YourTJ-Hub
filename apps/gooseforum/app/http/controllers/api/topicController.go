@@ -10,6 +10,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
@@ -511,6 +512,67 @@ func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	}
 
 	topicUserAction.SetWatched(req.UserId, topicEntity.Id, targetWatched)
+	return component.SuccessResponse(true)
+}
+
+type LikePostReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Action int    `json:"action" validate:"min=1,max=2"` // 1 点赞，2 取消
+}
+
+// LikePost 楼层点赞/取消点赞，计数以 post_user_action 行数聚合
+func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	targetLiked := req.Params.Action == 1
+	if state.Id == 0 && !targetLiked {
+		return component.SuccessResponse(true)
+	}
+	if state.Id != 0 && (state.LikedAt != nil) == targetLiked {
+		return component.SuccessResponse(true)
+	}
+
+	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
+		if req.Params.Action == 1 {
+			userStatistics.GivenLike(req.UserId)
+		} else {
+			userStatistics.CancelGivenLike(req.UserId)
+		}
+		userservice.InvalidateUserPublicProfileCache(postEntity.UserId)
+		userservice.InvalidateUserPublicProfileCache(req.UserId)
+	}
+	return component.SuccessResponse(true)
+}
+
+type BookmarkPostReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Action int    `json:"action" validate:"min=1,max=2"` // 1 收藏，2 取消
+}
+
+// BookmarkPost 楼层收藏/取消收藏
+func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	targetBookmarked := req.Params.Action == 1
+	if state.Id == 0 && !targetBookmarked {
+		return component.SuccessResponse(true)
+	}
+	if state.Id != 0 && (state.BookmarkedAt != nil) == targetBookmarked {
+		return component.SuccessResponse(true)
+	}
+
+	if postUserAction.SetBookmarked(req.UserId, postEntity.Id, targetBookmarked) {
+		updateBookmarkStats(req.UserId, targetBookmarked)
+		userservice.InvalidateUserPublicProfileCache(req.UserId)
+	}
 	return component.SuccessResponse(true)
 }
 

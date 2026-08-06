@@ -15,6 +15,7 @@ const (
 	userProfileActivityTimeline  = "timeline"
 	userProfileActivityTopics    = "topics"
 	userProfileActivityLikes     = "likes"
+	userProfileActivityBookmarks = "bookmarks"
 	userProfileActivityFollowing = "following"
 	userProfileActivityFollowers = "followers"
 )
@@ -50,7 +51,7 @@ func resolveUserProfileSection(raw string) string {
 
 func resolveUserProfileActivitySection(raw string) string {
 	switch raw {
-	case userProfileActivityTopics, userProfileActivityLikes, userProfileActivityFollowing, userProfileActivityFollowers:
+	case userProfileActivityTopics, userProfileActivityLikes, userProfileActivityBookmarks, userProfileActivityFollowing, userProfileActivityFollowers:
 		return raw
 	default:
 		return userProfileActivityTimeline

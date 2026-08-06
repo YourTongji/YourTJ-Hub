@@ -23,6 +23,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/reports"
 	"github.com/leancodebox/GooseForum/app/models/forum/role"
 	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
@@ -68,6 +69,7 @@ func migrateSchema() {
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
 		&topicUserAction.Entity{},
+		&postUserAction.Entity{},
 		&topicUserStat.Entity{},
 		&role.Entity{},
 		&rolePermissionRs.Entity{},

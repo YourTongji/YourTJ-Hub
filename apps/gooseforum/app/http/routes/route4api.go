@@ -133,6 +133,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))
+	forumLoginApi.POST("posts/like", middleware.CheckWritableAccount, UpButterReq(api.LikePost))
+	forumLoginApi.POST("posts/bookmark", middleware.CheckWritableAccount, UpButterReq(api.BookmarkPost))
 	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, UpButterReq(api.LikeTopic))
 	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, UpButterReq(api.BookmarkTopic))
 	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, UpButterReq(api.WatchTopic))

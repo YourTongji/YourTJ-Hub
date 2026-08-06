@@ -178,6 +178,34 @@ export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
   return readApiResponse<boolean>(response, t('api.watchFailed'))
 }
 
+export async function likePost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/like', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.likeFailed'))
+}
+
+export async function bookmarkPost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/bookmark', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
+}
+
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
   const response = await fetch('/api/forum/topics/status', {
     method: 'POST',

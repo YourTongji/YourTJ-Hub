@@ -21,6 +21,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
@@ -308,6 +309,9 @@ type PostPayload struct {
 	ReplyToUsername string             `json:"replyToUsername,omitempty"`
 	IsOwnPost       bool               `json:"isOwnPost"`
 	UpdatedAt       string             `json:"updatedAt"`
+	LikeCount       uint64             `json:"likeCount"`
+	IsLiked         bool               `json:"isLiked"`
+	IsBookmarked    bool               `json:"isBookmarked"`
 }
 
 type ReplyTargetPayload struct {
@@ -347,6 +351,7 @@ type UserProfileProps struct {
 	Topics       []TopicPayload           `json:"topics"`
 	Activities   []UserActivityPayload    `json:"activities"`
 	Likes        []UserLikePayload        `json:"likes"`
+	Bookmarks    []UserBookmarkPayload    `json:"bookmarks"`
 	Following    []UserConnectionPayload  `json:"following"`
 	Followers    []UserConnectionPayload  `json:"followers"`
 	IsOwnProfile bool                     `json:"isOwnProfile"`
@@ -373,6 +378,14 @@ type UserLikePayload struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	LikedAt string `json:"likedAt"`
+}
+
+type UserBookmarkPayload struct {
+	ID            uint64 `json:"id"`
+	TopicID       uint64 `json:"topicId"`
+	Title         string `json:"title"`
+	URL           string `json:"url"`
+	BookmarkedAt  string `json:"bookmarkedAt"`
 }
 
 type UserConnectionPayload struct {
@@ -1127,6 +1140,23 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
 		})
 	}
+
+	// 楼层点赞计数与当前用户状态：聚合查询一次补齐
+	postIDs := make([]uint64, 0, len(res))
+	for _, item := range postEntities {
+		if item != nil {
+			postIDs = append(postIDs, item.Id)
+		}
+	}
+	likeCounts := postUserAction.CountLikesByPostIds(postIDs)
+	userPostStates := postUserAction.GetStateMapByUserAndPostIds(currentUserID, postIDs)
+	for i := range res {
+		res[i].LikeCount = likeCounts[res[i].ID]
+		if state, ok := userPostStates[res[i].ID]; ok {
+			res[i].IsLiked = state.LikedAt != nil
+			res[i].IsBookmarked = state.BookmarkedAt != nil
+		}
+	}
 	return res, replyTargets
 }
 
@@ -1470,6 +1500,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	topicPayloads := []TopicPayload{}
 	activities := []UserActivityPayload{}
 	likes := []UserLikePayload{}
+	bookmarks := []UserBookmarkPayload{}
 	following := []UserConnectionPayload{}
 	followers := []UserConnectionPayload{}
 	pagination := PaginationPayload{Page: 1}
@@ -1490,6 +1521,10 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 			refs, nextCursor := topicUserAction.ListLikedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
 			likes = buildUserLikes(refs)
 			pagination = buildUserActivityLikePagination(user.Id, nextCursor)
+		case userProfileActivityBookmarks:
+			refs, nextCursor := topicUserAction.ListBookmarkedTopicRefsBefore(user.Id, c.Query("cursor"), userProfileTimelinePageSize)
+			bookmarks = buildUserBookmarks(refs)
+			pagination = buildUserActivityBookmarkPagination(user.Id, nextCursor)
 		case userProfileActivityFollowing:
 			following = buildUserConnections(userFollow.GetFollowingList(user.Id, 1, userProfileConnectionLimit))
 		case userProfileActivityFollowers:
@@ -1525,6 +1560,7 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		Topics:       topicPayloads,
 		Activities:   activities,
 		Likes:        likes,
+		Bookmarks:    bookmarks,
 		Following:    following,
 		Followers:    followers,
 		IsOwnProfile: currentUserID == user.Id,
@@ -1565,6 +1601,15 @@ func buildUserActivityLikePagination(userID uint64, nextCursor string) Paginatio
 	}
 }
 
+func buildUserActivityBookmarkPagination(userID uint64, nextCursor string) PaginationPayload {
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextCursor != "",
+		NextURL:  buildUserActivityBookmarkCursorURL(userID, nextCursor),
+	}
+}
+
 func buildUserActivityTimelinePagination(userID uint64, activities []*userActivities.Entity, hasNext bool) PaginationPayload {
 	nextCursor := uint64(0)
 	if hasNext && len(activities) > 0 {
@@ -1592,6 +1637,13 @@ func buildUserActivityLikeCursorURL(userID uint64, cursor string) string {
 	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityLikes, url.QueryEscape(cursor))
 }
 
+func buildUserActivityBookmarkCursorURL(userID uint64, cursor string) string {
+	if cursor == "" {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityBookmarks, url.QueryEscape(cursor))
+}
+
 func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -1617,6 +1669,7 @@ func buildUserProfileActivityTabs(userID uint64, section string, active string) 
 		{Key: userProfileActivityTimeline, URL: baseURL, Active: active == userProfileActivityTimeline},
 		{Key: userProfileActivityTopics, URL: baseURL + "/" + userProfileActivityTopics, Active: active == userProfileActivityTopics},
 		{Key: userProfileActivityLikes, URL: baseURL + "/" + userProfileActivityLikes, Active: active == userProfileActivityLikes},
+		{Key: userProfileActivityBookmarks, URL: baseURL + "/" + userProfileActivityBookmarks, Active: active == userProfileActivityBookmarks},
 		{Key: userProfileActivityFollowing, URL: baseURL + "/" + userProfileActivityFollowing, Active: active == userProfileActivityFollowing},
 		{Key: userProfileActivityFollowers, URL: baseURL + "/" + userProfileActivityFollowers, Active: active == userProfileActivityFollowers},
 	}
@@ -1642,6 +1695,31 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			Title:   topic.Title,
 			URL:     urlconfig.PostDetail(ref.TopicID),
 			LikedAt: ref.LikedAt.Format(time.DateTime),
+		})
+	}
+	return res
+}
+
+func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmarkPayload {
+	ids := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
+		if ref.TopicID > 0 {
+			ids = append(ids, ref.TopicID)
+		}
+	}
+	topicMap := topics.GetPointerMapByIds(ids)
+	res := make([]UserBookmarkPayload, 0, len(refs))
+	for _, ref := range refs {
+		topic := topicMap[ref.TopicID]
+		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			continue
+		}
+		res = append(res, UserBookmarkPayload{
+			ID:           ref.ID,
+			TopicID:      ref.TopicID,
+			Title:        topic.Title,
+			URL:          urlconfig.PostDetail(ref.TopicID),
+			BookmarkedAt: ref.BookmarkedAt.Format(time.DateTime),
 		})
 	}
 	return res

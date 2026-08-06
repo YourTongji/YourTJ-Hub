@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
-import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic } from '@/runtime/api'
+import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
+import { bookmarkTopic, deletePost, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -1070,6 +1070,89 @@ async function toggleWatch() {
   }
 }
 
+interface PostActionState {
+  likeCount: number
+  isLiked: boolean
+  isBookmarked: boolean
+  actingLike: boolean
+  actingBookmark: boolean
+}
+
+const postActions = ref<Record<number, PostActionState>>({})
+
+function postActionState(post: PostPayload): PostActionState {
+  let state = postActions.value[post.id]
+  if (!state) {
+    state = {
+      likeCount: post.likeCount || 0,
+      isLiked: post.isLiked || false,
+      isBookmarked: post.isBookmarked || false,
+      actingLike: false,
+      actingBookmark: false,
+    }
+    postActions.value = { ...postActions.value, [post.id]: state }
+  }
+  return state
+}
+
+async function togglePostLike(post: PostPayload) {
+  const state = postActionState(post)
+  if (state.actingLike) return
+
+  const nextLiked = !state.isLiked
+  const previousLiked = state.isLiked
+  const previousCount = state.likeCount
+  state.actingLike = true
+  state.isLiked = nextLiked
+  state.likeCount = Math.max(0, state.likeCount + (nextLiked ? 1 : -1))
+  try {
+    await likePost(post.id, nextLiked ? 1 : 2)
+  } catch (error) {
+    state.isLiked = previousLiked
+    state.likeCount = previousCount
+    pushFlash(error instanceof Error ? error.message : t('api.likeFailed'))
+  } finally {
+    state.actingLike = false
+  }
+}
+
+async function togglePostBookmark(post: PostPayload) {
+  const state = postActionState(post)
+  if (state.actingBookmark) return
+
+  const nextBookmarked = !state.isBookmarked
+  const previousBookmarked = state.isBookmarked
+  state.actingBookmark = true
+  state.isBookmarked = nextBookmarked
+  try {
+    await bookmarkPost(post.id, nextBookmarked ? 1 : 2)
+    pushFlash(nextBookmarked ? t('topic.bookmarkAdded') : t('topic.bookmarkRemoved'))
+  } catch (error) {
+    state.isBookmarked = previousBookmarked
+    pushFlash(error instanceof Error ? error.message : t('api.bookmarkFailed'))
+  } finally {
+    state.actingBookmark = false
+  }
+}
+
+async function sharePost(post: PostPayload) {
+  const url = `${window.location.origin}/p/post/${page.props.topic.id}/${post.postNo}#post-${post.id}`
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: page.props.topic.title, url })
+      return
+    } catch {
+      return // 用户取消分享
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    pushFlash(t('topic.linkCopied'))
+  } catch {
+    pushFlash(t('topic.shareFailed'))
+  }
+}
+
 function replyTo(post: PostPayload) {
   if (editingPostId.value) {
     cancelEditPost()
@@ -1550,6 +1633,40 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ t('topic.reply') }}</span>
                     </button>
                     <button
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
+                      type="button"
+                      class="inline-flex h-8 shrink-0 items-center gap-1 rounded-md px-1.5 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
+                      :title="t('topic.like')"
+                      :disabled="postActionState(group.root).actingLike"
+                      @click="togglePostLike(group.root)"
+                    >
+                      <Heart class="h-3.5 w-3.5" :fill="postActionState(group.root).isLiked ? 'currentColor' : 'none'" />
+                      <span v-if="postActionState(group.root).likeCount" class="text-xs font-semibold tabular-nums">{{ formatNumber(postActionState(group.root).likeCount) }}</span>
+                      <span class="sr-only">{{ t('topic.like') }}</span>
+                    </button>
+                    <button
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
+                      type="button"
+                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="{ 'text-primary hover:text-primary': postActionState(group.root).isBookmarked }"
+                      :title="postActionState(group.root).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
+                      :disabled="postActionState(group.root).actingBookmark"
+                      @click="togglePostBookmark(group.root)"
+                    >
+                      <Bookmark class="h-3.5 w-3.5" :fill="postActionState(group.root).isBookmarked ? 'currentColor' : 'none'" />
+                      <span class="sr-only">{{ t('topic.bookmark') }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      :title="t('topic.share')"
+                      @click="sharePost(group.root)"
+                    >
+                      <Share2 class="h-3.5 w-3.5" />
+                      <span class="sr-only">{{ t('topic.share') }}</span>
+                    </button>
+                    <button
                       v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden"
                       type="button"
                       class="gf-icon-button h-8 w-8 shrink-0 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
@@ -1709,6 +1826,40 @@ async function removePost(postId: number) {
                       >
                         <PencilLine class="h-3.5 w-3.5" />
                         <span class="sr-only">{{ t('common.edit') }}</span>
+                      </button>
+                      <button
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        type="button"
+                        class="inline-flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-base-content/55 transition hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="{ 'text-error hover:text-error': postActionState(reply).isLiked }"
+                        :title="t('topic.like')"
+                        :disabled="postActionState(reply).actingLike"
+                        @click="togglePostLike(reply)"
+                      >
+                        <Heart class="h-3.5 w-3.5" :fill="postActionState(reply).isLiked ? 'currentColor' : 'none'" />
+                        <span v-if="postActionState(reply).likeCount" class="text-xs font-semibold tabular-nums">{{ formatNumber(postActionState(reply).likeCount) }}</span>
+                        <span class="sr-only">{{ t('topic.like') }}</span>
+                      </button>
+                      <button
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-info/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="{ 'text-primary hover:text-primary': postActionState(reply).isBookmarked }"
+                        :title="postActionState(reply).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
+                        :disabled="postActionState(reply).actingBookmark"
+                        @click="togglePostBookmark(reply)"
+                      >
+                        <Bookmark class="h-3.5 w-3.5" :fill="postActionState(reply).isBookmarked ? 'currentColor' : 'none'" />
+                        <span class="sr-only">{{ t('topic.bookmark') }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-base-200 hover:text-base-content"
+                        :title="t('topic.share')"
+                        @click="sharePost(reply)"
+                      >
+                        <Share2 class="h-3.5 w-3.5" />
+                        <span class="sr-only">{{ t('topic.share') }}</span>
                       </button>
                       <button
                         v-if="canDeleteRenderedPost(reply)"

@@ -164,6 +164,54 @@ func ListLikedTopicRefsBefore(userId uint64, cursor string, limit int) ([]LikedT
 	return rows, ""
 }
 
+type BookmarkedTopicRef struct {
+	ID           uint64    `gorm:"column:id"`
+	TopicID      uint64    `gorm:"column:topic_id"`
+	BookmarkedAt time.Time `gorm:"column:bookmarked_at"`
+}
+
+// ListBookmarkedTopicRefsBefore 游标分页：用户收藏过的主题引用（按收藏时间倒序）
+func ListBookmarkedTopicRefsBefore(userId uint64, cursor string, limit int) ([]BookmarkedTopicRef, string) {
+	if userId == 0 || limit <= 0 {
+		return nil, ""
+	}
+
+	rows := make([]BookmarkedTopicRef, 0, limit+1)
+	cursorID := parseBookmarkCursor(cursor)
+	query := builder().
+		Select("id", "topic_id", "bookmarked_at").
+		Where(queryopt.Eq("user_id", userId)).
+		Where("bookmarked_at IS NOT NULL")
+	if cursorID > 0 {
+		query = query.Where("id < ?", cursorID)
+	}
+	query.Order("id DESC").Limit(limit + 1).Find(&rows)
+
+	hasNext := len(rows) > limit
+	if hasNext {
+		rows = rows[:limit]
+	}
+	if hasNext && len(rows) > 0 {
+		return rows, formatBookmarkCursor(rows[len(rows)-1].ID)
+	}
+	return rows, ""
+}
+
+func parseBookmarkCursor(cursor string) uint64 {
+	id, err := strconv.ParseUint(cursor, 10, 64)
+	if err != nil || id == 0 {
+		return 0
+	}
+	return id
+}
+
+func formatBookmarkCursor(id uint64) string {
+	if id == 0 {
+		return ""
+	}
+	return strconv.FormatUint(id, 10)
+}
+
 func parseLikedCursor(cursor string) uint64 {
 	id, err := strconv.ParseUint(cursor, 10, 64)
 	if err != nil || id == 0 {
