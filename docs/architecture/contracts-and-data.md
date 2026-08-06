@@ -43,6 +43,33 @@ apps/gooseforum/resource/packages/client  apps/mobile/packages/core/lib/src/gen/
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
 
+## Task queue & background workers
+
+- `task_queue` rows carry a `type` string; workers poll by **type prefix** so task types never leak
+  across handlers:
+  - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
+  - `export` (data export)
+  - `file-migrate` (BLOB → object storage migration)
+- Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
+  cursor `lastId`) so the admin panel can render live progress and resume after restarts.
+- Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
+
+## Config-driven features (pageConfig)
+
+New page config types added with this admin backlog work (all persisted in `page_config`, cached in
+`hotdataserve`, editable from the admin panel):
+
+| pageType | Struct | Purpose |
+|---|---|---|
+| `storageSettings` | `pageConfig.StorageSettings` | provider local/s3, endpoint/bucket/region, bucket lookup (auto/dns/path), credentials, optional public URL prefix |
+| `termsOfService` | `pageConfig.TermsOfServiceConfig` | markdown ToS rendered at `/terms` |
+| `securitySettings` (extended) | `pageConfig.SecurityAndRegistration` | + reservedUsernames / bannedUsernames / sensitiveWords / sensitiveAction (block\|review) |
+
+Object storage addressing notes: Alibaba OSS and Tencent COS (buckets created after 2024-01-01)
+require virtual-hosted style — use `bucketLookup: dns` with an explicit region; MinIO/R2 accept
+`auto`/`path`. Endpoint may include a scheme; it is stripped before building the minio-go client
+(`Secure` is derived from the scheme).
+
 ## Derived projections
 
 | Projection | Source | Rebuildable |
