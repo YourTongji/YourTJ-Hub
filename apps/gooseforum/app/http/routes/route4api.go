@@ -221,6 +221,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
+		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
+		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
 		POST("img-upload", api.SaveAdminImgByGinContext).
 		POST("data/export", UpButterReq(api.CreateExportTask)).

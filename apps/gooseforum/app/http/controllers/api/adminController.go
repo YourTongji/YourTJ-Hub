@@ -1655,3 +1655,19 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 	}
 	return component.SuccessResponseCode("success", component.MessageOperationSuccess, nil)
 }
+
+// GetTermsOfService 获取服务条款配置
+func GetTermsOfService(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.TermsOfService, defaultconfig.GetDefaultTermsOfServiceConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveTermsOfServiceReq struct {
+	Settings pageConfig.TermsOfServiceConfig `json:"settings" validate:"required"`
+}
+
+// SaveTermsOfService 保存服务条款配置
+func SaveTermsOfService(req component.BetterRequest[SaveTermsOfServiceReq]) component.Response {
+	req.Params.Settings.HtmlContent = ""
+	return savePageConfig(pageConfig.TermsOfService, req.Params.Settings, hotdataserve.ClearTermsOfServiceConfigCache)
+}
