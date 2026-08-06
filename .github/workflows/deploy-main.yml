@@ -1,49 +1,16 @@
 name: deploy-main
 
 on:
-  push:
-    branches: [main]
-    paths-ignore:
-      - "docs/**"
-      - "research/**"
-      - "**.md"
-      - ".playwright-mcp/**"
+  # 生产部署唯一入口: release-to-main 显式触发, 不监听 push
+  # (防止直接 push main 导致意外/双重复部署)
   workflow_dispatch:
-
-concurrency:
-  group: deploy-main
-  cancel-in-progress: false
 
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: pnpm/action-setup@v4
-        with:
-          version: 11
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 24
-          cache: pnpm
-          cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
-      - uses: actions/setup-go@v5
-        with:
-          go-version: "1.26"
-          cache-dependency-path: apps/gooseforum/go.sum
-      - name: Build frontend
-        working-directory: apps/gooseforum/resource
-        run: |
-          pnpm install --frozen-lockfile
-          pnpm build
-      - name: Build binary (static, no cgo for alpine/musl)
-        working-directory: apps/gooseforum
-        run: CGO_ENABLED=0 go build -o ../../bin/yourtj-hub .
-      - uses: actions/upload-artifact@v4
-        with:
-          name: yourtj-hub
-          path: bin/yourtj-hub
-          retention-days: 3
+      - uses: ./.github/actions/build-binary
 
   deploy:
     needs: build

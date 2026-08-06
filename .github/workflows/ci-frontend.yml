@@ -1,12 +1,11 @@
-name: web
+name: ci-frontend
 
 on:
   push:
     paths:
       - "apps/gooseforum/resource/**"
+  # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
-    paths:
-      - "apps/gooseforum/resource/**"
 
 jobs:
   build:
