@@ -614,6 +614,22 @@ export default {
       disconnect: 'Scollega',
       connect: 'Collega',
     },
+    social: {
+      hint: 'Inserisci un link completo oppure solo l’ID / nome utente della piattaforma — verrà completato al salvataggio.',
+      placeholder: 'Nome utente o link completo',
+      invalidLinks: 'Questi link social non sono validi, controllali e riprova: {platforms}',
+    },
+    cover: {
+      upload: 'Carica immagine',
+      ratioHint: 'Orizzontale 4:1 consigliata',
+      orUrl: 'oppure incolla un URL immagine',
+      cropTitle: 'Ritaglia copertina',
+      cropDescription: 'Trascina la selezione per regolare la copertina. Proporzione 4:1.',
+      cropAlt: 'Immagine sorgente copertina',
+      cropTip: 'La copertina appare in cima al profilo. Meglio una composizione ampia con il soggetto al centro.',
+      uploading: 'Caricamento...',
+      confirmUpload: 'Carica',
+    },
   },
   avatarCrop: {
     selectArea: 'Seleziona un’area di ritaglio',

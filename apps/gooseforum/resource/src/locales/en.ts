@@ -614,6 +614,22 @@ export default {
       disconnect: 'Disconnect',
       connect: 'Connect',
     },
+    social: {
+      hint: 'Enter a full link, or just a platform ID / username — it will be completed on save.',
+      placeholder: 'Username or full link',
+      invalidLinks: 'These social links are invalid, please check and retry: {platforms}',
+    },
+    cover: {
+      upload: 'Upload image',
+      ratioHint: '4:1 landscape recommended',
+      orUrl: 'or paste an image URL',
+      cropTitle: 'Crop cover',
+      cropDescription: 'Drag the selection to adjust the cover. Aspect ratio is 4:1.',
+      cropAlt: 'Cover source image',
+      cropTip: 'The cover shows at the top of your profile. A wide, centered composition works best.',
+      uploading: 'Uploading...',
+      confirmUpload: 'Upload',
+    },
   },
   avatarCrop: {
     selectArea: 'Please select a crop area',

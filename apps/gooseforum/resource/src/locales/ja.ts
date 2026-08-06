@@ -614,6 +614,22 @@ export default {
       disconnect: '連携解除',
       connect: '接続',
     },
+    social: {
+      hint: '完全なリンクを入力するか、プラットフォームの ID / ユーザー名だけを入力（保存時に自動補完されます）。',
+      placeholder: 'ユーザー名または完全なリンク',
+      invalidLinks: '無効なソーシャルリンクがあります。確認して再試行してください：{platforms}',
+    },
+    cover: {
+      upload: '画像をアップロード',
+      ratioHint: '4:1 横長を推奨',
+      orUrl: 'または画像 URL を入力',
+      cropTitle: 'カバーをトリミング',
+      cropDescription: '選択範囲をドラッグしてカバーを調整します。比率は 4:1 です。',
+      cropAlt: 'カバー元画像',
+      cropTip: 'カバーはプロフィール上部に表示されます。横長で中央寄せの構図がおすすめです。',
+      uploading: 'アップロード中...',
+      confirmUpload: 'アップロード',
+    },
   },
   avatarCrop: {
     selectArea: '切り抜き範囲を選択してください',

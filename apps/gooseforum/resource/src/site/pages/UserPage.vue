@@ -51,6 +51,7 @@ let observer: IntersectionObserver | undefined
 
 const displayName = computed(() => page.props.user.nickname || page.props.user.username)
 const bioText = computed(() => page.props.user.bio || page.props.user.signature || t('user.emptyBio'))
+const hasSignature = computed(() => Boolean(page.props.user.signature))
 const visibleTopics = computed(() => page.props.topics)
 const visibleBadges = computed(() => page.props.badges.slice(0, 8))
 const activeConnections = computed(() => page.props.activityTab === 'following' ? page.props.following : page.props.followers)
@@ -276,6 +277,12 @@ function safeProfileUrl(value?: string) {
                 </div>
                 <p class="mt-1 text-sm font-medium text-base-content/55">@{{ page.props.user.username }}</p>
                 <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/75">{{ bioText }}</p>
+                <p
+                  v-if="hasSignature && page.props.user.bio"
+                  class="mt-2 max-w-3xl border-l-2 border-primary/40 pl-3 text-sm italic leading-relaxed text-base-content/60"
+                >
+                  {{ page.props.user.signature }}
+                </p>
               </div>
             </div>
 

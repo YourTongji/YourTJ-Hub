@@ -625,6 +625,22 @@ export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
   return url
 }
 
+// uploadImageFile 上传一张通用图片（个人资料封面等），
+// 复用 /file/img-upload 的权限、类型与大小校验。
+export async function uploadImageFile(file: Blob, filename: string): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file, filename)
+  const response = await fetch('/file/img-upload', {
+    method: 'POST',
+    body: formData,
+  })
+  const result = await readApiResponse<string | { url?: string }>(response, t('api.imageUploadFailed'))
+  if (typeof result === 'string') return result
+  const url = result.url
+  if (!url) throw new Error(t('api.imageUploadEmpty'))
+  return url
+}
+
 export interface OAuthBindingPayload {
   bound: boolean
   provider?: string

@@ -614,6 +614,22 @@ export default {
       disconnect: '解除绑定',
       connect: '连接',
     },
+    social: {
+      hint: '填写完整链接，或直接输入平台 ID / 用户名，保存时自动补全。',
+      placeholder: '用户名或完整链接',
+      invalidLinks: '以下社交链接无效，请检查后重试：{platforms}',
+    },
+    cover: {
+      upload: '上传图片',
+      ratioHint: '推荐 4:1 横图',
+      orUrl: '或填写图片地址',
+      cropTitle: '裁剪封面',
+      cropDescription: '拖动选区调整封面范围，比例为 4:1。',
+      cropAlt: '封面原图',
+      cropTip: '封面会展示在个人主页顶部。建议选择横向构图、主体居中的图片。',
+      uploading: '上传中...',
+      confirmUpload: '确认上传',
+    },
   },
   avatarCrop: {
     selectArea: '请选择裁切区域',
