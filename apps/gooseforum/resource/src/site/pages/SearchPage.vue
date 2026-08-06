@@ -19,6 +19,7 @@ const query = ref(page.props.query)
 const topics = computed(() => page.props.topics || [])
 const hasQuery = computed(() => (page.props.query || '').trim().length > 0)
 const hasResults = computed(() => topics.value.length > 0)
+const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(page.props.total) })}`
@@ -76,6 +77,8 @@ watch(
             </div>
           </footer>
         </template>
+
+        <EmptyState v-else-if="searchUnavailable" :icon="Search" :title="t('searchPage.unavailableTitle')" :description="t('searchPage.unavailableDescription')" />
 
         <EmptyState v-else-if="hasQuery" :icon="UsersRound" :title="t('searchPage.noResultsTitle')" :description="t('searchPage.noResultsDescription')" />
 

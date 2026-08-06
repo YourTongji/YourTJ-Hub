@@ -237,6 +237,8 @@ export default {
     inputPlaceholder: 'Search topics...',
     noResultsTitle: 'No results',
     noResultsDescription: 'Try another keyword or shorten your query.',
+    unavailableTitle: 'Search unavailable',
+    unavailableDescription: 'The search service is temporarily unavailable. Please try again later.',
     startTitle: 'Start searching',
     startDescription: 'Enter a topic title, keyword, or phrase to search the forum.',
   },

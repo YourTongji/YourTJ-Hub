@@ -27,7 +27,10 @@ keep = 7
 spec = "0 3 * * *"
 
 [db.default]
+# 主库连接类型: sqlite / mysql / postgres（文件库 [db.file] 固定 sqlite）
 connection = "sqlite"
+# mysql: "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+# postgres: "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
 url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
 path = "./storage/database/sqlite.db"
 maxIdleConnections = 3
@@ -53,6 +56,14 @@ rolling = true
 maxage = 10
 maxsize = 256
 maxBackUps = 30
+# 日志级别 debug/info/warn/error，默认 info
+level = "info"
+# 日志格式 json/console，默认 json
+format = "json"
+# ERROR/WARNING 独立轮转文件（便于告警采集），留空则不单独拆分
+errorPath = "./storage/logs/run.error.log"
+# 访问日志是否记录客户端 IP，默认关闭（隐私最小化）
+logIp = false
 slowSQL = true
 slowSQLThreshold = "200ms"
 

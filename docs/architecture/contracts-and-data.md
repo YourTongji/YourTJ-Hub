@@ -37,11 +37,13 @@ apps/gooseforum/resource/packages/client  apps/mobile/packages/core/lib/src/gen/
 
 ## Data model
 
-- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); SQLite default, MySQL
-  optional.
+- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); SQLite default, MySQL and
+  PostgreSQL (main db, issue #11) supported; the file db stays SQLite.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
+- Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
+  sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 
 ## Task queue & background workers
 
