@@ -18,7 +18,7 @@ IMAGE="yourtj-hub"
 
 log() { echo "[deploy:$INSTANCE] $*"; }
 
-[ -x "$NEW_BINARY" ] || { log "FATAL: new binary not executable: $NEW_BINARY"; exit 1; }
+[ -f "$NEW_BINARY" ] || { log "FATAL: new binary not found: $NEW_BINARY"; exit 1; }
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$COMPOSE_FILE" ] || { log "FATAL: $COMPOSE_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$BUILD_DIR/Dockerfile" ] || { log "FATAL: $BUILD_DIR/Dockerfile missing (run init-server.sh first)"; exit 1; }
