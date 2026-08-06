@@ -24,13 +24,25 @@ type AggregateSearchIndexMigrationResult struct {
 // Meilisearch 不可用 → Skipped（版本照常推进，下次启动重试无副作用）；
 // 构建失败（FailedCount>0）→ Failed++（不推进版本，下次启动重试）。
 func MigrateAggregateSearchIndexes() AggregateSearchIndexMigrationResult {
+	return migrateAggregateSearchIndexes(
+		meiliconnect.IsAvailable,
+		searchservice.BuildUserIndex,
+		searchservice.BuildCategoryIndex,
+	)
+}
+
+func migrateAggregateSearchIndexes(
+	isAvailable func() bool,
+	buildUserIndex func() (*searchservice.IndexBuildResult, error),
+	buildCategoryIndex func() (*searchservice.IndexBuildResult, error),
+) AggregateSearchIndexMigrationResult {
 	result := AggregateSearchIndexMigrationResult{}
-	if !meiliconnect.IsAvailable() {
+	if !isAvailable() {
 		result.Skipped = true
 		return result
 	}
 
-	userResult, err := searchservice.BuildUserIndex()
+	userResult, err := buildUserIndex()
 	if err != nil {
 		result.Failed++
 		result.LastFailed = err.Error()
@@ -45,7 +57,7 @@ func MigrateAggregateSearchIndexes() AggregateSearchIndexMigrationResult {
 		return result
 	}
 
-	categoryResult, err := searchservice.BuildCategoryIndex()
+	categoryResult, err := buildCategoryIndex()
 	if err != nil {
 		result.Failed++
 		result.LastFailed = err.Error()
