@@ -55,7 +55,7 @@ const hasSignature = computed(() => Boolean(page.props.user.signature))
 const visibleTopics = computed(() => page.props.topics)
 const visibleBadges = computed(() => page.props.badges.slice(0, 8))
 const activeConnections = computed(() => page.props.activityTab === 'following' ? page.props.following : page.props.followers)
-const isWaterfallTab = computed(() => page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks'))
+const isWaterfallTab = computed(() => page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
 const hasActivityTopics = computed(() => activityTopics.value.length > 0)
 const hasActivities = computed(() => activities.value.length > 0)
 const hasLikes = computed(() => likes.value.length > 0)
@@ -153,6 +153,7 @@ function activityLabel(activity: UserActivityPayload) {
 function userTabLabel(key: string) {
   if (key === 'summary') return t('user.tabs.summary')
   if (key === 'activity') return t('user.tabs.activity')
+  if (key === 'bookmarks') return t('user.tabs.bookmarks')
   if (key === 'badges') return t('user.tabs.badges')
   return key
 }
@@ -182,7 +183,7 @@ async function loadMore() {
       activityTopics.value = mergeTopics(activityTopics.value, payload.props.topics)
     } else if (page.props.activityTab === 'likes') {
       likes.value = mergeLikes(likes.value, payload.props.likes)
-    } else if (page.props.activityTab === 'bookmarks') {
+    } else if (page.props.section === 'bookmarks' || page.props.activityTab === 'bookmarks') {
       bookmarks.value = mergeBookmarks(bookmarks.value, payload.props.bookmarks)
     } else {
       activities.value = mergeActivities(activities.value, payload.props.activities)
@@ -362,7 +363,7 @@ function safeProfileUrl(value?: string) {
 
         </div>
 
-        <div class="grid grid-cols-3 border-y border-line">
+        <div class="grid grid-cols-4 border-y border-line">
           <a
             v-for="tab in tabItems"
             :key="tab.key"
@@ -372,6 +373,7 @@ function safeProfileUrl(value?: string) {
           >
             <UserRound v-if="tab.key === 'summary'" class="h-4 w-4 shrink-0" />
             <List v-else-if="tab.key === 'activity'" class="h-4 w-4 shrink-0" />
+            <Bookmark v-else-if="tab.key === 'bookmarks'" class="h-4 w-4 shrink-0" />
             <Award v-else class="h-4 w-4 shrink-0" />
             {{ tab.label }}
           </a>
@@ -575,8 +577,17 @@ function safeProfileUrl(value?: string) {
                   <Bookmark class="h-4 w-4" />
                 </span>
                 <span class="min-w-0">
-                  <span class="block text-xs font-medium text-base-content/55">{{ t('user.tabs.bookmarks') }}</span>
+                  <span class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/55">
+                    <span v-if="bookmark.type === 'post'" class="gf-badge gf-badge-muted h-4 gap-0.5 px-1.5 text-[10px] font-bold tabular-nums">#{{ bookmark.postNo }}</span>
+                    {{ t('user.tabs.bookmarks') }}
+                  </span>
                   <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ bookmark.title }}</span>
+                  <span
+                    v-if="bookmark.type === 'post' && bookmark.excerpt"
+                    class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                  >
+                    {{ bookmark.excerpt }}
+                  </span>
                   <time class="mt-1 block text-xs text-base-content/55">{{ formatDateTime(bookmark.bookmarkedAt) }}</time>
                 </span>
               </a>
@@ -609,6 +620,45 @@ function safeProfileUrl(value?: string) {
             </a>
           </div>
           <EmptyState v-if="(page.props.activityTab === 'following' || page.props.activityTab === 'followers') && activeConnections.length === 0" :icon="UserPlus" :title="t('user.emptyData')" />
+        </div>
+
+        <div v-else-if="page.props.section === 'bookmarks'">
+          <div class="space-y-3 p-4">
+            <a
+              v-for="bookmark in bookmarks"
+              :key="bookmark.id"
+              :href="bookmark.url"
+              class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
+            >
+              <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/55">
+                <Bookmark class="h-4 w-4" />
+              </span>
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/55">
+                  <span v-if="bookmark.type === 'post'" class="gf-badge gf-badge-muted h-4 gap-0.5 px-1.5 text-[10px] font-bold tabular-nums">#{{ bookmark.postNo }}</span>
+                  {{ t('user.tabs.bookmarks') }}
+                </span>
+                <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ bookmark.title }}</span>
+                <span
+                  v-if="bookmark.type === 'post' && bookmark.excerpt"
+                  class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                >
+                  {{ bookmark.excerpt }}
+                </span>
+                <time class="mt-1 block text-xs text-base-content/55">{{ formatDateTime(bookmark.bookmarkedAt) }}</time>
+              </span>
+            </a>
+            <EmptyState v-if="!hasBookmarks" :icon="Bookmark" :title="t('user.emptyData')" />
+          </div>
+          <div v-if="pagination.hasNext || hasBookmarks" ref="loadMoreSentinel">
+            <TopicListFooter
+              :pagination="pagination"
+              :loading-more="loadingMore"
+              :has-topics="hasBookmarks"
+              :load-error="loadError"
+              @load-more="loadMore"
+            />
+          </div>
         </div>
 
         <div v-else class="p-4">

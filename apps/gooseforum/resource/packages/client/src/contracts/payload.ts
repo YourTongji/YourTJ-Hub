@@ -497,7 +497,7 @@ export interface UserCardPayload {
 
 export interface UserProfileProps {
   user: UserCardPayload
-  section: 'summary' | 'activity' | 'badges'
+  section: 'summary' | 'activity' | 'badges' | 'bookmarks'
   activityTab: 'timeline' | 'topics' | 'likes' | 'bookmarks' | 'following' | 'followers'
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   activityTabs: Array<{ key: string; label?: string; url: string; active: boolean }>
@@ -559,8 +559,12 @@ export interface UserLikePayload {
 
 export interface UserBookmarkPayload {
   id: number
+  type: 'topic' | 'post'
   topicId: number
+  postId?: number
+  postNo?: number
   title: string
+  excerpt?: string
   url: string
   bookmarkedAt: string
 }

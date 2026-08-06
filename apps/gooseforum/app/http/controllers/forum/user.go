@@ -11,6 +11,7 @@ const (
 	userProfileSectionSummary  = "summary"
 	userProfileSectionActivity = "activity"
 	userProfileSectionBadges   = "badges"
+	userProfileSectionBookmarks = "bookmarks"
 
 	userProfileActivityTimeline  = "timeline"
 	userProfileActivityTopics    = "topics"
@@ -42,7 +43,7 @@ func UserProfile(c *gin.Context) {
 
 func resolveUserProfileSection(raw string) string {
 	switch raw {
-	case userProfileSectionActivity, userProfileSectionBadges:
+	case userProfileSectionActivity, userProfileSectionBadges, userProfileSectionBookmarks:
 		return raw
 	default:
 		return userProfileSectionSummary

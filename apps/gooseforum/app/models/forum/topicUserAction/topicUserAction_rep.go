@@ -170,6 +170,24 @@ type BookmarkedTopicRef struct {
 	BookmarkedAt time.Time `gorm:"column:bookmarked_at"`
 }
 
+// ListBookmarkedTopicRefsBeforeTime 时间游标分页：用户收藏过的主题（按收藏时间倒序）。
+// 与楼层收藏共用时间游标，便于跨表合并排序展示。
+func ListBookmarkedTopicRefsBeforeTime(userId uint64, before time.Time, limit int) []BookmarkedTopicRef {
+	if userId == 0 || limit <= 0 {
+		return nil
+	}
+	rows := make([]BookmarkedTopicRef, 0, limit)
+	query := builder().
+		Select("id", "topic_id", "bookmarked_at").
+		Where(queryopt.Eq("user_id", userId)).
+		Where("bookmarked_at IS NOT NULL")
+	if !before.IsZero() {
+		query = query.Where("bookmarked_at < ?", before)
+	}
+	query.Order("bookmarked_at DESC, id DESC").Limit(limit).Find(&rows)
+	return rows
+}
+
 // ListBookmarkedTopicRefsBefore 游标分页：用户收藏过的主题引用（按收藏时间倒序）
 func ListBookmarkedTopicRefsBefore(userId uint64, cursor string, limit int) ([]BookmarkedTopicRef, string) {
 	if userId == 0 || limit <= 0 {

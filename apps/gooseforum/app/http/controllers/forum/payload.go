@@ -389,11 +389,15 @@ type UserLikePayload struct {
 }
 
 type UserBookmarkPayload struct {
-	ID            uint64 `json:"id"`
-	TopicID       uint64 `json:"topicId"`
-	Title         string `json:"title"`
-	URL           string `json:"url"`
-	BookmarkedAt  string `json:"bookmarkedAt"`
+	ID           uint64 `json:"id"`
+	Type         string `json:"type"` // topic | post
+	TopicID      uint64 `json:"topicId"`
+	PostID       uint64 `json:"postId,omitempty"`
+	PostNo       uint64 `json:"postNo,omitempty"`
+	Title        string `json:"title"`
+	Excerpt      string `json:"excerpt,omitempty"`
+	URL          string `json:"url"`
+	BookmarkedAt string `json:"bookmarkedAt"`
 }
 
 type UserConnectionPayload struct {
@@ -1496,6 +1500,7 @@ const (
 	userProfileTopicPageSize    = 20
 	userProfileTimelinePageSize = 20
 	userProfileConnectionLimit  = 24
+	userProfileBookmarksPageSize = 20
 )
 
 func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
@@ -1522,6 +1527,10 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	pagination := PaginationPayload{Page: 1}
 
 	switch section {
+	case userProfileSectionBookmarks:
+		var nextCursor string
+		bookmarks, nextCursor = buildUserBookmarksMerged(user.Id, c.Query("cursor"))
+		pagination = buildUserBookmarkPagination(user.Id, nextCursor)
 	case userProfileSectionActivity:
 		switch activityTab {
 		case userProfileActivityTopics:
@@ -1660,6 +1669,25 @@ func buildUserActivityBookmarkCursorURL(userID uint64, cursor string) string {
 	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityBookmarks, url.QueryEscape(cursor))
 }
 
+// buildUserBookmarkCursorURL 一级收藏页的下一页链接
+func buildUserBookmarkCursorURL(userID uint64, cursor string) string {
+	if cursor == "" {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s?cursor=%s", userID, userProfileSectionBookmarks, url.QueryEscape(cursor))
+}
+
+// buildUserBookmarkPagination 一级收藏页分页（时间游标）
+func buildUserBookmarkPagination(userID uint64, nextCursor string) PaginationPayload {
+	nextURL := buildUserBookmarkCursorURL(userID, nextCursor)
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextURL != "",
+		NextURL:  nextURL,
+	}
+}
+
 func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -1672,6 +1700,7 @@ func buildUserProfileTabs(userID uint64, active string) []TabPayload {
 	return []TabPayload{
 		{Key: userProfileSectionSummary, URL: baseURL, Active: active == userProfileSectionSummary},
 		{Key: userProfileSectionActivity, URL: baseURL + "/" + userProfileSectionActivity, Active: active == userProfileSectionActivity},
+		{Key: userProfileSectionBookmarks, URL: baseURL + "/" + userProfileSectionBookmarks, Active: active == userProfileSectionBookmarks},
 		{Key: userProfileSectionBadges, URL: baseURL + "/" + userProfileSectionBadges, Active: active == userProfileSectionBadges},
 	}
 }
@@ -1685,7 +1714,6 @@ func buildUserProfileActivityTabs(userID uint64, section string, active string) 
 		{Key: userProfileActivityTimeline, URL: baseURL, Active: active == userProfileActivityTimeline},
 		{Key: userProfileActivityTopics, URL: baseURL + "/" + userProfileActivityTopics, Active: active == userProfileActivityTopics},
 		{Key: userProfileActivityLikes, URL: baseURL + "/" + userProfileActivityLikes, Active: active == userProfileActivityLikes},
-		{Key: userProfileActivityBookmarks, URL: baseURL + "/" + userProfileActivityBookmarks, Active: active == userProfileActivityBookmarks},
 		{Key: userProfileActivityFollowing, URL: baseURL + "/" + userProfileActivityFollowing, Active: active == userProfileActivityFollowing},
 		{Key: userProfileActivityFollowers, URL: baseURL + "/" + userProfileActivityFollowers, Active: active == userProfileActivityFollowers},
 	}
@@ -1732,6 +1760,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 		}
 		res = append(res, UserBookmarkPayload{
 			ID:           ref.ID,
+			Type:         "topic",
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			URL:          urlconfig.PostDetail(ref.TopicID),
@@ -1739,6 +1768,152 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 		})
 	}
 	return res
+}
+
+// mergedBookmarkRef 主题/楼层收藏的统一引用，用于跨表按收藏时间合并排序
+type mergedBookmarkRef struct {
+	kind         string
+	refID        uint64
+	topicID      uint64
+	postID       uint64
+	bookmarkedAt time.Time
+}
+
+// buildUserBookmarksMerged 合并用户收藏的主题与楼层（按收藏时间倒序分页）。
+// 游标为最后一条的收藏时间（unix 秒），跨表统一分页。
+func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPayload, string) {
+	limit := userProfileBookmarksPageSize
+	before := parseBookmarkTimeCursor(cursor)
+
+	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, before, limit+1)
+	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, before, limit+1)
+
+	merged := make([]mergedBookmarkRef, 0, len(topicRefs)+len(postRefs))
+	for _, ref := range topicRefs {
+		merged = append(merged, mergedBookmarkRef{kind: "topic", refID: ref.ID, topicID: ref.TopicID, bookmarkedAt: ref.BookmarkedAt})
+	}
+	for _, ref := range postRefs {
+		merged = append(merged, mergedBookmarkRef{kind: "post", refID: ref.ID, postID: ref.PostID, bookmarkedAt: ref.BookmarkedAt})
+	}
+	slices.SortStableFunc(merged, func(a, b mergedBookmarkRef) int {
+		if a.bookmarkedAt.Equal(b.bookmarkedAt) {
+			return 0
+		}
+		if a.bookmarkedAt.After(b.bookmarkedAt) {
+			return -1
+		}
+		return 1
+	})
+
+	hasNext := len(merged) > limit
+	if hasNext {
+		merged = merged[:limit]
+	}
+	payloads := buildBookmarkPayloads(merged)
+	nextCursor := ""
+	if hasNext && len(merged) > 0 {
+		nextCursor = formatBookmarkTimeCursor(merged[len(merged)-1].bookmarkedAt)
+	}
+	return payloads, nextCursor
+}
+
+func parseBookmarkTimeCursor(raw string) time.Time {
+	if raw == "" {
+		return time.Time{}
+	}
+	secs, err := strconv.ParseInt(raw, 10, 64)
+	if err != nil || secs <= 0 {
+		return time.Time{}
+	}
+	return time.Unix(secs, 0)
+}
+
+func formatBookmarkTimeCursor(t time.Time) string {
+	return strconv.FormatInt(t.Unix(), 10)
+}
+
+func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
+	payloads := make([]UserBookmarkPayload, 0, len(refs))
+	if len(refs) == 0 {
+		return payloads
+	}
+
+	topicIDs := make([]uint64, 0, len(refs))
+	postIDs := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
+		if ref.kind == "topic" {
+			topicIDs = append(topicIDs, ref.topicID)
+		} else {
+			postIDs = append(postIDs, ref.postID)
+		}
+	}
+	topicMap := topics.GetPointerMapByIds(topicIDs)
+	postEntities := posts.GetByIds(postIDs)
+
+	postMap := make(map[uint64]*posts.Entity, len(postEntities))
+	postTopicIDs := make([]uint64, 0, len(postEntities))
+	for _, post := range postEntities {
+		if post == nil || post.Id == 0 {
+			continue
+		}
+		postMap[post.Id] = post
+		postTopicIDs = append(postTopicIDs, post.TopicId)
+	}
+	postTopicMap := topics.GetPointerMapByIds(postTopicIDs)
+
+	for _, ref := range refs {
+		switch ref.kind {
+		case "topic":
+			topic := topicMap[ref.topicID]
+			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+				continue
+			}
+			payloads = append(payloads, UserBookmarkPayload{
+				ID:           ref.refID,
+				Type:         "topic",
+				TopicID:      ref.topicID,
+				Title:        topic.Title,
+				URL:          urlconfig.PostDetail(ref.topicID),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+			})
+		case "post":
+			post := postMap[ref.postID]
+			if post == nil || post.ProcessStatus != 0 {
+				continue
+			}
+			topic := postTopicMap[post.TopicId]
+			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+				continue
+			}
+			payloads = append(payloads, UserBookmarkPayload{
+				ID:           ref.refID,
+				Type:         "post",
+				TopicID:      post.TopicId,
+				PostID:       post.Id,
+				PostNo:       post.PostNo,
+				Title:        topic.Title,
+				Excerpt:      bookmarkExcerpt(post.Content),
+				URL:          buildPostAnchorURL(post.TopicId, post.PostNo, post.Id),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+			})
+		}
+	}
+	return payloads
+}
+
+// bookmarkExcerpt 楼层内容预览：压缩空白并截断
+func bookmarkExcerpt(content string) string {
+	compact := strings.Join(strings.Fields(content), " ")
+	runes := []rune(compact)
+	if len(runes) > 120 {
+		return string(runes[:120]) + "…"
+	}
+	return compact
+}
+
+// buildPostAnchorURL 楼层锚点链接：/p/post/{topicId}/{postNo}#post-{postId}
+func buildPostAnchorURL(topicID, postNo, postID uint64) string {
+	return fmt.Sprintf("/p/post/%d/%d#post-%d", topicID, postNo, postID)
 }
 
 func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayload {

@@ -100,6 +100,31 @@ type PostActionCount struct {
 	Count  uint64 `gorm:"column:count"`
 }
 
+// BookmarkedPostRef 楼层收藏引用（个人主页收藏列表用）
+type BookmarkedPostRef struct {
+	ID           uint64    `gorm:"column:id"`
+	PostID       uint64    `gorm:"column:post_id"`
+	BookmarkedAt time.Time `gorm:"column:bookmarked_at"`
+}
+
+// ListBookmarkedPostRefsBeforeTime 时间游标分页：用户收藏过的楼层（按收藏时间倒序）。
+// 与主题收藏共用时间游标，便于跨表合并排序展示。
+func ListBookmarkedPostRefsBeforeTime(userId uint64, before time.Time, limit int) []BookmarkedPostRef {
+	if userId == 0 || limit <= 0 {
+		return nil
+	}
+	rows := make([]BookmarkedPostRef, 0, limit)
+	query := builder().
+		Select("id", "post_id", "bookmarked_at").
+		Where(queryopt.Eq("user_id", userId)).
+		Where("bookmarked_at IS NOT NULL")
+	if !before.IsZero() {
+		query = query.Where("bookmarked_at < ?", before)
+	}
+	query.Order("bookmarked_at DESC, id DESC").Limit(limit).Find(&rows)
+	return rows
+}
+
 // CountLikesByPostIds 统计一批楼层的点赞数（单条 GROUP BY 查询）
 func CountLikesByPostIds(postIds []uint64) map[uint64]uint64 {
 	result := make(map[uint64]uint64, len(postIds))
