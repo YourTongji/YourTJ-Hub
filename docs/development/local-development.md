@@ -59,11 +59,22 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 |---|---|
 | `[app]` | env (local binds 127.0.0.1), debug, maintenance, signingKey, cdn_url |
 | `[server]` | url, port (default 5234), accessLog, gzip |
-| `[jwtopt]` | validTime (seconds, default 604800 = 7 days) |
-| `[db]` / `[db.default]` / `[db.file]` | SQLite by default, MySQL optional; migration, backup, pool |
+| `[db]` / `[db.default]` / `[db.file]` | SQLite default; main db (`[db.default]`) also supports MySQL and PostgreSQL (issue #11); file db stays SQLite; migration, backup, pool |
 | `[meilisearch]` | url, masterkey (optional search) |
-| `[log]` | log type/rolling/slow SQL |
+| `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client (currently the only third-party login) |
+
+To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
+
+```toml
+[db.default]
+connection = "postgres"
+url = "host=127.0.0.1 user=yourtj password=yourtj dbname=yourtj port=5432 sslmode=disable"
+```
+
+The binary AutoMigrates all main-db models and runs the versioned data migrations on first boot.
+`TEST_PG_DSN` can be set to run the gated PostgreSQL integration tests
+(`go test ./app/bundles/connect/sqlconnect/...`).
 
 > config.toml contains signingKey — sensitive; it is gitignored, never commit it.
 

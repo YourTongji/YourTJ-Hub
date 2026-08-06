@@ -1,17 +1,15 @@
-name: contract
+name: ci-contract
 
 on:
   push:
     paths:
       - "apps/gooseforum/app/**"
       - "packages/api-contract/**"
+  # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
-    paths:
-      - "apps/gooseforum/app/**"
-      - "packages/api-contract/**"
 
 jobs:
-  validate:
+  ci-contract:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

@@ -816,4 +816,5 @@ export interface SearchPageProps {
     hasNext: boolean
     nextUrl: string
   }
+  searchUnavailable?: boolean
 }

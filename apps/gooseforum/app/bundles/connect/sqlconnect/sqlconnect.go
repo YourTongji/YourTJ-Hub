@@ -14,6 +14,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/logging"
 	"github.com/leancodebox/GooseForum/app/bundles/setting"
 	"gorm.io/driver/mysql"
+	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -72,9 +73,14 @@ func GetConnect(config Config) Connect {
 	case "mysql":
 		slog.Info("use mysql")
 		dbIns, err = connectMysqlDB(config.DbUrl)
+	case "postgres":
+		slog.Info("use postgres")
+		dbIns, err = connectPostgresDB(config.DbUrl)
 	default:
-		slog.Info("use sqlite because unselect db")
-		dbIns, err = connectSqlLiteDB(config.DbPath)
+		// 未知连接类型显式报错，避免配置拼错悄悄回退到 sqlite
+		err = fmt.Errorf("unsupported db connection type %q (supported: sqlite, mysql, postgres)", config.Connection)
+		slog.Error(err.Error())
+		return Connect{Config: config, Connect: nil, Error: err}
 	}
 
 	if err != nil {
@@ -109,6 +115,20 @@ func connectMysqlDB(dbUrl string) (*gorm.DB, error) {
 	})
 
 	// 准备数据库连接池
+	db, err := gorm.Open(gormConfig, &gorm.Config{
+		Logger: logging.NewGormLoggerWithDefault(),
+	})
+	return db, err
+}
+
+func connectPostgresDB(dbUrl string) (*gorm.DB, error) {
+	// 初始化 PostgreSQL 连接信息
+	// DSN 推荐 key=value 格式:
+	// host=localhost user=yourtj password=yourtj dbname=yourtj port=5432 sslmode=disable
+	gormConfig := postgres.New(postgres.Config{
+		DSN: dbUrl,
+	})
+
 	db, err := gorm.Open(gormConfig, &gorm.Config{
 		Logger: logging.NewGormLoggerWithDefault(),
 	})

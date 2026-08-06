@@ -22,11 +22,11 @@ const fieldLastMsgTime = "last_msg_time"
 const fieldCreatedAt = "created_at"
 
 type Entity struct {
-	Id             uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                                    // 主键
-	Type           int       `gorm:"column:type;type:tinyint(1);not null;default:1;" json:"type"`                               // 1 单聊 (C2C)
-	LastMsgContent string    `gorm:"column:last_msg_content;type:varchar(255);default:'';" json:"lastMsgContent"`               // 最后一条消息预览
-	LastMsgTime    time.Time `gorm:"column:last_msg_time;type:datetime;not null;default:CURRENT_TIMESTAMP;" json:"lastMsgTime"` // 用于排序
-	CreatedAt      time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`                        //
+	Id             uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`                      // 主键
+	Type           int       `gorm:"column:type;not null;default:1;" json:"type"`                                 // 1 单聊 (C2C)
+	LastMsgContent string    `gorm:"column:last_msg_content;type:varchar(255);default:'';" json:"lastMsgContent"` // 最后一条消息预览
+	LastMsgTime    time.Time `gorm:"column:last_msg_time;not null;default:CURRENT_TIMESTAMP;" json:"lastMsgTime"` // 用于排序
+	CreatedAt      time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`          //
 }
 
 // func (itself *Entity) BeforeSave(tx *gorm.DB) (err error) {}
