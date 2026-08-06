@@ -623,6 +623,99 @@ export async function unbindOAuth(provider: string): Promise<boolean> {
   return true
 }
 
+export interface UserSessionPayload {
+  id: number
+  ipMasked: string
+  userAgent: string
+  createdAt: number
+  expiresAt: number
+  isCurrent: boolean
+}
+
+export async function listSessions(): Promise<UserSessionPayload[]> {
+  const response = await fetch('/api/user/sessions', {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<UserSessionPayload[]>(response, t('api.sessionsLoadFailed'))
+}
+
+export async function revokeSession(id: number): Promise<boolean> {
+  const response = await fetch('/api/user/sessions/revoke', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id }),
+  })
+  await readApiResponse<unknown>(response, t('api.sessionRevokeFailed'))
+  return true
+}
+
+export async function revokeAllSessions(): Promise<boolean> {
+  const response = await fetch('/api/user/sessions/revoke-all', {
+    method: 'POST',
+  })
+  await readApiResponse<unknown>(response, t('api.sessionRevokeAllFailed'))
+  return true
+}
+
+export interface TotpSetupPayload {
+  secret: string
+  otpauthUrl: string
+}
+
+export interface TotpEnablePayload {
+  recoveryCodes: string[]
+}
+
+export async function getTotpSetup(password: string): Promise<TotpSetupPayload> {
+  const response = await fetch('/api/user/totp/setup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ password }),
+  })
+  return readApiResponse<TotpSetupPayload>(response, t('api.totpSetupFailed'))
+}
+
+export async function enableTotp(code: string): Promise<TotpEnablePayload> {
+  const response = await fetch('/api/user/totp/enable', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  return readApiResponse<TotpEnablePayload>(response, t('api.totpEnableFailed'))
+}
+
+export async function disableTotp(code: string): Promise<boolean> {
+  const response = await fetch('/api/user/totp/disable', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  await readApiResponse<unknown>(response, t('api.totpDisableFailed'))
+  return true
+}
+
+export async function verifyTotp(code: string): Promise<boolean> {
+  const response = await fetch('/api/auth/totp/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  await readApiResponse<unknown>(response, t('api.totpVerifyFailed'))
+  return true
+}
+
 interface CaptchaPayload {
   captchaId: string
   captchaImg: string
@@ -646,20 +739,25 @@ export async function getCaptcha(): Promise<CaptchaPayload> {
   return readApiResponse<CaptchaPayload>(response, t('api.captchaLoadFailed'))
 }
 
-export async function login(username: string, password: string, captchaId: string, captchaCode: string): Promise<boolean> {
+export interface LoginResult {
+  twoFactorRequired: boolean
+}
+
+export async function login(username: string, password: string, captchaId: string, captchaCode: string): Promise<LoginResult> {
+  let result: LoginResult
   try {
-    await submitLogin(username, password, captchaId, captchaCode, true)
+    result = await submitLogin(username, password, captchaId, captchaCode, true)
   } catch (error) {
     if (!(error instanceof ApiResponseError) || error.messageCode !== loginInvalidRequestCode) {
       throw error
     }
     clearLoginPublicKey()
-    await submitLogin(username, password, captchaId, captchaCode, true)
+    result = await submitLogin(username, password, captchaId, captchaCode, true)
   }
-  return true
+  return result
 }
 
-async function submitLogin(username: string, password: string, captchaId: string, captchaCode: string, refreshKey = false): Promise<void> {
+async function submitLogin(username: string, password: string, captchaId: string, captchaCode: string, refreshKey = false): Promise<LoginResult> {
   const encryptedPassword = await encryptLoginPassword(password, refreshKey)
   const response = await fetch('/api/login', {
     method: 'POST',
@@ -673,8 +771,10 @@ async function submitLogin(username: string, password: string, captchaId: string
       captchaCode,
     }),
   })
-  await readApiResponse<unknown>(response, t('api.loginFailed'))
+  const result = await readApiResponse<{ twoFactorRequired?: boolean }>(response, t('api.loginFailed'))
+  return { twoFactorRequired: Boolean(result?.twoFactorRequired) }
 }
+
 
 export async function register(
   username: string,

@@ -1,8 +1,8 @@
 <script setup lang="ts">
 import { computed, onMounted, reactive, ref } from 'vue'
-import { LoaderCircle, LockKeyhole, Mail, UserRound } from '@lucide/vue'
+import { LoaderCircle, LockKeyhole, Mail, ShieldCheck, UserRound } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
-import { forgotPassword, getCaptcha, login, register } from '@/runtime/api'
+import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
@@ -16,16 +16,18 @@ type Mode = 'login' | 'register' | 'forgot'
 
 const { t, locale } = useI18n()
 const mode = ref<Mode>(page.props.initialMode || 'login')
+const twoFactorPending = ref(false)
+const totpCode = ref('')
 const captchaImg = ref('')
 const captchaId = ref('')
 const captchaLoading = ref(false)
 const notice = ref('')
 const error = ref('')
-
 const loading = reactive({
   login: false,
   register: false,
   forgot: false,
+  totp: false,
 })
 
 const loginForm = reactive({
@@ -87,6 +89,10 @@ async function refreshCaptcha() {
 }
 
 async function handleLogin() {
+  if (twoFactorPending.value) {
+    await handleTotpVerify()
+    return
+  }
   if (!loginForm.username || !loginForm.password || !loginForm.captcha) {
     error.value = t('auth.validation.loginRequired')
     return
@@ -94,7 +100,12 @@ async function handleLogin() {
   loading.login = true
   error.value = ''
   try {
-    await login(loginForm.username, loginForm.password, captchaId.value, loginForm.captcha)
+    const result = await login(loginForm.username, loginForm.password, captchaId.value, loginForm.captcha)
+    if (result.twoFactorRequired) {
+      twoFactorPending.value = true
+      notice.value = t('auth.validation.twoFactorRequired')
+      return
+    }
     window.location.href = homeUrl.value
   } catch (err) {
     error.value = errorMessage(err, t('auth.validation.loginFailed'))
@@ -103,6 +114,31 @@ async function handleLogin() {
   } finally {
     loading.login = false
   }
+}
+
+async function handleTotpVerify() {
+  if (!totpCode.value) {
+    error.value = t('auth.validation.twoFactorRequired')
+    return
+  }
+  loading.totp = true
+  error.value = ''
+  try {
+    await verifyTotp(totpCode.value)
+    window.location.href = homeUrl.value
+  } catch (err) {
+    error.value = errorMessage(err, t('api.totpVerifyFailed'))
+    totpCode.value = ''
+  } finally {
+    loading.totp = false
+  }
+}
+
+function backToPasswordLogin() {
+  twoFactorPending.value = false
+  totpCode.value = ''
+  notice.value = ''
+  error.value = ''
 }
 
 async function handleRegister() {
@@ -205,7 +241,33 @@ function errorMessage(err: unknown, fallback: string) {
           <p v-if="error" class="gf-status-message gf-status-message-error mb-4">{{ error }}</p>
           <p v-if="notice" class="gf-status-message gf-status-message-success mb-4">{{ notice }}</p>
 
-          <form v-if="mode === 'login'" class="space-y-3" @submit.prevent="handleLogin">
+          <form v-if="mode === 'login' && twoFactorPending" class="space-y-3" @submit.prevent="handleTotpVerify">
+            <div class="flex items-center gap-2 text-sm font-semibold text-base-content">
+              <ShieldCheck class="h-4 w-4 text-primary" />
+              {{ t('auth.twoFactorTitle') }}
+            </div>
+            <p class="text-sm text-base-content/55">{{ t('auth.twoFactorDescription') }}</p>
+            <label class="block">
+              <span class="sr-only">{{ t('auth.twoFactorCode') }}</span>
+              <input
+                v-model="totpCode"
+                class="gf-input text-center text-lg tracking-[0.4em]"
+                :placeholder="t('auth.twoFactorCode')"
+                inputmode="numeric"
+                autocomplete="one-time-code"
+                maxlength="8"
+              />
+            </label>
+            <button type="submit" class="gf-button gf-button-xl gf-button-primary w-full" :disabled="loading.totp">
+              <LoaderCircle v-if="loading.totp" class="h-4 w-4 animate-spin" />
+              {{ t('auth.twoFactorVerify') }}
+            </button>
+            <button type="button" class="w-full text-sm font-medium text-base-content/55 hover:text-base-content" @click="backToPasswordLogin">
+              {{ t('auth.twoFactorBack') }}
+            </button>
+          </form>
+
+          <form v-else-if="mode === 'login'" class="space-y-3" @submit.prevent="handleLogin">
             <label class="block">
               <span class="sr-only">{{ t('auth.usernameOrEmail') }}</span>
               <span class="relative block">
