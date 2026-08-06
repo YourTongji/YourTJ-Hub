@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
+import { badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
 import type { UserBadgePayload } from '@gooseforum/client'
 
 defineOptions({ inheritAttrs: false })
@@ -50,11 +50,10 @@ function formatAvatarUrl(src: string, url: URL): string {
 </script>
 
 <template>
-  <span v-if="badge" v-bind="$attrs" class="relative inline-block shrink-0">
+  <span v-if="badge" v-bind="$attrs" class="group/avatar relative inline-block shrink-0">
     <img :src="resolvedSrc" :alt="alt" width="96" height="96" decoding="async" class="h-full w-full object-cover" :class="imgClass">
     <span
-      class="absolute -bottom-1 -right-1 z-10 flex h-[38%] min-h-4 w-[38%] min-w-4 items-center justify-center rounded-full p-0.5 shadow-sm ring-1 ring-inset"
-      :class="badgeClass(badge.color, badge.level)"
+      class="absolute -bottom-1 -right-1 z-10 flex h-[32%] min-h-5 w-[32%] min-w-5 items-center justify-center rounded-full bg-base-100 p-[3px] shadow-md shadow-black/10 ring-2 ring-line transition-transform duration-150 ease-out hover:scale-110"
       :title="badgeTooltip(badge)"
     >
       <img :src="badgeIconURL(badge)" :alt="badge.name" class="h-full w-full object-contain" />
