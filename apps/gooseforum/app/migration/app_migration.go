@@ -135,5 +135,15 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(12)
 		currentVersion = 12
 	}
+	if currentVersion < 13 {
+		result := datamigration.MigrateAggregateSearchIndexes()
+		datamigration.LogAggregateSearchIndexMigration(result)
+		if result.Failed > 0 {
+			slog.Error("app migration aggregate search indexes has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(13)
+		currentVersion = 13
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

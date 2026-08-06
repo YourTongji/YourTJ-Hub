@@ -11,8 +11,9 @@ import (
 
 func Search(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
+	scope := c.Query("scope")
 	page := parsePositiveInt(c.DefaultQuery("page", "1"), 1)
-	props := buildSearchPageProps(query, page)
+	props := buildSearchPageProps(query, scope, page)
 	payload := PagePayload{
 		Component: PageComponentSearch,
 		Props:     props,

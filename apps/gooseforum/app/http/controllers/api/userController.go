@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+
 	"bytes"
 	"errors"
 	"fmt"
@@ -12,10 +14,12 @@ import (
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
+	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
+	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/tokenservice"
@@ -151,6 +155,8 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 
+	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
+
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 
@@ -189,6 +195,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
+	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 

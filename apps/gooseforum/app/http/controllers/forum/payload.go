@@ -543,12 +543,37 @@ type PublishTopicPayload struct {
 }
 
 type SearchPageProps struct {
-	Query             string            `json:"query"`
-	Topics            []TopicPayload    `json:"topics"`
-	Total             int64             `json:"total"`
-	TotalPages        int               `json:"totalPages"`
-	Pagination        PaginationPayload `json:"pagination"`
-	SearchUnavailable bool              `json:"searchUnavailable,omitempty"`
+	Query             string                  `json:"query"`
+	Scope             string                  `json:"scope"`
+	Topics            []TopicPayload          `json:"topics"`
+	Users             []UserSearchPayload     `json:"users"`
+	Categories        []CategorySearchPayload `json:"categories"`
+	Total             int64                   `json:"total"`
+	UsersTotal        int64                   `json:"usersTotal"`
+	CategoriesTotal   int64                   `json:"categoriesTotal"`
+	TotalPages        int                     `json:"totalPages"`
+	Pagination        PaginationPayload       `json:"pagination"`
+	FailedScopes      []string                `json:"failedScopes,omitempty"`
+	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
+}
+
+// UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
+type UserSearchPayload struct {
+	ID        uint64 `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatarUrl"`
+	Bio       string `json:"bio"`
+}
+
+// CategorySearchPayload 分类搜索结果展示数据（由 DB 重构填充）
+type CategorySearchPayload struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Slug  string `json:"slug"`
+	Icon  string `json:"icon"`
+	Color string `json:"color"`
+	Desc  string `json:"desc"`
 }
 
 func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
@@ -2195,11 +2220,15 @@ func buildPublishCategories() []PublishCategoryPayload {
 	return res
 }
 
-func buildSearchPageProps(query string, page int) SearchPageProps {
+func buildSearchPageProps(query string, scope string, page int) SearchPageProps {
 	const pageSize = 10
+	normalizedScope := searchservice.NormalizeScope(scope)
 	props := SearchPageProps{
-		Query:  query,
-		Topics: []TopicPayload{},
+		Query:      query,
+		Scope:      normalizedScope,
+		Topics:     []TopicPayload{},
+		Users:      []UserSearchPayload{},
+		Categories: []CategorySearchPayload{},
 		Pagination: PaginationPayload{
 			Page: page,
 		},
@@ -2211,35 +2240,64 @@ func buildSearchPageProps(query string, page int) SearchPageProps {
 	if page < 1 {
 		page = 1
 	}
-	result, err := searchservice.SearchTopics(searchservice.SearchRequest{
+	limit := pageSize
+	if normalizedScope != searchservice.ScopeAll {
+		limit = searchservice.MaxAggregateLimit
+	}
+	offset := 0
+	if normalizedScope == searchservice.ScopeTopics {
+		offset = (page - 1) * pageSize
+	}
+	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
 		Query:  query,
-		Limit:  pageSize,
-		Offset: (page - 1) * pageSize,
+		Scope:  normalizedScope,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true
 		return props
 	}
 	if err != nil || result == nil {
+		props.FailedScopes = failedScopesOf(err, result)
 		return props
 	}
+	props.FailedScopes = result.FailedScopes
 
-	ids := lo.Map(result.Results, func(item searchservice.SearchResult, _ int) uint64 {
-		return item.ID
-	})
-	topicMap := topics.GetPointerMapByIds(ids)
-	orderedTopics := lo.FilterMap(ids, func(id uint64, _ int) (*topics.Entity, bool) {
-		topic, ok := topicMap[id]
+	topicMap := topics.GetPointerMapByIds(lo.Map(result.Topics, func(item searchservice.SearchResult, _ int) uint64 { return item.ID }))
+	orderedTopics := lo.FilterMap(result.Topics, func(item searchservice.SearchResult, _ int) (*topics.Entity, bool) {
+		topic, ok := topicMap[item.ID]
 		return topic, ok && topic != nil
 	})
 	totalPageCount := totalPages(result.Total, pageSize)
 	nextPage := 0
-	if page < totalPageCount {
+	if normalizedScope == searchservice.ScopeTopics && page < totalPageCount {
 		nextPage = page + 1
 	}
 
 	props.Topics = buildTopicPayloads(transform.Topics2Vo(orderedTopics, hotdataserve.CategoryMap()))
+	props.Users = lo.Map(result.Users, func(item searchservice.UserSearchResult, _ int) UserSearchPayload {
+		return UserSearchPayload{
+			ID:        item.ID,
+			Username:  item.Username,
+			Nickname:  item.Nickname,
+			AvatarURL: item.AvatarURL,
+			Bio:       item.Bio,
+		}
+	})
+	props.Categories = lo.Map(result.Categories, func(item searchservice.CategorySearchResult, _ int) CategorySearchPayload {
+		return CategorySearchPayload{
+			ID:    item.ID,
+			Name:  item.Name,
+			Slug:  item.Slug,
+			Icon:  item.Icon,
+			Color: item.Color,
+			Desc:  item.Desc,
+		}
+	})
 	props.Total = result.Total
+	props.UsersTotal = result.UsersTotal
+	props.CategoriesTotal = result.CategoriesTotal
 	props.TotalPages = totalPageCount
 	props.Pagination = PaginationPayload{
 		Page:     page,
@@ -2248,6 +2306,13 @@ func buildSearchPageProps(query string, page int) SearchPageProps {
 		NextURL:  buildSearchURL(query, nextPage),
 	}
 	return props
+}
+
+func failedScopesOf(err error, result *searchservice.AggregateSearchResponse) []string {
+	if result != nil {
+		return result.FailedScopes
+	}
+	return nil
 }
 
 func buildSearchURL(query string, page int) string {

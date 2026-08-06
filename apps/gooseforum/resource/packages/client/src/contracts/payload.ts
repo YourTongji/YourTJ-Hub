@@ -806,10 +806,32 @@ export interface PublishCategoryPayload {
   color: string
 }
 
+export interface UserSearchPayload {
+  id: number
+  username: string
+  nickname: string
+  avatarUrl: string
+  bio: string
+}
+
+export interface CategorySearchPayload {
+  id: number
+  name: string
+  slug: string
+  icon: string
+  color: string
+  desc: string
+}
+
 export interface SearchPageProps {
   query: string
+  scope: string
   topics: TopicPayload[]
+  users: UserSearchPayload[]
+  categories: CategorySearchPayload[]
   total: number
+  usersTotal: number
+  categoriesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -817,5 +839,6 @@ export interface SearchPageProps {
     hasNext: boolean
     nextUrl: string
   }
+  failedScopes?: string[]
   searchUnavailable?: boolean
 }

@@ -1,0 +1,78 @@
+package datamigration
+
+import (
+	"log/slog"
+
+	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
+	"github.com/leancodebox/GooseForum/app/service/searchservice"
+)
+
+// AggregateSearchIndexMigrationResult 汇总 v13 迁移结果（users + categories 索引构建）。
+type AggregateSearchIndexMigrationResult struct {
+	Skipped             bool   `json:"skipped"`
+	UsersRebuilt        bool   `json:"usersRebuilt"`
+	UsersProcessed      int    `json:"usersProcessed"`
+	UsersFailed         int    `json:"usersFailed"`
+	CategoriesRebuilt   bool   `json:"categoriesRebuilt"`
+	CategoriesProcessed int    `json:"categoriesProcessed"`
+	CategoriesFailed    int    `json:"categoriesFailed"`
+	Failed              int    `json:"failed"`
+	LastFailed          string `json:"lastFailed"`
+}
+
+// MigrateAggregateSearchIndexes 构建 users + categories 搜索索引。
+// Meilisearch 不可用 → Skipped（版本照常推进，下次启动重试无副作用）；
+// 构建失败（FailedCount>0）→ Failed++（不推进版本，下次启动重试）。
+func MigrateAggregateSearchIndexes() AggregateSearchIndexMigrationResult {
+	result := AggregateSearchIndexMigrationResult{}
+	if !meiliconnect.IsAvailable() {
+		result.Skipped = true
+		return result
+	}
+
+	userResult, err := searchservice.BuildUserIndex()
+	if err != nil {
+		result.Failed++
+		result.LastFailed = err.Error()
+		return result
+	}
+	result.UsersRebuilt = true
+	result.UsersProcessed = userResult.ProcessedCount
+	result.UsersFailed = userResult.FailedCount
+	if userResult.FailedCount > 0 {
+		result.Failed++
+		result.LastFailed = "user index build had failures"
+		return result
+	}
+
+	categoryResult, err := searchservice.BuildCategoryIndex()
+	if err != nil {
+		result.Failed++
+		result.LastFailed = err.Error()
+		return result
+	}
+	result.CategoriesRebuilt = true
+	result.CategoriesProcessed = categoryResult.ProcessedCount
+	result.CategoriesFailed = categoryResult.FailedCount
+	if categoryResult.FailedCount > 0 {
+		result.Failed++
+		result.LastFailed = "category index build had failures"
+		return result
+	}
+	return result
+}
+
+// LogAggregateSearchIndexMigration 输出 v13 迁移结果（供 app_migration 调用）。
+func LogAggregateSearchIndexMigration(result AggregateSearchIndexMigrationResult) {
+	slog.Info("app migration aggregate search indexes done",
+		"skipped", result.Skipped,
+		"usersRebuilt", result.UsersRebuilt,
+		"usersProcessed", result.UsersProcessed,
+		"usersFailed", result.UsersFailed,
+		"categoriesRebuilt", result.CategoriesRebuilt,
+		"categoriesProcessed", result.CategoriesProcessed,
+		"categoriesFailed", result.CategoriesFailed,
+		"failed", result.Failed,
+		"lastFailed", result.LastFailed,
+	)
+}
