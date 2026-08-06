@@ -183,6 +183,11 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 				return fmt.Errorf("写入导出 JSON 失败: %w", err)
 			}
 		}
+		if payload.Format == "csv" && writer != nil {
+			if err := writer.Write(exportCSVHeaders[table]); err != nil {
+				return fmt.Errorf("写入 CSV 表头失败: %w", err)
+			}
+		}
 		count, err := writeExportTable(ctx, file, writer, jsonEncoder, payload.Format, table, func(n int64) {
 			processed += n
 			if total > 0 {
@@ -240,6 +245,7 @@ func countTable(table string) int64 {
 func writeExportTable(ctx context.Context, file *os.File, writer *csv.Writer, encoder *json.Encoder, format, table string, onBatch func(int64)) (int64, error) {
 	var lastID uint64
 	var total int64
+	firstInTable := true
 	for {
 		if err := ctx.Err(); err != nil {
 			return total, err
@@ -249,18 +255,19 @@ func writeExportTable(ctx context.Context, file *os.File, writer *csv.Writer, en
 			break
 		}
 		lastID = rows[len(rows)-1].ID
-		for i, row := range rows {
+		for _, row := range rows {
 			if format == "csv" {
 				if err := writeCSVRow(writer, table, row); err != nil {
 					return total, err
 				}
 			} else {
-				// JSON 数组内元素间加逗号分隔
-				if i > 0 {
+				// JSON 数组内元素间加逗号分隔（跨批次连续，避免 }{ 非法 JSON）
+				if !firstInTable {
 					if _, err := file.WriteString(","); err != nil {
 						return total, err
 					}
 				}
+				firstInTable = false
 				if err := encoder.Encode(row.Fields); err != nil {
 					return total, err
 				}

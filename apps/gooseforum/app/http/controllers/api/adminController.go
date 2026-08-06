@@ -1312,6 +1312,27 @@ type SaveSecuritySettingsReq struct {
 
 // SaveSecuritySettings 保存安全与注册设置
 func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) component.Response {
+	// 新增/更新的禁用用户名：自动冻结匹配的存量账号（幂等，重复保存不会重复处理）
+	current := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, defaultconfig.GetDefaultSecuritySettingsConfig())
+	newBanned := req.Params.Settings.BannedUsernames
+	for _, username := range newBanned {
+		normalized := strings.ToLower(strings.TrimSpace(username))
+		if normalized == "" {
+			continue
+		}
+		already := false
+		for _, existing := range current.BannedUsernames {
+			if strings.ToLower(strings.TrimSpace(existing)) == normalized {
+				already = true
+				break
+			}
+		}
+		if !already {
+			if err := moderationservice.FreezeUsersByBannedUsername(username, req.UserId); err != nil {
+				slog.Warn("freeze users for banned username failed", "username", username, "err", err)
+			}
+		}
+	}
 	return savePageConfig(pageConfig.SecuritySettings, req.Params.Settings, hotdataserve.ClearSecuritySettingsConfigCache)
 }
 

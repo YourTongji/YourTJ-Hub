@@ -109,7 +109,14 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			continue
 		}
 		var existing users.EntityComplete
-		if err := db.Where("username = ?", username).First(&existing).Error; err == nil && existing.Id > 0 {
+		// 幂等：优先按原始 id（导出/导入往返保留外键关系），其次按 username/email
+		id := rowUint64(row, "id")
+		if id > 0 {
+			if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
+				report.Skipped++
+				continue
+			}
+		} else if err := db.Where("username = ?", username).First(&existing).Error; err == nil && existing.Id > 0 {
 			report.Skipped++
 			continue
 		}
@@ -120,6 +127,7 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			}
 		}
 		user := users.EntityComplete{
+			Id:          id,
 			Username:    username,
 			Email:       rowString(row, "email"),
 			Nickname:    rowString(row, "nickname"),

@@ -187,6 +187,9 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 		if topic.Status == 1 {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
+		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
 	} else {
 		topic.PostCount = 1
 		topic.PostSeq = 1
@@ -426,10 +429,13 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 
-	// 敏感词检查
-	_, _, policyErr := checkContentPolicy(req.UserId, content, "post", postEntity.Id)
+	// 敏感词检查：block 直接拦截；review 转待审（编辑后的内容进入审核队列）
+	pendingReview, _, policyErr := checkContentPolicy(req.UserId, content, "post", postEntity.Id)
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
+	}
+	if pendingReview {
+		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
 
 	postEntity.Content = content

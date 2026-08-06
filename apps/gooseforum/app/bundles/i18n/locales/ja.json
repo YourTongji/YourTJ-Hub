@@ -81,5 +81,7 @@
   "meta.topicDesc": "「{title}」を読んで、{site} のコミュニティで議論に参加しましょう。",
   "meta.communityDesc": "{site} のコミュニティで議論に参加しましょう。",
   "meta.userDesc": "{site} での {username} のトピック・アクティビティ・コミュニティのつながりを見る。",
-  "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。"
+  "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。",
+  "terms": "利用規約",
+  "meta.termsDesc": "{site} の利用規約を読む。"
 }

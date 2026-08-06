@@ -11,6 +11,10 @@ import (
 // provider implementation so storageservice never needs to import this package.
 type localProvider struct{}
 
+func init() {
+	// 注册本地 provider，使 storageservice.Current() 在默认（local）配置下可用。
+	storageservice.RegisterLocalFactory(func() storageservice.Provider { return localProvider{} })
+}
 func (localProvider) Save(_ context.Context, name string, data []byte, contentType string) error {
 	entity := GetByName(name)
 	if entity.Id == 0 {

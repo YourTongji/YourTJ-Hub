@@ -3,6 +3,7 @@ package dataservice
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"testing"
@@ -223,3 +224,109 @@ func jsonUint64(v uint64) string {
 }
 
 var _ = filepath.Join // keep import used if assertions change
+
+// TestExportMultiBatchJSONValid 验证跨批次（>exportBatchSize）导出时
+// JSON 仍然合法（B1 回归：批次间逗号缺失曾导致 }{ 非法 JSON）。
+func TestExportMultiBatchJSONValid(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+
+	conn := dbconnect.Connect()
+	// 插入超过一个批次的行数（batchSize=200）
+	for i := 0; i < exportBatchSize+25; i++ {
+		user := users.EntityComplete{
+			Username: fmt.Sprintf("batch_%d", i),
+			Email:    fmt.Sprintf("batch_%d@example.com", i),
+		}
+		if err := conn.Create(&user).Error; err != nil {
+			t.Fatalf("create user %d: %v", i, err)
+		}
+	}
+
+	taskEntity := &taskQueue.Entity{
+		Type:     TaskTypeExport,
+		Status:   taskQueue.StatusPending,
+		TaskJson: `{"tables":["users"],"format":"json"}`,
+	}
+	if err := taskQueue.Create(taskEntity); err != nil {
+		t.Fatalf("create export task: %v", err)
+	}
+	if err := RunExportTask(context.Background(), taskEntity); err != nil {
+		t.Fatalf("RunExportTask() error = %v", err)
+	}
+	reloaded, err := taskQueue.GetByID(taskEntity.Id)
+	if err != nil {
+		t.Fatalf("reload export task: %v", err)
+	}
+	path, err := ExportFilePath(&reloaded)
+	if err != nil {
+		t.Fatalf("ExportFilePath() error = %v", err)
+	}
+	data, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read export file: %v", err)
+	}
+	var doc map[string][]map[string]any
+	if err := json.Unmarshal(data, &doc); err != nil {
+		t.Fatalf("multi-batch export is invalid JSON: %v", err)
+	}
+	if len(doc["users"]) != exportBatchSize+25 {
+		t.Fatalf("export users count = %d, want %d", len(doc["users"]), exportBatchSize+25)
+	}
+}
+
+// TestImportPreservesOriginalIDs 验证导出→导入往返保留原始 id（B2 回归）：
+// users 按导出 id 导入后，topics/posts 的外键 userId/topicId 仍然有效。
+func TestImportPreservesOriginalIDs(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+
+	conn := dbconnect.Connect()
+	cat := category.Entity{Name: "往返分类"}
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	// 先导入带显式 id 的 users/topics/posts（模拟导出文件）
+	jsonData := []byte(`{
+	  "users": [{"id": 1001, "username": "roundtrip", "email": "roundtrip@example.com"}],
+	  "topics": [{"id": 2001, "title": "往返主题", "userId": 1001, "categoryIds": "[` + jsonUint64(cat.Id) + `]"}],
+	  "posts": [{"id": 3001, "topicId": 2001, "userId": 1001, "content": "往返正文", "postNo": 1}]
+	}`)
+	report, err := ImportData(context.Background(), jsonData, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 0 {
+		t.Fatalf("ImportData() failed = %d, want 0 (errors: %+v)", report.Failed, report.Errors)
+	}
+	if report.Success != 3 {
+		t.Fatalf("ImportData() success = %d, want 3", report.Success)
+	}
+
+	// 验证外键关系存在（topic.userId=1001, post.topicId=2001）
+	var topic topics.Entity
+	if err := conn.First(&topic, 2001).Error; err != nil {
+		t.Fatalf("topic 2001 missing: %v", err)
+	}
+	if topic.UserId != 1001 {
+		t.Fatalf("topic.UserId = %d, want 1001", topic.UserId)
+	}
+	var post posts.Entity
+	if err := conn.First(&post, 3001).Error; err != nil {
+		t.Fatalf("post 3001 missing: %v", err)
+	}
+	if post.TopicId != 2001 || post.UserId != 1001 {
+		t.Fatalf("post FK = topic %d user %d, want 2001/1001", post.TopicId, post.UserId)
+	}
+
+	// 再次导入相同数据 → 全部跳过（幂等，按 id 识别）
+	report2, err := ImportData(context.Background(), jsonData, "json")
+	if err != nil {
+		t.Fatalf("ImportData() second error = %v", err)
+	}
+	if report2.Skipped != 3 {
+		t.Fatalf("ImportData() second skipped = %d, want 3", report2.Skipped)
+	}
+}
+
+var _ = fmt.Sprintf // keep fmt import used if assertions change

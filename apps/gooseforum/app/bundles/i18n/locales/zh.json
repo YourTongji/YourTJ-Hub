@@ -81,5 +81,7 @@
   "meta.topicDesc": "阅读 {title}，参与 {site} 的社区讨论。",
   "meta.communityDesc": "参与 {site} 的社区讨论。",
   "meta.userDesc": "查看 {username} 在 {site} 的主题、动态和社区关系。",
-  "meta.categoryDesc": "浏览 {category} 分类下的主题。"
+  "meta.categoryDesc": "浏览 {category} 分类下的主题。",
+  "terms": "服务条款",
+  "meta.termsDesc": "阅读 {site} 的服务条款。"
 }
