@@ -140,7 +140,9 @@ function shouldRemindAnnouncement() {
   const publishedAt = parseAnnouncementTime(page.props.announcement.publishedAt)
   if (!Number.isFinite(publishedAt)) return false
   const age = Date.now() - publishedAt
-  if (age < 0 || age > announcementReminderWindow) return false
+  // 负数 age 说明浏览器时区与服务器不一致导致解析偏移，视为刚发布仍按未读提醒；
+  // 只限制提醒窗口上限，避免旧公告一直打扰。
+  if (age > announcementReminderWindow) return false
 
   try {
     const lastReadAt = Number(window.localStorage.getItem(announcementReadStorageKey) || 0)
@@ -227,14 +229,14 @@ onBeforeUnmount(() => {
           <button
             v-if="announcementUnread"
             type="button"
-            class="-mx-1 inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-primary transition hover:bg-primary/10 focus-visible:bg-primary/10 focus-visible:outline-none"
+            class="-mx-1 inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-full text-primary transition hover:bg-primary/15 active:bg-primary/25 focus-visible:bg-primary/10 focus-visible:outline-none"
             :title="t('topicList.markAnnouncementRead')"
             :aria-label="t('topicList.markAnnouncementRead')"
             @click="markAnnouncementRead"
           >
             <Bell class="announcement-unread-bell h-4 w-4" />
           </button>
-          <span v-else class="mt-0.5 flex h-6 w-6 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
+          <span v-else class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-primary/10 text-primary" aria-hidden="true">
             <Bell class="h-4 w-4" />
           </span>
           <div class="min-w-0 flex-1">
@@ -250,7 +252,7 @@ onBeforeUnmount(() => {
               </div>
               <div
                 v-if="hasMultipleAnnouncements"
-                class="mt-1.5 flex items-center gap-1"
+                class="mt-1.5 flex items-center gap-0.5"
                 role="tablist"
                 :aria-label="t('topicList.announcement')"
               >
@@ -258,13 +260,18 @@ onBeforeUnmount(() => {
                   v-for="(item, index) in announcementItems"
                   :key="item.id"
                   type="button"
-                  class="h-1.5 rounded-full transition-all duration-200"
-                  :class="index === activeAnnouncementIndex ? 'w-4 bg-primary' : 'w-1.5 bg-base-300 hover:bg-base-content/40'"
+                  role="tab"
+                  class="group flex h-5 w-5 items-center justify-center rounded-full transition-colors hover:bg-base-300/70"
+                  :class="index === activeAnnouncementIndex ? 'bg-primary/10' : ''"
                   :aria-label="t('topicList.announcement') + ' ' + (index + 1)"
                   :aria-selected="index === activeAnnouncementIndex"
-                  role="tab"
                   @click="selectAnnouncement(index)"
-                />
+                >
+                  <span
+                    class="block rounded-full transition-all duration-200"
+                    :class="index === activeAnnouncementIndex ? 'h-2 w-4 bg-primary' : 'h-2 w-2 bg-base-content/30 group-hover:bg-base-content/55'"
+                  />
+                </button>
               </div>
             </template>
             <div v-else class="gf-prose gf-prose-announcement" v-html="page.props.announcement.html" />
@@ -314,7 +321,8 @@ onBeforeUnmount(() => {
 
 <style scoped>
 .announcement-unread-bell {
-  animation: announcement-bell-ring 2s ease-in-out infinite;
+  /* 未读提示摇铃 2 轮后静止，避免无限动画干扰阅读 */
+  animation: announcement-bell-ring 2s ease-in-out 2;
   transform-origin: 50% 15%;
 }
 
