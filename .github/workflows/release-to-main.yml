@@ -14,6 +14,7 @@ on:
 
 permissions:
   contents: write
+  actions: write   # gh workflow run 触发 deploy-main 需要
 
 jobs:
   release:
