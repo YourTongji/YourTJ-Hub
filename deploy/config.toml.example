@@ -1,0 +1,61 @@
+# yourtj-hub 配置模板(容器版)
+# init-server.sh 会将其复制为 main/config.toml 与 dev/config.toml,
+# 并替换 REPLACE_* 占位符。容器内固定端口 5234(compose 映射到宿主机端口)。
+
+[app]
+env = "production"
+maintenance = false
+# 由 init-server.sh 生成随机密钥替换
+signingKey = "REPLACE_SIGNING_KEY"
+cdn_url = ""
+
+[server]
+# 容器内固定; 对外端口由 compose 的 MAIN_PORT/DEV_PORT 决定
+url = "REPLACE_SERVER_URL"
+port = 5234
+accessLog = false
+gzip = true
+
+[jwtopt]
+validTime = 604800
+
+[db]
+migration = "on"
+backupSqlite = true
+backupDir = "./storage/databasebackup/"
+keep = 7
+spec = "0 3 * * *"
+
+[db.default]
+connection = "sqlite"
+url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+path = "./storage/database/sqlite.db"
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+[db.file]
+connection = "sqlite"
+url = "root:root_password@tcp(127.0.0.1:3306)/goose_forum?charset=utf8mb4&parseTime=True&loc=Local"
+path = "./storage/database/file.db"
+maxIdleConnections = 3
+maxOpenConnections = 5
+maxLifeSeconds = 300
+
+[meilisearch]
+url = "http://localhost:7700"
+masterkey = ""
+
+[log]
+type = "file"
+path = "./storage/logs/run.log"
+rolling = true
+maxage = 10
+maxsize = 256
+maxBackUps = 30
+slowSQL = true
+slowSQLThreshold = "200ms"
+
+[github]
+client_id = ""
+client_secret = ""

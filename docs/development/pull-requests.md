@@ -10,7 +10,12 @@
 
 ## Branches
 
-- Never develop directly on `main`; create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from `origin/main`.
+- `dev` is the main development line: create `feat/<topic>` / `fix/<topic>` / `docs/<topic>` from
+  `origin/dev`, open PRs against `dev`. CI builds and auto-deploys `dev` to the test instance.
+- `main` is the production site: merges to `main` go through PR + CI and auto-deploy to the prod
+  instance. Never develop directly on `main` or `dev`.
+- The dev instance syncs a consistent snapshot of the main database on each deploy (see
+  `docs/operations/deployment.md`), so DB migrations are rehearsed on dev before reaching main.
 - Prefer worktrees (`git worktree add`) for parallel tasks; do not mix branches in one checkout.
 
 ## Commits

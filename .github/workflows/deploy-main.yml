@@ -1,0 +1,77 @@
+name: deploy-main
+
+on:
+  push:
+    branches: [main]
+    paths-ignore:
+      - "docs/**"
+      - "research/**"
+      - "**.md"
+      - ".playwright-mcp/**"
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+          cache-dependency-path: apps/gooseforum/go.sum
+      - name: Build frontend
+        working-directory: apps/gooseforum/resource
+        run: |
+          pnpm install --frozen-lockfile
+          pnpm build
+      - name: Build binary
+        working-directory: apps/gooseforum
+        run: go build -o ../../bin/yourtj-hub .
+      - uses: actions/upload-artifact@v4
+        with:
+          name: yourtj-hub
+          path: bin/yourtj-hub
+          retention-days: 3
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    environment: production
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: yourtj-hub
+          path: ./bin
+      - name: Upload binary to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          source: "bin/yourtj-hub"
+          target: "/tmp"
+          strip_components: 1
+      - name: Deploy to main (backup db + build image + restart + smoke + rollback)
+        uses: appleboy/ssh-action@v1.2.0
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          script: |
+            set -e
+            # 1. 部署前一致性备份(保留最近 7 份)
+            /opt/yourtj/scripts/backup-db.sh main
+            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
+            /opt/yourtj/scripts/deploy.sh main /tmp/yourtj-hub main-${{ github.sha }} 5234
