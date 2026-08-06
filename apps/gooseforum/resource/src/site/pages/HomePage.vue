@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Bell, Mail, Plus, UsersRound } from '@lucide/vue'
+import { Bell, LayoutGrid, List, Mail, Plus, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
@@ -27,6 +27,28 @@ let observer: IntersectionObserver | undefined
 
 const hasTopics = computed(() => topics.value.length > 0)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
+
+// 信息流样式：列表（表格）↔ 卡片，桌面与移动端均可切换，选择记忆在本地；
+// 列表模式下桌面端保留 hover 弹层预览。
+const feedStorageKey = 'goose:home-feed-mode'
+const feedMode = ref<'table' | 'card'>(readFeedMode())
+
+function readFeedMode(): 'table' | 'card' {
+  try {
+    return window.localStorage.getItem(feedStorageKey) === 'card' ? 'card' : 'table'
+  } catch {
+    return 'table'
+  }
+}
+
+function setFeedMode(mode: 'table' | 'card') {
+  feedMode.value = mode
+  try {
+    window.localStorage.setItem(feedStorageKey, mode)
+  } catch {
+    // Storage may be unavailable in private or restricted browsing contexts.
+  }
+}
 
 const announcementItems = computed(() => page.props.announcement.items || [])
 const hasMultipleAnnouncements = computed(() => announcementItems.value.length > 1)
@@ -299,6 +321,32 @@ onBeforeUnmount(() => {
                 {{ sortTabLabel(tab.key, tab.label) }}
               </a>
             </div>
+            <div
+              class="flex items-center gap-0.5 rounded-full border border-line bg-base-100 p-0.5"
+              role="group"
+              :aria-label="t('topicList.feedMode')"
+            >
+              <button
+                type="button"
+                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors"
+                :class="feedMode === 'table' ? 'bg-primary text-primary-content' : 'text-base-content/55 hover:text-base-content'"
+                :aria-pressed="feedMode === 'table'"
+                @click="setFeedMode('table')"
+              >
+                <List class="h-3.5 w-3.5" />
+                {{ t('topicList.feedModeTable') }}
+              </button>
+              <button
+                type="button"
+                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors"
+                :class="feedMode === 'card' ? 'bg-primary text-primary-content' : 'text-base-content/55 hover:text-base-content'"
+                :aria-pressed="feedMode === 'card'"
+                @click="setFeedMode('card')"
+              >
+                <LayoutGrid class="h-3.5 w-3.5" />
+                {{ t('topicList.feedModeCard') }}
+              </button>
+            </div>
           </div>
           <a href="/publish" class="gf-button gf-button-md gf-button-primary shrink-0 whitespace-nowrap px-3 sm:h-8">
             <Plus class="h-4 w-4" />
@@ -306,7 +354,7 @@ onBeforeUnmount(() => {
           </a>
         </div>
 
-        <TopicList :topics="topics" home :show-pinned="showPinnedLabels">
+        <TopicList :topics="topics" home :show-pinned="showPinnedLabels" :feed-mode="feedMode">
           <template #empty>
             <EmptyState v-if="!hasTopics" :icon="UsersRound" :title="t('topicList.emptyTitle')" :description="t('topicList.emptyDescription')" />
           </template>

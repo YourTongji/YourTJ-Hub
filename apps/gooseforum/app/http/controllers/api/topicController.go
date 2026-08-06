@@ -124,6 +124,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	topic.Title = req.Params.Title
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
+	topic.ImageUrls = markdown2html.ExtractImageURLs(req.Params.Content)
 	if topic.Id > 0 {
 		if firstPost.Id == 0 {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)

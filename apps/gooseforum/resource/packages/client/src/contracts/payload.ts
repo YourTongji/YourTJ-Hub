@@ -305,6 +305,7 @@ export interface TopicDetailPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -333,6 +334,7 @@ export interface PostPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -353,6 +355,7 @@ export interface ReplyTargetPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -376,10 +379,13 @@ export interface TopicPayload {
   id: number
   title: string
   description: string
+  firstImageUrl?: string
+  images?: string[]
   url: string
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }

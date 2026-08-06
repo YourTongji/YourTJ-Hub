@@ -245,6 +245,7 @@ type TopicPayload struct {
 	Title          string                 `json:"title"`
 	Description    string                 `json:"description"`
 	FirstImageURL  string                 `json:"firstImageUrl,omitempty"`
+	Images         []string               `json:"images,omitempty"`
 	URL            string                 `json:"url"`
 	PinWeight      int                    `json:"pinWeight"`
 	ProcessStatus  int8                   `json:"processStatus"`
@@ -261,6 +262,7 @@ type TopicPayload struct {
 type TopicAuthorPayload struct {
 	ID        uint64                  `json:"id"`
 	Username  string                  `json:"username"`
+	Nickname  string                  `json:"nickname,omitempty"`
 	AvatarURL string                  `json:"avatarUrl"`
 	WornBadge *badgeservice.UserBadge `json:"wornBadge,omitempty"`
 }
@@ -882,12 +884,14 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			Title:         topic.Title,
 			Description:   topic.Description,
 			FirstImageURL: topic.FirstImageURL,
+			Images:        topic.ImageUrls,
 			URL:           urlconfig.PostDetail(topic.Id),
 			PinWeight:     topic.PinWeight,
 			ProcessStatus: topic.ProcessStatus,
 			Author: TopicAuthorPayload{
 				ID:        topic.AuthorId,
 				Username:  topic.Username,
+				Nickname:  topic.Nickname,
 				AvatarURL: topic.AvatarUrl,
 			},
 			Participants:   buildParticipants(topic),
@@ -912,9 +916,9 @@ func buildParticipants(topic *vo.TopicsSimpleVo) []TopicAuthorPayload {
 		participants = append(participants, user)
 	}
 	for _, poster := range topic.Posters {
-		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, AvatarURL: poster.AvatarUrl})
+		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, Nickname: poster.Nickname, AvatarURL: poster.AvatarUrl})
 	}
-	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, AvatarURL: topic.AvatarUrl})
+	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
 	if len(participants) > 4 {
 		return participants[:4]
 	}
@@ -1315,7 +1319,7 @@ func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityCom
 	if !ok || user == nil {
 		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
-	return TopicAuthorPayload{ID: userID, Username: user.Username, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
+	return TopicAuthorPayload{ID: userID, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
 }
 
 func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]PostPayload) PageMeta {
