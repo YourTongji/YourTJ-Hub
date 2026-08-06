@@ -1480,10 +1480,15 @@ func ListExportTasks(req component.BetterRequest[component.Null]) component.Resp
 }
 
 // DownloadExportTask 下载导出文件
+const maxDataImportSize = 50 << 20 // 50MB
 func DownloadExportTask(c *gin.Context) {
 	taskID := c.Param("taskId")
 	task, err := taskQueue.GetByID(taskID)
 	if err != nil || task.Id == 0 {
+		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessageAdminDataTaskNotFound, nil))
+		return
+	}
+	if task.Type != dataservice.TaskTypeExport {
 		c.JSON(http.StatusNotFound, component.FailDataCode(component.MessageAdminDataTaskNotFound, nil))
 		return
 	}
@@ -1503,6 +1508,7 @@ func DownloadExportTask(c *gin.Context) {
 
 // ImportData 导入 JSON 数据（multipart file 字段）
 func ImportData(c *gin.Context) {
+	c.Request.Body = http.MaxBytesReader(c.Writer, c.Request.Body, maxDataImportSize)
 	file, err := c.FormFile("file")
 	if err != nil {
 		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageAdminDataImportFailed,

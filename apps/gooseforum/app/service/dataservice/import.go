@@ -101,6 +101,14 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 	for i, row := range rows {
 		line := i + 1
 		report.Total++
+		id := rowUint64(row, "id")
+		if id > 0 {
+			var existingByID users.EntityComplete
+			if err := db.First(&existingByID, id).Error; err == nil && existingByID.Id > 0 {
+				report.Skipped++
+				continue
+			}
+		}
 		username, _ := row["username"].(string)
 		username = strings.TrimSpace(username)
 		if username == "" {
@@ -127,7 +135,7 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			}
 		}
 		user := users.EntityComplete{
-			Id:          id,
+			Id:            id,
 			Username:    username,
 			Email:       rowString(row, "email"),
 			Nickname:    rowString(row, "nickname"),
