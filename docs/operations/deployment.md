@@ -12,7 +12,8 @@
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
-- Runtime deps: SQLite (default, zero external deps) or MySQL; optional Meilisearch; Casdoor planned.
+- Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
+  database `[db.file]` stays SQLite); optional Meilisearch; Casdoor planned.
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -33,7 +34,7 @@
   scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
-    storage/              # sqlite.db + file.db + logs (uid 1000)
+    storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
   dev/
     config.toml           # dev config
     storage/
@@ -101,7 +102,51 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 - Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
 - Rollback: `deploy.sh` tags the previous image `yourtj-hub:prev` and re-points the instance on
   health-check failure; forward-compatible migrations mean an older binary can still start.
-- Pre-deploy snapshot in `snapshots/main/` is the data-level restore point.
+- Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
+
+## PostgreSQL support
+
+Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
+default SQLite and optional MySQL. The file database (`[db.file]`, attachment BLOBs) remains SQLite.
+
+### Enable PostgreSQL
+
+1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
+   `POSTGRES_PASSWORD` / `POSTGRES_DB` in `/opt/yourtj/.env`.
+2. In `main/config.toml` (and `dev/config.toml`), set:
+   ```toml
+   [db.default]
+   connection = "postgres"
+   url = "host=127.0.0.1 user=yourtj password=<secret> dbname=yourtj port=5432 sslmode=disable"
+   ```
+   `url` accepts libpq key=value or URL DSN formats.
+3. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
+   versioned data migrations v1-v12 from scratch, then serves.
+
+### SQLite → PostgreSQL data migration (manual, no automated tool)
+
+The Blueprint explicitly does not ship an automated SQLite→PG migration tool. To move an existing
+instance:
+
+1. `pg_dump` the target schema (or let the binary AutoMigrate an empty PG database first).
+2. Export data from SQLite (`sqlite3 main.db .dump`) and load it into PG with type adjustments
+   (`bigint unsigned` → `bigint`, `tinyint` → `smallint`, `datetime` → `timestamp`).
+3. Set `[db.default] connection="postgres"`, start the binary, verify `/health` 200 and spot-check
+   topics/posts/users reads.
+4. Keep the SQLite file as the rollback snapshot until the PG instance has been stable.
+
+### Backup and sync scripts under PostgreSQL
+
+- `backup-db.sh` / `snapshot-db.sh` / `sync-db-from-main.sh` use the SQLite `.backup` API and only
+  apply to SQLite deployments. For a PG deployment, back up with `pg_dump` (e.g. nightly cron) and
+  sync dev from main with `pg_dump | pg_restore` or streaming replication.
+- SQLite deployments are unaffected.
+
+### Logging configuration (issue #11)
+
+`[log]` supports `level` (debug/info/warn/error, default info), `format` (json/console, default json),
+`errorPath` (WARN/ERROR go to a separate rotating file, e.g. `run.error.log`), and `logIp`
+(default false — access logs omit the client IP for privacy). Changing these requires a restart.
 
 ## Runbooks to write
 

@@ -53,3 +53,27 @@ func handleTopicUpdated(ctx context.Context, event *TopicUpdatedEvent) error {
 	}
 	return nil
 }
+
+// TopicDeletedEvent 主题删除事件
+type TopicDeletedEvent struct {
+	Topic *topics.Entity
+}
+
+func (event *TopicDeletedEvent) Subject() (uint64, uint64, string) {
+	if event == nil {
+		return 0, 0, ""
+	}
+	if event.Topic != nil {
+		return event.Topic.Id, event.Topic.UserId, event.Topic.Title
+	}
+	return 0, 0, ""
+}
+
+// handleTopicDeleted 删除主题搜索索引
+func handleTopicDeleted(ctx context.Context, event *TopicDeletedEvent) error {
+	if event == nil || event.Topic == nil {
+		return nil
+	}
+	_, err := searchservice.BuildSingleTopicSearchDocument(event.Topic, nil)
+	return err
+}

@@ -33,3 +33,28 @@ services:
       timeout: 5s
       retries: 30
       start_period: 10s
+
+  # 可选 PostgreSQL 服务（仅当主库 [db.default] connection="postgres" 时需要）。
+  # 默认注释掉；启用后需在 /opt/yourtj/.env 中配置 POSTGRES_USER/POSTGRES_PASSWORD/POSTGRES_DB，
+  # 并在 main/config.toml 的 [db.default] 中把 url 指向本服务（host=postgres ...）。
+  # 文件库 [db.file] 固定使用 SQLite，不受影响。
+  # postgres:
+  #   image: postgres:16-alpine
+  #   container_name: yourtj-postgres
+  #   restart: unless-stopped
+  #   environment:
+  #     POSTGRES_USER: ${POSTGRES_USER:-yourtj}
+  #     POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-yourtj}
+  #     POSTGRES_DB: ${POSTGRES_DB:-yourtj}
+  #   volumes:
+  #     - pgdata:/var/lib/postgresql/data
+  #   healthcheck:
+  #     test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-yourtj}"]
+  #     interval: 10s
+  #     timeout: 5s
+  #     retries: 10
+  #   networks:
+  #     - default
+
+volumes:
+  pgdata:

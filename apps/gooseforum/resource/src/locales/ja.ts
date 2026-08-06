@@ -236,6 +236,8 @@ export default {
     inputPlaceholder: 'トピックを検索...',
     noResultsTitle: '結果が見つかりません',
     noResultsDescription: '別のキーワードにするか、検索語を短くしてみてください。',
+    unavailableTitle: '検索サービスを利用できません',
+    unavailableDescription: '検索サービスが一時的に利用できません。しばらくしてからお試しください。',
     startTitle: '検索を開始',
     startDescription: 'トピックタイトル、キーワード、フレーズを入力してフォーラムを検索します。',
   },
