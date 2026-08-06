@@ -35,7 +35,6 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
-const activityListMode = 'waterfall'
 const isFollowing = ref(page.props.user.isFollowing)
 const followLoading = ref(false)
 const followError = ref('')
@@ -502,7 +501,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasActivities" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasActivities"
                 :load-error="loadError"
@@ -520,7 +518,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasActivityTopics" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasActivityTopics"
                 :load-error="loadError"
@@ -551,7 +548,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasLikes" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasLikes"
                 :load-error="loadError"
@@ -582,7 +578,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasBookmarks" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasBookmarks"
                 :load-error="loadError"

@@ -5,9 +5,7 @@ import { Bell, Mail, Plus, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
-import TopicListModeSwitch from '@/site/components/TopicListModeSwitch.vue'
 import TopicList from '@/site/components/TopicList.vue'
-import { useTopicListMode } from '@/site/composables/useTopicListMode'
 import type { HomeProps, LayoutPayload, PagePayload, TopicPayload } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -16,7 +14,6 @@ const page = defineProps<{
   pageUrl: string
 }>()
 const { t } = useI18n()
-const { mode: listMode, setMode: setListMode } = useTopicListMode()
 const announcementReadStorageKey = 'goose:announcement:last-read-published-at'
 const announcementReminderWindow = 7 * 24 * 60 * 60 * 1000
 
@@ -30,7 +27,6 @@ let observer: IntersectionObserver | undefined
 
 const hasTopics = computed(() => topics.value.length > 0)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
-const isWaterfallMode = computed(() => listMode.value === 'waterfall')
 
 watch(
   () => page.pageUrl,
@@ -58,18 +54,8 @@ watch(
   () => refreshAnnouncementReminder(),
 )
 
-watch(listMode, (mode) => {
-  if (mode === 'pagination') {
-    observer?.disconnect()
-    topics.value = [...page.props.topics]
-    pagination.value = page.props.pagination
-    return
-  }
-  void nextTick(observeSentinel)
-})
-
 async function loadMore() {
-  if (!isWaterfallMode.value || loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  if (loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
 
   loadingMore.value = true
   loadError.value = ''
@@ -136,7 +122,7 @@ function syncAnnouncementRead(event: StorageEvent) {
 
 function observeSentinel() {
   observer?.disconnect()
-  if (!isWaterfallMode.value || !loadMoreSentinel.value || !('IntersectionObserver' in window)) return
+  if (!loadMoreSentinel.value || !('IntersectionObserver' in window)) return
   observer = new IntersectionObserver(
     (entries) => {
       if (entries.some((entry) => entry.isIntersecting)) void loadMore()
@@ -221,7 +207,6 @@ onBeforeUnmount(() => {
                 {{ sortTabLabel(tab.key, tab.label) }}
               </a>
             </div>
-            <TopicListModeSwitch :model-value="listMode" @update:model-value="setListMode" />
           </div>
           <a href="/publish" class="gf-button gf-button-md gf-button-primary shrink-0 whitespace-nowrap px-3 sm:h-8">
             <Plus class="h-4 w-4" />
@@ -238,7 +223,6 @@ onBeforeUnmount(() => {
         <div ref="loadMoreSentinel">
           <TopicListFooter
             :pagination="pagination"
-            :mode="listMode"
             :loading-more="loadingMore"
             :has-topics="hasTopics"
             :load-error="loadError"

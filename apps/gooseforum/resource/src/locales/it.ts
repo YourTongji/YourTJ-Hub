@@ -200,13 +200,6 @@ export default {
       latestReplies: 'Ultime risposte',
       latestPublished: 'Post più recenti',
     },
-    mode: {
-      label: 'Modalità di visualizzazione dell’elenco argomenti',
-      waterfall: 'Flusso',
-      pagination: 'Pagine',
-      switchTo: 'Passa alla modalità {mode}',
-      changed: 'Passato alla modalità {mode}',
-    },
     columns: {
       topic: 'Argomento',
       users: 'Utenti',
@@ -235,6 +228,7 @@ export default {
     emptyPrompt: 'Cerca argomenti, parole chiave e discussioni della community.',
     inputPlaceholder: 'Cerca argomenti...',
     noResultsTitle: 'Nessun risultato',
+    noResultsForQuery: 'Nessun risultato per "{query}"',
     noResultsDescription: 'Prova con un’altra parola chiave o accorcia la ricerca.',
     startTitle: 'Inizia la ricerca',
     startDescription: 'Inserisci un titolo, una parola chiave o una frase per cercare nel forum.',

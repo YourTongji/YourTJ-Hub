@@ -200,13 +200,6 @@ export default {
       latestReplies: '最新回复',
       latestPublished: '最新发布',
     },
-    mode: {
-      label: '列表显示模式',
-      waterfall: '瀑布流',
-      pagination: '分页',
-      switchTo: '切换到{mode}模式',
-      changed: '已切换到{mode}模式',
-    },
     columns: {
       topic: '主题',
       users: '参与',
@@ -235,6 +228,7 @@ export default {
     emptyPrompt: '搜索主题、关键词和社区讨论。',
     inputPlaceholder: '搜索主题...',
     noResultsTitle: '没有找到结果',
+    noResultsForQuery: '没有找到与「{query}」相关的结果',
     noResultsDescription: '换个关键词，或者缩短搜索词再试试。',
     startTitle: '开始搜索',
     startDescription: '输入主题标题、关键词或短语来搜索论坛。',

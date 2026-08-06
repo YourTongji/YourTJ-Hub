@@ -200,13 +200,6 @@ export default {
       latestReplies: 'Latest replies',
       latestPublished: 'Newest posts',
     },
-    mode: {
-      label: 'Topic list display mode',
-      waterfall: 'Flow',
-      pagination: 'Pages',
-      switchTo: 'Switch to {mode} mode',
-      changed: 'Switched to {mode} mode',
-    },
     columns: {
       topic: 'Topic',
       users: 'Users',
@@ -235,6 +228,7 @@ export default {
     emptyPrompt: 'Search topics, keywords, and community discussions.',
     inputPlaceholder: 'Search topics...',
     noResultsTitle: 'No results',
+    noResultsForQuery: 'No results for "{query}"',
     noResultsDescription: 'Try another keyword or shorten your query.',
     startTitle: 'Start searching',
     startDescription: 'Enter a topic title, keyword, or phrase to search the forum.',

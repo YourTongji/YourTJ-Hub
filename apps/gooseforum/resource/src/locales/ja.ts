@@ -200,13 +200,6 @@ export default {
       latestReplies: '最新返信',
       latestPublished: '新規投稿',
     },
-    mode: {
-      label: 'トピック一覧の表示モード',
-      waterfall: '自動',
-      pagination: 'ページ',
-      switchTo: '{mode}表示に切り替え',
-      changed: '{mode}表示に切り替えました',
-    },
     columns: {
       topic: 'トピック',
       users: '参加',
@@ -235,6 +228,7 @@ export default {
     emptyPrompt: 'トピック、キーワード、コミュニティの議論を検索します。',
     inputPlaceholder: 'トピックを検索...',
     noResultsTitle: '結果が見つかりません',
+    noResultsForQuery: '「{query}」に一致する結果はありません',
     noResultsDescription: '別のキーワードにするか、検索語を短くしてみてください。',
     startTitle: '検索を開始',
     startDescription: 'トピックタイトル、キーワード、フレーズを入力してフォーラムを検索します。',
