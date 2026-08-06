@@ -124,7 +124,7 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
-	loginApi.GET("user/totp/setup", UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
 	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
 	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
 
