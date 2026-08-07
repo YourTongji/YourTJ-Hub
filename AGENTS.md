@@ -81,7 +81,10 @@ docs/        Docs center (product/architecture/development/operations)
 ## 4. Verification
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
-  if module fetch times out)
+  if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
+  test**: `YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v`
+  (spin up `postgres:16-alpine` locally; CI runs the same test in `ci-backend-pg`). MySQL-only type
+  tags (`bigint unsigned` / `datetime` / `tinyint`) break PG and are forbidden in models.
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)

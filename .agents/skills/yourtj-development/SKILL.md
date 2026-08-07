@@ -88,6 +88,18 @@ Then run the exact gates for changed paths:
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out).
+- **PostgreSQL migration gate (mandatory for any model/migration change):** run the PG migration
+  tests against a real PostgreSQL. The models must not hardcode MySQL-only types
+  (`bigint unsigned` / `datetime` / `tinyint`) — GORM generates `bigint unsigned` from such tags and
+  PG rejects it, the table is never created, and the service starts with a broken schema (issue #8
+  regression). Verify with:
+  ```bash
+  docker run -d --name yourtj-pg-verify -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
+    -e POSTGRES_DB=postgres -p 55432:5432 postgres:16-alpine
+  cd apps/gooseforum && YOURTJ_TEST_PG_URL="host=127.0.0.1 port=55432 user=postgres password=postgres \
+    dbname=postgres sslmode=disable" go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v
+  ```
+  CI runs the same gate in the `ci-backend-pg` job; do not rely on it passing locally — run it.
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output lands in static/dist).
 - Full build: `make build` then smoke-test the binary (`./bin/yourtj-hub serve`, then curl the
   configured port, default 5234).
