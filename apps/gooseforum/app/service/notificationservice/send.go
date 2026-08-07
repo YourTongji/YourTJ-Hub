@@ -125,6 +125,29 @@ func SendBadgeNotification(userId uint64, badgeCode string, badgeName string, ba
 	return err
 }
 
+// SendLikeNotification 发送楼层点赞通知
+func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, postId uint64, likerId uint64) error {
+	payload := eventNotification.NotificationPayload{
+		TemplateKey: eventNotification.TemplateLike,
+		ActorId:     likerId,
+		TopicId:     topicId,
+		TopicTitle:  topicTitle,
+		PostId:      postId,
+	}
+
+	notification := &eventNotification.Entity{
+		UserId:    userId,
+		EventType: eventNotification.EventTypeLike,
+		Payload:   payload,
+	}
+
+	err := eventNotification.Create(notification)
+	if err == nil {
+		unreadservice.Invalidate(userId)
+	}
+	return err
+}
+
 // SendFollowNotification 发送关注通知
 func SendFollowNotification(userId uint64, followerId uint64, followerName string) error {
 	payload := eventNotification.NotificationPayload{

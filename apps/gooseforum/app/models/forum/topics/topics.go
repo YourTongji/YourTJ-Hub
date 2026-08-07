@@ -26,11 +26,19 @@ type Entity struct {
 	PinWeight     int            `gorm:"column:pin_weight;type:int;not null;default:0;index:idx_topics_list_default,priority:3,sort:desc;index:idx_topics_admin_list,priority:1,sort:desc;index:idx_topics_admin_user_list,priority:2,sort:desc;" json:"pinWeight"`
 	Excerpt       string         `gorm:"column:excerpt;type:varchar(255);not null;default:'';" json:"excerpt"`
 	FirstImageURL string         `gorm:"column:first_image_url;type:varchar(512);not null;default:'';" json:"firstImageUrl"`
+	ImageUrls     []string       `gorm:"column:image_urls;type:text;serializer:json" json:"imageUrls"`
 	Posters       []Poster       `gorm:"column:posters;type:text;serializer:json" json:"posters"`
 	CreatedAt     time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_topics_list_new,priority:3,sort:desc;" json:"createdAt"`
 	UpdatedAt     time.Time      `gorm:"column:updated_at;autoUpdateTime;index:idx_topics_list_default,priority:4,sort:desc;index:idx_topics_admin_list,priority:2,sort:desc;index:idx_topics_admin_user_list,priority:3,sort:desc;" json:"updatedAt"`
 	DeletedAt     gorm.DeletedAt `json:"-"`
 }
+
+// 管理处理状态
+const (
+	ProcessStatusNormal  int8 = 0 // 正常
+	ProcessStatusBlocked int8 = 1 // 封禁
+	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
+)
 
 type Poster struct {
 	UserID uint64 `json:"user_id"`

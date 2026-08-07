@@ -13,24 +13,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
+	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
 	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/tokenservice"
 	"github.com/leancodebox/GooseForum/app/service/urlconfig"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
 )
 
 func GetCaptcha(req component.BetterRequest[component.Null]) component.Response {
@@ -145,6 +146,10 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 	newUsername := req.GetParams().Username
 	if !component.ValidateUsername(newUsername) {
 		return component.FailResponseCode(component.MessageAuthUsernameInvalid, nil)
+	}
+	// 保留/禁用用户名检查
+	if _, err := moderationservice.CheckUsernameAllowed(newUsername); err != nil {
+		return component.FailResponseError(err)
 	}
 	if users.ExistUsername(newUsername) {
 		return component.FailResponseCode(component.MessageAuthUsernameExists, nil)

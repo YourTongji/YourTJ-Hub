@@ -186,7 +186,12 @@ watch(
 
         <EmptyState v-else-if="searchUnavailable" :icon="Search" :title="t('searchPage.unavailableTitle')" :description="t('searchPage.unavailableDescription')" />
 
-        <EmptyState v-else-if="hasQuery" :icon="UsersRound" :title="t('searchPage.noResultsTitle')" :description="t('searchPage.noResultsDescription')" />
+        <EmptyState
+          v-else-if="hasQuery"
+          :icon="UsersRound"
+          :title="t('searchPage.noResultsForQuery', { query: page.props.query })"
+          :description="t('searchPage.noResultsDescription')"
+        />
 
         <EmptyState v-else :icon="Search" :title="t('searchPage.startTitle')" :description="t('searchPage.startDescription')" />
       </section>

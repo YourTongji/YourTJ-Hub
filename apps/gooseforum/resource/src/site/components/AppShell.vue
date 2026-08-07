@@ -348,9 +348,12 @@ async function loadUserCard() {
             >
               {{ brandText }}
             </span>
-            <span v-else class="max-w-36 truncate text-xl font-semibold tracking-tighter text-primary sm:max-w-44 sm:text-2xl md:max-w-none">
-              Goose<span class="text-base-content">Forum</span>
-            </span>
+            <img
+              v-else
+              src="/static/pic/brand-default.png"
+              :alt="layout.site.name"
+              class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
+            />
           </a>
           <nav
             v-if="!showHeaderTitle"
@@ -403,7 +406,7 @@ async function loadUserCard() {
         >
           <a
             href="/search"
-            class="hidden h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content sm:inline-flex"
+            class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
             :aria-label="t('shell.search')"
             :title="t('shell.search')"
           >

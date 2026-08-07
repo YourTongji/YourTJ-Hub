@@ -369,7 +369,7 @@ function markItemReadAndNavigate(item: NotificationPayload) {
         <article
           v-for="item in notifications"
           :key="item.id"
-          class="relative grid grid-cols-[34px_minmax(0,1fr)] gap-3 px-3 py-2.5 transition-[background-color] hover:bg-base-200/70 md:grid-cols-[34px_minmax(0,1fr)_116px_40px] md:items-start"
+          class="relative grid grid-cols-[34px_minmax(0,1fr)] items-center gap-3 px-3 py-2.5 transition-[background-color] hover:bg-base-200/70 md:grid-cols-[34px_minmax(0,1fr)_116px_40px]"
           :class="{ 'bg-info/10 before:absolute before:inset-y-0 before:left-0 before:w-0.5 before:bg-primary': !item.isRead }"
         >
           <div

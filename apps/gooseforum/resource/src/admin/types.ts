@@ -239,6 +239,10 @@ export interface SecuritySettings {
   enableSignup: boolean
   enableEmailVerification: boolean
   allowedDomains: string[]
+  reservedUsernames: string[]
+  bannedUsernames: string[]
+  sensitiveWords: string[]
+  sensitiveAction: 'block' | 'review'
   captchaRequired: boolean
 }
 
@@ -256,6 +260,55 @@ export interface RateLimitSettings {
   newUserCaptchaAfterPosts: number
   newUserCaptchaDays: number
   minSubmitSeconds: number
+}
+
+export interface StorageSettings {
+  provider: 'local' | 's3'
+  endpoint: string
+  bucket: string
+  region: string
+  bucketLookup: 'auto' | 'dns' | 'path'
+  secure: boolean
+  accessKey: string
+  secretKey: string
+  publicUrlPrefix: string
+}
+
+export interface TermsOfServiceConfig {
+  enabled: boolean
+  content: string
+}
+
+export interface AdminTaskRow {
+  id: number
+  type: string
+  status: number
+  taskJson: string
+  retryCount: number
+  lastError: string
+  processedAt: string
+  createdAt: string
+}
+
+export interface ReviewQueueItem {
+  id: number
+  title: string
+  excerpt: string
+  userId: number
+  username: string
+  processStatus: number
+  createdAt: string
+  topicId?: number
+  postNo?: number
+}
+
+export interface ImportReport {
+  total: number
+  success: number
+  skipped: number
+  failed: number
+  errors: Array<{ line: number; table: string; reason: string }>
+  importedTables: string[]
 }
 
 export interface PostingSettings {
@@ -297,6 +350,14 @@ export interface AnnouncementConfig {
   enabled: boolean
   content: string
   publishedAt?: string
+  items?: AnnouncementItemConfig[]
+}
+
+export interface AnnouncementItemConfig {
+  id: string
+  title: string
+  content: string
+  enabled: boolean
 }
 
 export interface SiteStatistics {

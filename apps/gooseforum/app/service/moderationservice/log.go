@@ -117,3 +117,37 @@ func create(entity moderationLog.Entity) {
 		slog.Error("create moderation log failed", "action", entity.Action, "subjectType", entity.SubjectType, "subjectId", entity.SubjectId, "err", err)
 	}
 }
+
+// SensitiveContentBlocked 记录内容因命中敏感词被拦截。
+func SensitiveContentBlocked(actorUserId uint64, subjectType string, subjectId uint64, word string, excerpt string) {
+	create(moderationLog.Entity{
+		ActorUserId: actorUserId,
+		Action:      moderationLog.ActionSensitiveBlocked,
+		SubjectType: subjectType,
+		SubjectId:   subjectId,
+		Payload: moderationLog.Payload{
+			MessageCode: "moderation.log.content.sensitiveBlocked",
+			Params: map[string]any{
+				"word":    word,
+				"excerpt": excerpt,
+			},
+		},
+	})
+}
+
+// SensitiveContentReview 记录内容因命中敏感词转入人工审核。
+func SensitiveContentReview(actorUserId uint64, subjectType string, subjectId uint64, word string, excerpt string) {
+	create(moderationLog.Entity{
+		ActorUserId: actorUserId,
+		Action:      moderationLog.ActionSensitiveReview,
+		SubjectType: subjectType,
+		SubjectId:   subjectId,
+		Payload: moderationLog.Payload{
+			MessageCode: "moderation.log.content.sensitiveReview",
+			Params: map[string]any{
+				"word":    word,
+				"excerpt": excerpt,
+			},
+		},
+	})
+}

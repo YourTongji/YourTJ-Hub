@@ -266,6 +266,31 @@ func PageForModeration(q ModerationPageQuery) struct {
 	}{Page: q.Page + 1, PageSize: q.PageSize, Data: list, Total: total, HasNext: hasNext}
 }
 
+// PagePendingReview 列出待审（ProcessStatus=2）的主题。
+func PagePendingReview(page, pageSize int) struct {
+	Page     int
+	PageSize int
+	Total    int64
+	Data     []Entity
+} {
+	var list []Entity
+	page = max(page-1, 0)
+	pageSize = pageutil.BoundPageSize(pageSize)
+	b := builder().
+		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Order(queryopt.Desc("updated_at")).
+		Order(queryopt.Desc("id"))
+	var total int64
+	b.Session(&gorm.Session{}).Count(&total)
+	b.Limit(pageSize).Offset(pageSize * page).Find(&list)
+	return struct {
+		Page     int
+		PageSize int
+		Total    int64
+		Data     []Entity
+	}{Page: page + 1, PageSize: pageSize, Total: total, Data: list}
+}
+
 func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }

@@ -25,6 +25,23 @@ func Search(c *gin.Context) {
 	renderAppShell(c, payload)
 }
 
+type SearchJSONReq struct {
+	Q     string `form:"q"`
+	Scope string `form:"scope"`
+	Page  int    `form:"page"`
+}
+
+// SearchJSON 提供搜索的 JSON API（复用 buildSearchPageProps 的分页逻辑），
+// 供前端异步搜索与移动端体验使用；SSR 页面渲染链路保持不变。
+func SearchJSON(req component.BetterRequest[SearchJSONReq]) component.Response {
+	page := req.Params.Page
+	if page < 1 {
+		page = 1
+	}
+	props := buildSearchPageProps(strings.TrimSpace(req.Params.Q), req.Params.Scope, page)
+	return component.SuccessResponse(props)
+}
+
 func buildSearchMeta(c *gin.Context, query string) PageMeta {
 	lang := requestLang(c)
 	title := i18n.T(lang, "search")

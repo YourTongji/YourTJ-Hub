@@ -2,10 +2,12 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
   Award,
+  Database,
   FileText,
   Files,
   ExternalLink,
   GalleryVerticalEnd,
+  HardDrive,
   Heart,
   Link,
   ListChecks,
@@ -13,6 +15,7 @@ import {
   Megaphone,
   Monitor,
   PanelsTopLeft,
+  ScrollText,
   PanelLeft,
   Shield,
   ShieldCheck,
@@ -67,7 +70,7 @@ const navGroups = computed<NavGroup[]>(() => {
   locale.value
   return [
   {
-    title: 'GooseForum',
+    title: 'YourTJHub',
     items: [
       { title: adminText('k004c'), url: '/admin', icon: Monitor, permission: AdminPermission.Admin },
       { title: adminText('k006i'), url: '/admin/users', icon: UserCog, permission: AdminPermission.UserManager },
@@ -79,6 +82,8 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k0058'), url: '/admin/badges', icon: Award, permission: AdminPermission.SiteManager },
       { title: adminText('k00f6'), url: '/admin/files/resources', icon: Files, permission: AdminPermission.SiteManager },
       { title: adminText('k007c'), url: '/admin/opt-records', icon: ListChecks, permission: AdminPermission.Admin },
+      { title: adminText('k00ge'), url: '/admin/review-queue', icon: ListChecks, permission: AdminPermission.SiteManager },
+      { title: adminText('k00h0'), url: '/admin/data', icon: Database, permission: AdminPermission.SiteManager },
     ],
   },
   {
@@ -89,9 +94,11 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k007v'), url: '/admin/settings/mail', icon: Mail, permission: AdminPermission.SiteManager },
       { title: adminText('k0005'), url: '/admin/settings/security', icon: ShieldCheck, permission: AdminPermission.SiteManager },
       { title: adminText('k007w'), url: '/admin/settings/posting', icon: FileText, permission: AdminPermission.SiteManager },
-      { title: adminText('k00fk'), url: '/admin/settings/rate-limit', icon: Shield, permission: AdminPermission.SiteManager },
+      { title: adminText('k00ig'), url: '/admin/settings/rate-limit', icon: Shield, permission: AdminPermission.SiteManager },
       { title: adminText('k0009'), url: '/admin/settings/announcement', icon: Megaphone, permission: AdminPermission.PageManager },
       { title: adminText('k00cj'), url: '/admin/settings/http-notify', icon: Webhook, permission: AdminPermission.SiteManager },
+      { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },
+      { title: adminText('k00gp'), url: '/admin/settings/terms', icon: ScrollText, permission: AdminPermission.SiteManager },
     ],
   },
   ].map(group => ({
@@ -120,7 +127,7 @@ function isActive(item: NavItem) {
                 <GalleryVerticalEnd class="size-4" />
               </div>
               <div class="grid flex-1 text-left text-sm leading-tight">
-                <span class="truncate font-semibold">{{ layout.site.name || 'GooseForum' }}</span>
+                <span class="truncate font-semibold">{{ layout.site.brandText || layout.site.name || 'YourTJHub' }}</span>
                 <span class="truncate text-xs">Admin</span>
               </div>
             </a>
