@@ -45,9 +45,9 @@ String colorToHex(Color color) {
 }
 
 void main() {
-  final Map<String, dynamic> tokens = jsonDecode(
-    File('lib/src/theme/tokens.json').readAsStringSync(),
-  ) as Map<String, dynamic>;
+  final Map<String, dynamic> tokens =
+      jsonDecode(File('lib/src/theme/tokens.json').readAsStringSync())
+          as Map<String, dynamic>;
 
   test('tokens.json exposes all 29 keys for light and dark', () {
     expect(tokens.keys.toSet(), <String>{'light', 'dark'});
@@ -118,5 +118,58 @@ void main() {
   test('GfColors.forBrightness picks the matching palette', () {
     expect(GfColors.forBrightness(Brightness.light), GfColors.light);
     expect(GfColors.forBrightness(Brightness.dark), GfColors.dark);
+  });
+
+  group('GfTypography', () {
+    test('registers a scale for both brightnesses', () {
+      for (final Brightness brightness in <Brightness>[
+        Brightness.light,
+        Brightness.dark,
+      ]) {
+        final GfTypography t = gfThemeData(
+          brightness,
+        ).extension<GfTypography>()!;
+        expect(t.display.fontSize, 22);
+        expect(t.title1.fontSize, 20);
+        expect(t.title2.fontSize, 18);
+        expect(t.title3.fontSize, 17);
+        expect(t.heading.fontSize, 16);
+        expect(t.body.fontSize, 15);
+        expect(t.bodyStrong.fontSize, 15);
+        expect(t.small.fontSize, 13);
+        expect(t.caption.fontSize, 12);
+        expect(t.meta.fontSize, 11);
+        expect(t.label.fontSize, 10);
+      }
+    });
+
+    test('weights match the web conventions', () {
+      final GfTypography t = GfTypography.standard(GfColors.light.baseContent);
+      expect(t.display.fontWeight, FontWeight.w700);
+      expect(t.title1.fontWeight, FontWeight.w700);
+      expect(t.title2.fontWeight, FontWeight.w700);
+      expect(t.title3.fontWeight, FontWeight.w700);
+      expect(t.heading.fontWeight, FontWeight.w600);
+      expect(t.body.fontWeight, FontWeight.w400);
+      expect(t.bodyStrong.fontWeight, FontWeight.w600);
+      expect(t.label.fontWeight, FontWeight.w700);
+    });
+
+    test('body uses relaxed line height like web leading-relaxed', () {
+      final GfTypography t = GfTypography.standard(GfColors.light.baseContent);
+      expect(t.body.height, 1.5);
+      expect(
+        t.display.fontFeatures,
+        contains(const FontFeature.tabularFigures()),
+      );
+    });
+
+    testWidgets('GfTheme.typographyOf falls back when unregistered', (
+      tester,
+    ) async {
+      await tester.pumpWidget(const MaterialApp(home: SizedBox()));
+      final BuildContext context = tester.element(find.byType(SizedBox));
+      expect(GfTheme.typographyOf(context), isA<GfTypography>());
+    });
   });
 }

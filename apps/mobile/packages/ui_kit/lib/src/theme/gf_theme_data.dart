@@ -4,6 +4,7 @@ import 'package:flutter/material.dart';
 
 import 'gf_colors.dart';
 import 'gf_theme_extensions.dart';
+import 'gf_typography.dart';
 
 /// Builds the yourtj `ThemeData` for a [Brightness], wiring the Gf design
 /// tokens into Material widgets (color scheme, shapes, typography, motion).
@@ -12,7 +13,6 @@ import 'gf_theme_extensions.dart';
 /// (see [GfTheme]).
 ThemeData gfThemeData(Brightness brightness) {
   final GfColors colors = GfColors.forBrightness(brightness);
-  final bool dark = brightness == Brightness.dark;
 
   final ColorScheme colorScheme = ColorScheme(
     brightness: brightness,
@@ -41,16 +41,19 @@ ThemeData gfThemeData(Brightness brightness) {
     borderSide: BorderSide.none,
   );
 
+  final GfTypography typography = GfTypography.standard(colors.baseContent);
+
   return ThemeData(
     useMaterial3: true,
     brightness: brightness,
     colorScheme: colorScheme,
     scaffoldBackgroundColor: colors.base100,
     dividerColor: colors.line,
-    extensions: const <ThemeExtension<dynamic>>[
+    extensions: <ThemeExtension<dynamic>>[
       GfRadii.standard,
       GfBorders.standard,
       GfSizes.standard,
+      typography,
     ],
     // Buttons follow gf-button-* semantics (see GfButton).
     filledButtonTheme: FilledButtonThemeData(
@@ -62,8 +65,8 @@ ThemeData gfThemeData(Brightness brightness) {
             borderRadius: BorderRadius.circular(GfRadii.standard.field),
           ),
         ),
-        textStyle: const WidgetStatePropertyAll(
-          TextStyle(fontWeight: FontWeight.w600),
+        textStyle: WidgetStatePropertyAll(
+          TextStyle(fontWeight: FontWeight.w600, fontSize: 14),
         ),
       ),
     ),
@@ -97,7 +100,10 @@ ThemeData gfThemeData(Brightness brightness) {
       border: noBorder,
       enabledBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(GfRadii.standard.field),
-        borderSide: BorderSide(color: colors.line, width: GfBorders.standard.width),
+        borderSide: BorderSide(
+          color: colors.line,
+          width: GfBorders.standard.width,
+        ),
       ),
       focusedBorder: OutlineInputBorder(
         borderRadius: BorderRadius.circular(GfRadii.standard.field),
@@ -150,12 +156,19 @@ ThemeData gfThemeData(Brightness brightness) {
       },
     ),
     splashFactory: InkSparkle.splashFactory,
-    textTheme: (dark
-            ? Typography.material2021().white
-            : Typography.material2021().black)
-        .apply(
-          bodyColor: colors.baseContent,
-          displayColor: colors.baseContent,
-        ),
+    textTheme: TextTheme(
+      displaySmall: typography.display,
+      headlineMedium: typography.title1,
+      headlineSmall: typography.title2,
+      titleLarge: typography.title3,
+      titleMedium: typography.heading,
+      titleSmall: typography.bodyStrong,
+      bodyLarge: typography.body,
+      bodyMedium: typography.small,
+      bodySmall: typography.caption,
+      labelLarge: typography.bodyStrong.copyWith(fontSize: 14),
+      labelMedium: typography.meta,
+      labelSmall: typography.label,
+    ),
   );
 }
