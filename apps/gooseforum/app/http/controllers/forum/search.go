@@ -32,10 +32,9 @@ func buildSearchMeta(c *gin.Context, query string) PageMeta {
 		title = query + " - " + title
 	}
 	return PageMeta{
-		Title:       pageTitle(title),
-		Description: i18n.T(lang, "meta.searchDesc", "site", siteTitle()),
-		Canonical:   component.GetBaseUri(c) + buildSearchURL(query, 1),
-		Robots:      "noindex,follow",
+		Title:     pageTitle(title),
+		Canonical: component.GetBaseUri(c) + buildSearchURL(query, c.Query("scope"), 1),
+		Robots:    "noindex,follow",
 	}
 }
 

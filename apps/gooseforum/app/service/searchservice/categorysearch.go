@@ -15,6 +15,7 @@ type CategorySearchDocument struct {
 	ID           uint64 `json:"id"`
 	Name         string `json:"name"`
 	Slug         string `json:"slug"`
+	Desc         string `json:"desc"`
 	NamePinyin   string `json:"namePinyin"`
 	NameInitials string `json:"nameInitials"`
 }
@@ -26,6 +27,7 @@ func convertCategoryToSearchDocument(entity *category.Entity) CategorySearchDocu
 		ID:           entity.Id,
 		Name:         entity.Name,
 		Slug:         entity.Slug,
+		Desc:         entity.Desc,
 		NamePinyin:   namePinyin,
 		NameInitials: nameInitials,
 	}

@@ -4,7 +4,9 @@ import (
 	"context"
 	"testing"
 
+	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 )
 
 func TestTopicDeletedEventSubject(t *testing.T) {
@@ -72,7 +74,12 @@ func TestHandleUserSearchIndexUpdated(t *testing.T) {
 	if err := handleUserSearchIndexUpdated(ctx, nil); err != nil {
 		t.Fatalf("handleUserSearchIndexUpdated(nil) error = %v, want nil", err)
 	}
-	// 无 Meilisearch 环境：用户查询失败 → 删除分支 → IsAvailable=false 返回 nil
+	// 建表使 users.Get 对不存在用户返回 RecordNotFound（而非 no such table）
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+		t.Fatalf("migrate users table: %v", err)
+	}
+	// 用户不存在（RecordNotFound）→ 删除分支 → 无 Meilisearch 返回 nil
 	if err := handleUserSearchIndexUpdated(ctx, &UserSearchIndexUpdatedEvent{UserId: 999999}); err != nil {
 		t.Fatalf("handleUserSearchIndexUpdated(event) error = %v, want nil", err)
 	}

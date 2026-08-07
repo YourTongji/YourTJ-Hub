@@ -21,8 +21,8 @@ type AggregateSearchIndexMigrationResult struct {
 }
 
 // MigrateAggregateSearchIndexes 构建 users + categories 搜索索引。
-// Meilisearch 不可用 → Skipped（版本照常推进，下次启动重试无副作用）；
-// 构建失败（FailedCount>0）→ Failed++（不推进版本，下次启动重试）。
+// Meilisearch 不可用 → Skipped（app_migration 不推进版本，下次启动重试）；
+// 构建失败（FailedCount>0）→ Failed++（同样不推进版本，下次启动重试）。
 func MigrateAggregateSearchIndexes() AggregateSearchIndexMigrationResult {
 	return migrateAggregateSearchIndexes(
 		meiliconnect.IsAvailable,

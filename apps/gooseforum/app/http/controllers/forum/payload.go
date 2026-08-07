@@ -2240,12 +2240,14 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 	if page < 1 {
 		page = 1
 	}
+	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
+	// users/categories 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
-	if normalizedScope != searchservice.ScopeAll {
+	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories {
 		limit = searchservice.MaxAggregateLimit
 	}
 	offset := 0
-	if normalizedScope == searchservice.ScopeTopics {
+	if normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll {
 		offset = (page - 1) * pageSize
 	}
 	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
@@ -2271,7 +2273,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 	})
 	totalPageCount := totalPages(result.Total, pageSize)
 	nextPage := 0
-	if normalizedScope == searchservice.ScopeTopics && page < totalPageCount {
+	if (normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll) && page < totalPageCount {
 		nextPage = page + 1
 	}
 
@@ -2303,7 +2305,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		Page:     page,
 		NextPage: nextPage,
 		HasNext:  nextPage > 0,
-		NextURL:  buildSearchURL(query, nextPage),
+		NextURL:  buildSearchURL(query, normalizedScope, nextPage),
 	}
 	return props
 }
@@ -2315,10 +2317,13 @@ func failedScopesOf(err error, result *searchservice.AggregateSearchResponse) []
 	return nil
 }
 
-func buildSearchURL(query string, page int) string {
+func buildSearchURL(query string, scope string, page int) string {
 	values := url.Values{}
 	if query != "" {
 		values.Set("q", query)
+	}
+	if scope != "" && scope != searchservice.ScopeAll {
+		values.Set("scope", scope)
 	}
 	if page > 1 {
 		values.Set("page", strconv.Itoa(page))

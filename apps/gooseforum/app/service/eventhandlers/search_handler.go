@@ -2,12 +2,14 @@ package eventhandlers
 
 import (
 	"context"
+	"errors"
 
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"gorm.io/gorm"
 )
 
 // TopicPublishedEvent 主题发布事件
@@ -99,9 +101,13 @@ func handleUserSearchIndexUpdated(ctx context.Context, event *UserSearchIndexUpd
 	}
 	user, err := users.Get(event.UserId)
 	if err != nil {
-		// 用户不存在（如软删）→ 删除索引文档
-		_, delErr := searchservice.DeleteUserSearchDocument(event.UserId)
-		return delErr
+		// 仅当用户确实不存在（软删/删除）时移除索引文档；
+		// 瞬态 DB 错误不删除，避免误删有效用户的搜索结果。
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			_, delErr := searchservice.DeleteUserSearchDocument(event.UserId)
+			return delErr
+		}
+		return err
 	}
 	_, err = searchservice.BuildSingleUserSearchDocument(&user)
 	return err

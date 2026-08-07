@@ -138,6 +138,11 @@ func runVersionedDataMigrations() {
 	if currentVersion < 13 {
 		result := datamigration.MigrateAggregateSearchIndexes()
 		datamigration.LogAggregateSearchIndexMigration(result)
+		if result.Skipped {
+			// Meilisearch 不可用：不推进版本，下次启动重试（避免永久跳过索引构建）
+			slog.Warn("app migration aggregate search indexes skipped (meilisearch unavailable), will retry on next start")
+			return
+		}
 		if result.Failed > 0 {
 			slog.Error("app migration aggregate search indexes has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
 			return

@@ -28,6 +28,12 @@ const hasCategoryResults = computed(() => categories.value.length > 0)
 const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const failedScopes = computed(() => page.props.failedScopes || [])
 const hasPartialFailure = computed(() => failedScopes.value.length > 0 && !searchUnavailable.value)
+const scopeLabelMap: Record<string, string> = {
+  topics: 'scopeTopics',
+  users: 'scopeUsers',
+  categories: 'scopeCategories',
+}
+const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
   const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : page.props.total
@@ -44,6 +50,16 @@ const scopeTabs = computed(() => {
     { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories' },
   ]
 })
+
+// 分页链接保留当前 scope（与后端 Pagination.NextURL 一致）
+function pageURL(nextPage: number) {
+  const params = new URLSearchParams()
+  if (page.props.query) params.set('q', page.props.query)
+  if (scope.value !== 'all') params.set('scope', scope.value)
+  if (nextPage > 1) params.set('page', String(nextPage))
+  const qs = params.toString()
+  return qs ? `/search?${qs}` : '/search'
+}
 
 function userUrl(user: { id: number }) {
   return `/u/${user.id}`
@@ -68,12 +84,13 @@ watch(
       </template>
       <template #actions>
         <form action="/search" method="GET" class="w-full sm:w-80 lg:w-96">
+          <input v-if="scope !== 'all'" type="hidden" name="scope" :value="scope" />
           <label class="flex h-10 items-center gap-2 rounded-field border border-line bg-base-100 px-3 text-sm text-base-content/55 transition focus-within:border-primary focus-within:ring-4 focus-within:ring-primary/20">
             <Search class="h-4 w-4 shrink-0" />
             <input v-model="query" name="q" class="min-w-0 flex-1 bg-transparent text-base-content outline-none placeholder:text-base-content/55" :placeholder="t('searchPage.inputPlaceholder')" />
             <button type="submit" class="gf-button gf-button-sm gf-button-neutral shrink-0">{{ t('common.search') }}</button>
           </label>
-          </form>
+        </form>
         </template>
       </PageHeader>
 
@@ -91,7 +108,8 @@ watch(
       </div>
 
       <div v-if="hasPartialFailure" class="mb-3 rounded-field border border-warning/30 bg-warning/5 px-4 py-3 text-sm text-base-content/70">
-        {{ t('searchPage.partialFailureDescription', { scopes: failedScopes.join(', ') }) }}
+        <p class="font-medium text-base-content/80">{{ t('searchPage.partialFailureTitle') }}</p>
+        <p>{{ t('searchPage.partialFailureDescription', { scopes: scopeLabels }) }}</p>
       </div>
 
       <section class="gf-card overflow-hidden">
@@ -122,14 +140,14 @@ watch(
               <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.topicsCount', { count: formatNumber(page.props.total) }) }}</span>
             </h2>
             <TopicList :topics="topics" />
-            <footer v-if="scope === 'topics' && page.props.totalPages > 1" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
+            <footer v-if="(scope === 'topics' || scope === 'all') && page.props.totalPages > 1" class="flex flex-col gap-3 border-t border-line bg-base-200/50 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
               <div class="text-sm text-base-content/55">
                 {{ t('common.page', { page: page.props.pagination.page, total: page.props.totalPages }) }}
               </div>
               <div class="flex items-center gap-2">
                 <a
                   v-if="page.props.pagination.page > 1"
-                  :href="`/search?q=${encodeURIComponent(page.props.query)}&scope=topics&page=${page.props.pagination.page - 1}`"
+                  :href="pageURL(page.props.pagination.page - 1)"
                   class="gf-button gf-button-sm gf-button-secondary"
                 >
                   {{ t('common.previousPage') }}
