@@ -20,7 +20,7 @@ Different questions are owned by different sources; no single "goal vs. current 
 |---|---|
 | How the product should work | `docs/product/` |
 | Security, privacy, compliance hard constraints | `AGENTS.md` and `docs/security/` (until then, AGENTS.md) |
-| HTTP request/response structure | `apps/gooseforum/app/http/controllers` and `packages/api-contract/openapi.yaml` (once the contract pipeline exists) |
+| HTTP request/response structure | `apps/gooseforum/app/http/controllers`; for OpenAPI-covered operations, `packages/api-contract/openapi.yaml` |
 | Deployed database structure | Migrations under `apps/gooseforum/app/migration` |
 | Current code behavior | Source, automated tests, and the deployed version |
 | Development, test, and PR process | `docs/development/` |

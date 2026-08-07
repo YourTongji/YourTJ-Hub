@@ -1,0 +1,48 @@
+login:
+  post:
+    tags: [Authentication]
+    summary: Create a forum login session
+    operationId: login
+    security: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/LoginRequest
+    responses:
+      '200':
+        description: Login success, TOTP challenge, or a legacy business failure envelope.
+        headers:
+          Set-Cookie:
+            description: On successful login or TOTP challenge, sets the HTTP-only `access_token` cookie.
+            schema:
+              type: string
+          New-Token:
+            description: JWT session or short-lived TOTP challenge token. The cookie is the supported browser session transport.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/LoginResponse
+            examples:
+              success:
+                externalValue: ../fixtures/login-success.json
+              invalidCredentials:
+                externalValue: ../fixtures/login-failure.json
+      '429':
+        description: Login rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/login-rate-limited.json

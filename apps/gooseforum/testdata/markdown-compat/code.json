@@ -1,8 +1,19 @@
 {
   "contains": [
     "<pre><code class=\"language-go\">",
-    "package main",
+    "<pre><code class=\"language-madeup\">",
+    "<pre><code>",
+    "package",
+    "main",
     "println",
-    "const value = 1"
+    "const value = 1",
+    "&lt;widget onclick=",
+    "&lt;/widget&gt;",
+    "&lt;script&gt;alert(",
+    "&lt;/script&gt;"
+  ],
+  "notContains": [
+    "<widget onclick=",
+    "<script>"
   ]
 }

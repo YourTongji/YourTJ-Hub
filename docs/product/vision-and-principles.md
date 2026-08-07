@@ -6,7 +6,7 @@
 >
 > Owner: Product owner, Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 yourtj is a community platform for Tongji campus members. The forum is the core public discussion space;
 unified auth (Casdoor), search (Meilisearch), and points (credit, phase 2) are shared identity,
@@ -30,7 +30,9 @@ services (course selection, course reviews, etc.).
 
 - `Current`: monorepo skeleton; the forum runs (three-mode rendering + JSON API, single binary).
 - `Current`: database selection (PostgreSQL main-db support landed, issue #11; SQLite default retained);
-  search shape via Meilisearch (optional, event-synced index). `Planned`: unified auth integration.
+  search shape via Meilisearch (optional, event-synced index).
+- `Current`: unified auth integration (Casdoor OIDC, issue #8; Casdoor-side MFA/Passkey deployment
+  config pending).
 - Points (credit) are explicitly **phase 2**; not claimed usable in UI or marketing now.
 
 ### Explicitly out of scope
@@ -49,8 +51,8 @@ services (course selection, course reviews, etc.).
 2. User IDs must be numeric (uint64) — credit's `GetID()` only accepts numeric sub; UUID collapses all
    users to 0.
 3. The chosen DB is the business fact source; search, cache, counters, and feeds are rebuildable projections.
-4. Contracts center on `packages/api-contract/openapi.yaml` (once the pipeline exists); Web/mobile types
-   are generated artifacts.
+4. For OpenAPI-covered operations, contracts center on `packages/api-contract/openapi.yaml`; Web
+   TypeScript types are generated artifacts, while mobile type generation remains Planned.
 5. Deployment is a single binary (go:embed), source separated by directory, deployment merged.
 6. All user media is managed via platform-controlled asset ids, states, and reference relations; no
    arbitrary external links as persistent facts.
@@ -75,10 +77,10 @@ services (course selection, course reviews, etc.).
 
 | Decision | Recommended default | Impact if undecided |
 |---|---|---|
-| Database | PostgreSQL 15+ | Migration, queries, deployment |
-| Search shape | Meilisearch standalone | Topology, index sync, Chinese tokenization |
+| Database | PostgreSQL 15+ (support landed, issue #11; SQLite stays default until the production default call) | Migration, queries, deployment |
+| Search shape | Meilisearch standalone (landed: aggregate search + event sync, issue #22) | Topology, Chinese tokenization |
 | Anonymous visibility | Board-declared visibility | Search index, SEO, privacy settings |
-| Login method | Casdoor unified login (OIDC), numeric ID | credit & mobile exchange integration |
+| Login method | Casdoor unified login (OIDC), numeric ID (integrated, issue #8) | credit & mobile exchange integration |
 | Points source | credit merchant distribution (forum event-driven) | Settlement model, anti-abuse, audit |
 
 Undecided items may be researched but must not be irreversibly decided by a local UI or migration.

@@ -70,7 +70,7 @@ func TestTopicMetaJSONLDIncludesImageForImageOnlyTopic(t *testing.T) {
 	if !ok {
 		t.Fatalf("expected ArticleJSONLD, got %T", meta.JSONLD)
 	}
-	expectedText := "阅读 叮叮叮～又得到一个徽章，参与 GooseForum 的社区讨论。"
+	expectedText := "阅读 叮叮叮～又得到一个徽章，参与 YourTJHub 的社区讨论。"
 	if jsonLD.Text != expectedText {
 		t.Fatalf("expected image-only topic text fallback, got %q", jsonLD.Text)
 	}

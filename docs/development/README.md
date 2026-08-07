@@ -50,8 +50,8 @@ requirements and product semantics
 ## Definition of done
 
 - No unexplained gaps in product semantics, permissions, failure/recovery, privacy, or retention.
-- Code lives in the right layer (service/models/http); OpenAPI/generated types/migration match the
-  implementation (once the contract pipeline exists).
+- Code lives in the right layer (service/models/http); for OpenAPI-covered operations, the OpenAPI
+  definition and generated types match the implementation; migrations match the deployed schema.
 - The numeric-ID constraint (uint64 sub) is not bypassed; auth still has Casdoor as the only identity
   source once integrated.
 - Docs status words are updated; contract changes ship generated output and fixtures.

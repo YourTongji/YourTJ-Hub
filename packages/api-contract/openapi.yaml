@@ -1,10 +1,55 @@
-# Placeholder: once the contract pipeline exists, openapi.yaml is generated from the
-# Go structs in apps/gooseforum.
-# Generation: cd apps/gooseforum && swag init --output ../../packages/api-contract
-# Consumers: gen-ts.sh → apps/gooseforum/resource/packages/client
-#            gen-dart.sh → apps/mobile/packages/core/lib/src/gen/*.dart
 openapi: 3.1.0
 info:
   title: yourtj-hub API
   version: 0.1.0
-paths: {}
+  description: |
+    The controlled HTTP contract for yourtj-hub. This first release covers login and topic writing.
+    Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
+    response envelope instead of treating every 2xx response as a successful operation.
+servers:
+  - url: /
+tags:
+  - name: Authentication
+    description: Session login and authentication flows.
+  - name: Forum
+    description: Forum writing operations.
+paths:
+  /api/login:
+    $ref: ./paths/auth.yaml#/login
+  /api/forum/topics/write:
+    $ref: ./paths/forum-topics.yaml#/writeTopic
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT session supplied through the Authorization header.
+    accessTokenCookie:
+      type: apiKey
+      in: cookie
+      name: access_token
+      description: HTTP-only JWT session cookie created by successful login.
+  schemas:
+    ApiFailure:
+      $ref: ./components/schemas.yaml#/ApiFailure
+    ApiSuccess:
+      $ref: ./components/schemas.yaml#/ApiSuccess
+    LoginRequest:
+      $ref: ./components/schemas.yaml#/LoginRequest
+    LoginSuccess:
+      $ref: ./components/schemas.yaml#/LoginSuccess
+    LoginResponse:
+      $ref: ./components/schemas.yaml#/LoginResponse
+    LoginResult:
+      $ref: ./components/schemas.yaml#/LoginResult
+    TotpChallengeResult:
+      $ref: ./components/schemas.yaml#/TotpChallengeResult
+    WriteTopicRequest:
+      $ref: ./components/schemas.yaml#/WriteTopicRequest
+    WriteTopicSuccess:
+      $ref: ./components/schemas.yaml#/WriteTopicSuccess
+    WriteTopicResponse:
+      $ref: ./components/schemas.yaml#/WriteTopicResponse
+    RateLimitedFailure:
+      $ref: ./components/schemas.yaml#/RateLimitedFailure

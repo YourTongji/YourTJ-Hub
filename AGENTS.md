@@ -25,11 +25,14 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   `resource/static/dist` go:embed; GoHTML templates in `resource/templates` keep server-side rendering (three-mode).
 - Database: SQLite default, MySQL optional (`config.toml [db]`); **PostgreSQL supported for the main
   database since issue #11** (file db stays SQLite).
-- Search: **Meilisearch** (`config.toml [meilisearch]`, optional; index sync incomplete, to be improved).
+- Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
+  categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, planned).
-- Auth: GitHub OAuth (goth) today; **Casdoor OIDC planned**, `sub` = numeric user ID (verified).
-- Contract: `packages/api-contract/openapi.yaml` contract center (planned; upstream has no swagger
-  annotations — needs manual or annotation-based work).
+- Auth: GitHub OAuth (goth) + **Casdoor OIDC integrated** (PKCE, numeric `sub` enforced server-side);
+  TOTP 2FA and session management (`jti` + `user_sessions`) in place (issue #8).
+- Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
+  login and topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP
+  tests; broader route coverage still needs manual or annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
@@ -70,8 +73,8 @@ docs/        Docs center (product/architecture/development/operations)
   the Incremental ID rule or explicit numeric ids (enforce at integration).
 - Once auth is integrated, Casdoor is the only identity source; the forum JWT is a session credential,
   not identity truth.
-- Contract changes ship in the same PR: backend struct → openapi.yaml → TS/Dart generated output →
-  fixture contract tests (once the contract pipeline exists).
+- For OpenAPI-covered operations, contract changes ship in the same PR: backend behavior/structs →
+  `openapi.yaml` → generated TypeScript output → fixture contract tests. Dart generation remains Planned.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
@@ -82,9 +85,11 @@ docs/        Docs center (product/architecture/development/operations)
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
-  test**: `YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v`
-  (spin up `postgres:16-alpine` locally; CI runs the same test in `ci-backend-pg`). MySQL-only type
-  tags (`bigint unsigned` / `datetime` / `tinyint`) break PG and are forbidden in models.
+  tests**: `YOURTJ_TEST_PG_URL="host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable" go test ./app/migration/ -run 'TestSchema' -v`
+  (both `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
+  `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
+  command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
+  break PG and are forbidden in models.
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)

@@ -55,13 +55,15 @@ async function submit() {
       <div class="gf-card grid w-full overflow-hidden border-0 shadow-none sm:border sm:shadow-[0_2px_12px_rgb(0_0_0/calc(var(--gf-depth)*0.04))] md:grid-cols-2">
         <div class="flex min-h-screen flex-col justify-center px-4 py-12 sm:min-h-[470px] sm:px-8 sm:py-6">
           <a href="/" class="mb-6 inline-flex items-baseline text-[27px] font-semibold leading-none tracking-[-0.04em] text-primary">
-            <span v-if="page.layout.site.brandType === 'image' && page.layout.site.brandImage">
+            <span v-if="page.layout.site.brandImage && page.layout.site.brandType !== 'text'" class="inline-flex">
               <img :src="page.layout.site.brandImage" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
             </span>
             <span v-else-if="page.layout.site.brandType === 'text'">
               {{ page.layout.site.brandText || page.layout.site.name }}
             </span>
-            <span v-else>Goose<span class="text-base-content">Forum</span></span>
+            <span v-else class="inline-flex">
+              <img src="/static/pic/brand-default.png" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
+            </span>
           </a>
 
           <div class="mb-4">
