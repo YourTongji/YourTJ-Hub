@@ -144,8 +144,8 @@ func TotpVerify(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		return
 	}
-	if err := totpservice.ConsumeChallenge(userId, jti); err != nil {
-		slog.Error("TOTP verify: consume challenge failed", "userId", userId, "jti", jti, "error", err)
+	if !totpservice.ConsumeChallenge(userId, jti) {
+		slog.Error("TOTP verify: consume challenge failed", "userId", userId, "jti", jti)
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))
 		return
 	}

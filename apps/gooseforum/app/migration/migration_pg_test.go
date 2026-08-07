@@ -43,6 +43,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
+		"user_totp_challenges",
 		"user_o_auth",
 		"users",
 	} {
@@ -86,6 +87,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"user_sessions",
 		"user_totp",
 		"user_totp_recovery_codes",
+		"user_totp_challenges",
 		"user_o_auth",
 		"users",
 		"topics",

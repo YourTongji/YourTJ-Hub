@@ -361,9 +361,10 @@ func ChallengeValid(userID uint64, jti string) bool {
 	return true
 }
 
-// ConsumeChallenge marks a challenge token as used.
-func ConsumeChallenge(userID uint64, jti string) error {
-	return userTotpChallenges.MarkConsumed(userID, jti)
+// ConsumeChallenge atomically marks a challenge token as consumed and reports
+// whether this call won the race (i.e. the token was still unconsumed).
+func ConsumeChallenge(userID uint64, jti string) bool {
+	return userTotpChallenges.MarkConsumedIfUnconsumed(userID, jti)
 }
 
 // CleanupExpiredChallenges removes stale challenge rows.

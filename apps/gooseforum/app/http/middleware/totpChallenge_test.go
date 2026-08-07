@@ -125,8 +125,8 @@ func TestTotpChallengeAuthRejectsConsumedChallengeToken(t *testing.T) {
 	if err := totpservice.SaveChallenge(user.Id, jti, 5*time.Minute); err != nil {
 		t.Fatalf("save challenge: %v", err)
 	}
-	if err := totpservice.ConsumeChallenge(user.Id, jti); err != nil {
-		t.Fatalf("consume challenge: %v", err)
+	if !totpservice.ConsumeChallenge(user.Id, jti) {
+		t.Fatalf("consume challenge: expected unconsumed challenge")
 	}
 	recorder, _ := requestWithTotpChallenge(token)
 	if recorder.Code != http.StatusUnauthorized {

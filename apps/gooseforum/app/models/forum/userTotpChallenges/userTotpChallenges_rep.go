@@ -17,8 +17,13 @@ func GetByUserIDAndJti(userID uint64, jti string) *Entity {
 	return &entity
 }
 
-func MarkConsumed(userID uint64, jti string) error {
-	return builder().Where(fieldUserId, userID).Where(fieldJti, jti).Update(fieldConsumedAt, time.Now()).Error
+// MarkConsumedIfUnconsumed atomically marks a challenge token as consumed,
+// returning whether it was still unconsumed. The WHERE consumed_at IS NULL
+// guard closes the concurrent-replay race: only one request wins.
+func MarkConsumedIfUnconsumed(userID uint64, jti string) bool {
+	result := builder().Where(fieldUserId, userID).Where(fieldJti, jti).
+		Where(fieldConsumedAt+" IS NULL").Update(fieldConsumedAt, time.Now())
+	return result.RowsAffected > 0
 }
 
 func DeleteExpired() error {
