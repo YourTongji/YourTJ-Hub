@@ -57,9 +57,9 @@ We build on [GooseForum](https://github.com/leancodebox/GooseForum) (MIT) — th
 | Topic | Decision | Record |
 |---|---|---|
 | Code organization | apps/gooseforum single binary (Go+Vue in one, upstream fork), no frontend/backend split | Decision records live in note |
-| Auth | Planned: Casdoor unified auth (OIDC, numeric user ID, verified) | docs/product/identity-and-access.md |
+| Auth | Casdoor unified auth integrated (OIDC + PKCE, numeric user ID enforced server-side, issue #8) | docs/product/identity-and-access.md |
 | Mobile state management | Riverpod | docs/architecture/system-overview.md |
-| Database / Search | Pending (recommend PostgreSQL + Meilisearch) | Pending decision, recorded in note |
+| Database / Search | PostgreSQL main-db support landed (issue #11, SQLite default retained); Meilisearch aggregate search with event-driven sync (issue #22) | docs/product/current-state.md |
 
 ## Current state
 

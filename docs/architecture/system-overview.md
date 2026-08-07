@@ -6,13 +6,13 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## System shape
 
 ```
                         ┌─────────────────────┐
-                        │     Casdoor (OIDC)   │  Unified auth (numeric user ID, planned)
+                        │     Casdoor (OIDC)   │  Unified auth (numeric user ID)
                         └──────────┬──────────┘
               OIDC/PKCE            │            OIDC browser flow
        ┌───────────────────────────┼───────────────────────────┐
@@ -27,12 +27,12 @@
                   │ JSON API (JWT Bearer)
            ┌──────▼──────┐     ┌──────────────┐
            │ apps/gooseforum │──▶│ services/    │  Meilisearch index sync
-           │  Go backend     │   │ search       │  (optional, to be improved)
+           │  Go backend     │   │ search       │  (optional, event-driven)
            └──────┬──────┘   └──────────────┘
                   │
-           ┌──────▼──────┐
-           │ SQLite/MySQL │ (PostgreSQL migration pending)
-           └─────────────┘
+           ┌──────▼────────────┐
+           │ SQLite/MySQL/PG   │ (PG main-db supported, issue #11; file db stays SQLite)
+           └───────────────────┘
 ```
 
 ## Deployment shape
@@ -46,7 +46,7 @@
 
 | Layer | Responsibility |
 |---|---|
-| `app/console` | cobra CLI (serve / mock / rebuild-search-index ...) |
+| `app/console` | cobra CLI (serve / mock / rebuild-search-index / migrate-files ...) |
 | `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
 | `app/models` | GORM models + migrations (app/migration) |
 | `app/service` | Business logic (users/topics/mail/oauth/theme ...) |
@@ -65,17 +65,20 @@
 
 ## Key flows
 
-### Auth (planned)
+### Auth
 
-- Today: GitHub OAuth (goth, config [github]).
-- Planned: Casdoor OIDC unified login (Web standard authorization code; Mobile appauth+PKCE →
-  id_token → `POST /api/auth/oidc/exchange` → forum JWT); numeric-ID constraint enforced server-side
-  (see identity-and-access.md).
+- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), and
+  Casdoor OIDC unified login (PKCE + state + nonce, numeric `sub` enforced server-side). Sessions
+  are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
+- Mobile (planned): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT.
 
 ### Search (Partial)
 
-- Meilisearch optionally enabled (config [meilisearch]); index sync and search UX incomplete, to be
-  improved.
+- Meilisearch optionally enabled (config [meilisearch]). Aggregate search (one box covering
+  topics/users/categories with scope tabs; pinyin/initials matching for users and categories) landed
+  in issue #22. Index sync is event-driven (topic/user/category events). When Meilisearch is
+  unavailable the search page shows a full unavailable state; per-index failures degrade partially
+  via `failedScopes`. The index is a rebuildable projection (`rebuild-search-index` CLI).
 
 ### Points (phase 2)
 
