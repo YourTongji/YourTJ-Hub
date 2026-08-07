@@ -542,8 +542,6 @@ export default {
       paragraph: '正文',
       heading: '{level} 级标题',
       codeBlock: '代码块',
-      math: '行内公式',
-      mathBlock: '块级公式',
     },
     placeholder: {
       bold: '加粗文本',

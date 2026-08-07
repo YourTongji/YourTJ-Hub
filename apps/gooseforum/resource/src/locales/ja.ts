@@ -542,8 +542,6 @@ export default {
       paragraph: '本文',
       heading: '見出し {level}',
       codeBlock: 'コードブロック',
-      math: 'インライン数式',
-      mathBlock: 'ブロック数式',
     },
     placeholder: {
       bold: '太字テキスト',

@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from 'vue'
+import type { ComponentPublicInstance } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BadgeCheck, Info, OctagonX, TriangleAlert, X } from '@lucide/vue'
 import {
@@ -118,8 +119,8 @@ function spawnParticles(accent: string, originX: number, originY: number) {
  * 挂载时（正常布局）捕获彗星环中心坐标，供退场粒子使用。
  * 退场瞬间元素会转为 absolute，此时读取的 rect 不可靠。
  */
-function captureBannerOrigin(_id: number, el: Element | null) {
-  if (!el) return
+function captureBannerOrigin(_id: number, el: Element | ComponentPublicInstance | null) {
+  if (!(el instanceof Element)) return
   const r = el.getBoundingClientRect()
   const originX = r.left + r.width / 2
   const originY = r.bottom - 19 // 彗星环中心

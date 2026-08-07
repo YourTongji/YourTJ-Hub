@@ -542,8 +542,6 @@ export default {
       paragraph: 'Paragrafo',
       heading: 'Titolo {level}',
       codeBlock: 'Blocco di codice',
-      math: 'Formula inline',
-      mathBlock: 'Formula a blocco',
     },
     placeholder: {
       bold: 'testo in grassetto',

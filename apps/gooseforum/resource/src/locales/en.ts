@@ -542,8 +542,6 @@ export default {
       paragraph: 'Paragraph',
       heading: 'Heading {level}',
       codeBlock: 'Code block',
-      math: 'Inline math',
-      mathBlock: 'Block math',
     },
     placeholder: {
       bold: 'bold text',
