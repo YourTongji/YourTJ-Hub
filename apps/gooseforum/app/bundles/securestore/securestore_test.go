@@ -1,7 +1,7 @@
 package securestore
 
 import (
-	"strings"
+	"encoding/base64"
 	"testing"
 )
 
@@ -61,7 +61,12 @@ func TestDecryptRejectsTamperedPayload(t *testing.T) {
 	if err != nil {
 		t.Fatalf("Encrypt() error = %v", err)
 	}
-	tampered := "A" + strings.TrimPrefix(encoded, string(encoded[0]))
+	raw, err := base64.StdEncoding.DecodeString(encoded)
+	if err != nil {
+		t.Fatalf("DecodeString() error = %v", err)
+	}
+	raw[len(raw)-1] ^= 0x01
+	tampered := base64.StdEncoding.EncodeToString(raw)
 	if _, err := Decrypt(tampered); err == nil {
 		t.Fatal("Decrypt() accepted tampered payload")
 	}
