@@ -194,6 +194,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Topic-writing rate limit exceeded. */
             429: {
                 headers: {

@@ -411,6 +411,19 @@ func TestWriteTopicHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-unauthenticated.json"))
 	})
 
+	t.Run("frozen account returns 403", func(t *testing.T) {
+		conn, router := setupHTTPContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		if err := conn.Model(user).Update("is_frozen", users.StatusFrozen).Error; err != nil {
+			t.Fatalf("freeze contract user: %v", err)
+		}
+		recorder := serveJSON(router, "/api/forum/topics/write", `{}`, contractSessionToken(t, user))
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("frozen account status = %d, want 403", recorder.Code)
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "topic-write-forbidden.json"))
+	})
+
 	t.Run("malformed body remains a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupHTTPContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

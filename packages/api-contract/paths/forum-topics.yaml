@@ -34,6 +34,15 @@ writeTopic:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/topic-write-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/topic-write-forbidden.json
       '429':
         description: Topic-writing rate limit exceeded.
         headers:

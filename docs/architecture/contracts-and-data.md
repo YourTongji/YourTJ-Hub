@@ -19,8 +19,9 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
 JSON envelope rather than treating every 2xx status as application success. Middleware-owned failures
-such as unauthenticated access and rate limiting remain HTTP `401` and `429` with the same failure
-envelope. Topic write's current permissive `UpButterReq` wrapper reports malformed or incomplete JSON as
+such as unauthenticated access, frozen or unresolvable authenticated accounts, and rate limiting remain
+HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's current permissive `UpButterReq`
+wrapper reports malformed or incomplete JSON as
 an HTTP `200` validation failure, not a guaranteed `400`.
 
 ## Contract pipeline (Partial)
