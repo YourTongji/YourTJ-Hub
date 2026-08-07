@@ -1,5 +1,4 @@
-import { nextTick, onBeforeUnmount, ref } from 'vue'
-import type Cropper from 'cropperjs'
+import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
 import { uploadImageFile } from '@/runtime/api'
 import { i18n } from '@/runtime/i18n'
 import { canvasToImageFile, validateImageFile } from '@/runtime/image'
@@ -7,226 +6,149 @@ import { canvasToImageFile, validateImageFile } from '@/runtime/image'
 interface CoverCropUploadOptions {
   onStatus: (message: string) => void
   onError: (message: string) => void
+  /** 非致命提示（如尺寸不足），短暂横幅后自动隐去；未提供时回退 onError */
+  onWarning?: (message: string) => void
 }
 
-export const COVER_ASPECT_RATIO = 4
-export const COVER_OUTPUT_WIDTH = 1600
-export const COVER_OUTPUT_HEIGHT = 400
+export const COVER_ASPECT_RATIO = 5
+export const COVER_MOBILE_RATIO = 3
+/** 封面源图最小像素：对齐输出 1600×320 的 0.75×，避免明显模糊与非横图 */
+export const COVER_MIN_WIDTH = 1200
+export const COVER_MIN_HEIGHT = 240
 
-// 个人资料封面：选择图片 → 4:1 选区裁剪 → 上传 /file/img-upload → 返回封面 URL。
-// 与头像裁剪（useAvatarCropUpload）共用 cropperjs 模板，仅选区比例与输出尺寸不同。
+// 知乎式封面编辑：选择图片 → CoverImageEditor 所见即所得调整（拖拽/缩放）→
+// 按当前视图输出 1600x320 → WebP 上传到 /file/img-upload。
 export function useCoverCropUpload(options: CoverCropUploadOptions) {
-  const uploadingCover = ref(false)
   const coverInput = ref<HTMLInputElement | null>(null)
-  const coverCropperImage = ref<HTMLImageElement | null>(null)
-  const coverCropModalOpen = ref(false)
-  const coverCropImageUrl = ref('')
-  const coverCropPreviewUrl = ref('')
+  const coverCropOpen = ref(false)
+  const coverImageUrl = ref('')
+  const uploadingCover = ref(false)
   const coverCropError = ref('')
-  const coverSourceFile = ref<File | null>(null)
-  let cropper: Cropper | undefined
-  let cropperContainer: HTMLElement | undefined
-  let cropPreviewFrame = 0
+  let cropOpener: HTMLElement | null = null
 
-  onBeforeUnmount(() => {
-    destroyCropper()
-    revokeCropImageUrl()
+  watch(coverCropOpen, (open) => {
+    if (open) {
+      document.addEventListener('keydown', handleCropKeydown)
+    } else {
+      document.removeEventListener('keydown', handleCropKeydown)
+    }
   })
 
+  onBeforeUnmount(() => {
+    document.removeEventListener('keydown', handleCropKeydown)
+    revokeImageUrl()
+  })
+
+  // 封面编辑浮层打开期间按 Esc 关闭
+  function handleCropKeydown(event: KeyboardEvent) {
+    if (event.key === 'Escape' && coverCropOpen.value) {
+      event.preventDefault()
+      closeCoverCrop()
+    }
+  }
+
+  // 打开文件选择器
   function chooseCover() {
+    cropOpener = document.activeElement instanceof HTMLElement ? document.activeElement : null
     coverInput.value?.click()
   }
 
+  // 读取图片自然尺寸（不依赖 DOM）
+  function readImageNaturalSize(file: File): Promise<{ width: number; height: number }> {
+    return new Promise((resolve, reject) => {
+      const objectUrl = URL.createObjectURL(file)
+      const image = new Image()
+      image.onload = () => {
+        const width = image.naturalWidth
+        const height = image.naturalHeight
+        URL.revokeObjectURL(objectUrl)
+        resolve({ width, height })
+      }
+      image.onerror = () => {
+        URL.revokeObjectURL(objectUrl)
+        reject(new Error(i18n.global.t('image.selectFile')))
+      }
+      image.src = objectUrl
+    })
+  }
+
+  // 选中文件：类型/大小 + 最小宽高校验；不合格用短暂 flash 提示（知乎式横幅）
   async function handleCoverChange(event: Event) {
-    const file = (event.target as HTMLInputElement).files?.[0]
+    const input = event.target as HTMLInputElement
+    const file = input.files?.[0]
     if (!file) return
+    // 先清空 input，允许同一文件再次选择
+    if (input) input.value = ''
+
     const validationError = validateImageFile(file, 10 * 1024 * 1024)
-    if (validationError) return options.onError(validationError)
-
-    openCropModal(file)
-    if (coverInput.value) coverInput.value.value = ''
-  }
-
-  function openCropModal(file: File) {
-    destroyCropper()
-    revokeCropImageUrl()
-    coverCropError.value = ''
-    coverSourceFile.value = file
-    coverCropImageUrl.value = URL.createObjectURL(file)
-    coverCropModalOpen.value = true
-    void nextTick(() => {
-      void initCropper()
-    })
-  }
-
-  async function initCropper() {
-    const image = coverCropperImage.value
-    if (!image) return
-    const { default: Cropper } = await import('cropperjs')
-    if (!coverCropModalOpen.value || coverCropperImage.value !== image) return
-
-    cropper = new Cropper(image, {
-      template: `
-        <cropper-canvas background>
-          <cropper-image translatable scalable rotatable></cropper-image>
-          <cropper-shade hidden></cropper-shade>
-          <cropper-handle action="select" plain></cropper-handle>
-          <cropper-selection aspect-ratio="${COVER_ASPECT_RATIO}" movable resizable zoomable outlined>
-            <cropper-grid role="grid" bordered covered></cropper-grid>
-            <cropper-crosshair centered></cropper-crosshair>
-            <cropper-handle action="move" theme-color="rgba(37, 99, 235, 0.35)"></cropper-handle>
-            <cropper-handle action="n-resize"></cropper-handle>
-            <cropper-handle action="e-resize"></cropper-handle>
-            <cropper-handle action="s-resize"></cropper-handle>
-            <cropper-handle action="w-resize"></cropper-handle>
-            <cropper-handle action="ne-resize"></cropper-handle>
-            <cropper-handle action="nw-resize"></cropper-handle>
-            <cropper-handle action="se-resize"></cropper-handle>
-            <cropper-handle action="sw-resize"></cropper-handle>
-          </cropper-selection>
-        </cropper-canvas>
-      `,
-    })
-    void resetCropSelectionToMaxWidth()
-    const container = cropper.container as HTMLElement
-    cropperContainer = container
-    container.addEventListener('pointerup', scheduleCropPreview)
-    container.addEventListener('wheel', scheduleCropPreview, { passive: true })
-    container.addEventListener('keyup', scheduleCropPreview)
-  }
-
-  // 初始选区覆盖图片最大可用宽度（按 4:1 高度向下兼容），
-  // 让用户默认拿到最宽的封面区域，再手动微调。
-  async function resetCropSelectionToMaxWidth() {
-    const cropperImageElement = cropper?.getCropperImage()
-    const cropperCanvas = cropper?.getCropperCanvas()
-    const selection = cropper?.getCropperSelection()
-    if (!cropperImageElement || !cropperCanvas || !selection) return
-
-    try {
-      await cropperImageElement.$ready()
-    } catch {
+    if (validationError) {
+      options.onError(validationError)
       return
     }
 
-    window.requestAnimationFrame(() => {
-      const canvasRect = cropperCanvas.getBoundingClientRect()
-      const imageRect = cropperImageElement.getBoundingClientRect()
-      if (imageRect.width <= 0 || imageRect.height <= 0) return
-
-      const width = imageRect.width
-      const height = width / COVER_ASPECT_RATIO
-      if (height > imageRect.height) {
-        const adjustedHeight = imageRect.height
-        const adjustedWidth = adjustedHeight * COVER_ASPECT_RATIO
-        const x = imageRect.left - canvasRect.left + (imageRect.width - adjustedWidth) / 2
-        const y = imageRect.top - canvasRect.top
-        selection.$change(x, y, adjustedWidth, adjustedHeight, COVER_ASPECT_RATIO, true)
-      } else {
-        const x = imageRect.left - canvasRect.left
-        const y = imageRect.top - canvasRect.top + (imageRect.height - height) / 2
-        selection.$change(x, y, width, height, COVER_ASPECT_RATIO, true)
+    try {
+      const { width, height } = await readImageNaturalSize(file)
+      if (width < COVER_MIN_WIDTH || height < COVER_MIN_HEIGHT) {
+        // 知乎式短暂横幅：warning 自动隐去（GlobalFlash ~5.2s）
+        const message = i18n.global.t('settings.cover.minSizeRequired', {
+          width: COVER_MIN_WIDTH,
+          height: COVER_MIN_HEIGHT,
+        })
+        if (options.onWarning) options.onWarning(message)
+        else options.onError(message)
+        return
       }
-      void updateCropPreview()
-    })
-  }
-
-  function closeCropModal() {
-    coverCropModalOpen.value = false
-    coverSourceFile.value = null
-    coverCropError.value = ''
-    destroyCropper()
-    revokeCropImageUrl()
-  }
-
-  function destroyCropper() {
-    window.cancelAnimationFrame(cropPreviewFrame)
-    cropPreviewFrame = 0
-    if (cropperContainer) {
-      cropperContainer.removeEventListener('pointerup', scheduleCropPreview)
-      cropperContainer.removeEventListener('wheel', scheduleCropPreview)
-      cropperContainer.removeEventListener('keyup', scheduleCropPreview)
-      cropperContainer = undefined
-    }
-    cropper?.destroy()
-    cropper = undefined
-    coverCropPreviewUrl.value = ''
-  }
-
-  function revokeCropImageUrl() {
-    if (coverCropImageUrl.value) URL.revokeObjectURL(coverCropImageUrl.value)
-    coverCropImageUrl.value = ''
-  }
-
-  async function uploadCroppedCover(): Promise<string> {
-    if (!cropper || !coverSourceFile.value) {
-      throw new Error(i18n.global.t('avatarCrop.selectArea'))
+    } catch (err) {
+      const message = err instanceof Error ? err.message : i18n.global.t('image.selectFile')
+      options.onError(message)
+      return
     }
 
+    revokeImageUrl()
+    coverImageUrl.value = URL.createObjectURL(file)
+    coverCropOpen.value = true
+  }
+
+  function closeCoverCrop() {
+    coverCropOpen.value = false
+    revokeImageUrl()
+    cropOpener?.focus()
+    cropOpener = null
+  }
+
+  // 编辑器保存：canvas → WebP 上传，返回封面 URL
+  async function saveCoverFromCanvas(canvas: HTMLCanvasElement): Promise<string | null> {
     uploadingCover.value = true
     coverCropError.value = ''
     try {
-      const selection = cropper.getCropperSelection()
-      if (!selection) throw new Error(i18n.global.t('avatarCrop.selectArea'))
-      const canvas = await selection.$toCanvas({
-        width: COVER_OUTPUT_WIDTH,
-        height: COVER_OUTPUT_HEIGHT,
-        beforeDraw(context) {
-          context.imageSmoothingEnabled = true
-          context.imageSmoothingQuality = 'high'
-        },
-      })
-      const coverFile = await canvasToImageFile(canvas, 'cover.webp', undefined, 0.86)
+      const coverFile = await canvasToImageFile(canvas, 'cover.webp', undefined, 0.9)
       const coverUrl = await uploadImageFile(coverFile, coverFile.name)
-      closeCropModal()
-      options.onStatus(i18n.global.t('avatarCrop.updated'))
+      // 成功文案由页面层 pushMediaFlash 统一发出，避免双提示
       return coverUrl
     } catch (err) {
       const message = err instanceof Error ? err.message : i18n.global.t('api.imageUploadFailed')
       coverCropError.value = message
       options.onError(message)
-      throw err
+      return null
     } finally {
       uploadingCover.value = false
     }
   }
 
-  function scheduleCropPreview() {
-    window.cancelAnimationFrame(cropPreviewFrame)
-    cropPreviewFrame = window.requestAnimationFrame(() => {
-      void updateCropPreview()
-    })
-  }
-
-  async function updateCropPreview() {
-    const selection = cropper?.getCropperSelection()
-    if (!selection) return
-    try {
-      const canvas = await selection.$toCanvas({
-        width: COVER_OUTPUT_WIDTH / 4,
-        height: COVER_OUTPUT_HEIGHT / 4,
-        beforeDraw(context) {
-          context.imageSmoothingEnabled = true
-          context.imageSmoothingQuality = 'high'
-        },
-      })
-      coverCropPreviewUrl.value = canvas.toDataURL('image/webp', 0.82)
-    } catch {
-      coverCropPreviewUrl.value = ''
-    }
+  function revokeImageUrl() {
+    if (coverImageUrl.value) URL.revokeObjectURL(coverImageUrl.value)
+    coverImageUrl.value = ''
   }
 
   return {
-    uploadingCover,
     coverInput,
-    coverCropperImage,
-    coverCropModalOpen,
-    coverCropImageUrl,
-    coverCropPreviewUrl,
+    coverCropOpen,
+    coverImageUrl,
+    uploadingCover,
     coverCropError,
     chooseCover,
     handleCoverChange,
-    closeCropModal,
-    uploadCroppedCover,
+    closeCoverCrop,
+    saveCoverFromCanvas,
   }
 }

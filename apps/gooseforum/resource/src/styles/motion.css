@@ -8,25 +8,108 @@
   }
 }
 
-.gf-flash-enter-active,
-.gf-flash-leave-active {
+/*
+ * 玻璃态 Toast 动效
+ * - 进入：从右上侧滑入 + 0.95→1 缩放，时长 ~360ms（可打断）
+ * - 离开：上浮消散（更长、更软），避免「骤然消失」
+ * - 多条堆叠：move 平滑重排；离开项 absolute 不挤布局
+ * - 剩余时间：亏月彗星环，conic 弧从 300° 收卷到残弧
+ */
+@property --gf-flash-arc {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 300deg;
+}
+
+@keyframes gf-flash-arc-shrink {
+  from {
+    --gf-flash-arc: 300deg;
+  }
+  to {
+    --gf-flash-arc: 45deg;
+  }
+}
+
+.gf-flash-stack {
+  position: relative;
+}
+
+.gf-flash-enter-active {
+  z-index: 1;
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.36s cubic-bezier(0.22, 1, 0.36, 1),
+    filter 0.36s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .gf-flash-leave-active {
   position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+  /* 离开更从容：上浮 + 模糊消散，避免骤然切掉 */
+  transition:
+    opacity 0.48s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.48s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.48s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.gf-flash-enter-from,
+.gf-flash-enter-from {
+  opacity: 0;
+  transform: translate3d(18px, -10px, 0) scale(0.94);
+  filter: blur(4px);
+}
+
+.gf-flash-enter-to {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+}
+
+.gf-flash-leave-from {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0);
+}
+
 .gf-flash-leave-to {
   opacity: 0;
-  transform: translateX(-14px) scale(0.98);
+  /* 向上浮起并轻微缩小，像玻璃片被吹散 */
+  transform: translate3d(4px, -22px, 0) scale(0.9);
+  filter: blur(8px);
 }
 
 .gf-flash-move {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 639px) {
+  .gf-flash-enter-from {
+    transform: translate3d(0, 18px, 0) scale(0.94);
+    filter: blur(3px);
+  }
+
+  .gf-flash-leave-to {
+    /* 移动端锚在底部：向下回落消散 */
+    transform: translate3d(0, 14px, 0) scale(0.94);
+    filter: blur(5px);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-flash-enter-active,
+  .gf-flash-leave-active,
+  .gf-flash-move {
+    transition-duration: 0.01ms;
+  }
+
+  .gf-flash-enter-from,
+  .gf-flash-leave-to {
+    transform: none;
+    filter: none;
+  }
 }
 
 .gf-page-enter-active {
