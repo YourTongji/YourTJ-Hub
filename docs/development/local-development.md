@@ -64,9 +64,11 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client |
 
-Casdoor OIDC is not a config.toml section: it is configured from the admin panel and stored in
-preferences (`casdoor.endpoint` / `casdoor.client_id` / `casdoor.client_secret`). The OIDC login entry
-only appears once these are set (`oidcservice.IsConfigured()` gates it).
+Casdoor OIDC is configured from the `[casdoor]` section in `config.toml`
+(`endpoint` / `client_id` / `client_secret`, see `deploy/config.toml.example`); the values are read at
+startup via preferences and there is no admin-panel UI to change them (set them in the file and
+restart). The OIDC login entry only appears once these are set (`oidcservice.IsConfigured()` gates
+it).
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 
