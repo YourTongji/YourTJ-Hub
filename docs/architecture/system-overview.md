@@ -76,9 +76,9 @@
 
 - Meilisearch optionally enabled (config [meilisearch]). Aggregate search (one box covering
   topics/users/categories with scope tabs; pinyin/initials matching for users and categories) landed
-  in issue #22. Index sync is event-driven (topic/user/category events) with per-scope SQL fallback
-  when Meilisearch is unavailable; the index is a rebuildable projection (`rebuild-search-index`
-  CLI).
+  in issue #22. Index sync is event-driven (topic/user/category events). When Meilisearch is
+  unavailable the search page shows a full unavailable state; per-index failures degrade partially
+  via `failedScopes`. The index is a rebuildable projection (`rebuild-search-index` CLI).
 
 ### Points (phase 2)
 
