@@ -17,6 +17,10 @@
     "./contracts": {
       "types": "./dist/contracts/index.d.ts",
       "import": "./dist/contracts/index.js"
+    },
+    "./openapi": {
+      "types": "./dist/gen/index.d.ts",
+      "import": "./dist/gen/index.js"
     }
   },
   "scripts": {

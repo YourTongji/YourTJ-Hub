@@ -1,0 +1,16 @@
+{
+  "name": "@yourtj/api-contract",
+  "private": true,
+  "version": "0.1.0",
+  "packageManager": "pnpm@11.10.0",
+  "scripts": {
+    "lint": "redocly lint openapi.yaml",
+    "bundle": "redocly bundle openapi.yaml --output .tmp/openapi.bundle.yaml",
+    "generate:ts": "openapi-typescript openapi.yaml -o ../../apps/gooseforum/resource/packages/client/src/gen/openapi.ts",
+    "check": "pnpm run lint && pnpm run bundle && pnpm run generate:ts"
+  },
+  "devDependencies": {
+    "@redocly/cli": "2.45.0",
+    "openapi-typescript": "7.13.0"
+  }
+}

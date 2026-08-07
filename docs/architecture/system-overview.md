@@ -59,8 +59,9 @@
 - Business logic in `service`; data access in `models`/repository layer; HTTP in `http/controllers`.
 - Cross-domain access (e.g. forum→notifications) goes through the owner's public service API; no
   foreign SQL.
-- Frontend output only via `resource/static/dist` (go:embed); do not hand-write DTOs duplicating the
-  backend (once the contract pipeline exists).
+- Frontend output only via `resource/static/dist` (go:embed). For OpenAPI-covered operations, consume
+  generated types rather than duplicating backend DTOs by hand; maintain other endpoint contracts manually
+  until they are covered.
 - Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
 
 ## Key flows
@@ -91,5 +92,5 @@
   rebuildable projections.
 - Critical side effects (notifications, index sync, points distribution) are idempotent, retryable,
   observable.
-- Contract changes ship in the same PR: Go struct → openapi.yaml → generated output → fixture tests
-  (once the pipeline exists).
+- For OpenAPI-covered operations, contract changes ship in the same PR: Go behavior/struct →
+  `openapi.yaml` → generated TypeScript output → fixture tests. Dart generation remains Planned.

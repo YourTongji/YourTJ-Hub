@@ -1,4 +1,4 @@
-.PHONY: dev down server web build test gen
+.PHONY: dev down server web build test gen contract-lint contract-generate-ts contract-check
 
 dev: ## Start local dependencies (postgres + meilisearch + mariadb + casdoor)
 	docker compose up -d
@@ -16,9 +16,19 @@ build: ## Build frontend output + forum single binary
 	cd apps/gooseforum/resource && pnpm build
 	cd apps/gooseforum && go build -o ../../bin/yourtj-hub .
 
-test: ## Run all tests
+contract-lint: ## Validate and bundle the OpenAPI contract
+	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run lint && pnpm run bundle
+
+contract-generate-ts: ## Generate OpenAPI TypeScript types for @gooseforum/client
+	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run generate:ts
+
+contract-check: ## Validate, bundle, generate, and require committed OpenAPI TypeScript output
+	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
+	git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
+
+test: ## Run backend, contract, and frontend checks
 	cd apps/gooseforum && go vet ./... && go test ./...
+	$(MAKE) contract-check
 	cd apps/gooseforum/resource && pnpm typecheck
 
-gen: ## Contract generation (openapi → ts/dart), enabled once the contract pipeline exists
-	@echo "TODO: swag generates openapi.yaml + gen-ts/gen-dart"
+gen: contract-generate-ts ## Generate currently supported API client artifacts
