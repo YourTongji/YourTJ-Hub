@@ -4,6 +4,7 @@ import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'offline/drift_cache.dart';
+import 'app_config.dart';
 
 /// 会话令牌存储:生产用 auth 包 SecureTokenStorage(flutter_secure_storage)。
 /// 测试可通过 override 注入内存实现。
@@ -49,6 +50,9 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
   return GfApiClient(
     dio: ref.watch(dioProvider),
     tokenStorage: storage,
+    // --dart-define=YOURTJ_API_BASE_URL 注入;为空时走平台默认
+    // (Android 模拟器 10.0.2.2,真机/iOS 需显式注入)。
+    baseUrl: AppConfig.apiBaseUrl,
     // New-Token 滑动续期:写回 tokenStorage 持久化新令牌。
     onTokenRenewed: (newToken) => storage.write(newToken),
     // 401 会话失效:清空令牌并通知 UI 跳转登录页。
