@@ -456,11 +456,7 @@ class _TopicHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundImage: NetworkImage(topic.author.avatarUrl),
-                onBackgroundImageError: (_, _) {},
-              ),
+              GfAvatar(src: topic.author.avatarUrl, size: 24),
               const SizedBox(width: 8),
               Text(
                 topic.author.nickname ?? topic.author.username,
@@ -587,10 +583,7 @@ class _PostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              CircleAvatar(
-                radius: 12,
-                backgroundImage: NetworkImage(post.author.avatarUrl),
-              ),
+              GfAvatar(src: post.author.avatarUrl, size: 24),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

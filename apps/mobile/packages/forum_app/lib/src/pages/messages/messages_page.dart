@@ -119,20 +119,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                     ),
                   ),
                 for (final user in _suggestedUsers)
-                  ListTile(
-                    leading: CircleAvatar(
-                      radius: 18,
-                      backgroundImage: user.avatarUrl.isEmpty
-                          ? null
-                          : NetworkImage(user.avatarUrl),
-                      child: user.avatarUrl.isEmpty
-                          ? const Icon(Icons.person, size: 18)
-                          : null,
-                    ),
-                    title: Text(
-                      user.nickname.isEmpty ? user.username : user.nickname,
-                    ),
-                    subtitle: Text('@${user.username}'),
+                  GfSettingRow(
+                    leading: GfAvatar(src: user.avatarUrl, size: 36),
+                    title: user.nickname.isEmpty ? user.username : user.nickname,
+                    description: '@${user.username}',
                     onTap: () => Navigator.pop(ctx, user),
                   ),
               ],

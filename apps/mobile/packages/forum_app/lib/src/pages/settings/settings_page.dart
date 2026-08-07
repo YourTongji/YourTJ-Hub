@@ -103,15 +103,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             for (final b in wearable)
-              ListTile(
+              GfSettingRow(
                 leading: Icon(
                   b.iconType == 'image'
                       ? Icons.image_outlined
                       : Icons.workspace_premium_outlined,
                   color: _hexColor(b.color),
                 ),
-                title: Text(b.name),
-                subtitle: Text(
+                title: b.name,
+                subtitleWidget: Text(
                   b.description,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
@@ -353,14 +353,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 ),
               ),
               for (final entry in bindings.entries)
-                ListTile(
-                  leading: const Icon(Icons.link, size: 20),
-                  title: Text(entry.key),
-                  subtitle: Text(
-                    entry.value.bound
-                        ? l10n.settingsBound
-                        : l10n.settingsUnbound,
-                  ),
+                GfSettingRow(
+                  icon: Icons.link,
+                  title: entry.key,
+                  description: entry.value.bound
+                      ? l10n.settingsBound
+                      : l10n.settingsUnbound,
                   trailing: entry.value.bound
                       ? TextButton(
                           onPressed: () async {
@@ -683,10 +681,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsSectionProfile,
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.badge_outlined, size: 20),
-                title: Text(l10n.settingsNickname),
-                subtitle: Text(l10n.settingsNicknameEdit),
+              GfSettingRow(
+                icon: Icons.badge_outlined,
+                title: l10n.settingsNickname,
+                description: l10n.settingsNicknameEdit,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () {
                   final u = _user.value;
@@ -698,10 +696,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 },
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.notes_outlined, size: 20),
-                title: Text(l10n.settingsBio),
-                subtitle: Text(l10n.settingsBioEdit),
+              GfSettingRow(
+                icon: Icons.notes_outlined,
+                title: l10n.settingsBio,
+                description: l10n.settingsBioEdit,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: () {
                   final u = _user.value;
@@ -713,14 +711,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 },
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.photo_camera_outlined, size: 20),
-                title: Text(l10n.settingsAvatar),
-                subtitle: Text(
-                  _uploadingAvatar
-                      ? l10n.settingsAvatarUploading
-                      : l10n.settingsAvatarUpload,
-                ),
+              GfSettingRow(
+                icon: Icons.photo_camera_outlined,
+                title: l10n.settingsAvatar,
+                description: _uploadingAvatar
+                    ? l10n.settingsAvatarUploading
+                    : l10n.settingsAvatarUpload,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _pickAvatar,
               ),
@@ -741,26 +737,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsTabAccount,
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.email_outlined, size: 20),
-                title: Text(l10n.settingsEmail),
-                subtitle: Text(l10n.settingsEmailEdit),
+              GfSettingRow(
+                icon: Icons.email_outlined,
+                title: l10n.settingsEmail,
+                description: l10n.settingsEmailEdit,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _changeEmail,
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.lock_outline, size: 20),
-                title: Text(l10n.settingsChangePassword),
-                subtitle: Text(l10n.settingsChangePasswordSub),
+              GfSettingRow(
+                icon: Icons.lock_outline,
+                title: l10n.settingsChangePassword,
+                description: l10n.settingsChangePasswordSub,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _changePassword,
               ),
               const Divider(height: 1),
-              ListTile(
-                leading: const Icon(Icons.workspace_premium_outlined, size: 20),
-                title: Text(l10n.settingsBadge),
-                subtitle: _user.when(
+              GfSettingRow(
+                icon: Icons.workspace_premium_outlined,
+                title: l10n.settingsBadge,
+                subtitleWidget: _user.when(
                   data: (u) => Text(
                     u.wornBadge == null
                         ? l10n.settingsBadgeNone
@@ -798,14 +794,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsTabPrivacy,
           child: Column(
             children: [
-              SwitchListTile(
-                title: Text(l10n.settingsPrivacyDirect),
+              GfSwitchRow(
+                title: l10n.settingsPrivacyDirect,
                 value: false,
                 onChanged: (_) => _snack(l10n.settingsSecondPhase),
               ),
               const Divider(height: 1),
-              SwitchListTile(
-                title: Text(l10n.settingsPrivacyLikes),
+              GfSwitchRow(
+                title: l10n.settingsPrivacyLikes,
                 value: true,
                 onChanged: (_) => _snack(l10n.settingsSecondPhase),
               ),
@@ -826,10 +822,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsTabBinding,
           child: Column(
             children: [
-              ListTile(
-                leading: const Icon(Icons.account_circle_outlined, size: 20),
-                title: Text(l10n.settingsOAuth),
-                subtitle: Text(l10n.settingsOAuthSub),
+              GfSettingRow(
+                icon: Icons.account_circle_outlined,
+                title: l10n.settingsOAuth,
+                description: l10n.settingsOAuthSub,
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _manageOAuth,
               ),
@@ -848,11 +844,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _settingsSection(
           context,
           title: l10n.settingsAppearance,
-          child: SwitchListTile(
-            title: Text(l10n.settingsDarkMode),
-            subtitle: Text(
-              isDark ? l10n.settingsDarkCurrent : l10n.settingsLightCurrent,
-            ),
+          child: GfSwitchRow(
+            title: l10n.settingsDarkMode,
+            description: isDark
+                ? l10n.settingsDarkCurrent
+                : l10n.settingsLightCurrent,
             value: isDark,
             onChanged: _toggleDarkMode,
           ),
@@ -861,10 +857,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _settingsSection(
           context,
           title: l10n.settingsTotpTitle,
-          child: ListTile(
-            leading: const Icon(Icons.shield_outlined, size: 20),
-            title: Text(l10n.settingsTotpEnable),
-            subtitle: Text(l10n.settingsTotpSetupSecret),
+          child: GfSettingRow(
+            icon: Icons.shield_outlined,
+            title: l10n.settingsTotpEnable,
+            description: l10n.settingsTotpSetupSecret,
             trailing: const Icon(Icons.chevron_right, size: 18),
             onTap: _manageTotp,
           ),
@@ -888,7 +884,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               return Column(
                 children: [
                   for (final s in sessions)
-                    ListTile(
+                    GfSettingRow(
                       leading: Icon(
                         s.isCurrent ? Icons.smartphone : Icons.devices_other,
                         size: 20,
@@ -896,12 +892,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                             ? GfTheme.colorsOf(context).primary
                             : GfTheme.colorsOf(context).iconMuted,
                       ),
-                      title: Text(
-                        s.userAgent,
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                      subtitle: Text(
+                      title: s.userAgent,
+                      subtitleWidget: Text(
                         '${s.ipMasked} · ${_formatTs(s.createdAt)}',
                         style: GfTheme.typographyOf(context).caption,
                       ),
@@ -937,10 +929,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         _settingsSection(
           context,
           title: l10n.settingsAbout,
-          child: ListTile(
-            leading: const Icon(Icons.info_outline, size: 20),
-            title: Text(l10n.appTitle),
-            subtitle: Text(l10n.settingsAboutVersion),
+          child: GfSettingRow(
+            icon: Icons.info_outline,
+            title: l10n.appTitle,
+            description: l10n.settingsAboutVersion,
           ),
         ),
         const SizedBox(height: 12),

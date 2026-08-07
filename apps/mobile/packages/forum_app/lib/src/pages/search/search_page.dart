@@ -233,9 +233,13 @@ class _CategoryResults extends StatelessWidget {
       itemBuilder: (context, i) {
         final cat = categories[i];
         return GfSettingRow(
-          leading: CircleAvatar(
-            radius: 16,
-            backgroundColor: colorFromHex(cat.color),
+          leading: Container(
+            width: 32,
+            height: 32,
+            decoration: BoxDecoration(
+              color: colorFromHex(cat.color),
+              shape: BoxShape.circle,
+            ),
           ),
           title: cat.name,
           description: cat.desc.isEmpty ? null : cat.desc,

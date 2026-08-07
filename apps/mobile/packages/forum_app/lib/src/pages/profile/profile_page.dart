@@ -179,11 +179,7 @@ class _ProfileHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          CircleAvatar(
-            radius: 30,
-            backgroundImage: NetworkImage(user.avatarUrl),
-            onBackgroundImageError: (_, _) {},
-          ),
+          GfAvatar(src: user.avatarUrl, size: 60),
           const SizedBox(width: 12),
           Expanded(
             child: Column(

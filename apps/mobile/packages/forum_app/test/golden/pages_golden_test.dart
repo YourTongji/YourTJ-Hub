@@ -3,13 +3,11 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
-import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:core/core.dart';
 
-import '../fixtures/page_fixtures.dart';
 import '../golden_helper.dart';
 import '../pages_smoke_test.dart'
     show

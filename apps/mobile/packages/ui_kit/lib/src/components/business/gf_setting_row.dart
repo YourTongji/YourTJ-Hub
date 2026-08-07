@@ -11,6 +11,7 @@ class GfSettingRow extends StatelessWidget {
     super.key,
     required this.title,
     this.description,
+    this.subtitleWidget,
     this.icon,
     this.leading,
     this.trailing,
@@ -19,6 +20,10 @@ class GfSettingRow extends StatelessWidget {
 
   final String title;
   final String? description;
+
+  /// Arbitrary subtitle widget; takes precedence over [description].
+  final Widget? subtitleWidget;
+
   final IconData? icon;
 
   /// Arbitrary leading widget (e.g. [GfAvatar]); takes precedence over
@@ -38,7 +43,8 @@ class GfSettingRow extends StatelessWidget {
           leading ??
           (icon == null ? null : Icon(icon, size: 20, color: colors.iconMuted)),
       title: Text(title),
-      subtitle: description == null ? null : Text(description!),
+      subtitle:
+          subtitleWidget ?? (description == null ? null : Text(description!)),
       trailing: trailing,
     );
   }
@@ -53,12 +59,22 @@ class GfSwitchRow extends StatelessWidget {
     required this.value,
     required this.onChanged,
     this.description,
+    this.subtitleWidget,
     this.icon,
+    this.leading,
   });
 
   final String title;
   final String? description;
+
+  /// Arbitrary subtitle widget; takes precedence over [description].
+  final Widget? subtitleWidget;
+
   final IconData? icon;
+
+  /// Arbitrary leading widget; takes precedence over [icon].
+  final Widget? leading;
+
   final bool value;
   final ValueChanged<bool> onChanged;
 
@@ -67,11 +83,12 @@ class GfSwitchRow extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return ListTile(
-      leading: icon == null
-          ? null
-          : Icon(icon, size: 20, color: colors.iconMuted),
+      leading:
+          leading ??
+          (icon == null ? null : Icon(icon, size: 20, color: colors.iconMuted)),
       title: Text(title),
-      subtitle: description == null ? null : Text(description!),
+      subtitle:
+          subtitleWidget ?? (description == null ? null : Text(description!)),
       trailing: Switch(value: value, onChanged: onChanged),
     );
   }
