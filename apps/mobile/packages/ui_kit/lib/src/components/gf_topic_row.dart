@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
+import 'atoms/gf_avatar_stack.dart';
 import 'gf_chip.dart';
 
 /// Category metadata for [GfTopicRow].
@@ -11,18 +12,19 @@ class GfTopicCategory {
   final Color color;
 }
 
-/// Topic list row mirroring web `TopicRow.vue` / `.gf-topic-row`.
+/// Topic list row mirroring web `TopicRow.vue` / `.gf-topic-row`
+/// (patterns.css): `px-4 py-2.5`, title 15px w500, description 13px
+/// `base-content/55`, meta 12px with participant stack + time + reply count.
 ///
-/// Mobile layout: title, category chips, one-line description, then a meta
-/// line with participants, relative time and reply count. A hairline divider
-/// separates rows; the whole row is tappable.
+/// The row draws its own bottom hairline (`after:inset-x-4 line/70`); pass
+/// `showDivider: false` for the last row (web `:last-child::after` hides it).
 class GfTopicRow extends StatelessWidget {
   const GfTopicRow({
     super.key,
     required this.title,
     required this.description,
     required this.categories,
-    required this.participantAvatars,
+    required this.participantAvatarUrls,
     required this.activityText,
     required this.replyCount,
     this.onTap,
@@ -30,12 +32,14 @@ class GfTopicRow extends StatelessWidget {
     this.unseen = false,
     this.viewCount,
     this.hot = false,
+    this.showDivider = true,
+    this.home = false,
   });
 
   final String title;
   final String description;
   final List<GfTopicCategory> categories;
-  final List<Widget> participantAvatars;
+  final List<String> participantAvatarUrls;
   final String activityText;
   final int replyCount;
   final VoidCallback? onTap;
@@ -49,6 +53,13 @@ class GfTopicRow extends StatelessWidget {
   /// `showHot && viewCount > 500`).
   final bool hot;
 
+  /// Whether the bottom hairline divider is rendered (web `:last-child`
+  /// hides it; list containers manage this via [GfCardList]).
+  final bool showDivider;
+
+  /// Home-page variant: `min-h-[88px]` (web `.gf-topic-row-home`).
+  final bool home;
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -56,12 +67,13 @@ class GfTopicRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
+        constraints: home ? const BoxConstraints(minHeight: 88) : null,
         color: colors.base100,
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: <Widget>[
-            // Title row: pin mark, title, unseen dot, category chips.
+            // Title row: pin mark, title, unseen dot, hot badge, chips.
             Wrap(
               spacing: 8,
               runSpacing: 4,
@@ -74,17 +86,15 @@ class GfTopicRow extends StatelessWidget {
                     color: colors.error,
                     semanticLabel: 'pinned',
                   ),
-                ConstrainedBox(
-                  constraints: const BoxConstraints(maxWidth: 280),
-                  child: Text(
-                    title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w500,
-                    ),
+                Text(
+                  title,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    color: colors.baseContent,
+                    fontSize: 15,
+                    fontWeight: FontWeight.w500,
+                    height: 1.5,
                   ),
                 ),
                 if (hot)
@@ -138,6 +148,7 @@ class GfTopicRow extends StatelessWidget {
                   style: TextStyle(
                     color: colors.baseContent.withValues(alpha: 0.55),
                     fontSize: 13,
+                    height: 1.4,
                   ),
                 ),
               ),
@@ -145,28 +156,10 @@ class GfTopicRow extends StatelessWidget {
               padding: const EdgeInsets.only(top: 6),
               child: Row(
                 children: <Widget>[
-                  if (participantAvatars.isNotEmpty) ...<Widget>[
-                    SizedBox(
-                      width:
-                          (participantAvatars.length > 4
-                              ? 4
-                              : participantAvatars.length) *
-                          14.0,
-                      height: 20,
-                      child: Stack(
-                        clipBehavior: Clip.none,
-                        children: <Widget>[
-                          for (
-                            int i = 0;
-                            i < participantAvatars.length && i < 4;
-                            i++
-                          )
-                            Positioned(
-                              left: i * 14,
-                              child: participantAvatars[i],
-                            ),
-                        ],
-                      ),
+                  if (participantAvatarUrls.isNotEmpty) ...<Widget>[
+                    GfAvatarStack(
+                      avatarUrls: participantAvatarUrls,
+                      size: GfAvatarStackSize.sm,
                     ),
                     const SizedBox(width: 8),
                   ],
@@ -194,6 +187,15 @@ class GfTopicRow extends StatelessWidget {
                 ],
               ),
             ),
+            if (showDivider)
+              Padding(
+                padding: const EdgeInsets.only(top: 10),
+                child: Container(
+                  height: 1,
+                  margin: const EdgeInsets.symmetric(horizontal: 0),
+                  color: colors.line.withValues(alpha: 0.7),
+                ),
+              ),
           ],
         ),
       ),

@@ -21,9 +21,9 @@ void main() {
           title: '同济大学樱花大道拍照攻略',
           description: '三月末的樱花大道,适合清晨人少时去…',
           categories: const <GfTopicCategory>[category],
-          participantAvatars: const <Widget>[
-            CircleAvatar(radius: 10, backgroundColor: Colors.blue),
-            CircleAvatar(radius: 10, backgroundColor: Colors.green),
+          participantAvatarUrls: const <String>[
+            'https://example.com/a.png',
+            'https://example.com/b.png',
           ],
           activityText: '3 小时前',
           replyCount: 42,
@@ -70,7 +70,7 @@ void main() {
             title: 'hot topic',
             description: '',
             categories: const <GfTopicCategory>[],
-            participantAvatars: const <Widget>[],
+            participantAvatarUrls: const <String>[],
             activityText: '1 小时前',
             replyCount: 999,
             hot: true,

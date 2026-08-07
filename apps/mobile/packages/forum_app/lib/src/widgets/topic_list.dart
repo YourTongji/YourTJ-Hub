@@ -38,14 +38,18 @@ class GfTopicList extends StatelessWidget {
             onLoadMore: onLoadMore,
           );
         }
-        return _topicRow(context, topics[index]);
+        return _topicRow(
+          context,
+          topics[index],
+          isLast: index == topics.length - 1,
+        );
       },
     );
   }
 }
 
 /// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
-Widget _topicRow(BuildContext context, dynamic topic) {
+Widget _topicRow(BuildContext context, dynamic topic, {required bool isLast}) {
   final int replyCount = topic.replyCount is int
       ? topic.replyCount as int
       : int.tryParse('${topic.replyCount}') ?? 0;
@@ -61,16 +65,16 @@ Widget _topicRow(BuildContext context, dynamic topic) {
       ),
   ];
 
-  final List<Widget> participantAvatars = <Widget>[
+  final List<String> participantAvatarUrls = <String>[
     for (final p in (topic.participants as List<dynamic>? ?? const []))
-      _avatar(p.avatarUrl as String?),
+      p.avatarUrl as String? ?? '',
   ];
 
   return GfTopicRow(
     title: topic.title as String? ?? '',
     description: topic.description as String? ?? '',
     categories: categories,
-    participantAvatars: participantAvatars,
+    participantAvatarUrls: participantAvatarUrls,
     activityText: timeAgo(
       topic.activityText is String
           ? topic.activityText
@@ -81,18 +85,7 @@ Widget _topicRow(BuildContext context, dynamic topic) {
     hot: viewCount > 500,
     pinned: (topic.pinWeight ?? 0) > 0,
     unseen: topic.unseen == true,
+    showDivider: !isLast,
     onTap: () => context.push('/p/${topic.id}'),
-  );
-}
-
-/// 参与者小头像(web AvatarStack sm 语义)。
-Widget _avatar(String? url) {
-  if (url == null || url.isEmpty) {
-    return CircleAvatar(radius: 10, backgroundColor: Colors.transparent);
-  }
-  return CircleAvatar(
-    radius: 10,
-    backgroundImage: NetworkImage(url),
-    backgroundColor: Colors.transparent,
   );
 }
