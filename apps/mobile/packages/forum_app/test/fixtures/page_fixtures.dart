@@ -208,3 +208,48 @@ Map<String, dynamic> userProfilePayloadJson() => {
 
 /// 从 JSON 解析 PagePayload(与 GfApiClient 相同路径)。
 PagePayload parsePayload(Map<String, dynamic> json) => PagePayload.fromJson(json);
+
+/// 消息页 payload(会话列表 + 建议用户)。
+Map<String, dynamic> messagesPayloadJson() => {
+      'component': PageComponent.messages,
+      'props': {
+        'conversations': [
+          {
+            'id': 1,
+            'peerId': 2,
+            'peerUsername': 'bob',
+            'peerAvatar': '',
+            'lastMsg': '你好,看到你发的帖子了',
+            'lastMsgTime': '2026-08-07T10:30:00+08:00',
+            'unreadCount': 2,
+            'convId': 1,
+            'peerUrl': '/u/2',
+          },
+          {
+            'id': 2,
+            'peerId': 3,
+            'peerUsername': 'carol',
+            'peerAvatar': '',
+            'lastMsg': '周末一起去看樱花吗?',
+            'lastMsgTime': '2026-08-07T09:00:00+08:00',
+            'unreadCount': 0,
+            'convId': 2,
+            'peerUrl': '/u/3',
+          },
+        ],
+        'suggestedUsers': [
+          {
+            'id': 2,
+            'username': 'bob',
+            'nickname': 'Bob',
+            'avatarUrl': '',
+            'bio': '',
+            'url': '/u/2',
+          },
+        ],
+      },
+      'meta': {'title': '消息'},
+      'layout': minimalLayoutJson(),
+      'url': '/messages',
+      'version': '1.0',
+    };

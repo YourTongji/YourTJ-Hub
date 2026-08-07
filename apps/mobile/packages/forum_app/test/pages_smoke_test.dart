@@ -31,6 +31,9 @@ class FakePageRepository extends PageRepository {
     if (path.startsWith('/u/')) {
       return parsePayload(userProfilePayloadJson());
     }
+    if (path == '/messages') {
+      return parsePayload(messagesPayloadJson());
+    }
     throw UnimplementedError('unexpected page path: $path');
   }
 }
