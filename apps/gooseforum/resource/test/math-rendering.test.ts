@@ -238,8 +238,8 @@ describe('enhanceMathText', () => {
   })
 })
 
-describe('inline math across element boundaries', () => {
-  test('leaves split inline math literal until pre-render protection exists', async () => {
+describe('inline math across element boundaries on legacy HTML', () => {
+  test('leaves split inline math literal without pre-render protection', async () => {
     const fakeNode = (data: string) => ({ data, replaceWith: vi.fn() })
     const nodes = [fakeNode('$a'), fakeNode('b'), fakeNode('c$')]
     const loader = vi.fn(async () => ({
