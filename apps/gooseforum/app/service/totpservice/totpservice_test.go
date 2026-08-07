@@ -10,6 +10,7 @@ import (
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/pquerna/otp"
@@ -19,10 +20,10 @@ import (
 func setupTotpTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&userTotp.Entity{}, &userTotpRecoveryCodes.Entity{}, &users.EntityComplete{}); err != nil {
+	if err := conn.AutoMigrate(&userTotp.Entity{}, &userTotpRecoveryCodes.Entity{}, &userTotpChallenges.Entity{}, &users.EntityComplete{}); err != nil {
 		t.Fatalf("migrate totp tables: %v", err)
 	}
-	conn.Where("1 = 1").Delete(&userTotp.Entity{})
+	conn.Where("1 = 1").Delete(&userTotpChallenges.Entity{})
 	conn.Where("1 = 1").Delete(&userTotpRecoveryCodes.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }
@@ -289,5 +290,44 @@ func TestVerifyRateLimit(t *testing.T) {
 	// 正确 TOTP 码在限流窗口内同样被拒绝。
 	if _, err = Verify(userID, currentCode(t, result.Secret)); !errors.Is(err, ErrRateLimited) {
 		t.Fatalf("Verify(valid code while limited) error = %v, want ErrRateLimited", err)
+	}
+}
+
+func TestChallengeValidRejectsExpiredDBRow(t *testing.T) {
+	setupTotpTestDB(t)
+	userID := uint64(7201)
+	jti := "expired-row-jti-0001"
+	if err := SaveChallenge(userID, jti, -1*time.Minute); err != nil {
+		t.Fatalf("SaveChallenge() error = %v", err)
+	}
+	// JWT 本身未过期，但 DB 记录已过期，中间件的 ChallengeValid 必须拒绝。
+	if ChallengeValid(userID, jti) {
+		t.Fatal("ChallengeValid() = true for expired DB row")
+	}
+	// CleanupExpiredChallenges 应删除过期行。
+	CleanupExpiredChallenges()
+	if entity := userTotpChallenges.GetByUserIDAndJti(userID, jti); entity != nil {
+		t.Fatalf("expired challenge row not cleaned up: %#v", entity)
+	}
+}
+
+func TestConsumeChallengeIsSingleUse(t *testing.T) {
+	setupTotpTestDB(t)
+	userID := uint64(7202)
+	jti := "single-use-jti-0001"
+	if err := SaveChallenge(userID, jti, 5*time.Minute); err != nil {
+		t.Fatalf("SaveChallenge() error = %v", err)
+	}
+	if !ChallengeValid(userID, jti) {
+		t.Fatal("ChallengeValid() = false for fresh challenge")
+	}
+	if !ConsumeChallenge(userID, jti) {
+		t.Fatal("ConsumeChallenge() = false on first consume")
+	}
+	if ConsumeChallenge(userID, jti) {
+		t.Fatal("ConsumeChallenge() = true on second consume; token must be single-use")
+	}
+	if ChallengeValid(userID, jti) {
+		t.Fatal("ChallengeValid() = true after consumption")
 	}
 }

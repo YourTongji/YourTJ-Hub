@@ -11,6 +11,7 @@ import (
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
@@ -23,9 +24,11 @@ func setupSessionAuthTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
+		&userTotpChallenges.Entity{},
 	); err != nil {
 		t.Fatalf("migrate tables: %v", err)
 	}
+	conn.Where("1 = 1").Delete(&userTotpChallenges.Entity{})
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})

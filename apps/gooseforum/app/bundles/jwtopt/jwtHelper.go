@@ -97,9 +97,16 @@ func CreateSessionToken(userId, tokenVersion uint64) (token string, jti string, 
 // (e.g. TOTP second-factor verification). It carries a jti but never creates
 // a session record, so regular session-checking middleware rejects it.
 func CreateChallengeToken(userId, tokenVersion uint64, purpose string, ttl time.Duration) (string, error) {
+	token, _, err := CreateChallengeTokenWithJti(userId, tokenVersion, purpose, ttl)
+	return token, err
+}
+
+// CreateChallengeTokenWithJti returns the challenge token and its jti so the
+// caller can persist a one-time consumption record.
+func CreateChallengeTokenWithJti(userId, tokenVersion uint64, purpose string, ttl time.Duration) (string, string, error) {
 	jti, err := GenerateJti()
 	if err != nil {
-		return "", err
+		return "", "", err
 	}
 	cc := CustomClaims{
 		UserId:           userId,
@@ -108,7 +115,11 @@ func CreateChallengeToken(userId, tokenVersion uint64, purpose string, ttl time.
 		Purpose:          purpose,
 		RegisteredClaims: GetBaseRegisteredClaims(ttl),
 	}
-	return Std().CreateToken(cc)
+	token, err := Std().CreateToken(cc)
+	if err != nil {
+		return "", "", err
+	}
+	return token, jti, nil
 }
 
 // GenerateJti returns a cryptographically random 32-hex-character jti.

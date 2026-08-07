@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/robfig/cron/v3"
 )
 
@@ -50,6 +51,11 @@ func Run() {
 		dataservice.CleanupExpiredExports()
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "4 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("5 3 * * *", upCmd(func() {
+		// 清理过期的 TOTP challenge token 记录
+		totpservice.CleanupExpiredChallenges()
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "5 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

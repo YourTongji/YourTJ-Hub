@@ -7,6 +7,7 @@ import (
 	"github.com/gin-gonic/gin"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
@@ -43,6 +44,12 @@ func TOTPChallengeAuth(c *gin.Context) {
 		c.Abort()
 		return
 	}
+	if !totpservice.ChallengeValid(claims.UserId, claims.Jti) {
+		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
+		c.Abort()
+		return
+	}
+	c.Set("currentJti", claims.Jti)
 	c.Set("userId", claims.UserId)
 	c.Next()
 }

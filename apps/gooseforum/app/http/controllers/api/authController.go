@@ -240,9 +240,14 @@ func Login(c *gin.Context) {
 		return
 	}
 	if totpservice.IsEnabled(userEntity.Id) {
-		challengeToken, err := jwt.CreateChallengeToken(userEntity.Id, userEntity.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+		challengeToken, challengeJti, err := jwt.CreateChallengeTokenWithJti(userEntity.Id, userEntity.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
 		if err != nil {
 			slog.Error("生成两步验证 challenge token 失败", "userId", userEntity.Id, "error", err)
+			c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+			return
+		}
+		if err := totpservice.SaveChallenge(userEntity.Id, challengeJti, 5*time.Minute); err != nil {
+			slog.Error("Save TOTP challenge failed", "userId", userEntity.Id, "error", err)
 			c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
 			return
 		}
