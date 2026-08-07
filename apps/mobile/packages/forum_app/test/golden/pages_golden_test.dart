@@ -1,4 +1,6 @@
 import 'package:dio/dio.dart';
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -63,6 +65,12 @@ class OneNotificationRepository extends NotificationRepository {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  // Golden baselines are rendered by flutter_tester on Linux CI (see
+  // golden_helper.dart). flutter_tester rasterizes text differently per
+  // host OS (hinting/AA), so the same PNG cannot match on macOS; run
+  // goldens on Linux and skip elsewhere.
+  final bool skipGoldens = !Platform.isLinux;
+
   Future<ProviderContainer> makeContainer({
     NotificationRepository? notifRepo,
   }) async {
@@ -88,7 +96,7 @@ void main() {
     return container;
   }
 
-  testWidgets('home page golden', (tester) async {
+  testWidgets('home page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
@@ -100,7 +108,7 @@ void main() {
     );
   });
 
-  testWidgets('topic page golden', (tester) async {
+  testWidgets('topic page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
@@ -119,7 +127,7 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
-  testWidgets('notifications page golden', (tester) async {
+  testWidgets('notifications page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
@@ -134,7 +142,7 @@ void main() {
     );
   });
 
-  testWidgets('messages page golden', (tester) async {
+  testWidgets('messages page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
@@ -149,7 +157,7 @@ void main() {
     );
   });
 
-  testWidgets('login page golden', (tester) async {
+  testWidgets('login page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,

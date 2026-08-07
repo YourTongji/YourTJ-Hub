@@ -1,3 +1,5 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -11,7 +13,13 @@ import '../golden_helper.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  testWidgets('GfButton all variants', (tester) async {
+  // Golden baselines are rendered by flutter_tester on Linux CI (see
+  // golden_helper.dart). flutter_tester rasterizes text differently per
+  // host OS (hinting/AA), so the same PNG cannot match on macOS; run
+  // goldens on Linux and skip elsewhere.
+  final bool skipGoldens = !Platform.isLinux;
+
+  testWidgets('GfButton all variants', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       Padding(
@@ -32,7 +40,7 @@ void main() {
     );
   });
 
-  testWidgets('GfBadge all variants', (tester) async {
+  testWidgets('GfBadge all variants', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       Padding(
@@ -53,7 +61,7 @@ void main() {
     );
   });
 
-  testWidgets('GfSegmented control', (tester) async {
+  testWidgets('GfSegmented control', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       Padding(
@@ -75,7 +83,7 @@ void main() {
     );
   });
 
-  testWidgets('GfTopicRow states', (tester) async {
+  testWidgets('GfTopicRow states', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       SizedBox(
@@ -114,7 +122,7 @@ void main() {
     );
   });
 
-  testWidgets('GfFloatingControls', (tester) async {
+  testWidgets('GfFloatingControls', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       Center(
@@ -146,7 +154,7 @@ void main() {
     );
   });
 
-  testWidgets('GfNotificationRow states', (tester) async {
+  testWidgets('GfNotificationRow states', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       SizedBox(
@@ -179,7 +187,7 @@ void main() {
     );
   });
 
-  testWidgets('GfMessageBubble states', (tester) async {
+  testWidgets('GfMessageBubble states', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       const Padding(
@@ -200,7 +208,7 @@ void main() {
     );
   });
 
-  testWidgets('GfAvatarStack sm', (tester) async {
+  testWidgets('GfAvatarStack sm', skip: skipGoldens, (tester) async {
     await pumpGfGolden(
       tester,
       const Padding(
