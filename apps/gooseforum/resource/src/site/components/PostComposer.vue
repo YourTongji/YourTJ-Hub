@@ -64,6 +64,7 @@ const toolbarOpen = ref(false)
 const toolbarCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)
 const linkPickerOpen = ref(false)
 const linkUrl = ref('')
+const linkInput = ref<HTMLInputElement | null>(null)
 const visualEditor = ref<InstanceType<typeof VisualMarkdownEditor> | null>(null)
 const markdownEditor = ref<HTMLTextAreaElement | null>(null)
 const uploadingImage = ref(false)
@@ -98,19 +99,20 @@ function closeComposer() {
   emit('update:open', false)
 }
 
-function openLinkPicker() {
-  if (editorMode.value === 'markdown') {
-    insert('[', '](https://)', t('publish.placeholder.link'))
-    return
-  }
+async function openLinkPicker() {
   linkPickerOpen.value = !linkPickerOpen.value
+  if (!linkPickerOpen.value) return
+  if (!linkUrl.value) linkUrl.value = 'https://'
+  await nextTick()
+  linkInput.value?.focus()
+  linkInput.value?.select()
 }
 
 async function applyLink() {
   const url = linkUrl.value.trim()
   if (!url) return
   if (editorMode.value === 'visual') {
-    visualEditor.value?.setLink(url, url)
+    visualEditor.value?.setLink(url, t('publish.placeholder.link'))
     linkPickerOpen.value = false
     linkUrl.value = ''
     await nextTick()
@@ -118,7 +120,10 @@ async function applyLink() {
     return
   }
   insert('[', `](${url})`, t('publish.placeholder.link'))
+  linkPickerOpen.value = false
   linkUrl.value = ''
+  await nextTick()
+  markdownEditor.value?.focus()
 }
 
 function scheduleToolbarClose() {
@@ -397,7 +402,7 @@ function submit() {
                   <div class="relative">
                     <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.link')" :aria-expanded="linkPickerOpen" @mousedown.prevent @click="openLinkPicker"><Link class="h-4 w-4" /></button>
                     <form v-if="linkPickerOpen" class="gf-menu-surface absolute bottom-full left-0 z-30 mb-1.5 flex w-72 max-w-[calc(100vw-5rem)] items-center gap-1.5 p-2 shadow-lg" @submit.prevent="applyLink">
-                      <input v-model="linkUrl" type="text" inputmode="url" class="h-8 min-w-0 flex-1 rounded border border-line bg-base-100 px-2 text-sm outline-none focus:border-primary" :placeholder="t('publish.toolbar.linkUrl')" />
+                      <input ref="linkInput" v-model="linkUrl" type="text" inputmode="url" class="h-8 min-w-0 flex-1 rounded border border-line bg-base-100 px-2 text-sm outline-none focus:border-primary" :placeholder="t('publish.toolbar.linkUrl')" />
                       <button type="submit" class="gf-button gf-button-primary h-8 px-2.5" :disabled="!linkUrl.trim()">{{ t('publish.toolbar.applyLink') }}</button>
                     </form>
                   </div>

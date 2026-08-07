@@ -266,10 +266,6 @@ function setMarkdownLineType(block: Exclude<MarkdownBlockType, 'code_block'>) {
 }
 
 async function openLinkPicker() {
-  if (editorMode.value === 'markdown') {
-    insert('[', '](https://)', t('publish.placeholder.link'))
-    return
-  }
   blockPickerOpen.value = false
   tablePickerOpen.value = false
   linkPickerOpen.value = !linkPickerOpen.value
@@ -283,6 +279,12 @@ async function openLinkPicker() {
 function applyLink() {
   const href = linkUrl.value.trim()
   if (!href) return
+  if (editorMode.value === 'markdown') {
+    insert('[', `](${href})`, t('publish.placeholder.link'))
+    linkPickerOpen.value = false
+    linkUrl.value = ''
+    return
+  }
   linkPickerOpen.value = false
   visualEditor.value?.setLink(href, t('publish.placeholder.link'))
 }
