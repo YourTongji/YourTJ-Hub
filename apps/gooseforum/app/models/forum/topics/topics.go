@@ -32,6 +32,13 @@ type Entity struct {
 	DeletedAt     gorm.DeletedAt `json:"-"`
 }
 
+// 管理处理状态
+const (
+	ProcessStatusNormal  int8 = 0 // 正常
+	ProcessStatusBlocked int8 = 1 // 封禁
+	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
+)
+
 type Poster struct {
 	UserID uint64 `json:"user_id"`
 }

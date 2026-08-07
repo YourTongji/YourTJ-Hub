@@ -34,6 +34,11 @@ var emailProcessor = struct {
 	stopCh: make(chan struct{}),
 }
 
+// emailTaskTypePrefix is applied to taskQueue type so the email worker only
+// consumes its own tasks. The EmailTask.Type payload keeps the legacy value
+// ("activation" / "reset_password") for processing compatibility.
+const emailTaskTypePrefix = "email."
+
 // AddToQueue stores an email task for background processing.
 func AddToQueue(task EmailTask) error {
 	taskJson, err := json.Marshal(task)
@@ -42,7 +47,7 @@ func AddToQueue(task EmailTask) error {
 	}
 
 	queueTask := &taskQueue.Entity{
-		Type:     task.Type,
+		Type:     emailTaskTypePrefix + task.Type,
 		Status:   taskQueue.StatusPending,
 		TaskJson: string(taskJson),
 	}
@@ -101,7 +106,7 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 		default:
 		}
 
-		tasks := taskQueue.GetPendingTasks(BatchSize)
+		tasks := taskQueue.GetPendingEmailTasks(BatchSize)
 		if len(tasks) == 0 {
 			return true
 		}

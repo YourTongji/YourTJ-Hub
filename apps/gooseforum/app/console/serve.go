@@ -20,6 +20,9 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/signalwatch"
 	"github.com/leancodebox/GooseForum/app/console/job"
 	"github.com/leancodebox/GooseForum/app/http/routes"
+	"github.com/leancodebox/GooseForum/app/service/backgroundservice"
+	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/oauthservice"
 	"github.com/leancodebox/GooseForum/app/service/oidcservice"
@@ -97,6 +100,10 @@ func ginServe() {
 	captchaOpt.StartCleanup()
 	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
+	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
+	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
+	// 数据导出 worker：处理管理面板创建的 export 任务
+	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	sessionservice.CleanupExpired()
 	job.Run()
 

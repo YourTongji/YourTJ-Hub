@@ -79,6 +79,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
+	viewRouteApp.GET("/terms", forum.Terms)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -220,6 +221,11 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-security-settings", UpButterReq(api.SaveSecuritySettings)).
 		GET("posting-settings", UpButterReq(api.GetPostingSettings)).
 		POST("save-posting-settings", UpButterReq(api.SavePostingSettings)).
+		GET("storage-settings", UpButterReq(api.GetStorageSettings)).
+		POST("save-storage-settings", UpButterReq(api.SaveStorageSettings)).
+		POST("test-storage-connection", UpButterReq(api.TestStorageConnection)).
+		POST("storage-migrate-task", UpButterReq(api.CreateStorageMigrateTask)).
+		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
 		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
@@ -227,8 +233,16 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
+		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
+		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
-		POST("img-upload", api.SaveAdminImgByGinContext)
+		POST("img-upload", api.SaveAdminImgByGinContext).
+		POST("data/export", UpButterReq(api.CreateExportTask)).
+		GET("data/export/tasks", UpButterReq(api.ListExportTasks)).
+		GET("data/export/download/:taskId", api.DownloadExportTask).
+		POST("data/import", api.ImportData).
+		POST("review-queue", UpButterReq(api.ReviewQueue)).
+		POST("review-action", UpButterReq(api.ReviewAction))
 
 }
 

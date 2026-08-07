@@ -1021,6 +1021,18 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 }
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64) PostWindowPayload {
+	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
+	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
+	if !canModerate {
+		filtered := make([]*posts.Entity, 0, len(postEntities))
+		for _, item := range postEntities {
+			if item == nil || item.ProcessStatus == posts.ProcessStatusPending {
+				continue
+			}
+			filtered = append(filtered, item)
+		}
+		postEntities = filtered
+	}
 	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate)
 	var beforePostNo uint64
 	var afterPostNo uint64
