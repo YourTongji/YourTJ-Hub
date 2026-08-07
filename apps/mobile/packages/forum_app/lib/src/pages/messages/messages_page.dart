@@ -8,6 +8,7 @@ import 'package:core/core.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../format.dart';
 import '../../widgets/status_views.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
@@ -225,9 +226,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                   crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
                     Text(
-                      _timeLabel(c.lastMsgTime),
-                      style: TextStyle(
-                        fontSize: 11,
+                      formatChatTime(c.lastMsgTime, l10n: l10n),
+                      style: GfTheme.typographyOf(context).meta.copyWith(
                         color: GfTheme.colorsOf(context).iconMuted,
                       ),
                     ),
@@ -244,8 +244,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                         ),
                         child: Text(
                           '${c.unreadCount}',
-                          style: TextStyle(
-                            fontSize: 11,
+                          style: GfTheme.typographyOf(context).meta.copyWith(
                             color: GfTheme.colorsOf(context).neutralContent,
                           ),
                         ),
@@ -260,15 +259,6 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
         },
       ),
     );
-  }
-
-  String _timeLabel(String iso) {
-    final DateTime t = DateTime.tryParse(iso)?.toLocal() ?? DateTime.now();
-    final DateTime now = DateTime.now();
-    if (t.year == now.year && t.month == now.month && t.day == now.day) {
-      return '${t.hour.toString().padLeft(2, '0')}:${t.minute.toString().padLeft(2, '0')}';
-    }
-    return '${t.month}/${t.day}';
   }
 }
 
@@ -473,8 +463,7 @@ class _MessageBubble extends StatelessWidget {
         ),
         child: Text(
           message.content,
-          style: TextStyle(
-            fontSize: 14,
+          style: GfTheme.typographyOf(context).body.copyWith(
             color: isMine ? colors.primaryContent : colors.baseContent,
           ),
         ),

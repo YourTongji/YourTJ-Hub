@@ -269,7 +269,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 12),
                   Text(
                     _authController.error,
-                    style: TextStyle(color: colors.error, fontSize: 13),
+                    style: GfTheme.typographyOf(context).small.copyWith(color: colors.error),
                   ),
                 ],
                 const SizedBox(height: 20),

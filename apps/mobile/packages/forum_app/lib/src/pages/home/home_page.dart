@@ -237,7 +237,7 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: TextStyle(color: colors.primary, fontSize: 13),
+          style: GfTheme.typographyOf(context).small.copyWith(color: colors.primary),
         ),
       ),
     );

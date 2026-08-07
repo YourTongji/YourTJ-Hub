@@ -111,10 +111,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                         const SizedBox(width: 8),
                         Text(
                           props.category.name,
-                          style: const TextStyle(
-                            fontSize: 18,
-                            fontWeight: FontWeight.w700,
-                          ),
+                          style: GfTheme.typographyOf(context).title2,
                         ),
                       ],
                     ),
@@ -122,8 +119,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                       const SizedBox(height: 6),
                       Text(
                         props.category.description,
-                        style: TextStyle(
-                          fontSize: 13,
+                        style: GfTheme.typographyOf(context).small.copyWith(
                           color: GfTheme.colorsOf(context).iconMuted,
                         ),
                       ),

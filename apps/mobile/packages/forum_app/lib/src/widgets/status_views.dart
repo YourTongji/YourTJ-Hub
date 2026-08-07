@@ -21,7 +21,7 @@ class GfLoading extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               message!,
-              style: TextStyle(color: colors.iconMuted, fontSize: 13),
+              style: GfTheme.typographyOf(context).small.copyWith(color: colors.iconMuted),
             ),
           ],
         ],
@@ -51,7 +51,7 @@ class GfErrorRetry extends StatelessWidget {
             Text(
               message,
               textAlign: TextAlign.center,
-              style: TextStyle(color: colors.baseContent, fontSize: 14),
+              style: GfTheme.typographyOf(context).body,
             ),
             const SizedBox(height: 16),
             GfButton(
@@ -85,7 +85,7 @@ class GfEmpty extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               message,
-              style: TextStyle(color: colors.iconMuted, fontSize: 13),
+              style: GfTheme.typographyOf(context).small.copyWith(color: colors.iconMuted),
             ),
           ],
         ),
@@ -128,7 +128,7 @@ class GfListFooter extends StatelessWidget {
         child: Center(
           child: Text(
             '— ${AppLocalizations.of(context).commonEmpty} —',
-            style: TextStyle(color: colors.iconMuted, fontSize: 12),
+            style: GfTheme.typographyOf(context).caption.copyWith(color: colors.iconMuted),
           ),
         ),
       );

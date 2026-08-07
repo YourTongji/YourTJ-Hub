@@ -194,10 +194,7 @@ class _ProfileHeader extends StatelessWidget {
                     Expanded(
                       child: Text(
                         user.nickname.isEmpty ? user.username : user.nickname,
-                        style: const TextStyle(
-                          fontSize: 17,
-                          fontWeight: FontWeight.w700,
-                        ),
+                        style: GfTheme.typographyOf(context).title3,
                       ),
                     ),
                     if (!user.isSelf && !user.isAdmin)
@@ -216,11 +213,11 @@ class _ProfileHeader extends StatelessWidget {
                 if (user.nickname.isNotEmpty && user.nickname != user.username)
                   Text(
                     '@${user.username}',
-                    style: TextStyle(fontSize: 12, color: GfTheme.colorsOf(context).iconMuted),
+                    style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
                   ),
                 if (user.bio.isNotEmpty) ...[
                   const SizedBox(height: 6),
-                  Text(user.bio, style: const TextStyle(fontSize: 13)),
+                  Text(user.bio, style: GfTheme.typographyOf(context).small),
                 ],
                 const SizedBox(height: 8),
                 Row(
@@ -282,9 +279,9 @@ class _StatItem extends StatelessWidget {
         children: [
           Text(
             formatNumber(value),
-            style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
+            style: GfTheme.typographyOf(context).bodyStrong,
           ),
-          Text(label, style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted)),
+          Text(label, style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted)),
         ],
       ),
     );
@@ -347,7 +344,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.activities[i].createdAt, l10n: l10n),
-              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -364,7 +361,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               l10n.topicReplies(props.topics[i].replyCount),
-              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -381,7 +378,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.likes[i].likedAt, l10n: l10n),
-              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -398,7 +395,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.bookmarks[i].bookmarkedAt, l10n: l10n),
-              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),

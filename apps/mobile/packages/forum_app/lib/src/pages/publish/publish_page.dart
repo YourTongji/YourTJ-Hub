@@ -242,11 +242,11 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           ),
           const SizedBox(height: 8),
           if (_error.isNotEmpty)
-            Text(_error, style: TextStyle(color: colors.error, fontSize: 13)),
+            Text(_error, style: GfTheme.typographyOf(context).small.copyWith(color: colors.error)),
           if (_message.isNotEmpty)
             Text(
               _message,
-              style: TextStyle(color: colors.success, fontSize: 13),
+              style: GfTheme.typographyOf(context).small.copyWith(color: colors.success),
             ),
           const SizedBox(height: 8),
           Row(

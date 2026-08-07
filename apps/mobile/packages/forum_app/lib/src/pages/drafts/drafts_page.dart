@@ -106,11 +106,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
                                 ),
                                 child: Text(
                                   l10n.draftsBlocked,
-                                  style: TextStyle(
-                                    fontSize: 11,
-                                    color: colors.error,
-                                    fontWeight: FontWeight.w600,
-                                  ),
+                                  style: GfTheme.typographyOf(context).meta.copyWith(color: colors.error, fontWeight: FontWeight.w600),
                                 ),
                               ),
                             ],

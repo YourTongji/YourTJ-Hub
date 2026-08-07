@@ -412,7 +412,7 @@ class _TopicHeader extends StatelessWidget {
         children: [
           Text(
             topic.title,
-            style: const TextStyle(fontSize: 20, fontWeight: FontWeight.w700),
+            style: GfTheme.typographyOf(context).title1,
           ),
           const SizedBox(height: 8),
           Row(
@@ -425,18 +425,12 @@ class _TopicHeader extends StatelessWidget {
               const SizedBox(width: 8),
               Text(
                 topic.author.nickname ?? topic.author.username,
-                style: const TextStyle(
-                  fontSize: 13,
-                  fontWeight: FontWeight.w600,
-                ),
+                style: GfTheme.typographyOf(context).bodyStrong,
               ),
               const SizedBox(width: 12),
               Text(
                 timeAgo(topic.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: GfTheme.colorsOf(context).iconMuted,
-                ),
+                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
             ],
           ),
@@ -520,10 +514,7 @@ class _MetaItem extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           value,
-          style: TextStyle(
-            fontSize: 12,
-            color: color ?? GfTheme.colorsOf(context).iconMuted,
-          ),
+          style: GfTheme.typographyOf(context).caption.copyWith(color: color ?? GfTheme.colorsOf(context).iconMuted),
         ),
       ],
     );
@@ -561,19 +552,13 @@ class _PostCard extends StatelessWidget {
               Expanded(
                 child: Text(
                   post.author.nickname ?? post.author.username,
-                  style: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+                  style: GfTheme.typographyOf(context).bodyStrong,
                 ),
               ),
               if (post.postNo > 0)
                 Text(
                   '#${post.postNo}',
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: GfTheme.colorsOf(context).iconMuted,
-                  ),
+                  style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
                 ),
             ],
           ),
@@ -581,10 +566,7 @@ class _PostCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${l10n.topicReply} @${post.replyToUsername}',
-              style: TextStyle(
-                fontSize: 12,
-                color: GfTheme.colorsOf(context).iconMuted,
-              ),
+              style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ],
           const SizedBox(height: 10),
@@ -594,10 +576,7 @@ class _PostCard extends StatelessWidget {
             children: [
               Text(
                 timeAgo(post.createdAt),
-                style: TextStyle(
-                  fontSize: 12,
-                  color: GfTheme.colorsOf(context).iconMuted,
-                ),
+                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
               const Spacer(),
               Icon(
@@ -610,10 +589,7 @@ class _PostCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 '${post.likeCount}',
-                style: TextStyle(
-                  fontSize: 12,
-                  color: GfTheme.colorsOf(context).iconMuted,
-                ),
+                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
               const SizedBox(width: 16),
               InkWell(

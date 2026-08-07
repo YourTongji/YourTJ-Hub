@@ -84,6 +84,33 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     _search();
   }
 
+  /// 下拉刷新:重载第一页(不置全页 loading,保留列表)。
+  Future<void> _refreshTopics() async {
+    final String q = _query.text.trim();
+    if (q.isEmpty) return;
+    setState(() {
+      _page = 1;
+      _loadingMore = true;
+    });
+    try {
+      final props = await ref
+          .read(topicRepositoryProvider)
+          .search(query: q, scope: _scope, page: 1);
+      if (mounted) {
+        setState(() {
+          _result = AsyncValue.data(props);
+          _searched = true;
+        });
+      }
+    } catch (e, st) {
+      if (mounted) {
+        setState(() => _result = AsyncValue.error(e, st));
+      }
+    } finally {
+      if (mounted) setState(() => _loadingMore = false);
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
@@ -145,11 +172,14 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                 child: switch (_scope) {
                   'user' => _UserResults(users: props.users),
                   'category' => _CategoryResults(categories: props.categories),
-                  _ => GfTopicList(
-                    loading: _loadingMore,
-                    topics: props.topics,
-                    hasMore: _page < props.totalPages,
-                    onLoadMore: _loadMore,
+                  _ => RefreshIndicator(
+                    onRefresh: _refreshTopics,
+                    child: GfTopicList(
+                      loading: _loadingMore,
+                      topics: props.topics,
+                      hasMore: _page < props.totalPages,
+                      onLoadMore: _loadMore,
+                    ),
                   ),
                 },
               ),

@@ -97,10 +97,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               padding: const EdgeInsets.all(16),
               child: Text(
                 l10n.settingsBadgePick,
-                style: const TextStyle(
-                  fontSize: 16,
-                  fontWeight: FontWeight.w700,
-                ),
+                style: GfTheme.typographyOf(
+                  context,
+                ).heading.copyWith(fontWeight: FontWeight.w700),
               ),
             ),
             for (final b in wearable)
@@ -348,10 +347,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 padding: const EdgeInsets.all(16),
                 child: Text(
                   l10n.settingsOAuthBindings,
-                  style: const TextStyle(
-                    fontSize: 16,
-                    fontWeight: FontWeight.w700,
-                  ),
+                  style: GfTheme.typographyOf(
+                    context,
+                  ).heading.copyWith(fontWeight: FontWeight.w700),
                 ),
               ),
               for (final entry in bindings.entries)
@@ -680,7 +678,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsSectionProfile,
           child: Column(
             children: [
@@ -737,7 +736,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsTabAccount,
           child: Column(
             children: [
@@ -793,7 +793,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsTabPrivacy,
           child: Column(
             children: [
@@ -820,7 +821,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsTabBinding,
           child: Column(
             children: [
@@ -843,7 +845,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return ListView(
       padding: const EdgeInsets.all(16),
       children: [
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsAppearance,
           child: SwitchListTile(
             title: Text(l10n.settingsDarkMode),
@@ -855,7 +858,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsTotpTitle,
           child: ListTile(
             leading: const Icon(Icons.shield_outlined, size: 20),
@@ -866,7 +870,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsSessions,
           child: _sessions.when(
             loading: () =>
@@ -898,15 +903,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ),
                       subtitle: Text(
                         '${s.ipMasked} · ${_formatTs(s.createdAt)}',
-                        style: const TextStyle(fontSize: 12),
+                        style: GfTheme.typographyOf(context).caption,
                       ),
                       trailing: s.isCurrent
                           ? Text(
                               l10n.commonCurrent,
-                              style: TextStyle(
-                                fontSize: 12,
-                                color: GfTheme.colorsOf(context).iconMuted,
-                              ),
+                              style: GfTheme.typographyOf(context).caption
+                                  .copyWith(
+                                    color: GfTheme.colorsOf(context).iconMuted,
+                                  ),
                             )
                           : IconButton(
                               icon: const Icon(Icons.delete_outline, size: 18),
@@ -929,7 +934,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ),
         ),
         const SizedBox(height: 12),
-        _SectionCard(
+        _settingsSection(
+          context,
           title: l10n.settingsAbout,
           child: ListTile(
             leading: const Icon(Icons.info_outline, size: 20),
@@ -993,38 +999,27 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 }
 
-/// 设置分组卡片。
-class _SectionCard extends StatelessWidget {
-  const _SectionCard({required this.title, required this.child});
-
-  final String title;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: 4, bottom: 6),
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 13,
-              color: colors.iconMuted,
-              fontWeight: FontWeight.w600,
-            ),
+/// 设置分组:标题 + [GfPanel] 容器(web `gf-panel` 语义,移动端全宽无边框)。
+Widget _settingsSection(
+  BuildContext context, {
+  required String title,
+  required Widget child,
+}) {
+  final GfColors colors = GfTheme.colorsOf(context);
+  return Column(
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      Padding(
+        padding: const EdgeInsets.only(left: 4, bottom: 6),
+        child: Text(
+          title,
+          style: GfTheme.typographyOf(context).small.copyWith(
+            color: colors.iconMuted,
+            fontWeight: FontWeight.w600,
           ),
         ),
-        Container(
-          decoration: BoxDecoration(
-            color: colors.base100,
-            borderRadius: BorderRadius.circular(12),
-          ),
-          child: child,
-        ),
-      ],
-    );
-  }
+      ),
+      GfPanel(child: child),
+    ],
+  );
 }

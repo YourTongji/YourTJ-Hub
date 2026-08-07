@@ -192,8 +192,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         n.content,
                         maxLines: 2,
                         overflow: TextOverflow.ellipsis,
-                        style: TextStyle(
-                          fontSize: 12,
+                        style: GfTheme.typographyOf(context).caption.copyWith(
                           color: n.isRead
                               ? colors.iconMuted
                               : colors.baseContent,
