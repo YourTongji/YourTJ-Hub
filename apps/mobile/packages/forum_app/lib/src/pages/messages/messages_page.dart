@@ -226,7 +226,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                   children: [
                     Text(
                       _timeLabel(c.lastMsgTime),
-                      style: const TextStyle(fontSize: 11, color: Colors.grey),
+                      style: TextStyle(
+                        fontSize: 11,
+                        color: GfTheme.colorsOf(context).iconMuted,
+                      ),
                     ),
                     if (c.unreadCount > 0) ...[
                       const SizedBox(height: 4),
@@ -235,15 +238,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                           horizontal: 6,
                           vertical: 1,
                         ),
-                        decoration: const BoxDecoration(
-                          color: Colors.red,
+                        decoration: BoxDecoration(
+                          color: GfTheme.colorsOf(context).error,
                           borderRadius: BorderRadius.all(Radius.circular(10)),
                         ),
                         child: Text(
                           '${c.unreadCount}',
-                          style: const TextStyle(
+                          style: TextStyle(
                             fontSize: 11,
-                            color: Colors.white,
+                            color: GfTheme.colorsOf(context).neutralContent,
                           ),
                         ),
                       ),

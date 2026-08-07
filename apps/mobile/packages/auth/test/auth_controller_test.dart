@@ -181,6 +181,9 @@ class FakeAuthRepository implements AuthRepository {
     required String codeVerifier,
     required String redirectUri,
   }) async => 'oidc-token';
+
+  @override
+  Future<bool> logout() async => true;
 }
 
 /// 固定输出的 RsaEncryptor fake。

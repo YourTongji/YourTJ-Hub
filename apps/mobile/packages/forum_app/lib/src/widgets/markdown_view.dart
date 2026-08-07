@@ -35,7 +35,7 @@ class GfMarkdownView extends StatelessWidget {
     Navigator.of(context).push(
       MaterialPageRoute<void>(
         builder: (_) => Scaffold(
-          backgroundColor: Colors.black,
+          backgroundColor: const Color(0xFF000000),
           body: SafeArea(
             child: GfImageViewer(images: urls, initialIndex: index),
           ),

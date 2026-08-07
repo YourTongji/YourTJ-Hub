@@ -74,7 +74,7 @@ class _GfImageViewerState extends State<GfImageViewer> {
     final GfColors colors = GfTheme.colorsOf(context);
 
     return Scaffold(
-      backgroundColor: Colors.black.withValues(alpha: 0.62),
+      backgroundColor: const Color(0xFF000000).withValues(alpha: 0.62),
       body: SafeArea(
         child: Stack(
           children: <Widget>[

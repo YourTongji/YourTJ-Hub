@@ -5,7 +5,7 @@ import '../l10n/app_localizations_zh.dart';
 
 /// 将后端返回的 hex 颜色(如 `#2563eb`)解析为 [Color]。
 /// 解析失败时回退 [fallback]。
-Color colorFromHex(String hex, {Color fallback = Colors.blueGrey}) {
+Color colorFromHex(String hex, {Color fallback = const Color(0xFF62748E)}) {
   final String cleaned = hex.replaceFirst('#', '').trim();
   if (cleaned.isEmpty) return fallback;
   if (cleaned.length == 3) {

@@ -216,7 +216,7 @@ class _ProfileHeader extends StatelessWidget {
                 if (user.nickname.isNotEmpty && user.nickname != user.username)
                   Text(
                     '@${user.username}',
-                    style: const TextStyle(fontSize: 12, color: Colors.grey),
+                    style: TextStyle(fontSize: 12, color: GfTheme.colorsOf(context).iconMuted),
                   ),
                 if (user.bio.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -284,7 +284,7 @@ class _StatItem extends StatelessWidget {
             formatNumber(value),
             style: const TextStyle(fontSize: 15, fontWeight: FontWeight.w700),
           ),
-          Text(label, style: const TextStyle(fontSize: 11, color: Colors.grey)),
+          Text(label, style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted)),
         ],
       ),
     );
@@ -347,7 +347,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.activities[i].createdAt, l10n: l10n),
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -364,7 +364,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               l10n.topicReplies(props.topics[i].replyCount),
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -381,7 +381,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.likes[i].likedAt, l10n: l10n),
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -398,7 +398,7 @@ class _ProfileBody extends StatelessWidget {
             ),
             trailing: Text(
               timeAgo(props.bookmarks[i].bookmarkedAt, l10n: l10n),
-              style: const TextStyle(fontSize: 11, color: Colors.grey),
+              style: TextStyle(fontSize: 11, color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),

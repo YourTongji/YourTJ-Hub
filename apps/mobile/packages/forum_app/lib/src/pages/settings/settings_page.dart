@@ -118,7 +118,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   overflow: TextOverflow.ellipsis,
                 ),
                 trailing: b.code == user.wornBadgeCode
-                    ? const Icon(Icons.check, color: Colors.green)
+                    ? Icon(
+                        Icons.check,
+                        color: GfTheme.colorsOf(context).success,
+                      )
                     : null,
                 onTap: () => Navigator.pop(ctx, b.code),
               ),
@@ -900,9 +903,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       trailing: s.isCurrent
                           ? Text(
                               l10n.commonCurrent,
-                              style: const TextStyle(
+                              style: TextStyle(
                                 fontSize: 12,
-                                color: Colors.grey,
+                                color: GfTheme.colorsOf(context).iconMuted,
                               ),
                             )
                           : IconButton(

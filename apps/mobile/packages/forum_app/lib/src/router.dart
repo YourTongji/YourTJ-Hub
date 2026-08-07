@@ -212,8 +212,8 @@ class _UnreadBadge extends StatelessWidget {
             child: Container(
               width: 8,
               height: 8,
-              decoration: const BoxDecoration(
-                color: Colors.red,
+              decoration: BoxDecoration(
+                color: GfTheme.colorsOf(context).error,
                 shape: BoxShape.circle,
               ),
             ),

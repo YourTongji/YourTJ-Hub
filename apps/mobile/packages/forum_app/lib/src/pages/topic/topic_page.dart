@@ -433,7 +433,10 @@ class _TopicHeader extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 timeAgo(topic.createdAt),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: GfTheme.colorsOf(context).iconMuted,
+                ),
               ),
             ],
           ),
@@ -484,7 +487,9 @@ class _TopicHeader extends StatelessWidget {
                   child: Icon(
                     bookmarked ? Icons.bookmark : Icons.bookmark_border,
                     size: 18,
-                    color: bookmarked ? colors.primary : Colors.grey,
+                    color: bookmarked
+                        ? colors.primary
+                        : GfTheme.colorsOf(context).iconMuted,
                   ),
                 ),
               ),
@@ -507,11 +512,18 @@ class _MetaItem extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 15, color: color ?? Colors.grey),
+        Icon(
+          icon,
+          size: 15,
+          color: color ?? GfTheme.colorsOf(context).iconMuted,
+        ),
         const SizedBox(width: 4),
         Text(
           value,
-          style: TextStyle(fontSize: 12, color: color ?? Colors.grey),
+          style: TextStyle(
+            fontSize: 12,
+            color: color ?? GfTheme.colorsOf(context).iconMuted,
+          ),
         ),
       ],
     );
@@ -558,7 +570,10 @@ class _PostCard extends StatelessWidget {
               if (post.postNo > 0)
                 Text(
                   '#${post.postNo}',
-                  style: const TextStyle(fontSize: 12, color: Colors.grey),
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: GfTheme.colorsOf(context).iconMuted,
+                  ),
                 ),
             ],
           ),
@@ -566,7 +581,10 @@ class _PostCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${l10n.topicReply} @${post.replyToUsername}',
-              style: const TextStyle(fontSize: 12, color: Colors.blueGrey),
+              style: TextStyle(
+                fontSize: 12,
+                color: GfTheme.colorsOf(context).iconMuted,
+              ),
             ),
           ],
           const SizedBox(height: 10),
@@ -576,35 +594,43 @@ class _PostCard extends StatelessWidget {
             children: [
               Text(
                 timeAgo(post.createdAt),
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: GfTheme.colorsOf(context).iconMuted,
+                ),
               ),
               const Spacer(),
               Icon(
                 post.isLiked ? Icons.favorite : Icons.favorite_border,
                 size: 16,
-                color: post.isLiked ? colors.error : Colors.grey,
+                color: post.isLiked
+                    ? colors.error
+                    : GfTheme.colorsOf(context).iconMuted,
               ),
               const SizedBox(width: 4),
               Text(
                 '${post.likeCount}',
-                style: const TextStyle(fontSize: 12, color: Colors.grey),
+                style: TextStyle(
+                  fontSize: 12,
+                  color: GfTheme.colorsOf(context).iconMuted,
+                ),
               ),
               const SizedBox(width: 16),
               InkWell(
                 onTap: onReply,
-                child: const Icon(
+                child: Icon(
                   Icons.reply_outlined,
                   size: 16,
-                  color: Colors.grey,
+                  color: GfTheme.colorsOf(context).iconMuted,
                 ),
               ),
               const SizedBox(width: 16),
               InkWell(
                 onTap: onReport,
-                child: const Icon(
+                child: Icon(
                   Icons.flag_outlined,
                   size: 16,
-                  color: Colors.grey,
+                  color: GfTheme.colorsOf(context).iconMuted,
                 ),
               ),
             ],

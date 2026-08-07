@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 
@@ -121,9 +122,9 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                       const SizedBox(height: 6),
                       Text(
                         props.category.description,
-                        style: const TextStyle(
+                        style: TextStyle(
                           fontSize: 13,
-                          color: Colors.grey,
+                          color: GfTheme.colorsOf(context).iconMuted,
                         ),
                       ),
                     ],

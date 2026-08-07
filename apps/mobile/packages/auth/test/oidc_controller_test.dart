@@ -102,6 +102,9 @@ class FakeAuthRepository implements AuthRepository {
   @override
   Future<bool> totpVerify({required String code, String? recoveryCode}) =>
       throw UnimplementedError();
+
+  @override
+  Future<bool> logout() async => true;
 }
 
 /// OidcController authorize→exchange 调用链测试(不依赖真实 AppAuth/网络)。
