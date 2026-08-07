@@ -73,3 +73,7 @@
 - **移动端单行列表式 vs web 纵向表单**:GfSettingRow/GfConversationRow 等采用移动端标准列表式,语义字段一一对应。
 - **空态语义一致**:web 与移动端均使用 图标+标题+描述 空态(GfEmpty),仅 CTA 按钮有无差异。
 - **时间文案**:web 用浏览器本地时区显示;移动端 format.dart 已改为时区无关的字符串字段提取,与后端展示字符串一致。
+
+## 附注:grep 断言写法
+
+Blueprint 验证命令中的 `grep -rn "height: 4[246]"` 会误匹配统一后的 `height: 44`(4 处,search/notifications/settings/profile 的 tab 容器)。实际断言目标是非 44 的残留(42/46),正确写法为 `grep -rn "height: 4[26]"`。当前代码已确认 4 处全部为 `height: 44`(统一后),无 42/46 残留。
