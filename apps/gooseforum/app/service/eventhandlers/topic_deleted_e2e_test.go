@@ -68,17 +68,18 @@ func TestHandleTopicDeletedEndToEnd(t *testing.T) {
 	t.Fatalf("topic %d (%s) still present in index 10s after delete event", topicID, title)
 }
 
-// topicExists 通过 SearchTopics 搜索标题并检查命中。
+// topicExists 通过 AggregateSearch 搜索标题并检查命中。
 func topicExists(t *testing.T, id uint64, title string) bool {
 	t.Helper()
-	resp, err := searchservice.SearchTopics(searchservice.SearchRequest{
+	resp, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
 		Query: title,
+		Scope: searchservice.ScopeTopics,
 		Limit: 10,
 	})
 	if err != nil {
-		t.Fatalf("SearchTopics error: %v", err)
+		t.Fatalf("AggregateSearch error: %v", err)
 	}
-	for _, hit := range resp.Results {
+	for _, hit := range resp.Topics {
 		if hit.ID == id {
 			return true
 		}
