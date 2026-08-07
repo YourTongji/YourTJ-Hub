@@ -71,14 +71,16 @@ func applyFlagOverrides(cmd *cobra.Command, cfg *pageConfig.StorageSettings) {
 	if v, _ := cmd.Flags().GetString("region"); v != "" {
 		cfg.Region = v
 	}
-	if v, _ := cmd.Flags().GetString("bucket-lookup"); v != "" {
-		cfg.BucketLookup = v
+	// bucket-lookup/access-key/secret-key 仅在用户显式传参时覆盖，
+	// 避免 CLI 默认值覆盖已保存的存储配置（如 COS 的 dns 寻址）。
+	if cmd.Flags().Changed("bucket-lookup") {
+		cfg.BucketLookup, _ = cmd.Flags().GetString("bucket-lookup")
 	}
-	if v, _ := cmd.Flags().GetString("access-key"); v != "" {
-		cfg.AccessKey = v
+	if cmd.Flags().Changed("access-key") {
+		cfg.AccessKey, _ = cmd.Flags().GetString("access-key")
 	}
-	if v, _ := cmd.Flags().GetString("secret-key"); v != "" {
-		cfg.SecretKey = v
+	if cmd.Flags().Changed("secret-key") {
+		cfg.SecretKey, _ = cmd.Flags().GetString("secret-key")
 	}
 	if cmd.Flags().Changed("secure") {
 		cfg.Secure, _ = cmd.Flags().GetBool("secure")

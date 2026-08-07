@@ -135,7 +135,13 @@ func importUsers(rows []map[string]any, report *ImportReport) {
 			continue
 		}
 		var existing users.EntityComplete
-		if err := db.Where("username = ?", username).First(&existing).Error; err == nil && existing.Id > 0 {
+		// 幂等：id 已在上方检查；此处按 username/email 兜底
+		if id > 0 {
+			if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
+				report.Skipped++
+				continue
+			}
+		} else if err := db.Where("username = ?", username).First(&existing).Error; err == nil && existing.Id > 0 {
 			report.Skipped++
 			continue
 		}
@@ -202,19 +208,17 @@ func importTopics(rows []map[string]any, report *ImportReport) {
 		if cats, ok := row["categoryIds"].(string); ok && cats != "" {
 			_ = json.Unmarshal([]byte(cats), &categoryIDs)
 		}
-		invalidCategory := false
 		for _, cid := range categoryIDs {
 			if category.Get(cid).Id == 0 {
 				report.Failed++
 				report.Errors = append(report.Errors, ImportError{Line: line, Table: "topics", Reason: fmt.Sprintf("分类 %d 不存在", cid)})
 				categoryIDs = nil
-				// 分类缺失视为该行校验失败：跳过本行，避免"同一行既失败又成功"，
-				// 也避免写入无分类主题导致重试按 ID 跳过脏数据。
-				invalidCategory = true
 				break
 			}
 		}
-		if invalidCategory {
+		if categoryIDs == nil && len(rowString(row, "categoryIds")) > 0 {
+			// 分类校验失败：仅记一次失败，跳过该行，避免 Failed/Success 双计数，
+			// 也避免写入无分类主题导致重试按 ID 跳过脏数据。
 			continue
 		}
 		var existing topics.Entity

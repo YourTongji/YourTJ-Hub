@@ -32,6 +32,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
 	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
@@ -1312,6 +1313,27 @@ type SaveSecuritySettingsReq struct {
 
 // SaveSecuritySettings 保存安全与注册设置
 func SaveSecuritySettings(req component.BetterRequest[SaveSecuritySettingsReq]) component.Response {
+	// 新增/更新的禁用用户名：自动冻结匹配的存量账号（幂等，重复保存不会重复处理）
+	current := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, defaultconfig.GetDefaultSecuritySettingsConfig())
+	newBanned := req.Params.Settings.BannedUsernames
+	for _, username := range newBanned {
+		normalized := strings.ToLower(strings.TrimSpace(username))
+		if normalized == "" {
+			continue
+		}
+		already := false
+		for _, existing := range current.BannedUsernames {
+			if strings.ToLower(strings.TrimSpace(existing)) == normalized {
+				already = true
+				break
+			}
+		}
+		if !already {
+			if err := moderationservice.FreezeUsersByBannedUsername(username, req.UserId); err != nil {
+				slog.Warn("freeze users for banned username failed", "username", username, "err", err)
+			}
+		}
+	}
 	return savePageConfig(pageConfig.SecuritySettings, req.Params.Settings, hotdataserve.ClearSecuritySettingsConfigCache)
 }
 
@@ -1661,6 +1683,17 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
 		}
 		hotdataserve.ClearTopicListCache()
+		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
+		// 编辑主题仅重建索引与通知，避免重复积分。
+		if req.Params.Approve && topic.Status == 1 {
+			firstPost := posts.Get(topic.FirstPostId)
+			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
+				eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
+			} else {
+				userStatistics.WriteTopic(topic.UserId)
+				eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+			}
+		}
 		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.review.topic",
 			optlogger.MessageParams{"id": topic.Id, "approve": req.Params.Approve})
 	} else {
@@ -1676,6 +1709,26 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 				component.MessageParams{"error": err.Error()})
 		}
 		hotdataserve.ClearTopicListCache()
+		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
+		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
+			userStatistics.WriteComment(post.UserId)
+			topicEntity := topics.GetSimple(post.TopicId)
+			replyToAuthorID := uint64(0)
+			if post.ReplyToPostId > 0 {
+				if parent := posts.Get(post.ReplyToPostId); parent.Id > 0 {
+					replyToAuthorID = parent.UserId
+				}
+			}
+			eventbus.Publish(context.Background(), &eventhandlers.CommentCreatedEvent{
+				TopicId:             post.TopicId,
+				PostId:              post.Id,
+				UserId:              post.UserId,
+				Content:             post.Content,
+				TopicAuthorId:       topicEntity.UserId,
+				ReplyToPostId:       post.ReplyToPostId,
+				ReplyToPostAuthorId: replyToAuthorID,
+			})
+		}
 		optlogger.UserOptCode(req.UserId, optlogger.EditTopic, post.TopicId, "admin.opt.review.post",
 			optlogger.MessageParams{"id": post.Id, "topicId": post.TopicId, "approve": req.Params.Approve})
 	}

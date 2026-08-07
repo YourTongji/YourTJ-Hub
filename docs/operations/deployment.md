@@ -105,6 +105,12 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 ## DB migration execution and rollback
 
 - Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
+- **Migration failures now abort startup** (since the issue #8 PG fix): if `AutoMigrate` errors,
+  `serve` exits non-zero instead of continuing with a partial schema. This makes deploy.sh's
+  health-check rollback and container restart policies catch schema problems immediately instead of
+  surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
+  deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
+  before main.
 - Rollback: `deploy.sh` tags the previous image `yourtj-hub:prev` and re-points the instance on
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).

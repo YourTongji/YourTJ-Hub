@@ -40,13 +40,13 @@ const (
 	EmailSettings       = `emailSetting`
 	Announcement        = `announcement`
 	SecuritySettings    = `securitySettings`
+	StorageSettingsPage = `storageSettings`
+	TermsOfService      = `termsOfService`
 	PostingSettings     = `postingSettings`
 	HttpNotify          = `httpNotify`
 	SiteTheme           = `siteTheme`
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
-	StorageSettingsPage = `storageSettings`
-	TermsOfService      = `termsOfService`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -222,11 +222,11 @@ type SecurityAndRegistration struct {
 	EnableSignup            bool     `json:"enableSignup"`
 	EnableEmailVerification bool     `json:"enableEmailVerification"`
 	AllowedDomains          []string `json:"allowedDomains"`
-	CaptchaRequired         bool     `json:"captchaRequired"` // 注册/登录/找回密码是否要求验证码
 	ReservedUsernames       []string `json:"reservedUsernames"` // 保留用户名：注册/改名拒绝
 	BannedUsernames         []string `json:"bannedUsernames"`   // 禁用用户名：注册/改名拒绝，存量账号自动冻结
 	SensitiveWords          []string `json:"sensitiveWords"`    // 敏感词：命中后按 SensitiveAction 处理
 	SensitiveAction         string   `json:"sensitiveAction"`   // block=直接拦截 review=转人工审核
+	CaptchaRequired         bool     `json:"captchaRequired"`   // 注册/登录/找回密码是否要求验证码
 }
 
 // StorageSettingsConfig 存储设置配置（本地 SQLite BLOB 或 S3 兼容对象存储）

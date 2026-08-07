@@ -15,6 +15,7 @@ const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin/posts': AdminPermission.TopicsManager,
   '/admin/links': AdminPermission.PageManager,
   '/admin/sponsors': AdminPermission.PageManager,
+  '/admin/badges': AdminPermission.SiteManager,
   '/admin/files/resources': AdminPermission.SiteManager,
   '/admin/opt-records': AdminPermission.Admin,
   '/admin/review-queue': AdminPermission.SiteManager,

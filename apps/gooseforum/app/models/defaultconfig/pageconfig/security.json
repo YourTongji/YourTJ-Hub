@@ -2,9 +2,9 @@
   "enableSignup": true,
   "enableEmailVerification": false,
   "allowedDomains": [],
-  "captchaRequired": true,
   "reservedUsernames": [],
   "bannedUsernames": [],
   "sensitiveWords": [],
-  "sensitiveAction": "block"
+  "sensitiveAction": "block",
+  "captchaRequired": true
 }

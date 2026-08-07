@@ -239,11 +239,11 @@ export interface SecuritySettings {
   enableSignup: boolean
   enableEmailVerification: boolean
   allowedDomains: string[]
-  captchaRequired: boolean
   reservedUsernames: string[]
   bannedUsernames: string[]
   sensitiveWords: string[]
   sensitiveAction: 'block' | 'review'
+  captchaRequired: boolean
 }
 
 export interface RateLimitRule {
