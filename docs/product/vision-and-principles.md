@@ -51,8 +51,8 @@ services (course selection, course reviews, etc.).
 2. User IDs must be numeric (uint64) — credit's `GetID()` only accepts numeric sub; UUID collapses all
    users to 0.
 3. The chosen DB is the business fact source; search, cache, counters, and feeds are rebuildable projections.
-4. Contracts center on `packages/api-contract/openapi.yaml` (once the pipeline exists); Web/mobile types
-   are generated artifacts.
+4. For OpenAPI-covered operations, contracts center on `packages/api-contract/openapi.yaml`; Web
+   TypeScript types are generated artifacts, while mobile type generation remains Planned.
 5. Deployment is a single binary (go:embed), source separated by directory, deployment merged.
 6. All user media is managed via platform-controlled asset ids, states, and reference relations; no
    arbitrary external links as persistent facts.

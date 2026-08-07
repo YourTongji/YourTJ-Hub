@@ -73,8 +73,8 @@ docs/        Docs center (product/architecture/development/operations)
   the Incremental ID rule or explicit numeric ids (enforce at integration).
 - Once auth is integrated, Casdoor is the only identity source; the forum JWT is a session credential,
   not identity truth.
-- Contract changes ship in the same PR: backend struct → openapi.yaml → TS/Dart generated output →
-  fixture contract tests (once the contract pipeline exists).
+- For OpenAPI-covered operations, contract changes ship in the same PR: backend behavior/structs →
+  `openapi.yaml` → generated TypeScript output → fixture contract tests. Dart generation remains Planned.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
