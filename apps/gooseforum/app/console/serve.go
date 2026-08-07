@@ -110,8 +110,9 @@ func ginServe() {
 	port := preferences.GetString("server.port", 8080)
 	engine := newGinEngine()
 	routes.RegisterByGin(engine)
-	host := ``
-	if setting.IsLocal() {
+	// local 模式默认只绑定回环地址（安全），配置 server.host 可覆盖为 0.0.0.0 以允许局域网访问
+	host := preferences.GetString("server.host", "")
+	if host == "" && setting.IsLocal() {
 		host = `127.0.0.1`
 	}
 	address := fmt.Sprintf("%v:%v", host, port)

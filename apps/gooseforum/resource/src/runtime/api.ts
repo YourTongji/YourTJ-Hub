@@ -184,6 +184,34 @@ export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
   return readApiResponse<boolean>(response, t('api.watchFailed'))
 }
 
+export async function likePost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/like', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.likeFailed'))
+}
+
+export async function bookmarkPost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/bookmark', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
+}
+
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
   const response = await fetch('/api/forum/topics/status', {
     method: 'POST',
@@ -622,6 +650,22 @@ export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
   if (typeof result === 'string') return result
   const url = result.avatarUrl || result.url
   if (!url) throw new Error(t('api.avatarUploadEmpty'))
+  return url
+}
+
+// uploadImageFile 上传一张通用图片（个人资料封面等），
+// 复用 /file/img-upload 的权限、类型与大小校验。
+export async function uploadImageFile(file: Blob, filename: string): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file, filename)
+  const response = await fetch('/file/img-upload', {
+    method: 'POST',
+    body: formData,
+  })
+  const result = await readApiResponse<string | { url?: string }>(response, t('api.imageUploadFailed'))
+  if (typeof result === 'string') return result
+  const url = result.url
+  if (!url) throw new Error(t('api.imageUploadEmpty'))
   return url
 }
 

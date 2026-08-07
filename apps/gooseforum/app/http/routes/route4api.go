@@ -3,6 +3,8 @@ package routes
 import (
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
@@ -32,10 +34,31 @@ func assertRouter(ginApp *gin.Engine) {
 	} else {
 		slog.Info("static assets gzip disabled", "cache", false)
 	}
+	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
+	if devServer := viteDevServerURL(); devServer != "" {
+		target, err := url.Parse(devServer)
+		if err != nil {
+			slog.Error("vite dev server url parse", "err", err)
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			staticRoute.Any("assets/*path", gin.WrapH(proxy))
+			slog.Info("assets proxied to vite dev server", "target", devServer)
+		}
+	} else {
+		staticRoute.StaticFS("assets", http.FS(assetsFs))
+	}
 	staticRoute.
 		Use(middleware.BrowserCache).
-		StaticFS("assets", http.FS(assetsFs)).
 		StaticFS("static", http.FS(staticFS))
+}
+
+func viteDevServerURL() string {
+	// 生产环境无条件禁用 Vite 代理：即使配置了 resource.devServer，
+	// 也不能把 /assets/* 代理到开发服务器（避免生产事故）。
+	if setting.IsProduction() {
+		return ""
+	}
+	return preferences.GetString("resource.devServer", "http://localhost:3010")
 }
 
 func viewRoute(ginApp *gin.Engine) {
@@ -132,6 +155,7 @@ func apiRoute(ginApp *gin.Engine) {
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
+	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
@@ -144,6 +168,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))
+	forumLoginApi.POST("posts/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikePost))
+	forumLoginApi.POST("posts/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkPost))
 	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikeTopic))
 	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkTopic))
 	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
@@ -221,13 +247,13 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-security-settings", UpButterReq(api.SaveSecuritySettings)).
 		GET("posting-settings", UpButterReq(api.GetPostingSettings)).
 		POST("save-posting-settings", UpButterReq(api.SavePostingSettings)).
+		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
+		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
 		GET("storage-settings", UpButterReq(api.GetStorageSettings)).
 		POST("save-storage-settings", UpButterReq(api.SaveStorageSettings)).
 		POST("test-storage-connection", UpButterReq(api.TestStorageConnection)).
 		POST("storage-migrate-task", UpButterReq(api.CreateStorageMigrateTask)).
 		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
-		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
-		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).

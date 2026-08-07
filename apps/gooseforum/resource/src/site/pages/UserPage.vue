@@ -3,6 +3,7 @@ import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMoun
 import {
   Award,
   Bird,
+  Bookmark,
   CalendarDays,
   FileText,
   Heart,
@@ -25,7 +26,7 @@ import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
-import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
+import type { LayoutPayload, PagePayload, TopicPayload, UserActivityPayload, UserBookmarkPayload, UserLikePayload, UserProfileProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const page = defineProps<{
@@ -34,7 +35,6 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
-const activityListMode = 'waterfall'
 const isFollowing = ref(page.props.user.isFollowing)
 const followLoading = ref(false)
 const followError = ref('')
@@ -42,6 +42,7 @@ const coverUrl = ref(page.props.user.profileCoverUrl || '')
 const activityTopics = ref<TopicPayload[]>([])
 const activities = ref<UserActivityPayload[]>([])
 const likes = ref<UserLikePayload[]>([])
+const bookmarks = ref<UserBookmarkPayload[]>([])
 const pagination = ref(page.props.pagination)
 const loadingMore = ref(false)
 const loadError = ref('')
@@ -50,13 +51,15 @@ let observer: IntersectionObserver | undefined
 
 const displayName = computed(() => page.props.user.nickname || page.props.user.username)
 const bioText = computed(() => page.props.user.bio || page.props.user.signature || t('user.emptyBio'))
+const hasSignature = computed(() => Boolean(page.props.user.signature))
 const visibleTopics = computed(() => page.props.topics)
 const visibleBadges = computed(() => page.props.badges.slice(0, 8))
 const activeConnections = computed(() => page.props.activityTab === 'following' ? page.props.following : page.props.followers)
-const isWaterfallTab = computed(() => page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes'))
+const isWaterfallTab = computed(() => page.props.section === 'bookmarks' || (page.props.section === 'activity' && (page.props.activityTab === 'timeline' || page.props.activityTab === 'topics' || page.props.activityTab === 'likes' || page.props.activityTab === 'bookmarks')))
 const hasActivityTopics = computed(() => activityTopics.value.length > 0)
 const hasActivities = computed(() => activities.value.length > 0)
 const hasLikes = computed(() => likes.value.length > 0)
+const hasBookmarks = computed(() => bookmarks.value.length > 0)
 const socialKeys = ['github', 'twitter', 'linkedIn', 'weibo', 'bilibili', 'zhihu'] as const
 const tabItems = computed(() => [
   ...page.props.tabs.map(tab => ({ ...tab, label: userTabLabel(tab.key) })),
@@ -110,6 +113,7 @@ watch(
     activityTopics.value = [...page.props.topics]
     activities.value = [...page.props.activities]
     likes.value = [...page.props.likes]
+    bookmarks.value = [...(page.props.bookmarks || [])]
     pagination.value = page.props.pagination
     loadError.value = ''
     void nextTick(observeSentinel)
@@ -149,6 +153,7 @@ function activityLabel(activity: UserActivityPayload) {
 function userTabLabel(key: string) {
   if (key === 'summary') return t('user.tabs.summary')
   if (key === 'activity') return t('user.tabs.activity')
+  if (key === 'bookmarks') return t('user.tabs.bookmarks')
   if (key === 'badges') return t('user.tabs.badges')
   return key
 }
@@ -157,6 +162,7 @@ function userActivityTabLabel(key: string) {
   if (key === 'timeline') return t('user.tabs.timeline')
   if (key === 'topics') return t('user.tabs.topics')
   if (key === 'likes') return t('user.tabs.likes')
+  if (key === 'bookmarks') return t('user.tabs.bookmarks')
   if (key === 'following') return t('user.tabs.following')
   if (key === 'followers') return t('user.tabs.followers')
   return key
@@ -177,6 +183,8 @@ async function loadMore() {
       activityTopics.value = mergeTopics(activityTopics.value, payload.props.topics)
     } else if (page.props.activityTab === 'likes') {
       likes.value = mergeLikes(likes.value, payload.props.likes)
+    } else if (page.props.section === 'bookmarks' || page.props.activityTab === 'bookmarks') {
+      bookmarks.value = mergeBookmarks(bookmarks.value, payload.props.bookmarks)
     } else {
       activities.value = mergeActivities(activities.value, payload.props.activities)
     }
@@ -201,6 +209,11 @@ function mergeActivities(current: UserActivityPayload[], incoming: UserActivityP
 function mergeLikes(current: UserLikePayload[], incoming: UserLikePayload[]) {
   const seen = new Set(current.map((like) => like.id))
   return [...current, ...incoming.filter((like) => !seen.has(like.id))]
+}
+
+function mergeBookmarks(current: UserBookmarkPayload[], incoming: UserBookmarkPayload[]) {
+  const seen = new Set(current.map((bookmark) => bookmark.id))
+  return [...current, ...incoming.filter((bookmark) => !seen.has(bookmark.id))]
 }
 
 function observeSentinel() {
@@ -265,6 +278,12 @@ function safeProfileUrl(value?: string) {
                 </div>
                 <p class="mt-1 text-sm font-medium text-base-content/55">@{{ page.props.user.username }}</p>
                 <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/75">{{ bioText }}</p>
+                <p
+                  v-if="hasSignature && page.props.user.bio"
+                  class="mt-2 max-w-3xl border-l-2 border-primary/40 pl-3 text-sm italic leading-relaxed text-base-content/60"
+                >
+                  {{ page.props.user.signature }}
+                </p>
               </div>
             </div>
 
@@ -344,7 +363,7 @@ function safeProfileUrl(value?: string) {
 
         </div>
 
-        <div class="grid grid-cols-3 border-y border-line">
+        <div class="grid grid-cols-4 border-y border-line">
           <a
             v-for="tab in tabItems"
             :key="tab.key"
@@ -354,6 +373,7 @@ function safeProfileUrl(value?: string) {
           >
             <UserRound v-if="tab.key === 'summary'" class="h-4 w-4 shrink-0" />
             <List v-else-if="tab.key === 'activity'" class="h-4 w-4 shrink-0" />
+            <Bookmark v-else-if="tab.key === 'bookmarks'" class="h-4 w-4 shrink-0" />
             <Award v-else class="h-4 w-4 shrink-0" />
             {{ tab.label }}
           </a>
@@ -490,7 +510,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasActivities" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasActivities"
                 :load-error="loadError"
@@ -508,7 +527,6 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasActivityTopics" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasActivityTopics"
                 :load-error="loadError"
@@ -539,9 +557,47 @@ function safeProfileUrl(value?: string) {
             <div v-if="pagination.hasNext || hasLikes" ref="loadMoreSentinel">
               <TopicListFooter
                 :pagination="pagination"
-                :mode="activityListMode"
                 :loading-more="loadingMore"
                 :has-topics="hasLikes"
+                :load-error="loadError"
+                @load-more="loadMore"
+              />
+            </div>
+          </div>
+
+          <div v-else-if="page.props.activityTab === 'bookmarks'">
+            <div class="space-y-3 p-4">
+              <a
+                v-for="bookmark in bookmarks"
+                :key="bookmark.id"
+                :href="bookmark.url"
+                class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
+              >
+                <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/55">
+                  <Bookmark class="h-4 w-4" />
+                </span>
+                <span class="min-w-0">
+                  <span class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/55">
+                    <span v-if="bookmark.type === 'post'" class="gf-badge gf-badge-muted h-4 gap-0.5 px-1.5 text-[10px] font-bold tabular-nums">#{{ bookmark.postNo }}</span>
+                    {{ t('user.tabs.bookmarks') }}
+                  </span>
+                  <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ bookmark.title }}</span>
+                  <span
+                    v-if="bookmark.type === 'post' && bookmark.excerpt"
+                    class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                  >
+                    {{ bookmark.excerpt }}
+                  </span>
+                  <time class="mt-1 block text-xs text-base-content/55">{{ formatDateTime(bookmark.bookmarkedAt) }}</time>
+                </span>
+              </a>
+              <EmptyState v-if="!hasBookmarks" :icon="Bookmark" :title="t('user.emptyData')" />
+            </div>
+            <div v-if="pagination.hasNext || hasBookmarks" ref="loadMoreSentinel">
+              <TopicListFooter
+                :pagination="pagination"
+                :loading-more="loadingMore"
+                :has-topics="hasBookmarks"
                 :load-error="loadError"
                 @load-more="loadMore"
               />
@@ -564,6 +620,45 @@ function safeProfileUrl(value?: string) {
             </a>
           </div>
           <EmptyState v-if="(page.props.activityTab === 'following' || page.props.activityTab === 'followers') && activeConnections.length === 0" :icon="UserPlus" :title="t('user.emptyData')" />
+        </div>
+
+        <div v-else-if="page.props.section === 'bookmarks'">
+          <div class="space-y-3 p-4">
+            <a
+              v-for="bookmark in bookmarks"
+              :key="bookmark.id"
+              :href="bookmark.url"
+              class="flex min-w-0 gap-3 rounded-md border border-line p-3 hover:border-primary/20 hover:bg-info/10"
+            >
+              <span class="mt-0.5 flex h-8 w-8 shrink-0 items-center justify-center rounded-md bg-base-300 text-base-content/55">
+                <Bookmark class="h-4 w-4" />
+              </span>
+              <span class="min-w-0">
+                <span class="flex min-w-0 items-center gap-1.5 text-xs font-medium text-base-content/55">
+                  <span v-if="bookmark.type === 'post'" class="gf-badge gf-badge-muted h-4 gap-0.5 px-1.5 text-[10px] font-bold tabular-nums">#{{ bookmark.postNo }}</span>
+                  {{ t('user.tabs.bookmarks') }}
+                </span>
+                <span class="mt-0.5 block truncate text-sm font-semibold text-base-content">{{ bookmark.title }}</span>
+                <span
+                  v-if="bookmark.type === 'post' && bookmark.excerpt"
+                  class="mt-0.5 line-clamp-2 block text-xs leading-5 text-base-content/55"
+                >
+                  {{ bookmark.excerpt }}
+                </span>
+                <time class="mt-1 block text-xs text-base-content/55">{{ formatDateTime(bookmark.bookmarkedAt) }}</time>
+              </span>
+            </a>
+            <EmptyState v-if="!hasBookmarks" :icon="Bookmark" :title="t('user.emptyData')" />
+          </div>
+          <div v-if="pagination.hasNext || hasBookmarks" ref="loadMoreSentinel">
+            <TopicListFooter
+              :pagination="pagination"
+              :loading-more="loadingMore"
+              :has-topics="hasBookmarks"
+              :load-error="loadError"
+              @load-more="loadMore"
+            />
+          </div>
         </div>
 
         <div v-else class="p-4">

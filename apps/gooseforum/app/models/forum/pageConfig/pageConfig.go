@@ -169,12 +169,21 @@ type MailSettingsConfig struct {
 	FromEmail    string `json:"fromEmail"`
 }
 
+// AnnouncementItem 单则公告（多则公告模式）
+type AnnouncementItem struct {
+	ID      string `json:"id"`      // 稳定标识，用于前端轮播 key
+	Title   string `json:"title"`   // 公告标题（可空，仅展示时优先）
+	Content string `json:"content"` // Markdown 内容
+	Enabled bool   `json:"enabled"` // 是否启用
+}
+
 // AnnouncementConfig 公告设置配置
 type AnnouncementConfig struct {
-	Enabled     bool   `json:"enabled"`               // 是否启用公告
-	Content     string `json:"content"`               // 公告内容
-	PublishedAt string `json:"publishedAt,omitempty"` // 公告生效时间
-	HtmlContent string `json:"-"`                     // 预渲染后的 HTML，仅服务端使用
+	Enabled     bool               `json:"enabled"`               // 是否启用公告
+	Content     string             `json:"content"`               // 兼容：单则模式公告内容
+	PublishedAt string             `json:"publishedAt,omitempty"` // 公告生效时间
+	Items       []AnnouncementItem `json:"items,omitempty"`       // 多则公告列表（非空时优先于单则 Content）
+	HtmlContent string             `json:"-"`                     // 预渲染后的 HTML，仅服务端使用
 }
 
 func (itself *AnnouncementConfig) PrepareHTML() {
@@ -189,6 +198,24 @@ func (itself AnnouncementConfig) GetHtmlContent() string {
 		return itself.HtmlContent
 	}
 	return markdown2html.MarkdownToHTML(itself.Content)
+}
+
+// GetActiveItems 返回启用中的多则公告（含预渲染 HTML），
+// 供首页轮播与多则展示使用；未配置多则时返回空。
+func (itself AnnouncementConfig) GetActiveItems() []AnnouncementItem {
+	items := make([]AnnouncementItem, 0, len(itself.Items))
+	for _, item := range itself.Items {
+		if !item.Enabled || strings.TrimSpace(item.Content) == "" {
+			continue
+		}
+		items = append(items, AnnouncementItem{
+			ID:      item.ID,
+			Title:   item.Title,
+			Content: item.Content,
+			Enabled: true,
+		})
+	}
+	return items
 }
 
 type SecurityAndRegistration struct {

@@ -6,17 +6,21 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
 )
 
-func TestWornBadgeRequiresWearableBadge(t *testing.T) {
+func TestWornBadgeFromListReturnsGrantedBadge(t *testing.T) {
 	items := []UserBadge{
 		{Badge: Badge{Code: "plain", IsEnabled: true, IsWearable: false}},
 		{Badge: Badge{Code: "wearable", IsEnabled: true, IsWearable: true}},
 	}
 
-	if got := WornBadgeFromList(items, "plain"); got != nil {
-		t.Fatalf("WornBadgeFromList() returned non-wearable badge: %#v", got)
+	// 已获得（列表中出现）的徽章即可佩戴，不再受 IsWearable 定义拦截
+	if got := WornBadgeFromList(items, "plain"); got == nil || got.Code != "plain" {
+		t.Fatalf("WornBadgeFromList() = %#v, want granted badge plain", got)
 	}
 	if got := WornBadgeFromList(items, "wearable"); got == nil || got.Code != "wearable" {
 		t.Fatalf("WornBadgeFromList() = %#v, want wearable badge", got)
+	}
+	if got := WornBadgeFromList(items, "missing"); got != nil {
+		t.Fatalf("WornBadgeFromList() = %#v, want nil for non-granted badge", got)
 	}
 }
 
@@ -34,7 +38,13 @@ func TestWornBadgesFromRecordsMatchesSelectedActiveBadge(t *testing.T) {
 	}
 
 	got := wornBadgesFromRecords(selected, records, definitions)
-	if len(got) != 1 || got[1] == nil || got[1].Code != "wearable" {
-		t.Fatalf("wornBadgesFromRecords() = %#v, want only user 1 wearable badge", got)
+	if len(got) != 2 {
+		t.Fatalf("wornBadgesFromRecords() = %#v, want user 1 and user 2 granted badges", got)
+	}
+	if got[1] == nil || got[1].Code != "wearable" {
+		t.Fatalf("wornBadgesFromRecords() user 1 = %#v, want wearable", got[1])
+	}
+	if got[2] == nil || got[2].Code != "plain" {
+		t.Fatalf("wornBadgesFromRecords() user 2 = %#v, want granted plain", got[2])
 	}
 }

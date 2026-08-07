@@ -9,6 +9,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
@@ -183,6 +184,7 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	topic.Title = req.Params.Title
 	topic.Excerpt = markdown2html.ExtractDescription(req.Params.Content, 200)
 	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(req.Params.Content)
+	topic.ImageUrls = markdown2html.ExtractImageURLs(req.Params.Content)
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
@@ -546,7 +548,8 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 		return component.SuccessResponse(true)
 	}
 	if topicUserAction.SetLiked(req.UserId, topicEntity.Id, targetLiked) {
-		if req.Params.Action == 1 {
+		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
+		if targetLiked {
 			topics.IncrementLike(topicEntity)
 			userStatistics.LikeTopic(topicEntity.UserId)
 			userStatistics.GivenLike(req.UserId)
@@ -629,6 +632,79 @@ func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	}
 
 	topicUserAction.SetWatched(req.UserId, topicEntity.Id, targetWatched)
+	return component.SuccessResponse(true)
+}
+
+type LikePostReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Action int    `json:"action" validate:"min=1,max=2"` // 1 点赞，2 取消
+}
+
+// LikePost 楼层点赞/取消点赞，计数以 post_user_action 行数聚合
+func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	targetLiked := req.Params.Action == 1
+	if state.Id == 0 && !targetLiked {
+		return component.SuccessResponse(true)
+	}
+	if state.Id != 0 && (state.LikedAt != nil) == targetLiked {
+		return component.SuccessResponse(true)
+	}
+
+	if postUserAction.SetLiked(req.UserId, postEntity.Id, targetLiked) {
+		// 仅状态迁移时执行统计与事件副作用（并发重复请求不会重复计数）
+		if targetLiked {
+			userStatistics.GivenLike(req.UserId)
+			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
+			userStatistics.LikeTopic(postEntity.UserId)
+			topicEntity := topics.Get(postEntity.TopicId)
+			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
+				UserId:     postEntity.UserId,
+				PostId:     postEntity.Id,
+				TopicId:    postEntity.TopicId,
+				TopicTitle: topicEntity.Title,
+				LikerId:    req.UserId,
+			})
+		} else {
+			userStatistics.CancelGivenLike(req.UserId)
+			userStatistics.CancelLikeTopic(postEntity.UserId)
+		}
+		userservice.InvalidateUserPublicProfileCache(postEntity.UserId)
+		userservice.InvalidateUserPublicProfileCache(req.UserId)
+	}
+	return component.SuccessResponse(true)
+}
+
+type BookmarkPostReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Action int    `json:"action" validate:"min=1,max=2"` // 1 收藏，2 取消
+}
+
+// BookmarkPost 楼层收藏/取消收藏
+func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	targetBookmarked := req.Params.Action == 1
+	if state.Id == 0 && !targetBookmarked {
+		return component.SuccessResponse(true)
+	}
+	if state.Id != 0 && (state.BookmarkedAt != nil) == targetBookmarked {
+		return component.SuccessResponse(true)
+	}
+
+	if postUserAction.SetBookmarked(req.UserId, postEntity.Id, targetBookmarked) {
+		updateBookmarkStats(req.UserId, targetBookmarked)
+		userservice.InvalidateUserPublicProfileCache(req.UserId)
+	}
 	return component.SuccessResponse(true)
 }
 

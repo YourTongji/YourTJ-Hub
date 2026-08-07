@@ -48,12 +48,30 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	importUsers(parsed["users"], report)
 	importTopics(parsed["topics"], report)
 	importPosts(parsed["posts"], report)
+	// 显式主键写入不会推进 PostgreSQL sequence，导入后需手动推进，
+	// 否则下一次自动插入可能复用已导入 ID 触发主键冲突。
+	resetPostgresSequences()
 	for _, t := range []string{"users", "topics", "posts"} {
 		if _, ok := parsed[t]; ok {
 			report.Imported = append(report.Imported, t)
 		}
 	}
 	return report, nil
+}
+
+// resetPostgresSequences 导入显式主键后推进 users/topics/posts 的 sequence。
+// SQLite 无 sequence 概念，无需处理。
+func resetPostgresSequences() {
+	if dbconnect.IsSqlite() {
+		return
+	}
+	db := dbconnect.Connect()
+	for _, table := range []string{"users", "topics", "posts"} {
+		db.Exec(fmt.Sprintf(
+			`SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM %s), 1), true)`,
+			table, table,
+		))
+	}
 }
 
 // parseImportJSON 解析导入 JSON 为按表分组的行。
@@ -199,7 +217,8 @@ func importTopics(rows []map[string]any, report *ImportReport) {
 			}
 		}
 		if categoryIDs == nil && len(rowString(row, "categoryIds")) > 0 {
-			// 分类校验失败：仅记一次失败，跳过该行，避免 Failed/Success 双计数
+			// 分类校验失败：仅记一次失败，跳过该行，避免 Failed/Success 双计数，
+			// 也避免写入无分类主题导致重试按 ID 跳过脏数据。
 			continue
 		}
 		var existing topics.Entity

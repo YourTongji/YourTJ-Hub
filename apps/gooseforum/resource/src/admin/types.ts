@@ -246,6 +246,22 @@ export interface SecuritySettings {
   captchaRequired: boolean
 }
 
+export interface RateLimitRule {
+  action: string
+  windowSeconds: number
+  limitPerIp: number
+  limitPerUser: number
+}
+
+export interface RateLimitSettings {
+  enabled: boolean
+  skipAdmin: boolean
+  actions: RateLimitRule[]
+  newUserCaptchaAfterPosts: number
+  newUserCaptchaDays: number
+  minSubmitSeconds: number
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string
@@ -295,22 +311,6 @@ export interface ImportReport {
   importedTables: string[]
 }
 
-export interface RateLimitRule {
-  action: string
-  windowSeconds: number
-  limitPerIp: number
-  limitPerUser: number
-}
-
-export interface RateLimitSettings {
-  enabled: boolean
-  skipAdmin: boolean
-  actions: RateLimitRule[]
-  newUserCaptchaAfterPosts: number
-  newUserCaptchaDays: number
-  minSubmitSeconds: number
-}
-
 export interface PostingSettings {
   textControl: {
     minPostLength: number
@@ -350,6 +350,14 @@ export interface AnnouncementConfig {
   enabled: boolean
   content: string
   publishedAt?: string
+  items?: AnnouncementItemConfig[]
+}
+
+export interface AnnouncementItemConfig {
+  id: string
+  title: string
+  content: string
+  enabled: boolean
 }
 
 export interface SiteStatistics {

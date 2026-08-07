@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { CheckCircle2, Code, FileText, Globe, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -191,6 +191,7 @@ const guideMarkdown = new MarkdownIt({
 const announcementForm = reactive<AnnouncementConfig>({
   enabled: false,
   content: '',
+  items: [],
 })
 
 const pageMeta = computed(() => {
@@ -385,10 +386,83 @@ function validateHttpNotify(settings: HttpNotifySettings) {
 }
 
 function normalizeAnnouncement(settings: Partial<AnnouncementConfig> = {}) {
+  const items = settings.items ?? []
+  // 旧版单则数据迁移为一条 legacy 公告，保证编辑入口不丢失
+  if (items.length === 0 && settings.content) {
+    return {
+      enabled: toBool(settings.enabled, false),
+      content: settings.content ?? '',
+      items: [{ id: 'legacy', title: '', content: settings.content, enabled: true }],
+    } satisfies AnnouncementConfig
+  }
   return {
     enabled: toBool(settings.enabled, false),
     content: settings.content ?? '',
+    items,
   } satisfies AnnouncementConfig
+}
+
+function serializeAnnouncement(): AnnouncementConfig {
+  const items = (announcementForm.items ?? []).filter((item) => item.content.trim())
+  const isLegacyOnly = items.length === 1 && items[0].id === 'legacy'
+  return {
+    enabled: announcementForm.enabled,
+    content: isLegacyOnly ? items[0].content : announcementForm.content,
+    items: isLegacyOnly ? [] : items,
+  }
+}
+
+function addAnnouncementItem() {
+  if (!announcementForm.items) announcementForm.items = []
+  announcementForm.items.push({
+    id: `ann-${Date.now().toString(36)}`,
+    title: '',
+    content: '',
+    enabled: true,
+  })
+}
+
+function removeAnnouncementItem(index: number) {
+  announcementForm.items?.splice(index, 1)
+}
+
+// 拖拽排序状态：dragstart 记录源下标，dragover 记录目标下标
+const draggingAnnouncementIndex = ref<number | null>(null)
+const dragOverAnnouncementIndex = ref<number | null>(null)
+
+function onAnnouncementDragStart(index: number, event: DragEvent) {
+  if (!event.dataTransfer) return
+  draggingAnnouncementIndex.value = index
+  event.dataTransfer.effectAllowed = 'move'
+  event.dataTransfer.setData('text/plain', String(index))
+}
+
+function onAnnouncementDragOver(index: number, event: DragEvent) {
+  event.preventDefault()
+  if (event.dataTransfer) event.dataTransfer.dropEffect = 'move'
+  if (index !== draggingAnnouncementIndex.value) {
+    dragOverAnnouncementIndex.value = index
+  }
+}
+
+function onAnnouncementDrop(index: number, event: DragEvent) {
+  event.preventDefault()
+  moveAnnouncementItem(draggingAnnouncementIndex.value, index)
+  dragOverAnnouncementIndex.value = null
+}
+
+function onAnnouncementDragEnd() {
+  draggingAnnouncementIndex.value = null
+  dragOverAnnouncementIndex.value = null
+}
+
+// 将公告从 fromIndex 移动到 toIndex（数组顺序即首页轮播的展示顺序）
+function moveAnnouncementItem(fromIndex: number | null, toIndex: number) {
+  if (fromIndex === null || fromIndex === toIndex) return
+  const items = announcementForm.items ?? []
+  if (fromIndex < 0 || fromIndex >= items.length || toIndex < 0 || toIndex > items.length) return
+  const [moved] = items.splice(fromIndex, 1)
+  items.splice(toIndex, 0, moved)
 }
 
 function normalizeStorage(settings: Partial<StorageSettings> = {}) {
@@ -411,6 +485,7 @@ function normalizeTerms(settings: Partial<TermsOfServiceConfig> = {}) {
     content: settings.content ?? '',
   } satisfies TermsOfServiceConfig
 }
+
 
 async function uploadImage(target: 'siteLogo', event: Event) {
   const input = event.target as HTMLInputElement
@@ -464,7 +539,7 @@ async function save() {
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
-    else await saveAnnouncement(normalizeAnnouncement(announcementForm))
+    else await saveAnnouncement(serializeAnnouncement())
     adminToast.success(adminText('k000e'))
   } catch (err) {
     adminToast.error(err, adminText('k000f'))
@@ -509,7 +584,7 @@ async function loadMigrateTasks() {
   try {
     migrateTasks.value = await getStorageMigrateTasks()
   } catch (err) {
-    adminToast.error(err, adminText('k00fm'))
+    adminToast.error(err, adminText('k00ii'))
   }
 }
 
@@ -522,7 +597,7 @@ async function confirmMigrate() {
     adminToast.success(adminText('k00ie'))
     await loadMigrateTasks()
   } catch (err) {
-    adminToast.error(err, adminText('k00fm'))
+    adminToast.error(err, adminText('k00ii'))
   } finally {
     migrating.value = false
   }
@@ -626,12 +701,6 @@ function toggleEndpointEvent(endpoint: HttpNotifyEndpoint, eventName: string, ch
 
 function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, event: Event) {
   toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
-}
-
-function addAnnouncementExample() {
-  if (!announcementForm.content) {
-    announcementForm.content = adminText('k000k')
-  }
 }
 
 watch(() => props.kind, () => {
@@ -1068,12 +1137,53 @@ onMounted(load)
           <div><div class="text-base font-medium">{{ adminText('k009j') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k009k') }}</p></div>
           <Switch v-model="announcementForm.enabled" />
         </div>
-        <label class="grid gap-2 text-sm font-medium">
-          {{ adminText('k009l') }}
-          <span class="text-sm font-normal text-muted-foreground">{{ adminText('k009m') }}</span>
-          <Textarea v-model="announcementForm.content" class="min-h-64 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
-        </label>
-        <Button variant="outline" type="button" @click="addAnnouncementExample"><Code class="size-4" />{{ adminText('k009n') }}</Button>
+
+        <div class="space-y-4">
+          <div
+            v-for="(item, index) in announcementForm.items"
+            :key="item.id"
+            draggable="true"
+            class="rounded-lg border border-border bg-card p-4 transition-[opacity,box-shadow] duration-150"
+            :class="[
+              draggingAnnouncementIndex === index && 'opacity-50',
+              dragOverAnnouncementIndex === index && 'ring-2 ring-primary/60',
+            ]"
+            @dragstart="onAnnouncementDragStart(index, $event)"
+            @dragover="onAnnouncementDragOver(index, $event)"
+            @drop="onAnnouncementDrop(index, $event)"
+            @dragend="onAnnouncementDragEnd"
+          >
+            <div class="mb-3 flex items-center justify-between gap-2">
+              <div class="flex items-center gap-2 text-sm font-medium">
+                <GripVertical class="size-4 cursor-grab text-muted-foreground hover:text-foreground active:cursor-grabbing" :title="adminText('k00j2')" />
+                {{ adminText('k0009') }} #{{ index + 1 }}
+              </div>
+              <div class="flex items-center gap-3">
+                <label class="flex items-center gap-1.5 text-sm text-muted-foreground">
+                  {{ adminText('k00e2') }}
+                  <Switch v-model="item.enabled" />
+                </label>
+                <Button variant="ghost" type="button" class="size-8" @click="removeAnnouncementItem(index)">
+                  <Trash2 class="size-4" />
+                  <span class="sr-only">{{ adminText('k00j1') }}</span>
+                </Button>
+              </div>
+            </div>
+            <label class="grid gap-1.5 text-sm font-medium">
+              {{ adminText('k00j0') }}
+              <Input v-model="item.title" class="mt-0" :placeholder="adminText('k00j0')" />
+            </label>
+            <label class="mt-3 grid gap-1.5 text-sm font-medium">
+              {{ adminText('k009l') }}
+              <Textarea v-model="item.content" class="min-h-32 resize-y font-mono text-sm" :placeholder="adminText('k004n')" />
+            </label>
+          </div>
+
+          <Button variant="outline" type="button" @click="addAnnouncementItem">
+            <Plus class="size-4" />
+            {{ adminText('k00j2') }}
+          </Button>
+        </div>
       </form>
 
       <Dialog :open="migrateConfirm" @update:open="migrateConfirm = $event">

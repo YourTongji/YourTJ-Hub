@@ -14,6 +14,7 @@ import { isEditableBoundaryBlock, parseEditableVisualMarkdown, parseVisualMarkdo
 const props = defineProps<{
   modelValue: string
   placeholder: string
+  compact?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -271,7 +272,9 @@ onMounted(() => {
       if (transaction.docChanged && !applyingExternalValue) emit('update:modelValue', serializeVisualMarkdown(nextState.doc))
     },
     attributes: {
-      class: 'gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4 outline-none',
+      class: props.compact
+        ? 'gf-prose gf-prose-post min-h-28 max-w-none px-1 py-3 outline-none'
+        : 'gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4 outline-none',
       'data-placeholder': props.placeholder,
       'aria-label': props.placeholder,
     },

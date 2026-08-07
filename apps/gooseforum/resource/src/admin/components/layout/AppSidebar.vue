@@ -70,7 +70,7 @@ const navGroups = computed<NavGroup[]>(() => {
   locale.value
   return [
   {
-    title: 'GooseForum',
+    title: 'YourTJHub',
     items: [
       { title: adminText('k004c'), url: '/admin', icon: Monitor, permission: AdminPermission.Admin },
       { title: adminText('k006i'), url: '/admin/users', icon: UserCog, permission: AdminPermission.UserManager },
@@ -127,7 +127,7 @@ function isActive(item: NavItem) {
                 <GalleryVerticalEnd class="size-4" />
               </div>
               <div class="grid flex-1 text-left text-sm leading-tight">
-                <span class="truncate font-semibold">{{ layout.site.name || 'GooseForum' }}</span>
+                <span class="truncate font-semibold">{{ layout.site.brandText || layout.site.name || 'YourTJHub' }}</span>
                 <span class="truncate text-xs">Admin</span>
               </div>
             </a>

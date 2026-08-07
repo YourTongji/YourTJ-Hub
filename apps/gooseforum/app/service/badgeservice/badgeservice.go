@@ -122,6 +122,9 @@ func GetUserBadges(userID uint64) []UserBadge {
 		if !ok || !badge.IsEnabled {
 			continue
 		}
+		// 已获得（授予）的徽章一律可佩戴；IsWearable 仅作为徽章定义/管理端
+		// 的「默认允许佩戴」标记，不再拦截已获得的徽章。
+		badge.IsWearable = true
 		result = append(result, UserBadge{
 			Badge:     badge,
 			Source:    record.Source,
@@ -181,7 +184,7 @@ func wornBadgesFromRecords(selected map[uint64]string, records []*userBadges.Ent
 			continue
 		}
 		badge, ok := definitions[record.BadgeCode]
-		if !ok || !badge.IsEnabled || !badge.IsWearable {
+		if !ok || !badge.IsEnabled {
 			continue
 		}
 		result[record.UserId] = &UserBadge{
@@ -199,7 +202,7 @@ func WornBadgeFromList(items []UserBadge, badgeCode string) *UserBadge {
 		return nil
 	}
 	for _, item := range items {
-		if item.Code == badgeCode && item.IsEnabled && item.IsWearable {
+		if item.Code == badgeCode && item.IsEnabled {
 			return &item
 		}
 	}

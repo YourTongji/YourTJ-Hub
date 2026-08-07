@@ -105,3 +105,20 @@ type TopicLikedEvent struct {
 	Title   string
 	LikerId uint64
 }
+
+// PostLikedEvent 楼层点赞事件
+type PostLikedEvent struct {
+	UserId     uint64 // 楼层作者
+	PostId     uint64
+	TopicId    uint64
+	TopicTitle string
+	LikerId    uint64
+}
+
+// handlePostLiked 发送楼层点赞通知（自己给自己点赞不通知）
+func handlePostLiked(ctx context.Context, event *PostLikedEvent) error {
+	if event == nil || event.UserId == 0 || event.PostId == 0 || event.LikerId == event.UserId {
+		return nil
+	}
+	return notificationservice.SendLikeNotification(event.UserId, event.TopicId, event.TopicTitle, event.PostId, event.LikerId)
+}
