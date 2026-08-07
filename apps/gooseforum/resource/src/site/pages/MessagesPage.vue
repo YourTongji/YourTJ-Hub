@@ -329,10 +329,14 @@ async function startChat(user: UserConnectionPayload) {
                 <div
                   v-for="message in active.messages"
                   :key="message.id"
-                  class="flex max-w-[88%] gap-2 md:max-w-[82%]"
+                  class="flex max-w-[88%] items-start gap-2 md:max-w-[82%]"
                   :class="message.isSelf ? 'ml-auto flex-row-reverse' : ''"
                 >
-                  <UserAvatar v-if="!message.isSelf" :src="active.peerAvatar" :alt="active.peerUsername" class="mt-auto h-8 w-8 rounded-full object-cover ring-1 ring-line" />
+                  <UserAvatar
+                    :src="message.isSelf ? page.layout.viewer.avatarUrl : active.peerAvatar"
+                    :alt="message.isSelf ? page.layout.viewer.username : active.peerUsername"
+                    class="h-8 w-8 rounded-full object-cover ring-1 ring-line"
+                  />
                   <div class="group relative min-w-0">
                     <div
                       class="whitespace-pre-wrap break-words px-3 py-2 text-sm leading-relaxed shadow-sm [border-radius:var(--gf-radius-box)] md:px-4"
