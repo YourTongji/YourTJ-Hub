@@ -1,6 +1,8 @@
 package api
 
 import (
+	"context"
+
 	"bytes"
 	"errors"
 	"fmt"
@@ -11,22 +13,25 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
+	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
+	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
 	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
+	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/tokenservice"
 	"github.com/leancodebox/GooseForum/app/service/urlconfig"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
 )
 
 func GetCaptcha(req component.BetterRequest[component.Null]) component.Response {
@@ -142,6 +147,10 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 	if !component.ValidateUsername(newUsername) {
 		return component.FailResponseCode(component.MessageAuthUsernameInvalid, nil)
 	}
+	// 保留/禁用用户名检查
+	if _, err := moderationservice.CheckUsernameAllowed(newUsername); err != nil {
+		return component.FailResponseError(err)
+	}
 	if users.ExistUsername(newUsername) {
 		return component.FailResponseCode(component.MessageAuthUsernameExists, nil)
 	}
@@ -150,6 +159,8 @@ func EditUsername(req component.BetterRequest[EditUsernameReq]) component.Respon
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
+
+	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
@@ -189,6 +200,7 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
+	eventbus.Publish(context.Background(), &eventhandlers.UserSearchIndexUpdatedEvent{UserId: userEntity.Id})
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
 }
 
@@ -505,13 +517,24 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 // ForgotPasswordReq is the password reset email request.
 type ForgotPasswordReq struct {
 	Email       string `json:"email" validate:"required,email"`
-	CaptchaId   string `json:"captchaId" validate:"required"`
-	CaptchaCode string `json:"captchaCode" validate:"required"`
+	CaptchaId   string `json:"captchaId,omitempty"`
+	CaptchaCode string `json:"captchaCode,omitempty"`
+	Website     string `json:"website,omitempty"` // 蜜罐字段，正常用户不可见
 }
 
 // ForgotPassword 忘记密码 - 发送重置邮件
 func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Response {
-	if !captchaOpt.VerifyCaptcha(req.Params.CaptchaId, req.Params.CaptchaCode) {
+	// 蜜罐字段：填了即机器，静默拒绝（返回成功但不发邮件）。
+	if strings.TrimSpace(req.Params.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "forgot-password", "ip", clientIPOf(req.GinContext), "userId", uint64(0))
+		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+	}
+
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, securityConfig.CaptchaRequired, minSubmitSecondsFor(), "forgot-password"); !ok {
+		if needCaptcha {
+			return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "forgot-password"})
+		}
 		return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 	}
 

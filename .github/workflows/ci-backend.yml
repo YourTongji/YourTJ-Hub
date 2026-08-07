@@ -27,3 +27,33 @@ jobs:
       - name: Build
         working-directory: apps/gooseforum
         run: go build .
+
+  # 全部主库模型必须在 PostgreSQL 上可迁移。回归背景: issue #8 曾因模型里
+  # 硬编码 MySQL 类型(bigint unsigned/datetime/tinyint)导致 PG 建表失败、
+  # 服务带残缺 schema 启动, 登录/注册运行期才报错。此 job 用真实 PG 验证。
+  ci-backend-pg:
+    runs-on: ubuntu-latest
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: postgres
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U postgres"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version: "1.26"
+      - name: Test (PostgreSQL migration)
+        working-directory: apps/gooseforum
+        env:
+          YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
+        run: go test ./app/migration/ -run 'TestSchema' -v

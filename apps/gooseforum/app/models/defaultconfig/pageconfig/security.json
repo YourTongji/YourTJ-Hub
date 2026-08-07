@@ -1,5 +1,10 @@
 {
   "enableSignup": true,
   "enableEmailVerification": false,
-  "allowedDomains": []
+  "allowedDomains": [],
+  "reservedUsernames": [],
+  "bannedUsernames": [],
+  "sensitiveWords": [],
+  "sensitiveAction": "block",
+  "captchaRequired": true
 }

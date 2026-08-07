@@ -13,6 +13,7 @@ import type {
   SearchPageProps,
   SettingsPageProps,
   SponsorsPageProps,
+  TermsPageProps,
   ThemePreviewProps,
   TopicDetailProps,
   UserProfileProps,
@@ -27,8 +28,9 @@ export const pageComponents = [
   'links.index',
   'sponsors.index',
   'notifications.index',
-  'messages.index',
   'drafts.index',
+  'terms.index',
+  'messages.index',
   'moderation.index',
   'settings.index',
   'theme.preview',
@@ -49,6 +51,7 @@ export interface PagePayloadMap {
   'links.index': LinksPageProps
   'sponsors.index': SponsorsPageProps
   'notifications.index': NotificationsPageProps
+  'terms.index': TermsPageProps
   'messages.index': MessagesPageProps
   'drafts.index': DraftsPageProps
   'moderation.index': ModerationPageProps

@@ -31,8 +31,10 @@ func resourceEntry(origin string) template.HTML {
 		if devBase != "" {
 			devBase += "/"
 		}
-		return template.HTML(fmt.Sprintf(`<script type="module" src="%s/%s@vite/client"></script>
-<script type="module" src="%s/%s%s"></script>`, devServer, devBase, devServer, devBase, origin))
+		// dev 模式输出同源相对路径，由 Go 服务器把 /assets/* 反向代理到 Vite，
+		// 这样本机、局域网设备访问都不会受开发服务器地址影响
+		return template.HTML(fmt.Sprintf(`<script type="module" src="/%s@vite/client"></script>
+<script type="module" src="/%s%s"></script>`, devBase, devBase, origin))
 	}
 
 	item, ok := manifest[origin]

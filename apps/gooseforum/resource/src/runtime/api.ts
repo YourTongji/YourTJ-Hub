@@ -10,14 +10,23 @@ interface ApiResponse<T> {
   data?: T
 }
 
-class ApiResponseError extends Error {
+export class ApiResponseError extends Error {
   readonly messageCode?: string
+  readonly retryAfterSeconds?: number
 
-  constructor(message: string, messageCode?: string) {
+  constructor(message: string, messageCode?: string, retryAfterSeconds?: number) {
     super(message)
     this.name = 'ApiResponseError'
     this.messageCode = messageCode
+    this.retryAfterSeconds = retryAfterSeconds
   }
+}
+
+function rateLimitMessage(data: ApiResponse<unknown>, fallback: string, retryAfterSeconds?: number) {
+  return resolveApiMessage({
+    ...data,
+    params: { ...(data.params ?? {}), retryAfterSeconds },
+  }, fallback)
 }
 
 function responseMessage(data: ApiResponse<unknown>, fallback: string) {
@@ -30,6 +39,17 @@ function t(key: string) {
 
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   const data = await response.json().catch(() => undefined) as ApiResponse<T> | undefined
+  if (response.status === 429) {
+    const retryHeader = Number(response.headers.get('Retry-After'))
+    const retryAfterSeconds = Number.isFinite(retryHeader) && retryHeader > 0
+      ? retryHeader
+      : Number(data?.params?.retryAfterSeconds) || undefined
+    throw new ApiResponseError(
+      data?.messageCode ? rateLimitMessage(data, fallback, retryAfterSeconds) : fallback,
+      data?.messageCode,
+      retryAfterSeconds,
+    )
+  }
   if (data?.code !== undefined && data.code !== 0) {
     throw new ApiResponseError(responseMessage(data, fallback), data.messageCode)
   }
@@ -67,20 +87,6 @@ export interface UpdatePostResult {
   updatedAt: string
 }
 
-export async function createPost(topicId: number, content: string, replyToPostId = 0): Promise<CreatePostResult | number | boolean> {
-  const response = await fetch('/api/forum/posts/create', {
-    method: 'POST',
-    headers: {
-      'Content-Type': 'application/json',
-    },
-    body: JSON.stringify({
-      topicId,
-      content,
-      replyToPostId,
-    }),
-  })
-  return readApiResponse<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
-}
 
 export async function updatePost(postId: number, content: string): Promise<UpdatePostResult> {
   const response = await fetch('/api/forum/posts/update', {
@@ -176,6 +182,34 @@ export async function watchTopic(id: number, action: 1 | 2): Promise<boolean> {
     }),
   })
   return readApiResponse<boolean>(response, t('api.watchFailed'))
+}
+
+export async function likePost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/like', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.likeFailed'))
+}
+
+export async function bookmarkPost(postId: number, action: 1 | 2): Promise<boolean> {
+  const response = await fetch('/api/forum/posts/bookmark', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      postId,
+      action,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.bookmarkFailed'))
 }
 
 export async function updateTopicStatus(id: number, topicStatus: 0 | 1): Promise<boolean> {
@@ -344,6 +378,9 @@ export interface SubmitTopicInput {
   content: string
   categoryId: number[]
   topicStatus: 0 | 1
+  website?: string
+  captchaId?: string
+  captchaCode?: string
 }
 
 export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
@@ -354,15 +391,34 @@ export async function submitTopic(topic: SubmitTopicInput): Promise<number> {
     },
     body: JSON.stringify(topic),
   })
+  if (response.status === 429) {
+    return readApiResponse<number>(response, t('api.topicSaveFailed'))
+  }
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
 
   const data = (await response.json()) as ApiResponse<number>
   if (data.code !== undefined && data.code !== 0) {
-    throw new Error(responseMessage(data, t('api.topicSaveFailed')))
+    throw new ApiResponseError(responseMessage(data, t('api.topicSaveFailed')), data.messageCode)
   }
   return data.result ?? data.data ?? topic.topicId
+}
+
+export async function createPost(topicId: number, content: string, replyToPostId = 0, extra?: { captchaId?: string, captchaCode?: string, website?: string }): Promise<CreatePostResult | number | boolean> {
+  const response = await fetch('/api/forum/posts/create', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topicId,
+      content,
+      replyToPostId,
+      ...(extra ?? {}),
+    }),
+  })
+  return readApiResponse<CreatePostResult | number | boolean>(response, t('api.replyFailed'))
 }
 
 export async function uploadImage(file: File): Promise<string> {
@@ -597,6 +653,22 @@ export async function uploadAvatar(avatar: Blob | Blob[]): Promise<string> {
   return url
 }
 
+// uploadImageFile 上传一张通用图片（个人资料封面等），
+// 复用 /file/img-upload 的权限、类型与大小校验。
+export async function uploadImageFile(file: Blob, filename: string): Promise<string> {
+  const formData = new FormData()
+  formData.append('file', file, filename)
+  const response = await fetch('/file/img-upload', {
+    method: 'POST',
+    body: formData,
+  })
+  const result = await readApiResponse<string | { url?: string }>(response, t('api.imageUploadFailed'))
+  if (typeof result === 'string') return result
+  const url = result.url
+  if (!url) throw new Error(t('api.imageUploadEmpty'))
+  return url
+}
+
 export interface OAuthBindingPayload {
   bound: boolean
   provider?: string
@@ -623,6 +695,112 @@ export async function unbindOAuth(provider: string): Promise<boolean> {
   return true
 }
 
+export interface UserSessionPayload {
+  id: number
+  ipMasked: string
+  userAgent: string
+  createdAt: number
+  expiresAt: number
+  isCurrent: boolean
+}
+
+export async function listSessions(): Promise<UserSessionPayload[]> {
+  const response = await fetch('/api/user/sessions', {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<UserSessionPayload[]>(response, t('api.sessionsLoadFailed'))
+}
+
+export async function revokeSession(id: number): Promise<boolean> {
+  const response = await fetch('/api/user/sessions/revoke', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ id }),
+  })
+  await readApiResponse<unknown>(response, t('api.sessionRevokeFailed'))
+  return true
+}
+
+export async function revokeAllSessions(): Promise<boolean> {
+  const response = await fetch('/api/user/sessions/revoke-all', {
+    method: 'POST',
+  })
+  await readApiResponse<unknown>(response, t('api.sessionRevokeAllFailed'))
+  return true
+}
+
+export interface TotpSetupPayload {
+  secret: string
+  otpauthUrl: string
+}
+
+export interface TotpEnablePayload {
+  recoveryCodes: string[]
+}
+
+export async function getTotpSetup(password: string): Promise<TotpSetupPayload> {
+  const response = await fetch('/api/user/totp/setup', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ password }),
+  })
+  return readApiResponse<TotpSetupPayload>(response, t('api.totpSetupFailed'))
+}
+
+export async function enableTotp(code: string): Promise<TotpEnablePayload> {
+  const response = await fetch('/api/user/totp/enable', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  return readApiResponse<TotpEnablePayload>(response, t('api.totpEnableFailed'))
+}
+
+export async function disableTotp(code: string): Promise<boolean> {
+  const response = await fetch('/api/user/totp/disable', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  await readApiResponse<unknown>(response, t('api.totpDisableFailed'))
+  return true
+}
+
+export async function verifyTotp(code: string): Promise<boolean> {
+  const response = await fetch('/api/auth/totp/verify', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ code }),
+  })
+  await readApiResponse<unknown>(response, t('api.totpVerifyFailed'))
+  return true
+}
+
+export interface TotpStatusPayload {
+  enabled: boolean
+}
+
+export async function getTotpStatus(): Promise<TotpStatusPayload> {
+  const response = await fetch('/api/user/totp/status', {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<TotpStatusPayload>(response, t('api.totpSetupFailed'))
+}
+
 interface CaptchaPayload {
   captchaId: string
   captchaImg: string
@@ -646,20 +824,25 @@ export async function getCaptcha(): Promise<CaptchaPayload> {
   return readApiResponse<CaptchaPayload>(response, t('api.captchaLoadFailed'))
 }
 
-export async function login(username: string, password: string, captchaId: string, captchaCode: string): Promise<boolean> {
+export interface LoginResult {
+  twoFactorRequired: boolean
+}
+
+export async function login(username: string, password: string, captchaId: string, captchaCode: string): Promise<LoginResult> {
+  let result: LoginResult
   try {
-    await submitLogin(username, password, captchaId, captchaCode, true)
+    result = await submitLogin(username, password, captchaId, captchaCode, true)
   } catch (error) {
     if (!(error instanceof ApiResponseError) || error.messageCode !== loginInvalidRequestCode) {
       throw error
     }
     clearLoginPublicKey()
-    await submitLogin(username, password, captchaId, captchaCode, true)
+    result = await submitLogin(username, password, captchaId, captchaCode, true)
   }
-  return true
+  return result
 }
 
-async function submitLogin(username: string, password: string, captchaId: string, captchaCode: string, refreshKey = false): Promise<void> {
+async function submitLogin(username: string, password: string, captchaId: string, captchaCode: string, refreshKey = false): Promise<LoginResult> {
   const encryptedPassword = await encryptLoginPassword(password, refreshKey)
   const response = await fetch('/api/login', {
     method: 'POST',
@@ -673,8 +856,10 @@ async function submitLogin(username: string, password: string, captchaId: string
       captchaCode,
     }),
   })
-  await readApiResponse<unknown>(response, t('api.loginFailed'))
+  const result = await readApiResponse<{ twoFactorRequired?: boolean }>(response, t('api.loginFailed'))
+  return { twoFactorRequired: Boolean(result?.twoFactorRequired) }
 }
+
 
 export async function register(
   username: string,
@@ -683,6 +868,7 @@ export async function register(
   captchaId: string,
   captchaCode: string,
   locale?: string,
+  website = '',
 ): Promise<string> {
   const response = await fetch('/api/register', {
     method: 'POST',
@@ -696,12 +882,13 @@ export async function register(
       locale,
       captchaId,
       captchaCode,
+      website,
     }),
   })
   return readApiSuccessMessage(response, t('auth.validation.registerSuccess'), t('api.registerFailed'))
 }
 
-export async function forgotPassword(email: string, captchaId: string, captchaCode: string): Promise<string> {
+export async function forgotPassword(email: string, captchaId: string, captchaCode: string, website = ''): Promise<string> {
   const response = await fetch('/api/forgot-password', {
     method: 'POST',
     headers: {
@@ -711,10 +898,12 @@ export async function forgotPassword(email: string, captchaId: string, captchaCo
       email,
       captchaId,
       captchaCode,
+      website,
     }),
   })
   return readApiSuccessMessage(response, t('server.auth.passwordReset.mailQueued'), t('api.resetEmailFailed'))
 }
+
 
 export async function resetPassword(token: string, newPassword: string): Promise<string> {
   const response = await fetch('/api/reset-password', {

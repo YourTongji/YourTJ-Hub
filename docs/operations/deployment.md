@@ -17,6 +17,10 @@
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
+- **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
+  (`engine.SetTrustedProxies`). If an additional proxy sits in front of the binary, add it to
+  `server.trusted_proxies` in `config.toml` so rate-limit IP attribution cannot be bypassed via
+  a forged `X-Forwarded-For` header.
 - **Two instances on one VM** (Ubuntu 24.04, ssh alias `yourtj`), managed as one compose project:
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
@@ -26,7 +30,7 @@
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
   docker-compose.yaml     # main + dev services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
   build/
@@ -39,8 +43,8 @@
     config.toml           # dev config
     storage/
   snapshots/
-    main/sqlite-*.db      # pre-deploy backups (keep 7)
-    dev-prev/             # previous dev db before sync (troubleshooting)
+    main/sqlite-*.db      # pre-deploy backups (keep 7) — SQLite 部署
+    main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 ```
 
 ## Branch model & CI/CD
@@ -48,7 +52,8 @@
 - `dev` is the default branch and the main development line; merges to `dev` trigger
   `.github/workflows/deploy-dev.yml`:
   1. Build single binary (frontend + go build) on GitHub Actions.
-  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (SQLite `.backup` snapshot of main db → dev db).
+  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
+     or PG `pg_dump|psql` rebuild of dev db).
   3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
@@ -100,10 +105,49 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
 ## DB migration execution and rollback
 
 - Migrations run at startup (`[db] migration = "on"`); append-only upstream style.
+- **Migration failures now abort startup** (since the issue #8 PG fix): if `AutoMigrate` errors,
+  `serve` exits non-zero instead of continuing with a partial schema. This makes deploy.sh's
+  health-check rollback and container restart policies catch schema problems immediately instead of
+  surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
+  deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
+  before main.
 - Rollback: `deploy.sh` tags the previous image `yourtj-hub:prev` and re-points the instance on
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
+### Upgrade note: `app.signingKey` is now mandatory
+
+Since the issue #8 build, `serve` refuses to start with the built-in default
+signing key (it exits with code 1 instead of silently continuing). Existing
+`config.toml` files created before this change may omit `app.signingKey`;
+**before upgrading an existing instance, add a random signing key** to
+`main/config.toml` and `dev/config.toml`:
+
+```toml
+[app]
+signingKey = "<random 32+ byte base64 string>"
+```
+
+Generate one with `openssl rand -base64 32`. Without it the new binary exits
+immediately on startup; `init-server.sh` already generates a random key for
+new installs.
+
+### Unique-index preflight (user_o_auth provider_uid)
+
+Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
+already contain rows, `AutoMigrate` fails silently if duplicates exist (the schema logger records the
+error and startup continues). Before deploying a build containing this index, run the duplicate check
+on the live database and clean up any duplicates:
+
+```sql
+-- SQLite / MySQL
+SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
+-- PostgreSQL
+SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
+```
+
+If duplicates exist, keep the row with the earliest `created_at` (or the one owned by the active
+account) and delete the rest before the upgrade; the index creation will then succeed.
 ## PostgreSQL support
 
 Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
@@ -149,22 +193,48 @@ instance:
 
 ### Backup and sync scripts under PostgreSQL
 
-- `backup-db.sh` / `snapshot-db.sh` / `sync-db-from-main.sh` use the SQLite `.backup` API and only
-  apply to SQLite deployments. For a PG deployment, back up main with `pg_dump` (e.g. nightly cron)
-  and sync dev from main with:
+- `backup-db.sh` / `sync-db-from-main.sh` auto-detect the main-db mode from each instance's
+  `config.toml`:
+  - SQLite: use the SQLite `.backup` API (unchanged legacy path).
+  - PostgreSQL: `backup-db.sh` runs `pg_dump` into `snapshots/<instance>/pg-<db>-<ts>.sql`;
+    `sync-db-from-main.sh` drops/recreates `yourtj_dev` and pipes
+    `pg_dump -d yourtj_main | psql -d yourtj_dev` (dev is a clean one-way snapshot of main).
+- Manual equivalent inside the postgres container:
   ```bash
-  # 在 postgres 容器内执行: dev 库重建 + 从 main 库一致性恢复
   docker compose exec postgres sh -c \
     'pg_dump -U yourtj -d yourtj_main | psql -U yourtj -d yourtj_dev'
   ```
-  (drop/recreate `yourtj_dev` first if it must be a clean snapshot). SQLite deployments are
-  unaffected.
+- `snapshot-db.sh` remains a generic SQLite snapshot helper; it is not used by PG deployments.
 
 ### Logging configuration (issue #11)
 
 `[log]` supports `level` (debug/info/warn/error, default info), `format` (json/console, default json),
 `errorPath` (WARN/ERROR go to a separate rotating file, e.g. `run.error.log`), and `logIp`
 (default false — access logs omit the client IP for privacy). Changing these requires a restart.
+
+## Storage (object storage) configuration
+
+- Files default to SQLite BLOB (no external dependency). To move uploads to an S3-compatible
+  object store (MinIO / Tencent COS / Alibaba OSS / Cloudflare R2), configure it in the admin panel
+  (设置 → 存储设置): provider `s3`, endpoint, bucket, region, bucket lookup, access/secret keys,
+  optional public URL prefix (CDN direct reads).
+- Credentials are stored in `page_config` (same handling as SMTP password today). Keep the bucket
+  private; the forum proxies reads through `/file/img/*` unless a public prefix is configured.
+- Addressing: Alibaba OSS and Tencent COS (buckets created after 2024-01-01) only support
+  virtual-hosted style — set bucket lookup `dns` and the bucket region explicitly. MinIO/R2 accept
+  `auto`/`path`. The endpoint may include `https://`; the forum strips the scheme and derives TLS
+  from it (or from the secure toggle).
+- Migrating existing BLOB files: admin panel (存储设置 → 迁移文件) creates a background task with
+  progress; or run `./bin/yourtj-hub migrate-files --endpoint ... --bucket ... [--clear-after-migrate]`
+  on the server. Migration is cursor-driven and resumable; the BLOB column is kept unless
+  `--clear-after-migrate` is set, so reads stay correct during/after migration.
+
+## Data export/import
+
+- Admin panel (数据管理): export users/topics/posts as JSON or CSV via a background task, then
+  download; import JSON with a per-row validation report and idempotent skip.
+- Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
+  (daily cron). Export contains user emails — treat downloads as sensitive.
 
 ## Runbooks to write
 

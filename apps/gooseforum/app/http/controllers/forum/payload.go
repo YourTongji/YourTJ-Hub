@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"cmp"
 	"errors"
 	"fmt"
 	"log/slog"
@@ -14,12 +15,14 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
 	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
@@ -32,6 +35,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/chatservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/notificationservice"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
@@ -115,6 +119,7 @@ type LoginPageProps struct {
 	RedirectURL string `json:"redirectUrl"`
 	GitHubURL   string `json:"githubUrl"`
 	GoogleReady bool   `json:"googleReady"`
+	CasdoorURL  string `json:"casdoorUrl,omitempty"`
 }
 
 type ResetPasswordPageProps struct {
@@ -226,9 +231,16 @@ type PaginationPayload struct {
 }
 
 type AnnouncementPayload struct {
-	Enabled     bool   `json:"enabled"`
-	HTML        string `json:"html"`
-	PublishedAt string `json:"publishedAt,omitempty"`
+	Enabled     bool                      `json:"enabled"`
+	HTML        string                    `json:"html"`
+	PublishedAt string                    `json:"publishedAt,omitempty"`
+	Items       []AnnouncementItemPayload `json:"items,omitempty"`
+}
+
+type AnnouncementItemPayload struct {
+	ID    string `json:"id"`
+	Title string `json:"title"`
+	HTML  string `json:"html"`
 }
 
 type TopicPayload struct {
@@ -236,6 +248,7 @@ type TopicPayload struct {
 	Title          string                 `json:"title"`
 	Description    string                 `json:"description"`
 	FirstImageURL  string                 `json:"firstImageUrl,omitempty"`
+	Images         []string               `json:"images,omitempty"`
 	URL            string                 `json:"url"`
 	PinWeight      int                    `json:"pinWeight"`
 	ProcessStatus  int8                   `json:"processStatus"`
@@ -252,6 +265,7 @@ type TopicPayload struct {
 type TopicAuthorPayload struct {
 	ID        uint64                  `json:"id"`
 	Username  string                  `json:"username"`
+	Nickname  string                  `json:"nickname,omitempty"`
 	AvatarURL string                  `json:"avatarUrl"`
 	WornBadge *badgeservice.UserBadge `json:"wornBadge,omitempty"`
 }
@@ -308,6 +322,9 @@ type PostPayload struct {
 	ReplyToUsername string             `json:"replyToUsername,omitempty"`
 	IsOwnPost       bool               `json:"isOwnPost"`
 	UpdatedAt       string             `json:"updatedAt"`
+	LikeCount       uint64             `json:"likeCount"`
+	IsLiked         bool               `json:"isLiked"`
+	IsBookmarked    bool               `json:"isBookmarked"`
 }
 
 type ReplyTargetPayload struct {
@@ -347,6 +364,7 @@ type UserProfileProps struct {
 	Topics       []TopicPayload           `json:"topics"`
 	Activities   []UserActivityPayload    `json:"activities"`
 	Likes        []UserLikePayload        `json:"likes"`
+	Bookmarks    []UserBookmarkPayload    `json:"bookmarks"`
 	Following    []UserConnectionPayload  `json:"following"`
 	Followers    []UserConnectionPayload  `json:"followers"`
 	IsOwnProfile bool                     `json:"isOwnProfile"`
@@ -373,6 +391,18 @@ type UserLikePayload struct {
 	Title   string `json:"title"`
 	URL     string `json:"url"`
 	LikedAt string `json:"likedAt"`
+}
+
+type UserBookmarkPayload struct {
+	ID           uint64 `json:"id"`
+	Type         string `json:"type"` // topic | post
+	TopicID      uint64 `json:"topicId"`
+	PostID       uint64 `json:"postId,omitempty"`
+	PostNo       uint64 `json:"postNo,omitempty"`
+	Title        string `json:"title"`
+	Excerpt      string `json:"excerpt,omitempty"`
+	URL          string `json:"url"`
+	BookmarkedAt string `json:"bookmarkedAt"`
 }
 
 type UserConnectionPayload struct {
@@ -541,12 +571,37 @@ type PublishTopicPayload struct {
 }
 
 type SearchPageProps struct {
-	Query             string            `json:"query"`
-	Topics            []TopicPayload    `json:"topics"`
-	Total             int64             `json:"total"`
-	TotalPages        int               `json:"totalPages"`
-	Pagination        PaginationPayload `json:"pagination"`
-	SearchUnavailable bool              `json:"searchUnavailable,omitempty"`
+	Query             string                  `json:"query"`
+	Scope             string                  `json:"scope"`
+	Topics            []TopicPayload          `json:"topics"`
+	Users             []UserSearchPayload     `json:"users"`
+	Categories        []CategorySearchPayload `json:"categories"`
+	Total             int64                   `json:"total"`
+	UsersTotal        int64                   `json:"usersTotal"`
+	CategoriesTotal   int64                   `json:"categoriesTotal"`
+	TotalPages        int                     `json:"totalPages"`
+	Pagination        PaginationPayload       `json:"pagination"`
+	FailedScopes      []string                `json:"failedScopes,omitempty"`
+	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
+}
+
+// UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
+type UserSearchPayload struct {
+	ID        uint64 `json:"id"`
+	Username  string `json:"username"`
+	Nickname  string `json:"nickname"`
+	AvatarURL string `json:"avatarUrl"`
+	Bio       string `json:"bio"`
+}
+
+// CategorySearchPayload 分类搜索结果展示数据（由 DB 重构填充）
+type CategorySearchPayload struct {
+	ID    uint64 `json:"id"`
+	Name  string `json:"name"`
+	Slug  string `json:"slug"`
+	Icon  string `json:"icon"`
+	Color string `json:"color"`
+	Desc  string `json:"desc"`
 }
 
 func buildLayout(c *gin.Context, activeKey string) LayoutPayload {
@@ -740,6 +795,7 @@ func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSim
 	}
 
 	announcement := hotdataserve.GetAnnouncementConfigCache()
+	activeItems := announcement.GetActiveItems()
 	return HomeProps{
 		Sort:   sort,
 		Tabs:   buildHomeTabs(sort),
@@ -754,6 +810,13 @@ func buildHomeProps(userID uint64, page int, sort string, topics []*vo.TopicsSim
 			Enabled:     announcement.Enabled,
 			HTML:        announcement.GetHtmlContent(),
 			PublishedAt: announcement.PublishedAt,
+			Items: lo.Map(activeItems, func(item pageConfig.AnnouncementItem, _ int) AnnouncementItemPayload {
+				return AnnouncementItemPayload{
+					ID:    item.ID,
+					Title: item.Title,
+					HTML:  markdown2html.MarkdownToHTML(item.Content),
+				}
+			}),
 		},
 	}
 }
@@ -795,11 +858,16 @@ func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)
 	}
+	casdoorURL := ""
+	if oidcservice.IsConfigured() {
+		casdoorURL = "/api/auth/oidc/login"
+	}
 	return LoginPageProps{
 		InitialMode: mode,
 		RedirectURL: redirectURL,
 		GitHubURL:   githubURL,
 		GoogleReady: false,
+		CasdoorURL:  casdoorURL,
 	}
 }
 
@@ -850,12 +918,14 @@ func buildTopicPayloads(topics []*vo.TopicsSimpleVo) []TopicPayload {
 			Title:         topic.Title,
 			Description:   topic.Description,
 			FirstImageURL: topic.FirstImageURL,
+			Images:        topic.ImageUrls,
 			URL:           urlconfig.PostDetail(topic.Id),
 			PinWeight:     topic.PinWeight,
 			ProcessStatus: topic.ProcessStatus,
 			Author: TopicAuthorPayload{
 				ID:        topic.AuthorId,
 				Username:  topic.Username,
+				Nickname:  topic.Nickname,
 				AvatarURL: topic.AvatarUrl,
 			},
 			Participants:   buildParticipants(topic),
@@ -880,9 +950,9 @@ func buildParticipants(topic *vo.TopicsSimpleVo) []TopicAuthorPayload {
 		participants = append(participants, user)
 	}
 	for _, poster := range topic.Posters {
-		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, AvatarURL: poster.AvatarUrl})
+		add(TopicAuthorPayload{ID: poster.Id, Username: poster.Username, Nickname: poster.Nickname, AvatarURL: poster.AvatarUrl})
 	}
-	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, AvatarURL: topic.AvatarUrl})
+	add(TopicAuthorPayload{ID: topic.AuthorId, Username: topic.Username, Nickname: topic.Nickname, AvatarURL: topic.AvatarUrl})
 	if len(participants) > 4 {
 		return participants[:4]
 	}
@@ -1014,6 +1084,18 @@ func topicInitialPosts(topic *topics.Entity, anchorPostNo uint64) ([]*posts.Enti
 }
 
 func buildPostWindowPayloadFromEntities(postEntities []*posts.Entity, userMap map[uint64]*users.EntityComplete, currentUserID uint64, canModerate bool, hasBefore bool, hasAfter bool, total int64, maxPostNo uint64, anchorPostID uint64) PostWindowPayload {
+	// 对非版主过滤待审（ProcessStatus=2）帖子：待审内容不应出现在普通用户流中，
+	// 避免渲染为空占位；封禁帖（ProcessStatus=1）保留现有"已处理"占位语义。
+	if !canModerate {
+		filtered := make([]*posts.Entity, 0, len(postEntities))
+		for _, item := range postEntities {
+			if item == nil || item.ProcessStatus == posts.ProcessStatusPending {
+				continue
+			}
+			filtered = append(filtered, item)
+		}
+		postEntities = filtered
+	}
 	payloadPosts, replyTargets := buildPostPayloads(postEntities, userMap, currentUserID, canModerate)
 	var beforePostNo uint64
 	var afterPostNo uint64
@@ -1127,6 +1209,23 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			IsOwnPost:       currentUserID == item.UserId,
 			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
 		})
+	}
+
+	// 楼层点赞计数与当前用户状态：聚合查询一次补齐
+	postIDs := make([]uint64, 0, len(res))
+	for _, item := range postEntities {
+		if item != nil {
+			postIDs = append(postIDs, item.Id)
+		}
+	}
+	likeCounts := postUserAction.CountLikesByPostIds(postIDs)
+	userPostStates := postUserAction.GetStateMapByUserAndPostIds(currentUserID, postIDs)
+	for i := range res {
+		res[i].LikeCount = likeCounts[res[i].ID]
+		if state, ok := userPostStates[res[i].ID]; ok {
+			res[i].IsLiked = state.LikedAt != nil
+			res[i].IsBookmarked = state.BookmarkedAt != nil
+		}
 	}
 	return res, replyTargets
 }
@@ -1266,7 +1365,7 @@ func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityCom
 	if !ok || user == nil {
 		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
-	return TopicAuthorPayload{ID: userID, Username: user.Username, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
+	return TopicAuthorPayload{ID: userID, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
 }
 
 func buildTopicMeta(c *gin.Context, topic TopicDetailPayload, postStream ...[]PostPayload) PageMeta {
@@ -1448,9 +1547,10 @@ func parsePayloadTime(value string) time.Time {
 }
 
 const (
-	userProfileTopicPageSize    = 20
-	userProfileTimelinePageSize = 20
-	userProfileConnectionLimit  = 24
+	userProfileTopicPageSize     = 20
+	userProfileTimelinePageSize  = 20
+	userProfileConnectionLimit   = 24
+	userProfileBookmarksPageSize = 20
 )
 
 func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section string, activityTab string) UserProfileProps {
@@ -1471,11 +1571,19 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 	topicPayloads := []TopicPayload{}
 	activities := []UserActivityPayload{}
 	likes := []UserLikePayload{}
+	bookmarks := []UserBookmarkPayload{}
 	following := []UserConnectionPayload{}
 	followers := []UserConnectionPayload{}
 	pagination := PaginationPayload{Page: 1}
 
 	switch section {
+	case userProfileSectionBookmarks:
+		// 收藏列表仅对本人可见：他人访问时返回空数据（前端也不展示该 Tab）
+		if currentUserID == user.Id {
+			var nextCursor string
+			bookmarks, nextCursor = buildUserBookmarksMerged(user.Id, c.Query("cursor"))
+			pagination = buildUserBookmarkPagination(user.Id, nextCursor)
+		}
 	case userProfileSectionActivity:
 		switch activityTab {
 		case userProfileActivityTopics:
@@ -1519,13 +1627,14 @@ func buildUserProfileProps(c *gin.Context, user users.EntityComplete, section st
 		User:         userCard,
 		Section:      section,
 		ActivityTab:  activityTab,
-		Tabs:         buildUserProfileTabs(user.Id, section),
+		Tabs:         buildUserProfileTabs(user.Id, section, currentUserID == user.Id),
 		ActivityTabs: buildUserProfileActivityTabs(user.Id, section, activityTab),
 		Pagination:   pagination,
 		Badges:       badges,
 		Topics:       topicPayloads,
 		Activities:   activities,
 		Likes:        likes,
+		Bookmarks:    bookmarks,
 		Following:    following,
 		Followers:    followers,
 		IsOwnProfile: currentUserID == user.Id,
@@ -1593,6 +1702,25 @@ func buildUserActivityLikeCursorURL(userID uint64, cursor string) string {
 	return fmt.Sprintf("/u/%d/%s/%s?cursor=%s", userID, userProfileSectionActivity, userProfileActivityLikes, url.QueryEscape(cursor))
 }
 
+// buildUserBookmarkCursorURL 一级收藏页的下一页链接
+func buildUserBookmarkCursorURL(userID uint64, cursor string) string {
+	if cursor == "" {
+		return ""
+	}
+	return fmt.Sprintf("/u/%d/%s?cursor=%s", userID, userProfileSectionBookmarks, url.QueryEscape(cursor))
+}
+
+// buildUserBookmarkPagination 一级收藏页分页（时间游标）
+func buildUserBookmarkPagination(userID uint64, nextCursor string) PaginationPayload {
+	nextURL := buildUserBookmarkCursorURL(userID, nextCursor)
+	return PaginationPayload{
+		Page:     1,
+		NextPage: 0,
+		HasNext:  nextURL != "",
+		NextURL:  nextURL,
+	}
+}
+
 func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
 	if cursor == 0 {
 		return ""
@@ -1600,13 +1728,18 @@ func buildUserActivityTimelineCursorURL(userID uint64, cursor uint64) string {
 	return fmt.Sprintf("/u/%d/%s?cursor=%d", userID, userProfileSectionActivity, cursor)
 }
 
-func buildUserProfileTabs(userID uint64, active string) []TabPayload {
+func buildUserProfileTabs(userID uint64, active string, isOwnProfile bool) []TabPayload {
 	baseURL := "/u/" + strconv.FormatUint(userID, 10)
-	return []TabPayload{
+	tabs := []TabPayload{
 		{Key: userProfileSectionSummary, URL: baseURL, Active: active == userProfileSectionSummary},
 		{Key: userProfileSectionActivity, URL: baseURL + "/" + userProfileSectionActivity, Active: active == userProfileSectionActivity},
 		{Key: userProfileSectionBadges, URL: baseURL + "/" + userProfileSectionBadges, Active: active == userProfileSectionBadges},
 	}
+	if isOwnProfile {
+		// 收藏列表仅对本人可见，他人主页不展示该 Tab
+		tabs = append(tabs, TabPayload{Key: userProfileSectionBookmarks, URL: baseURL + "/" + userProfileSectionBookmarks, Active: active == userProfileSectionBookmarks})
+	}
+	return tabs
 }
 
 func buildUserProfileActivityTabs(userID uint64, section string, active string) []TabPayload {
@@ -1646,6 +1779,205 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 		})
 	}
 	return res
+}
+
+func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmarkPayload {
+	ids := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
+		if ref.TopicID > 0 {
+			ids = append(ids, ref.TopicID)
+		}
+	}
+	topicMap := topics.GetPointerMapByIds(ids)
+	res := make([]UserBookmarkPayload, 0, len(refs))
+	for _, ref := range refs {
+		topic := topicMap[ref.TopicID]
+		if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+			continue
+		}
+		res = append(res, UserBookmarkPayload{
+			ID:           ref.ID,
+			Type:         "topic",
+			TopicID:      ref.TopicID,
+			Title:        topic.Title,
+			URL:          urlconfig.PostDetail(ref.TopicID),
+			BookmarkedAt: ref.BookmarkedAt.Format(time.DateTime),
+		})
+	}
+	return res
+}
+
+// bookmarkKindRank 跨表合并的全局排序键：bookmarked_at desc → kindRank asc → refID desc
+const (
+	bookmarkKindRankTopic = 1
+	bookmarkKindRankPost  = 2
+)
+
+// mergedBookmarkRef 主题/楼层收藏的统一引用，用于跨表按收藏时间合并排序
+type mergedBookmarkRef struct {
+	kind         string
+	kindRank     int
+	refID        uint64
+	topicID      uint64
+	postID       uint64
+	bookmarkedAt time.Time
+}
+
+// bookmarkCursor 跨表收藏分页游标：无损时间（unix 纳秒）+ 最后一条的 kindRank 与主键。
+// 排序键 (bookmarked_at desc, kindRank asc, id desc) 全局一致，两表续页谓词相同，
+// 子秒精度不丢边界记录，跨表同刻记录不重不漏。
+type bookmarkCursor struct {
+	before   time.Time
+	kindRank int
+	beforeID uint64
+}
+
+// buildUserBookmarksMerged 合并用户收藏的主题与楼层（按收藏时间倒序分页）。
+func buildUserBookmarksMerged(userID uint64, cursor string) ([]UserBookmarkPayload, string) {
+	limit := userProfileBookmarksPageSize
+	cur := parseBookmarkCursor(cursor)
+
+	topicRefs := topicUserAction.ListBookmarkedTopicRefsBeforeTime(userID, cur.before, cur.kindRank, cur.beforeID, limit+1)
+	postRefs := postUserAction.ListBookmarkedPostRefsBeforeTime(userID, cur.before, cur.kindRank, cur.beforeID, limit+1)
+
+	merged := make([]mergedBookmarkRef, 0, len(topicRefs)+len(postRefs))
+	for _, ref := range topicRefs {
+		merged = append(merged, mergedBookmarkRef{kind: "topic", kindRank: bookmarkKindRankTopic, refID: ref.ID, topicID: ref.TopicID, bookmarkedAt: ref.BookmarkedAt})
+	}
+	for _, ref := range postRefs {
+		merged = append(merged, mergedBookmarkRef{kind: "post", kindRank: bookmarkKindRankPost, refID: ref.ID, postID: ref.PostID, bookmarkedAt: ref.BookmarkedAt})
+	}
+	// 全局排序键：bookmarked_at desc → kindRank asc → refID desc（与两表续页谓词一致）
+	slices.SortFunc(merged, func(a, b mergedBookmarkRef) int {
+		if !a.bookmarkedAt.Equal(b.bookmarkedAt) {
+			if a.bookmarkedAt.After(b.bookmarkedAt) {
+				return -1
+			}
+			return 1
+		}
+		if a.kindRank != b.kindRank {
+			return cmp.Compare(a.kindRank, b.kindRank)
+		}
+		return cmp.Compare(b.refID, a.refID)
+	})
+
+	hasNext := len(merged) > limit
+	if hasNext {
+		merged = merged[:limit]
+	}
+	payloads := buildBookmarkPayloads(merged)
+	nextCursor := ""
+	if hasNext && len(merged) > 0 {
+		last := merged[len(merged)-1]
+		nextCursor = formatBookmarkCursor(last.bookmarkedAt, last.kindRank, last.refID)
+	}
+	return payloads, nextCursor
+}
+
+func parseBookmarkCursor(raw string) bookmarkCursor {
+	if raw == "" {
+		return bookmarkCursor{}
+	}
+	parts := strings.Split(raw, "|")
+	if len(parts) != 3 {
+		return bookmarkCursor{}
+	}
+	nanos, err := strconv.ParseInt(parts[0], 10, 64)
+	kindRank, rankErr := strconv.Atoi(parts[1])
+	refID, idErr := strconv.ParseUint(parts[2], 10, 64)
+	if err != nil || rankErr != nil || idErr != nil || nanos <= 0 || refID <= 0 ||
+		(kindRank != bookmarkKindRankTopic && kindRank != bookmarkKindRankPost) {
+		return bookmarkCursor{}
+	}
+	return bookmarkCursor{before: time.Unix(0, nanos), kindRank: kindRank, beforeID: refID}
+}
+
+func formatBookmarkCursor(t time.Time, kindRank int, refID uint64) string {
+	return fmt.Sprintf("%d|%d|%d", t.UnixNano(), kindRank, refID)
+}
+
+func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
+	payloads := make([]UserBookmarkPayload, 0, len(refs))
+	if len(refs) == 0 {
+		return payloads
+	}
+
+	topicIDs := make([]uint64, 0, len(refs))
+	postIDs := make([]uint64, 0, len(refs))
+	for _, ref := range refs {
+		if ref.kind == "topic" {
+			topicIDs = append(topicIDs, ref.topicID)
+		} else {
+			postIDs = append(postIDs, ref.postID)
+		}
+	}
+	topicMap := topics.GetPointerMapByIds(topicIDs)
+	postEntities := posts.GetByIds(postIDs)
+
+	postMap := make(map[uint64]*posts.Entity, len(postEntities))
+	postTopicIDs := make([]uint64, 0, len(postEntities))
+	for _, post := range postEntities {
+		if post == nil || post.Id == 0 {
+			continue
+		}
+		postMap[post.Id] = post
+		postTopicIDs = append(postTopicIDs, post.TopicId)
+	}
+	postTopicMap := topics.GetPointerMapByIds(postTopicIDs)
+
+	for _, ref := range refs {
+		switch ref.kind {
+		case "topic":
+			topic := topicMap[ref.topicID]
+			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+				continue
+			}
+			payloads = append(payloads, UserBookmarkPayload{
+				ID:           ref.refID,
+				Type:         "topic",
+				TopicID:      ref.topicID,
+				Title:        topic.Title,
+				URL:          urlconfig.PostDetail(ref.topicID),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+			})
+		case "post":
+			post := postMap[ref.postID]
+			if post == nil || post.ProcessStatus != 0 {
+				continue
+			}
+			topic := postTopicMap[post.TopicId]
+			if topic == nil || topic.Status != 1 || topic.ProcessStatus != 0 {
+				continue
+			}
+			payloads = append(payloads, UserBookmarkPayload{
+				ID:           ref.refID,
+				Type:         "post",
+				TopicID:      post.TopicId,
+				PostID:       post.Id,
+				PostNo:       post.PostNo,
+				Title:        topic.Title,
+				Excerpt:      bookmarkExcerpt(post.Content),
+				URL:          buildPostAnchorURL(post.TopicId, post.PostNo, post.Id),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+			})
+		}
+	}
+	return payloads
+}
+
+// bookmarkExcerpt 楼层内容预览：压缩空白并截断
+func bookmarkExcerpt(content string) string {
+	compact := strings.Join(strings.Fields(content), " ")
+	runes := []rune(compact)
+	if len(runes) > 120 {
+		return string(runes[:120]) + "…"
+	}
+	return compact
+}
+
+// buildPostAnchorURL 楼层锚点链接：/p/post/{topicId}/{postNo}#post-{postId}
+func buildPostAnchorURL(topicID, postNo, postID uint64) string {
+	return fmt.Sprintf("/p/post/%d/%d#post-%d", topicID, postNo, postID)
 }
 
 func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayload {
@@ -2139,6 +2471,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			{Key: "account", URL: "/settings?tab=account"},
 			{Key: "privacy", URL: "/settings?tab=privacy"},
 			{Key: "binding", URL: "/settings?tab=binding"},
+			{Key: "security", URL: "/settings?tab=security"},
 		},
 	}
 }
@@ -2187,11 +2520,15 @@ func buildPublishCategories() []PublishCategoryPayload {
 	return res
 }
 
-func buildSearchPageProps(query string, page int) SearchPageProps {
+func buildSearchPageProps(query string, scope string, page int) SearchPageProps {
 	const pageSize = 10
+	normalizedScope := searchservice.NormalizeScope(scope)
 	props := SearchPageProps{
-		Query:  query,
-		Topics: []TopicPayload{},
+		Query:      query,
+		Scope:      normalizedScope,
+		Topics:     []TopicPayload{},
+		Users:      []UserSearchPayload{},
+		Categories: []CategorySearchPayload{},
 		Pagination: PaginationPayload{
 			Page: page,
 		},
@@ -2203,49 +2540,90 @@ func buildSearchPageProps(query string, page int) SearchPageProps {
 	if page < 1 {
 		page = 1
 	}
-	result, err := searchservice.SearchTopics(searchservice.SearchRequest{
+	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
+	// users/categories 一期单页（上限 MaxAggregateLimit），无分页 UI。
+	limit := pageSize
+	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories {
+		limit = searchservice.MaxAggregateLimit
+	}
+	offset := 0
+	if normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll {
+		offset = (page - 1) * pageSize
+	}
+	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
 		Query:  query,
-		Limit:  pageSize,
-		Offset: (page - 1) * pageSize,
+		Scope:  normalizedScope,
+		Limit:  limit,
+		Offset: offset,
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true
 		return props
 	}
 	if err != nil || result == nil {
+		props.FailedScopes = failedScopesOf(err, result)
 		return props
 	}
+	props.FailedScopes = result.FailedScopes
 
-	ids := lo.Map(result.Results, func(item searchservice.SearchResult, _ int) uint64 {
-		return item.ID
-	})
-	topicMap := topics.GetPointerMapByIds(ids)
-	orderedTopics := lo.FilterMap(ids, func(id uint64, _ int) (*topics.Entity, bool) {
-		topic, ok := topicMap[id]
+	topicMap := topics.GetPointerMapByIds(lo.Map(result.Topics, func(item searchservice.SearchResult, _ int) uint64 { return item.ID }))
+	orderedTopics := lo.FilterMap(result.Topics, func(item searchservice.SearchResult, _ int) (*topics.Entity, bool) {
+		topic, ok := topicMap[item.ID]
 		return topic, ok && topic != nil
 	})
 	totalPageCount := totalPages(result.Total, pageSize)
 	nextPage := 0
-	if page < totalPageCount {
+	if (normalizedScope == searchservice.ScopeTopics || normalizedScope == searchservice.ScopeAll) && page < totalPageCount {
 		nextPage = page + 1
 	}
 
 	props.Topics = buildTopicPayloads(transform.Topics2Vo(orderedTopics, hotdataserve.CategoryMap()))
+	props.Users = lo.Map(result.Users, func(item searchservice.UserSearchResult, _ int) UserSearchPayload {
+		return UserSearchPayload{
+			ID:        item.ID,
+			Username:  item.Username,
+			Nickname:  item.Nickname,
+			AvatarURL: item.AvatarURL,
+			Bio:       item.Bio,
+		}
+	})
+	props.Categories = lo.Map(result.Categories, func(item searchservice.CategorySearchResult, _ int) CategorySearchPayload {
+		return CategorySearchPayload{
+			ID:    item.ID,
+			Name:  item.Name,
+			Slug:  item.Slug,
+			Icon:  item.Icon,
+			Color: item.Color,
+			Desc:  item.Desc,
+		}
+	})
 	props.Total = result.Total
+	props.UsersTotal = result.UsersTotal
+	props.CategoriesTotal = result.CategoriesTotal
 	props.TotalPages = totalPageCount
 	props.Pagination = PaginationPayload{
 		Page:     page,
 		NextPage: nextPage,
 		HasNext:  nextPage > 0,
-		NextURL:  buildSearchURL(query, nextPage),
+		NextURL:  buildSearchURL(query, normalizedScope, nextPage),
 	}
 	return props
 }
 
-func buildSearchURL(query string, page int) string {
+func failedScopesOf(err error, result *searchservice.AggregateSearchResponse) []string {
+	if result != nil {
+		return result.FailedScopes
+	}
+	return nil
+}
+
+func buildSearchURL(query string, scope string, page int) string {
 	values := url.Values{}
 	if query != "" {
 		values.Set("q", query)
+	}
+	if scope != "" && scope != searchservice.ScopeAll {
+		values.Set("scope", scope)
 	}
 	if page > 1 {
 		values.Set("page", strconv.Itoa(page))

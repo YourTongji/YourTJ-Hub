@@ -10,6 +10,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/oauthservice"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/markbates/goth/gothic"
 )
@@ -75,11 +76,16 @@ func ProviderCallback(c *gin.Context) {
 			}
 		}
 
-		// 生成JWT token
-		token, err := jwtopt.CreateNewTokenDefaultWithVersion(user.Id, user.TokenVersion)
+		// 生成JWT token（会话凭证，写会话记录）
+		token, jti, err := jwtopt.CreateSessionToken(user.Id, user.TokenVersion)
 		if err != nil {
 			slog.Error("Generate JWT token failed", "error", err)
 			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthTokenFailed)
+			return
+		}
+		if err = sessionservice.Create(user.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+			slog.Error("Create OAuth session failed", "userId", user.Id, "error", err)
+			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
 			return
 		}
 
@@ -127,7 +133,7 @@ func GetOAuthBindings(req component.BetterRequest[component.Null]) component.Res
 	}
 
 	// 添加未绑定的提供商
-	allProviders := []string{"github", "google"}
+	allProviders := []string{"github", "google", "casdoor"}
 	for _, provider := range allProviders {
 		if _, exists := result[provider]; !exists {
 			result[provider] = map[string]any{

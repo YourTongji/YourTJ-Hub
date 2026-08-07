@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
-import { AlertTriangle, Ban, Bell, Bookmark, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic } from '@/runtime/api'
+import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
+import { bookmarkTopic, deletePost, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -16,6 +16,7 @@ import TopicList from '@/site/components/TopicList.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import type { TopicDetailProps, LayoutPayload, PostPayload, ReplyTargetPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
+import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -27,6 +28,16 @@ const { push: pushFlash } = useFlashMessages()
 const PostComposer = defineAsyncComponent(() => import('@/site/components/PostComposer.vue'))
 const initialPostStream = page.props.postStream
 const initialPosts = initialPostStream.posts
+const {
+  captchaRequired,
+  captchaId,
+  captchaImg,
+  captchaCode,
+  captchaLoading,
+  loadCaptcha,
+  clearCaptcha,
+  challengeFromError,
+} = useCaptchaChallenge()
 const postContent = ref('')
 const targetPostId = ref(0)
 const likeCount = ref(page.props.topic.likeCount)
@@ -651,6 +662,16 @@ async function syncPostHash() {
 
 function highlightPost(postId: number) {
   highlightedPostId.value = postId
+  // 深层链接：若目标回复被折叠在"前 3 条预览"之外，自动展开所在分组
+  const group = postGroups.value.find((g) => g.root.id === postId || g.replies.some((reply) => reply.id === postId))
+  if (group && group.root.id !== postId) {
+    const replyIndex = group.replies.findIndex((reply) => reply.id === postId)
+    if (replyIndex >= nestedRepliesPreviewCount) {
+      const next = new Set(expandedReplyGroups.value)
+      next.add(group.root.id)
+      expandedReplyGroups.value = next
+    }
+  }
   window.clearTimeout(highlightTimer)
   highlightTimer = window.setTimeout(() => {
     highlightedPostId.value = null
@@ -680,6 +701,69 @@ function mergeReplyTargets(nextTargets: ReplyTargetPayload[], mode: 'replace' | 
 
 function replyTargetFor(post: PostPayload) {
   return post.replyToPostId ? replyTargetMap.value.get(post.replyToPostId) : undefined
+}
+
+interface NestedPostGroup {
+  root: PostPayload
+  replies: PostPayload[]
+}
+
+const nestedRepliesPreviewCount = 3
+const expandedReplyGroups = ref<Set<number>>(new Set())
+
+// 楼层分组：回复其目标楼层在当前窗口内可见的帖子，收进目标楼层的嵌套回复区展示
+// （限制一层缩进；任意深度的嵌套回复持续上溯挂到真实 root 下，用引用条保留对话脉络）
+const postGroups = computed<NestedPostGroup[]>(() => {
+  const byId = new Map(posts.value.map((post) => [post.id, post]))
+  const childrenByParent = new Map<number, PostPayload[]>()
+  const roots: PostPayload[] = []
+
+  // 沿 replyToPostId 链持续上溯到真实 root（防环：已访问节点直接截断）
+  const resolveRoot = (post: PostPayload): PostPayload => {
+    const visited = new Set<number>()
+    let cursor: PostPayload = post
+    while (cursor.replyToPostId) {
+      if (visited.has(cursor.id)) break
+      visited.add(cursor.id)
+      const next = byId.get(cursor.replyToPostId)
+      if (!next) break
+      cursor = next
+    }
+    return cursor
+  }
+
+  for (const post of posts.value) {
+    const parent = post.replyToPostId ? byId.get(post.replyToPostId) : undefined
+    if (!parent) {
+      roots.push(post)
+      continue
+    }
+    // 持续上溯至真实 root：A→B→C→D 时 D 也必须挂到 A 下，保证有渲染出口
+    const effectiveParent = resolveRoot(post)
+    const siblings = childrenByParent.get(effectiveParent.id)
+    if (siblings) siblings.push(post)
+    else childrenByParent.set(effectiveParent.id, [post])
+  }
+
+  return roots.map((root) => ({
+    root,
+    replies: (childrenByParent.get(root.id) ?? []).sort((a, b) => a.postNo - b.postNo),
+  }))
+})
+
+function visibleReplies(group: NestedPostGroup) {
+  return expandedReplyGroups.value.has(group.root.id) ? group.replies : group.replies.slice(0, nestedRepliesPreviewCount)
+}
+
+function groupRepliesExpanded(group: NestedPostGroup) {
+  return expandedReplyGroups.value.has(group.root.id)
+}
+
+function toggleGroupReplies(rootId: number) {
+  const next = new Set(expandedReplyGroups.value)
+  if (next.has(rootId)) next.delete(rootId)
+  else next.add(rootId)
+  expandedReplyGroups.value = next
 }
 
 function applyPostWindowPayload(payload: Awaited<ReturnType<typeof getPostWindow>>, mergeMode: 'replace' | 'prepend' | 'append') {
@@ -1021,6 +1105,89 @@ async function toggleWatch() {
   }
 }
 
+interface PostActionState {
+  likeCount: number
+  isLiked: boolean
+  isBookmarked: boolean
+  actingLike: boolean
+  actingBookmark: boolean
+}
+
+const postActions = ref<Record<number, PostActionState>>({})
+
+function postActionState(post: PostPayload): PostActionState {
+  let state = postActions.value[post.id]
+  if (!state) {
+    state = {
+      likeCount: post.likeCount || 0,
+      isLiked: post.isLiked || false,
+      isBookmarked: post.isBookmarked || false,
+      actingLike: false,
+      actingBookmark: false,
+    }
+    postActions.value = { ...postActions.value, [post.id]: state }
+  }
+  return state
+}
+
+async function togglePostLike(post: PostPayload) {
+  const state = postActionState(post)
+  if (state.actingLike) return
+
+  const nextLiked = !state.isLiked
+  const previousLiked = state.isLiked
+  const previousCount = state.likeCount
+  state.actingLike = true
+  state.isLiked = nextLiked
+  state.likeCount = Math.max(0, state.likeCount + (nextLiked ? 1 : -1))
+  try {
+    await likePost(post.id, nextLiked ? 1 : 2)
+  } catch (error) {
+    state.isLiked = previousLiked
+    state.likeCount = previousCount
+    pushFlash(error instanceof Error ? error.message : t('api.likeFailed'))
+  } finally {
+    state.actingLike = false
+  }
+}
+
+async function togglePostBookmark(post: PostPayload) {
+  const state = postActionState(post)
+  if (state.actingBookmark) return
+
+  const nextBookmarked = !state.isBookmarked
+  const previousBookmarked = state.isBookmarked
+  state.actingBookmark = true
+  state.isBookmarked = nextBookmarked
+  try {
+    await bookmarkPost(post.id, nextBookmarked ? 1 : 2)
+    pushFlash(nextBookmarked ? t('topic.bookmarkAdded') : t('topic.bookmarkRemoved'))
+  } catch (error) {
+    state.isBookmarked = previousBookmarked
+    pushFlash(error instanceof Error ? error.message : t('api.bookmarkFailed'))
+  } finally {
+    state.actingBookmark = false
+  }
+}
+
+async function sharePost(post: PostPayload) {
+  const url = `${window.location.origin}/p/post/${page.props.topic.id}/${post.postNo}#post-${post.id}`
+  if (navigator.share) {
+    try {
+      await navigator.share({ title: page.props.topic.title, url })
+      return
+    } catch {
+      return // 用户取消分享
+    }
+  }
+  try {
+    await navigator.clipboard.writeText(url)
+    pushFlash(t('topic.linkCopied'))
+  } catch {
+    pushFlash(t('topic.shareFailed'))
+  }
+}
+
 function replyTo(post: PostPayload) {
   if (editingPostId.value) {
     cancelEditPost()
@@ -1052,6 +1219,11 @@ function handlePostImageError(message: string) {
 
 function isFirstPost(post: PostPayload) {
   return post.postNo === 1
+}
+
+// 优先展示用户昵称，未设置昵称时回退到账号名
+function authorDisplayName(author: { username: string; nickname?: string }) {
+  return author.nickname || author.username
 }
 
 function canEditPost(post: PostPayload) {
@@ -1158,7 +1330,11 @@ async function submitPost() {
   errorMessage.value = ''
   successMessage.value = ''
   try {
-    const createdPost = await createPost(page.props.topic.id, content, postId)
+    const createdPost = await createPost(page.props.topic.id, content, postId, {
+      captchaId: captchaId.value,
+      captchaCode: captchaCode.value,
+    })
+    clearCaptcha()
     postContent.value = ''
     targetPostId.value = 0
     composerOpen.value = false
@@ -1174,7 +1350,11 @@ async function submitPost() {
       postWindowError.value = error instanceof Error ? error.message : t('api.repliesLoadFailed')
     }
   } catch (error) {
-    errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+    if (challengeFromError(error)) {
+      errorMessage.value = t('auth.captcha.invalid')
+    } else {
+      errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
+    }
   } finally {
     submitting.value = false
   }
@@ -1386,7 +1566,7 @@ async function removePost(postId: number) {
             @click="showUserCard(page.props.topic.author, $event)"
           >
             <UserAvatar :src="page.props.topic.author.avatarUrl" :alt="page.props.topic.author.username" class="h-5 w-5 rounded-full object-cover" />
-            {{ page.props.topic.author.username }}
+            {{ authorDisplayName(page.props.topic.author) }}
           </a>
           <span class="inline-flex items-center gap-1.5">
             <Clock class="h-3.5 w-3.5" />
@@ -1435,118 +1615,157 @@ async function removePost(postId: number) {
               </button>
             </div>
             <article
-              v-for="(post, index) in posts"
-              :id="`post-${post.id}`"
-              :key="post.id"
-              :data-post-no="post.postNo"
+              v-for="(group, index) in postGroups"
+              :id="`post-${group.root.id}`"
+              :key="group.root.id"
+              :data-post-no="group.root.postNo"
               class="group relative grid scroll-mt-20 grid-cols-[40px_minmax(0,1fr)] gap-2.5 px-3 py-4 transition-[background-color] sm:grid-cols-[52px_minmax(0,1fr)] sm:gap-4 sm:p-5"
               :class="{
                 'border-t border-line xl:border-t-transparent': index > 0,
-                'bg-info/10': highlightedPostId === post.id,
+                'bg-info/10': highlightedPostId === group.root.id,
                 '[border-top-left-radius:calc(var(--gf-radius-box)-var(--gf-border))] [border-top-right-radius:calc(var(--gf-radius-box)-var(--gf-border))]': index === 0 && !postHasBefore,
               }"
             >
               <div v-if="index > 0" class="pointer-events-none absolute left-5 right-5 top-0 hidden border-t border-line xl:block" aria-hidden="true" />
               <a
-                :href="`/u/${post.author.id}`"
+                :href="`/u/${group.root.author.id}`"
                 class="sticky top-19 self-start pt-1"
-                @click="showUserCard(post.author, $event)"
+                @click="showUserCard(group.root.author, $event)"
               >
-                <UserAvatar :src="post.author.avatarUrl" :alt="post.author.username" :badge="post.author.wornBadge" class="h-9 w-9 rounded-full ring-1 ring-line sm:h-10 sm:w-10" img-class="rounded-full" />
+                <UserAvatar :src="group.root.author.avatarUrl" :alt="group.root.author.username" :badge="group.root.author.wornBadge" class="h-9 w-9 rounded-full ring-1 ring-line sm:h-10 sm:w-10" img-class="rounded-full" />
               </a>
               <div class="min-w-0">
                 <div class="mb-1.5 flex min-w-0 items-start justify-between gap-2">
                   <div class="min-w-0">
                     <div class="flex min-w-0 items-center gap-2">
-                      <a :href="`/u/${post.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ post.author.username }}</a>
-                      <span v-if="isFirstPost(post)" class="rounded bg-base-200 px-1.5 py-0.5 text-xs font-semibold text-base-content/55">{{ t('topic.originalPost') }}</span>
-                      <span v-if="post.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(post.postNo) }}</span>
+                      <a :href="`/u/${group.root.author.id}`" class="min-w-0 truncate font-semibold text-base-content hover:text-primary">{{ authorDisplayName(group.root.author) }}</a>
+                      <span v-if="group.root.postNo" class="hidden shrink-0 text-xs font-semibold tabular-nums text-base-content/55 sm:inline">#{{ formatNumber(group.root.postNo) }}</span>
                     </div>
                     <div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/55 sm:hidden">
-                      <span v-if="post.postNo" class="font-semibold tabular-nums text-base-content/55">#{{ formatNumber(post.postNo) }}</span>
-                      <time class="truncate">{{ formatDateTime(post.createdAt) }}</time>
+                      <span v-if="group.root.postNo" class="font-semibold tabular-nums text-base-content/55">#{{ formatNumber(group.root.postNo) }}</span>
+                      <time class="truncate">{{ formatDateTime(group.root.createdAt) }}</time>
                     </div>
                   </div>
                   <div class="flex shrink-0 items-center gap-0.5 sm:gap-1.5">
                     <button
-                      v-if="canEditPost(post)"
+                      v-if="canEditPost(group.root)"
                       type="button"
-                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="savingEditPostId === post.id || deletingPostId === post.id"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="savingEditPostId === group.root.id || deletingPostId === group.root.id"
                       :title="t('common.edit')"
-                      @click="startEditPost(post)"
+                      @click="startEditPost(group.root)"
                     >
                       <PencilLine class="h-3.5 w-3.5" />
                       <span class="sr-only">{{ t('common.edit') }}</span>
                     </button>
                     <button
-                      v-if="canDeleteRenderedPost(post)"
+                      v-if="canDeleteRenderedPost(group.root)"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
-                      :disabled="deletingPostId === post.id"
-                      :title="deletingPostId === post.id ? t('topic.deleting') : t('topic.delete')"
-                      @click="requestDeletePost(post)"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :disabled="deletingPostId === group.root.id"
+                      :title="deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete')"
+                      @click="requestDeletePost(group.root)"
                     >
                       <Trash2 class="h-3.5 w-3.5" />
-                      <span class="sr-only">{{ deletingPostId === post.id ? t('topic.deleting') : t('topic.delete') }}</span>
+                      <span class="sr-only">{{ deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete') }}</span>
                     </button>
                     <button
-                      v-if="page.props.permissions.canPost && !post.isHidden"
+                      v-if="page.props.permissions.canPost && !group.root.isHidden"
                       type="button"
-                      class="inline-flex h-8 w-8 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
                       :title="t('topic.reply')"
-                      @click="replyTo(post)"
+                      @click="replyTo(group.root)"
                     >
                       <CornerDownLeft class="h-3.5 w-3.5" />
                       <span class="sr-only">{{ t('topic.reply') }}</span>
                     </button>
                     <button
-                      v-if="!isFirstPost(post) && !post.isOwnPost && !post.isHidden"
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
+                      class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
+                      :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
+                      :title="t('topic.like')"
+                      :disabled="postActionState(group.root).actingLike"
+                      @click="togglePostLike(group.root)"
+                    >
+                      <Heart class="h-3.5 w-3.5" :fill="postActionState(group.root).isLiked ? 'currentColor' : 'none'" />
+                      <span v-if="postActionState(group.root).likeCount" class="hidden text-xs font-semibold tabular-nums sm:inline">{{ formatNumber(postActionState(group.root).likeCount) }}</span>
+                      <span class="sr-only">{{ t('topic.like') }}</span>
+                    </button>
+                    <button
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
+                      type="button"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
+                      :class="{ 'text-primary hover:text-primary': postActionState(group.root).isBookmarked }"
+                      :title="postActionState(group.root).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
+                      :disabled="postActionState(group.root).actingBookmark"
+                      @click="togglePostBookmark(group.root)"
+                    >
+                      <Bookmark class="h-3.5 w-3.5" :fill="postActionState(group.root).isBookmarked ? 'currentColor' : 'none'" />
+                      <span class="sr-only">{{ t('topic.bookmark') }}</span>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-base-200 hover:text-base-content focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2"
+                      :title="t('topic.share')"
+                      @click="sharePost(group.root)"
+                    >
+                      <Share2 class="h-3.5 w-3.5" />
+                      <span class="sr-only">{{ t('topic.share') }}</span>
+                    </button>
+                    <button
+                      v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden"
+                      type="button"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
                       :title="t('topic.report')"
-                      @click="requestPostReport(post)"
+                      @click="requestPostReport(group.root)"
                     >
                       <Flag class="h-3.5 w-3.5" />
                       <span class="sr-only">{{ t('topic.report') }}</span>
                     </button>
                     <button
-                      v-if="!isFirstPost(post) && post.canModerate && post.processStatus === 0"
+                      v-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 0"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-50"
-                      :disabled="postModerationBusy(post.id)"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-error focus-visible:ring-offset-2 disabled:opacity-50"
+                      :disabled="postModerationBusy(group.root.id)"
                       :title="t('topic.moderationBan')"
-                      @click="moderatePost(post, 'ban')"
+                      @click="moderatePost(group.root, 'ban')"
                     >
                       <Ban class="h-3.5 w-3.5" />
                       <span class="sr-only">{{ t('topic.moderationBan') }}</span>
                     </button>
                     <button
-                      v-else-if="!isFirstPost(post) && post.canModerate && post.processStatus === 1"
+                      v-else-if="!isFirstPost(group.root) && group.root.canModerate && group.root.processStatus === 1"
                       type="button"
-                      class="gf-icon-button h-8 w-8 shrink-0 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
-                      :disabled="postModerationBusy(post.id)"
+                      class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:opacity-50"
+                      :disabled="postModerationBusy(group.root.id)"
                       :title="t('topic.moderationUnban')"
-                      @click="moderatePost(post, 'unban')"
+                      @click="moderatePost(group.root, 'unban')"
                     >
                       <RotateCcw class="h-3.5 w-3.5" />
                       <span class="sr-only">{{ t('topic.moderationUnban') }}</span>
                     </button>
-                    <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(post.createdAt) }}</time>
+                    <time class="hidden w-36 shrink-0 text-right text-xs text-base-content/55 sm:-ml-1 sm:block">{{ formatDateTime(group.root.createdAt) }}</time>
+                    <span
+                      v-if="isFirstPost(group.root)"
+                      class="shrink-0 self-center rounded bg-base-200 px-1 py-0.5 text-[11px] font-semibold text-base-content/55 sm:px-1.5 sm:text-xs"
+                    >
+                      {{ t('topic.originalPost') }}
+                    </span>
                   </div>
                 </div>
-                <PostReplyReference v-if="post.replyToPostId" :target="replyTargetFor(post)" />
-                <div v-if="post.isHidden && !post.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
+                <PostReplyReference v-if="group.root.replyToPostId" :target="replyTargetFor(group.root)" />
+                <div v-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
                   {{ t('topic.hiddenReplyPlaceholder') }}
                 </div>
-                <div v-else class="gf-prose gf-prose-post" v-html="post.renderedContent" />
-                <div v-if="post.isHidden && post.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+                <div v-else class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+                <div v-if="group.root.isHidden && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                   {{ t('topic.hiddenReplyBadge') }}
                 </div>
-                <div v-if="post.updatedAt && post.updatedAt !== post.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
-                  {{ t('topic.editedAt', { time: formatDateTime(post.updatedAt) }) }}
+                <div v-if="group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                  {{ t('topic.editedAt', { time: formatDateTime(group.root.updatedAt) }) }}
                 </div>
-                <div v-if="isFirstPost(post)" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
+                <div v-if="isFirstPost(group.root)" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <button
                     type="button"
                     class="gf-button gf-button-sm px-2.5"
@@ -1607,6 +1826,127 @@ async function removePost(postId: number) {
                     {{ t('topic.moderationUnban') }}
                   </button>
                   <span v-if="actionMessage" class="text-xs" :class="actionMessageSuccess ? 'text-base-content/75' : 'text-error'">{{ actionMessage }}</span>
+                </div>
+
+                <div v-if="group.replies.length" class="mt-4 space-y-2 border-t border-line pt-3">
+                  <div
+                    v-for="(reply, replyIndex) in visibleReplies(group)"
+                    :id="`post-${reply.id}`"
+                    :key="reply.id"
+                    :data-post-no="reply.postNo"
+                    class="relative rounded-lg border border-line/80 bg-base-200/40 px-3 py-2.5 transition-colors sm:px-4"
+                    :class="{
+                      'bg-info/10': highlightedPostId === reply.id,
+                      'border-t border-line/80': replyIndex > 0,
+                    }"
+                  >
+                    <PostReplyReference v-if="reply.replyToPostId && reply.replyToPostId !== group.root.id" :target="replyTargetFor(reply)" />
+                    <div class="flex min-w-0 items-center gap-2">
+                      <a :href="`/u/${reply.author.id}`" class="shrink-0" @click="showUserCard(reply.author, $event)">
+                        <UserAvatar :src="reply.author.avatarUrl" :alt="reply.author.username" :badge="reply.author.wornBadge" class="h-6 w-6 rounded-full ring-1 ring-line" img-class="rounded-full" />
+                      </a>
+                      <a :href="`/u/${reply.author.id}`" class="min-w-0 truncate text-sm font-semibold text-base-content hover:text-primary" @click="showUserCard(reply.author, $event)">{{ authorDisplayName(reply.author) }}</a>
+                      <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(reply.postNo) }}</span>
+                      <time class="ml-auto shrink-0 truncate text-xs text-base-content/55">{{ formatDateTime(reply.createdAt) }}</time>
+                    </div>
+                    <div v-if="reply.isHidden && !reply.canModerate" class="mt-2 rounded border border-line bg-base-100 px-3 py-2 text-sm text-base-content/45">
+                      {{ t('topic.hiddenReplyPlaceholder') }}
+                    </div>
+                    <div v-else class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
+                    <div v-if="reply.isHidden && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+                      {{ t('topic.hiddenReplyBadge') }}
+                    </div>
+                    <div v-if="reply.updatedAt && reply.updatedAt !== reply.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                      {{ t('topic.editedAt', { time: formatDateTime(reply.updatedAt) }) }}
+                    </div>
+                    <div class="mt-2 flex items-center gap-1">
+                      <button
+                        v-if="page.props.permissions.canPost && !reply.isHidden"
+                        type="button"
+                        class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-xs font-semibold text-base-content/55 transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
+                        :title="t('topic.reply')"
+                        @click="replyTo(reply)"
+                      >
+                        <CornerDownLeft class="h-3.5 w-3.5" />
+                        {{ t('topic.reply') }}
+                      </button>
+                      <button
+                        v-if="canEditPost(reply)"
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-info/10 hover:text-primary"
+                        :title="t('common.edit')"
+                        @click="startEditPost(reply)"
+                      >
+                        <PencilLine class="h-3.5 w-3.5" />
+                        <span class="sr-only">{{ t('common.edit') }}</span>
+                      </button>
+                      <button
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        type="button"
+                        class="inline-flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-base-content/55 transition hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="{ 'text-error hover:text-error': postActionState(reply).isLiked }"
+                        :title="t('topic.like')"
+                        :disabled="postActionState(reply).actingLike"
+                        @click="togglePostLike(reply)"
+                      >
+                        <Heart class="h-3.5 w-3.5" :fill="postActionState(reply).isLiked ? 'currentColor' : 'none'" />
+                        <span v-if="postActionState(reply).likeCount" class="text-xs font-semibold tabular-nums">{{ formatNumber(postActionState(reply).likeCount) }}</span>
+                        <span class="sr-only">{{ t('topic.like') }}</span>
+                      </button>
+                      <button
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-info/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                        :class="{ 'text-primary hover:text-primary': postActionState(reply).isBookmarked }"
+                        :title="postActionState(reply).isBookmarked ? t('topic.bookmarked') : t('topic.bookmark')"
+                        :disabled="postActionState(reply).actingBookmark"
+                        @click="togglePostBookmark(reply)"
+                      >
+                        <Bookmark class="h-3.5 w-3.5" :fill="postActionState(reply).isBookmarked ? 'currentColor' : 'none'" />
+                        <span class="sr-only">{{ t('topic.bookmark') }}</span>
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-base-200 hover:text-base-content"
+                        :title="t('topic.share')"
+                        @click="sharePost(reply)"
+                      >
+                        <Share2 class="h-3.5 w-3.5" />
+                        <span class="sr-only">{{ t('topic.share') }}</span>
+                      </button>
+                      <button
+                        v-if="canDeleteRenderedPost(reply)"
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-error/10 hover:text-error"
+                        :title="t('topic.delete')"
+                        @click="requestDeletePost(reply)"
+                      >
+                        <Trash2 class="h-3.5 w-3.5" />
+                        <span class="sr-only">{{ t('topic.delete') }}</span>
+                      </button>
+                      <button
+                        v-if="!isFirstPost(reply) && !reply.isOwnPost && !reply.isHidden"
+                        type="button"
+                        class="gf-icon-button h-7 w-7 shrink-0 hover:bg-warning/10 hover:text-warning"
+                        :title="t('topic.report')"
+                        @click="requestPostReport(reply)"
+                      >
+                        <Flag class="h-3.5 w-3.5" />
+                        <span class="sr-only">{{ t('topic.report') }}</span>
+                      </button>
+                    </div>
+                  </div>
+                  <button
+                    v-if="group.replies.length > nestedRepliesPreviewCount"
+                    type="button"
+                    class="inline-flex h-8 w-full items-center justify-center gap-1 rounded-md text-xs font-semibold text-primary transition hover:bg-info/10"
+                    :aria-expanded="groupRepliesExpanded(group)"
+                    @click="toggleGroupReplies(group.root.id)"
+                  >
+                    <ChevronUp v-if="groupRepliesExpanded(group)" class="h-3.5 w-3.5" />
+                    <ChevronDown v-else class="h-3.5 w-3.5" />
+                    {{ groupRepliesExpanded(group) ? t('topic.collapseReplies') : t('topic.expandReplies', { count: group.replies.length - nestedRepliesPreviewCount }) }}
+                  </button>
                 </div>
               </div>
             </article>
@@ -1732,8 +2072,12 @@ async function removePost(postId: number) {
       <PostComposer
         v-if="composerMounted"
         v-model="postContent"
+        v-model:captcha-code="captchaCode"
         :open="composerOpen"
         :authenticated="page.layout.viewer.isAuthenticated"
+        :captcha-img="captchaImg"
+        :captcha-loading="captchaLoading"
+        :captcha-required="captchaRequired"
         :error-message="errorMessage"
         :mode="composerMode"
         :submitting="editingPostId ? savingEditPostId > 0 : submitting"
@@ -1743,6 +2087,7 @@ async function removePost(postId: number) {
         @clear-validation="clearPostValidation"
         @image-error="handlePostImageError"
         @image-inserted="handlePostImageInserted"
+        @refresh-captcha="loadCaptcha()"
         @submit="submitPost"
         @update:open="updateComposerOpen"
       />

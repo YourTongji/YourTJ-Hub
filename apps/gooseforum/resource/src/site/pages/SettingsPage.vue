@@ -17,8 +17,15 @@ import {
 } from '@lucide/vue'
 import {
   changePassword,
+  disableTotp,
+  enableTotp,
   getOAuthBindings,
+  getTotpSetup,
+  getTotpStatus,
+  listSessions,
   resendActivationEmail,
+  revokeAllSessions,
+  revokeSession,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
@@ -27,10 +34,15 @@ import {
   unbindOAuth,
   wearBadge,
   type OAuthBindingsPayload,
+  type TotpEnablePayload,
+  type TotpSetupPayload,
+  type UserSessionPayload,
 } from '@/runtime/api'
 import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
+import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
+import { useCoverCropUpload } from '@/site/composables/useCoverCropUpload'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -46,7 +58,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -59,6 +71,20 @@ const sendingActivationEmail = ref(false)
 const savingPassword = ref(false)
 const loadingBindings = ref(false)
 const bindingAction = ref('')
+const sessions = ref<UserSessionPayload[]>([])
+const loadingSessions = ref(false)
+const revokingSessionId = ref(0)
+const revokingAll = ref(false)
+const revokeAllConfirmOpen = ref(false)
+const totpEnabled = ref(false)
+const totpLoading = ref(false)
+const totpSetup = ref<TotpSetupPayload | null>(null)
+const totpSetupPending = ref(false)
+const totpSetupPassword = ref('')
+const totpSetupCode = ref('')
+const totpRecoveryCodes = ref<string[]>([])
+const totpDisableCode = ref('')
+const totpQrUrl = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
 const editingCover = ref(false)
@@ -86,6 +112,22 @@ const {
   uploadCroppedAvatar,
 } = useAvatarCropUpload({
   initialAvatarUrl: page.props.user.avatarUrl,
+  onStatus: showStatus,
+  onError: showError,
+})
+const {
+  uploadingCover,
+  coverInput,
+  coverCropperImage,
+  coverCropModalOpen,
+  coverCropImageUrl,
+  coverCropPreviewUrl,
+  coverCropError,
+  chooseCover: openCoverPicker,
+  handleCoverChange,
+  closeCropModal: closeCoverCropModal,
+  uploadCroppedCover,
+} = useCoverCropUpload({
   onStatus: showStatus,
   onError: showError,
 })
@@ -153,6 +195,7 @@ const socialItems = computed(() => socialKeys.map((key) => ({
 })))
 const providers = computed(() => [
   { key: 'github', label: 'GitHub', supported: true },
+  { key: 'casdoor', label: 'Casdoor', supported: true },
   { key: 'google', label: 'Google', supported: false },
 ])
 const localeOptions = computed(() => supportedLocales.map(item => ({
@@ -207,6 +250,8 @@ onMounted(() => {
     Object.assign(privacy, JSON.parse(savedPrivacy))
   }
   void loadBindings()
+  void loadSessions()
+  void loadTotpStatus()
 })
 
 function buildExternalInfo() {
@@ -230,6 +275,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'account') return t('settings.tabs.account')
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
+  if (key === 'security') return t('settings.tabs.security')
   return fallback || key
 }
 
@@ -295,14 +341,74 @@ async function applyWornBadge() {
 }
 
 async function saveProfile() {
+  const normalized = normalizeSocialLinks()
+  if (!normalized) return
+
   savingProfile.value = true
   try {
-    await saveUserInfo({ ...profileForm })
+    await saveUserInfo({ ...profileForm, externalInformation: normalized })
     showStatus(t('settings.status.profileSaved'))
   } catch (err) {
     showError(err instanceof Error ? err.message : t('api.profileSaveFailed'))
   } finally {
     savingProfile.value = false
+  }
+}
+
+// 各社交平台的裸 ID 前缀；填写完整链接时保持原样（仅允许 http/https）。
+const socialBaseUrls: Record<string, string> = {
+  github: 'https://github.com/',
+  twitter: 'https://twitter.com/',
+  linkedIn: 'https://www.linkedin.com/in/',
+  weibo: 'https://weibo.com/',
+  bilibili: 'https://space.bilibili.com/',
+  zhihu: 'https://www.zhihu.com/people/',
+}
+
+// 保存前规范化社交链接：完整链接校验协议，裸 ID / 用户名自动补全为完整链接。
+// 非法链接返回 undefined 并提示错误。
+function normalizeSocialLinks(): Record<string, { link?: string }> | undefined {
+  const normalized: Record<string, { link?: string }> = {}
+  const invalidLabels: string[] = []
+
+  for (const item of socialItems.value) {
+    const rawValue = profileForm.externalInformation[item.key]?.link?.trim() || ''
+    if (!rawValue) {
+      normalized[item.key] = { link: '' }
+      continue
+    }
+    if (/^[a-z][a-z0-9+.-]*:\/\//i.test(rawValue)) {
+      try {
+        const parsed = new URL(rawValue)
+        if (parsed.protocol === 'http:' || parsed.protocol === 'https:') {
+          normalized[item.key] = { link: parsed.toString() }
+          continue
+        }
+      } catch {
+        // 落到下方 invalid 分支
+      }
+      invalidLabels.push(item.label)
+      continue
+    }
+    normalized[item.key] = { link: socialBaseUrls[item.key] + rawValue }
+  }
+
+  if (invalidLabels.length > 0) {
+    showError(t('settings.social.invalidLinks', { platforms: invalidLabels.join(', ') }))
+    return undefined
+  }
+  return normalized
+}
+
+async function uploadCoverAndSave() {
+  try {
+    const coverUrlFromUpload = await uploadCroppedCover()
+    await saveUserProfileCover(coverUrlFromUpload)
+    coverUrl.value = coverUrlFromUpload
+    coverDraft.value = coverUrlFromUpload
+    showStatus(t('user.coverSaved'))
+  } catch (err) {
+    if (err instanceof Error) showError(err.message)
   }
 }
 
@@ -418,6 +524,142 @@ async function loadBindings() {
   }
 }
 
+async function loadSessions() {
+  loadingSessions.value = true
+  try {
+    sessions.value = await listSessions()
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.sessionsLoadFailed'))
+  } finally {
+    loadingSessions.value = false
+  }
+}
+
+async function loadTotpStatus() {
+  try {
+    const status = await getTotpStatus()
+    totpEnabled.value = Boolean(status.enabled)
+  } catch {
+    // 状态查询失败时保持当前值（默认未启用），不打断设置页其余功能。
+  }
+}
+
+async function handleRevokeSession(id: number) {
+  revokingSessionId.value = id
+  try {
+    await revokeSession(id)
+    await loadSessions()
+    showStatus(t('settings.status.sessionRevoked'))
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.sessionRevokeFailed'))
+  } finally {
+    revokingSessionId.value = 0
+  }
+}
+
+async function handleRevokeAll() {
+  revokeAllConfirmOpen.value = false
+  revokingAll.value = true
+  try {
+    await revokeAllSessions()
+    // 当前会话已被吊销，后续请求都会 401；直接跳登录页让中间件重定向。
+    window.location.href = '/login'
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.sessionRevokeAllFailed'))
+  } finally {
+    revokingAll.value = false
+  }
+}
+
+
+async function startTotpSetup() {
+  if (!totpSetupPassword.value) {
+    showError(t('settings.security.totpPasswordRequired'))
+    return
+  }
+  totpLoading.value = true
+  try {
+    totpSetup.value = await getTotpSetup(totpSetupPassword.value)
+    totpSetupPassword.value = ''
+    totpSetupCode.value = ''
+    totpRecoveryCodes.value = []
+    totpQrUrl.value = ''
+    if (totpSetup.value.otpauthUrl) {
+      totpQrUrl.value = await toDataURL(totpSetup.value.otpauthUrl, { width: 180, margin: 1 })
+    }
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.totpSetupFailed'))
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+async function confirmTotpEnable() {
+  if (!totpSetupCode.value) {
+    showError(t('settings.security.totpCodeRequired'))
+    return
+  }
+  totpLoading.value = true
+  try {
+    const result = await enableTotp(totpSetupCode.value)
+    totpRecoveryCodes.value = result.recoveryCodes || []
+    totpEnabled.value = true
+    showStatus(t('settings.status.totpEnabled'))
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.totpEnableFailed'))
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+async function confirmTotpDisable() {
+  if (!totpDisableCode.value) {
+    showError(t('settings.security.totpCodeRequired'))
+    return
+  }
+  totpLoading.value = true
+  try {
+    await disableTotp(totpDisableCode.value)
+    totpEnabled.value = false
+    totpSetup.value = null
+    totpRecoveryCodes.value = []
+    totpDisableCode.value = ''
+    showStatus(t('settings.status.totpDisabled'))
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.totpDisableFailed'))
+  } finally {
+    totpLoading.value = false
+  }
+}
+
+function closeTotpSetup() {
+  totpSetup.value = null
+  totpSetupPending.value = false
+  totpSetupPassword.value = ''
+  totpSetupCode.value = ''
+  totpRecoveryCodes.value = []
+  totpQrUrl.value = ''
+}
+
+function sessionDeviceLabel(session: UserSessionPayload) {
+  const ua = session.userAgent || ''
+  if (ua.includes('Windows')) return 'Windows'
+  if (ua.includes('Macintosh') || ua.includes('Mac OS')) return 'macOS'
+  if (ua.includes('iPhone') || ua.includes('iPad')) return 'iOS'
+  if (ua.includes('Android')) return 'Android'
+  if (ua.includes('Linux')) return 'Linux'
+  return 'Unknown device'
+}
+
+function sessionBrowserLabel(session: UserSessionPayload) {
+  const ua = session.userAgent || ''
+  if (ua.includes('Edg/')) return 'Edge'
+  if (ua.includes('Firefox/')) return 'Firefox'
+  if (ua.includes('Chrome/')) return 'Chrome'
+  if (ua.includes('Safari/')) return 'Safari'
+  return 'Browser'
+}
+
 function isBound(provider: string) {
   return Boolean(bindings.value[provider]?.bound)
 }
@@ -432,7 +674,8 @@ async function toggleBinding(provider: string) {
   if (!item?.supported) return
 
   if (!isBound(provider)) {
-    window.location.href = `/api/auth/${provider}`
+    // Casdoor 走独立 OIDC 链路（PKCE），goth 的 /api/auth/:provider 不适用。
+    window.location.href = provider === 'casdoor' ? '/api/auth/oidc/login' : `/api/auth/${provider}`
     return
   }
 
@@ -492,7 +735,7 @@ async function toggleBinding(provider: string) {
 
             <div class="flex shrink-0 flex-col items-start gap-2 sm:items-end">
               <div class="flex flex-wrap items-center gap-2">
-                <div v-if="layout.viewer.canAccessAdmin" class="relative">
+                <div class="relative">
                   <button
                     type="button"
                     class="gf-button gf-button-md gf-button-secondary"
@@ -502,39 +745,68 @@ async function toggleBinding(provider: string) {
                     <Image class="h-4 w-4" />
                     {{ t('user.editCover') }}
                   </button>
-                  <form
+                  <div
                     v-if="editingCover"
-                    class="gf-menu-surface absolute left-0 top-11 z-20 w-80 max-w-[calc(100vw-2rem)] p-3 sm:left-auto sm:right-0"
-                    @submit.prevent="saveCover"
+                    class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-line bg-base-100 p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:top-11 sm:bottom-auto sm:left-auto sm:right-0 sm:w-80 sm:rounded-xl sm:border sm:bg-base-100 sm:p-3 sm:shadow-lg"
+                    role="dialog"
+                    aria-modal="false"
+                    :aria-label="t('user.editCover')"
                   >
-                    <label class="block">
-                      <span class="text-xs font-semibold text-base-content/55">{{ t('user.coverUrl') }}</span>
-                      <input
-                        v-model="coverDraft"
-                        type="url"
-                        class="gf-input mt-1 h-9"
-                        :placeholder="t('user.coverUrl')"
-                      />
-                    </label>
-                    <div class="mt-3 flex justify-end gap-2">
-                      <button
-                        type="button"
-                        class="gf-button gf-button-sm gf-button-secondary"
-                        :disabled="savingCover"
-                        @click="cancelCoverEditor"
-                      >
-                        {{ t('common.cancel') }}
-                      </button>
-                      <button
-                        type="submit"
-                        class="gf-button gf-button-sm gf-button-primary min-w-16 disabled:cursor-wait"
-                        :disabled="savingCover"
-                      >
-                        <Loader2 v-if="savingCover" class="h-4 w-4 animate-spin" />
-                        <span v-else>{{ t('common.save') }}</span>
+                    <div class="mb-3 flex items-center justify-between sm:hidden">
+                      <span class="text-sm font-semibold text-base-content">{{ t('user.editCover') }}</span>
+                      <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300" @click="cancelCoverEditor">
+                        {{ t('common.close') }}
                       </button>
                     </div>
-                  </form>
+                    <div class="flex items-center gap-3">
+                      <input ref="coverInput" type="file" class="hidden" accept="image/*" @change="handleCoverChange" />
+                      <button
+                        type="button"
+                        class="gf-button gf-button-md gf-button-primary flex-1"
+                        :disabled="uploadingCover"
+                        @click="openCoverPicker"
+                      >
+                        <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
+                        <Camera v-else class="h-4 w-4" />
+                        {{ t('settings.cover.upload') }}
+                      </button>
+                      <span class="text-xs text-base-content/55">{{ t('settings.cover.ratioHint') }}</span>
+                    </div>
+                    <div class="my-3 flex items-center gap-3 text-xs text-base-content/45">
+                      <span class="h-px flex-1 bg-line" />
+                      {{ t('settings.cover.orUrl') }}
+                      <span class="h-px flex-1 bg-line" />
+                    </div>
+                    <form class="space-y-3" @submit.prevent="saveCover">
+                      <label class="block">
+                        <span class="text-xs font-semibold text-base-content/55">{{ t('user.coverUrl') }}</span>
+                        <input
+                          v-model="coverDraft"
+                          type="url"
+                          class="gf-input mt-1 h-9"
+                          :placeholder="t('user.coverUrl')"
+                        />
+                      </label>
+                      <div class="flex justify-end gap-2">
+                        <button
+                          type="button"
+                          class="gf-button gf-button-sm gf-button-secondary"
+                          :disabled="savingCover || uploadingCover"
+                          @click="cancelCoverEditor"
+                        >
+                          {{ t('common.cancel') }}
+                        </button>
+                        <button
+                          type="submit"
+                          class="gf-button gf-button-sm gf-button-primary min-w-16 disabled:cursor-wait"
+                          :disabled="savingCover || uploadingCover"
+                        >
+                          <Loader2 v-if="savingCover" class="h-4 w-4 animate-spin" />
+                          <span v-else>{{ t('common.save') }}</span>
+                        </button>
+                      </div>
+                    </form>
+                  </div>
                 </div>
                 <button
                   type="button"
@@ -791,10 +1063,11 @@ async function toggleBinding(provider: string) {
               </label>
 
               <div class="border-t border-line pt-5">
-                <div class="mb-3 flex items-center gap-2">
+                <div class="mb-1 flex items-center gap-2">
                   <LinkIcon class="h-4 w-4 text-base-content/55" />
                   <h3 class="text-sm font-semibold text-base-content">{{ t('settings.profile.social') }}</h3>
                 </div>
+                <p class="mb-3 text-xs text-base-content/55">{{ t('settings.social.hint') }}</p>
                 <div class="grid gap-3 sm:grid-cols-2">
                   <label v-for="item in socialItems" :key="item.key" class="block">
                     <span class="inline-flex items-center gap-2 text-sm font-medium text-base-content/75">
@@ -805,7 +1078,7 @@ async function toggleBinding(provider: string) {
                       </span>
                       {{ item.label }}
                     </span>
-                    <input v-model="profileForm.externalInformation[item.key].link" class="gf-input mt-1" />
+                    <input v-model="profileForm.externalInformation[item.key].link" class="gf-input mt-1" :placeholder="t('settings.social.placeholder')" />
                   </label>
                 </div>
               </div>
@@ -933,6 +1206,182 @@ async function toggleBinding(provider: string) {
               </div>
             </div>
           </section>
+          <section v-show="activeTab === 'security'">
+            <SectionHeader :icon="Shield" :title="t('settings.security.title')" :description="t('settings.security.description')">
+              <template #actions>
+                <button type="button" class="text-xs font-medium text-primary hover:text-primary" @click="loadSessions">{{ t('settings.security.refresh') }}</button>
+              </template>
+            </SectionHeader>
+            <div class="space-y-3 border-b border-line p-4">
+              <div class="flex items-center justify-between gap-4 rounded-lg border border-line bg-base-100 p-4">
+                <div class="min-w-0">
+                  <h3 class="font-semibold text-base-content">{{ t('settings.security.totpTitle') }}</h3>
+                  <p class="mt-1 text-sm text-base-content/55">{{ t('settings.security.totpDescription') }}</p>
+                  <p v-if="totpEnabled" class="mt-1 text-sm font-medium text-success">{{ t('settings.security.totpEnabled') }}</p>
+                </div>
+                <div class="flex shrink-0 gap-2">
+                  <button
+                    v-if="!totpEnabled"
+                    type="button"
+                    class="gf-button gf-button-md gf-button-primary disabled:cursor-wait"
+                    :disabled="totpLoading"
+                    @click="totpSetupPending = true"
+                  >
+                    <Loader2 v-if="totpLoading" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.security.totpEnable') }}
+                  </button>
+                  <button
+                    v-else
+                    type="button"
+                    class="gf-button gf-button-md gf-button-muted disabled:cursor-wait"
+                    :disabled="totpLoading"
+                    @click="confirmTotpDisable"
+                  >
+                    {{ t('settings.security.totpDisable') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="!totpEnabled && totpSetupPending && !totpSetup" class="rounded-lg border border-line bg-base-100 p-4">
+                <label class="block">
+                  <span class="text-sm font-medium text-base-content/75">{{ t('settings.security.totpPasswordLabel') }}</span>
+                  <input
+                    v-model="totpSetupPassword"
+                    type="password"
+                    class="gf-input mt-1"
+                    :placeholder="t('settings.security.totpPasswordPlaceholder')"
+                    autocomplete="current-password"
+                    @keyup.enter="startTotpSetup"
+                  />
+                </label>
+                <div class="mt-3 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="totpSetupPending = false; totpSetupPassword = ''">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-md gf-button-primary shrink-0 disabled:cursor-wait" :disabled="totpLoading" @click="startTotpSetup">
+                    <Loader2 v-if="totpLoading" class="h-4 w-4 animate-spin" />
+                    {{ t('common.save') }}
+                  </button>
+                </div>
+              </div>
+
+              <div v-if="totpSetup" class="rounded-lg border border-line bg-base-100 p-4">
+                <h4 class="text-sm font-semibold text-base-content">{{ t('settings.security.totpSetupTitle') }}</h4>
+                <p class="mt-1 text-sm text-base-content/55">{{ t('settings.security.totpSetupHint') }}</p>
+                <div class="mt-3 flex flex-col items-center gap-3">
+                  <img v-if="totpQrUrl" :src="totpQrUrl" :alt="t('settings.security.totpQrAlt')" class="h-44 w-44 rounded-lg border border-line bg-base-200 object-contain" />
+                  <code class="rounded bg-base-200 px-2 py-1 font-mono text-sm text-base-content">{{ totpSetup.secret }}</code>
+                </div>
+                <div class="mt-3 flex gap-2">
+                  <input
+                    v-model="totpSetupCode"
+                    class="gf-input min-w-0 flex-1"
+                    :placeholder="t('settings.security.totpCodePlaceholder')"
+                    inputmode="numeric"
+                    maxlength="6"
+                  />
+                  <button type="button" class="gf-button gf-button-md gf-button-primary shrink-0 disabled:cursor-wait" :disabled="totpLoading" @click="confirmTotpEnable">
+                    <Loader2 v-if="totpLoading" class="h-4 w-4 animate-spin" />
+                    {{ t('common.save') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="closeTotpSetup">
+                    {{ t('common.cancel') }}
+                  </button>
+                </div>
+                <div v-if="totpRecoveryCodes.length > 0" class="mt-3 rounded-lg border border-warning/30 bg-warning/10 p-3">
+                  <p class="text-sm font-semibold text-warning">{{ t('settings.security.totpRecoveryTitle') }}</p>
+                  <p class="mt-1 text-xs text-base-content/55">{{ t('settings.security.totpRecoveryHint') }}</p>
+                  <div class="mt-2 grid grid-cols-2 gap-1 font-mono text-sm text-base-content">
+                    <span v-for="code in totpRecoveryCodes" :key="code">{{ code }}</span>
+                  </div>
+                </div>
+              </div>
+
+              <div v-if="totpEnabled && !totpSetup" class="flex gap-2">
+                <input
+                  v-model="totpDisableCode"
+                  class="gf-input min-w-0 flex-1"
+                  :placeholder="t('settings.security.totpCodePlaceholder')"
+                  inputmode="numeric"
+                  maxlength="6"
+                />
+                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0 disabled:cursor-wait" :disabled="totpLoading" @click="confirmTotpDisable">
+                  {{ t('settings.security.totpDisable') }}
+                </button>
+              </div>
+            </div>
+            <div v-if="loadingSessions" class="p-4 py-8 text-center text-sm text-base-content/55">
+              <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+              {{ t('settings.security.loading') }}
+            </div>
+            <div v-else class="space-y-3 p-4">
+              <div
+                v-for="session in sessions"
+                :key="session.id"
+                class="flex items-center justify-between gap-4 rounded-lg border border-line bg-base-100 p-4"
+              >
+                <div class="flex min-w-0 items-center gap-3">
+                  <div class="flex h-11 w-11 shrink-0 items-center justify-center rounded-full border border-line bg-base-100 shadow-sm">
+                    <CalendarDays class="h-5 w-5 text-base-content/60" />
+                  </div>
+                  <div class="min-w-0">
+                    <h3 class="flex items-center gap-2 font-semibold text-base-content">
+                      {{ sessionDeviceLabel(session) }}
+                      <span v-if="session.isCurrent" class="gf-badge gf-badge-info rounded text-[11px]">{{ t('settings.security.current') }}</span>
+                    </h3>
+                    <p class="truncate text-sm text-base-content/55">
+                      {{ sessionBrowserLabel(session) }} · {{ session.ipMasked || '—' }}
+                    </p>
+                    <p class="text-xs text-base-content/45">
+                      {{ formatDate(new Date(session.createdAt).toISOString()) }}
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  class="inline-flex h-9 min-w-24 shrink-0 items-center justify-center gap-2 rounded-md border border-error/30 bg-error/10 px-3 text-sm font-semibold text-error hover:bg-error/10 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="session.isCurrent || revokingSessionId === session.id"
+                  @click="handleRevokeSession(session.id)"
+                >
+                  <Loader2 v-if="revokingSessionId === session.id" class="h-4 w-4 animate-spin" />
+                  {{ t('settings.security.revoke') }}
+                </button>
+              </div>
+              <div v-if="sessions.length === 0" class="rounded-lg border border-line bg-base-200/70 p-6 text-center text-sm text-base-content/55">
+                {{ t('settings.security.empty') }}
+              </div>
+              <div class="border-t border-line pt-4">
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-error min-w-28 disabled:cursor-wait"
+                  :disabled="revokingAll"
+                  @click="revokeAllConfirmOpen = true"
+                >
+                  <Loader2 v-if="revokingAll" class="h-4 w-4 animate-spin" />
+                  {{ t('settings.security.revokeAll') }}
+                </button>
+                <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
+              </div>
+            </div>
+          </section>
+
+          <div v-if="revokeAllConfirmOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
+            <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
+              <div class="gf-menu-surface w-full p-5">
+                <h2 class="text-base font-semibold text-base-content">{{ t('settings.security.revokeAllConfirmTitle') }}</h2>
+                <p class="mt-2 text-sm leading-relaxed text-base-content/70">{{ t('settings.security.revokeAllConfirmDescription') }}</p>
+                <div class="mt-5 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="revokeAllConfirmOpen = false">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-lg gf-button-error font-medium" :disabled="revokingAll" @click="handleRevokeAll">
+                    <Loader2 v-if="revokingAll" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.security.revokeAllConfirm') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
       </section>
 
@@ -983,6 +1432,58 @@ async function toggleBinding(provider: string) {
               >
                 <Loader2 v-if="uploadingAvatar" class="h-4 w-4 animate-spin" />
                 {{ uploadingAvatar ? t('settings.avatar.uploading') : t('settings.avatar.confirmUpload') }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div v-if="coverCropModalOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
+        <div class="mx-auto flex min-h-full max-w-[760px] items-center justify-center">
+          <div class="gf-menu-surface flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden">
+            <div class="flex items-center justify-between border-b border-line px-5 py-3">
+              <div>
+                <h2 class="text-base font-semibold text-base-content">{{ t('settings.cover.cropTitle') }}</h2>
+                <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.cover.cropDescription') }}</p>
+              </div>
+              <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300 hover:text-base-content" @click="closeCoverCropModal">
+                {{ t('common.close') }}
+              </button>
+            </div>
+
+            <div class="grid gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(280px,440px)_180px] md:items-start md:justify-center">
+              <div class="cover-crop-workspace aspect-[4/1] w-full max-w-[440px] justify-self-center overflow-hidden rounded-lg border border-line bg-base-200">
+                <img ref="coverCropperImage" :src="coverCropImageUrl" :alt="t('settings.cover.cropAlt')" class="block" />
+              </div>
+
+              <aside class="grid gap-4 sm:grid-cols-[200px_minmax(0,1fr)] md:block md:space-y-4">
+                <div class="min-w-0">
+                  <div class="mb-2 text-sm font-semibold text-base-content">{{ t('settings.avatar.preview') }}</div>
+                  <div class="flex h-20 w-80 max-w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-base-200">
+                    <img v-if="coverCropPreviewUrl" :src="coverCropPreviewUrl" :alt="t('settings.avatar.previewAlt')" class="h-full w-full object-cover" />
+                  </div>
+                </div>
+                <div class="self-start rounded-lg bg-base-200 p-3 text-sm leading-6 text-base-content/55">
+                  {{ t('settings.cover.cropTip') }}
+                </div>
+              </aside>
+            </div>
+
+            <div v-if="coverCropError" class="border-t border-error/20 bg-error/10 px-5 py-3 text-sm font-medium text-error">
+              {{ coverCropError }}
+            </div>
+
+            <div class="flex items-center justify-end gap-2 border-t border-line bg-base-200 px-5 py-3">
+              <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="closeCoverCropModal">
+                {{ t('common.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-lg gf-button-primary min-w-28 disabled:cursor-wait"
+                :disabled="uploadingCover"
+                @click="uploadCoverAndSave"
+              >
+                <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
+                {{ uploadingCover ? t('settings.cover.uploading') : t('settings.cover.confirmUpload') }}
               </button>
             </div>
           </div>

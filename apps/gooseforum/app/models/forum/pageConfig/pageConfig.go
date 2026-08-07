@@ -34,18 +34,21 @@ func (itself *Entity) TableName() string {
 }
 
 const (
-	FriendShipLinks  = `friendShipLinks`
-	SponsorsPage     = `sponsors`
-	SiteSettings     = `siteSettings`
-	EmailSettings    = `emailSetting`
-	Announcement     = `announcement`
-	SecuritySettings = `securitySettings`
-	PostingSettings  = `postingSettings`
-	HttpNotify       = `httpNotify`
-	SiteTheme        = `siteTheme`
-	SiteChrome       = `siteChrome`
-	Version          = `version`
-	Migration        = `migration`
+	FriendShipLinks     = `friendShipLinks`
+	SponsorsPage        = `sponsors`
+	SiteSettings        = `siteSettings`
+	EmailSettings       = `emailSetting`
+	Announcement        = `announcement`
+	SecuritySettings    = `securitySettings`
+	StorageSettingsPage = `storageSettings`
+	TermsOfService      = `termsOfService`
+	PostingSettings     = `postingSettings`
+	HttpNotify          = `httpNotify`
+	SiteTheme           = `siteTheme`
+	SiteChrome          = `siteChrome`
+	RateLimitSettings   = `rateLimitSettings`
+	Version             = `version`
+	Migration           = `migration`
 )
 
 type LinkItem struct {
@@ -166,12 +169,21 @@ type MailSettingsConfig struct {
 	FromEmail    string `json:"fromEmail"`
 }
 
+// AnnouncementItem 单则公告（多则公告模式）
+type AnnouncementItem struct {
+	ID      string `json:"id"`      // 稳定标识，用于前端轮播 key
+	Title   string `json:"title"`   // 公告标题（可空，仅展示时优先）
+	Content string `json:"content"` // Markdown 内容
+	Enabled bool   `json:"enabled"` // 是否启用
+}
+
 // AnnouncementConfig 公告设置配置
 type AnnouncementConfig struct {
-	Enabled     bool   `json:"enabled"`               // 是否启用公告
-	Content     string `json:"content"`               // 公告内容
-	PublishedAt string `json:"publishedAt,omitempty"` // 公告生效时间
-	HtmlContent string `json:"-"`                     // 预渲染后的 HTML，仅服务端使用
+	Enabled     bool               `json:"enabled"`               // 是否启用公告
+	Content     string             `json:"content"`               // 兼容：单则模式公告内容
+	PublishedAt string             `json:"publishedAt,omitempty"` // 公告生效时间
+	Items       []AnnouncementItem `json:"items,omitempty"`       // 多则公告列表（非空时优先于单则 Content）
+	HtmlContent string             `json:"-"`                     // 预渲染后的 HTML，仅服务端使用
 }
 
 func (itself *AnnouncementConfig) PrepareHTML() {
@@ -188,10 +200,67 @@ func (itself AnnouncementConfig) GetHtmlContent() string {
 	return markdown2html.MarkdownToHTML(itself.Content)
 }
 
+// GetActiveItems 返回启用中的多则公告（含预渲染 HTML），
+// 供首页轮播与多则展示使用；未配置多则时返回空。
+func (itself AnnouncementConfig) GetActiveItems() []AnnouncementItem {
+	items := make([]AnnouncementItem, 0, len(itself.Items))
+	for _, item := range itself.Items {
+		if !item.Enabled || strings.TrimSpace(item.Content) == "" {
+			continue
+		}
+		items = append(items, AnnouncementItem{
+			ID:      item.ID,
+			Title:   item.Title,
+			Content: item.Content,
+			Enabled: true,
+		})
+	}
+	return items
+}
+
 type SecurityAndRegistration struct {
 	EnableSignup            bool     `json:"enableSignup"`
 	EnableEmailVerification bool     `json:"enableEmailVerification"`
 	AllowedDomains          []string `json:"allowedDomains"`
+	ReservedUsernames       []string `json:"reservedUsernames"` // 保留用户名：注册/改名拒绝
+	BannedUsernames         []string `json:"bannedUsernames"`   // 禁用用户名：注册/改名拒绝，存量账号自动冻结
+	SensitiveWords          []string `json:"sensitiveWords"`    // 敏感词：命中后按 SensitiveAction 处理
+	SensitiveAction         string   `json:"sensitiveAction"`   // block=直接拦截 review=转人工审核
+	CaptchaRequired         bool     `json:"captchaRequired"`   // 注册/登录/找回密码是否要求验证码
+}
+
+// StorageSettingsConfig 存储设置配置（本地 SQLite BLOB 或 S3 兼容对象存储）
+type StorageSettings struct {
+	Provider        string `json:"provider"`        // local | s3
+	Endpoint        string `json:"endpoint"`        // S3 兼容 endpoint，如 https://cos.ap-shanghai.myqcloud.com
+	Bucket          string `json:"bucket"`          // 存储桶
+	Region          string `json:"region"`          // 区域（COS/OSS 必须，R2 可忽略）
+	BucketLookup    string `json:"bucketLookup"`    // auto | dns | path（COS 需 dns，MinIO/R2 可 auto/path）
+	Secure          bool   `json:"secure"`          // 是否使用 HTTPS
+	AccessKey       string `json:"accessKey"`       // 访问密钥
+	SecretKey       string `json:"secretKey"`       // 私密密钥
+	PublicUrlPrefix string `json:"publicUrlPrefix"` // 可选公开访问前缀（CDN），留空则走 /file/img 代理
+}
+
+// TermsOfServiceConfig 服务条款配置
+type TermsOfServiceConfig struct {
+	Enabled     bool   `json:"enabled"` // 是否启用服务条款
+	Content     string `json:"content"` // 条款内容（markdown）
+	HtmlContent string `json:"-"`       // 预渲染后的 HTML，仅服务端使用
+}
+
+func (itself *TermsOfServiceConfig) PrepareHTML() {
+	if itself == nil || itself.HtmlContent != "" || itself.Content == "" {
+		return
+	}
+	itself.HtmlContent = markdown2html.MarkdownToHTML(itself.Content)
+}
+
+func (itself TermsOfServiceConfig) GetHtmlContent() string {
+	if itself.HtmlContent != "" || itself.Content == "" {
+		return itself.HtmlContent
+	}
+	return markdown2html.MarkdownToHTML(itself.Content)
 }
 
 type PostingContent struct {
@@ -209,6 +278,24 @@ type PostingContent struct {
 		MaxDailyUploadsPerUser       int      `json:"maxDailyUploadsPerUser"`
 		NewUserUploadCooldownMinutes int      `json:"newUserUploadCooldownMinutes"`
 	} `json:"uploadControl"`
+}
+
+// RateLimitRule 单个动作的限流配额。Action 取值见 rateLimitActions。
+type RateLimitRule struct {
+	Action        string `json:"action"`
+	WindowSeconds int    `json:"windowSeconds"`
+	LimitPerIp    int    `json:"limitPerIp"`
+	LimitPerUser  int    `json:"limitPerUser"`
+}
+
+// RateLimitConfig 滥用防护配置，全部数值可在管理面板热修改。
+type RateLimitConfig struct {
+	Enabled                  bool            `json:"enabled"`                  // 总开关
+	SkipAdmin                bool            `json:"skipAdmin"`                // 管理员豁免
+	Actions                  []RateLimitRule `json:"actions"`                  // 各动作配额
+	NewUserCaptchaAfterPosts int             `json:"newUserCaptchaAfterPosts"` // 新用户窗口内连发 N 帖后要求验证码，0 关闭
+	NewUserCaptchaDays       int             `json:"newUserCaptchaDays"`       // 新用户判定窗口（注册 N 天内），0 表示所有用户
+	MinSubmitSeconds         int             `json:"minSubmitSeconds"`         // 验证码提交耗时下限（秒），低于判定为机器
 }
 
 type HttpNotifyConfig struct {

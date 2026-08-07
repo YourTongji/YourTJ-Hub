@@ -152,3 +152,74 @@ func TestVerifyTokenWithFresh(t *testing.T) {
 		t.Fatalf("VerifyToken userId = %d, want %d", userId, userID)
 	}
 }
+
+func TestGenerateJti(t *testing.T) {
+	jti1, err := GenerateJti()
+	if err != nil {
+		t.Fatal(err)
+	}
+	jti2, err := GenerateJti()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(jti1) != 32 {
+		t.Fatalf("jti length = %d, want 32", len(jti1))
+	}
+	if jti1 == jti2 {
+		t.Fatal("jti must be unique per call")
+	}
+}
+
+func TestCreateSessionTokenJtiPreservedOnRefresh(t *testing.T) {
+	token, jti, err := CreateSessionToken(42, 1)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if jti == "" {
+		t.Fatal("expected non-empty jti")
+	}
+
+	claims, newToken, err := VerifyTokenWithFreshClaims(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Jti != jti {
+		t.Fatalf("claims.Jti = %q, want %q", claims.Jti, jti)
+	}
+	if claims.Purpose != "" {
+		t.Fatalf("session token purpose = %q, want empty", claims.Purpose)
+	}
+	if newToken != token {
+		refreshed, _, err := VerifyTokenWithFreshClaims(newToken)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if refreshed.Jti != jti {
+			t.Fatalf("refreshed jti = %q, want %q", refreshed.Jti, jti)
+		}
+	}
+}
+
+func TestCreateChallengeTokenPurpose(t *testing.T) {
+	token, err := CreateChallengeToken(7, 0, PurposeTotpChallenge, 5*time.Minute)
+	if err != nil {
+		t.Fatal(err)
+	}
+	claims, _, err := VerifyTokenWithFreshClaims(token)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if claims.Purpose != PurposeTotpChallenge {
+		t.Fatalf("purpose = %q, want %q", claims.Purpose, PurposeTotpChallenge)
+	}
+	if claims.Jti == "" {
+		t.Fatal("challenge token should carry a jti")
+	}
+	exp, err := claims.GetExpirationTime()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if exp.Time.Before(time.Now()) {
+		t.Fatal("challenge token should not be expired yet")
+	}
+}

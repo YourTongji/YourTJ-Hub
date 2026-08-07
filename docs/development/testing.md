@@ -52,6 +52,12 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 - ci-backend.yml: go vet + go test + go build (apps/gooseforum/app/**, main.go, go.mod, go.sum); the
   PostgreSQL integration tests in `app/bundles/connect/sqlconnect` are gated by `TEST_PG_DSN` and
   skip when unset (CI stays green without a PG service)
+- ci-backend.yml also runs `ci-backend-pg`: a real `postgres:16-alpine` service + the migration
+  schema tests in `app/migration/migration_pg_test.go` (`TestSchemaMigratesOnPostgreSQL`,
+  `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL`), gated by `YOURTJ_TEST_PG_URL` (set in CI, skipped
+  locally when unset). **Any model/migration change must pass these PG tests** — models must not
+  hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
+  and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
 - ci-frontend.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
 - ci-contract.yml: openapi validation + no-diff generation + fixture (apps/gooseforum/app/**, packages/**)
 

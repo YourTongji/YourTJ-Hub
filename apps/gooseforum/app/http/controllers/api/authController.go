@@ -5,13 +5,15 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/bundles/logincrypto"
 	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/leancodebox/GooseForum/app/service/moderationservice"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 
 	"log/slog"
@@ -25,10 +27,16 @@ import (
 )
 
 func Logout(c *gin.Context) {
+	token := jwt.GetGinAccessToken(c)
+	if claims, _, err := jwt.VerifyTokenWithFreshClaims(token); err == nil && claims.Jti != "" {
+		if err := sessionservice.RevokeByJti(claims.UserId, claims.Jti); err != nil {
+			slog.Error("Logout revoke session failed", "userId", claims.UserId, "jti", claims.Jti, "error", err)
+			c.JSON(http.StatusOK, component.FailDataCode(component.MessageSessionRevokeFailed, nil))
+			return
+		}
+	}
 	jwt.TokenClean(c)
-	c.JSON(http.StatusOK, component.SuccessData(
-		"👋",
-	))
+	c.JSON(http.StatusOK, component.SuccessData("logout"))
 }
 
 // Register 注册
@@ -50,6 +58,13 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// 蜜罐字段：正常用户不可见，填了即机器，静默拒绝（返回成功但不创建账号）。
+	if strings.TrimSpace(r.Website) != "" {
+		slog.Warn("honeypot_hit", "action", "register", "ip", c.ClientIP(), "userId", uint64(0))
+		c.JSON(http.StatusOK, component.SuccessDataCode("登录成功", component.MessageAuthLoginSuccess, nil))
+		return
+	}
+
 	r.Username = strings.TrimSpace(r.Username)
 	r.Email = strings.TrimSpace(strings.ToLower(r.Email))
 
@@ -63,13 +78,23 @@ func Register(c *gin.Context) {
 		return
 	}
 
+	// 保留/禁用用户名检查
+	if _, err := moderationservice.CheckUsernameAllowed(r.Username); err != nil {
+		c.JSON(200, component.FailDataError(err))
+		return
+	}
+
 	if err := component.ValidatePassword(r.Password, 6); err != nil {
 		c.JSON(200, component.FailDataError(err))
 		return
 	}
 
-	if !captchaOpt.VerifyCaptcha(r.CaptchaId, r.CaptchaCode) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+	if ok, needCaptcha := checkCaptchaForRequest(c, r.CaptchaId, r.CaptchaCode, securityConfig.CaptchaRequired, minSubmitSecondsFor(), "register"); !ok {
+		if needCaptcha {
+			c.JSON(200, component.FailDataCode(component.MessageCaptchaRequired, component.MessageParams{"action": "register"}))
+		} else {
+			c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+		}
 		return
 	}
 
@@ -114,8 +139,13 @@ func Register(c *gin.Context) {
 		})
 	}
 
-	token, err := jwt.CreateNewTokenDefaultWithVersion(userEntity.Id, userEntity.TokenVersion)
+	token, jti, err := jwt.CreateSessionToken(userEntity.Id, userEntity.TokenVersion)
 	if err != nil {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterRetryLogin, nil))
+		return
+	}
+	if err = sessionservice.Create(userEntity.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+		slog.Error("注册创建会话失败", "userId", userEntity.Id, "error", err)
 		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterRetryLogin, nil))
 		return
 	}
@@ -182,8 +212,12 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	if !captchaOpt.VerifyCaptcha(captchaId, captchaCode) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+	if ok, needCaptcha := checkCaptchaForRequest(c, captchaId, captchaCode, hotdataserve.GetSecuritySettingsConfigCache().CaptchaRequired, minSubmitSecondsFor(), "login"); !ok {
+		if needCaptcha {
+			c.JSON(200, component.FailDataCode(component.MessageCaptchaRequired, component.MessageParams{"action": "login"}))
+		} else {
+			c.JSON(200, component.FailDataCode(component.MessageAuthCaptchaInvalid, nil))
+		}
 		return
 	}
 
@@ -200,9 +234,43 @@ func Login(c *gin.Context) {
 		return
 	}
 
-	token, err := jwt.CreateNewTokenDefaultWithVersion(userEntity.Id, userEntity.TokenVersion)
+	// 封禁用户不允许登录（与 OIDC/goth 路径的冻结检查一致）。
+	if userEntity.IsFrozen == users.StatusFrozen {
+		c.JSON(200, component.FailDataCode(component.MessageAuthAccountFrozen, nil))
+		return
+	}
+	if totpservice.IsEnabled(userEntity.Id) {
+		challengeToken, challengeJti, err := jwt.CreateChallengeTokenWithJti(userEntity.Id, userEntity.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+		if err != nil {
+			slog.Error("生成两步验证 challenge token 失败", "userId", userEntity.Id, "error", err)
+			c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+			return
+		}
+		if err := totpservice.SaveChallenge(userEntity.Id, challengeJti, 5*time.Minute); err != nil {
+			slog.Error("Save TOTP challenge failed", "userId", userEntity.Id, "error", err)
+			c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+			return
+		}
+		jwt.TokenSettingWithMaxAge(c, challengeToken, 5*time.Minute)
+		c.JSON(http.StatusOK, component.SuccessDataCode(
+			map[string]any{
+				"twoFactorRequired": true,
+				"message":           "请输入两步验证码",
+			},
+			component.MessageAuthTotpRequired,
+			nil,
+		))
+		return
+	}
+
+	token, jti, err := jwt.CreateSessionToken(userEntity.Id, userEntity.TokenVersion)
 	if err != nil {
 		slog.Error("生成 token 失败", "userId", userEntity.Id, "error", err)
+		c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
+		return
+	}
+	if err = sessionservice.Create(userEntity.Id, jti, c.Request.UserAgent(), c.ClientIP()); err != nil {
+		slog.Error("创建会话失败", "userId", userEntity.Id, "error", err)
 		c.JSON(200, component.FailDataCode(component.MessageAuthLoginFailed, nil))
 		return
 	}

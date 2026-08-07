@@ -8,10 +8,12 @@ type TopicsSimpleVo struct {
 	Title          string     `json:"title,omitempty"`
 	Description    string     `json:"description,omitempty"`
 	FirstImageURL  string     `json:"firstImageUrl,omitempty"`
+	ImageUrls      []string   `json:"imageUrls,omitempty"`
 	Content        string     `json:"content,omitempty"`
 	CreateTime     string     `json:"createTime,omitempty"`
 	LastUpdateTime string     `json:"lastUpdateTime,omitempty"`
 	Username       string     `json:"username,omitempty"`
+	Nickname       string     `json:"nickname,omitempty"`
 	AuthorId       uint64     `json:"authorId,omitempty"`
 	ViewCount      uint64     `json:"viewCount"`
 	CommentCount   uint64     `json:"commentCount"`
@@ -29,5 +31,6 @@ type TopicsSimpleVo struct {
 type PosterVo struct {
 	Id        uint64 `json:"id"`
 	Username  string `json:"username"`
+	Nickname  string `json:"nickname,omitempty"`
 	AvatarUrl string `json:"avatarUrl"`
 }

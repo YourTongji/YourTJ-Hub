@@ -48,6 +48,7 @@ export interface LoginPageProps {
   redirectUrl: string
   githubUrl: string
   googleReady: boolean
+  casdoorUrl?: string
 }
 
 export interface ResetPasswordPageProps {
@@ -280,6 +281,7 @@ export interface HomeProps {
     enabled: boolean
     html: string
     publishedAt?: string
+    items?: Array<{ id: string; title: string; html: string }>
   }
 }
 
@@ -304,6 +306,7 @@ export interface TopicDetailPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -332,6 +335,7 @@ export interface PostPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -341,6 +345,9 @@ export interface PostPayload {
   replyToUsername?: string
   isOwnPost: boolean
   updatedAt?: string
+  likeCount: number
+  isLiked: boolean
+  isBookmarked: boolean
 }
 
 export interface ReplyTargetPayload {
@@ -349,6 +356,7 @@ export interface ReplyTargetPayload {
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -372,10 +380,13 @@ export interface TopicPayload {
   id: number
   title: string
   description: string
+  firstImageUrl?: string
+  images?: string[]
   url: string
   author: {
     id: number
     username: string
+    nickname?: string
     avatarUrl: string
     wornBadge?: UserBadgePayload | null
   }
@@ -493,8 +504,8 @@ export interface UserCardPayload {
 
 export interface UserProfileProps {
   user: UserCardPayload
-  section: 'summary' | 'activity' | 'badges'
-  activityTab: 'timeline' | 'topics' | 'likes' | 'following' | 'followers'
+  section: 'summary' | 'activity' | 'badges' | 'bookmarks'
+  activityTab: 'timeline' | 'topics' | 'likes' | 'bookmarks' | 'following' | 'followers'
   tabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   activityTabs: Array<{ key: string; label?: string; url: string; active: boolean }>
   pagination: PaginationPayload
@@ -502,6 +513,7 @@ export interface UserProfileProps {
   topics: TopicPayload[]
   activities: UserActivityPayload[]
   likes: UserLikePayload[]
+  bookmarks: UserBookmarkPayload[]
   following: UserConnectionPayload[]
   followers: UserConnectionPayload[]
   isOwnProfile: boolean
@@ -550,6 +562,18 @@ export interface UserLikePayload {
   title: string
   url: string
   likedAt: string
+}
+
+export interface UserBookmarkPayload {
+  id: number
+  type: 'topic' | 'post'
+  topicId: number
+  postId?: number
+  postNo?: number
+  title: string
+  excerpt?: string
+  url: string
+  bookmarkedAt: string
 }
 
 export interface UserConnectionPayload {
@@ -606,6 +630,11 @@ export interface SponsorsPageProps {
   content: SponsorsPageIntroPayload
   contact: SponsorsContactPayload
   rules: SponsorsRulePayload[]
+}
+
+export interface TermsPageProps {
+  enabled: boolean
+  contentHtml: string
 }
 
 export interface SponsorSectionPayload {
@@ -805,10 +834,32 @@ export interface PublishCategoryPayload {
   color: string
 }
 
+export interface UserSearchPayload {
+  id: number
+  username: string
+  nickname: string
+  avatarUrl: string
+  bio: string
+}
+
+export interface CategorySearchPayload {
+  id: number
+  name: string
+  slug: string
+  icon: string
+  color: string
+  desc: string
+}
+
 export interface SearchPageProps {
   query: string
+  scope: string
   topics: TopicPayload[]
+  users: UserSearchPayload[]
+  categories: CategorySearchPayload[]
   total: number
+  usersTotal: number
+  categoriesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -816,5 +867,6 @@ export interface SearchPageProps {
     hasNext: boolean
     nextUrl: string
   }
+  failedScopes?: string[]
   searchUnavailable?: boolean
 }

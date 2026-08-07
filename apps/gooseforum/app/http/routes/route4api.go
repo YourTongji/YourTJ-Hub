@@ -3,6 +3,8 @@ package routes
 import (
 	"log/slog"
 	"net/http"
+	"net/http/httputil"
+	"net/url"
 
 	"github.com/gin-contrib/gzip"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
@@ -32,10 +34,31 @@ func assertRouter(ginApp *gin.Engine) {
 	} else {
 		slog.Info("static assets gzip disabled", "cache", false)
 	}
+	// dev 模式：/assets/* 反向代理到 Vite 开发服务器（同源相对路径，本机与局域网均可访问）
+	if devServer := viteDevServerURL(); devServer != "" {
+		target, err := url.Parse(devServer)
+		if err != nil {
+			slog.Error("vite dev server url parse", "err", err)
+		} else {
+			proxy := httputil.NewSingleHostReverseProxy(target)
+			staticRoute.Any("assets/*path", gin.WrapH(proxy))
+			slog.Info("assets proxied to vite dev server", "target", devServer)
+		}
+	} else {
+		staticRoute.StaticFS("assets", http.FS(assetsFs))
+	}
 	staticRoute.
 		Use(middleware.BrowserCache).
-		StaticFS("assets", http.FS(assetsFs)).
 		StaticFS("static", http.FS(staticFS))
+}
+
+func viteDevServerURL() string {
+	// 生产环境无条件禁用 Vite 代理：即使配置了 resource.devServer，
+	// 也不能把 /assets/* 代理到开发服务器（避免生产事故）。
+	if setting.IsProduction() {
+		return ""
+	}
+	return preferences.GetString("resource.devServer", "http://localhost:3010")
 }
 
 func viewRoute(ginApp *gin.Engine) {
@@ -79,6 +102,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
+	viewRouteApp.GET("/terms", forum.Terms)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -94,17 +118,20 @@ func siteInfoRoute(ginApp *gin.Engine) {
 func apiRoute(ginApp *gin.Engine) {
 	baseApi := ginApp.Group("api")
 
-	baseApi.POST("login", api.Login)
+	baseApi.POST("login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
 	baseApi.GET("login-public-key", api.LoginPublicKey)
-	baseApi.POST("register", api.Register)
+	baseApi.POST("register", middleware.RateLimit(middleware.RateLimitRegister), api.Register)
 	baseApi.POST("logout", api.Logout)
 
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
-	baseApi.POST("forgot-password", UpButterReq(api.ForgotPassword))
+	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
 	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
+	baseApi.GET("auth/oidc/login", api.OidcLogin)
+	baseApi.GET("auth/oidc/callback", middleware.JWTAuth, api.OidcCallback)
+	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 
 	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
@@ -114,13 +141,21 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
-	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, api.UploadAvatar)
+	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
 	loginApi.POST("change-password", middleware.CheckWritableAccount, UpButterReq(api.ChangePassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
+	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
+	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
+	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
+	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
+	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
+	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
@@ -128,16 +163,18 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.GET("notifications", middleware.NoUpdateUserActivity, UpQueryReq(api.NotificationList))
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
-	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, UpButterReq(api.WriteTopic))
+	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, UpButterReq(api.UpdateTopicStatus))
-	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, UpButterReq(api.CreatePost))
+	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))
-	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, UpButterReq(api.LikeTopic))
-	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, UpButterReq(api.BookmarkTopic))
-	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, UpButterReq(api.WatchTopic))
-	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, UpButterReq(api.FollowUser))
-	forumLoginApi.POST("report", middleware.CheckWritableAccount, UpButterReq(forum.CreateReport))
+	forumLoginApi.POST("posts/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikePost))
+	forumLoginApi.POST("posts/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkPost))
+	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikeTopic))
+	forumLoginApi.POST("topics/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkTopic))
+	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
+	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.FollowUser))
+	forumLoginApi.POST("report", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(forum.CreateReport))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
@@ -145,7 +182,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
-	chatApi.POST("send", middleware.CheckWritableAccount, UpButterReq(api.SendMessage))
+	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
 
@@ -210,18 +247,33 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-security-settings", UpButterReq(api.SaveSecuritySettings)).
 		GET("posting-settings", UpButterReq(api.GetPostingSettings)).
 		POST("save-posting-settings", UpButterReq(api.SavePostingSettings)).
+		GET("rate-limit-settings", UpButterReq(api.GetRateLimitSettings)).
+		POST("save-rate-limit-settings", UpButterReq(api.SaveRateLimitSettings)).
+		GET("storage-settings", UpButterReq(api.GetStorageSettings)).
+		POST("save-storage-settings", UpButterReq(api.SaveStorageSettings)).
+		POST("test-storage-connection", UpButterReq(api.TestStorageConnection)).
+		POST("storage-migrate-task", UpButterReq(api.CreateStorageMigrateTask)).
+		GET("storage-migrate-tasks", UpButterReq(api.GetStorageMigrateTasks)).
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
+		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
+		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
-		POST("img-upload", api.SaveAdminImgByGinContext)
+		POST("img-upload", api.SaveAdminImgByGinContext).
+		POST("data/export", UpButterReq(api.CreateExportTask)).
+		GET("data/export/tasks", UpButterReq(api.ListExportTasks)).
+		GET("data/export/download/:taskId", api.DownloadExportTask).
+		POST("data/import", api.ImportData).
+		POST("review-queue", UpButterReq(api.ReviewQueue)).
+		POST("review-action", UpButterReq(api.ReviewAction))
 
 }
 
 func fileServer(ginApp *gin.Engine) {
 	r := ginApp.Group("file")
-	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, api.SaveImgByGinContext)
+	r.POST("/img-upload", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.SaveImgByGinContext)
 	r.GET("/img/*filename", api.GetFileByFileName)
 }

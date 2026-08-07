@@ -73,12 +73,50 @@ func GetSecuritySettingsConfigCache() pageConfig.SecurityAndRegistration {
 	}, configFastCacheTTL)
 }
 
+var storageSettingsConfigCache = &localcache.Cache[pageConfig.StorageSettings]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetStorageSettingsConfigCache() pageConfig.StorageSettings {
+	return storageSettingsConfigCache.GetOrLoad("", func() (pageConfig.StorageSettings, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, defaultconfig.GetDefaultStorageSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+var termsOfServiceConfigCache = &localcache.Cache[pageConfig.TermsOfServiceConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetTermsOfServiceConfigCache() pageConfig.TermsOfServiceConfig {
+	return termsOfServiceConfigCache.GetOrLoad("", func() (pageConfig.TermsOfServiceConfig, error) {
+		config := pageConfig.GetConfigByPageType(pageConfig.TermsOfService, defaultconfig.GetDefaultTermsOfServiceConfig())
+		config.PrepareHTML()
+		return config, nil
+	}, configFastCacheTTL)
+}
+
+func ClearStorageSettingsConfigCache() {
+	storageSettingsConfigCache.Clear()
+}
+
+func ClearTermsOfServiceConfigCache() {
+	termsOfServiceConfigCache.Clear()
+}
+
 var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{MaxEntries: cacheconfig.Current().PageConfig}
 
 func GetPostingSettingsConfigCache() pageConfig.PostingContent {
 	return postingSettingsConfigCache.GetOrLoad("", func() (pageConfig.PostingContent, error) {
 		return pageConfig.GetConfigByPageType(pageConfig.PostingSettings, defaultconfig.GetDefaultPostingSettingsConfig()), nil
 	}, configFastCacheTTL)
+}
+
+var rateLimitConfigCache = &localcache.Cache[pageConfig.RateLimitConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
+	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearRateLimitConfigCache() {
+	rateLimitConfigCache.Clear()
 }
 
 var httpNotifyConfigCache = &localcache.Cache[pageConfig.HttpNotifyConfig]{MaxEntries: cacheconfig.Current().PageConfig}

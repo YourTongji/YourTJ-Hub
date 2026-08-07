@@ -21,6 +21,9 @@ type pageConfigDefaults struct {
 	Site         pageConfig.SiteSettingsConfig
 	SiteTheme    pageConfig.SiteThemeConfig
 	Sponsors     pageConfig.SponsorsConfig
+	Storage      pageConfig.StorageSettings
+	Terms        pageConfig.TermsOfServiceConfig
+	RateLimit    pageConfig.RateLimitConfig
 }
 
 var (
@@ -60,6 +63,18 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("sponsors.json", &pageConfigDefaultsValue.Sponsors)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("terms.json", &pageConfigDefaultsValue.Terms)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("storage.json", &pageConfigDefaultsValue.Storage)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
 	})
 	return pageConfigDefaultsValue, errPageConfigDefaults
 }
@@ -108,6 +123,23 @@ func GetDefaultHttpNotifyConfig() pageConfig.HttpNotifyConfig {
 func GetDefaultSecuritySettingsConfig() pageConfig.SecurityAndRegistration {
 	config := mustPageConfigDefaults().Security
 	config.AllowedDomains = append([]string(nil), config.AllowedDomains...)
+	config.ReservedUsernames = append([]string(nil), config.ReservedUsernames...)
+	config.BannedUsernames = append([]string(nil), config.BannedUsernames...)
+	config.SensitiveWords = append([]string(nil), config.SensitiveWords...)
+	return config
+}
+
+func GetDefaultStorageSettingsConfig() pageConfig.StorageSettings {
+	return mustPageConfigDefaults().Storage
+}
+
+func GetDefaultTermsOfServiceConfig() pageConfig.TermsOfServiceConfig {
+	return mustPageConfigDefaults().Terms
+}
+
+func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
+	config := mustPageConfigDefaults().RateLimit
+	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
 	return config
 }
 
