@@ -21,7 +21,9 @@ class GfLoading extends StatelessWidget {
             const SizedBox(height: 12),
             Text(
               message!,
-              style: GfTheme.typographyOf(context).small.copyWith(color: colors.iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).small.copyWith(color: colors.iconMuted),
             ),
           ],
         ],
@@ -66,34 +68,6 @@ class GfErrorRetry extends StatelessWidget {
   }
 }
 
-/// 空态视图。
-class GfEmpty extends StatelessWidget {
-  const GfEmpty({super.key, required this.message});
-
-  final String message;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Center(
-      child: Padding(
-        padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Icon(Icons.inbox_outlined, size: 40, color: colors.iconMuted),
-            const SizedBox(height: 12),
-            Text(
-              message,
-              style: GfTheme.typographyOf(context).small.copyWith(color: colors.iconMuted),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
 /// 列表底部加载指示器。
 class GfListFooter extends StatelessWidget {
   const GfListFooter({
@@ -128,7 +102,9 @@ class GfListFooter extends StatelessWidget {
         child: Center(
           child: Text(
             '— ${AppLocalizations.of(context).commonEmpty} —',
-            style: GfTheme.typographyOf(context).caption.copyWith(color: colors.iconMuted),
+            style: GfTheme.typographyOf(
+              context,
+            ).caption.copyWith(color: colors.iconMuted),
           ),
         ),
       );
