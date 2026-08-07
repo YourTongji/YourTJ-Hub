@@ -1,0 +1,58 @@
+@layer components {
+  .gf-prose :where(.hljs-comment, .hljs-quote) {
+    color: color-mix(in oklch, var(--gf-color-base-content) 52%, transparent);
+    font-style: italic;
+  }
+
+  .gf-prose :where(.hljs-keyword, .hljs-selector-tag, .hljs-meta .hljs-keyword) {
+    color: color-mix(in oklch, var(--gf-color-primary) 82%, var(--gf-color-base-content));
+    font-weight: 600;
+  }
+
+  .gf-prose :where(.hljs-title, .hljs-section, .hljs-selector-id, .hljs-selector-class) {
+    color: color-mix(in oklch, var(--gf-color-secondary-content) 78%, var(--gf-color-base-content));
+    font-weight: 600;
+  }
+
+  .gf-prose :where(.hljs-string, .hljs-doctag, .hljs-regexp, .hljs-link) {
+    color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
+  }
+
+  .gf-prose :where(.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet) {
+    color: color-mix(in oklch, var(--gf-color-warning) 74%, var(--gf-color-base-content));
+  }
+
+  .gf-prose :where(.hljs-variable, .hljs-template-variable, .hljs-params, .hljs-attr, .hljs-attribute) {
+    color: color-mix(in oklch, var(--gf-color-info) 76%, var(--gf-color-base-content));
+  }
+
+  .gf-prose :where(.hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-builtin-name) {
+    color: color-mix(in oklch, var(--gf-color-accent) 76%, var(--gf-color-base-content));
+  }
+
+  .gf-prose :where(.hljs-tag, .hljs-name, .hljs-meta, .hljs-operator) {
+    color: color-mix(in oklch, var(--gf-color-error) 72%, var(--gf-color-base-content));
+  }
+
+  .gf-prose .hljs-subst {
+    color: var(--gf-color-base-content);
+  }
+
+  .gf-prose .hljs-addition {
+    color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
+    background: color-mix(in oklch, var(--gf-color-success) 12%, transparent);
+  }
+
+  .gf-prose .hljs-deletion {
+    color: color-mix(in oklch, var(--gf-color-error) 76%, var(--gf-color-base-content));
+    background: color-mix(in oklch, var(--gf-color-error) 12%, transparent);
+  }
+
+  .gf-prose .hljs-emphasis {
+    font-style: italic;
+  }
+
+  .gf-prose .hljs-strong {
+    font-weight: 700;
+  }
+}

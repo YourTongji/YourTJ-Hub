@@ -708,7 +708,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 </div>
               </div>
 
-              <div v-if="preview && content.trim()" class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4" v-html="renderedPreview" />
+              <div v-if="preview && content.trim()" v-code-highlight class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4" v-html="renderedPreview" />
               <div v-else-if="preview" class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4">
                 <p class="text-sm text-base-content/55">{{ t('publish.emptyPreview') }}</p>
               </div>
