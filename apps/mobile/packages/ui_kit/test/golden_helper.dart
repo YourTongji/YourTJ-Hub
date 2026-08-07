@@ -5,10 +5,16 @@ import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
-/// Loads the bundled Roboto + MaterialIcons fonts so golden baselines render
-/// deterministically across platforms (tests otherwise use the blocky Ahem
-/// font). Must run inside `tester.runAsync` — `testWidgets` runs in a
-/// FakeAsync zone where real file IO / font loading never completes.
+/// Loads the bundled Roboto + Noto Sans CJK + MaterialIcons fonts so golden
+/// baselines render deterministically across platforms.
+///
+/// The Noto CJK subset is registered into the same `Roboto` family so CJK
+/// glyphs fall back to the identical bundled font bytes on every host —
+/// without it, macOS renders PingFang while CI (ubuntu) renders a different
+/// fallback, producing pixel diffs for any Chinese text.
+///
+/// Must run inside `tester.runAsync` — `testWidgets` runs in a FakeAsync
+/// zone where real file IO / font loading never completes.
 Future<void> loadTestFonts(WidgetTester tester) async {
   await tester.runAsync(() async {
     Future<ByteData> readFont(String path) async {
@@ -19,11 +25,15 @@ Future<void> loadTestFonts(WidgetTester tester) async {
     final regular = readFont('test/assets/fonts/Roboto-Regular.ttf');
     final medium = readFont('test/assets/fonts/Roboto-Medium.ttf');
     final bold = readFont('test/assets/fonts/Roboto-Bold.ttf');
+    final cjkRegular = readFont('test/assets/fonts/NotoSansCJKsc-Regular.otf');
+    final cjkBold = readFont('test/assets/fonts/NotoSansCJKsc-Bold.otf');
 
     final loader = FontLoader('Roboto')
       ..addFont(regular)
       ..addFont(medium)
-      ..addFont(bold);
+      ..addFont(bold)
+      ..addFont(cjkRegular)
+      ..addFont(cjkBold);
     await loader.load();
 
     final icons = FontLoader('MaterialIcons')
