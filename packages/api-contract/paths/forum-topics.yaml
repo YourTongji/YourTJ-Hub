@@ -1,0 +1,51 @@
+writeTopic:
+  post:
+    tags: [Forum]
+    summary: Create or update a topic and its first post
+    operationId: writeTopic
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/WriteTopicRequest
+    responses:
+      '200':
+        description: Normal topic result or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WriteTopicResponse
+            examples:
+              success:
+                externalValue: ../fixtures/topic-write-success.json
+              invalidRequest:
+                summary: Current route behavior for malformed or incomplete JSON.
+                externalValue: ../fixtures/topic-write-invalid.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/topic-write-unauthenticated.json
+      '429':
+        description: Topic-writing rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/topic-write-rate-limited.json

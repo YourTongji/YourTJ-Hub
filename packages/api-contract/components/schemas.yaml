@@ -1,0 +1,158 @@
+ApiSuccess:
+  type: object
+  required: [result, code]
+  properties:
+    result: {}
+    code:
+      type: integer
+      const: 0
+      description: Successful operation. Consumers must still inspect this field because business failures can use HTTP 200.
+    messageCode:
+      type: string
+      description: Stable application message identifier when the operation emits one.
+    params:
+      type: object
+      additionalProperties: true
+  additionalProperties: false
+
+ApiFailure:
+  type: object
+  required: [result, code]
+  properties:
+    result:
+      type: 'null'
+    code:
+      type: integer
+      const: 1
+    messageCode:
+      type: string
+      description: Stable application message identifier for the failure.
+    params:
+      type: object
+      additionalProperties: true
+  additionalProperties: false
+
+RateLimitedFailure:
+  allOf:
+    - $ref: '#/ApiFailure'
+    - type: object
+      required: [messageCode, params]
+      properties:
+        params:
+          type: object
+          required: [action, retryAfterSeconds]
+          properties:
+            action:
+              type: string
+            retryAfterSeconds:
+              type: integer
+              minimum: 1
+          additionalProperties: true
+
+LoginRequest:
+  type: object
+  required: [username, encryptedPassword]
+  properties:
+    username:
+      type: string
+      minLength: 1
+      description: Username or email address. Leading and trailing whitespace is ignored by the server.
+    encryptedPassword:
+      type: string
+      minLength: 1
+      description: Base64 RSA-OAEP-256 encrypted JSON password payload from GET /api/login-public-key.
+    captchaId:
+      type: string
+    captchaCode:
+      type: string
+  additionalProperties: false
+
+TotpChallengeResult:
+  type: object
+  required: [twoFactorRequired, message]
+  properties:
+    twoFactorRequired:
+      type: boolean
+      const: true
+    message:
+      type: string
+  additionalProperties: false
+
+LoginResult:
+  oneOf:
+    - type: string
+      description: Human-readable successful-login message.
+    - $ref: '#/TotpChallengeResult'
+
+LoginSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/LoginResult'
+
+LoginResponse:
+  oneOf:
+    - $ref: '#/LoginSuccess'
+    - $ref: '#/ApiFailure'
+
+WriteTopicRequest:
+  type: object
+  required: [content, title, categoryId]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Existing topic ID when updating; omit or send 0 when creating.
+    content:
+      type: string
+      minLength: 1
+    title:
+      type: string
+      minLength: 1
+    categoryId:
+      type: array
+      minItems: 1
+      maxItems: 3
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+    topicStatus:
+      type: integer
+      enum: [0, 1]
+      description: Existing draft/published status value; omitted values use the legacy draft default (0).
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it.
+    captchaId:
+      type: string
+      description: Required only when server-side posting risk controls request a captcha.
+    captchaCode:
+      type: string
+      description: Required only when server-side posting risk controls request a captcha.
+  additionalProperties: false
+
+WriteTopicSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          oneOf:
+            - type: integer
+              format: uint64
+              minimum: 1
+              description: Topic ID for a normal create or update.
+            - type: boolean
+              const: true
+              description: Silent success returned only when the honeypot field is populated.
+
+WriteTopicResponse:
+  oneOf:
+    - $ref: '#/WriteTopicSuccess'
+    - $ref: '#/ApiFailure'

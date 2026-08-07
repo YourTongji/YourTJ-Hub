@@ -1,0 +1,2 @@
+minimumReleaseAgeExclude:
+  - '@redocly/cli@2.45.0'
