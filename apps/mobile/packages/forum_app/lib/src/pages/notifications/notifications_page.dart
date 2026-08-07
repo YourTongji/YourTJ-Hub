@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
@@ -9,7 +10,7 @@ import '../../providers.dart';
 import '../../widgets/status_views.dart';
 
 /// 通知页(web notifications.index 的移动端形态):
-/// 通知列表 + 未读标记 + 全部已读。
+/// 通知列表 + 未读标记 + 全部已读 + all/unread 筛选 + 点击跳转。
 class NotificationsPage extends ConsumerStatefulWidget {
   const NotificationsPage({super.key});
 
@@ -19,7 +20,7 @@ class NotificationsPage extends ConsumerStatefulWidget {
 
 class _NotificationsPageState extends ConsumerState<NotificationsPage> {
   AsyncValue<NotificationListResponse> _list = const AsyncValue.loading();
-  final String _filter = 'all';
+  String _filter = 'all';
   int _cursor = 0;
   final List<NotificationPayload> _items = [];
   bool _loadingMore = false;
@@ -94,6 +95,26 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     }
   }
 
+  /// 点击通知:标记已读 + 跳转(web targetURL/actorURL 语义)。
+  /// - 话题通知 → /p/:topicId
+  /// - 关注/徽章 → /u/:actorId
+  void _openNotification(NotificationPayload n) {
+    _markRead(n);
+    final int? topicId = n.topic?.id ?? n.payload.topicId;
+    if (topicId != null && topicId > 0) {
+      context.push('/p/$topicId');
+      return;
+    }
+    if (n.eventType == 'follow' ||
+        n.eventType == 'badge' ||
+        n.payload.metadata?.profileUrl != null) {
+      final int actorId = n.actor.id;
+      if (actorId > 0) {
+        context.push('/u/$actorId');
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
@@ -109,62 +130,103 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           ),
         ],
       ),
-      body: _list.when(
-        loading: () => const GfLoading(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
-        data: (resp) {
-          if (_items.isEmpty) return GfEmpty(message: l10n.notificationsEmpty);
-          return ListView.separated(
-            itemCount: _items.length + 1,
-            separatorBuilder: (_, _) => const Divider(height: 1),
-            itemBuilder: (context, i) {
-              if (i == _items.length) {
-                return GfListFooter(
-                  loading: _loadingMore,
-                  hasMore: resp.hasNext,
-                  onLoadMore: _loadMore,
-                );
-              }
-              final n = _items[i];
-              return ListTile(
-                leading: n.actor.avatarUrl == null || n.actor.avatarUrl!.isEmpty
-                    ? const CircleAvatar(
-                        radius: 16,
-                        child: Icon(Icons.notifications_none, size: 16),
-                      )
-                    : CircleAvatar(
-                        radius: 16,
-                        backgroundImage: NetworkImage(n.actor.avatarUrl!),
+      body: Column(
+        children: [
+          // 筛选:全部 / 未读(web all/unread tabs)。
+          Container(
+            height: 44,
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GfTabBar(
+              tabs: <GfTab>[
+                GfTab(label: l10n.notificationsAll, value: 'all'),
+                GfTab(label: l10n.notificationsUnread, value: 'unread'),
+              ],
+              selected: _filter,
+              onSelected: (Object value) {
+                if (value == _filter) return;
+                setState(() => _filter = value as String);
+                _load();
+              },
+            ),
+          ),
+          const Divider(height: 1),
+          Expanded(
+            child: _list.when(
+              loading: () => const GfLoading(),
+              error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+              data: (resp) {
+                if (_items.isEmpty) {
+                  return GfEmpty(message: l10n.notificationsEmpty);
+                }
+                return ListView.separated(
+                  itemCount: _items.length + 1,
+                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  itemBuilder: (context, i) {
+                    if (i == _items.length) {
+                      return GfListFooter(
+                        loading: _loadingMore,
+                        hasMore: resp.hasNext,
+                        onLoadMore: _loadMore,
+                      );
+                    }
+                    final n = _items[i];
+                    return ListTile(
+                      leading:
+                          n.actor.avatarUrl == null ||
+                              n.actor.avatarUrl!.isEmpty
+                          ? const CircleAvatar(
+                              radius: 16,
+                              child: Icon(Icons.notifications_none, size: 16),
+                            )
+                          : CircleAvatar(
+                              radius: 16,
+                              backgroundImage: NetworkImage(n.actor.avatarUrl!),
+                            ),
+                      title: Text(
+                        n.title,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
                       ),
-                title: Text(
-                  n.title,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                subtitle: Text(
-                  n.content,
-                  maxLines: 2,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextStyle(
-                    fontSize: 12,
-                    color: n.isRead ? colors.iconMuted : colors.baseContent,
-                  ),
-                ),
-                trailing: n.isRead
-                    ? null
-                    : Container(
-                        width: 8,
-                        height: 8,
-                        decoration: BoxDecoration(
-                          color: colors.primary,
-                          shape: BoxShape.circle,
+                      subtitle: Text(
+                        n.content,
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                        style: TextStyle(
+                          fontSize: 12,
+                          color: n.isRead
+                              ? colors.iconMuted
+                              : colors.baseContent,
                         ),
                       ),
-                onTap: () => _markRead(n),
-              );
-            },
-          );
-        },
+                      // 未读行:左侧 primary 竖条(web bg-info/10 + 竖条语义)。
+                      tileColor: n.isRead
+                          ? null
+                          : colors.info.withValues(alpha: 0.06),
+                      shape: Border(
+                        left: BorderSide(
+                          color: n.isRead ? Colors.transparent : colors.primary,
+                          width: 3,
+                        ),
+                      ),
+                      trailing: n.isRead
+                          ? null
+                          : Container(
+                              width: 8,
+                              height: 8,
+                              decoration: BoxDecoration(
+                                color: colors.primary,
+                                shape: BoxShape.circle,
+                              ),
+                            ),
+                      onTap: () => _openNotification(n),
+                    );
+                  },
+                );
+              },
+            ),
+          ),
+        ],
       ),
     );
   }

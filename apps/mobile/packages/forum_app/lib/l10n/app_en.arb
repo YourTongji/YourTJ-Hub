@@ -114,6 +114,8 @@
   "notificationsTitle": "Notifications",
   "notificationsEmpty": "No notifications",
   "notificationsMarkAllRead": "Mark all read",
+  "notificationsAll": "All",
+  "notificationsUnread": "Unread",
   "searchTitle": "Search",
   "searchHint": "Search topics, users, categories…",
   "searchEmpty": "Enter keywords to search",
@@ -221,6 +223,16 @@
   "settingsTotpUnavailable": "TOTP unavailable",
   "draftsTitle": "Drafts",
   "draftsEmpty": "No drafts",
+  "draftsNew": "New draft",
+  "draftsBlocked": "Blocked",
+  "draftsMetaCreated": "Created {date}",
+  "draftsMetaViews": "{count} views",
+  "draftsMetaReplies": "{count} replies",
+  "messagesNew": "New message",
+  "messagesSearchUsers": "Search users",
+  "messagesNoContactableUsers": "No contactable users",
+  "settingsLogout": "Log out",
+  "settingsLogoutConfirm": "Log out of yourtj?",
   "commonParseFailed": "Failed to parse page data",
   "topicEmpty": "No topics yet",
   "settingsAvatarUploaded": "Avatar uploaded: {url}",
@@ -229,5 +241,22 @@
       "url": {"type": "String"}
     }
   },
-  "settingsImageDecodeFailed": "Failed to decode image"
+  "settingsImageDecodeFailed": "Failed to decode image",
+  "dateMonthDayTime": "{month}/{day} {time}",
+  "@dateMonthDayTime": {
+    "placeholders": {
+      "month": {"type": "int"},
+      "day": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  },
+  "dateYearMonthDayTime": "{year}/{month}/{day} {time}",
+  "@dateYearMonthDayTime": {
+    "placeholders": {
+      "year": {"type": "int"},
+      "month": {"type": "int"},
+      "day": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  }
 }

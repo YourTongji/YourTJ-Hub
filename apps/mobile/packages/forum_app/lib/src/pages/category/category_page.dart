@@ -31,8 +31,8 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _page = const AsyncValue.loading());
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
@@ -133,11 +133,14 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                 ),
               ),
               Expanded(
-                child: GfTopicList(
-                  loading: _loadingMore,
-                  topics: _topics,
-                  hasMore: props.pagination.hasNext,
-                  onLoadMore: _loadMore,
+                child: RefreshIndicator(
+                  onRefresh: () => _load(silent: true),
+                  child: GfTopicList(
+                    loading: _loadingMore,
+                    topics: _topics,
+                    hasMore: props.pagination.hasNext,
+                    onLoadMore: _loadMore,
+                  ),
                 ),
               ),
             ],

@@ -86,3 +86,7 @@ final chatRepositoryProvider = Provider<ChatRepository>((ref) {
 final fileRepositoryProvider = Provider<FileRepository>((ref) {
   return FileRepository(ref.watch(apiClientProvider));
 });
+
+final authRepositoryProvider = Provider<AuthRepository>((ref) {
+  return AuthRepository(ref.watch(apiClientProvider));
+});

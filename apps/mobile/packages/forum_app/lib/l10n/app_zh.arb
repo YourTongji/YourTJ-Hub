@@ -186,6 +186,8 @@
   "notificationsTitle": "通知",
   "notificationsEmpty": "暂无通知",
   "notificationsMarkAllRead": "全部已读",
+  "notificationsAll": "全部",
+  "notificationsUnread": "未读",
   "searchTitle": "搜索",
   "searchHint": "搜索帖子、用户、分类…",
   "searchEmpty": "输入关键词开始搜索",
@@ -349,6 +351,16 @@
   "settingsTotpUnavailable": "TOTP 不可用",
   "draftsTitle": "草稿箱",
   "draftsEmpty": "暂无草稿",
+  "draftsNew": "新建草稿",
+  "draftsBlocked": "被屏蔽",
+  "draftsMetaCreated": "创建于 {date}",
+  "draftsMetaViews": "{count} 次浏览",
+  "draftsMetaReplies": "{count} 条回复",
+  "messagesNew": "新私信",
+  "messagesSearchUsers": "搜索用户",
+  "messagesNoContactableUsers": "暂无可联系用户",
+  "settingsLogout": "退出登录",
+  "settingsLogoutConfirm": "确定退出 yourtj 吗?",
   "settingsAvatarUploadFailed": "头像上传失败:{error}",
   "@settingsAvatarUploadFailed": {
     "placeholders": {
@@ -367,5 +379,22 @@
       }
     }
   },
-  "settingsImageDecodeFailed": "图片解码失败"
+  "settingsImageDecodeFailed": "图片解码失败",
+  "dateMonthDayTime": "{month}月{day}日 {time}",
+  "@dateMonthDayTime": {
+    "placeholders": {
+      "month": {"type": "int"},
+      "day": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  },
+  "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
+  "@dateYearMonthDayTime": {
+    "placeholders": {
+      "year": {"type": "int"},
+      "month": {"type": "int"},
+      "day": {"type": "int"},
+      "time": {"type": "String"}
+    }
+  }
 }

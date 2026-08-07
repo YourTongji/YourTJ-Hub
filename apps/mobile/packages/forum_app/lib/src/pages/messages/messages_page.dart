@@ -11,7 +11,7 @@ import '../../providers.dart';
 import '../../widgets/status_views.dart';
 
 /// 私信(IM)页(web messages.index 的移动端形态):
-/// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存。
+/// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
 class MessagesPage extends ConsumerStatefulWidget {
   const MessagesPage({super.key});
 
@@ -21,6 +21,7 @@ class MessagesPage extends ConsumerStatefulWidget {
 
 class _MessagesPageState extends ConsumerState<MessagesPage> {
   AsyncValue<List<ChatItemPayload>> _conversations = const AsyncValue.loading();
+  List<UserConnectionPayload> _suggestedUsers = const [];
   Timer? _pollTimer;
 
   @override
@@ -48,7 +49,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       );
       final List<ChatItemPayload> items = parsed?.conversations ?? [];
       if (mounted) {
-        setState(() => _conversations = AsyncValue.data(items));
+        setState(() {
+          _conversations = AsyncValue.data(items);
+          _suggestedUsers = parsed?.suggestedUsers ?? const [];
+        });
       }
       // 会话列表写入离线缓存(断网可读)。
       final cache = ref.read(offlineChatCacheProvider);
@@ -84,11 +88,112 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     if (mounted) _load(silent: true);
   }
 
+  /// 发起新会话:弹可联系用户列表(web startChat 语义),选中后发消息进入会话。
+  Future<void> _startNewChat() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final UserConnectionPayload? selected =
+        await showModalBottomSheet<UserConnectionPayload>(
+          context: context,
+          builder: (ctx) => SafeArea(
+            child: ListView(
+              shrinkWrap: true,
+              children: [
+                Padding(
+                  padding: const EdgeInsets.all(16),
+                  child: Text(
+                    l10n.messagesNew,
+                    style: GfTheme.typographyOf(ctx).title2,
+                  ),
+                ),
+                if (_suggestedUsers.isEmpty)
+                  Padding(
+                    padding: const EdgeInsets.all(24),
+                    child: Center(
+                      child: Text(
+                        l10n.messagesNoContactableUsers,
+                        style: TextStyle(
+                          color: GfTheme.colorsOf(ctx).iconMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                for (final user in _suggestedUsers)
+                  ListTile(
+                    leading: CircleAvatar(
+                      radius: 18,
+                      backgroundImage: user.avatarUrl.isEmpty
+                          ? null
+                          : NetworkImage(user.avatarUrl),
+                      child: user.avatarUrl.isEmpty
+                          ? const Icon(Icons.person, size: 18)
+                          : null,
+                    ),
+                    title: Text(
+                      user.nickname.isEmpty ? user.username : user.nickname,
+                    ),
+                    subtitle: Text('@${user.username}'),
+                    onTap: () => Navigator.pop(ctx, user),
+                  ),
+              ],
+            ),
+          ),
+        );
+    if (selected == null || !mounted) return;
+    // 已有会话则直接打开,否则先发一条空消息建立会话(web startChat 语义)。
+    ChatItemPayload? existing;
+    for (final c in _conversations.valueOrNull ?? const <ChatItemPayload>[]) {
+      if (c.peerId == selected.id) {
+        existing = c;
+        break;
+      }
+    }
+    if (existing != null) {
+      await _openConversation(existing);
+      return;
+    }
+    try {
+      final int convId = await ref
+          .read(chatRepositoryProvider)
+          .sendMessage(peerId: selected.id, content: '');
+      if (!mounted) return;
+      await _openConversation(
+        ChatItemPayload(
+          id: convId,
+          peerId: selected.id,
+          peerUsername: selected.nickname.isEmpty
+              ? selected.username
+              : selected.nickname,
+          peerAvatar: selected.avatarUrl,
+          lastMsg: '',
+          lastMsgTime: '',
+          unreadCount: 0,
+          convId: convId,
+          peerUrl: selected.url,
+        ),
+      );
+    } catch (_) {
+      if (mounted) {
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(l10n.messagesSendFailed(''))));
+      }
+    }
+  }
+
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.messagesTitle)),
+      appBar: AppBar(
+        title: Text(l10n.messagesTitle),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.edit_outlined),
+            tooltip: l10n.messagesNew,
+            onPressed: _startNewChat,
+          ),
+        ],
+      ),
       body: _conversations.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),

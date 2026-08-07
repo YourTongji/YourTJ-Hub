@@ -155,11 +155,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
               children: [
                 Text(
                   l10n.loginWelcome,
-                  style: TextStyle(
-                    fontSize: 22,
-                    fontWeight: FontWeight.w700,
-                    color: colors.baseContent,
-                  ),
+                  style: GfTheme.typographyOf(context).display,
                 ),
                 const SizedBox(height: 24),
                 // 模式切换。

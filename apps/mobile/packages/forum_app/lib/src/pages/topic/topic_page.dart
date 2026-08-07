@@ -51,8 +51,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     super.dispose();
   }
 
-  Future<void> _load() async {
-    setState(() => _page = const AsyncValue.loading());
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
@@ -193,7 +193,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           ),
         );
       }
-      _load();
+      // 局部刷新:回复成功后静默重载(不置 loading、不清空列表,
+      // 保留滚动位置,对齐 web 乐观追加语义)。
+      if (mounted) {
+        await _load(silent: true);
+      }
     } on ApiException catch (e) {
       if (mounted) {
         ScaffoldMessenger.of(
@@ -281,42 +285,45 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           return Column(
             children: [
               Expanded(
-                child: ListView.separated(
-                  padding: const EdgeInsets.only(bottom: 12),
-                  itemCount: _posts.length + 2,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
-                  itemBuilder: (context, index) {
-                    if (index == 0) {
-                      return _TopicHeader(
-                        topic: props.topic,
-                        liked: _liked,
-                        bookmarked: _bookmarked,
-                        likeCount: _likeCount,
-                        onLike: _toggleLike,
-                        onBookmark: _toggleBookmark,
-                      );
-                    }
-                    if (index == _posts.length + 1) {
-                      return GfListFooter(
-                        loading: _loadingMore,
-                        hasMore: props.postStream.hasAfter,
-                        onLoadMore: _loadMore,
-                      );
-                    }
-                    return _PostCard(
-                      post: _posts[index - 1],
-                      onReply: () {
-                        _replyToPostId = _posts[index - 1].id;
-                        _replyController.text =
-                            '@${_posts[index - 1].author.username} ';
-                        _replyController.selection = TextSelection.collapsed(
-                          offset: _replyController.text.length,
+                child: RefreshIndicator(
+                  onRefresh: () => _load(silent: true),
+                  child: ListView.separated(
+                    padding: const EdgeInsets.only(bottom: 12),
+                    itemCount: _posts.length + 2,
+                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    itemBuilder: (context, index) {
+                      if (index == 0) {
+                        return _TopicHeader(
+                          topic: props.topic,
+                          liked: _liked,
+                          bookmarked: _bookmarked,
+                          likeCount: _likeCount,
+                          onLike: _toggleLike,
+                          onBookmark: _toggleBookmark,
                         );
-                        FocusScope.of(context).requestFocus(_replyFocus);
-                      },
-                      onReport: () => _reportPost(_posts[index - 1]),
-                    );
-                  },
+                      }
+                      if (index == _posts.length + 1) {
+                        return GfListFooter(
+                          loading: _loadingMore,
+                          hasMore: props.postStream.hasAfter,
+                          onLoadMore: _loadMore,
+                        );
+                      }
+                      return _PostCard(
+                        post: _posts[index - 1],
+                        onReply: () {
+                          _replyToPostId = _posts[index - 1].id;
+                          _replyController.text =
+                              '@${_posts[index - 1].author.username} ';
+                          _replyController.selection = TextSelection.collapsed(
+                            offset: _replyController.text.length,
+                          );
+                          FocusScope.of(context).requestFocus(_replyFocus);
+                        },
+                        onReport: () => _reportPost(_posts[index - 1]),
+                      );
+                    },
+                  ),
                 ),
               ),
               // 底部回复输入条。

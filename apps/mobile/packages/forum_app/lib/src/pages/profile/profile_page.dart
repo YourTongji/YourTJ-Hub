@@ -32,8 +32,8 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _page = const AsyncValue.loading());
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       // 未传 userId 时展示当前登录用户;未登录时提示登录。
       final int? currentId = (await ref.read(currentUserProvider.future))?.id;
@@ -106,7 +106,10 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                     ),
                     const Divider(height: 1),
                     Expanded(
-                      child: _ProfileBody(props: props, index: _tabIndex),
+                      child: RefreshIndicator(
+                        onRefresh: () => _load(silent: true),
+                        child: _ProfileBody(props: props, index: _tabIndex),
+                      ),
                     ),
                   ],
                 );

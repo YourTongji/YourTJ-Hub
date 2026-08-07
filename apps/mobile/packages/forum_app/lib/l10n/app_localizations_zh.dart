@@ -339,6 +339,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String get notificationsMarkAllRead => '全部已读';
 
   @override
+  String get notificationsAll => '全部';
+
+  @override
+  String get notificationsUnread => '未读';
+
+  @override
   String get searchTitle => '搜索';
 
   @override
@@ -643,6 +649,42 @@ class AppLocalizationsZh extends AppLocalizations {
   String get draftsEmpty => '暂无草稿';
 
   @override
+  String get draftsNew => '新建草稿';
+
+  @override
+  String get draftsBlocked => '被屏蔽';
+
+  @override
+  String draftsMetaCreated(Object date) {
+    return '创建于 $date';
+  }
+
+  @override
+  String draftsMetaViews(Object count) {
+    return '$count 次浏览';
+  }
+
+  @override
+  String draftsMetaReplies(Object count) {
+    return '$count 条回复';
+  }
+
+  @override
+  String get messagesNew => '新私信';
+
+  @override
+  String get messagesSearchUsers => '搜索用户';
+
+  @override
+  String get messagesNoContactableUsers => '暂无可联系用户';
+
+  @override
+  String get settingsLogout => '退出登录';
+
+  @override
+  String get settingsLogoutConfirm => '确定退出 yourtj 吗?';
+
+  @override
   String get commonParseFailed => '页面数据解析失败';
 
   @override
@@ -655,4 +697,14 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get settingsImageDecodeFailed => '图片解码失败';
+
+  @override
+  String dateMonthDayTime(int month, int day, String time) {
+    return '$month月$day日 $time';
+  }
+
+  @override
+  String dateYearMonthDayTime(int year, int month, int day, String time) {
+    return '$year年$month月$day日 $time';
+  }
 }

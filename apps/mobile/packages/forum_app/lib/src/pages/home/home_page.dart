@@ -32,8 +32,8 @@ class _HomePageState extends ConsumerState<HomePage> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _page = const AsyncValue.loading());
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
@@ -110,11 +110,14 @@ class _HomePageState extends ConsumerState<HomePage> {
               _AnnouncementBanner(props: props),
               _SortTabs(props: props, selected: _sort, onSelected: _switchSort),
               Expanded(
-                child: GfTopicList(
-                  loading: _loadingMore,
-                  topics: _topics,
-                  hasMore: props.pagination.hasNext,
-                  onLoadMore: _loadMore,
+                child: RefreshIndicator(
+                  onRefresh: () => _load(silent: true),
+                  child: GfTopicList(
+                    loading: _loadingMore,
+                    topics: _topics,
+                    hasMore: props.pagination.hasNext,
+                    onLoadMore: _loadMore,
+                  ),
                 ),
               ),
             ],
@@ -174,12 +177,19 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
     if (!widget.props.announcement.enabled) return const SizedBox.shrink();
     final items = widget.props.announcement.items ?? const [];
     if (items.isEmpty) return const SizedBox.shrink();
+    final GfColors colors = GfTheme.colorsOf(context);
 
+    // 对齐 web 公告面板(gf-panel + primary/15 边框 + primary/5 渐变底)。
     return Container(
       width: double.infinity,
-      color: const Color(0xFFFFF3CD),
+      decoration: BoxDecoration(
+        color: colors.primary.withValues(alpha: 0.05),
+        border: Border(
+          bottom: BorderSide(color: colors.primary.withValues(alpha: 0.15)),
+        ),
+      ),
       child: items.length == 1
-          ? _bannerText(items.first.title)
+          ? _bannerText(colors, items.first.title)
           : SizedBox(
               height: 38,
               child: Stack(
@@ -188,9 +198,10 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
                     controller: _controller,
                     itemCount: items.length,
                     onPageChanged: (i) => setState(() => _current = i),
-                    itemBuilder: (context, i) => _bannerText(items[i].title),
+                    itemBuilder: (context, i) =>
+                        _bannerText(colors, items[i].title),
                   ),
-                  // 轮播指示点。
+                  // 轮播指示点(web active bg-primary)。
                   Positioned(
                     right: 10,
                     bottom: 5,
@@ -203,10 +214,8 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
                             margin: const EdgeInsets.only(left: 3),
                             decoration: BoxDecoration(
                               color: i == _current
-                                  ? const Color(0xFF664D03)
-                                  : const Color(
-                                      0xFF664D03,
-                                    ).withValues(alpha: 0.35),
+                                  ? colors.primary
+                                  : colors.baseContent.withValues(alpha: 0.3),
                               borderRadius: BorderRadius.circular(2),
                             ),
                           ),
@@ -219,7 +228,7 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
     );
   }
 
-  Widget _bannerText(String title) {
+  Widget _bannerText(GfColors colors, String title) {
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 11),
       child: Align(
@@ -228,7 +237,7 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: const TextStyle(color: Color(0xFF664D03), fontSize: 13),
+          style: TextStyle(color: colors.primary, fontSize: 13),
         ),
       ),
     );

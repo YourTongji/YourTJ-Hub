@@ -710,6 +710,18 @@ abstract class AppLocalizations {
   /// **'Mark all read'**
   String get notificationsMarkAllRead;
 
+  /// No description provided for @notificationsAll.
+  ///
+  /// In en, this message translates to:
+  /// **'All'**
+  String get notificationsAll;
+
+  /// No description provided for @notificationsUnread.
+  ///
+  /// In en, this message translates to:
+  /// **'Unread'**
+  String get notificationsUnread;
+
   /// No description provided for @searchTitle.
   ///
   /// In en, this message translates to:
@@ -1274,6 +1286,66 @@ abstract class AppLocalizations {
   /// **'No drafts'**
   String get draftsEmpty;
 
+  /// No description provided for @draftsNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New draft'**
+  String get draftsNew;
+
+  /// No description provided for @draftsBlocked.
+  ///
+  /// In en, this message translates to:
+  /// **'Blocked'**
+  String get draftsBlocked;
+
+  /// No description provided for @draftsMetaCreated.
+  ///
+  /// In en, this message translates to:
+  /// **'Created {date}'**
+  String draftsMetaCreated(Object date);
+
+  /// No description provided for @draftsMetaViews.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} views'**
+  String draftsMetaViews(Object count);
+
+  /// No description provided for @draftsMetaReplies.
+  ///
+  /// In en, this message translates to:
+  /// **'{count} replies'**
+  String draftsMetaReplies(Object count);
+
+  /// No description provided for @messagesNew.
+  ///
+  /// In en, this message translates to:
+  /// **'New message'**
+  String get messagesNew;
+
+  /// No description provided for @messagesSearchUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'Search users'**
+  String get messagesSearchUsers;
+
+  /// No description provided for @messagesNoContactableUsers.
+  ///
+  /// In en, this message translates to:
+  /// **'No contactable users'**
+  String get messagesNoContactableUsers;
+
+  /// No description provided for @settingsLogout.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out'**
+  String get settingsLogout;
+
+  /// No description provided for @settingsLogoutConfirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Log out of yourtj?'**
+  String get settingsLogoutConfirm;
+
   /// No description provided for @commonParseFailed.
   ///
   /// In en, this message translates to:
@@ -1297,6 +1369,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Failed to decode image'**
   String get settingsImageDecodeFailed;
+
+  /// No description provided for @dateMonthDayTime.
+  ///
+  /// In en, this message translates to:
+  /// **'{month}/{day} {time}'**
+  String dateMonthDayTime(int month, int day, String time);
+
+  /// No description provided for @dateYearMonthDayTime.
+  ///
+  /// In en, this message translates to:
+  /// **'{year}/{month}/{day} {time}'**
+  String dateYearMonthDayTime(int year, int month, int day, String time);
 }
 
 class _AppLocalizationsDelegate

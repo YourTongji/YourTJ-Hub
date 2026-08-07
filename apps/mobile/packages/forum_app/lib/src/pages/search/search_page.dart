@@ -25,6 +25,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   AsyncValue<SearchPageProps> _result = const AsyncValue.loading();
   String _scope = '';
   bool _searched = false;
+  int _page = 1;
+  bool _loadingMore = false;
 
   @override
   void dispose() {
@@ -35,17 +37,44 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Future<void> _search() async {
     final String q = _query.text.trim();
     if (q.isEmpty) return;
-    setState(() => _result = const AsyncValue.loading());
+    setState(() {
+      _result = const AsyncValue.loading();
+      _page = 1;
+    });
     try {
       final props = await ref
           .read(topicRepositoryProvider)
-          .search(query: q, scope: _scope);
+          .search(query: q, scope: _scope, page: _page);
       setState(() {
         _result = AsyncValue.data(props);
         _searched = true;
       });
     } catch (e, st) {
       setState(() => _result = AsyncValue.error(e, st));
+    }
+  }
+
+  /// 真实分页:加载下一页追加到结果(web 无限滚动语义)。
+  Future<void> _loadMore() async {
+    final SearchPageProps? props = _result.value;
+    if (props == null || _loadingMore || _page >= props.totalPages) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = await ref
+          .read(topicRepositoryProvider)
+          .search(query: props.query, scope: _scope, page: _page + 1);
+      setState(() {
+        _page += 1;
+        _result = AsyncValue.data(
+          next.copyWith(
+            topics: <TopicPayload>[...props.topics, ...next.topics],
+          ),
+        );
+      });
+    } catch (_) {
+      // 静默,用户可再次触发。
+    } finally {
+      setState(() => _loadingMore = false);
     }
   }
 
@@ -117,10 +146,10 @@ class _SearchPageState extends ConsumerState<SearchPage> {
                   'user' => _UserResults(users: props.users),
                   'category' => _CategoryResults(categories: props.categories),
                   _ => GfTopicList(
-                    loading: false,
+                    loading: _loadingMore,
                     topics: props.topics,
-                    hasMore: props.totalPages > 1,
-                    onLoadMore: () {},
+                    hasMore: _page < props.totalPages,
+                    onLoadMore: _loadMore,
                   ),
                 },
               ),

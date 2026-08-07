@@ -20,7 +20,8 @@ class AuthRepository {
   Future<LoginPublicKeyPayload> getLoginPublicKey() {
     return _client.get<LoginPublicKeyPayload>(
       '/api/login-public-key',
-      parser: (json) => LoginPublicKeyPayload.fromJson(json as Map<String, dynamic>),
+      parser: (json) =>
+          LoginPublicKeyPayload.fromJson(json as Map<String, dynamic>),
     );
   }
 
@@ -38,7 +39,8 @@ class AuthRepository {
         'username': username,
         'encryptedPassword': encryptedPassword,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,
-        if (captchaCode != null && captchaCode.isNotEmpty) 'captchaCode': captchaCode,
+        if (captchaCode != null && captchaCode.isNotEmpty)
+          'captchaCode': captchaCode,
       },
       parser: (json) => json is Map<String, dynamic>
           ? LoginResult.fromJson(json)
@@ -62,7 +64,8 @@ class AuthRepository {
         'email': email,
         'passWord': password,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,
-        if (captchaCode != null && captchaCode.isNotEmpty) 'captchaCode': captchaCode,
+        if (captchaCode != null && captchaCode.isNotEmpty)
+          'captchaCode': captchaCode,
         if (locale != null && locale.isNotEmpty) 'locale': locale,
       },
     );
@@ -79,7 +82,8 @@ class AuthRepository {
       body: {
         'email': email,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,
-        if (captchaCode != null && captchaCode.isNotEmpty) 'captchaCode': captchaCode,
+        if (captchaCode != null && captchaCode.isNotEmpty)
+          'captchaCode': captchaCode,
       },
     );
   }
@@ -103,7 +107,11 @@ class AuthRepository {
   }) {
     return _client.post<String>(
       '/api/auth/oidc/exchange',
-      body: {'code': code, 'codeVerifier': codeVerifier, 'redirectUri': redirectUri},
+      body: {
+        'code': code,
+        'codeVerifier': codeVerifier,
+        'redirectUri': redirectUri,
+      },
       parser: (json) {
         if (json is String) return json;
         return (json as Map<String, dynamic>)['token'] as String? ?? '';
@@ -117,9 +125,16 @@ class AuthRepository {
       '/api/auth/totp/verify',
       body: {
         'code': code,
-        if (recoveryCode != null && recoveryCode.isNotEmpty) 'recoveryCode': recoveryCode,
+        if (recoveryCode != null && recoveryCode.isNotEmpty)
+          'recoveryCode': recoveryCode,
       },
     );
+    return true;
+  }
+
+  /// 退出登录:使服务端会话失效(web AppShell logout 语义)。
+  Future<bool> logout() async {
+    await _client.post<Object?>('/api/logout');
     return true;
   }
 }

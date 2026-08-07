@@ -2,6 +2,7 @@ import 'dart:typed_data';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:image/image.dart' as img;
 import 'package:image_picker/image_picker.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -933,9 +934,46 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             subtitle: Text(l10n.settingsAboutVersion),
           ),
         ),
+        const SizedBox(height: 12),
+        // 登出(web AppShell logout 语义):服务端失效 + 清本地 token + 回登录页。
+        GfButton(
+          label: l10n.settingsLogout,
+          variant: GfButtonVariant.danger,
+          expanded: true,
+          onPressed: _logout,
+        ),
         const SizedBox(height: 24),
       ],
     );
+  }
+
+  /// 登出:确认 → 服务端失效 → 清 token → 跳登录页。
+  Future<void> _logout() async {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final bool? ok = await showDialog<bool>(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: Text(l10n.settingsLogoutConfirm),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, false),
+            child: Text(l10n.commonCancel),
+          ),
+          TextButton(
+            onPressed: () => Navigator.pop(ctx, true),
+            child: Text(l10n.settingsLogout),
+          ),
+        ],
+      ),
+    );
+    if (ok != true || !mounted) return;
+    try {
+      await ref.read(authRepositoryProvider).logout();
+    } catch (_) {
+      // 服务端失效失败不阻塞本地登出(会话已不可信)。
+    }
+    await ref.read(tokenStorageProvider).clear();
+    if (mounted) context.go('/login');
   }
 
   void _snack(String message) {

@@ -339,6 +339,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get notificationsMarkAllRead => 'Mark all read';
 
   @override
+  String get notificationsAll => 'All';
+
+  @override
+  String get notificationsUnread => 'Unread';
+
+  @override
   String get searchTitle => 'Search';
 
   @override
@@ -644,6 +650,42 @@ class AppLocalizationsEn extends AppLocalizations {
   String get draftsEmpty => 'No drafts';
 
   @override
+  String get draftsNew => 'New draft';
+
+  @override
+  String get draftsBlocked => 'Blocked';
+
+  @override
+  String draftsMetaCreated(Object date) {
+    return 'Created $date';
+  }
+
+  @override
+  String draftsMetaViews(Object count) {
+    return '$count views';
+  }
+
+  @override
+  String draftsMetaReplies(Object count) {
+    return '$count replies';
+  }
+
+  @override
+  String get messagesNew => 'New message';
+
+  @override
+  String get messagesSearchUsers => 'Search users';
+
+  @override
+  String get messagesNoContactableUsers => 'No contactable users';
+
+  @override
+  String get settingsLogout => 'Log out';
+
+  @override
+  String get settingsLogoutConfirm => 'Log out of yourtj?';
+
+  @override
   String get commonParseFailed => 'Failed to parse page data';
 
   @override
@@ -656,4 +698,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get settingsImageDecodeFailed => 'Failed to decode image';
+
+  @override
+  String dateMonthDayTime(int month, int day, String time) {
+    return '$month/$day $time';
+  }
+
+  @override
+  String dateYearMonthDayTime(int year, int month, int day, String time) {
+    return '$year/$month/$day $time';
+  }
 }
