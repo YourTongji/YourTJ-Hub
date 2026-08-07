@@ -89,4 +89,8 @@ Principle: projections must be rebuildable from the fact source; never treat a p
   fixture (once the pipeline exists).
 - Until the pipeline exists, at least keep `@gooseforum/client` manually in sync with Go structs and
   note it in the PR.
+- The mobile client mirrors contracts into `apps/mobile/packages/core/lib/src/gen/*.dart` (a
+  generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
+  affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
+  (`core/test/fixtures`) back runtime deserialization.
 - Docs status words updated in step (docs/README.md).

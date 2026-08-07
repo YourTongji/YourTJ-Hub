@@ -1,0 +1,171 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:ui_kit/ui_kit.dart';
+
+import 'package:core/core.dart';
+
+import '../../../l10n/app_localizations.dart';
+import '../../providers.dart';
+import '../../widgets/status_views.dart';
+
+/// 通知页(web notifications.index 的移动端形态):
+/// 通知列表 + 未读标记 + 全部已读。
+class NotificationsPage extends ConsumerStatefulWidget {
+  const NotificationsPage({super.key});
+
+  @override
+  ConsumerState<NotificationsPage> createState() => _NotificationsPageState();
+}
+
+class _NotificationsPageState extends ConsumerState<NotificationsPage> {
+  AsyncValue<NotificationListResponse> _list = const AsyncValue.loading();
+  final String _filter = 'all';
+  int _cursor = 0;
+  final List<NotificationPayload> _items = [];
+  bool _loadingMore = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _load();
+  }
+
+  Future<void> _load() async {
+    setState(() => _list = const AsyncValue.loading());
+    try {
+      final resp = await ref
+          .read(notificationRepositoryProvider)
+          .fetchNotifications(filter: _filter, cursor: 0);
+      setState(() {
+        _list = AsyncValue.data(resp);
+        _items.clear();
+        _items.addAll(resp.items);
+        _cursor = resp.nextCursor;
+      });
+    } catch (e, st) {
+      setState(() => _list = AsyncValue.error(e, st));
+    }
+  }
+
+  Future<void> _loadMore() async {
+    final resp = _list.value;
+    if (resp == null || !resp.hasNext || _loadingMore) return;
+    setState(() => _loadingMore = true);
+    try {
+      final next = await ref
+          .read(notificationRepositoryProvider)
+          .fetchNotifications(filter: _filter, cursor: _cursor);
+      setState(() {
+        _items.addAll(next.items);
+        _cursor = next.nextCursor;
+        _list = AsyncValue.data(next);
+      });
+    } catch (_) {
+      // 静默。
+    } finally {
+      setState(() => _loadingMore = false);
+    }
+  }
+
+  Future<void> _markAllRead() async {
+    try {
+      await ref.read(notificationRepositoryProvider).markAllNotificationsRead();
+      _load();
+    } catch (_) {
+      // 静默。
+    }
+  }
+
+  Future<void> _markRead(NotificationPayload n) async {
+    if (n.isRead) return;
+    try {
+      await ref
+          .read(notificationRepositoryProvider)
+          .markNotificationRead(notificationId: n.id);
+      setState(() {
+        for (int i = 0; i < _items.length; i++) {
+          if (_items[i].id == n.id) {
+            _items[i] = _items[i].copyWith(isRead: true);
+          }
+        }
+      });
+    } catch (_) {
+      // 静默。
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final GfColors colors = GfTheme.colorsOf(context);
+    final AppLocalizations l10n = AppLocalizations.of(context);
+
+    return Scaffold(
+      appBar: AppBar(
+        title: Text(l10n.notificationsTitle),
+        actions: [
+          TextButton(
+            onPressed: _markAllRead,
+            child: Text(l10n.notificationsMarkAllRead),
+          ),
+        ],
+      ),
+      body: _list.when(
+        loading: () => const GfLoading(),
+        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        data: (resp) {
+          if (_items.isEmpty) return GfEmpty(message: l10n.notificationsEmpty);
+          return ListView.separated(
+            itemCount: _items.length + 1,
+            separatorBuilder: (_, _) => const Divider(height: 1),
+            itemBuilder: (context, i) {
+              if (i == _items.length) {
+                return GfListFooter(
+                  loading: _loadingMore,
+                  hasMore: resp.hasNext,
+                  onLoadMore: _loadMore,
+                );
+              }
+              final n = _items[i];
+              return ListTile(
+                leading: n.actor.avatarUrl == null || n.actor.avatarUrl!.isEmpty
+                    ? const CircleAvatar(
+                        radius: 16,
+                        child: Icon(Icons.notifications_none, size: 16),
+                      )
+                    : CircleAvatar(
+                        radius: 16,
+                        backgroundImage: NetworkImage(n.actor.avatarUrl!),
+                      ),
+                title: Text(
+                  n.title,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                subtitle: Text(
+                  n.content,
+                  maxLines: 2,
+                  overflow: TextOverflow.ellipsis,
+                  style: TextStyle(
+                    fontSize: 12,
+                    color: n.isRead ? colors.iconMuted : colors.baseContent,
+                  ),
+                ),
+                trailing: n.isRead
+                    ? null
+                    : Container(
+                        width: 8,
+                        height: 8,
+                        decoration: BoxDecoration(
+                          color: colors.primary,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                onTap: () => _markRead(n),
+              );
+            },
+          );
+        },
+      ),
+    );
+  }
+}

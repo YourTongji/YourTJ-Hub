@@ -71,7 +71,12 @@ docs/        Docs center (product/architecture/development/operations)
 - Once auth is integrated, Casdoor is the only identity source; the forum JWT is a session credential,
   not identity truth.
 - Contract changes ship in the same PR: backend struct → openapi.yaml → TS/Dart generated output →
-  fixture contract tests (once the contract pipeline exists).
+  fixture contract tests (once the contract pipeline exists). Until the pipeline exists, contract
+  changes must also update the mobile Dart mirrors in
+  `apps/mobile/packages/core/lib/src/gen/` (same PR) and web TS types
+  (`resource/packages/client/src/contracts/`) in the same commit.
+- Design-token changes ship in the same PR: changing `resource/src/styles/tokens.css` requires
+  updating `apps/mobile/packages/ui_kit/lib/src/theme/tokens.json` in the same commit.
 - Docs use the four implementation status words (`Current`/`Partial`/`Planned`/`Decision needed`),
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones

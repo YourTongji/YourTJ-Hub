@@ -1,0 +1,29 @@
+name: ci-mobile
+
+on:
+  push:
+    paths:
+      - "apps/mobile/**"
+  # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
+  pull_request:
+
+jobs:
+  ci-mobile:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: subosito/flutter-action@v2
+        with:
+          channel: stable
+          cache: true
+      - name: Bootstrap
+        working-directory: apps/mobile
+        run: |
+          dart pub global activate melos
+          melos bootstrap
+      - name: Analyze
+        working-directory: apps/mobile
+        run: melos run analyze
+      - name: Test
+        working-directory: apps/mobile
+        run: melos run test

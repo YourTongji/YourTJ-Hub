@@ -1,0 +1,210 @@
+import 'package:core/core.dart';
+
+/// 构造最小 PagePayload JSON(页面级数据通道返回的裸负载,无 code 包装)。
+Map<String, dynamic> minimalLayoutJson() => {
+      'site': {
+        'name': 'yourtj',
+        'description': '同济大学校园论坛',
+        'logo': '',
+        'favicon': '',
+        'brandType': 'text',
+        'brandText': 'yourtj',
+        'brandImage': '',
+      },
+      'viewer': {
+        'id': 1,
+        'username': 'viewer',
+        'email': '',
+        'avatarUrl': '',
+        'isAuthenticated': false,
+        'canAccessAdmin': false,
+        'isModerator': false,
+        'requiresEmailVerification': false,
+      },
+      'sidebar': {'categories': <Object>[], 'activeKey': ''},
+      'footer': {'links': <Object>[], 'primary': <Object>[]},
+      'unread': {'notifications': false, 'messages': false},
+      'theme': {'enabled': false, 'current': 'light', 'themeColor': '#2563eb'},
+    };
+
+Map<String, dynamic> homePayloadJson() => {
+      'component': PageComponent.home,
+      'props': {
+        'sort': 'latest',
+        'tabs': [
+          {'key': 'latest', 'label': '最新', 'url': '/?sort=latest', 'active': true},
+          {'key': 'hot', 'label': '热门', 'url': '/?sort=hot', 'active': false},
+        ],
+        'topics': [
+          {
+            'id': 100,
+            'title': '移动端测试话题',
+            'description': '这是一条用于 smoke 测试的话题摘要',
+            'url': '/p/post/100',
+            'author': {'id': 1, 'username': 'alice', 'avatarUrl': ''},
+            'participants': <Object>[],
+            'categories': [
+              {'id': 1, 'name': '开发', 'url': '/c/dev/1', 'color': '#2563eb'}
+            ],
+            'replyCount': 3,
+            'viewCount': 10,
+            'pinWeight': 0,
+            'processStatus': 0,
+            'activityText': '2026-08-07T10:00:00+08:00',
+            'lastUpdateTime': '2026-08-07T10:00:00+08:00',
+          }
+        ],
+        'pagination': {
+          'page': 1,
+          'nextPage': 2,
+          'hasNext': false,
+          'nextUrl': '',
+        },
+        'announcement': {'enabled': false, 'html': ''},
+      },
+      'meta': {'title': '首页'},
+      'layout': minimalLayoutJson(),
+      'url': '/',
+      'version': '1.0',
+    };
+
+Map<String, dynamic> topicDetailPayloadJson() => {
+      'component': PageComponent.topicDetail,
+      'props': {
+        'topic': {
+          'id': 100,
+          'title': '移动端测试话题',
+          'description': '摘要',
+          'url': '/p/post/100',
+          'topicStatus': 0,
+          'processStatus': 0,
+          'author': {'id': 1, 'username': 'alice', 'avatarUrl': ''},
+          'participants': <Object>[],
+          'categories': <Object>[],
+          'replyCount': 1,
+          'maxPostNo': 1,
+          'viewCount': 10,
+          'likeCount': 2,
+          'isLiked': false,
+          'isBookmarked': false,
+          'isWatched': false,
+          'createdAt': '2026-08-07T10:00:00+08:00',
+          'updatedAt': '2026-08-07T10:00:00+08:00',
+        },
+        'postStream': {
+          'posts': [
+            {
+              'id': 9001,
+              'topicId': 100,
+              'postNo': 1,
+              'content': '## 第一楼\n\n**粗体** 与 *斜体* 和 [链接](https://example.com)',
+              'renderedContent': '',
+              'processStatus': 0,
+              'isHidden': false,
+              'canModerate': false,
+              'author': {'id': 1, 'username': 'alice', 'avatarUrl': ''},
+              'createdAt': '2026-08-07T10:00:00+08:00',
+              'isOwnPost': true,
+              'likeCount': 1,
+              'isLiked': false,
+              'isBookmarked': false,
+            }
+          ],
+          'replyTargets': <Object>[],
+          'hasBefore': false,
+          'hasAfter': false,
+          'total': 1,
+          'maxPostNo': 1,
+        },
+        'hotTopics': <Object>[],
+        'permissions': {
+          'isOwnTopic': false,
+          'canPost': true,
+          'canModerateTopic': false,
+        },
+      },
+      'meta': {'title': '话题详情'},
+      'layout': minimalLayoutJson(),
+      'url': '/p/post/100',
+      'version': '1.0',
+    };
+
+Map<String, dynamic> userProfilePayloadJson() => {
+      'component': PageComponent.userProfile,
+      'props': {
+        'user': {
+          'userId': 1,
+          'username': 'alice',
+          'nickname': 'Alice',
+          'avatarUrl': '',
+          'profileCoverUrl': '',
+          'bio': '同济学生',
+          'signature': '',
+          'websiteName': '',
+          'website': '',
+          'prestige': 0,
+          'externalInformation': <String, Object>{},
+          'isAdmin': false,
+          'topicCount': 5,
+          'replyCount': 12,
+          'likeReceivedCount': 30,
+          'likeGivenCount': 8,
+          'followerCount': 20,
+          'followingCount': 10,
+          'collectionCount': 4,
+          'isOnline': true,
+          'isFollowing': false,
+          'isSelf': true,
+          'badges': <Object>[],
+          'lastActiveTime': '2026-08-07T10:00:00+08:00',
+          'createdAt': '2025-01-01T00:00:00+08:00',
+        },
+        'section': 'overview',
+        'activityTab': 'all',
+        'tabs': <Object>[],
+        'activityTabs': [
+          {'key': 'activity', 'label': '动态', 'url': '', 'active': true},
+          {'key': 'topics', 'label': '主题', 'url': '', 'active': false},
+          {'key': 'likes', 'label': '点赞', 'url': '', 'active': false},
+          {'key': 'bookmarks', 'label': '收藏', 'url': '', 'active': false},
+          {'key': 'following', 'label': '关注', 'url': '', 'active': false},
+          {'key': 'followers', 'label': '粉丝', 'url': '', 'active': false},
+        ],
+        'pagination': {
+          'page': 1,
+          'nextPage': 0,
+          'hasNext': false,
+          'nextUrl': '',
+        },
+        'badges': <Object>[],
+        'topics': <Object>[],
+        'activities': [
+          {
+            'id': 1,
+            'action': 1,
+            'subjectType': 'topic',
+            'subjectId': 100,
+            'contentPreview': '发布了话题 移动端测试话题',
+            'url': '/p/post/100',
+            'label': '发帖',
+            'createdAt': '2026-08-07T10:00:00+08:00',
+          }
+        ],
+        'likes': <Object>[],
+        'bookmarks': <Object>[],
+        'following': <Object>[],
+        'followers': <Object>[],
+        'isOwnProfile': true,
+        'canMessage': false,
+        'canFollow': false,
+        'messageUrl': '',
+        'settingsUrl': '/settings',
+      },
+      'meta': {'title': '个人主页'},
+      'layout': minimalLayoutJson(),
+      'url': '/u/1',
+      'version': '1.0',
+    };
+
+/// 从 JSON 解析 PagePayload(与 GfApiClient 相同路径)。
+PagePayload parsePayload(Map<String, dynamic> json) => PagePayload.fromJson(json);
