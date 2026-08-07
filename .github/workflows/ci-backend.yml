@@ -56,4 +56,4 @@ jobs:
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-        run: go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v
+        run: go test ./app/migration/ -run 'TestSchema' -v
