@@ -13,6 +13,7 @@ import (
 	"net/http/httptest"
 	"os"
 	"path/filepath"
+	"reflect"
 	"runtime"
 	"strconv"
 	"strings"
@@ -268,8 +269,52 @@ func assertFixtureEnvelope(t *testing.T, actual contractEnvelope, fixture contra
 	if fixture.MessageCode != "" && actual.MessageCode != fixture.MessageCode {
 		t.Fatalf("messageCode = %q, want fixture messageCode %q", actual.MessageCode, fixture.MessageCode)
 	}
-	if string(fixture.Result) == "null" && string(actual.Result) != "null" {
-		t.Fatalf("result = %s, want null as in fixture", actual.Result)
+	assertFixtureResult(t, actual.Result, fixture.Result)
+	assertFixtureParams(t, actual.Params, fixture.Params)
+}
+
+func assertFixtureResult(t *testing.T, actual json.RawMessage, fixture json.RawMessage) {
+	t.Helper()
+	var actualValue any
+	if err := json.Unmarshal(actual, &actualValue); err != nil {
+		t.Fatalf("decode response result %q: %v", actual, err)
+	}
+	var fixtureValue any
+	if err := json.Unmarshal(fixture, &fixtureValue); err != nil {
+		t.Fatalf("decode fixture result %q: %v", fixture, err)
+	}
+
+	switch fixtureValue.(type) {
+	case nil, string, bool, map[string]any, []any:
+		if !reflect.DeepEqual(actualValue, fixtureValue) {
+			t.Fatalf("result = %#v, want fixture result %#v", actualValue, fixtureValue)
+		}
+	case float64:
+		if _, ok := actualValue.(float64); !ok {
+			t.Fatalf("result = %#v, want numeric result as in fixture", actualValue)
+		}
+	default:
+		t.Fatalf("unsupported fixture result type %T", fixtureValue)
+	}
+}
+
+func assertFixtureParams(t *testing.T, actual map[string]any, fixture map[string]any) {
+	t.Helper()
+	for name, fixtureValue := range fixture {
+		actualValue, ok := actual[name]
+		if !ok {
+			t.Fatalf("params.%s is missing, want fixture value %#v", name, fixtureValue)
+		}
+		if name == "retryAfterSeconds" {
+			// The fixture establishes the field's presence; its countdown varies with request time.
+			if retryAfterSeconds, ok := actualValue.(float64); !ok || retryAfterSeconds < 1 {
+				t.Fatalf("params.%s = %#v, want positive number", name, actualValue)
+			}
+			continue
+		}
+		if !reflect.DeepEqual(actualValue, fixtureValue) {
+			t.Fatalf("params.%s = %#v, want fixture value %#v", name, actualValue, fixtureValue)
+		}
 	}
 }
 
