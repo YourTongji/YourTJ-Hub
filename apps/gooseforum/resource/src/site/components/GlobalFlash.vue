@@ -69,72 +69,319 @@ function onBannerLeave(id: number) {
 }
 
 /**
- * 退场粒子弥散：彗星环收卷殆尽时，类型色微粒从环位迸发、向四周飘散渐隐。
- * 装饰性动画，reduced-motion 下不生成；粒子 fixed 于视口，飞离卡片边界无裁切。
+ * Toast 退场溶解层：流光碎屑 + 波点剥落 + 柔光晕开。
+ * 从卡片表面多点生成（非单点爆破），呼应 leave 上浮/回落方向。
+ * 装饰性、一次性；reduced-motion 下跳过；fixed 于视口，不受卡片 overflow 裁切。
  */
-function spawnParticles(accent: string, originX: number, originY: number) {
-  if (!accent || window.matchMedia('(prefers-reduced-motion: reduce)').matches) return
+interface BannerBounds {
+  left: number
+  top: number
+  width: number
+  height: number
+}
 
-  const particleCount = 12
-  for (let i = 0; i < particleCount; i++) {
-    const particle = document.createElement('span')
-    particle.setAttribute('aria-hidden', 'true')
-    const size = i % 3 === 0 ? '4.5' : (2.5 + Math.random() * 2).toFixed(1)
-    particle.style.cssText = [
-      `position:fixed`,
-      `left:${originX}px`,
-      `top:${originY}px`,
-      `width:${size}px`,
-      `height:${size}px`,
-      'border-radius:9999px',
-      `background:${accent}`,
-      'pointer-events:none',
-      'z-index:200',
-    ].join(';')
-    document.body.appendChild(particle)
+function prefersReducedMotion(): boolean {
+  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+}
 
-    // 七成粒子向上半区飘散（呼应上浮退场），其余全向
-    const upward = Math.random() < 0.7
-    const angle = upward
-      ? -Math.PI * (0.25 + Math.random() * 0.5)
-      : Math.random() * Math.PI * 2
-    const distance = (upward ? 52 + Math.random() * 48 : 30 + Math.random() * 34)
-    const dx = Math.cos(angle) * distance
-    const dy = Math.sin(angle) * distance
-    const duration = 460 + Math.random() * 220
+function isMobileViewport(): boolean {
+  return window.matchMedia('(max-width: 639px)').matches
+}
+
+/** 解析挂载时缓存的卡片几何；失败则回退空边界 */
+function readBannerBounds(raw: string | undefined): BannerBounds | null {
+  if (!raw) return null
+  try {
+    const parsed = JSON.parse(raw) as Partial<BannerBounds>
+    if (
+      typeof parsed.left !== 'number' ||
+      typeof parsed.top !== 'number' ||
+      typeof parsed.width !== 'number' ||
+      typeof parsed.height !== 'number'
+    ) {
+      return null
+    }
+    return {
+      left: parsed.left,
+      top: parsed.top,
+      width: parsed.width,
+      height: parsed.height,
+    }
+  } catch {
+    return null
+  }
+}
+
+/** 创建一枚固定定位的装饰粒子，动画结束后自清理 */
+function createDissolveParticle(styles: string): HTMLSpanElement {
+  const particle = document.createElement('span')
+  particle.className = 'gf-flash-dissolve-particle'
+  particle.setAttribute('aria-hidden', 'true')
+  particle.style.cssText = styles
+  document.body.appendChild(particle)
+  return particle
+}
+
+/**
+ * 三层溶解：
+ * 1) 波点 — 表面网格圆点，先浮出再轻漂淡出（主体）
+ * 2) 流光 — 横向细丝曳尾，像表面流光被抽走
+ * 3) 柔晕 — 大光斑扩开溶解，像雾在玻璃上散开
+ *
+ * Design read（design-taste + better-ui）：
+ * 产品微交互 / 玻璃 Toast；VARIANCE≈4、MOTION≈4（退场比入场更静）。
+ * 粒子贴表面剥落，不做爆炸式散射；exit 不抢注意力。
+ */
+function spawnDissolveEffects(accent: string, bounds: BannerBounds) {
+  if (!accent || prefersReducedMotion()) return
+
+  const mobile = isMobileViewport()
+  // 桌面 Toast 在右上：轻上漂；移动端在底部：轻下沉。水平几乎不偏，避免「右缘碎屑」
+  const verticalBias = mobile ? 1 : -1
+
+  // 内缩取样：粒子从内容区表面起，而不是边框外
+  const padX = Math.min(22, bounds.width * 0.1)
+  const padY = Math.min(16, bounds.height * 0.14)
+  const innerLeft = bounds.left + padX
+  const innerTop = bounds.top + padY
+  const innerWidth = Math.max(12, bounds.width - padX * 2)
+  const innerHeight = Math.max(12, bounds.height - padY * 2)
+
+  const easeOutSoft = 'cubic-bezier(0.16, 1, 0.3, 1)'
+  const easeDissolve = 'cubic-bezier(0.22, 0.61, 0.36, 1)'
+
+  // —— 层 1：波点（主体，像水珠/墨点从表面剥落）——
+  const dotCount = 14
+  for (let index = 0; index < dotCount; index++) {
+    const column = index % 5
+    const row = Math.floor(index / 5)
+    const gridX = (column + 0.5) / 5
+    const gridY = (row + 0.5) / 3
+    const originX = innerLeft + (gridX + (Math.random() - 0.5) * 0.16) * innerWidth
+    const originY = innerTop + (gridY + (Math.random() - 0.5) * 0.2) * innerHeight
+
+    const size = 3.2 + Math.random() * 4.2
+    const isSoftHalo = index % 3 === 0
+    const delay = 12 + index * 14 + Math.random() * 28
+    // 与 leave ~0.56s 对齐，略长一点让中段仍可见
+    const duration = 620 + Math.random() * 220
+
+    // 克制漂移：主要沿退场竖直方向，水平只微抖
+    const driftX = (Math.random() - 0.5) * 14
+    const driftY = verticalBias * (10 + Math.random() * 22) + (Math.random() - 0.5) * 8
+    const midScale = isSoftHalo ? 1.15 : 1.05
+    const endScale = isSoftHalo ? 0.2 : 0.35 + Math.random() * 0.2
+
+    const particle = createDissolveParticle(
+      [
+        'position:fixed',
+        `left:${originX}px`,
+        `top:${originY}px`,
+        `width:${size.toFixed(1)}px`,
+        `height:${size.toFixed(1)}px`,
+        'border-radius:9999px',
+        `background:${accent}`,
+        isSoftHalo
+          ? `box-shadow:0 0 ${10 + Math.random() * 12}px color-mix(in oklab, ${accent} 70%, transparent), 0 0 2px ${accent}`
+          : `box-shadow:0 0 6px color-mix(in oklab, ${accent} 55%, transparent), 0 0 1px ${accent}`,
+        'pointer-events:none',
+        'z-index:200',
+        'will-change:transform,opacity',
+      ].join(';'),
+    )
 
     particle
       .animate(
         [
-          { opacity: 1, transform: 'translate(-50%,-50%) scale(1)' },
-          { opacity: 0, transform: `translate(calc(-50% + ${dx}px), calc(-50% + ${dy}px)) scale(0.4)` },
+          {
+            opacity: isSoftHalo ? 0.55 : 0.75,
+            transform: 'translate(-50%,-50%) scale(0.75)',
+            offset: 0,
+          },
+          {
+            // 中段保持可读：先「浮出」再溶解，而非立刻飘走
+            opacity: isSoftHalo ? 0.85 : 1,
+            transform: `translate(calc(-50% + ${driftX * 0.25}px), calc(-50% + ${driftY * 0.25}px)) scale(${midScale})`,
+            offset: 0.28,
+          },
+          {
+            opacity: isSoftHalo ? 0.55 : 0.7,
+            transform: `translate(calc(-50% + ${driftX * 0.65}px), calc(-50% + ${driftY * 0.65}px)) scale(${(midScale + endScale) / 2})`,
+            offset: 0.62,
+          },
+          {
+            opacity: 0,
+            transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${driftY}px)) scale(${endScale})`,
+            offset: 1,
+          },
         ],
-        { duration, easing: 'cubic-bezier(0.16, 1, 0.3, 1)', fill: 'forwards' },
+        { duration, delay, easing: easeDissolve, fill: 'forwards' },
       )
       .finished.then(() => particle.remove())
+      .catch(() => particle.remove())
+  }
+
+  // —— 层 2：流光丝（横向曳尾，像表面流光被抽走）——
+  const streakCount = 5
+  for (let index = 0; index < streakCount; index++) {
+    const originX = innerLeft + (0.12 + Math.random() * 0.76) * innerWidth
+    const originY = innerTop + (0.22 + Math.random() * 0.5) * innerHeight
+    // 横丝：宽 > 高，读作流光而非竖条
+    const streakWidth = 22 + Math.random() * 30
+    const streakHeight = 2 + Math.random() * 2.2
+    const tilt = (mobile ? 12 : -18) + (Math.random() - 0.5) * 14
+    const delay = 40 + index * 28 + Math.random() * 30
+    const duration = 540 + Math.random() * 200
+
+    const driftX = (mobile ? 0 : 1) * (8 + Math.random() * 16) + (Math.random() - 0.5) * 10
+    const driftY = verticalBias * (14 + Math.random() * 22)
+
+    const particle = createDissolveParticle(
+      [
+        'position:fixed',
+        `left:${originX}px`,
+        `top:${originY}px`,
+        `width:${streakWidth.toFixed(1)}px`,
+        `height:${streakHeight.toFixed(1)}px`,
+        'border-radius:9999px',
+        `background:linear-gradient(90deg, transparent 0%, color-mix(in oklab, ${accent} 55%, white) 28%, ${accent} 52%, color-mix(in oklab, white 40%, ${accent}) 72%, transparent 100%)`,
+        `box-shadow:0 0 14px color-mix(in oklab, ${accent} 65%, transparent), 0 0 2px ${accent}`,
+        'pointer-events:none',
+        'z-index:201',
+        'will-change:transform,opacity',
+        'opacity:0',
+      ].join(';'),
+    )
+
+    particle
+      .animate(
+        [
+          {
+            opacity: 0,
+            transform: `translate(-50%,-50%) scaleX(0.45) rotate(${tilt}deg)`,
+          },
+          {
+            opacity: 0.9,
+            transform: `translate(calc(-50% + ${driftX * 0.2}px), calc(-50% + ${driftY * 0.2}px)) scaleX(1) rotate(${tilt}deg)`,
+            offset: 0.2,
+          },
+          {
+            opacity: 0.55,
+            transform: `translate(calc(-50% + ${driftX * 0.55}px), calc(-50% + ${driftY * 0.55}px)) scaleX(0.85) rotate(${tilt + (mobile ? 4 : -6)}deg)`,
+            offset: 0.55,
+          },
+          {
+            opacity: 0,
+            transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${driftY}px)) scaleX(0.3) rotate(${tilt + (mobile ? 8 : -10)}deg)`,
+          },
+        ],
+        { duration, delay, easing: easeOutSoft, fill: 'forwards' },
+      )
+      .finished.then(() => particle.remove())
+      .catch(() => particle.remove())
+  }
+
+  // —— 层 3：柔晕（大光斑扩开淡出，像雾/墨在玻璃上散开）——
+  const glowCount = 4
+  for (let index = 0; index < glowCount; index++) {
+    const originX = innerLeft + (0.18 + index * 0.2 + (Math.random() - 0.5) * 0.08) * innerWidth
+    const originY = innerTop + (0.28 + (Math.random() - 0.5) * 0.22) * innerHeight
+    const size = 28 + Math.random() * 32
+    const delay = 8 + index * 36
+    const duration = 680 + Math.random() * 160
+    const driftX = (Math.random() - 0.5) * 10
+    const driftY = verticalBias * (6 + Math.random() * 12)
+
+    const particle = createDissolveParticle(
+      [
+        'position:fixed',
+        `left:${originX}px`,
+        `top:${originY}px`,
+        `width:${size.toFixed(1)}px`,
+        `height:${size.toFixed(1)}px`,
+        'border-radius:9999px',
+        `background:radial-gradient(circle, color-mix(in oklab, ${accent} 70%, white) 0%, color-mix(in oklab, ${accent} 40%, transparent) 38%, color-mix(in oklab, ${accent} 16%, transparent) 62%, transparent 78%)`,
+        'pointer-events:none',
+        'z-index:199',
+        'will-change:transform,opacity',
+        'filter:blur(1.5px)',
+      ].join(';'),
+    )
+
+    particle
+      .animate(
+        [
+          {
+            opacity: 0.4,
+            transform: 'translate(-50%,-50%) scale(0.5)',
+            offset: 0,
+          },
+          {
+            opacity: 0.72,
+            transform: `translate(calc(-50% + ${driftX * 0.3}px), calc(-50% + ${driftY * 0.3}px)) scale(1)`,
+            offset: 0.3,
+          },
+          {
+            opacity: 0,
+            transform: `translate(calc(-50% + ${driftX}px), calc(-50% + ${driftY}px)) scale(1.85)`,
+            offset: 1,
+          },
+        ],
+        { duration, delay, easing: easeDissolve, fill: 'forwards' },
+      )
+      .finished.then(() => particle.remove())
+      .catch(() => particle.remove())
   }
 }
 
 /**
- * 挂载时（正常布局）捕获彗星环中心坐标，供退场粒子使用。
- * 退场瞬间元素会转为 absolute，此时读取的 rect 不可靠。
+ * 挂载时（正常布局）捕获整卡几何，供退场溶解层取样。
+ * 退场瞬间元素会转为 absolute，此时读取的 rect 可能变窄/偏移。
  */
 function captureBannerOrigin(_id: number, el: Element | ComponentPublicInstance | null) {
   if (!(el instanceof Element)) return
   const r = el.getBoundingClientRect()
-  const originX = r.left + r.width / 2
-  const originY = r.bottom - 19 // 彗星环中心
-  ;(el as HTMLElement).dataset.origin = `${originX},${originY}`
+  if (r.width < 2 || r.height < 2) return
+  const bounds: BannerBounds = {
+    left: r.left,
+    top: r.top,
+    width: r.width,
+    height: r.height,
+  }
+  ;(el as HTMLElement).dataset.origin = JSON.stringify(bounds)
 }
 
-/** TransitionGroup 退场钩子：消散中段迸发粒子，随后结束退场 */
+/** TransitionGroup 退场钩子：与卡片 leave 同步启动溶解层 */
 function onFlashLeave(el: Element, done: () => void) {
   const banner = el as HTMLElement
   const accent = getComputedStyle(banner).getPropertyValue('--gf-flash-accent').trim()
-  const [originX, originY] = (banner.dataset.origin ?? '0,0').split(',').map(Number)
-  window.setTimeout(() => spawnParticles(accent, originX, originY), 140)
+  // 优先用挂载时缓存的稳定几何；live 仅在缓存缺失时兜底
+  const cachedBounds = readBannerBounds(banner.dataset.origin)
+  const liveRect = banner.getBoundingClientRect()
+  const liveBounds: BannerBounds | null =
+    liveRect.width >= 24 && liveRect.height >= 24
+      ? {
+          left: liveRect.left,
+          top: liveRect.top,
+          width: liveRect.width,
+          height: liveRect.height,
+        }
+      : null
+  // 若 live 明显比缓存窄（absolute 塌缩），仍用缓存
+  const bounds =
+    cachedBounds && liveBounds && liveBounds.width < cachedBounds.width * 0.75
+      ? cachedBounds
+      : (cachedBounds ?? liveBounds)
+  if (!bounds) {
+    done()
+    return
+  }
+
+  // 略晚于 leave 起步：卡片先开始软化，再剥落波点（溶解而非爆炸）
+  window.setTimeout(() => spawnDissolveEffects(accent, bounds), 40)
   done()
 }
+
 </script>
 
 <template>

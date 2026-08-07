@@ -203,6 +203,8 @@
    * - 底色 base-100 高不透明度 + 轻微模糊，保证文字对比度
    * - 类型色以「顶部封条线」呈现：2px 横线两端柔和渐隐，三边回归中性细边
    * - 图标无圆形容器：现代线条图标直接呈现
+   * - 出场流光：::after 类型色高光带，由 .gf-flash-enter-active 驱动扫过并消逝
+   * - 退场溶解：卡片 leave 软化 + 贴表面波点/横向流光/柔晕（fixed 粒子，不裁切）
    */
   .gf-flash-banner {
     --gf-flash-duration: 5200ms;
@@ -221,7 +223,7 @@
     backdrop-filter: blur(10px);
     -webkit-backdrop-filter: blur(10px);
     color: var(--gf-flash-text);
-    will-change: transform, opacity;
+    will-change: transform, opacity, filter;
     transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
   }
 
@@ -231,6 +233,8 @@
     position: absolute;
     inset: 0 0 auto 0;
     height: 2px;
+    z-index: 2;
+    pointer-events: none;
     background: linear-gradient(
       90deg,
       transparent 0%,
@@ -240,6 +244,35 @@
       color-mix(in oklab, var(--gf-flash-accent) 40%, transparent) 93%,
       transparent 100%
     );
+  }
+
+  /*
+   * 流光层（默认静止在场外，仅 enter-active 时扫过）
+   * 斜切高光带 + 类型色微辉：扫完即 opacity 0，不残留
+   */
+  .gf-flash-banner::after {
+    content: '';
+    position: absolute;
+    top: -20%;
+    bottom: -20%;
+    left: 0;
+    width: 42%;
+    z-index: 3;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      color-mix(in oklab, var(--gf-flash-accent) 0%, transparent) 28%,
+      color-mix(in oklab, var(--gf-flash-accent) 22%, white) 46%,
+      color-mix(in oklab, white 55%, var(--gf-flash-accent)) 52%,
+      color-mix(in oklab, var(--gf-flash-accent) 18%, transparent) 62%,
+      transparent 100%
+    );
+    opacity: 0;
+    transform: translate3d(-130%, 0, 0) skewX(-12deg);
+    will-change: transform, opacity;
+    mix-blend-mode: soft-light;
   }
 
   /* 悬停：浮影加深 + 极淡类型色辉光（有生命感，不出格） */
@@ -369,6 +402,20 @@
       0 4px 16px -12px rgb(0 0 0 / 0.4);
   }
 
+  /* 深色下 soft-light 偏弱，改用 screen 让类型色流光更易感知 */
+  [data-theme='gf-dark'] .gf-flash-banner::after {
+    mix-blend-mode: screen;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      color-mix(in oklab, var(--gf-flash-accent) 0%, transparent) 26%,
+      color-mix(in oklab, var(--gf-flash-accent) 45%, transparent) 44%,
+      color-mix(in oklab, white 70%, var(--gf-flash-accent)) 52%,
+      color-mix(in oklab, var(--gf-flash-accent) 28%, transparent) 64%,
+      transparent 100%
+    );
+  }
+
   [data-theme='gf-dark'] .gf-flash-banner:hover,
   [data-theme='gf-dark'] .gf-flash-banner:focus-within {
     box-shadow:
@@ -386,6 +433,11 @@
 
   @media (prefers-reduced-motion: reduce) {
     .gf-flash-banner {
+      will-change: auto;
+    }
+
+    .gf-flash-banner::after {
+      content: none;
       will-change: auto;
     }
 
