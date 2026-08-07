@@ -22,6 +22,9 @@ enum GfButtonVariant {
   /// `gf-button-outline`: transparent with line border (web secondary-lite).
   outline,
 
+  /// `gf-button-muted`: muted text that brightens on hover.
+  muted,
+
   /// Text-only primary link.
   link,
 }
@@ -70,8 +73,10 @@ class GfButton extends StatelessWidget {
     final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
 
-    final (Color background, Color foreground, Color? border) =
-        _palette(colors, borders);
+    final (Color background, Color foreground, Color? border) = _palette(
+      colors,
+      borders,
+    );
     final bool enabled = onPressed != null && !loading;
 
     final Widget content = Row(
@@ -82,10 +87,7 @@ class GfButton extends StatelessWidget {
           SizedBox(
             width: 16,
             height: 16,
-            child: CircularProgressIndicator(
-              strokeWidth: 2,
-              color: foreground,
-            ),
+            child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
           )
         else
           ?icon,
@@ -135,13 +137,23 @@ class GfButton extends StatelessWidget {
       case GfButtonVariant.neutral:
         return (colors.neutral, colors.neutralContent, null);
       case GfButtonVariant.secondary:
-        return (colors.base100, colors.baseContent.withValues(alpha: 0.75), colors.line);
+        return (
+          colors.base100,
+          colors.baseContent.withValues(alpha: 0.75),
+          colors.line,
+        );
       case GfButtonVariant.danger:
         return (colors.error, colors.errorContent, null);
       case GfButtonVariant.ghost:
         return (Colors.transparent, colors.primary, null);
       case GfButtonVariant.outline:
         return (Colors.transparent, colors.baseContent, colors.line);
+      case GfButtonVariant.muted:
+        return (
+          Colors.transparent,
+          colors.baseContent.withValues(alpha: 0.55),
+          null,
+        );
       case GfButtonVariant.link:
         return (Colors.transparent, colors.primary, null);
     }

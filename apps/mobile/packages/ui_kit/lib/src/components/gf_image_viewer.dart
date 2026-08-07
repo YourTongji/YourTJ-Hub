@@ -47,23 +47,25 @@ class _GfImageViewerState extends State<GfImageViewer> {
 
   void _showPrevious() {
     if (widget.images.length < 2) return;
-    final int next =
-        _currentIndex <= 0 ? widget.images.length - 1 : _currentIndex - 1;
+    final int next = _currentIndex <= 0
+        ? widget.images.length - 1
+        : _currentIndex - 1;
     _pageController.animateToPage(
       next,
       duration: GfMotion.standardDuration,
-      curve: GfMotion.standard,
+      curve: GfMotion.standardEase,
     );
   }
 
   void _showNext() {
     if (widget.images.length < 2) return;
-    final int next =
-        _currentIndex >= widget.images.length - 1 ? 0 : _currentIndex + 1;
+    final int next = _currentIndex >= widget.images.length - 1
+        ? 0
+        : _currentIndex + 1;
     _pageController.animateToPage(
       next,
       duration: GfMotion.standardDuration,
-      curve: GfMotion.standard,
+      curve: GfMotion.standardEase,
     );
   }
 
@@ -98,12 +100,12 @@ class _GfImageViewerState extends State<GfImageViewer> {
                       mode: ExtendedImageMode.gesture,
                       initGestureConfigHandler: (ExtendedImageState state) =>
                           GestureConfig(
-                        minScale: 1.0,
-                        maxScale: 4.0,
-                        animationMaxScale: 4.0,
-                        inPageView: widget.images.length > 1,
-                        initialScale: 1.0,
-                      ),
+                            minScale: 1.0,
+                            maxScale: 4.0,
+                            animationMaxScale: 4.0,
+                            inPageView: widget.images.length > 1,
+                            initialScale: 1.0,
+                          ),
                       loadStateChanged: (ExtendedImageState state) {
                         switch (state.extendedImageLoadState) {
                           case LoadState.loading:
@@ -263,7 +265,11 @@ class _ViewerIconButton extends StatelessWidget {
                 width: borders.width,
               ),
             ),
-            child: Icon(icon, size: 20, color: colors.baseContent.withValues(alpha: 0.78)),
+            child: Icon(
+              icon,
+              size: 20,
+              color: colors.baseContent.withValues(alpha: 0.78),
+            ),
           ),
         ),
       ),

@@ -29,6 +29,7 @@ class GfTopicRow extends StatelessWidget {
     this.pinned = false,
     this.unseen = false,
     this.viewCount,
+    this.hot = false,
   });
 
   final String title;
@@ -43,6 +44,10 @@ class GfTopicRow extends StatelessWidget {
 
   /// View count shown in the desktop meta layout; optional on mobile.
   final int? viewCount;
+
+  /// Whether the row is trending; shows the `hot` badge (web
+  /// `showHot && viewCount > 500`).
+  final bool hot;
 
   @override
   Widget build(BuildContext context) {
@@ -82,6 +87,34 @@ class GfTopicRow extends StatelessWidget {
                     ),
                   ),
                 ),
+                if (hot)
+                  Container(
+                    height: 20,
+                    padding: const EdgeInsets.symmetric(horizontal: 6),
+                    decoration: BoxDecoration(
+                      color: colors.warning.withValues(alpha: 0.12),
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: <Widget>[
+                        Icon(
+                          Icons.local_fire_department,
+                          size: 12,
+                          color: colors.warning,
+                        ),
+                        const SizedBox(width: 2),
+                        Text(
+                          'hot',
+                          style: TextStyle(
+                            color: colors.warning,
+                            fontSize: 11,
+                            fontWeight: FontWeight.w600,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
                 if (unseen)
                   Container(
                     width: 8,
@@ -114,7 +147,8 @@ class GfTopicRow extends StatelessWidget {
                 children: <Widget>[
                   if (participantAvatars.isNotEmpty) ...<Widget>[
                     SizedBox(
-                      width: (participantAvatars.length > 4
+                      width:
+                          (participantAvatars.length > 4
                               ? 4
                               : participantAvatars.length) *
                           14.0,
@@ -122,9 +156,11 @@ class GfTopicRow extends StatelessWidget {
                       child: Stack(
                         clipBehavior: Clip.none,
                         children: <Widget>[
-                          for (int i = 0;
-                              i < participantAvatars.length && i < 4;
-                              i++)
+                          for (
+                            int i = 0;
+                            i < participantAvatars.length && i < 4;
+                            i++
+                          )
                             Positioned(
                               left: i * 14,
                               child: participantAvatars[i],

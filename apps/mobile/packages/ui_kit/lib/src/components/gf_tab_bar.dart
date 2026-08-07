@@ -81,8 +81,8 @@ class _GfTabItem extends StatelessWidget {
         : colors.baseContent.withValues(alpha: 0.55);
 
     return AnimatedContainer(
-      duration: GfMotion.standardDuration,
-      curve: GfMotion.standard,
+      duration: GfMotion.instant,
+      curve: GfMotion.standardEase,
       height: 32,
       padding: const EdgeInsets.symmetric(horizontal: 12),
       alignment: Alignment.center,

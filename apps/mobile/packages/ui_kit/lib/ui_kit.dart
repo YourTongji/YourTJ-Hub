@@ -8,6 +8,7 @@ export 'src/components/gf_button.dart';
 export 'src/components/gf_card.dart';
 export 'src/components/gf_chip.dart';
 export 'src/components/gf_floating_action.dart';
+export 'src/components/gf_icon_button.dart';
 export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_motion.dart';
 export 'src/components/gf_panel.dart';

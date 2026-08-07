@@ -122,14 +122,15 @@ ThemeData gfThemeData(Brightness brightness) {
         borderRadius: BorderRadius.circular(GfRadii.standard.selector),
       ),
     ),
-    // Cards follow gf-card semantics (see GfCard).
+    // Cards follow gf-card semantics: mobile default has no border (the
+    // hairline bottom divider is drawn by GfCard itself); `emphasized`
+    // restores the desktop border+radius look.
     cardTheme: CardThemeData(
       color: colors.base100,
       elevation: 0,
       margin: EdgeInsets.zero,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(GfRadii.standard.box),
-        side: BorderSide(color: colors.line, width: GfBorders.standard.width),
       ),
     ),
     // Dialogs / bottom sheets follow gf-floating-surface semantics.
