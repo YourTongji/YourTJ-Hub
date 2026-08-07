@@ -69,10 +69,13 @@ const subtitle = computed(() => {
 })
 
 const showSocial = computed(() => mode.value !== 'forgot')
-// 仅允许站内相对路径跳转，拒绝 javascript:、//host 等注入（服务端已校验，此处纵深防御）
+// 仅允许站内相对路径跳转，拒绝 javascript:、//host 及任何含反斜杠的值
+// （浏览器会将 \ 归一化为 /，/\evil.com 会被解析为跨域地址，服务端已同步校验）
 const homeUrl = computed(() => {
   const target = page.props.redirectUrl || '/'
-  return target.startsWith('/') && !target.startsWith('//') && !target.startsWith('\\') ? target : '/'
+  if (!target.startsWith('/') || target.startsWith('//') || target.includes('\\')) return '/'
+  if (target.length > 1 && target[1] === '/') return '/'
+  return target
 })
 const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.png')
 
@@ -268,8 +271,8 @@ function errorMessage(err: unknown, fallback: string) {
       <button
         type="button"
         class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
-        :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
-        :title="isDark ? 'Light' : 'Dark'"
+        :aria-label="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
+        :title="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
         @click="toggleTheme"
       >
         <Sun v-if="isDark" class="h-5 w-5" />
@@ -284,8 +287,8 @@ function errorMessage(err: unknown, fallback: string) {
           <div v-if="showSocial" class="mb-8 md:hidden">
             <div class="flex items-center justify-center gap-2">
               <figure class="mt-8 shrink-0">
-                <img src="/static/pic/tea-white.webp" alt="白龙茶" class="mx-auto h-20 w-auto -scale-x-100" />
-                <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">白龙茶</figcaption>
+                <img src="/static/pic/tea-white.webp" :alt="t('auth.teaWhite')" class="mx-auto h-20 w-auto -scale-x-100" />
+                <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaWhite') }}</figcaption>
               </figure>
               <div class="flex min-w-0 flex-col items-center text-center">
                 <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" />
@@ -293,8 +296,8 @@ function errorMessage(err: unknown, fallback: string) {
                 <p class="mt-1 text-xs leading-5 text-base-content/45">{{ t('auth.panelTaglineSource') }}</p>
               </div>
               <figure class="mt-8 shrink-0">
-                <img src="/static/pic/tea-dark.webp" alt="乌龙茶" class="mx-auto h-20 w-auto" />
-                <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">乌龙茶</figcaption>
+                <img src="/static/pic/tea-dark.webp" :alt="t('auth.teaDark')" class="mx-auto h-20 w-auto" />
+                <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaDark') }}</figcaption>
               </figure>
             </div>
           </div>
@@ -458,12 +461,12 @@ function errorMessage(err: unknown, fallback: string) {
 
             <div class="flex items-start justify-center gap-6">
               <figure class="min-w-0">
-                <img src="/static/pic/tea-white.webp" alt="白龙茶" class="mx-auto h-36 w-auto sm:h-44" />
-                <figcaption class="mt-2 text-center text-xs font-semibold text-base-content/55">白龙茶</figcaption>
+                <img src="/static/pic/tea-white.webp" :alt="t('auth.teaWhite')" class="mx-auto h-36 w-auto sm:h-44" />
+                <figcaption class="mt-2 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaWhite') }}</figcaption>
               </figure>
               <figure class="min-w-0">
-                <img src="/static/pic/tea-dark.webp" alt="乌龙茶" class="mx-auto h-36 w-auto sm:h-44" />
-                <figcaption class="mt-2 text-center text-xs font-semibold text-base-content/55">乌龙茶</figcaption>
+                <img src="/static/pic/tea-dark.webp" :alt="t('auth.teaDark')" class="mx-auto h-36 w-auto sm:h-44" />
+                <figcaption class="mt-2 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaDark') }}</figcaption>
               </figure>
             </div>
 
