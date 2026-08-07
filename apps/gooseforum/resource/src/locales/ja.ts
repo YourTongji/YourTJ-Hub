@@ -94,6 +94,8 @@ export default {
     backToLogin: 'ログインへ戻る',
     continueWith: 'または次で続行',
     googleUnavailable: 'Google はまだ利用できません',
+    panelTagline: '未済は終わりにあらず、可能性は無限',
+    panelTaglineSource: '『易経』未済卦より着想 · 六十四卦の最終',
     twoFactorTitle: '二段階認証',
     twoFactorDescription: '認証アプリが生成する6桁のコード、または復旧コードを入力してください。',
     twoFactorCode: 'コード',

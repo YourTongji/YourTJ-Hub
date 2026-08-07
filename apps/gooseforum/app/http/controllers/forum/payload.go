@@ -848,12 +848,26 @@ func buildTrackedTopicPayloads(userID uint64, topics []*vo.TopicsSimpleVo) []Top
 	return payloads
 }
 
+// isSafeRedirect 仅允许站内相对路径，拒绝 javascript:、//host、\host 等危险值
+func isSafeRedirect(value string) bool {
+	if value == "" {
+		return false
+	}
+	if !strings.HasPrefix(value, "/") || strings.HasPrefix(value, "//") || strings.HasPrefix(value, `\`) {
+		return false
+	}
+	return true
+}
+
 func buildLoginPageProps(c *gin.Context) LoginPageProps {
 	mode := "login"
 	if c.Query("register") == "true" || c.Query("model") == "register" {
 		mode = "register"
 	}
 	redirectURL := c.Query("redirect")
+	if !isSafeRedirect(redirectURL) {
+		redirectURL = ""
+	}
 	githubURL := "/api/auth/github"
 	if redirectURL != "" {
 		githubURL += "?redirect=" + url.QueryEscape(redirectURL)

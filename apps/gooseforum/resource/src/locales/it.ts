@@ -94,6 +94,8 @@ export default {
     backToLogin: 'Torna all’accesso',
     continueWith: 'Oppure continua con',
     googleUnavailable: 'Google non è ancora disponibile',
+    panelTagline: 'Weiji: l\u2019incompiuto apre ogni possibilit\u00e0',
+    panelTaglineSource: 'Ispirato allo I Ching — Weiji, 64° ed ultimo esagramma',
     twoFactorTitle: 'Autenticazione a due fattori',
     twoFactorDescription: 'Inserisci il codice a 6 cifre della tua app di autenticazione oppure usa un codice di recupero.',
     twoFactorCode: 'Codice',

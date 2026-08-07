@@ -94,6 +94,8 @@ export default {
     backToLogin: '返回登录',
     continueWith: '或继续使用',
     googleUnavailable: 'Google 暂未开放',
+    panelTagline: '未济非终，皆有可能',
+    panelTaglineSource: '化用《周易》未济卦 · 六十四卦之终',
     twoFactorTitle: '两步验证',
     twoFactorDescription: '输入验证器应用生成的 6 位动态验证码，或使用恢复码。',
     twoFactorCode: '验证码',

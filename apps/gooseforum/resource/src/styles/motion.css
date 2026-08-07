@@ -173,3 +173,17 @@
     transform: none;
   }
 }
+
+.locale-pop-enter-active,
+.locale-pop-leave-active {
+  transform-origin: top right;
+  transition:
+    opacity 0.15s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.15s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.locale-pop-enter-from,
+.locale-pop-leave-to {
+  opacity: 0;
+  transform: translateY(4px) scale(0.97);
+}

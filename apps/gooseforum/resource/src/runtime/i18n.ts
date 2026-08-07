@@ -52,7 +52,8 @@ export function detectLocale(): Locale {
 }
 
 export function setLocaleCookie(locale: Locale) {
-  document.cookie = `lang=${locale}; path=/; max-age=31536000; samesite=lax`
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `lang=${locale}; path=/; max-age=31536000; samesite=lax${secure}`
 }
 
 export const i18n = createI18n({

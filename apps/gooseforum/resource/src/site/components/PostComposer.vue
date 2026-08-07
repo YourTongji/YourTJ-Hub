@@ -459,7 +459,7 @@ function submit() {
                 @click="emit('refreshCaptcha')"
               >
                 <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-4 w-4 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
+                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="gf-captcha-image h-full w-full object-cover" />
               </button>
               <input
                 v-model="captchaCode"
