@@ -526,6 +526,7 @@ export default {
       italic: '斜体',
       strike: '删除线',
       inlineCode: '行内代码',
+      math: '公式',
       link: '链接',
       linkUrl: '输入链接地址',
       applyLink: '应用',
@@ -551,6 +552,7 @@ export default {
       link: '链接文本',
       quote: '引用内容',
       listItem: '列表项',
+      math: '数学公式',
     },
     checklist: {
       title: '发布检查',
