@@ -30,8 +30,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, planned).
 - Auth: GitHub OAuth (goth) + **Casdoor OIDC integrated** (PKCE, numeric `sub` enforced server-side);
   TOTP 2FA and session management (`jti` + `user_sessions`) in place (issue #8).
-- Contract: `packages/api-contract/openapi.yaml` contract center (planned; upstream has no swagger
-  annotations — needs manual or annotation-based work).
+- Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
+  login and topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP
+  tests; broader route coverage still needs manual or annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
