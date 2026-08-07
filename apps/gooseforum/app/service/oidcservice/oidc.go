@@ -247,6 +247,7 @@ func HandleCallback(c *gin.Context) (CallbackResult, error) {
 	if err != nil {
 		return CallbackResult{}, ErrNonNumericSub
 	}
+	// 0 is the logged-out/absent-user sentinel; never treat it as a real user.
 	if sub == 0 {
 		return CallbackResult{}, ErrNonNumericSub
 	}
