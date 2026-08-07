@@ -148,7 +148,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   Color _hexColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
-    return value == null ? Colors.amber : Color(0xFF000000 | value);
+    return value == null ? GfTheme.colorsOf(context).warning : Color(0xFF000000 | value);
   }
 
   /// 修改密码:对话框输入旧/新密码,调 change-password。
@@ -645,7 +645,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
         children: [
           // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
           Container(
-            height: 46,
+            height: 44,
             alignment: Alignment.centerLeft,
             padding: const EdgeInsets.symmetric(horizontal: 8),
             child: GfTabBar(

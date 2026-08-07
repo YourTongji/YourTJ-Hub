@@ -302,7 +302,7 @@ class _ProfileTabs extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      height: 42,
+      height: 44,
       alignment: Alignment.centerLeft,
       padding: const EdgeInsets.symmetric(horizontal: 8),
       child: GfTabBar(
@@ -335,13 +335,9 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.activities.length,
-          itemBuilder: (context, i) => ListTile(
-            leading: const Icon(Icons.bolt_outlined, size: 18),
-            title: Text(
-              props.activities[i].contentPreview,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            icon: Icons.bolt_outlined,
+            title: props.activities[i].contentPreview,
             trailing: Text(
               timeAgo(props.activities[i].createdAt, l10n: l10n),
               style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
@@ -353,12 +349,8 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.topics.length,
-          itemBuilder: (context, i) => ListTile(
-            title: Text(
-              props.topics[i].title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            title: props.topics[i].title,
             trailing: Text(
               l10n.topicReplies(props.topics[i].replyCount),
               style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
@@ -370,12 +362,8 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.likes.length,
-          itemBuilder: (context, i) => ListTile(
-            title: Text(
-              props.likes[i].title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            title: props.likes[i].title,
             trailing: Text(
               timeAgo(props.likes[i].likedAt, l10n: l10n),
               style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
@@ -387,12 +375,8 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.bookmarks.length,
-          itemBuilder: (context, i) => ListTile(
-            title: Text(
-              props.bookmarks[i].title,
-              maxLines: 1,
-              overflow: TextOverflow.ellipsis,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            title: props.bookmarks[i].title,
             trailing: Text(
               timeAgo(props.bookmarks[i].bookmarkedAt, l10n: l10n),
               style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
@@ -404,16 +388,11 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.following.length,
-          itemBuilder: (context, i) => ListTile(
-            leading: CircleAvatar(
-              radius: 14,
-              backgroundImage: NetworkImage(props.following[i].avatarUrl),
-            ),
-            title: Text(
-              props.following[i].nickname.isEmpty
-                  ? props.following[i].username
-                  : props.following[i].nickname,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            leading: GfAvatar(src: props.following[i].avatarUrl, size: 28),
+            title: props.following[i].nickname.isEmpty
+                ? props.following[i].username
+                : props.following[i].nickname,
           ),
         ),
       if (props.followers.isEmpty)
@@ -421,16 +400,11 @@ class _ProfileBody extends StatelessWidget {
       else
         ListView.builder(
           itemCount: props.followers.length,
-          itemBuilder: (context, i) => ListTile(
-            leading: CircleAvatar(
-              radius: 14,
-              backgroundImage: NetworkImage(props.followers[i].avatarUrl),
-            ),
-            title: Text(
-              props.followers[i].nickname.isEmpty
-                  ? props.followers[i].username
-                  : props.followers[i].nickname,
-            ),
+          itemBuilder: (context, i) => GfSettingRow(
+            leading: GfAvatar(src: props.followers[i].avatarUrl, size: 28),
+            title: props.followers[i].nickname.isEmpty
+                ? props.followers[i].username
+                : props.followers[i].nickname,
           ),
         ),
     ];

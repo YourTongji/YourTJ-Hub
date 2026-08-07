@@ -206,20 +206,10 @@ class _UserResults extends StatelessWidget {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final user = users[i];
-        return ListTile(
-          leading: CircleAvatar(
-            radius: 18,
-            backgroundImage: user.avatarUrl.isEmpty
-                ? null
-                : NetworkImage(user.avatarUrl),
-            child: user.avatarUrl.isEmpty
-                ? const Icon(Icons.person, size: 18)
-                : null,
-          ),
-          title: Text(user.nickname.isEmpty ? user.username : user.nickname),
-          subtitle: user.bio.isEmpty
-              ? null
-              : Text(user.bio, maxLines: 1, overflow: TextOverflow.ellipsis),
+        return GfSettingRow(
+          leading: GfAvatar(src: user.avatarUrl, size: 36),
+          title: user.nickname.isEmpty ? user.username : user.nickname,
+          description: user.bio.isEmpty ? null : user.bio,
           onTap: () => context.push('/u/${user.id}'),
         );
       },
@@ -242,15 +232,13 @@ class _CategoryResults extends StatelessWidget {
       separatorBuilder: (_, _) => const Divider(height: 1),
       itemBuilder: (context, i) {
         final cat = categories[i];
-        return ListTile(
+        return GfSettingRow(
           leading: CircleAvatar(
             radius: 16,
             backgroundColor: colorFromHex(cat.color),
           ),
-          title: Text(cat.name),
-          subtitle: cat.desc.isEmpty
-              ? null
-              : Text(cat.desc, maxLines: 1, overflow: TextOverflow.ellipsis),
+          title: cat.name,
+          description: cat.desc.isEmpty ? null : cat.desc,
           onTap: () => context.push('/c/${cat.slug}/${cat.id}'),
         );
       },

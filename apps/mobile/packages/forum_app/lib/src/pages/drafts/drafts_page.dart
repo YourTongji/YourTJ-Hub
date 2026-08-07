@@ -66,91 +66,28 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
               separatorBuilder: (_, _) => const Divider(height: 1),
               itemBuilder: (context, i) {
                 final draft = props.drafts[i];
-                final colors = GfTheme.colorsOf(context);
-                return InkWell(
+                final meta = [
+                  l10n.draftsMetaCreated(formatDateTime(draft.createdAt)),
+                  l10n.draftsMetaViews(draft.viewCount),
+                  l10n.draftsMetaReplies(draft.replyCount),
+                ].join(' · ');
+                return GfDraftRow(
+                  title: draft.title.isEmpty ? l10n.topicNoTitle : draft.title,
+                  description: draft.description,
+                  categories: [
+                    for (final cat in draft.categories)
+                      GfTopicCategory(
+                        name: cat.name,
+                        color: colorFromHex(cat.color),
+                      ),
+                  ],
+                  blocked: draft.processStatus == 1,
+                  meta: meta,
+                  updatedTime: formatDate(draft.updatedAt),
                   onTap: () {
                     // 跳转编辑:web 草稿 editUrl 形如 /publish?topicId=xxx。
                     context.push('/publish?topicId=${draft.id}');
                   },
-                  child: Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 16,
-                      vertical: 12,
-                    ),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          children: [
-                            Expanded(
-                              child: Text(
-                                draft.title.isEmpty
-                                    ? l10n.topicNoTitle
-                                    : draft.title,
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: GfTheme.typographyOf(context).heading,
-                              ),
-                            ),
-                            // blocked badge(web processStatus===1)。
-                            if (draft.processStatus == 1) ...[
-                              const SizedBox(width: 8),
-                              Container(
-                                padding: const EdgeInsets.symmetric(
-                                  horizontal: 8,
-                                  vertical: 2,
-                                ),
-                                decoration: BoxDecoration(
-                                  color: colors.error.withValues(alpha: 0.1),
-                                  borderRadius: BorderRadius.circular(4),
-                                ),
-                                child: Text(
-                                  l10n.draftsBlocked,
-                                  style: GfTheme.typographyOf(context).meta.copyWith(color: colors.error, fontWeight: FontWeight.w600),
-                                ),
-                              ),
-                            ],
-                          ],
-                        ),
-                        if (draft.description.isNotEmpty) ...[
-                          const SizedBox(height: 4),
-                          Text(
-                            draft.description,
-                            maxLines: 2,
-                            overflow: TextOverflow.ellipsis,
-                            style: GfTheme.typographyOf(context).small,
-                          ),
-                        ],
-                        const SizedBox(height: 6),
-                        Wrap(
-                          spacing: 8,
-                          runSpacing: 4,
-                          crossAxisAlignment: WrapCrossAlignment.center,
-                          children: [
-                            for (final cat in draft.categories)
-                              GfChip(
-                                label: cat.name,
-                                color: colorFromHex(cat.color),
-                              ),
-                            Text(
-                              l10n.draftsMetaCreated(
-                                formatDateTime(draft.createdAt),
-                              ),
-                              style: GfTheme.typographyOf(context).meta,
-                            ),
-                            Text(
-                              l10n.draftsMetaViews(draft.viewCount),
-                              style: GfTheme.typographyOf(context).meta,
-                            ),
-                            Text(
-                              l10n.draftsMetaReplies(draft.replyCount),
-                              style: GfTheme.typographyOf(context).meta,
-                            ),
-                          ],
-                        ),
-                      ],
-                    ),
-                  ),
                 );
               },
             ),

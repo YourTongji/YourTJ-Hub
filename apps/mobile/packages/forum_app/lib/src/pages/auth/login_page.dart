@@ -158,25 +158,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   style: GfTheme.typographyOf(context).display,
                 ),
                 const SizedBox(height: 24),
-                // 模式切换。
-                Align(
-                  alignment: Alignment.centerLeft,
-                  child: GfTabBar(
-                    tabs: <GfTab>[
-                      GfTab(label: l10n.loginModeLogin, value: _AuthMode.login),
-                      GfTab(
-                        label: l10n.loginModeRegister,
-                        value: _AuthMode.register,
-                      ),
-                      GfTab(
-                        label: l10n.loginModeForgot,
-                        value: _AuthMode.forgotPassword,
-                      ),
-                    ],
-                    selected: _mode,
-                    onSelected: (Object value) =>
-                        setState(() => _mode = value as _AuthMode),
-                  ),
+                // 模式切换(web gf-segmented)。
+                GfSegmented<_AuthMode>(
+                  segments: [
+                    (l10n.loginModeLogin, _AuthMode.login),
+                    (l10n.loginModeRegister, _AuthMode.register),
+                    (l10n.loginModeForgot, _AuthMode.forgotPassword),
+                  ],
+                  selected: _mode,
+                  onSelected: (value) => setState(() => _mode = value),
                 ),
                 const SizedBox(height: 20),
                 // 用户名(登录/注册)。

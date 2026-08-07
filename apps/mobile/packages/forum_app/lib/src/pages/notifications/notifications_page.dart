@@ -6,6 +6,7 @@ import 'package:ui_kit/ui_kit.dart';
 import 'package:core/core.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../format.dart';
 import '../../providers.dart';
 import '../../widgets/status_views.dart';
 
@@ -117,7 +118,6 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
@@ -170,54 +170,30 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                         onLoadMore: _loadMore,
                       );
                     }
-                    final n = _items[i];
-                    return ListTile(
-                      leading:
-                          n.actor.avatarUrl == null ||
-                              n.actor.avatarUrl!.isEmpty
-                          ? const CircleAvatar(
-                              radius: 16,
-                              child: Icon(Icons.notifications_none, size: 16),
-                            )
-                          : CircleAvatar(
-                              radius: 16,
-                              backgroundImage: NetworkImage(n.actor.avatarUrl!),
-                            ),
-                      title: Text(
-                        n.title,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
+                    final NotificationPayload n = _items[i];
+                    // 按 eventType 映射图标与 tone(web notificationTone 语义)。
+                    final (
+                      IconData icon,
+                      GfNotificationTone tone,
+                    ) = switch (n.eventType) {
+                      'follow' => (
+                        Icons.person_add,
+                        GfNotificationTone.success,
                       ),
-                      subtitle: Text(
-                        n.content,
-                        maxLines: 2,
-                        overflow: TextOverflow.ellipsis,
-                        style: GfTheme.typographyOf(context).caption.copyWith(
-                          color: n.isRead
-                              ? colors.iconMuted
-                              : colors.baseContent,
-                        ),
+                      'badge' => (
+                        Icons.workspace_premium,
+                        GfNotificationTone.warning,
                       ),
-                      // 未读行:左侧 primary 竖条(web bg-info/10 + 竖条语义)。
-                      tileColor: n.isRead
-                          ? null
-                          : colors.info.withValues(alpha: 0.06),
-                      shape: Border(
-                        left: BorderSide(
-                          color: n.isRead ? Colors.transparent : colors.primary,
-                          width: 3,
-                        ),
-                      ),
-                      trailing: n.isRead
-                          ? null
-                          : Container(
-                              width: 8,
-                              height: 8,
-                              decoration: BoxDecoration(
-                                color: colors.primary,
-                                shape: BoxShape.circle,
-                              ),
-                            ),
+                      'system' => (Icons.info_outline, GfNotificationTone.info),
+                      _ => (Icons.message, GfNotificationTone.primary),
+                    };
+                    return GfNotificationRow(
+                      icon: icon,
+                      tone: tone,
+                      title: n.title,
+                      subtitle: n.content,
+                      time: timeAgo(n.createdAt),
+                      unread: !n.isRead,
                       onTap: () => _openNotification(n),
                     );
                   },
