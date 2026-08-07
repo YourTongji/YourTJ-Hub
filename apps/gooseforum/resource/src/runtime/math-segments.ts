@@ -128,4 +128,3 @@ export function extractMathSegments(source: string): MathSegment[] {
 
   return segments
 }
-

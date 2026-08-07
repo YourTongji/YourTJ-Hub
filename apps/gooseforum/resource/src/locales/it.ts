@@ -516,6 +516,7 @@ export default {
       italic: 'Corsivo',
       strike: 'Barrato',
       inlineCode: 'Codice inline',
+      math: 'Formula',
       link: 'Link',
       linkUrl: 'Inserisci URL',
       applyLink: 'Applica',
@@ -539,6 +540,7 @@ export default {
       link: 'testo del link',
       quote: 'contenuto citato',
       listItem: 'voce elenco',
+      math: 'espressione matematica',
     },
     checklist: {
       title: 'Checklist di pubblicazione',

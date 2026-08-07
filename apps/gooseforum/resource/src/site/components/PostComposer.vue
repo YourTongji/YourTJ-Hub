@@ -15,6 +15,7 @@ import {
   Loader2,
   MessageSquareQuote,
   Send,
+  Sigma,
   Strikethrough,
   X,
 } from '@lucide/vue'
@@ -157,7 +158,7 @@ async function togglePreview() {
   }
 }
 
-type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'quote' | 'code' | 'bulletList' | 'orderedList'
+type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'math' | 'quote' | 'code' | 'bulletList' | 'orderedList'
 
 function applyToolbarAction(action: ToolbarAction) {
   if (editorMode.value === 'markdown') {
@@ -165,6 +166,7 @@ function applyToolbarAction(action: ToolbarAction) {
     else if (action === 'italic') insert('*', '*', t('publish.placeholder.italic'))
     else if (action === 'strike') insert('~~', '~~', t('publish.placeholder.strike'))
     else if (action === 'inlineCode') insert('`', '`', 'code')
+    else if (action === 'math') insert('$', '$', t('publish.placeholder.math'))
     else if (action === 'quote') insertPrefixedMarkdownBlock('> ', t('publish.placeholder.quote'))
     else if (action === 'code') insertFencedCodeBlock()
     else if (action === 'bulletList') insertPrefixedMarkdownBlock('- ', t('publish.placeholder.listItem'))
@@ -394,6 +396,7 @@ function submit() {
                   <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.italic')" @mousedown.prevent @click="applyToolbarAction('italic')"><Italic class="h-4 w-4" /></button>
                   <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.strike')" @mousedown.prevent @click="applyToolbarAction('strike')"><Strikethrough class="h-4 w-4" /></button>
                   <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.inlineCode')" @mousedown.prevent @click="applyToolbarAction('inlineCode')"><Code class="h-4 w-4" /></button>
+                  <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.math')" @mousedown.prevent @click="applyToolbarAction('math')"><Sigma class="h-4 w-4" /></button>
                   <div class="relative">
                     <button type="button" class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.link')" :aria-expanded="linkPickerOpen" @mousedown.prevent @click="openLinkPicker"><Link class="h-4 w-4" /></button>
                     <form v-if="linkPickerOpen" class="gf-menu-surface absolute bottom-full left-0 z-30 mb-1.5 flex w-72 max-w-[calc(100vw-5rem)] items-center gap-1.5 p-2 shadow-lg" @submit.prevent="applyLink">

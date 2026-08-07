@@ -516,6 +516,7 @@ export default {
       italic: 'Italic',
       strike: 'Strikethrough',
       inlineCode: 'Inline code',
+      math: 'Math',
       link: 'Link',
       linkUrl: 'Enter link URL',
       applyLink: 'Apply',
@@ -539,6 +540,7 @@ export default {
       link: 'link text',
       quote: 'quoted content',
       listItem: 'list item',
+      math: 'math expression',
     },
     checklist: {
       title: 'Publish checklist',

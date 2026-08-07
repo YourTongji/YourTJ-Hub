@@ -67,12 +67,20 @@ export async function enhanceMathText(
   return changed
 }
 
-const pendingMathRoots = new WeakSet<ParentNode>()
+const pendingMathRoots = new WeakMap<ParentNode, { rerun: boolean }>()
 
 function runMathRendering(element: HTMLElement) {
-  if (pendingMathRoots.has(element)) return
-  pendingMathRoots.add(element)
-  void enhanceMathText(element).finally(() => pendingMathRoots.delete(element))
+  const pending = pendingMathRoots.get(element)
+  if (pending) {
+    pending.rerun = true
+    return
+  }
+  const state = { rerun: false }
+  pendingMathRoots.set(element, state)
+  void enhanceMathText(element).finally(() => {
+    pendingMathRoots.delete(element)
+    if (state.rerun && element.isConnected) runMathRendering(element)
+  })
 }
 
 export const mathRenderDirective: ObjectDirective<HTMLElement> = {

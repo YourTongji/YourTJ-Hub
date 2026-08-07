@@ -516,6 +516,7 @@ export default {
       italic: '斜体',
       strike: '取り消し線',
       inlineCode: 'インラインコード',
+      math: '数式',
       link: 'リンク',
       linkUrl: 'リンク先を入力',
       applyLink: '適用',
@@ -539,6 +540,7 @@ export default {
       link: 'リンクテキスト',
       quote: '引用内容',
       listItem: 'リスト項目',
+      math: '数式',
     },
     checklist: {
       title: '投稿チェック',
