@@ -2,10 +2,12 @@ import 'package:flutter/material.dart';
 
 import 'gf_colors.dart';
 import 'gf_theme_extensions.dart';
+import 'gf_shadows.dart';
 import 'gf_typography.dart';
 
 export 'gf_colors.dart';
 export 'gf_theme_extensions.dart';
+export 'gf_shadows.dart';
 export 'gf_typography.dart';
 
 /// Convenience accessors for the Gf design-token theme extensions.
@@ -34,6 +36,11 @@ abstract final class GfTheme {
   /// The [GfSizes] tokens registered by `gfThemeData`.
   static GfSizes sizesOf(BuildContext context) {
     return Theme.of(context).extension<GfSizes>() ?? GfSizes.standard;
+  }
+
+  /// The [GfShadows] tokens registered by `gfThemeData`.
+  static GfShadows shadowsOf(BuildContext context) {
+    return Theme.of(context).extension<GfShadows>() ?? GfShadows.standard;
   }
 
   /// The [GfTypography] scale registered by `gfThemeData`.

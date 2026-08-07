@@ -5,7 +5,11 @@ import 'package:flutter/material.dart';
 /// Radius tokens, mirrored from `tokens.css` `--gf-radius-*`.
 @immutable
 class GfRadii extends ThemeExtension<GfRadii> {
-  const GfRadii({required this.selector, required this.field, required this.box});
+  const GfRadii({
+    required this.selector,
+    required this.field,
+    required this.box,
+  });
 
   /// Pill-like radii for selectors / chips. `--gf-radius-selector` (8).
   final double selector;
@@ -97,12 +101,34 @@ class GfSizes extends ThemeExtension<GfSizes> {
   /// Base spacing step for fields. `--gf-size-field` (4).
   final double field;
 
+  /// Spacing steps derived from the 4px base (`--gf-size-*`), matching the
+  /// Tailwind 4px spacing scale used across the web styles.
+  double get space1 => selector * 1;
+
+  /// 8px — compact gaps (web `gap-2` / `space-y-2`).
+  double get space2 => selector * 2;
+
+  /// 12px — standard gaps (web `gap-3`).
+  double get space3 => selector * 3;
+
+  /// 16px — page / row gutters (web `px-4`).
+  double get space4 => selector * 4;
+
+  /// 20px — section gaps (web `gap-5`).
+  double get space5 => selector * 5;
+
+  /// 24px — large section gaps (web `gap-6`).
+  double get space6 => selector * 6;
+
   /// Values shared by both themes (tokens.css defines them once in `:root`).
   static const GfSizes standard = GfSizes(selector: 4, field: 4);
 
   @override
   GfSizes copyWith({double? selector, double? field}) {
-    return GfSizes(selector: selector ?? this.selector, field: field ?? this.field);
+    return GfSizes(
+      selector: selector ?? this.selector,
+      field: field ?? this.field,
+    );
   }
 
   @override

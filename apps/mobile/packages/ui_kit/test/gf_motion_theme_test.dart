@@ -17,12 +17,31 @@ void main() {
       expect(GfMotion.emphasizedDuration, GfMotion.comfortable);
     });
 
-    test('standard ease is an ease-out cubic', () {
-      expect(GfMotion.standardEase, Curves.easeOutCubic);
+    test('standard ease is the exact web cubic-bezier(0.22,1,0.36,1)', () {
+      expect(GfMotion.standardEase, const Cubic(0.22, 1.0, 0.36, 1.0));
     });
 
-    test('emphasized ease is a custom cubic bezier', () {
-      expect(GfMotion.emphasizedEase, isA<Cubic>());
+    test('emphasized ease is the exact web cubic-bezier(0.16,1,0.3,1)', () {
+      expect(GfMotion.emphasizedEase, const Cubic(0.16, 1.0, 0.3, 1.0));
+    });
+
+    test('motion transitions pair durations with the web easing', () {
+      expect(GfMotion.fastMotion.duration, GfMotion.fast);
+      expect(GfMotion.fastMotion.ease, GfMotion.standardEase);
+      expect(GfMotion.contentMotion.duration, GfMotion.content);
+      expect(GfMotion.contentMotion.ease, GfMotion.standardEase);
+      expect(GfMotion.standardMotion.duration, GfMotion.standard);
+      expect(GfMotion.standardMotion.ease, GfMotion.standardEase);
+      expect(GfMotion.comfortableMotion.duration, GfMotion.comfortable);
+      expect(GfMotion.comfortableMotion.ease, GfMotion.emphasizedEase);
+    });
+
+    test('scene durations mirror motion.css', () {
+      expect(GfMotion.menuDuration, const Duration(milliseconds: 140));
+      expect(GfMotion.modalDuration, const Duration(milliseconds: 160));
+      expect(GfMotion.flashDuration, const Duration(milliseconds: 280));
+      expect(GfMotion.floatingReplyDuration, const Duration(milliseconds: 180));
+      expect(GfMotion.localExpandDuration, const Duration(milliseconds: 160));
     });
   });
 
@@ -36,6 +55,7 @@ void main() {
         expect(data.extension<GfRadii>(), GfRadii.standard);
         expect(data.extension<GfBorders>(), GfBorders.standard);
         expect(data.extension<GfSizes>(), GfSizes.standard);
+        expect(data.extension<GfShadows>(), GfShadows.standard);
       }
     });
 

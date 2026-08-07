@@ -39,7 +39,8 @@ class GfTypography extends ThemeExtension<GfTypography> {
   /// 16 / w600 — card / list titles (web `text-base font-semibold`).
   final TextStyle heading;
 
-  /// 15 / w400, line height 1.5 — body prose (web `text-[15px] leading-relaxed`).
+  /// 15 / w400, line height 1.625 — body prose (web `text-[15px]
+  /// leading-relaxed`, Tailwind default 1.625).
   final TextStyle body;
 
   /// 15 / w600 — emphasized body (web `font-medium/semibold` on 15px rows).
@@ -83,7 +84,7 @@ class GfTypography extends ThemeExtension<GfTypography> {
       title2: style(18, FontWeight.w700, height: 1.3),
       title3: style(17, FontWeight.w700, height: 1.3),
       heading: style(16, FontWeight.w600, height: 1.4),
-      body: style(15, FontWeight.w400, height: 1.5),
+      body: style(15, FontWeight.w400, height: 1.625),
       bodyStrong: style(15, FontWeight.w600, height: 1.4),
       small: style(13, FontWeight.w400, height: 1.4),
       caption: style(12, FontWeight.w400, height: 1.4),

@@ -155,9 +155,9 @@ void main() {
       expect(t.label.fontWeight, FontWeight.w700);
     });
 
-    test('body uses relaxed line height like web leading-relaxed', () {
+    test('body uses relaxed line height like web leading-relaxed (1.625)', () {
       final GfTypography t = GfTypography.standard(GfColors.light.baseContent);
-      expect(t.body.height, 1.5);
+      expect(t.body.height, 1.625);
       expect(
         t.display.fontFeatures,
         contains(const FontFeature.tabularFigures()),
