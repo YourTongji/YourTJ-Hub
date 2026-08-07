@@ -6,24 +6,28 @@ import '../helpers.dart';
 
 void main() {
   group('GfPanel', () {
-    testWidgets('mobile form is full-width, borderless and unrounded',
-        (tester) async {
+    testWidgets('mobile form is full-width, borderless and unrounded', (
+      tester,
+    ) async {
       await forEachBrightness(tester, (tester, brightness) async {
         await tester.pumpWidget(
           gfApp(
-            SizedBox(
-              width: 300,
-              child: GfPanel(child: const Text('content')),
-            ),
+            SizedBox(width: 300, child: GfPanel(child: const Text('content'))),
             brightness: brightness,
           ),
         );
-        final DecoratedBox box = tester.widget<DecoratedBox>(
-          find.byType(DecoratedBox).first,
+        final Material material = tester.widget<Material>(
+          find
+              .ancestor(
+                of: find.text('content'),
+                matching: find.byType(Material),
+              )
+              .first,
         );
-        final BoxDecoration decoration = box.decoration as BoxDecoration;
-        expect(decoration.borderRadius, BorderRadius.zero);
-        expect(decoration.border, isNull);
+        final RoundedRectangleBorder shape =
+            material.shape as RoundedRectangleBorder;
+        expect(shape.borderRadius, BorderRadius.zero);
+        expect(shape.side, BorderSide.none);
         expect(find.text('content'), findsOneWidget);
       });
     });
@@ -37,25 +41,26 @@ void main() {
           ),
         ),
       );
-      final DecoratedBox box = tester.widget<DecoratedBox>(
-        find.byType(DecoratedBox).first,
+      final Material material = tester.widget<Material>(
+        find
+            .ancestor(of: find.text('box'), matching: find.byType(Material))
+            .first,
       );
-      final BoxDecoration decoration = box.decoration as BoxDecoration;
-      expect(decoration.borderRadius, BorderRadius.circular(8));
-      expect(decoration.border, isA<Border>());
+      final RoundedRectangleBorder shape =
+          material.shape as RoundedRectangleBorder;
+      expect(shape.borderRadius, BorderRadius.circular(8));
+      expect(shape.side, isA<BorderSide>());
     });
   });
 
   group('GfCard', () {
-    testWidgets('mobile form keeps bottom divider and no radius',
-        (tester) async {
+    testWidgets('mobile form keeps bottom divider and no radius', (
+      tester,
+    ) async {
       await forEachBrightness(tester, (tester, brightness) async {
         await tester.pumpWidget(
           gfApp(
-            SizedBox(
-              width: 300,
-              child: GfCard(child: const Text('row')),
-            ),
+            SizedBox(width: 300, child: GfCard(child: const Text('row'))),
             brightness: brightness,
           ),
         );
@@ -118,9 +123,7 @@ void main() {
     testWidgets('onTap fires', (tester) async {
       int taps = 0;
       await tester.pumpWidget(
-        gfApp(
-          GfCard(onTap: () => taps++, child: const Text('tap me')),
-        ),
+        gfApp(GfCard(onTap: () => taps++, child: const Text('tap me'))),
       );
       await tester.tap(find.text('tap me'));
       expect(taps, 1);
