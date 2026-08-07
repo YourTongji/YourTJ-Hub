@@ -118,7 +118,14 @@ class GfButton extends StatelessWidget {
           onTap: enabled ? onPressed : null,
           child: Container(
             height: size.height,
-            padding: const EdgeInsets.symmetric(horizontal: 16),
+            padding: EdgeInsets.symmetric(
+              horizontal: switch (size) {
+                GfButtonSize.small => 12,
+                GfButtonSize.medium => 12,
+                GfButtonSize.large => 16,
+                GfButtonSize.extraLarge => 16,
+              },
+            ),
             alignment: Alignment.center,
             child: content,
           ),
