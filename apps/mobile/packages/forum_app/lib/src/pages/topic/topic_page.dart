@@ -38,6 +38,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
 
   final FocusNode _replyFocus = FocusNode();
 
+  // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
+  bool _composerOpen = false;
+  bool _railOpen = false;
+
   @override
   void initState() {
     super.initState();
@@ -282,9 +286,9 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
         data: (props) {
-          return Column(
+          return Stack(
             children: [
-              Expanded(
+              Positioned.fill(
                 child: RefreshIndicator(
                   onRefresh: () => _load(silent: true),
                   child: ListView.separated(
@@ -326,56 +330,94 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                   ),
                 ),
               ),
-              // 底部回复输入条。
-              SafeArea(
-                top: false,
-                child: Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  decoration: BoxDecoration(
-                    color: colors.base100,
-                    border: Border(
-                      top: BorderSide(color: colors.line, width: 0.5),
-                    ),
-                  ),
-                  child: Row(
-                    children: [
-                      Expanded(
-                        child: TextField(
-                          controller: _replyController,
-                          focusNode: _replyFocus,
-                          minLines: 1,
-                          maxLines: 4,
-                          decoration: InputDecoration(
-                            hintText: _replyToPostId != 0
-                                ? l10n.topicReplying
-                                : l10n.topicReplyHint,
-                            isDense: true,
-                            border: OutlineInputBorder(
-                              borderRadius: BorderRadius.circular(20),
+              // 底部浮动操作条 + 浮动回复编辑器(web TopicFloatingControls +
+              // PostComposer 移动端形态)。
+              Positioned(
+                left: 0,
+                right: 0,
+                bottom: 16,
+                child: SafeArea(
+                  top: false,
+                  child: Center(
+                    child: _composerOpen
+                        ? ConstrainedBox(
+                            constraints: const BoxConstraints(maxWidth: 560),
+                            child: GfPostComposer(
+                              controller: _replyController,
+                              targetName: _replyToPostId != 0
+                                  ? l10n.topicReplying
+                                  : null,
+                              onCloseTarget: () {
+                                _replyController.clear();
+                                setState(() => _replyToPostId = 0);
+                              },
+                              publishing: _replying,
+                              publishLabel: l10n.commonSend,
+                              onPublish: _submitReply,
+                              toolbar: null,
                             ),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 16,
-                              vertical: 10,
-                            ),
+                          )
+                        : GfFloatingControls(
+                            actions: [
+                              GfTopicAction(
+                                icon: Icons.favorite_border,
+                                active: _liked,
+                                activeColor: colors.error,
+                                onTap: _toggleLike,
+                              ),
+                              GfTopicAction(
+                                icon: Icons.bookmark_border,
+                                active: _bookmarked,
+                                activeColor: colors.primary,
+                                onTap: _toggleBookmark,
+                              ),
+                            ],
+                            onOpenReply: () {
+                              if (_replyToPostId == 0) {
+                                _replyController.clear();
+                              }
+                              FocusScope.of(context).requestFocus(_replyFocus);
+                              setState(() => _composerOpen = true);
+                            },
+                            currentNo: props.postStream.posts.isEmpty
+                                ? 1
+                                : props.postStream.posts.first.postNo,
+                            maxNo: props.postStream.maxPostNo,
+                            onFloorTap: () =>
+                                setState(() => _railOpen = !_railOpen),
                           ),
-                          onTapOutside: (_) => FocusScope.of(context).unfocus(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      GfButton(
-                        label: l10n.commonSend,
-                        variant: GfButtonVariant.primary,
-                        size: GfButtonSize.small,
-                        loading: _replying,
-                        onPressed: _replying ? null : _submitReply,
-                      ),
-                    ],
                   ),
                 ),
               ),
+              // 楼层滑轨浮动面板(web PostPositionRail 移动端形态)。
+              if (_railOpen && !_composerOpen)
+                Positioned(
+                  left: 16,
+                  right: 16,
+                  bottom: 76,
+                  child: SafeArea(
+                    top: false,
+                    child: GfFloatingSurface(
+                      padding: const EdgeInsets.all(8),
+                      child: GfPostPositionRail(
+                        current: props.postStream.posts.isEmpty
+                            ? 1
+                            : props.postStream.posts.first.postNo,
+                        max: props.postStream.maxPostNo,
+                        onSelect: (floor) {
+                          setState(() => _railOpen = false);
+                          ScaffoldMessenger.of(context).showSnackBar(
+                            SnackBar(
+                              content: Text(l10n.topicFloorSelected(floor)),
+                            ),
+                          );
+                        },
+                        onEarliest: () => _load(silent: true),
+                        onLatest: () => _loadMore(),
+                      ),
+                    ),
+                  ),
+                ),
             ],
           );
         },
@@ -410,10 +452,7 @@ class _TopicHeader extends StatelessWidget {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Text(
-            topic.title,
-            style: GfTheme.typographyOf(context).title1,
-          ),
+          Text(topic.title, style: GfTheme.typographyOf(context).title1),
           const SizedBox(height: 8),
           Row(
             children: [
@@ -430,7 +469,9 @@ class _TopicHeader extends StatelessWidget {
               const SizedBox(width: 12),
               Text(
                 timeAgo(topic.createdAt),
-                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
             ],
           ),
@@ -514,7 +555,9 @@ class _MetaItem extends StatelessWidget {
         const SizedBox(width: 4),
         Text(
           value,
-          style: GfTheme.typographyOf(context).caption.copyWith(color: color ?? GfTheme.colorsOf(context).iconMuted),
+          style: GfTheme.typographyOf(context).caption.copyWith(
+            color: color ?? GfTheme.colorsOf(context).iconMuted,
+          ),
         ),
       ],
     );
@@ -558,7 +601,9 @@ class _PostCard extends StatelessWidget {
               if (post.postNo > 0)
                 Text(
                   '#${post.postNo}',
-                  style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                  style: GfTheme.typographyOf(context).caption.copyWith(
+                    color: GfTheme.colorsOf(context).iconMuted,
+                  ),
                 ),
             ],
           ),
@@ -566,7 +611,9 @@ class _PostCard extends StatelessWidget {
             const SizedBox(height: 6),
             Text(
               '${l10n.topicReply} @${post.replyToUsername}',
-              style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ],
           const SizedBox(height: 10),
@@ -576,7 +623,9 @@ class _PostCard extends StatelessWidget {
             children: [
               Text(
                 timeAgo(post.createdAt),
-                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
               const Spacer(),
               Icon(
@@ -589,7 +638,9 @@ class _PostCard extends StatelessWidget {
               const SizedBox(width: 4),
               Text(
                 '${post.likeCount}',
-                style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
               ),
               const SizedBox(width: 16),
               InkWell(

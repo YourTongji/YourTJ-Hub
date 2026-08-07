@@ -397,5 +397,6 @@
       "day": {"type": "int"},
       "time": {"type": "String"}
     }
-  }
+  },
+  "topicFloorSelected": "已跳转到 {floor} 楼"
 }

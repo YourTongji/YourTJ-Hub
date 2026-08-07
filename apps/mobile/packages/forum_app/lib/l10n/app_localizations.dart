@@ -1387,6 +1387,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{year}/{month}/{day} {time}'**
   String dateYearMonthDayTime(int year, int month, int day, String time);
+
+  /// No description provided for @topicFloorSelected.
+  ///
+  /// In en, this message translates to:
+  /// **'Jumped to floor {floor}'**
+  String topicFloorSelected(Object floor);
 }
 
 class _AppLocalizationsDelegate

@@ -710,4 +710,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String dateYearMonthDayTime(int year, int month, int day, String time) {
     return '$year年$month月$day日 $time';
   }
+
+  @override
+  String topicFloorSelected(Object floor) {
+    return '已跳转到 $floor 楼';
+  }
 }

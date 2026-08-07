@@ -259,5 +259,6 @@
       "day": {"type": "int"},
       "time": {"type": "String"}
     }
-  }
+  },
+  "topicFloorSelected": "Jumped to floor {floor}"
 }
