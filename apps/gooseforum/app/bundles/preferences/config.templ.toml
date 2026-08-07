@@ -81,4 +81,12 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
+# Casdoor OIDC 配置（统一身份登录，移动端依赖本段）
+[casdoor]
+endpoint = ""
+client_id = ""
+client_secret = ""
+# 移动端 OIDC 回调（custom scheme），须与 Casdoor 应用 Redirect URLs 白名单一致
+mobile_redirect_uri = "yourtj://callback"
+
 # end #

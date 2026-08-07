@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
+	"github.com/leancodebox/GooseForum/app/bundles/validate"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
@@ -117,4 +118,78 @@ func OidcCallback(c *gin.Context) {
 
 	jwtopt.TokenSetting(c, token)
 	c.Redirect(http.StatusFound, "/")
+}
+
+// OidcExchangeRequest is the JSON body for the mobile OIDC exchange endpoint.
+type OidcExchangeRequest struct {
+	Code         string `json:"code" validate:"required"`
+	CodeVerifier string `json:"codeVerifier" validate:"required"`
+	RedirectURI  string `json:"redirectUri" validate:"required"`
+}
+
+// OidcExchange signs the mobile client in after it obtained an authorization
+// code from Casdoor via AppAuth. The PKCE verifier is generated and held by
+// the client, so no server-side OIDC session is involved. The redirect URI
+// must match the configured mobile allowlist.
+func OidcExchange(c *gin.Context) {
+	var req OidcExchangeRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
+	if err := validate.Valid(req); err != nil {
+		c.JSON(http.StatusBadRequest, component.FailDataCode(component.MessageRequestInvalidParams, nil))
+		return
+	}
+
+	result, err := oidcservice.ExchangeCode(req.Code, req.CodeVerifier, req.RedirectURI)
+	if err != nil {
+		slog.Error("OIDC exchange failed", "error", err)
+		switch {
+		case errors.Is(err, oidcservice.ErrInvalidMobileRedirectURI):
+			c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageOidcCallbackFailed, nil))
+		case errors.Is(err, oidcservice.ErrOIDCNotConfigured):
+			c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageOidcStartFailed, nil))
+		case errors.Is(err, oidcservice.ErrNonNumericSub):
+			c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageOAuthNumericSubRequired, nil))
+		default:
+			c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageOAuthProcessFailed, nil))
+		}
+		return
+	}
+
+	subStr := strconv.FormatUint(result.Sub, 10)
+	// 登录模式：移动端不做绑定，绑定走 web。
+	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
+	if !securityConfig.EnableSignup && userOAuth.GetByProviderAndUID(oidcservice.ProviderCasdoor, subStr) == nil {
+		c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageAuthSignupDisabled, nil))
+		return
+	}
+	user, err := oidcservice.MatchOrCreateUser(result)
+	if err != nil {
+		slog.Error("OIDC match or create user failed", "userId", result.Sub, "error", err)
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageOAuthProcessFailed, nil))
+		return
+	}
+	if user.IsFrozen == users.StatusFrozen {
+		c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageOAuthAccountFrozen, nil))
+		return
+	}
+
+	token, jti, err := jwtopt.CreateSessionToken(user.Id, user.TokenVersion)
+	if err != nil {
+		slog.Error("Generate JWT token failed", "error", err)
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageOAuthTokenFailed, nil))
+		return
+	}
+	if err = sessionservice.Create(user.Id, jti, "yourtj-mobile/1.0", c.ClientIP()); err != nil {
+		slog.Error("OIDC create session failed", "userId", user.Id, "error", err)
+		c.JSON(http.StatusInternalServerError, component.FailDataCode(component.MessageOAuthProcessFailed, nil))
+		return
+	}
+
+	jwtopt.TokenSetting(c, token)
+	c.JSON(http.StatusOK, component.SuccessData(map[string]string{
+		"token": token,
+	}))
 }

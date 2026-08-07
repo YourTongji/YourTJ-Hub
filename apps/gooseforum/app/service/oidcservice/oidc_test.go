@@ -39,11 +39,12 @@ func TestMain(m *testing.M) {
 
 // mockOIDC is an in-process OpenID Connect provider for tests.
 type mockOIDC struct {
-	t       *testing.T
-	server  *httptest.Server
-	key     *rsa.PrivateKey
-	kid     string
-	idToken string
+	t         *testing.T
+	server    *httptest.Server
+	key       *rsa.PrivateKey
+	kid       string
+	idToken   string
+	failToken bool
 }
 
 func newMockOIDC(t *testing.T) *mockOIDC {
@@ -92,6 +93,11 @@ func (m *mockOIDC) handleToken(w http.ResponseWriter, r *http.Request) {
 	_ = r.ParseForm()
 	if r.Form.Get("code_verifier") == "" {
 		m.t.Errorf("token request missing code_verifier")
+	}
+	if m.failToken {
+		w.WriteHeader(http.StatusBadRequest)
+		writeJSON(w, map[string]any{"error": "invalid_grant"})
+		return
 	}
 	writeJSON(w, map[string]any{
 		"access_token": "mock-access-token",
@@ -404,5 +410,98 @@ func TestMatchOrCreateUserFallsBackToNumericUsername(t *testing.T) {
 	}
 	if user.Username != "user5005" {
 		t.Fatalf("Username = %q, want user5005", user.Username)
+	}
+}
+
+// --- ExchangeCode (mobile OIDC) ---
+
+func configureMobileRedirect(t *testing.T, redirectURI string) {
+	t.Helper()
+	preferences.Set("casdoor.mobile_redirect_uri", redirectURI)
+}
+
+func TestExchangeCodeAcceptsNumericSub(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+
+	m.idToken = m.signIDToken(jwt.MapClaims{
+		"sub":                "123456",
+		"preferred_username": "alice",
+		"email":              "alice@example.com",
+	})
+	result, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	if err != nil {
+		t.Fatalf("ExchangeCode() error = %v", err)
+	}
+	if result.Sub != 123456 || result.Username != "alice" || result.Email != "alice@example.com" {
+		t.Fatalf("result = %+v", result)
+	}
+}
+
+func TestExchangeCodeRejectsUnknownRedirectURI(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+
+	_, err := ExchangeCode("test-code", "test-verifier", "https://evil.example.com/callback")
+	if !errors.Is(err, ErrInvalidMobileRedirectURI) {
+		t.Fatalf("error = %v, want ErrInvalidMobileRedirectURI", err)
+	}
+}
+
+func TestExchangeCodeRejectsMissingParams(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+
+	if _, err := ExchangeCode("", "test-verifier", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
+		t.Fatalf("empty code error = %v, want ErrInvalidExchangeRequest", err)
+	}
+	if _, err := ExchangeCode("test-code", "", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
+		t.Fatalf("empty verifier error = %v, want ErrInvalidExchangeRequest", err)
+	}
+}
+
+func TestExchangeCodeRejectsNonNumericSub(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+
+	m.idToken = m.signIDToken(jwt.MapClaims{"sub": "uuid-sub"})
+	_, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	if !errors.Is(err, ErrNonNumericSub) {
+		t.Fatalf("error = %v, want ErrNonNumericSub", err)
+	}
+}
+
+func TestExchangeCodeFailsWhenTokenEndpointRejects(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+	m.failToken = true
+
+	_, err := ExchangeCode("stale-code", "test-verifier", "yourtj://callback")
+	if err == nil {
+		t.Fatal("ExchangeCode() error = nil, want token exchange failure")
+	}
+}
+
+func TestExchangeCodeRequiresConfig(t *testing.T) {
+	preferences.Set("casdoor.endpoint", "")
+	preferences.Set("casdoor.client_id", "")
+	preferences.Set("casdoor.client_secret", "")
+	configureMobileRedirect(t, "yourtj://callback")
+
+	_, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	if !errors.Is(err, ErrOIDCNotConfigured) {
+		t.Fatalf("error = %v, want ErrOIDCNotConfigured", err)
+	}
+}
+
+func TestMobileRedirectURIDefault(t *testing.T) {
+	preferences.Set("casdoor.mobile_redirect_uri", "")
+	if got := MobileRedirectURI(); got != "yourtj://callback" {
+		t.Fatalf("MobileRedirectURI() = %q, want yourtj://callback", got)
 	}
 }
