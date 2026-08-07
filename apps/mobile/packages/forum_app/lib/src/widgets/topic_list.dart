@@ -6,95 +6,7 @@ import '../../l10n/app_localizations.dart';
 import '../format.dart';
 import 'status_views.dart';
 
-/// 话题列表行(web TopicRow.vue 的移动端形态)。
-/// 复用 ui_kit GfTopicRow,补充分类 chip 与导航。
-class GfTopicListRow extends StatelessWidget {
-  const GfTopicListRow({super.key, required this.topic});
-
-  final dynamic topic;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final AppLocalizations l10n = AppLocalizations.of(context);
-    final int replyCount = topic.replyCount is int
-        ? topic.replyCount as int
-        : int.tryParse('${topic.replyCount}') ?? 0;
-
-    return GfCard(
-      onTap: () => context.push('/p/${topic.id}'),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                if (topic.pinWeight > 0) ...[
-                  Icon(Icons.push_pin, size: 14, color: colors.error),
-                  const SizedBox(width: 4),
-                ],
-                Expanded(
-                  child: Text(
-                    topic.title,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                    style: TextStyle(
-                      color: colors.baseContent,
-                      fontSize: 15,
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ),
-                if (topic.unseen == true) ...[
-                  const SizedBox(width: 6),
-                  Container(
-                    width: 8,
-                    height: 8,
-                    decoration: BoxDecoration(
-                      color: colors.primary,
-                      shape: BoxShape.circle,
-                    ),
-                  ),
-                ],
-              ],
-            ),
-            if (topic.description.isNotEmpty) ...[
-              const SizedBox(height: 4),
-              Text(
-                topic.description,
-                maxLines: 2,
-                overflow: TextOverflow.ellipsis,
-                style: TextStyle(color: colors.iconMuted, fontSize: 13),
-              ),
-            ],
-            const SizedBox(height: 8),
-            Row(
-              children: [
-                for (final cat
-                    in (topic.categories as List<dynamic>? ?? const []))
-                  Padding(
-                    padding: const EdgeInsets.only(right: 6),
-                    child: GfChip(
-                      label: cat.name,
-                      color: colorFromHex(cat.color as String? ?? ''),
-                    ),
-                  ),
-                const Spacer(),
-                Text(
-                  '${timeAgo(topic.activityText is String ? topic.activityText : topic.lastUpdateTime ?? '')} · ${l10n.topicReplies(replyCount)}',
-                  style: TextStyle(color: colors.iconMuted, fontSize: 12),
-                ),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 话题列表(无限分页)。
+/// 话题列表(无限分页),行复用 ui_kit [GfTopicRow]。
 class GfTopicList extends StatelessWidget {
   const GfTopicList({
     super.key,
@@ -126,8 +38,61 @@ class GfTopicList extends StatelessWidget {
             onLoadMore: onLoadMore,
           );
         }
-        return GfTopicListRow(topic: topics[index]);
+        return _topicRow(context, topics[index]);
       },
     );
   }
+}
+
+/// 把后端话题 payload 映射为 [GfTopicRow](对齐 web TopicRow.vue 语义)。
+Widget _topicRow(BuildContext context, dynamic topic) {
+  final int replyCount = topic.replyCount is int
+      ? topic.replyCount as int
+      : int.tryParse('${topic.replyCount}') ?? 0;
+  final int viewCount = topic.viewCount is int
+      ? topic.viewCount as int
+      : int.tryParse('${topic.viewCount}') ?? 0;
+
+  final List<GfTopicCategory> categories = <GfTopicCategory>[
+    for (final cat in (topic.categories as List<dynamic>? ?? const []))
+      GfTopicCategory(
+        name: cat.name as String? ?? '',
+        color: colorFromHex(cat.color as String? ?? ''),
+      ),
+  ];
+
+  final List<Widget> participantAvatars = <Widget>[
+    for (final p in (topic.participants as List<dynamic>? ?? const []))
+      _avatar(p.avatarUrl as String?),
+  ];
+
+  return GfTopicRow(
+    title: topic.title as String? ?? '',
+    description: topic.description as String? ?? '',
+    categories: categories,
+    participantAvatars: participantAvatars,
+    activityText: timeAgo(
+      topic.activityText is String
+          ? topic.activityText
+          : topic.lastUpdateTime ?? '',
+    ),
+    replyCount: replyCount,
+    viewCount: viewCount,
+    hot: viewCount > 500,
+    pinned: (topic.pinWeight ?? 0) > 0,
+    unseen: topic.unseen == true,
+    onTap: () => context.push('/p/${topic.id}'),
+  );
+}
+
+/// 参与者小头像(web AvatarStack sm 语义)。
+Widget _avatar(String? url) {
+  if (url == null || url.isEmpty) {
+    return CircleAvatar(radius: 10, backgroundColor: Colors.transparent);
+  }
+  return CircleAvatar(
+    radius: 10,
+    backgroundImage: NetworkImage(url),
+    backgroundColor: Colors.transparent,
+  );
 }

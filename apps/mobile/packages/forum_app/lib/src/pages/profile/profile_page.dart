@@ -252,22 +252,7 @@ class _ProfileHeader extends StatelessWidget {
                     runSpacing: 6,
                     children: [
                       for (final b in badges)
-                        Chip(
-                          avatar: Icon(
-                            b.iconType == 'image'
-                                ? Icons.image_outlined
-                                : Icons.workspace_premium_outlined,
-                            size: 14,
-                            color: colorFromHex(b.color),
-                          ),
-                          label: Text(
-                            b.name,
-                            style: const TextStyle(fontSize: 11),
-                          ),
-                          visualDensity: VisualDensity.compact,
-                          materialTapTargetSize:
-                              MaterialTapTargetSize.shrinkWrap,
-                        ),
+                        GfChip(label: b.name, color: colorFromHex(b.color)),
                     ],
                   ),
                 ],
@@ -316,24 +301,20 @@ class _ProfileTabs extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(
+    return Container(
       height: 42,
-      child: ListView(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(horizontal: 8),
-        children: [
+      alignment: Alignment.centerLeft,
+      padding: const EdgeInsets.symmetric(horizontal: 8),
+      child: GfTabBar(
+        tabs: <GfTab>[
           for (int i = 0; i < props.activityTabs.length; i++)
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: 4),
-              child: ChoiceChip(
-                label: Text(
-                  props.activityTabs[i].label ?? props.activityTabs[i].key,
-                ),
-                selected: i == index,
-                onSelected: (_) => onChanged(i),
-              ),
+            GfTab(
+              label: props.activityTabs[i].label ?? props.activityTabs[i].key,
+              value: i,
             ),
         ],
+        selected: index,
+        onSelected: (Object value) => onChanged(value as int),
       ),
     );
   }

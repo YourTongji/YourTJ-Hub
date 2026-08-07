@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import 'package:core/core.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -150,11 +151,11 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
       // 自动轮播:每 5s 切到下一条,循环。
       _timer = Timer.periodic(_interval, (_) {
         if (!mounted || !_controller.hasClients) return;
-        final next = (_current + 1) % items.length;
+        final int next = (_current + 1) % items.length;
         _controller.animateToPage(
           next,
-          duration: const Duration(milliseconds: 400),
-          curve: Curves.easeOut,
+          duration: GfMotion.content,
+          curve: GfMotion.standardEase,
         );
         _current = next;
       });
@@ -247,22 +248,26 @@ class _SortTabs extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    // 选中项:显式 selected 优先;为空时回退到服务端标记的 active tab。
+    String effective = selected;
+    if (effective.isEmpty) {
+      for (final tab in props.tabs) {
+        if (tab.active) {
+          effective = tab.key;
+          break;
+        }
+      }
+    }
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
       alignment: Alignment.centerLeft,
-      child: Row(
-        children: [
+      child: GfTabBar(
+        tabs: <GfTab>[
           for (final tab in props.tabs)
-            Padding(
-              padding: const EdgeInsets.only(right: 8),
-              child: ChoiceChip(
-                label: Text(tab.label ?? tab.key),
-                selected:
-                    tab.key == selected || (selected.isEmpty && tab.active),
-                onSelected: (_) => onSelected(tab.key),
-              ),
-            ),
+            GfTab(label: tab.label ?? tab.key, value: tab.key),
         ],
+        selected: effective,
+        onSelected: (Object value) => onSelected(value as String),
       ),
     );
   }

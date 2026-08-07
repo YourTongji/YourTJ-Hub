@@ -163,14 +163,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 ),
                 const SizedBox(height: 24),
                 // 模式切换。
-                Row(
-                  children: [
-                    _modeChip(_AuthMode.login, l10n.loginModeLogin),
-                    const SizedBox(width: 8),
-                    _modeChip(_AuthMode.register, l10n.loginModeRegister),
-                    const SizedBox(width: 8),
-                    _modeChip(_AuthMode.forgotPassword, l10n.loginModeForgot),
-                  ],
+                Align(
+                  alignment: Alignment.centerLeft,
+                  child: GfTabBar(
+                    tabs: <GfTab>[
+                      GfTab(label: l10n.loginModeLogin, value: _AuthMode.login),
+                      GfTab(
+                        label: l10n.loginModeRegister,
+                        value: _AuthMode.register,
+                      ),
+                      GfTab(
+                        label: l10n.loginModeForgot,
+                        value: _AuthMode.forgotPassword,
+                      ),
+                    ],
+                    selected: _mode,
+                    onSelected: (Object value) =>
+                        setState(() => _mode = value as _AuthMode),
+                  ),
                 ),
                 const SizedBox(height: 20),
                 // 用户名(登录/注册)。
@@ -310,20 +320,5 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _AuthMode.register => _register(),
       _AuthMode.forgotPassword => _forgotPassword(),
     };
-  }
-
-  Widget _modeChip(_AuthMode mode, String label) {
-    final bool active = _mode == mode;
-    final GfColors colors = GfTheme.colorsOf(context);
-    return ChoiceChip(
-      label: Text(label, style: const TextStyle(fontSize: 13)),
-      selected: active,
-      selectedColor: colors.neutral,
-      labelStyle: TextStyle(
-        fontSize: 13,
-        color: active ? colors.neutralContent : colors.baseContent,
-      ),
-      onSelected: (_) => setState(() => _mode = mode),
-    );
   }
 }

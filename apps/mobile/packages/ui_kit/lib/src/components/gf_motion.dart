@@ -41,3 +41,29 @@ abstract final class GfMotion {
     return FadeTransition(opacity: animation, child: child);
   }
 }
+
+/// Page transition matching the web page-enter motion (motion.css
+/// `gf-page-enter`: 0.22s standard ease, subtle fade + 4px rise).
+class GfPageTransitionsBuilder extends PageTransitionsBuilder {
+  const GfPageTransitionsBuilder();
+
+  @override
+  Widget buildTransitions<T>(
+    PageRoute<T> route,
+    BuildContext context,
+    Animation<double> animation,
+    Animation<double> secondaryAnimation,
+    Widget child,
+  ) {
+    return FadeTransition(
+      opacity: animation,
+      child: SlideTransition(
+        position: Tween<Offset>(begin: const Offset(0, 0.004), end: Offset.zero)
+            .animate(
+              CurvedAnimation(parent: animation, curve: GfMotion.standardEase),
+            ),
+        child: child,
+      ),
+    );
+  }
+}

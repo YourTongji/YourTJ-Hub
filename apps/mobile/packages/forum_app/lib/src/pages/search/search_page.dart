@@ -84,24 +84,34 @@ class _SearchPageState extends ConsumerState<SearchPage> {
           return Column(
             children: [
               // Scope tabs。
-              SizedBox(
+              Container(
                 height: 44,
-                child: ListView(
-                  scrollDirection: Axis.horizontal,
-                  padding: const EdgeInsets.symmetric(horizontal: 8),
-                  children: [
-                    _scopeChip('', l10n.searchAll, props.total),
-                    _scopeChip('topic', l10n.searchTopics, props.topics.length),
-                    _scopeChip('user', l10n.searchUsers, props.usersTotal),
-                    _scopeChip(
-                      'category',
-                      l10n.searchCategories,
-                      props.categoriesTotal,
+                alignment: Alignment.centerLeft,
+                padding: const EdgeInsets.symmetric(horizontal: 8),
+                child: GfTabBar(
+                  tabs: <GfTab>[
+                    GfTab(
+                      label: '${l10n.searchAll} (${props.total})',
+                      value: '',
+                    ),
+                    GfTab(
+                      label: '${l10n.searchTopics} (${props.topics.length})',
+                      value: 'topic',
+                    ),
+                    GfTab(
+                      label: '${l10n.searchUsers} (${props.usersTotal})',
+                      value: 'user',
+                    ),
+                    GfTab(
+                      label:
+                          '${l10n.searchCategories} (${props.categoriesTotal})',
+                      value: 'category',
                     ),
                   ],
+                  selected: _scope,
+                  onSelected: (Object value) => _setScope(value as String),
                 ),
               ),
-              const Divider(height: 1),
               Expanded(
                 child: switch (_scope) {
                   'user' => _UserResults(users: props.users),
@@ -117,24 +127,6 @@ class _SearchPageState extends ConsumerState<SearchPage> {
             ],
           );
         },
-      ),
-    );
-  }
-
-  Widget _scopeChip(String scope, String label, int count) {
-    final bool active = _scope == scope;
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 8),
-      child: ChoiceChip(
-        label: Text('$label ($count)'),
-        selected: active,
-        selectedColor: colors.neutral,
-        labelStyle: TextStyle(
-          fontSize: 13,
-          color: active ? colors.neutralContent : colors.baseContent,
-        ),
-        onSelected: (_) => _setScope(scope),
       ),
     );
   }

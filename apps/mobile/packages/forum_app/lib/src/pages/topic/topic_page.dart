@@ -430,17 +430,11 @@ class _TopicHeader extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: 10),
           Wrap(
             spacing: 6,
             children: [
               for (final cat in topic.categories)
-                Chip(
-                  label: Text(cat.name),
-                  labelStyle: const TextStyle(fontSize: 11),
-                  visualDensity: VisualDensity.compact,
-                  materialTapTargetSize: MaterialTapTargetSize.shrinkWrap,
-                ),
+                GfChip(label: cat.name, color: colorFromHex(cat.color)),
             ],
           ),
           const SizedBox(height: 10),

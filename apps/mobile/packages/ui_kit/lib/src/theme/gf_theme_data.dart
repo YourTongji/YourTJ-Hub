@@ -2,6 +2,7 @@ import 'package:flutter/cupertino.dart';
 
 import 'package:flutter/material.dart';
 
+import '../components/gf_motion.dart';
 import 'gf_colors.dart';
 import 'gf_theme_extensions.dart';
 import 'gf_typography.dart';
@@ -149,11 +150,12 @@ ThemeData gfThemeData(Brightness brightness) {
         ),
       ),
     ),
-    // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion).
+    // Motion mirrors `resource/src/runtime/motion.ts` (see GfMotion):
+    // page transitions use the standard 0.22s ease (web page-enter motion).
     pageTransitionsTheme: PageTransitionsTheme(
       builders: <TargetPlatform, PageTransitionsBuilder>{
-        TargetPlatform.android: const FadeUpwardsPageTransitionsBuilder(),
-        TargetPlatform.iOS: const CupertinoPageTransitionsBuilder(),
+        TargetPlatform.android: const GfPageTransitionsBuilder(),
+        TargetPlatform.iOS: const GfPageTransitionsBuilder(),
       },
     ),
     splashFactory: InkSparkle.splashFactory,

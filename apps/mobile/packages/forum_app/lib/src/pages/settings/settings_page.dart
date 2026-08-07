@@ -634,7 +634,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
@@ -643,35 +642,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       body: Column(
         children: [
           // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
-          SizedBox(
+          Container(
             height: 46,
-            child: ListView(
-              scrollDirection: Axis.horizontal,
-              padding: const EdgeInsets.symmetric(horizontal: 8),
-              children: [
+            alignment: Alignment.centerLeft,
+            padding: const EdgeInsets.symmetric(horizontal: 8),
+            child: GfTabBar(
+              tabs: <GfTab>[
                 for (final tab in _SettingsTab.values)
-                  Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: 4,
-                      vertical: 8,
-                    ),
-                    child: ChoiceChip(
-                      label: Text(
-                        tab.label(l10n),
-                        style: const TextStyle(fontSize: 13),
-                      ),
-                      selected: _tab == tab,
-                      selectedColor: colors.neutral,
-                      labelStyle: TextStyle(
-                        fontSize: 13,
-                        color: _tab == tab
-                            ? colors.neutralContent
-                            : colors.baseContent,
-                      ),
-                      onSelected: (_) => setState(() => _tab = tab),
-                    ),
-                  ),
+                  GfTab(label: tab.label(l10n), value: tab),
               ],
+              selected: _tab,
+              onSelected: (Object value) =>
+                  setState(() => _tab = value as _SettingsTab),
             ),
           ),
           const Divider(height: 1),
