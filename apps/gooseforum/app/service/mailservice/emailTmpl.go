@@ -48,6 +48,7 @@ func generatePasswordResetEmailBody(username, token string, locale ...string) (s
 	lang := emailBodyLang(locale...)
 	var buf bytes.Buffer
 	err := passwordResetTmpl.Execute(&buf, map[string]any{
+		"SiteName":  siteConfig.SiteName,
 		"Username":  username,
 		"ResetLink": buildEmailActionURL(emailSiteBaseURL(siteConfig.SiteUrl), urlconfig.ResetPassword(), token, locale...),
 		"Lang":      lang,

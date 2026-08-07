@@ -50,9 +50,11 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 		}
 
 		username := ""
+		nickname := ""
 		avatarUrl := urlconfig.GetDefaultAvatar()
 		if user, ok := userMap[t.UserId]; ok {
 			username = user.Username
+			nickname = user.Nickname
 			avatarUrl = user.GetWebAvatarUrl()
 		}
 
@@ -60,14 +62,17 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 		postersVo := make([]vo.PosterVo, 0, len(posters))
 		for _, poster := range posters {
 			posterUsername := ""
+			posterNickname := ""
 			posterAvatarUrl := urlconfig.GetDefaultAvatar()
 			if user, ok := userMap[poster.UserID]; ok {
 				posterUsername = user.Username
+				posterNickname = user.Nickname
 				posterAvatarUrl = user.GetWebAvatarUrl()
 			}
 			postersVo = append(postersVo, vo.PosterVo{
 				Id:        poster.UserID,
 				Username:  posterUsername,
+				Nickname:  posterNickname,
 				AvatarUrl: posterAvatarUrl,
 			})
 		}
@@ -77,10 +82,12 @@ func TopicsWithUser2Vo(data []*topics.Entity, categoryMap map[uint64]*category.E
 			Title:          t.Title,
 			Description:    t.Excerpt,
 			FirstImageURL:  t.FirstImageURL,
+			ImageUrls:      t.ImageUrls,
 			LastUpdateTime: t.UpdatedAt.Format(time.DateTime),
 			CreateTime:     t.CreatedAt.Format(time.DateTime),
 			AuthorId:       t.UserId,
 			Username:       username,
+			Nickname:       nickname,
 			AvatarUrl:      avatarUrl,
 			ViewCount:      t.ViewCount,
 			CommentCount:   t.ReplyCount,

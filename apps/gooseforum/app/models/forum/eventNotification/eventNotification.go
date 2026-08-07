@@ -14,6 +14,7 @@ const (
 	EventTypeSystem    = "system"     // 系统通知
 	EventTypeFollow    = "follow"     // 关注通知
 	EventTypeBadge     = "badge"      // 徽章通知
+	EventTypeLike      = "like"       // 楼层点赞通知
 )
 
 const (
@@ -22,6 +23,7 @@ const (
 	TemplateTopicPost = "notifications.templates.topicPost"
 	TemplateFollow    = "notifications.templates.follow"
 	TemplateBadge     = "notifications.templates.badge"
+	TemplateLike      = "notifications.templates.like"
 )
 
 // Future unread-scope design:

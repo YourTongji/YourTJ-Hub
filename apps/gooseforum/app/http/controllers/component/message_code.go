@@ -197,3 +197,33 @@ const (
 	MessageAdminTestEmailFailed        MessageCode = "admin.mail.testFailed"           // 邮件配置测试失败，params.error 可带原始错误。
 	MessageAdminTestEmailSuccess       MessageCode = "admin.mail.testSuccess"          // 邮件配置测试成功，params.email 表示测试邮箱。
 )
+
+const (
+	// 审核策略（保留/禁用用户名、敏感词）
+	MessageAuthUsernameReserved    MessageCode = "auth.username.reserved"          // 用户名被保留，不可使用。
+	MessageAuthUsernameBanned      MessageCode = "auth.username.banned"            // 用户名被禁用，不可使用。
+	MessageContentSensitiveBlocked MessageCode = "content.sensitive.blocked"       // 内容包含敏感词，已被拦截。
+	MessageContentSensitiveReview  MessageCode = "content.sensitive.pendingReview" // 内容包含敏感词，已转入人工审核。
+	MessageChatSensitiveBlocked    MessageCode = "chat.sensitive.blocked"          // 私信内容包含敏感词，已被拦截。
+
+	// 存储设置
+	MessageAdminStorageSaveFailed             MessageCode = "admin.storage.saveFailed"             // 存储设置保存失败，params.error 可带原始错误。
+	MessageAdminStorageTestFailed             MessageCode = "admin.storage.testFailed"             // 存储连接测试失败，params.error 可带原始错误。
+	MessageAdminStorageTestSuccess            MessageCode = "admin.storage.testSuccess"            // 存储连接测试成功。
+	MessageAdminStorageMigrateFailed          MessageCode = "admin.storage.migrateFailed"          // 文件迁移任务创建失败，params.error 可带原始错误。
+	MessageAdminStorageMigrateInvalidProvider MessageCode = "admin.storage.migrateInvalidProvider" // 文件迁移仅支持对象存储（S3 兼容）配置。
+
+	// 数据导入导出
+	MessageAdminDataExportFailed        MessageCode = "admin.data.exportFailed"        // 导出任务创建失败，params.error 可带原始错误。
+	MessageAdminDataImportFailed        MessageCode = "admin.data.importFailed"        // 导入失败，params.error 可带原始错误。
+	MessageAdminDataImportInvalidFormat MessageCode = "admin.data.importInvalidFormat" // 导入仅支持 JSON 文件。
+	MessageAdminDataTaskNotFound        MessageCode = "admin.data.taskNotFound"        // 导出任务不存在。
+	MessageAdminDataTaskNotReady        MessageCode = "admin.data.taskNotReady"        // 导出任务尚未完成。
+	MessageAdminDataDownloadDenied      MessageCode = "admin.data.downloadDenied"      // 导出文件不可下载。
+
+	// 审核队列
+	MessageAdminReviewTargetInvalid MessageCode = "admin.review.targetInvalid" // 审核对象无效。
+	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
+	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
+	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+)

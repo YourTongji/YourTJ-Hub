@@ -8,13 +8,15 @@ import (
 )
 
 const (
-	userProfileSectionSummary  = "summary"
-	userProfileSectionActivity = "activity"
-	userProfileSectionBadges   = "badges"
+	userProfileSectionSummary   = "summary"
+	userProfileSectionActivity  = "activity"
+	userProfileSectionBadges    = "badges"
+	userProfileSectionBookmarks = "bookmarks"
 
 	userProfileActivityTimeline  = "timeline"
 	userProfileActivityTopics    = "topics"
 	userProfileActivityLikes     = "likes"
+	userProfileActivityBookmarks = "bookmarks"
 	userProfileActivityFollowing = "following"
 	userProfileActivityFollowers = "followers"
 )
@@ -27,7 +29,15 @@ func UserProfile(c *gin.Context) {
 		return
 	}
 
-	props := buildUserProfileProps(c, user, resolveUserProfileSection(c.Param("section")), resolveUserProfileActivitySection(c.Param("subsection")))
+	// 收藏列表仅对本人可见：他人（含匿名）访问 /u/:id/bookmarks 一律 404，
+	// 避免泄露他人收藏内容与收藏时间。
+	section := resolveUserProfileSection(c.Param("section"))
+	if section == userProfileSectionBookmarks && component.LoginUserId(c) != user.Id {
+		RenderNotFoundPage(c, component.MessagePageNotFound)
+		return
+	}
+
+	props := buildUserProfileProps(c, user, section, resolveUserProfileActivitySection(c.Param("subsection")))
 	payload := PagePayload{
 		Component: PageComponentUser,
 		Props:     props,
@@ -41,7 +51,7 @@ func UserProfile(c *gin.Context) {
 
 func resolveUserProfileSection(raw string) string {
 	switch raw {
-	case userProfileSectionActivity, userProfileSectionBadges:
+	case userProfileSectionActivity, userProfileSectionBadges, userProfileSectionBookmarks:
 		return raw
 	default:
 		return userProfileSectionSummary
@@ -50,7 +60,7 @@ func resolveUserProfileSection(raw string) string {
 
 func resolveUserProfileActivitySection(raw string) string {
 	switch raw {
-	case userProfileActivityTopics, userProfileActivityLikes, userProfileActivityFollowing, userProfileActivityFollowers:
+	case userProfileActivityTopics, userProfileActivityLikes, userProfileActivityBookmarks, userProfileActivityFollowing, userProfileActivityFollowers:
 		return raw
 	default:
 		return userProfileActivityTimeline
