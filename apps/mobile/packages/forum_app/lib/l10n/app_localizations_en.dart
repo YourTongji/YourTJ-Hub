@@ -375,6 +375,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get searchCategories => 'Categories';
 
   @override
+  String get categoryTitle => 'Category';
+
+  @override
   String get settingsTitle => 'Settings';
 
   @override

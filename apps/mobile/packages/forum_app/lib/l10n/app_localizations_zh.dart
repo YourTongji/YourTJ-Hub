@@ -375,6 +375,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get searchCategories => '分类';
 
   @override
+  String get categoryTitle => '分类';
+
+  @override
   String get settingsTitle => '设置';
 
   @override
