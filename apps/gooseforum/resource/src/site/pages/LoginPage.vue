@@ -77,7 +77,16 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.png')
+const defaultBrandImage = '/static/pic/brand-default.png'
+const brandImage = computed(() => page.layout.site.brandImage || defaultBrandImage)
+
+// 品牌图加载失败（如文件存储未同步、配置了失效 URL）时回退内置默认 Logo，避免裂图
+function onBrandImageError(event: Event) {
+  const image = event.target as HTMLImageElement
+  if (image.src !== new URL(defaultBrandImage, window.location.origin).href) {
+    image.src = defaultBrandImage
+  }
+}
 
 onMounted(() => {
   refreshCaptcha()
@@ -291,7 +300,7 @@ function errorMessage(err: unknown, fallback: string) {
                 <figcaption class="mt-1.5 text-center text-xs font-semibold text-base-content/55">{{ t('auth.teaWhite') }}</figcaption>
               </figure>
               <div class="flex min-w-0 flex-col items-center text-center">
-                <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" />
+                <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" @error="onBrandImageError" />
                 <p class="mt-3 text-xl font-bold leading-snug tracking-tight text-base-content">{{ t('auth.panelTagline') }}</p>
                 <p class="mt-1 text-xs leading-5 text-base-content/45">{{ t('auth.panelTaglineSource') }}</p>
               </div>
@@ -454,7 +463,7 @@ function errorMessage(err: unknown, fallback: string) {
 
           <div class="relative flex h-full min-h-[470px] flex-col justify-between gap-8 p-8">
             <div>
-              <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" />
+              <img :src="brandImage" :alt="page.layout.site.name" class="h-10 w-auto object-contain" @error="onBrandImageError" />
               <p class="mt-6 text-2xl font-bold leading-snug tracking-tight text-base-content">{{ t('auth.panelTagline') }}</p>
               <p class="mt-1.5 text-xs leading-5 text-base-content/45">{{ t('auth.panelTaglineSource') }}</p>
             </div>
