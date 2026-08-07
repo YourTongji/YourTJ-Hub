@@ -78,7 +78,7 @@ const fixedResourceItems = [
 ]
 const categories = computed(() => props.payload.layout.sidebar.categories || [])
 const brandType = computed(() => config.value.brandType || props.payload.layout.site.brandType || 'default')
-const brandText = computed(() => config.value.brandText || props.payload.layout.site.brandText || props.payload.layout.site.name || 'GooseForum')
+const brandText = computed(() => config.value.brandText || props.payload.layout.site.brandText || props.payload.layout.site.name || 'YourTJHub')
 const brandImage = computed(() => config.value.brandImage || props.payload.layout.site.brandImage || props.payload.layout.site.logo || '')
 const addButtonClass = 'rounded-md border border-dashed border-line/70 bg-base-100/40 font-medium text-base-content/55 transition hover:scale-[1.01] hover:border-primary/40 hover:bg-primary/10 hover:text-primary active:scale-[0.99]'
 
