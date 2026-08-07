@@ -54,7 +54,7 @@ func siteTitle() string {
 	if siteConfig.SiteName != "" {
 		return siteConfig.SiteName
 	}
-	return "GooseForum"
+	return "YourTJHub"
 }
 
 func pageTitle(title string) string {
