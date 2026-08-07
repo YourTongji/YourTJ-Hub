@@ -135,11 +135,19 @@ Current client enhancement:
 - Language auto-detection is disabled. Unknown and unlabelled languages remain
   escaped plain-text code blocks, and a load failure leaves the server or
   Markdown-it output unchanged.
+- Inline `$...$` and block `$$...$$` math is rendered with KaTeX by the
+  `v-math-render` directive. The KaTeX chunk (JS, CSS and fonts) is loaded
+  lazily only after a math marker is detected outside code blocks, and ships
+  inside the single binary via the go:embed asset pipeline. Detection uses a
+  brace-balanced scan with MathJax-style inline guards (delimiters must not sit
+  next to whitespace, inline math cannot span lines) so prices and shell
+  variables stay literal; render failures leave the original text unchanged.
+- KaTeX renders from text input only — `trust`/raw-HTML output is never
+  enabled — so math content stays escaped and cannot execute script.
 
 Potential client enhancements:
 
 - Mermaid for diagrams
-- KaTeX or MathJax for math
 
 These should be loaded only on pages that need them, preferably by detecting
 matching code fences or inline markers. They should not become part of the base

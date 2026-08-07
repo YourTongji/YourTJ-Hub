@@ -437,7 +437,7 @@ function submit() {
                 />
                 <div v-else class="gf-prose gf-prose-post min-h-24 max-w-none px-3 py-2.5">
                   <template v-if="content.trim()">
-                    <div v-code-highlight v-html="renderedPreview" />
+                    <div v-code-highlight v-math-render v-html="renderedPreview" />
                   </template>
                   <p v-else class="text-sm text-base-content/55">{{ t('publish.emptyPreview') }}</p>
                 </div>
