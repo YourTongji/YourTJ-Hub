@@ -30,9 +30,18 @@ export function protectMathSegments(source: string): { source: string; placehold
 
 export function restoreMathSegments(rendered: string, placeholders: MathPlaceholder[]): string {
   for (const placeholder of placeholders) {
-    rendered = rendered.split(placeholder.token).join(placeholder.original)
+    rendered = rendered.split(placeholder.token).join(escapeHtml(placeholder.original))
   }
   return rendered
+}
+
+function escapeHtml(source: string): string {
+  return source
+    .replaceAll('&', '&amp;')
+    .replaceAll('<', '&lt;')
+    .replaceAll('>', '&gt;')
+    .replaceAll('"', '&quot;')
+    .replaceAll("'", '&#39;')
 }
 
 function uniqueMathToken(source: string, index: number, used: Set<string>): string {

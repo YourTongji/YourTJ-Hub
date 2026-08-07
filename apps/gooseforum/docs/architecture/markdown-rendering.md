@@ -185,6 +185,9 @@ with tests.
 Math protection: the server and preview renderers now replace math segments
 with unique placeholders before Markdown parsing and restore them in the
 rendered HTML. This keeps typographer, emphasis parsing, and paragraph splitting
-from corrupting `$...$`/`$$...$$`. The client enhancer still scans rendered text
-nodes, so historical HTML created before the rendered-version bump may keep a
-split inline expression literal until posts are re-rendered.
+from corrupting `$...$`/`$$...$$`. Restored math segments are HTML-escaped
+(`html.EscapeString` in Go, the equivalent on the markdown-it preview side) so
+raw HTML inside `$...$` cannot bypass the renderer's raw-HTML filtering. The
+client enhancer still scans rendered text nodes, so historical HTML created
+before the rendered-version bump may keep a split inline expression literal
+until posts are re-rendered.

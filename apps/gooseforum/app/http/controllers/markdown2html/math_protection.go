@@ -2,6 +2,7 @@ package markdown2html
 
 import (
 	"fmt"
+	"html"
 	"strings"
 )
 
@@ -51,7 +52,7 @@ func protectMathSegments(source string) (string, []mathPlaceholder) {
 
 func restoreMathSegments(rendered string, placeholders []mathPlaceholder) string {
 	for _, placeholder := range placeholders {
-		rendered = strings.ReplaceAll(rendered, placeholder.token, placeholder.original)
+		rendered = strings.ReplaceAll(rendered, placeholder.token, html.EscapeString(placeholder.original))
 	}
 	return rendered
 }
