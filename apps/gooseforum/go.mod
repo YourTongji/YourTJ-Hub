@@ -25,6 +25,7 @@ require (
 	github.com/markbates/goth v1.82.0
 	github.com/meilisearch/meilisearch-go v0.36.3
 	github.com/mojocn/base64Captcha v1.3.8
+	github.com/mozillazg/go-pinyin v0.21.0
 	github.com/pquerna/otp v1.5.0
 	github.com/robfig/cron/v3 v3.0.1
 	github.com/samber/lo v1.53.0

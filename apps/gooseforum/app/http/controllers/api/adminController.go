@@ -1064,6 +1064,7 @@ func SaveCategory(req component.BetterRequest[CategorySaveReq]) component.Respon
 
 	category.SaveOrCreateById(&entity)
 	hotdataserve.ClearCategoryCache()
+	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexUpdatedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 
@@ -1083,6 +1084,7 @@ func DeleteCategory(req component.BetterRequest[struct {
 	}
 	category.DeleteEntity(&entity)
 	hotdataserve.ClearCategoryCache()
+	eventbus.Publish(context.Background(), &eventhandlers.CategorySearchIndexDeletedEvent{CategoryId: entity.Id})
 	return component.SuccessResponse(true)
 }
 

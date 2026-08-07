@@ -3,6 +3,12 @@ package searchservice
 // TopicIndex is the Meilisearch index for topic documents.
 const TopicIndex = "topics"
 
+// UserIndex is the Meilisearch index for user documents.
+const UserIndex = "users"
+
+// CategoryIndex is the Meilisearch index for category documents.
+const CategoryIndex = "categories"
+
 // TopicSearchDocument 主题搜索文档结构
 type TopicSearchDocument struct {
 	ID            uint64   `json:"id"`

@@ -11,8 +11,9 @@ import (
 
 func Search(c *gin.Context) {
 	query := strings.TrimSpace(c.Query("q"))
+	scope := c.Query("scope")
 	page := parsePositiveInt(c.DefaultQuery("page", "1"), 1)
-	props := buildSearchPageProps(query, page)
+	props := buildSearchPageProps(query, scope, page)
 	payload := PagePayload{
 		Component: PageComponentSearch,
 		Props:     props,
@@ -25,8 +26,9 @@ func Search(c *gin.Context) {
 }
 
 type SearchJSONReq struct {
-	Q    string `form:"q"`
-	Page int    `form:"page"`
+	Q     string `form:"q"`
+	Scope string `form:"scope"`
+	Page  int    `form:"page"`
 }
 
 // SearchJSON 提供搜索的 JSON API（复用 buildSearchPageProps 的分页逻辑），
@@ -36,7 +38,7 @@ func SearchJSON(req component.BetterRequest[SearchJSONReq]) component.Response {
 	if page < 1 {
 		page = 1
 	}
-	props := buildSearchPageProps(strings.TrimSpace(req.Params.Q), page)
+	props := buildSearchPageProps(strings.TrimSpace(req.Params.Q), req.Params.Scope, page)
 	return component.SuccessResponse(props)
 }
 
@@ -47,10 +49,9 @@ func buildSearchMeta(c *gin.Context, query string) PageMeta {
 		title = query + " - " + title
 	}
 	return PageMeta{
-		Title:       pageTitle(title),
-		Description: i18n.T(lang, "meta.searchDesc", "site", siteTitle()),
-		Canonical:   component.GetBaseUri(c) + buildSearchURL(query, 1),
-		Robots:      "noindex,follow",
+		Title:     pageTitle(title),
+		Canonical: component.GetBaseUri(c) + buildSearchURL(query, c.Query("scope"), 1),
+		Robots:    "noindex,follow",
 	}
 }
 
