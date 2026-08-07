@@ -267,10 +267,6 @@ function setMarkdownLineType(block: Exclude<MarkdownBlockType, 'code_block'>) {
 }
 
 async function openLinkPicker() {
-  if (editorMode.value === 'markdown') {
-    insert('[', '](https://)', t('publish.placeholder.link'))
-    return
-  }
   blockPickerOpen.value = false
   tablePickerOpen.value = false
   linkPickerOpen.value = !linkPickerOpen.value
@@ -281,11 +277,20 @@ async function openLinkPicker() {
   linkInput.value?.select()
 }
 
-function applyLink() {
+async function applyLink() {
   const href = linkUrl.value.trim()
   if (!href) return
+  if (editorMode.value === 'markdown') {
+    insert('[', `](${href})`, t('publish.placeholder.link'))
+    linkPickerOpen.value = false
+    linkUrl.value = ''
+    return
+  }
   linkPickerOpen.value = false
+  linkUrl.value = ''
   visualEditor.value?.setLink(href, t('publish.placeholder.link'))
+  await nextTick()
+  visualEditor.value?.focus()
 }
 
 function openTablePicker() {
@@ -466,7 +471,7 @@ function handleEditorKeydown(event: KeyboardEvent) {
     insert('*', '*', t('publish.placeholder.italic'))
   } else if (key === 'k') {
     event.preventDefault()
-    insert('[', '](https://)', t('publish.placeholder.link'))
+    openLinkPicker()
   }
 }
 
