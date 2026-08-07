@@ -483,7 +483,7 @@ export default {
     preview: 'プレビュー',
     pastePlainText: 'プレーンテキストとして貼り付け',
     clipboardReadFailed: 'クリップボードを読み取れません。ブラウザの権限を確認してください。',
-    visualUnsupported: '本文にタスクリストが含まれています。Markdown モードで編集してください。',
+    visualUnsupported: '本文にタスクリストまたは脚注が含まれています。ビジュアルモードでは対応していないため、Markdown モードで編集してください。',
     processingImage: '画像を処理中...',
     processingImages: '画像を処理中 {done}/{total}',
     imageInserted: '画像を挿入しました。',

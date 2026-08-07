@@ -483,7 +483,7 @@ export default {
     preview: 'Preview',
     pastePlainText: 'Paste as plain text',
     clipboardReadFailed: 'Unable to read the clipboard. Check your browser permissions.',
-    visualUnsupported: 'This body contains task lists. Continue editing it in Markdown mode.',
+    visualUnsupported: 'This body contains task lists or footnotes, which visual mode does not support. Continue editing it in Markdown mode.',
     processingImage: 'Processing image...',
     processingImages: 'Processing images {done}/{total}',
     imageInserted: 'Image inserted.',

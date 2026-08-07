@@ -27,4 +27,19 @@ describe('hasUnsupportedVisualMarkdown', () => {
   test('detects task lists nested in blockquotes', () => {
     expect(hasUnsupportedVisualMarkdown('> - [ ] quoted task')).toBe(true)
   })
+
+  test('detects footnote references', () => {
+    expect(hasUnsupportedVisualMarkdown('text[^1]')).toBe(true)
+    expect(hasUnsupportedVisualMarkdown('a[^note] and [^2] b')).toBe(true)
+  })
+
+  test('detects footnote definitions', () => {
+    expect(hasUnsupportedVisualMarkdown('[^1]: the note')).toBe(true)
+    expect(hasUnsupportedVisualMarkdown('  [^1]: indented note')).toBe(true)
+    expect(hasUnsupportedVisualMarkdown('> [^1]: quoted note')).toBe(true)
+  })
+
+  test('does not treat footnote-like link text as unsupported', () => {
+    expect(hasUnsupportedVisualMarkdown('[^1](https://example.com)')).toBe(false)
+  })
 })

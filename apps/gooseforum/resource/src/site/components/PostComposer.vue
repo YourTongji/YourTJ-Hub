@@ -59,7 +59,7 @@ const { t } = useI18n()
 // 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
 const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
-const editorMode = ref<'visual' | 'markdown'>('visual')
+const editorMode = ref<'visual' | 'markdown'>(hasUnsupportedVisualMarkdown(content.value) ? 'markdown' : 'visual')
 const preview = ref(false)
 const toolbarOpen = ref(false)
 const toolbarCloseTimer = ref<ReturnType<typeof setTimeout> | null>(null)

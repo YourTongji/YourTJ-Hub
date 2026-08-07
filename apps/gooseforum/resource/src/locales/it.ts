@@ -483,7 +483,7 @@ export default {
     preview: 'Anteprima',
     pastePlainText: 'Incolla come testo semplice',
     clipboardReadFailed: 'Impossibile leggere gli appunti. Controlla le autorizzazioni del browser.',
-    visualUnsupported: 'Il contenuto include elenchi di attività. Continua a modificarlo in modalità Markdown.',
+    visualUnsupported: 'Il contenuto include elenchi di attività o note a piè di pagina, non supportati dalla modalità visuale. Continua a modificarlo in modalità Markdown.',
     processingImage: 'Elaborazione immagine...',
     processingImages: 'Elaborazione immagini {done}/{total}',
     imageInserted: 'Immagine inserita.',

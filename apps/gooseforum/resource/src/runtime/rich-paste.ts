@@ -18,5 +18,7 @@ export function markdownFromClipboard(data: DataTransfer | null) {
 
 export function hasUnsupportedVisualMarkdown(markdown: string) {
   const hasTaskList = /^\s*(?:>\s*)*(?:[-+*]|\d+[.)])\s+\[[ xX]\]\s+/m.test(markdown)
-  return hasTaskList
+  const hasFootnoteReference = /\[\^[^\]]+\](?!\()/.test(markdown)
+  const hasFootnoteDefinition = /^[ \t]{0,3}(?:>\s*)*\[\^[^\]]+\]:/m.test(markdown)
+  return hasTaskList || hasFootnoteReference || hasFootnoteDefinition
 }

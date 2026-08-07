@@ -483,7 +483,7 @@ export default {
     preview: '预览',
     pastePlainText: '粘贴为纯文本',
     clipboardReadFailed: '无法读取剪贴板，请检查浏览器权限。',
-    visualUnsupported: '当前正文包含任务列表，请继续使用 Markdown 模式编辑。',
+    visualUnsupported: '当前正文包含任务列表或脚注，视觉模式不支持此类内容，请继续使用 Markdown 模式编辑。',
     processingImage: '正在处理图片...',
     processingImages: '正在处理图片 {done}/{total}',
     imageInserted: '图片已插入。',
