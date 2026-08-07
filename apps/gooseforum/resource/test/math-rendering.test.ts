@@ -237,3 +237,21 @@ describe('enhanceMathText', () => {
     expect(loader).toHaveBeenCalledTimes(1)
   })
 })
+
+describe('inline math across element boundaries', () => {
+  test('leaves split inline math literal until pre-render protection exists', async () => {
+    const fakeNode = (data: string) => ({ data, replaceWith: vi.fn() })
+    const nodes = [fakeNode('$a'), fakeNode('b'), fakeNode('c$')]
+    const loader = vi.fn(async () => ({
+      renderMath,
+      splitIntoMathParts,
+      buildFragment: (parts: unknown) => parts,
+    }))
+
+    const changed = await enhanceMathText({} as ParentNode, loader, () => nodes)
+
+    expect(changed).toBe(false)
+    expect(loader).not.toHaveBeenCalled()
+    expect(nodes.every((node) => node.replaceWith.mock.calls.length === 0)).toBe(true)
+  })
+})

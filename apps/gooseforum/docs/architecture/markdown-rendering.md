@@ -181,3 +181,9 @@ GooseForum should continue with dual implementation:
 The `goja` experiment is useful as a reference, but it should not replace the
 current approach unless the Markdown dialect becomes too complex to keep aligned
 with tests.
+
+Known limitation: math delimiters must currently live inside a single rendered text
+node. If Markdown emphasis splits an expression such as `$a*b*c$` into
+`$a<em>b</em>c$`, the client enhancer leaves the delimiters literal. Prefer
+`\cdot` or avoid a bare `*` inside inline math until a pre-render math
+protection pass is added.

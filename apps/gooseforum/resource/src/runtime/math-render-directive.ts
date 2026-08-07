@@ -17,6 +17,7 @@ type MathEnhancerModule = Pick<
 
 export interface TextNodeLike {
   readonly data: string
+  readonly isConnected?: boolean
   replaceWith(node: Node | DocumentFragment): void
 }
 
@@ -44,6 +45,8 @@ export async function enhanceMathText(
   const textNodes = collectTextNodesFn(root)
   if (!textNodes.some((node) => extractMathSegments(node.data).length > 0)) return false
 
+  if ((root as unknown as { isConnected?: boolean }).isConnected === false) return false
+
   let enhancer: MathEnhancerModule
   try {
     enhancer = await loadEnhancer()
@@ -51,8 +54,11 @@ export async function enhanceMathText(
     return false
   }
 
+  if ((root as unknown as { isConnected?: boolean }).isConnected === false) return false
+
   let changed = false
   for (const node of textNodes) {
+    if (node.isConnected === false) continue
     const parts = enhancer.splitIntoMathParts(node.data, enhancer.renderMath)
     if (parts.length === 1 && parts[0].type === 'text' && parts[0].value === node.data) continue
     node.replaceWith(enhancer.buildFragment(parts))
@@ -61,8 +67,12 @@ export async function enhanceMathText(
   return changed
 }
 
+const pendingMathRoots = new WeakSet<ParentNode>()
+
 function runMathRendering(element: HTMLElement) {
-  void enhanceMathText(element)
+  if (pendingMathRoots.has(element)) return
+  pendingMathRoots.add(element)
+  void enhanceMathText(element).finally(() => pendingMathRoots.delete(element))
 }
 
 export const mathRenderDirective: ObjectDirective<HTMLElement> = {
