@@ -729,7 +729,7 @@ onMounted(load)
         <div class="grid gap-10 md:grid-cols-2">
           <section class="space-y-6">
             <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Globe class="size-5 text-muted-foreground" />{{ adminText('k007z') }}</div>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k0080') }}<Input v-model="siteForm.siteName" placeholder="GooseForum" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k0080') }}<Input v-model="siteForm.siteName" placeholder="YourTJHub" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k0081') }}<Input v-model="siteForm.siteUrl" placeholder="https://example.com" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k0082') }}<Input v-model="siteForm.siteEmail" placeholder="contact@example.com" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k0083') }}
@@ -778,7 +778,7 @@ onMounted(load)
         <aside class="space-y-8">
           <section class="space-y-4">
             <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Send class="size-5 text-muted-foreground" />{{ adminText('k008s') }}</div>
-            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008t') }}<Input v-model="mailForm.fromName" :disabled="!mailForm.enableMail" placeholder="GooseForum" /></label>
+            <label class="grid gap-2 text-sm font-medium">{{ adminText('k008t') }}<Input v-model="mailForm.fromName" :disabled="!mailForm.enableMail" placeholder="YourTJHub" /></label>
             <label class="grid gap-2 text-sm font-medium">{{ adminText('k008u') }}<Input v-model="mailForm.fromEmail" :disabled="!mailForm.enableMail" placeholder="noreply@example.com" /></label>
           </section>
           <section class="space-y-4">

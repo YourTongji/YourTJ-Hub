@@ -75,7 +75,7 @@ export default {
     registerTitle: 'Create an account',
     forgotTitle: 'Reset password',
     loginSubtitle: 'Welcome back. Continue your discussions and writing.',
-    registerSubtitle: 'Join GooseForum and start your discussion space.',
+    registerSubtitle: 'Join YourTJHub and start your discussion space.',
     forgotSubtitle: 'Enter your email and we will send a password reset message.',
     usernameOrEmail: 'Username or email',
     username: 'Username',
@@ -105,7 +105,7 @@ export default {
     passwordMinLength: 'Password must be at least 6 characters',
     saveNewPassword: 'Save new password',
     passwordAdviceTitle: 'Password safety tips',
-    passwordAdviceDescription: 'Set a new password used only for GooseForum. Reset links are valid for a limited time; request a new email after expiration.',
+    passwordAdviceDescription: 'Set a new password used only for YourTJHub. Reset links are valid for a limited time; request a new email after expiration.',
     passwordAdvice: {
       length: 'At least 6 characters',
       unique: 'Avoid reusing passwords from other sites',
@@ -281,7 +281,7 @@ export default {
     unavailable: 'Terms of service are not published yet.',
   },
   sponsors: {
-    defaultMessage: 'Thanks for supporting GooseForum.',
+    defaultMessage: 'Thanks for supporting YourTJHub.',
     emptyTitle: 'No sponsors yet',
     emptyDescription: 'Sponsor information has not been configured yet.',
     rulesTitle: 'Display rules',

@@ -75,7 +75,7 @@ export default {
     registerTitle: '创建新账号',
     forgotTitle: '重置密码',
     loginSubtitle: '欢迎回来，继续你的讨论和创作。',
-    registerSubtitle: '加入 GooseForum，开启你的讨论空间。',
+    registerSubtitle: '加入 YourTJHub，开启你的讨论空间。',
     forgotSubtitle: '输入邮箱，我们会发送一封重置密码邮件。',
     usernameOrEmail: '用户名或邮箱',
     username: '用户名',
@@ -105,7 +105,7 @@ export default {
     passwordMinLength: '密码长度至少 6 位',
     saveNewPassword: '保存新密码',
     passwordAdviceTitle: '密码安全建议',
-    passwordAdviceDescription: '设置一个只用于 GooseForum 的新密码。重置链接只在有效期内可用，过期后请重新发送邮件。',
+    passwordAdviceDescription: '设置一个只用于 YourTJHub 的新密码。重置链接只在有效期内可用，过期后请重新发送邮件。',
     passwordAdvice: {
       length: '至少 6 位字符',
       unique: '避免与其他网站共用密码',
@@ -281,7 +281,7 @@ export default {
     unavailable: '服务条款暂未发布。',
   },
   sponsors: {
-    defaultMessage: '感谢支持 GooseForum。',
+    defaultMessage: '感谢支持 YourTJHub。',
     emptyTitle: '暂无赞助商',
     emptyDescription: '站点还没有配置赞助信息。',
     rulesTitle: '展示规则',

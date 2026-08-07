@@ -35,10 +35,13 @@ const feedMode = ref<'table' | 'card'>(readFeedMode())
 
 function readFeedMode(): 'table' | 'card' {
   try {
-    return window.localStorage.getItem(feedStorageKey) === 'card' ? 'card' : 'table'
+    const stored = window.localStorage.getItem(feedStorageKey)
+    if (stored === 'card' || stored === 'table') return stored
   } catch {
-    return 'table'
+    // Storage may be unavailable in private or restricted browsing contexts.
   }
+  // 未手动选择时按设备默认：移动端卡片、桌面端列表（与 Tailwind lg 断点一致）
+  return window.matchMedia('(min-width: 1024px)').matches ? 'table' : 'card'
 }
 
 function setFeedMode(mode: 'table' | 'card') {
@@ -307,7 +310,7 @@ onBeforeUnmount(() => {
         </div>
       </aside>
 
-      <section class="gf-card overflow-hidden">
+      <section :class="feedMode === 'card' ? '' : 'gf-card overflow-hidden'">
         <div class="gf-home-topic-toolbar">
           <div class="gf-home-topic-tools">
             <div class="gf-home-topic-tabs">
@@ -366,6 +369,7 @@ onBeforeUnmount(() => {
             :loading-more="loadingMore"
             :has-topics="hasTopics"
             :load-error="loadError"
+            :bare="feedMode === 'card'"
             @load-more="loadMore"
           />
         </div>

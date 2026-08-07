@@ -67,19 +67,22 @@ const singleImageClass = computed(() => {
         :show-categories="showCategories"
         :show-hot="showHot"
         :show-pinned="showPinned"
-      />
-      <div v-if="hasImages" class="mt-3 grid gap-1.5" :class="gridClass">
-        <img
-          v-for="(url, index) in images"
-          :key="`${topic.id}-${url}`"
-          :src="url"
-          :alt="topic.title"
-          loading="lazy"
-          decoding="async"
-          class="min-h-0 w-full object-cover ring-1 ring-black/5 dark:ring-white/10"
-          :class="multiImageClass"
-        />
-      </div>
+      >
+        <template #media>
+          <div v-if="hasImages" class="mt-3 grid gap-1.5" :class="gridClass">
+            <img
+              v-for="(url, index) in images"
+              :key="`${topic.id}-${url}`"
+              :src="url"
+              :alt="topic.title"
+              loading="lazy"
+              decoding="async"
+              class="min-h-0 w-full object-cover ring-1 ring-black/5 dark:ring-white/10"
+              :class="multiImageClass"
+            />
+          </div>
+        </template>
+      </TopicFeedMeta>
     </template>
   </div>
 </template>

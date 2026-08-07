@@ -75,7 +75,7 @@ export default {
     registerTitle: '新規アカウント作成',
     forgotTitle: 'パスワード再設定',
     loginSubtitle: 'おかえりなさい。議論と投稿を続けましょう。',
-    registerSubtitle: 'GooseForum に参加して、議論の場を始めましょう。',
+    registerSubtitle: 'YourTJHub に参加して、議論の場を始めましょう。',
     forgotSubtitle: 'メールアドレスを入力すると、再設定メールを送信します。',
     usernameOrEmail: 'ユーザー名またはメール',
     username: 'ユーザー名',
@@ -105,7 +105,7 @@ export default {
     passwordMinLength: 'パスワードは6文字以上にしてください',
     saveNewPassword: '新しいパスワードを保存',
     passwordAdviceTitle: 'パスワード安全のヒント',
-    passwordAdviceDescription: 'GooseForum 専用の新しいパスワードを設定してください。再設定リンクは有効期限内のみ利用できます。',
+    passwordAdviceDescription: 'YourTJHub 専用の新しいパスワードを設定してください。再設定リンクは有効期限内のみ利用できます。',
     passwordAdvice: {
       length: '6文字以上',
       unique: '他のサイトと同じパスワードを使わない',
@@ -281,7 +281,7 @@ export default {
     unavailable: '利用規約はまだ公開されていません。',
   },
   sponsors: {
-    defaultMessage: 'GooseForum を支援していただきありがとうございます。',
+    defaultMessage: 'YourTJHub を支援していただきありがとうございます。',
     emptyTitle: 'スポンサーはまだいません',
     emptyDescription: 'スポンサー情報はまだ設定されていません。',
     rulesTitle: '表示ルール',

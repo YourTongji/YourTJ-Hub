@@ -25,6 +25,7 @@ import { hasUnsupportedVisualMarkdown } from '@/runtime/rich-paste'
 import { renderMarkdownPreview } from '@/runtime/markdown'
 import { fencedCodeBlock, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock } from '@/runtime/markdown-editing'
 import VisualMarkdownEditor from '@/site/components/VisualMarkdownEditor.vue'
+import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
 import type { PostPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -54,6 +55,8 @@ const emit = defineEmits<{
 const captchaCode = defineModel<string>('captchaCode', { default: '' })
 const content = defineModel<string>({ default: '' })
 const { t } = useI18n()
+// 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
+const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
 const editorMode = ref<'visual' | 'markdown'>('visual')
 const preview = ref(false)
@@ -359,10 +362,10 @@ function submit() {
 
 <template>
   <Teleport v-if="open" to="body">
-    <div class="pointer-events-none fixed inset-x-0 bottom-4 z-[90] px-3 sm:px-6">
+    <div class="pointer-events-none fixed inset-x-0 z-[90] px-3 sm:px-6" :style="{ bottom: `calc(${keyboardOffset}px + 1rem)` }">
       <div class="relative mx-auto flex w-full max-w-full justify-center">
         <Transition name="floating-reply">
-          <div v-if="authenticated" class="gf-floating-surface pointer-events-auto relative w-[min(42rem,calc(100vw-1.5rem))] p-3">
+          <div v-if="authenticated" class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3">
             <div class="mb-2 flex items-center justify-between gap-3">
               <div class="min-w-0">
                 <div class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
@@ -381,7 +384,7 @@ function submit() {
             </div>
 
             <div
-              class="overflow-hidden rounded-lg border border-line bg-base-100 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10"
+              class="flex min-h-0 flex-1 flex-col overflow-hidden rounded-lg border border-line bg-base-100 transition focus-within:border-primary/50 focus-within:ring-4 focus-within:ring-primary/10"
               @focusin="keepToolbarOpen"
               @focusout="scheduleToolbarClose"
             >
@@ -407,7 +410,7 @@ function submit() {
                 </template>
               </div>
 
-              <div class="relative">
+              <div class="relative min-h-0 flex-1 overflow-y-auto">
                 <VisualMarkdownEditor
                   v-if="!preview && editorMode === 'visual'"
                   ref="visualEditor"
@@ -465,25 +468,25 @@ function submit() {
                 maxlength="8"
               />
             </div>
-            <div class="mt-3 flex items-center justify-between gap-2">
+            <div class="mt-3 flex flex-wrap items-center gap-2">
               <label class="gf-icon-button h-9 w-9 cursor-pointer" :class="{ 'cursor-wait opacity-60': uploadingImage }" :title="t('publish.uploadImageTitle')">
                 <Loader2 v-if="uploadingImage" class="h-4 w-4 animate-spin" />
                 <Image v-else class="h-4 w-4" />
                 <input type="file" accept="image/*" multiple class="hidden" :disabled="uploadingImage" @change="handleImageInput" />
               </label>
-              <div class="flex items-center justify-end gap-2">
-                <div class="inline-flex rounded-md border border-line p-0.5">
-                  <button type="button" class="rounded px-2 py-1 text-xs font-semibold transition" :class="editorMode === 'visual' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('visual')">{{ t('publish.visualMode') }}</button>
-                  <button type="button" class="rounded px-2 py-1 text-xs font-semibold transition" :class="editorMode === 'markdown' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('markdown')">{{ t('publish.markdownMode') }}</button>
-                </div>
-                <button type="button" class="inline-flex h-9 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold transition" :class="preview ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'" @click="togglePreview">
-                  <Eye class="h-3.5 w-3.5" />
-                  {{ t('publish.preview') }}
-                </button>
-                <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted" @click="emit('clearTarget')">
+              <div class="inline-flex shrink-0 rounded-md border border-line p-0.5">
+                <button type="button" class="rounded px-2 py-1 text-xs font-semibold whitespace-nowrap transition" :class="editorMode === 'visual' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('visual')">{{ t('publish.visualMode') }}</button>
+                <button type="button" class="rounded px-2 py-1 text-xs font-semibold whitespace-nowrap transition" :class="editorMode === 'markdown' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('markdown')">{{ t('publish.markdownMode') }}</button>
+              </div>
+              <button type="button" class="inline-flex h-9 shrink-0 items-center gap-1 rounded-md border border-line px-2.5 text-xs font-semibold whitespace-nowrap transition" :class="preview ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'" @click="togglePreview">
+                <Eye class="h-3.5 w-3.5" />
+                <span class="hidden sm:inline">{{ t('publish.preview') }}</span>
+              </button>
+              <div class="ml-auto flex items-center gap-2">
+                <button v-if="target && !editing" type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="emit('clearTarget')">
                   {{ t('common.cancel') }}
                 </button>
-                <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="composerBusy" @click="submit">
+                <button type="button" class="gf-button gf-button-md gf-button-primary shrink-0" :disabled="composerBusy" @click="submit">
                   <Loader2 v-if="composerBusy" class="h-4 w-4 animate-spin" />
                   <Check v-else-if="editing" class="h-4 w-4" />
                   <Send v-else class="h-4 w-4" />
