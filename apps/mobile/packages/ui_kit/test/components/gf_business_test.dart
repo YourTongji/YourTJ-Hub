@@ -66,6 +66,12 @@ void main() {
       expect(find.text('1 / 10'), findsOneWidget);
       expect(find.text('最早'), findsOneWidget);
       expect(find.text('最新'), findsOneWidget);
+      // 点击轨道下半部 → 选择较后的楼层。
+      final Rect rect = tester.getRect(find.byType(GfPostPositionRail));
+      await tester.tapAt(Offset(rect.center.dx, rect.bottom - 40));
+      await tester.pump();
+      expect(selected, isNotNull);
+      expect(selected, inInclusiveRange(5, 10));
     });
   });
 

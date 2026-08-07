@@ -6,7 +6,8 @@ import '../theme/gf_theme.dart';
 /// `TopicFloatingControls.vue`'s rounded floating surface.
 ///
 /// Defaults to a circular primary button; set [label] to render the pill
-/// variant with icon + text used for "join discussion".
+/// variant with icon + text used for "join discussion". The shadow uses the
+/// web `gf-shadows.floating` elevation.
 class GfFloatingAction extends StatelessWidget {
   const GfFloatingAction({
     super.key,
@@ -27,6 +28,7 @@ class GfFloatingAction extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
+    final GfShadows shadows = GfTheme.shadowsOf(context);
 
     final Widget action;
     if (label != null) {
@@ -62,16 +64,21 @@ class GfFloatingAction extends StatelessWidget {
         shape: CircleBorder(
           side: BorderSide(color: colors.line, width: borders.width),
         ),
-        elevation: 2 * borders.depth,
-        shadowColor: colors.neutral.withValues(alpha: 0.35),
+        shadowColor: Colors.transparent,
         clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          customBorder: const CircleBorder(),
-          child: SizedBox(
-            width: 56,
-            height: 56,
-            child: Icon(icon, color: colors.primaryContent, size: 24),
+        child: DecoratedBox(
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            boxShadow: shadows.floating,
+          ),
+          child: InkWell(
+            onTap: enabled ? onPressed : null,
+            customBorder: const CircleBorder(),
+            child: SizedBox(
+              width: 56,
+              height: 56,
+              child: Icon(icon, color: colors.primaryContent, size: 24),
+            ),
           ),
         ),
       );

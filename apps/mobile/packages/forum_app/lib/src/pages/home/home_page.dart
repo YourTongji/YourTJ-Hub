@@ -93,7 +93,7 @@ class _HomePageState extends ConsumerState<HomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('yourtj'),
+        title: Text(AppLocalizations.of(context).appTitle),
         actions: [
           IconButton(
             icon: const Icon(Icons.settings_outlined),
@@ -237,7 +237,9 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
           title,
           maxLines: 1,
           overflow: TextOverflow.ellipsis,
-          style: GfTheme.typographyOf(context).small.copyWith(color: colors.primary),
+          style: GfTheme.typographyOf(
+            context,
+          ).small.copyWith(color: colors.primary),
         ),
       ),
     );
