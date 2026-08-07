@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## Dependencies
 
@@ -62,7 +62,11 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 | `[db]` / `[db.default]` / `[db.file]` | SQLite default; main db (`[db.default]`) also supports MySQL and PostgreSQL (issue #11); file db stays SQLite; migration, backup, pool |
 | `[meilisearch]` | url, masterkey (optional search) |
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
-| `[github]` | GitHub OAuth client (currently the only third-party login) |
+| `[github]` | GitHub OAuth client |
+
+Casdoor OIDC is not a config.toml section: it is configured from the admin panel and stored in
+preferences (`casdoor.endpoint` / `casdoor.client_id` / `casdoor.client_secret`). The OIDC login entry
+only appears once these are set (`oidcservice.IsConfigured()` gates it).
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 
@@ -74,7 +78,8 @@ url = "host=127.0.0.1 user=yourtj password=yourtj dbname=yourtj port=5432 sslmod
 
 The binary AutoMigrates all main-db models and runs the versioned data migrations on first boot.
 `TEST_PG_DSN` can be set to run the gated PostgreSQL integration tests
-(`go test ./app/bundles/connect/sqlconnect/...`).
+(`go test ./app/bundles/connect/sqlconnect/...`); `YOURTJ_TEST_PG_URL` gates the migration schema
+tests (`go test ./app/migration/ -run 'TestSchema' -v`, see [testing.md](testing.md)).
 
 > config.toml contains signingKey — sensitive; it is gitignored, never commit it.
 

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## Identity model
 
@@ -15,7 +15,7 @@
   available.
 - **Numeric ID is a hard constraint**: credit's `GetID()` parses sub with `strconv.ParseUint`. A UUID
   fails to parse and falls back to 0, making all users collide. The OIDC callback enforces this
-  server-side (`ParseUint` failure rejects the login). Casdoor must:
+  server-side (`ParseUint` failure or a zero `sub` rejects the login). Casdoor must:
   1. set the app SignupItems ID rule to `Incremental` (self-registered users get auto-increment numeric
      IDs); and
   2. explicitly pass numeric `id` when admins create accounts.
@@ -30,6 +30,8 @@
 - Password login: RSA-OAEP encrypted password → forum `users.Verify` → if the user enabled TOTP 2FA,
   the server issues a 5-minute `totp_challenge` token instead of a session token; the client posts the
   code (or a one-time recovery code) to `/api/auth/totp/verify`, which issues the real session token.
+  A challenge token can mint at most one session: it is atomically consumed on successful verification
+  (`totpservice.ConsumeChallenge`), so replaying it cannot create a second session.
 - GitHub OAuth (goth): unchanged; callback binds or signs in and issues a session token.
 - Casdoor OIDC: `GET /api/auth/oidc/login` (PKCE + state + nonce) → Casdoor → callback exchanges code
   for id_token → verify (iss/aud/nonce/exp) → find or create local user → issue forum JWT. The callback
@@ -60,7 +62,8 @@
   missing or expired, so revocation is immediate.
 - Revocation: users can list sessions (IP masked, device/UA) in Settings → Security, revoke a single
   session, or sign out of all devices. "Sign out of all devices" also bumps `TokenVersion`, which
-  invalidates every previously issued token as a second line of defense.
+  invalidates every previously issued token as a second line of defense. Ordinary logout deletes the
+  current session row as well, and fails loudly when the revoke errors (no silently surviving token).
 - Password change: `TokenVersion` bumps, invalidating old tokens (existing behavior preserved).
 - Ban/disable: Casdoor's active/forbidden is authoritative; server syncs at exchange and every check.
 - Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
