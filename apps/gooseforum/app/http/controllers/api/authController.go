@@ -27,10 +27,16 @@ import (
 )
 
 func Logout(c *gin.Context) {
+	token := jwt.GetGinAccessToken(c)
+	if claims, _, err := jwt.VerifyTokenWithFreshClaims(token); err == nil && claims.Jti != "" {
+		if err := sessionservice.RevokeByJti(claims.UserId, claims.Jti); err != nil {
+			slog.Error("Logout revoke session failed", "userId", claims.UserId, "jti", claims.Jti, "error", err)
+			c.JSON(http.StatusOK, component.FailDataCode(component.MessageSessionRevokeFailed, nil))
+			return
+		}
+	}
 	jwt.TokenClean(c)
-	c.JSON(http.StatusOK, component.SuccessData(
-		"👋",
-	))
+	c.JSON(http.StatusOK, component.SuccessData("logout"))
 }
 
 // Register 注册

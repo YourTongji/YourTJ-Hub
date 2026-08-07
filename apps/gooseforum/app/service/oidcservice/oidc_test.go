@@ -227,6 +227,18 @@ func TestHandleCallbackRejectsNonNumericSub(t *testing.T) {
 	}
 }
 
+func TestHandleCallbackRejectsZeroSub(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+
+	_, err := runCallback(t, m, jwt.MapClaims{
+		"sub": "0",
+	})
+	if !errors.Is(err, ErrNonNumericSub) {
+		t.Fatalf("error = %v, want ErrNonNumericSub", err)
+	}
+}
+
 func TestHandleCallbackRejectsNonceMismatch(t *testing.T) {
 	m := newMockOIDC(t)
 	configureOIDC(m.issuer())
