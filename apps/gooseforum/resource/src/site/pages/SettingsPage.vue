@@ -57,6 +57,7 @@ import {
   resetAppearanceSettings,
   saveAppearanceSettings,
   type AppearanceSettings,
+  type FontZone,
 } from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
@@ -660,7 +661,14 @@ const fontFamilyOptions = computed(() => [
   { value: 'serif', label: t('settings.general.fontSerif') },
   { value: 'kai', label: t('settings.general.fontKai') },
   { value: 'hei', label: t('settings.general.fontHei') },
+  { value: 'mono', label: t('settings.general.fontMono') },
   { value: 'custom', label: t('settings.general.fontCustom') },
+])
+
+const fontZones = computed(() => [
+  { key: 'ui' as FontZone, label: t('settings.general.zoneUi'), description: t('settings.general.zoneUiDescription') },
+  { key: 'body' as FontZone, label: t('settings.general.zoneBody'), description: t('settings.general.zoneBodyDescription') },
+  { key: 'code' as FontZone, label: t('settings.general.zoneCode'), description: t('settings.general.zoneCodeDescription') },
 ])
 
 function previewAppearance() {
@@ -668,16 +676,38 @@ function previewAppearance() {
 }
 
 function saveAppearance() {
-  const draft = appearance.fontFamilyPreset === 'custom' && !appearance.customFontFamily.trim()
-    ? { ...appearance, fontFamilyPreset: 'system' as const }
-    : { ...appearance }
-  saveAppearanceSettings(draft)
+  saveAppearanceSettings({ ...appearance })
 }
 
-function saveCustomFont() {
-  if (appearance.fontFamilyPreset === 'custom' && !appearance.customFontFamily.trim()) {
-    appearance.fontFamilyPreset = 'system'
+function saveCustomFont(zone: FontZone) {
+  const zf = appearance.zones[zone]
+  if (zf.familyPreset === 'custom' && !zf.customFamily.trim()) zf.familyPreset = 'system'
+  saveAppearance()
+}
+
+let cssPreviewTimer: number | undefined
+function previewCssDebounced() {
+  window.clearTimeout(cssPreviewTimer)
+  cssPreviewTimer = window.setTimeout(previewAppearance, 300)
+}
+
+const cssFileInput = ref<HTMLInputElement | null>(null)
+function triggerCssFileImport() {
+  cssFileInput.value?.click()
+}
+function onCssFileChange(event: Event) {
+  const file = (event.target as HTMLInputElement).files?.[0]
+  ;(event.target as HTMLInputElement).value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    appearance.customCss = typeof reader.result === 'string' ? reader.result : ''
+    saveAppearance()
   }
+  reader.readAsText(file)
+}
+function clearCustomCss() {
+  appearance.customCss = ''
   saveAppearance()
 }
 
@@ -1695,54 +1725,67 @@ async function toggleBinding(provider: string) {
           <section v-show="activeTab === 'general'">
             <SectionHeader :icon="Settings2" :title="t('settings.general.title')" :description="t('settings.general.description')" />
             <div class="max-w-2xl divide-y divide-line p-4">
-              <div class="py-4">
+              <div v-for="zone in fontZones" :key="zone.key" class="py-4">
                 <div class="flex items-center justify-between gap-4">
-                  <span>
-                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.fontSize') }}</span>
-                    <span class="text-sm text-base-content/55">{{ t('settings.general.fontSizeDescription') }}</span>
+                  <span class="min-w-0">
+                    <span class="block text-sm font-semibold text-base-content">{{ zone.label }}</span>
+                    <span class="text-sm text-base-content/55">{{ zone.description }}</span>
                   </span>
-                  <span class="shrink-0 text-sm font-semibold text-base-content">{{ appearance.fontSize }}px</span>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <input
+                      type="number"
+                      min="12"
+                      max="24"
+                      step="1"
+                      class="gf-input h-9 w-20 text-center text-sm"
+                      v-model.number="appearance.zones[zone.key].size"
+                      :aria-label="zone.label"
+                      @input="previewAppearance"
+                      @change="saveAppearance"
+                    />
+                    <SiteSelect
+                      class="w-44 shrink-0"
+                      :options="fontFamilyOptions"
+                      v-model="appearance.zones[zone.key].familyPreset"
+                      @update:model-value="saveAppearance"
+                    />
+                  </div>
                 </div>
-                <input
-                  type="range"
-                  :aria-label="t('settings.general.fontSize')"
-                  min="14"
-                  max="20"
-                  step="1"
-                  class="mt-3 w-full accent-primary"
-                  v-model.number="appearance.fontSize"
-                  @input="previewAppearance"
-                  @change="saveAppearance"
-                />
-                <p class="mt-1 text-xs text-base-content/55">{{ t('settings.general.fontSizeHint') }}</p>
+                <div v-if="appearance.zones[zone.key].familyPreset === 'custom'" class="mt-3">
+                  <input
+                    v-model="appearance.zones[zone.key].customFamily"
+                    type="text"
+                    class="gf-input w-full"
+                    maxlength="200"
+                    :placeholder="t('settings.general.customFontPlaceholder')"
+                    :aria-label="zone.label + ' ' + t('settings.general.fontCustom')"
+                    @input="previewAppearance"
+                    @blur="saveCustomFont(zone.key)"
+                    @keydown.enter="saveCustomFont(zone.key)"
+                  />
+                </div>
               </div>
 
               <div class="py-4">
                 <div class="flex items-center justify-between gap-4">
                   <span>
-                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.fontFamily') }}</span>
-                    <span class="text-sm text-base-content/55">{{ t('settings.general.fontFamilyDescription') }}</span>
+                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.customCss') }}</span>
+                    <span class="text-sm text-base-content/55">{{ t('settings.general.customCssDescription') }}</span>
                   </span>
-                  <SiteSelect
-                    class="w-52 shrink-0"
-                    :options="fontFamilyOptions"
-                    v-model="appearance.fontFamilyPreset"
-                    @update:model-value="saveAppearance"
-                  />
+                  <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" @click="triggerCssFileImport">{{ t('settings.general.importCss') }}</button>
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="!appearance.customCss" @click="clearCustomCss">{{ t('settings.general.clearCss') }}</button>
+                    <input ref="cssFileInput" type="file" accept=".css,text/css" class="hidden" @change="onCssFileChange" />
+                  </div>
                 </div>
-                <div v-if="appearance.fontFamilyPreset === 'custom'" class="mt-3">
-                  <input
-                    v-model="appearance.customFontFamily"
-                    type="text"
-                    class="gf-input w-full"
-                    :aria-label="t('settings.general.fontFamily')"
-                    :placeholder="t('settings.general.customFontPlaceholder')"
-                    maxlength="200"
-                    @input="previewAppearance"
-                    @blur="saveCustomFont"
-                    @keydown.enter="saveCustomFont"
-                  />
-                </div>
+                <textarea
+                  v-model="appearance.customCss"
+                  class="gf-textarea mt-3 h-44 w-full font-mono text-xs"
+                  :placeholder="t('settings.general.customCssPlaceholder')"
+                  :aria-label="t('settings.general.customCss')"
+                  @input="previewCssDebounced"
+                  @blur="saveAppearance"
+                ></textarea>
               </div>
 
               <label class="flex items-center justify-between gap-4 py-4">
