@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-08
 
 ## Contract status
 
@@ -14,6 +14,7 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
@@ -111,6 +112,10 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 - For an OpenAPI-covered operation, backend behavior, `openapi.yaml`, generated TypeScript output, and
   representative fixtures/route-level contract tests ship in the same PR.
 - Operations outside the current coverage remain manually synchronized with their consumers until they
-  are added to the controlled contract.
+  are added to the controlled contract. `@gooseforum/client` must stay in sync with Go structs.
+- The mobile client mirrors contracts into `apps/mobile/packages/core/lib/src/gen/*.dart` (a
+  generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
+  affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
+  (`core/test/fixtures`) back runtime deserialization.
 - Dart generation and full-route coverage are Planned; do not claim they are current contract gates.
 - Docs status words updated in step (docs/README.md).

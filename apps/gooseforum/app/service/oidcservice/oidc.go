@@ -123,6 +123,27 @@ func RedirectURL() string {
 	return hotdataserve.GetSiteSettingsConfigCache().SiteUrl + callbackPath
 }
 
+// MobileRedirectURI returns the redirect URI used by the mobile client. The
+// value is configurable (casdoor.mobile_redirect_uri) and defaults to the
+// custom app scheme the Flutter client registers (yourtj://callback). An
+// explicitly empty configured value falls back to the default.
+func MobileRedirectURI() string {
+	const defaultURI = "yourtj://callback"
+	uri := preferences.GetString("casdoor.mobile_redirect_uri", defaultURI)
+	if strings.TrimSpace(uri) == "" {
+		return defaultURI
+	}
+	return uri
+}
+
+// ErrInvalidMobileRedirectURI is returned when a mobile exchange request
+// supplies a redirect URI outside the configured allowlist.
+var ErrInvalidMobileRedirectURI = errors.New("oidc: 移动端 redirect URI 不在白名单")
+
+// ErrInvalidExchangeRequest is returned when a mobile exchange request is
+// missing the authorization code or PKCE verifier.
+var ErrInvalidExchangeRequest = errors.New("oidc: 兑换请求参数缺失")
+
 // OAuth2Config builds the oauth2 config for the OIDC provider.
 func OAuth2Config(redirectURL string) (*oauth2.Config, error) {
 	settings, ok := loadSettings()
@@ -248,6 +269,68 @@ func HandleCallback(c *gin.Context) (CallbackResult, error) {
 		return CallbackResult{}, ErrNonNumericSub
 	}
 	// 0 is the logged-out/absent-user sentinel; never treat it as a real user.
+	if sub == 0 {
+		return CallbackResult{}, ErrNonNumericSub
+	}
+	username := claims.PreferredUsername
+	if username == "" {
+		username = claims.Name
+	}
+	return CallbackResult{Sub: sub, Username: username, Email: claims.Email}, nil
+}
+
+// ExchangeCode verifies a mobile OIDC authorization code. The client sends
+// the nonce it placed in the authorization request; the id_token nonce must
+// match it (same binding the browser callback enforces), so a swapped or
+// replayed authorization code cannot mint a session with a different nonce.
+// The redirect URI must match the configured mobile allowlist.
+func ExchangeCode(code, codeVerifier, nonce, redirectURI string) (CallbackResult, error) {
+	if code == "" || codeVerifier == "" || nonce == "" {
+		return CallbackResult{}, ErrInvalidExchangeRequest
+	}
+	if redirectURI != MobileRedirectURI() {
+		return CallbackResult{}, ErrInvalidMobileRedirectURI
+	}
+	settings, ok := loadSettings()
+	if !ok {
+		return CallbackResult{}, ErrOIDCNotConfigured
+	}
+	provider, err := Provider()
+	if err != nil {
+		return CallbackResult{}, err
+	}
+	config, err := OAuth2Config(redirectURI)
+	if err != nil {
+		return CallbackResult{}, err
+	}
+	token, err := config.Exchange(context.Background(), code, oauth2.VerifierOption(codeVerifier))
+	if err != nil {
+		return CallbackResult{}, fmt.Errorf("交换token失败: %w", err)
+	}
+	rawIDToken, ok := token.Extra("id_token").(string)
+	if !ok || rawIDToken == "" {
+		return CallbackResult{}, errors.New("id_token缺失")
+	}
+	idToken, err := provider.Verifier(&oidc.Config{ClientID: settings.clientID}).Verify(context.Background(), rawIDToken)
+	if err != nil {
+		return CallbackResult{}, fmt.Errorf("校验id_token失败: %w", err)
+	}
+	if idToken.Nonce != nonce {
+		return CallbackResult{}, ErrNonceMismatch
+	}
+	var claims struct {
+		Sub               string `json:"sub"`
+		PreferredUsername string `json:"preferred_username"`
+		Name              string `json:"name"`
+		Email             string `json:"email"`
+	}
+	if err := idToken.Claims(&claims); err != nil {
+		return CallbackResult{}, fmt.Errorf("解析claims失败: %w", err)
+	}
+	sub, err := strconv.ParseUint(claims.Sub, 10, 64)
+	if err != nil {
+		return CallbackResult{}, ErrNonNumericSub
+	}
 	if sub == 0 {
 		return CallbackResult{}, ErrNonNumericSub
 	}

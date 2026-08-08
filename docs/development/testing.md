@@ -46,7 +46,8 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
 | resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
 | contract | OpenAPI lint/bundle/type generation plus real Gin route-chain fixture assertions | pnpm + go test + httptest |
-| mobile | widget/unit | flutter test (when mobile lands) |
+| mobile | widget/unit | flutter test (melos analyze + test; see local-development.md) |
+| mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地 Casdoor → AppAuth 模拟器回跳 → exchange 验证) |
 
 ## CI mapping
 

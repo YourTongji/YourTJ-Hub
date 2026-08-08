@@ -132,6 +132,7 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("auth/oidc/login", api.OidcLogin)
 	baseApi.GET("auth/oidc/callback", middleware.JWTAuth, api.OidcCallback)
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
+	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 
 	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))

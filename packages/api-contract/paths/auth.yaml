@@ -46,3 +46,79 @@ login:
             examples:
               rateLimited:
                 externalValue: ../fixtures/login-rate-limited.json
+
+oidcExchange:
+  post:
+    tags: [Authentication]
+    summary: Exchange a mobile OIDC authorization code for a forum session
+    operationId: exchangeMobileOidcCode
+    security: []
+    description: |
+      The mobile client sends the authorization code together with its PKCE verifier, nonce, and
+      redirect URI. The server requires `redirectUri` to exactly match its configured mobile
+      allowlist, exchanges the code with Casdoor, verifies the ID token signature, issuer, audience,
+      expiry and nonce, enforces a positive numeric `sub`, then issues a forum JWT session.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/OidcExchangeRequest
+    responses:
+      '200':
+        description: OIDC exchange succeeded and a forum session was created.
+        headers:
+          Set-Cookie:
+            description: HTTP-only `access_token` session cookie. Mobile clients use the response token instead.
+            schema:
+              type: string
+          New-Token:
+            description: The same forum JWT returned in `result.token`.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/OidcExchangeSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/oidc-exchange-success.json
+      '400':
+        description: Malformed JSON or a required exchange parameter is missing.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              invalidRequest:
+                externalValue: ../fixtures/oidc-exchange-invalid.json
+      '401':
+        description: Casdoor rejected the code, token verification failed, or the ID token nonce did not match.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '403':
+        description: The redirect URI is not allowlisted, OIDC is unavailable, numeric sub is invalid, signup is disabled, or the matched account is frozen.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '500':
+        description: The local account, session, or forum JWT could not be created.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '429':
+        description: Login rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure

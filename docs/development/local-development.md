@@ -15,7 +15,8 @@
   pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
   with pnpm's upward lookup — run pnpm from inside `resource/`)
 - Docker + Compose (local dependency services)
-- Flutter SDK (mobile planned, not installed yet)
+- Flutter SDK (mobile; workspace-local clone under `.flutter-sdk/` when external paths are blocked,
+  otherwise a normal install ≥3.27) + melos (`dart pub global activate melos`)
 
 ## Startup
 
@@ -33,6 +34,23 @@ make web           # = cd apps/gooseforum/resource && pnpm dev
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
+# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
+cd apps/mobile && melos bootstrap   # 首次或依赖变更后
+melos run analyze                    # 全包静态检查
+melos run test                       # 全包测试
+```
+
+## Mobile workspace
+
+- `apps/mobile` is a melos workspace with four packages: `core` (contracts/API client/markdown
+  conversion), `auth` (login/TOTP/OIDC/token storage), `ui_kit` (design tokens + Gf* components),
+  `forum_app` (routes/pages/state). Scripts (`analyze`/`test`/`gen`) are declared in
+  `apps/mobile/pubspec.yaml` under the `melos:` key.
+- Design tokens: `ui_kit/lib/src/theme/tokens.json` is the single derived source of the web design
+  language (source of truth: `apps/gooseforum/resource/src/styles/tokens.css`). **A PR that changes
+  `tokens.css` must update `tokens.json` in the same commit** (contract-style discipline).
+- Mobile contract mirrors live in `core/lib/src/gen/*.dart` (see
+  [contracts-and-data](../architecture/contracts-and-data.md)).
 
 ## Service addresses
 

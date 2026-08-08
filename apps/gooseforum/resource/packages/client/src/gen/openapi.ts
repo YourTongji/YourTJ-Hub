@@ -21,6 +21,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/auth/oidc/exchange": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Exchange a mobile OIDC authorization code for a forum session
+         * @description The mobile client sends the authorization code together with its PKCE verifier, nonce, and
+         *     redirect URI. The server requires `redirectUri` to exactly match its configured mobile
+         *     allowlist, exchanges the code with Casdoor, verifies the ID token signature, issuer, audience,
+         *     expiry and nonce, enforces a positive numeric `sub`, then issues a forum JWT session.
+         */
+        post: operations["exchangeMobileOidcCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/topics/write": {
         parameters: {
             query?: never;
@@ -78,6 +101,26 @@ export interface components {
         };
         LoginResponse: components["schemas"]["LoginSuccess"] | components["schemas"]["ApiFailure"];
         LoginResult: string | components["schemas"]["TotpChallengeResult"];
+        OidcExchangeRequest: {
+            /** @description One-time authorization code returned to the AppAuth redirect URI. */
+            code: string;
+            /** @description PKCE verifier generated and retained by the mobile client. */
+            codeVerifier: string;
+            /** @description Nonce sent in the authorization request; it must equal the verified ID token nonce. */
+            nonce: string;
+            /**
+             * Format: uri
+             * @description Mobile callback URI. The server requires an exact match with its configured allowlist value.
+             */
+            redirectUri: string;
+        };
+        OidcExchangeResult: {
+            /** @description Forum JWT session credential for Bearer authentication. */
+            token: string;
+        };
+        OidcExchangeSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["OidcExchangeResult"];
+        };
         TotpChallengeResult: {
             /** @constant */
             twoFactorRequired: true;
@@ -159,6 +202,80 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    exchangeMobileOidcCode: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["OidcExchangeRequest"];
+            };
+        };
+        responses: {
+            /** @description OIDC exchange succeeded and a forum session was created. */
+            200: {
+                headers: {
+                    /** @description HTTP-only `access_token` session cookie. Mobile clients use the response token instead. */
+                    "Set-Cookie"?: string;
+                    /** @description The same forum JWT returned in `result.token`. */
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OidcExchangeSuccess"];
+                };
+            };
+            /** @description Malformed JSON or a required exchange parameter is missing. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Casdoor rejected the code, token verification failed, or the ID token nonce did not match. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The redirect URI is not allowlisted, OIDC is unavailable, numeric sub is invalid, signup is disabled, or the matched account is frozen. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Login rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description The local account, session, or forum JWT could not be created. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-08
 
 ## System shape
 
@@ -71,7 +71,10 @@
 - Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), and
   Casdoor OIDC unified login (PKCE + state + nonce, numeric `sub` enforced server-side). Sessions
   are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
-- Mobile (planned): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT.
+- Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
+  Flutter shell and feature pages consume the repository-owned `Gf*` UI API; `ui_kit` maps those
+  tokens and components to the pinned TDesign v1 alpha implementation so application pages do not
+  depend on pre-release TDesign APIs directly.
 
 ### Search (Partial)
 

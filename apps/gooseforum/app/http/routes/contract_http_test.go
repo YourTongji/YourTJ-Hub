@@ -97,6 +97,11 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	configureHTTPContractTestSettings(t, conn)
 	router := gin.New()
 	router.POST("/api/login", middleware.RateLimit(middleware.RateLimitLogin), api.Login)
+	router.POST(
+		"/api/auth/oidc/exchange",
+		middleware.RateLimit(middleware.RateLimitLogin),
+		api.OidcExchange,
+	)
 	forumAPI := router.Group("/api/forum")
 	forumLoginAPI := forumAPI.Use(middleware.JWTAuthCheck)
 	forumLoginAPI.POST(
@@ -379,6 +384,19 @@ func TestLoginHTTPContractBusinessFailureAndRateLimit(t *testing.T) {
 		assertFixtureEnvelope(t, response, contractFixture(t, "login-rate-limited.json"))
 		assertRetryAfter(t, recorder, response, middleware.RateLimitLogin)
 	})
+}
+
+func TestOidcExchangeHTTPContractInvalidRequest(t *testing.T) {
+	_, router := setupHTTPContractTest(t)
+	recorder := serveJSON(router, "/api/auth/oidc/exchange", "{", "")
+	if recorder.Code != http.StatusBadRequest {
+		t.Fatalf("OIDC exchange invalid request status = %d, want 400", recorder.Code)
+	}
+	assertFixtureEnvelope(
+		t,
+		decodeContractEnvelope(t, recorder),
+		contractFixture(t, "oidc-exchange-invalid.json"),
+	)
 }
 
 func TestWriteTopicHTTPContract(t *testing.T) {

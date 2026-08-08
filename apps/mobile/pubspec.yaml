@@ -1,0 +1,29 @@
+name: mobile
+environment:
+  sdk: ">=3.12.2 <4.0.0"
+dev_dependencies:
+  melos: ^8.2.2
+workspace:
+  - packages/auth
+  - packages/core
+  - packages/forum_app
+  - packages/ui_kit
+# TDesign's adaptation helper pins older picker plugins even though its API is
+# compatible with the versions already used and verified by forum_app.
+dependency_overrides:
+  image_picker: 1.2.3
+  image_picker_android: 0.8.13+19
+melos:
+  scripts:
+    analyze:
+      run: melos exec -- "flutter analyze"
+      description: Run flutter analyze in all packages.
+    test:
+      run: melos exec -- "flutter test"
+      description: Run flutter test in all packages.
+    gen:
+      run: melos exec --depends-on=build_runner -- "dart run build_runner build --delete-conflicting-outputs"
+      description: Regenerate freezed/json_serializable outputs in packages that use build_runner.
+  command:
+    bootstrap:
+      usePubspecOverrides: true

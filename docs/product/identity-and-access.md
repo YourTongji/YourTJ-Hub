@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-08
 
 ## Identity model
 
@@ -39,10 +39,13 @@
 
 ### Mobile (Flutter)
 
-1. appauth + PKCE → Casdoor auth page (external browser) → callback with code;
-2. token endpoint exchanges code for id_token (verify nonce);
-3. `POST /api/auth/oidc/exchange` (planned; body: idToken, nonce) → server verifies → returns forum JWT;
-4. JWT stored in Keychain/Keystore (flutter_secure_storage); id_token stays in memory only.
+1. AppAuth + PKCE opens the Casdoor authorization page and receives the callback authorization code;
+   the app retains the matching PKCE verifier and nonce in memory;
+2. the app posts `{code, codeVerifier, nonce, redirectUri}` to `POST /api/auth/oidc/exchange`;
+3. the forum backend requires an exact redirect-URI allowlist match, exchanges the code with Casdoor,
+   verifies the ID token (issuer, audience, expiry, signature, nonce), and enforces a positive numeric `sub`;
+4. the returned forum JWT is stored in Keychain/Keystore (`flutter_secure_storage`); the Casdoor ID token
+   is verified server-side and is never persisted by the app.
 
 ## Two-factor authentication
 
