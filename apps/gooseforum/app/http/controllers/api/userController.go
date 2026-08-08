@@ -183,12 +183,9 @@ func EditUserInfo(req component.BetterRequest[EditUserInfoReq]) component.Respon
 	}
 
 	userEntity.Nickname = req.Params.Nickname
-	if req.Params.Bio != "" {
-		userEntity.Bio = req.Params.Bio
-	}
-	if req.Params.Signature != "" {
-		userEntity.Signature = req.Params.Signature
-	}
+	// 全字段覆盖：bio/signature 允许清空（空字符串也要落库）
+	userEntity.Bio = req.Params.Bio
+	userEntity.Signature = req.Params.Signature
 	userEntity.Website = req.Params.Website
 	userEntity.WebsiteName = req.Params.WebsiteName
 	if strings.TrimSpace(req.Params.Locale) != "" {
