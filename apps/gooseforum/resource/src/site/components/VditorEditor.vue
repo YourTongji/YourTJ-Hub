@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import Vditor from 'vditor'
@@ -20,10 +20,11 @@ const props = defineProps<{
   modelValue: string
   placeholder: string
   uploading?: boolean
+  minHeight?: number
 }>()
-
 const emit = defineEmits<{
   'update:modelValue': [value: string]
+  input: []
   paste: [event: ClipboardEvent]
   drop: [event: DragEvent]
   dragover: [event: DragEvent]
@@ -37,6 +38,59 @@ const loading = ref(true)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
+const resolvedMinHeight = computed(() => props.minHeight ?? 320)
+
+const TABLE_BUTTON_SELECTOR = '[data-type="table"]'
+function degradeHeadingBeforeTableClick(event: MouseEvent) {
+  if (!editor || !ready) return
+  const target = event.target as HTMLElement | null
+  if (!target?.closest?.(TABLE_BUTTON_SELECTOR)) return
+  const wysiwyg = editor.vditor.wysiwyg?.element
+  if (!wysiwyg) return
+
+  // Mirror Vditor's own getEditorRange: prefer the live document selection
+  // when it is inside the editor, otherwise fall back to its saved range.
+  let range: Range | null = null
+  const selection = window.getSelection()
+  if (selection && selection.rangeCount > 0) {
+    const candidate = selection.getRangeAt(0)
+    if (wysiwyg.contains(candidate.startContainer)) range = candidate
+  }
+  range ??= editor.vditor.wysiwyg?.range ?? null
+  if (!range) return
+
+  const container = range.startContainer.nodeType === Node.ELEMENT_NODE
+    ? (range.startContainer as HTMLElement)
+    : range.startContainer.parentElement
+  const heading = container?.closest?.('h1,h2,h3,h4,h5,h6')
+  if (!heading || !wysiwyg.contains(heading)) return
+  // An empty heading is replaced by the table natively; only the non-empty
+  // case nests the table inside the heading.
+  if (heading.textContent?.trim() === '') return
+
+  // Vditor inserts the table at the caret; inside a heading that nests the
+  // table element into the heading, and Lute then serializes the header row
+  // as part of the heading text (e.g. "### | col1 | ..."), breaking the
+  // published post. Degrade the heading to a plain paragraph and anchor the
+  // table into a fresh empty block right after it, so the table lands as a
+  // sibling block (Vditor replaces an empty block with the table HTML).
+  const paragraph = document.createElement('p')
+  paragraph.setAttribute('data-block', '0')
+  paragraph.innerHTML = heading.innerHTML
+  paragraph.querySelectorAll('[data-type="heading-marker"], wbr').forEach((node) => node.remove())
+  heading.replaceWith(paragraph)
+
+  const tableAnchor = document.createElement('p')
+  tableAnchor.setAttribute('data-block', '0')
+  tableAnchor.textContent = '\u200b'
+  paragraph.after(tableAnchor)
+
+  const nextRange = document.createRange()
+  nextRange.setStart(tableAnchor, 0)
+  nextRange.collapse(true)
+  selection?.removeAllRanges()
+  selection?.addRange(nextRange)
+}
 
 const languageAssets = {
   en: { lang: 'en_US', url: enUrl },
@@ -91,7 +145,7 @@ onMounted(async () => {
       image: { isPreview: false },
       lang: language.lang,
       link: { isOpen: false },
-      minHeight: 320,
+      minHeight: resolvedMinHeight.value,
       mode: 'wysiwyg',
       outline: { enable: false, position: 'left' },
       placeholder: props.placeholder,
@@ -216,6 +270,7 @@ function syncValue() {
 }
 
 function handleNativeInput() {
+  emit('input')
   queueMicrotask(syncValue)
 }
 
@@ -250,10 +305,11 @@ defineExpose({ focus, getValue, insertMarkdown, syncValue })
 </script>
 
 <template>
-  <div class="vditor-editor-wrap" :class="{ 'is-uploading': uploading }">
+  <div class="vditor-editor-wrap" :class="{ 'is-uploading': uploading }" :style="{ minHeight: `${resolvedMinHeight}px` }">
     <div
       ref="root"
       class="vditor-editor"
+      @click.capture="degradeHeadingBeforeTableClick"
       @input="handleNativeInput"
       @paste.capture="forwardPaste"
       @drop.capture="forwardDrop"
@@ -329,6 +385,24 @@ defineExpose({ focus, getValue, insertMarkdown, syncValue })
 
 .vditor-editor :deep(.vditor-reset) {
   color: var(--gf-color-base-content);
+}
+
+.vditor-editor :deep(.vditor-reset ol) {
+  list-style-type: decimal;
+}
+
+.vditor-editor :deep(.vditor-reset ol ol) {
+  list-style-type: lower-alpha;
+}
+
+.vditor-editor :deep(.vditor-reset ol ol ol) {
+  list-style-type: lower-roman;
+}
+
+.vditor-editor :deep(.vditor-reset a) {
+  color: var(--gf-color-primary);
+  text-decoration: underline;
+  text-underline-offset: 2px;
 }
 
 .vditor-editor :deep(.vditor-wysiwyg pre.vditor-reset:empty::before) {
