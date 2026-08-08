@@ -175,7 +175,20 @@
   "profileEmptyFollowers": "No followers yet",
   "profileNotLoggedIn": "Not signed in",
   "messagesTitle": "Messages",
-  "messagesEmpty": "No conversations",
+  "messagesEmpty": "No conversations yet",
+  "messagesEmptyDescription": "Start a conversation with someone from the community.",
+  "messagesSearchConversations": "Search conversations",
+  "messagesConversation": "Private conversation",
+  "messagesStartChat": "Start a conversation",
+  "messagesFirstMessageTo": "Send the first message to {user}.",
+  "@messagesFirstMessageTo": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesNoMessagesYet": "No messages yet",
   "messagesEmptyDetail": "No messages yet, say hi!",
   "messagesInputHint": "Type a message…",
   "messagesSendFailed": "Send failed: {error}",

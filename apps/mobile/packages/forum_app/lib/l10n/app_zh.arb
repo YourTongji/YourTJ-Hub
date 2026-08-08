@@ -175,7 +175,20 @@
   "profileEmptyFollowers": "暂无粉丝",
   "profileNotLoggedIn": "未登录",
   "messagesTitle": "消息",
-  "messagesEmpty": "暂无会话",
+  "messagesEmpty": "还没有私信会话",
+  "messagesEmptyDescription": "从社区里找一个人开始聊聊。",
+  "messagesSearchConversations": "搜索会话",
+  "messagesConversation": "私信对话",
+  "messagesStartChat": "开始聊天",
+  "messagesFirstMessageTo": "给 {user} 发出第一条消息。",
+  "@messagesFirstMessageTo": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesNoMessagesYet": "还没有消息",
   "messagesEmptyDetail": "暂无消息,说点什么吧",
   "messagesInputHint": "输入消息…",
   "messagesSendFailed": "发送失败:{error}",

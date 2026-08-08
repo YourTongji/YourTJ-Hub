@@ -58,7 +58,7 @@ class GfCard extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: emphasized
-              ? BoxDecoration(boxShadow: shadows.card)
+              ? BoxDecoration(color: colors.base100, boxShadow: shadows.card)
               : null,
           child: Column(
             mainAxisSize: MainAxisSize.min,

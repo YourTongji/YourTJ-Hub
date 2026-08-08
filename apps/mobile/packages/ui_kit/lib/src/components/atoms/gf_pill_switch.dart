@@ -38,7 +38,7 @@ class GfPillSwitch<T> extends StatelessWidget {
     final GfBorders borders = GfTheme.bordersOf(context);
 
     return Container(
-      padding: const EdgeInsets.all(2),
+      padding: const EdgeInsets.all(1),
       decoration: BoxDecoration(
         color: colors.base100,
         borderRadius: BorderRadius.circular(999),
@@ -86,13 +86,14 @@ class _GfPillItem<T> extends StatelessWidget {
       icon: Icon(option.icon, size: 15, color: foreground),
       onPressed: onPressed,
       style: ButtonStyle(
-        minimumSize: const WidgetStatePropertyAll<Size>(Size(0, 30)),
+        minimumSize: const WidgetStatePropertyAll<Size>(Size(0, 28)),
         maximumSize: const WidgetStatePropertyAll<Size>(
-          Size(double.infinity, 30),
+          Size(double.infinity, 28),
         ),
         padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
-          EdgeInsets.symmetric(horizontal: 10),
+          EdgeInsets.symmetric(horizontal: 8),
         ),
+        tapTargetSize: MaterialTapTargetSize.shrinkWrap,
         backgroundColor: WidgetStatePropertyAll<Color>(
           selected ? colors.primary : Colors.transparent,
         ),
@@ -100,7 +101,7 @@ class _GfPillItem<T> extends StatelessWidget {
         elevation: const WidgetStatePropertyAll<double>(0),
         shape: const WidgetStatePropertyAll<OutlinedBorder>(StadiumBorder()),
         textStyle: const WidgetStatePropertyAll<TextStyle>(
-          TextStyle(fontSize: 12, fontWeight: FontWeight.w600),
+          TextStyle(fontSize: 11, fontWeight: FontWeight.w600),
         ),
       ),
       child: Text(option.label),

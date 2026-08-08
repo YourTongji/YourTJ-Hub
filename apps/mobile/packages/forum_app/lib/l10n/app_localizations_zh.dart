@@ -325,7 +325,27 @@ class AppLocalizationsZh extends AppLocalizations {
   String get messagesTitle => '消息';
 
   @override
-  String get messagesEmpty => '暂无会话';
+  String get messagesEmpty => '还没有私信会话';
+
+  @override
+  String get messagesEmptyDescription => '从社区里找一个人开始聊聊。';
+
+  @override
+  String get messagesSearchConversations => '搜索会话';
+
+  @override
+  String get messagesConversation => '私信对话';
+
+  @override
+  String get messagesStartChat => '开始聊天';
+
+  @override
+  String messagesFirstMessageTo(String user) {
+    return '给 $user 发出第一条消息。';
+  }
+
+  @override
+  String get messagesNoMessagesYet => '还没有消息';
 
   @override
   String get messagesEmptyDetail => '暂无消息,说点什么吧';
