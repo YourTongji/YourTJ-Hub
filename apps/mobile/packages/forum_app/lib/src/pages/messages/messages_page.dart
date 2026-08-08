@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
@@ -120,7 +121,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
                   ),
                 for (final user in _suggestedUsers)
                   GfSettingRow(
-                    leading: GfAvatar(src: user.avatarUrl, size: 36),
+                    leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
                     title: user.nickname.isEmpty ? user.username : user.nickname,
                     description: '@${user.username}',
                     onTap: () => Navigator.pop(ctx, user),
@@ -154,7 +155,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           peerUsername: selected.nickname.isEmpty
               ? selected.username
               : selected.nickname,
-          peerAvatar: selected.avatarUrl,
+          peerAvatar: resolveApiAssetUrl(selected.avatarUrl),
           lastMsg: '',
           lastMsgTime: '',
           unreadCount: 0,

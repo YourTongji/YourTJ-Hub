@@ -384,19 +384,37 @@
   "dateMonthDayTime": "{month}月{day}日 {time}",
   "@dateMonthDayTime": {
     "placeholders": {
-      "month": {"type": "int"},
-      "day": {"type": "int"},
-      "time": {"type": "String"}
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
   "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
   "@dateYearMonthDayTime": {
     "placeholders": {
-      "year": {"type": "int"},
-      "month": {"type": "int"},
-      "day": {"type": "int"},
-      "time": {"type": "String"}
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
-  "topicFloorSelected": "已跳转到 {floor} 楼"
+  "topicFloorSelected": "已跳转到 {floor} 楼",
+  "sortLatest": "最新",
+  "sortHot": "热门",
+  "sortPopular": "流行",
+  "topicNewTopic": "新建话题"
 }

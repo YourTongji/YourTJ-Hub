@@ -5,6 +5,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../l10n/app_localizations.dart';
 import '../format.dart';
 import 'status_views.dart';
+import '../asset_url.dart';
 
 /// 话题列表(无限分页),行复用 ui_kit [GfTopicRow]。
 class GfTopicList extends StatelessWidget {
@@ -67,7 +68,7 @@ Widget _topicRow(BuildContext context, dynamic topic, {required bool isLast}) {
 
   final List<String> participantAvatarUrls = <String>[
     for (final p in (topic.participants as List<dynamic>? ?? const []))
-      p.avatarUrl as String? ?? '',
+      resolveApiAssetUrl(p.avatarUrl as String? ?? ''),
   ];
 
   return GfTopicRow(

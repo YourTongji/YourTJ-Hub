@@ -20,17 +20,53 @@
   "commonBack": "Back",
   "timeAgoJustNow": "just now",
   "timeAgoMinutes": "{count} min ago",
-  "@timeAgoMinutes": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timeAgoHours": "{count} h ago",
-  "@timeAgoHours": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timeAgoDays": "{count} d ago",
-  "@timeAgoDays": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timeAgoWeeks": "{count} w ago",
-  "@timeAgoWeeks": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timeAgoMonths": "{count} mo ago",
-  "@timeAgoMonths": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "timeAgoYears": "{count} y ago",
-  "@timeAgoYears": {"placeholders": {"count": {"type": "int"}}},
+  "@timeAgoYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "authLoginTitle": "Sign in",
   "authRegisterTitle": "Create account",
   "authForgotTitle": "Reset password",
@@ -69,14 +105,32 @@
   "publishSuccess": "Published successfully",
   "publishSavedDraft": "Saved as draft",
   "publishFailed": "Publish failed: {error}",
-  "@publishFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@publishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "publishImageFailed": "Image upload failed: {error}",
-  "@publishImageFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@publishImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "topicTitle": "Topic",
   "topicReply": "Reply",
   "topicReplySuccess": "Reply posted",
   "topicReplyFailed": "Reply failed: {error}",
-  "@topicReplyFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@topicReplyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "topicReplyHint": "Write a comment…",
   "topicReplying": "Replying… (tap to cancel)",
   "topicReport": "Report post",
@@ -84,9 +138,21 @@
   "topicReportSubmit": "Submit",
   "topicReportSubmitted": "Report submitted",
   "topicReportFailed": "Report failed: {error}",
-  "@topicReportFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@topicReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "topicReplies": "{count} replies",
-  "@topicReplies": {"placeholders": {"count": {"type": "int"}}},
+  "@topicReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
   "topicNoTitle": "Untitled",
   "profileTitle": "Profile",
   "profileFollow": "Follow",
@@ -110,7 +176,13 @@
   "messagesEmptyDetail": "No messages yet, say hi!",
   "messagesInputHint": "Type a message…",
   "messagesSendFailed": "Send failed: {error}",
-  "@messagesSendFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@messagesSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "notificationsTitle": "Notifications",
   "notificationsEmpty": "No notifications",
   "notificationsMarkAllRead": "Mark all read",
@@ -142,28 +214,58 @@
   "settingsAvatarUpload": "Upload avatar (converted to webp)",
   "settingsAvatarUploading": "Uploading…",
   "settingsAvatarUploadFailed": "Avatar upload failed: {error}",
-  "@settingsAvatarUploadFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsEmail": "Email",
   "settingsEmailEdit": "Change bound email",
   "settingsEmailUpdated": "Email updated, please verify",
   "settingsEmailFailed": "Email update failed: {error}",
-  "@settingsEmailFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsNewEmail": "New email",
   "settingsChangePassword": "Change password",
   "settingsChangePasswordSub": "Change login password",
   "settingsCurrentPassword": "Current password",
   "settingsPasswordUpdated": "Password updated",
   "settingsPasswordFailed": "Password change failed: {error}",
-  "@settingsPasswordFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsPasswordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsBadge": "Badge",
   "settingsBadgeNone": "Not wearing",
   "settingsBadgeCurrent": "Current: {name}",
-  "@settingsBadgeCurrent": {"placeholders": {"name": {"type": "String"}}},
+  "@settingsBadgeCurrent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "settingsBadgePick": "Choose badge to wear",
   "settingsBadgeNoOptions": "No wearable badges",
   "settingsBadgeUpdated": "Badge updated",
   "settingsBadgeFailed": "Badge update failed: {error}",
-  "@settingsBadgeFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsBadgeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsOAuth": "Casdoor unified identity",
   "settingsOAuthSub": "OIDC login bindings",
   "settingsOAuthManage": "Manage OAuth bindings",
@@ -173,9 +275,21 @@
   "settingsUnbind": "Unbind",
   "settingsUnboundDone": "Unbound",
   "settingsUnbindFailed": "Unbind failed: {error}",
-  "@settingsUnbindFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsUnbindFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsLoadBindingsFailed": "Failed to load bindings: {error}",
-  "@settingsLoadBindingsFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsLoadBindingsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsPrivacyDirect": "Messages visible to friends only",
   "settingsPrivacyLikes": "Show my likes publicly",
   "settingsSessions": "Session management",
@@ -183,10 +297,22 @@
   "settingsRevokeAll": "Revoke all sessions",
   "settingsRevoked": "Session revoked",
   "settingsRevokeFailed": "Revoke failed: {error}",
-  "@settingsRevokeFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsRevokeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsRevokeAllDone": "All sessions revoked",
   "settingsOpFailed": "Operation failed: {error}",
-  "@settingsOpFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsOpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsAppearance": "Appearance",
   "settingsDarkMode": "Dark mode",
   "settingsDarkCurrent": "Current: dark",
@@ -198,13 +324,19 @@
   "settingsSaveInfo": "Save",
   "settingsInfoSaved": "Profile updated",
   "settingsInfoFailed": "Profile update failed: {error}",
-  "@settingsInfoFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsInfoFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsUserDataLoading": "Account data loading…",
   "settingsFillComplete": "Please fill in all fields",
   "settingsSecondPhase": "Coming in phase 2",
   "settingsTotpTitle": "Two-factor auth (TOTP)",
-  "settingsTotpEnable": "Enable TOTP",
-  "settingsTotpDisable": "Disable TOTP",
+  "settingsTotpEnable": "Enable",
+  "settingsTotpDisable": "Disable",
   "settingsTotpPasswordPrompt": "Enter password to manage TOTP",
   "settingsTotpSetupSecret": "Scan or enter the secret in your authenticator app",
   "settingsTotpCode": "Enter the 6-digit code",
@@ -212,14 +344,18 @@
   "settingsTotpEnabled": "TOTP enabled",
   "settingsTotpDisabled": "TOTP disabled",
   "settingsTotpFailed": "TOTP operation failed: {error}",
-  "@settingsTotpFailed": {"placeholders": {"error": {"type": "String"}}},
+  "@settingsTotpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
   "settingsTotpDisableTitle": "Disable TOTP",
   "settingsTotpEnableTitle": "Enable TOTP",
   "settingsTotpPassword": "Password",
   "settingsTotpNext": "Next",
   "settingsTotpScanSecret": "Scan or enter the secret",
-  "settingsTotpDisable": "Disable",
-  "settingsTotpEnable": "Enable",
   "settingsTotpDone": "Done",
   "settingsTotpUnavailable": "TOTP unavailable",
   "draftsTitle": "Drafts",
@@ -239,26 +375,46 @@
   "settingsAvatarUploaded": "Avatar uploaded: {url}",
   "@settingsAvatarUploaded": {
     "placeholders": {
-      "url": {"type": "String"}
+      "url": {
+        "type": "String"
+      }
     }
   },
   "settingsImageDecodeFailed": "Failed to decode image",
   "dateMonthDayTime": "{month}/{day} {time}",
   "@dateMonthDayTime": {
     "placeholders": {
-      "month": {"type": "int"},
-      "day": {"type": "int"},
-      "time": {"type": "String"}
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
   "dateYearMonthDayTime": "{year}/{month}/{day} {time}",
   "@dateYearMonthDayTime": {
     "placeholders": {
-      "year": {"type": "int"},
-      "month": {"type": "int"},
-      "day": {"type": "int"},
-      "time": {"type": "String"}
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
     }
   },
-  "topicFloorSelected": "Jumped to floor {floor}"
+  "topicFloorSelected": "Jumped to floor {floor}",
+  "sortLatest": "Latest",
+  "sortHot": "Hot",
+  "sortPopular": "Popular",
+  "topicNewTopic": "New topic"
 }

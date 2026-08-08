@@ -716,4 +716,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String topicFloorSelected(Object floor) {
     return 'Jumped to floor $floor';
   }
+
+  @override
+  String get sortLatest => 'Latest';
+
+  @override
+  String get sortHot => 'Hot';
+
+  @override
+  String get sortPopular => 'Popular';
+
+  @override
+  String get topicNewTopic => 'New topic';
 }

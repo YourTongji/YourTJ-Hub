@@ -269,17 +269,52 @@ class _SortTabs extends ConsumerWidget {
         }
       }
     }
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      alignment: Alignment.centerLeft,
-      child: GfTabBar(
-        tabs: <GfTab>[
-          for (final tab in props.tabs)
-            GfTab(label: tab.label ?? tab.key, value: tab.key),
-        ],
-        selected: effective,
-        onSelected: (Object value) => onSelected(value as String),
-      ),
+    // 工具栏对齐 web HomePage.vue:排序 tabs + 新建话题按钮。
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+          alignment: Alignment.centerLeft,
+          child: GfTabBar(
+            tabs: <GfTab>[
+              for (final tab in props.tabs)
+                GfTab(
+                  // 后端 tabs[].label 可能为空(web 端按 key fallback 到
+                  // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
+                  label: _sortTabLabel(context, tab.key, tab.label ?? ''),
+                  value: tab.key,
+                ),
+            ],
+            selected: effective,
+            onSelected: (Object value) => onSelected(value as String),
+          ),
+        ),
+        Padding(
+          padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
+          child: GfButton(
+            label: AppLocalizations.of(context).topicNewTopic,
+            icon: const Icon(Icons.add, size: 16),
+            variant: GfButtonVariant.primary,
+            size: GfButtonSize.medium,
+            expanded: true,
+            onPressed: () => context.go('/publish'),
+          ),
+        ),
+      ],
     );
+  }
+
+  /// 排序 tab 文案:与 web `sortTabLabel(key, label)` 一致——后端 label
+  /// 为空时按 key 回退到 i18n(最新/热门/流行)。
+  String _sortTabLabel(BuildContext context, String key, String label) {
+    if (label.isNotEmpty) return label;
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    return switch (key) {
+      'latest' => l10n.sortLatest,
+      'hot' => l10n.sortHot,
+      'popular' => l10n.sortPopular,
+      _ => key,
+    };
   }
 }

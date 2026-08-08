@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
+import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
@@ -456,7 +457,7 @@ class _TopicHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              GfAvatar(src: topic.author.avatarUrl, size: 24),
+              GfAvatar(src: resolveApiAssetUrl(topic.author.avatarUrl), size: 24),
               const SizedBox(width: 8),
               Text(
                 topic.author.nickname ?? topic.author.username,
@@ -583,7 +584,7 @@ class _PostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              GfAvatar(src: post.author.avatarUrl, size: 24),
+              GfAvatar(src: resolveApiAssetUrl(post.author.avatarUrl), size: 24),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

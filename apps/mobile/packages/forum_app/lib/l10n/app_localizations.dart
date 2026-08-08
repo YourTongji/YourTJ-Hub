@@ -1393,6 +1393,30 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Jumped to floor {floor}'**
   String topicFloorSelected(Object floor);
+
+  /// No description provided for @sortLatest.
+  ///
+  /// In en, this message translates to:
+  /// **'Latest'**
+  String get sortLatest;
+
+  /// No description provided for @sortHot.
+  ///
+  /// In en, this message translates to:
+  /// **'Hot'**
+  String get sortHot;
+
+  /// No description provided for @sortPopular.
+  ///
+  /// In en, this message translates to:
+  /// **'Popular'**
+  String get sortPopular;
+
+  /// No description provided for @topicNewTopic.
+  ///
+  /// In en, this message translates to:
+  /// **'New topic'**
+  String get topicNewTopic;
 }
 
 class _AppLocalizationsDelegate

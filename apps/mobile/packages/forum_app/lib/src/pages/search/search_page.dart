@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
@@ -207,7 +208,7 @@ class _UserResults extends StatelessWidget {
       itemBuilder: (context, i) {
         final user = users[i];
         return GfSettingRow(
-          leading: GfAvatar(src: user.avatarUrl, size: 36),
+          leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
           title: user.nickname.isEmpty ? user.username : user.nickname,
           description: user.bio.isEmpty ? null : user.bio,
           onTap: () => context.push('/u/${user.id}'),

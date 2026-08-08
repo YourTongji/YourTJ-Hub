@@ -715,4 +715,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String topicFloorSelected(Object floor) {
     return '已跳转到 $floor 楼';
   }
+
+  @override
+  String get sortLatest => '最新';
+
+  @override
+  String get sortHot => '热门';
+
+  @override
+  String get sortPopular => '流行';
+
+  @override
+  String get topicNewTopic => '新建话题';
 }

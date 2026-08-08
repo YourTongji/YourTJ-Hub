@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../current_user.dart';
@@ -179,7 +180,7 @@ class _ProfileHeader extends StatelessWidget {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          GfAvatar(src: user.avatarUrl, size: 60),
+          GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 60),
           const SizedBox(width: 12),
           Expanded(
             child: Column(
@@ -385,7 +386,7 @@ class _ProfileBody extends StatelessWidget {
         ListView.builder(
           itemCount: props.following.length,
           itemBuilder: (context, i) => GfSettingRow(
-            leading: GfAvatar(src: props.following[i].avatarUrl, size: 28),
+            leading: GfAvatar(src: resolveApiAssetUrl(props.following[i].avatarUrl), size: 28),
             title: props.following[i].nickname.isEmpty
                 ? props.following[i].username
                 : props.following[i].nickname,
@@ -397,7 +398,7 @@ class _ProfileBody extends StatelessWidget {
         ListView.builder(
           itemCount: props.followers.length,
           itemBuilder: (context, i) => GfSettingRow(
-            leading: GfAvatar(src: props.followers[i].avatarUrl, size: 28),
+            leading: GfAvatar(src: resolveApiAssetUrl(props.followers[i].avatarUrl), size: 28),
             title: props.followers[i].nickname.isEmpty
                 ? props.followers[i].username
                 : props.followers[i].nickname,
