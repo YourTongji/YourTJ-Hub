@@ -62,7 +62,7 @@ async function submit() {
               {{ page.layout.site.brandText || page.layout.site.name }}
             </span>
             <span v-else class="inline-flex">
-              <img src="/static/pic/brand-default.png" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
+              <img src="/static/pic/brand-default.webp" :alt="page.layout.site.name" class="h-8 w-auto object-contain" />
             </span>
           </a>
 

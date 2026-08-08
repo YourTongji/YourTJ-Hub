@@ -3,8 +3,7 @@ import { computed, nextTick, ref, watch } from 'vue'
 import { Check, Loader2, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
-import { markdownFromClipboard } from '@/runtime/rich-paste'
-import VditorEditor from '@/site/components/VditorEditor.vue'
+import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import { useKeyboardVisualViewportOffset } from '@/runtime/visual-viewport'
 import type { PostPayload } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
@@ -38,10 +37,54 @@ const { t } = useI18n()
 // 软键盘弹出时抬高浮动面板，确保输入内容不被输入法遮挡
 const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
-const editor = ref<InstanceType<typeof VditorEditor> | null>(null)
+const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 const uploadingImage = ref(false)
-const dragOver = ref(false)
 const composerBusy = computed(() => props.submitting || uploadingImage.value)
+
+/** 桌面端浮动面板高度：默认更高，顶部手柄可拖拽调整 */
+const MOBILE_VIEWPORT_QUERY = '(max-width: 520px)'
+const DESKTOP_COMPOSER_HEIGHT = 480
+const MIN_COMPOSER_HEIGHT = 240
+const MAX_COMPOSER_HEIGHT = 720
+const isMobileComposer = () => window.matchMedia(MOBILE_VIEWPORT_QUERY).matches
+const composerHeight = ref(DESKTOP_COMPOSER_HEIGHT)
+const editorArea = ref<HTMLElement | null>(null)
+const draggingHeight = ref(false)
+const dragStartY = ref(0)
+const dragStartHeight = ref(0)
+
+function startHeightDrag(event: PointerEvent) {
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  draggingHeight.value = true
+  dragStartY.value = event.clientY
+  dragStartHeight.value = composerHeight.value
+  ;(event.currentTarget as HTMLElement).setPointerCapture(event.pointerId)
+}
+
+function moveHeightDrag(event: PointerEvent) {
+  if (!draggingHeight.value) return
+  // 手柄在顶部：向上拖（clientY 减小）→ 变高；向下拖 → 变矮
+  const delta = dragStartY.value - event.clientY
+  composerHeight.value = Math.min(MAX_COMPOSER_HEIGHT, Math.max(MIN_COMPOSER_HEIGHT, dragStartHeight.value + delta))
+  // 同步 Vditor 高度，让编辑器填满新的编辑区
+  void nextTick(() => {
+    if (editorArea.value && editor.value) {
+      editor.value.setHeight(editorArea.value.clientHeight)
+    }
+  })
+}
+
+function endHeightDrag(event: PointerEvent) {
+  if (!draggingHeight.value) return
+  draggingHeight.value = false
+  const handle = event.currentTarget as HTMLElement
+  if (handle.hasPointerCapture?.(event.pointerId)) handle.releasePointerCapture(event.pointerId)
+  void nextTick(() => {
+    if (editorArea.value && editor.value) {
+      editor.value.setHeight(editorArea.value.clientHeight)
+    }
+  })
+}
 const editing = computed(() => props.mode === 'edit')
 const composerTitle = computed(() => (editing.value ? t('topic.editOwnReply') : t('topic.joinDiscussion')))
 const composerPlaceholder = computed(() => (editing.value ? t('topic.editReplyPlaceholder') : t('topic.replyPlaceholder')))
@@ -78,29 +121,6 @@ function insertMarkdownBlock(text: string) {
 
 function imageAlt(filename: string) {
   return filename.replace(/\.[^.]+$/, '').replace(/[[\]\n\r]/g, ' ').trim() || 'image'
-}
-
-function imageFilesFromList(files: FileList | File[] | null | undefined) {
-  return Array.from(files || []).filter((file) => file.type.startsWith('image/'))
-}
-
-function imageFilesFromDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return []
-  return imageFilesFromList(dataTransfer.files)
-}
-
-function hasImageDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return false
-  if (Array.from(dataTransfer.items || []).some((item) => item.kind === 'file' && item.type.startsWith('image/'))) return true
-  return imageFilesFromList(dataTransfer.files).length > 0
-}
-
-function imageFilesFromClipboard(data: DataTransfer | null) {
-  if (!data) return []
-  return Array.from(data.items || [])
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
 }
 
 async function uploadImageFiles(files: File[]) {
@@ -143,34 +163,6 @@ async function uploadImageFiles(files: File[]) {
   }
 }
 
-async function handlePaste(event: ClipboardEvent) {
-  const files = imageFilesFromClipboard(event.clipboardData)
-  if (files.length) {
-    event.preventDefault()
-    await uploadImageFiles(files)
-    return
-  }
-
-  const markdown = markdownFromClipboard(event.clipboardData)
-  if (!markdown) return
-  event.preventDefault()
-  insertMarkdownBlock(markdown)
-}
-
-async function handleDrop(event: DragEvent) {
-  dragOver.value = false
-  const files = imageFilesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  await uploadImageFiles(files)
-}
-
-function handleDragOver(event: DragEvent) {
-  if (!hasImageDataTransfer(event.dataTransfer)) return
-  event.preventDefault()
-  dragOver.value = true
-}
-
 function submit() {
   if (composerBusy.value) return
   emit('submit')
@@ -182,7 +174,29 @@ function submit() {
     <div class="pointer-events-none fixed inset-x-0 z-[90] px-3 sm:px-6" :style="{ bottom: `calc(${keyboardOffset}px + 1rem)` }">
       <div class="relative mx-auto flex w-full max-w-full justify-center">
         <Transition name="floating-reply">
-          <div v-if="authenticated" class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3">
+          <div
+            v-if="authenticated"
+            class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
+            :style="{
+              height: isMobileComposer() ? undefined : `${composerHeight}px`,
+            }"
+          >
+            <!-- 桌面端高度拖拽手柄（design-taste：细 grip 条、hover 高亮、ns-resize 光标、实时跟随无动画） -->
+            <div
+              v-if="!isMobileComposer()"
+              class="composer-resize-handle"
+              :class="{ 'is-active': draggingHeight }"
+              role="separator"
+              aria-orientation="horizontal"
+              :aria-label="t('topic.resizeComposer')"
+              @pointerdown="startHeightDrag"
+              @pointermove="moveHeightDrag"
+              @pointerup="endHeightDrag"
+              @pointercancel="endHeightDrag"
+            >
+              <span aria-hidden="true" />
+            </div>
+
             <div class="mb-2 flex items-center justify-between gap-3">
               <div class="min-w-0">
                 <div class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
@@ -200,27 +214,18 @@ function submit() {
               </button>
             </div>
 
-            <div class="relative min-h-0 flex-1 overflow-y-auto">
-              <VditorEditor
+            <div ref="editorArea" class="relative min-h-0 flex-1 overflow-y-auto">
+              <!-- 与发布页同款官版编辑器（紧凑工具栏）：粘贴/拖拽图片走官方 upload.handler → uploadImageFiles -->
+              <VditorOfficial
                 ref="editor"
                 v-model="content"
-                :min-height="160"
+                :height="isMobileComposer() ? 320 : 400"
+                :compact="true"
                 :placeholder="composerPlaceholder"
-                :uploading="uploadingImage"
                 @input="emit('clearValidation')"
-                @paste="handlePaste"
-                @drop="handleDrop"
-                @dragover="handleDragOver"
-                @dragleave="dragOver = false"
                 @upload="uploadImageFiles"
                 @error="handleEditorError"
               />
-              <div
-                v-if="dragOver"
-                class="pointer-events-none absolute inset-3 grid place-items-center rounded-lg border-2 border-dashed border-primary/60 bg-info/10 text-sm font-semibold text-primary"
-              >
-                {{ t('publish.dropToUpload') }}
-              </div>
             </div>
 
             <p v-if="errorMessage" class="mt-2 text-sm text-error">{{ errorMessage }}</p>
@@ -259,3 +264,38 @@ function submit() {
     </div>
   </Teleport>
 </template>
+
+<style>
+/*
+ * 桌面端高度拖拽手柄（design-taste：冷静工具语言，VARIANCE 4 / MOTION 2 / DENSITY 6）：
+ * 细 grip 条 + 稍宽热区；hover 高亮提示可拖；拖动中加深；实时跟随、无动画。
+ */
+.composer-resize-handle {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  height: 16px;
+  margin: -6px -12px 6px;
+  cursor: ns-resize;
+  touch-action: none;
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+.composer-resize-handle > span {
+  width: 36px;
+  height: 4px;
+  border-radius: 999px;
+  background: color-mix(in oklch, var(--gf-color-base-content) 18%, transparent);
+  transition: background-color 0.15s ease;
+}
+
+.composer-resize-handle:hover > span,
+.composer-resize-handle.is-active > span {
+  background: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
+}
+
+.composer-resize-handle.is-active {
+  background: color-mix(in oklch, var(--gf-color-primary) 6%, transparent);
+}
+</style>

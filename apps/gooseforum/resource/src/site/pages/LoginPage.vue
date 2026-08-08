@@ -77,7 +77,7 @@ const homeUrl = computed(() => {
   if (target.length > 1 && target[1] === '/') return '/'
   return target
 })
-const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.png')
+const brandImage = computed(() => page.layout.site.brandImage || '/static/pic/brand-default.webp')
 
 onMounted(() => {
   refreshCaptcha()

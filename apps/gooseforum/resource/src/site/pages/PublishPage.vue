@@ -1,13 +1,12 @@
 <script setup lang="ts">
-import { computed, nextTick, ref } from 'vue'
-import { ListChecks, Loader2, Send, X } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
-import { markdownFromClipboard } from '@/runtime/rich-paste'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
-import VditorEditor from '@/site/components/VditorEditor.vue'
+import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -34,7 +33,6 @@ const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
 const currentTopicId = ref(page.props.topicId)
 const submitting = ref(false)
 const uploading = ref(false)
-const dragOver = ref(false)
 const uploadTotal = ref(0)
 const uploadDone = ref(0)
 const message = ref('')
@@ -43,20 +41,31 @@ const error = ref('')
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
 const categorySection = ref<HTMLElement | null>(null)
+const headerSection = ref<HTMLElement | null>(null)
+const editorHost = ref<HTMLElement | null>(null)
+const categoryPickerOpen = ref(false)
+const categoryPickerRoot = ref<HTMLElement | null>(null)
 const bodySection = ref<HTMLElement | null>(null)
-const editor = ref<InstanceType<typeof VditorEditor> | null>(null)
+const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
 const validationError = computed(() => validationAttempted.value && !isValid.value ? t('publish.validation.requiredFields') : '')
-const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
 const draftSaveable = computed(() => isValid.value && !submitting.value && !uploading.value)
-const savedSnapshot = ref(editorSnapshot())
-const hasUnsavedChanges = computed(() => editorSnapshot() !== savedSnapshot.value)
+const titleFilled = computed(() => Boolean(title.value.trim()))
+const bodyCharCount = computed(() => content.value.trim().length)
+const bodyFilled = computed(() => bodyCharCount.value > 0)
+const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
+const categoriesFull = computed(() => categoryIds.value.length >= 3)
+/** 向上扩展：折叠标题/分类区，让编辑区占满 */
+const headerCollapsed = ref(false)
+const collapsedHeaderHeight = ref(0)
 const uploadText = computed(() => {
   if (!uploading.value) return ''
   return uploadTotal.value > 1 ? t('publish.processingImages', { done: uploadDone.value, total: uploadTotal.value }) : t('publish.processingImage')
 })
+const savedSnapshot = ref(editorSnapshot())
+const hasUnsavedChanges = computed(() => editorSnapshot() !== savedSnapshot.value)
 const {
   leavePromptOpen,
   forceNextNavigation,
@@ -93,6 +102,32 @@ function toggleCategory(id: number) {
   categoryIds.value = [...categoryIds.value, id]
 }
 
+/** 分类下拉：点击外部关闭（better-ui：popover 走文档级 pointerdown 收敛） */
+function handleCategoryPickerPointerDown(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Node && categoryPickerRoot.value?.contains(target)) return
+  categoryPickerOpen.value = false
+}
+
+function handleCategoryPickerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    categoryPickerOpen.value = false
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    categoryPickerOpen.value = true
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleCategoryPickerPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleCategoryPickerPointerDown)
+})
+
 async function validateRequiredFields() {
   content.value = editor.value?.syncValue() ?? content.value
   if (isValid.value) return true
@@ -111,39 +146,32 @@ async function validateRequiredFields() {
   return false
 }
 
-function imageAlt(filename: string) {
-  return filename.replace(/\.[^.]+$/, '').replace(/[[\]\n\r]/g, ' ').trim() || 'image'
-}
-
-function insertMarkdownBlock(text: string) {
-  editor.value?.insertMarkdown(text)
+/** 工具栏「向上扩展」：折叠/展开标题+分类区，并把高度让给编辑器 */
+function toggleHeaderCollapsed() {
+  const header = headerSection.value
+  if (header) {
+    collapsedHeaderHeight.value = header.offsetHeight
+  }
+  headerCollapsed.value = !headerCollapsed.value
+  void nextTick(() => {
+    if (editor.value) {
+      // 折叠：编辑器高度 = 默认 480 + 头部高度 + 间距；展开：回到 480
+      const target = headerCollapsed.value ? 480 + collapsedHeaderHeight.value + 20 : 480
+      editor.value.setHeight(target)
+    }
+  })
 }
 
 function handleEditorError(editorError: Error) {
   error.value = editorError.message
 }
 
-function imageFilesFromList(files: FileList | File[] | null | undefined) {
-  return Array.from(files || []).filter((file) => file.type.startsWith('image/'))
+function imageAlt(filename: string) {
+  return filename.replace(/\.[^.]+$/, '').replace(/[[\]\n\r]/g, ' ').trim() || 'image'
 }
 
-function imageFilesFromDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return []
-  return imageFilesFromList(dataTransfer.files)
-}
-
-function hasImageDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return false
-  if (Array.from(dataTransfer.items || []).some((item) => item.kind === 'file' && item.type.startsWith('image/'))) return true
-  return imageFilesFromList(dataTransfer.files).length > 0
-}
-
-function imageFilesFromClipboard(data: DataTransfer | null) {
-  if (!data) return []
-  return Array.from(data.items || [])
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
+function insertMarkdownBlock(text: string) {
+  editor.value?.insertMarkdown(text)
 }
 
 async function uploadImageFiles(files: File[]) {
@@ -193,34 +221,6 @@ async function uploadImageFiles(files: File[]) {
     uploadTotal.value = 0
     uploadDone.value = 0
   }
-}
-
-async function handlePaste(event: ClipboardEvent) {
-  const files = imageFilesFromClipboard(event.clipboardData)
-  if (files.length) {
-    event.preventDefault()
-    await uploadImageFiles(files)
-    return
-  }
-
-  const markdown = markdownFromClipboard(event.clipboardData)
-  if (!markdown) return
-  event.preventDefault()
-  insertMarkdownBlock(markdown)
-}
-
-async function handleDrop(event: DragEvent) {
-  dragOver.value = false
-  const files = imageFilesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  await uploadImageFiles(files)
-}
-
-function handleDragOver(event: DragEvent) {
-  if (!hasImageDataTransfer(event.dataTransfer)) return
-  event.preventDefault()
-  dragOver.value = true
 }
 
 async function save() {
@@ -298,10 +298,12 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     <main class="min-w-0 pb-8">
       <PageHeader :title="props.isEditing ? t('publish.editTitle') : t('publish.createTitle')" :description="t('publish.subtitle')" />
 
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <section class="gf-card p-4 sm:p-5">
-          <div class="space-y-5">
-            <label class="block">
+      <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
+      <section class="gf-card p-4 sm:p-5">
+        <div class="space-y-5">
+          <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间） -->
+          <div ref="headerSection" v-show="!headerCollapsed" class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+            <label class="block min-w-0 flex-1">
               <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
               <input
                 ref="titleInput"
@@ -311,94 +313,157 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
               />
             </label>
 
-            <div ref="categorySection">
-              <div class="mb-2 flex items-center justify-between">
-                <div class="flex min-w-0 items-baseline gap-2">
-                  <span class="text-sm font-semibold text-base-content/75">
-                    {{ t('publish.fields.category') }}
-                  </span>
-                  <span v-if="categoryMissing" class="truncate text-xs text-error/80">
-                    {{ t('publish.validation.categoryRequired') }}
-                  </span>
-                </div>
+            <div ref="categorySection" class="shrink-0 sm:w-60">
+              <div class="flex items-center justify-between gap-2">
+                <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.category') }}</span>
                 <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
               </div>
-              <div class="flex flex-wrap gap-2">
+              <div ref="categoryPickerRoot" class="relative mt-1">
                 <button
-                  v-for="category in props.categories"
-                  :key="category.id"
                   type="button"
-                  class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-                  :class="categoryIds.includes(category.id) ? 'border-primary bg-info/10 text-primary' : 'border-line text-base-content/75 hover:border-line hover:bg-base-200'"
-                  :disabled="!categoryIds.includes(category.id) && categoryIds.length >= 3"
-                  @click="toggleCategory(category.id)"
+                  class="gf-input flex h-11 w-full items-center gap-2 text-left"
+                  :class="categoryMissing ? '!border-error' : ''"
+                  :aria-expanded="categoryPickerOpen"
+                  :aria-label="t('publish.fields.category')"
+                  @click="categoryPickerOpen = !categoryPickerOpen"
+                  @keydown="handleCategoryPickerKeydown"
                 >
-                  <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                  {{ category.name }}
-                </button>
-              </div>
-            </div>
-
-            <div ref="bodySection">
-              <div class="mb-2 flex items-center gap-2">
-                <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
-                <span v-if="uploadText" class="gf-badge gf-badge-info rounded">{{ uploadText }}</span>
-              </div>
-
-              <div
-                :class="[
-                  'min-h-80 bg-transparent',
-                  dragOver ? 'bg-info/10 ring-1 ring-inset ring-primary shadow-[0_0_0_4px_rgba(59,130,246,0.12)]' : '',
-                ]"
-              >
-                <div class="relative">
-                  <VditorEditor
-                    ref="editor"
-                    v-model="content"
-                    :placeholder="t('publish.visualPlaceholder')"
-                    :uploading="uploading"
-                    @paste="handlePaste"
-                    @drop="handleDrop"
-                    @dragover="handleDragOver"
-                    @dragleave="dragOver = false"
-                    @upload="uploadImageFiles"
-                    @error="handleEditorError"
-                  />
-                  <div
-                    v-if="dragOver"
-                    class="pointer-events-none absolute inset-3 grid place-items-center rounded-lg border-2 border-dashed border-primary/60 bg-info/10 text-sm font-semibold text-primary"
+                  <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
+                    <span
+                      v-for="category in selectedCategories"
+                      :key="category.id"
+                      class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
+                      :style="{ backgroundColor: category.color + '22', color: category.color }"
+                    >
+                      <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
+                      <span class="truncate">{{ category.name }}</span>
+                    </span>
+                  </span>
+                  <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
+                  <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
+                  <svg
+                    class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
+                    :class="{ 'rotate-180': categoryPickerOpen }"
+                    viewBox="0 0 24 24"
+                    fill="none"
+                    stroke="currentColor"
+                    stroke-width="2"
+                    stroke-linecap="round"
+                    stroke-linejoin="round"
+                    aria-hidden="true"
                   >
-                    {{ t('publish.dropToUpload') }}
+                    <path d="m6 9 6 6 6-6" />
+                  </svg>
+                </button>
+
+                <Transition name="gf-menu">
+                  <div
+                    v-if="categoryPickerOpen"
+                    class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[300] max-h-64 overflow-y-auto p-1"
+                  >
+                    <button
+                      v-for="category in props.categories"
+                      :key="category.id"
+                      type="button"
+                      class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                      :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
+                      :disabled="!categoryIds.includes(category.id) && categoriesFull"
+                      @click="toggleCategory(category.id)"
+                    >
+                      <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                      <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
+                      <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
+                    </button>
+                    <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
                   </div>
-                </div>
+                </Transition>
               </div>
+              <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
+            </div>
+          </div>
+
+          <div ref="bodySection">
+            <div class="mb-2 flex items-center gap-2">
+              <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
+              <span v-if="uploadText" class="gf-badge gf-badge-info rounded">{{ uploadText }}</span>
             </div>
 
-            <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
-            <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
-            <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
-
-            <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
-              <button
-                type="button"
-                class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"
-                :disabled="captchaLoading"
-                @click="loadCaptcha()"
-              >
-                <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
-              </button>
-              <input
-                v-model="captchaCode"
-                class="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
-                :placeholder="t('auth.captcha')"
-                maxlength="8"
+            <div ref="editorHost" class="relative">
+              <VditorOfficial
+                ref="editor"
+                v-model="content"
+                :height="480"
+                :outline="true"
+                :counter="true"
+                :header-toggle="true"
+                :header-collapsed="headerCollapsed"
+                :placeholder="t('publish.visualPlaceholder')"
+                @toggle-header="toggleHeaderCollapsed"
+                @upload="uploadImageFiles"
+                @error="handleEditorError"
               />
-              <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
             </div>
-            <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          </div>
 
-            <div class="flex items-center justify-end gap-2 border-t border-line pt-4">
+          <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
+          <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
+          <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
+
+          <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+            <button
+              type="button"
+              class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"
+              :disabled="captchaLoading"
+              @click="loadCaptcha()"
+            >
+              <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+              <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
+            </button>
+            <input
+              v-model="captchaCode"
+              class="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
+              :placeholder="t('auth.captcha')"
+              maxlength="8"
+            />
+            <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
+          </div>
+          <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+          <!-- 页脚：左侧发布检查状态条 + 右侧操作（better-layout：控制区合并、用间距分组） -->
+          <div class="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div
+              class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-base-content/65"
+              role="status"
+              :aria-label="t('publish.checklist.title')"
+            >
+              <span class="inline-flex items-center gap-1.5 font-semibold text-base-content/75">
+                <ListChecks class="h-3.5 w-3.5 shrink-0 text-base-content/55" aria-hidden="true" />
+                {{ t('publish.checklist.title') }}
+              </span>
+              <span class="hidden h-3 w-px bg-line sm:inline-block" aria-hidden="true" />
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.title') }}</span>
+                <span :class="titleFilled ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ titleFilled ? t('publish.checklist.done') : t('publish.checklist.pending') }}
+                </span>
+              </span>
+              <span class="text-base-content/35" aria-hidden="true">·</span>
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.category') }}</span>
+                <span :class="categoryIds.length ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ categoryIds.length }}/3
+                </span>
+              </span>
+              <span class="text-base-content/35" aria-hidden="true">·</span>
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.body') }}</span>
+                <span :class="bodyFilled ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ t('publish.checklist.characters', { count: bodyCharCount }) }}
+                </span>
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
               <a href="/" class="gf-button gf-button-lg gf-button-muted">{{ t('common.cancel') }}</a>
               <button
                 type="button"
@@ -419,70 +484,70 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
               </button>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <aside class="space-y-3">
-          <section class="gf-card p-4">
-            <div class="flex items-center gap-2">
-              <ListChecks class="h-4 w-4 text-base-content/55" />
-              <h2 class="text-sm font-semibold text-base-content">{{ t('publish.checklist.title') }}</h2>
-            </div>
-            <ul class="mt-3 space-y-2 text-sm text-base-content/75">
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.title') }}</span><span :class="title.trim() ? 'text-success' : 'text-base-content/55'">{{ title.trim() ? t('publish.checklist.done') : t('publish.checklist.pending') }}</span></li>
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.category') }}</span><span :class="categoryIds.length ? 'text-success' : 'text-base-content/55'">{{ categoryIds.length }}/3</span></li>
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.body') }}</span><span :class="content.trim() ? 'text-success' : 'text-base-content/55'">{{ t('publish.checklist.characters', { count: content.trim().length }) }}</span></li>
-            </ul>
-          </section>
+      <Transition name="gf-modal">
+        <div
+          v-if="leavePromptOpen"
+          class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-prompt-title"
+          @click.self="closeLeavePrompt"
+        >
+          <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <!-- 头部：警示图标 + 标题 + 描述 + 关闭（对齐全站确认弹窗模式） -->
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                  <FileText class="h-5 w-5" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="leave-prompt-title" class="text-base font-bold text-base-content">{{ t('publish.leaveTitle') }}</h2>
+                  <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('publish.leaveDescription') }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+                  :aria-label="t('common.close')"
+                  @click="closeLeavePrompt"
+                >
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
 
-          <section v-if="selectedCategories.length" class="gf-card p-4">
-            <h2 class="text-sm font-semibold text-base-content">{{ t('publish.selectedCategories') }}</h2>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                v-for="category in selectedCategories"
-                :key="category.id"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-sm text-base-content/75 hover:bg-base-200"
-                @click="toggleCategory(category.id)"
+              <!-- 草稿条件提示：圆角块 + 图标（比整条底色条更精致） -->
+              <div
+                v-if="!isValid"
+                class="mt-4 flex items-start gap-2.5 rounded-xl border border-warning/20 bg-warning/10 px-3.5 py-3 text-sm leading-5 text-warning/90"
               >
-                <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                {{ category.name }}
-                <X class="h-3 w-3" />
-              </button>
+                <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{{ t('publish.draftRequirement') }}</span>
+              </div>
+
+              <!-- 操作区：移动端主按钮置顶堆叠，桌面右对齐；危险操作（不保存离开）用 error 色 -->
+              <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" class="gf-button gf-button-lg gf-button-muted" @click="closeLeavePrompt">
+                  {{ t('publish.continueEditing') }}
+                </button>
+                <button type="button" class="gf-button gf-button-lg gf-button-error" @click="discardAndLeave">
+                  {{ t('publish.leaveWithoutSaving') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-primary min-w-28"
+                  :disabled="!draftSaveable"
+                  @click="saveDraftAndLeave"
+                >
+                  <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" />
+                  <FileText v-else class="h-4 w-4" />
+                  {{ submitting ? t('common.saving') : t('publish.saveDraft') }}
+                </button>
+              </div>
             </div>
-          </section>
-        </aside>
-      </div>
-
-      <div v-if="leavePromptOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-neutral/50 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-        <div class="gf-menu-surface w-full max-w-md overflow-hidden">
-          <div class="border-b border-line px-5 py-4">
-            <h2 class="text-base font-semibold text-base-content">{{ t('publish.leaveTitle') }}</h2>
-            <p class="mt-1 text-sm leading-6 text-base-content/55">
-              {{ t('publish.leaveDescription') }}
-            </p>
-          </div>
-
-          <div v-if="!isValid" class="border-b border-warning/20 bg-warning/10 px-5 py-3 text-sm font-medium text-warning">
-            {{ t('publish.draftRequirement') }}
-          </div>
-
-          <div class="flex flex-wrap items-center justify-end gap-2 bg-base-200 px-5 py-4">
-            <button type="button" class="gf-button gf-button-lg gf-button-muted" @click="closeLeavePrompt">
-              {{ t('publish.continueEditing') }}
-            </button>
-            <button type="button" class="gf-button gf-button-lg gf-button-secondary" @click="discardAndLeave">
-              {{ t('publish.leaveWithoutSaving') }}
-            </button>
-            <button
-              type="button"
-              class="gf-button gf-button-lg gf-button-primary min-w-28"
-              :disabled="!draftSaveable"
-              @click="saveDraftAndLeave"
-            >
-              {{ submitting ? t('common.saving') : t('publish.saveDraft') }}
-            </button>
           </div>
         </div>
-      </div>
+      </Transition>
     </main>
 </template>

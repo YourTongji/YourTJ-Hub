@@ -350,7 +350,7 @@ async function loadUserCard() {
             </span>
             <img
               v-else
-              src="/static/pic/brand-default.png"
+              src="/static/pic/brand-default.webp"
               :alt="layout.site.name"
               class="h-8 w-auto max-w-32 shrink-0 object-contain sm:max-w-40 sm:h-9"
             />

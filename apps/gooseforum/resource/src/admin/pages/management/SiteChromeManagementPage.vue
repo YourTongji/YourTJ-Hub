@@ -361,7 +361,7 @@ onMounted(load)
           >
             <img v-if="brandType === 'image' && brandImage" :src="brandImage" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
             <span v-else-if="brandType === 'text'" class="max-w-44 truncate text-xl font-semibold tracking-tighter text-primary sm:text-2xl md:max-w-none">{{ brandText }}</span>
-            <img v-else src="/static/pic/brand-default.png" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
+            <img v-else src="/static/pic/brand-default.webp" :alt="brandText" class="h-8 w-auto max-w-40 shrink-0 object-contain sm:h-9" />
             <span class="ml-1 inline-flex h-5 w-5 items-center justify-center rounded-sm text-icon-muted opacity-0 transition hover:bg-primary/10 hover:text-primary group-hover:opacity-100">
               <Pencil class="h-3.5 w-3.5" />
             </span>
