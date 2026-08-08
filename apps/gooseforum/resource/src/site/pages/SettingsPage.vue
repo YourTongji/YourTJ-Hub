@@ -13,6 +13,7 @@ import {
   Mail,
   Pencil,
   Feather,
+  Settings2,
   Shield,
   Sparkles,
   UserRound,
@@ -50,6 +51,13 @@ import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
 import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import {
+  applyAppearanceSettings,
+  loadAppearanceSettings,
+  resetAppearanceSettings,
+  saveAppearanceSettings,
+  type AppearanceSettings,
+} from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
@@ -63,7 +71,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -301,6 +309,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'general') return t('settings.tabs.general')
   return fallback || key
 }
 
@@ -642,6 +651,30 @@ async function submitPassword() {
 function savePrivacy() {
   localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
   showStatus(t('settings.status.privacySaved'))
+}
+
+const appearance = reactive<AppearanceSettings>(loadAppearanceSettings())
+
+const fontFamilyOptions = computed(() => [
+  { value: 'system', label: t('settings.general.fontSystem') },
+  { value: 'serif', label: t('settings.general.fontSerif') },
+  { value: 'kai', label: t('settings.general.fontKai') },
+  { value: 'hei', label: t('settings.general.fontHei') },
+  { value: 'custom', label: t('settings.general.fontCustom') },
+])
+
+function previewAppearance() {
+  applyAppearanceSettings({ ...appearance })
+}
+
+function saveAppearance() {
+  saveAppearanceSettings({ ...appearance })
+}
+
+function confirmResetAppearance() {
+  if (!window.confirm(t('settings.general.resetConfirm'))) return
+  resetAppearanceSettings()
+  Object.assign(appearance, loadAppearanceSettings())
 }
 
 async function loadBindings() {
@@ -1645,6 +1678,73 @@ async function toggleBinding(provider: string) {
                   {{ t('settings.security.revokeAll') }}
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'general'">
+            <SectionHeader :icon="Settings2" :title="t('settings.general.title')" :description="t('settings.general.description')" />
+            <div class="max-w-2xl divide-y divide-line p-4">
+              <div class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span>
+                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.fontSize') }}</span>
+                    <span class="text-sm text-base-content/55">{{ t('settings.general.fontSizeDescription') }}</span>
+                  </span>
+                  <span class="shrink-0 text-sm font-semibold text-base-content">{{ appearance.fontSize }}px</span>
+                </div>
+                <input
+                  type="range"
+                  min="14"
+                  max="20"
+                  step="1"
+                  class="mt-3 w-full accent-primary"
+                  v-model.number="appearance.fontSize"
+                  @input="previewAppearance"
+                  @change="saveAppearance"
+                />
+                <p class="mt-1 text-xs text-base-content/55">{{ t('settings.general.fontSizeHint') }}</p>
+              </div>
+
+              <div class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span>
+                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.fontFamily') }}</span>
+                    <span class="text-sm text-base-content/55">{{ t('settings.general.fontFamilyDescription') }}</span>
+                  </span>
+                  <SiteSelect
+                    class="w-52 shrink-0"
+                    :options="fontFamilyOptions"
+                    v-model="appearance.fontFamilyPreset"
+                    @update:model-value="saveAppearance"
+                  />
+                </div>
+                <div v-if="appearance.fontFamilyPreset === 'custom'" class="mt-3">
+                  <input
+                    v-model="appearance.customFontFamily"
+                    type="text"
+                    class="gf-input w-full"
+                    :placeholder="t('settings.general.customFontPlaceholder')"
+                    maxlength="200"
+                    @input="previewAppearance"
+                    @blur="saveAppearance"
+                  />
+                </div>
+              </div>
+
+              <label class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.clickAnimation') }}</span>
+                  <span class="text-sm text-base-content/55">{{ t('settings.general.clickAnimationDescription') }}</span>
+                </span>
+                <input v-model="appearance.clickAnimation" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="saveAppearance" />
+              </label>
+
+              <div class="flex items-center justify-between gap-4 py-4">
+                <span class="text-sm text-base-content/55">{{ t('settings.general.resetDescription') }}</span>
+                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="confirmResetAppearance">
+                  {{ t('settings.general.reset') }}
+                </button>
               </div>
             </div>
           </section>
