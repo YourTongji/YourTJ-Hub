@@ -439,7 +439,9 @@ function outlineToggleButton(): HTMLButtonElement | null {
   button.addEventListener('click', () => {
     if (!editor || !ready || !editor.vditor.outline) return
     const show = editor.vditor.outline.element.style.display !== 'block'
-    editor.vditor.options.outline.enable = show
+    if (editor.vditor.options.outline) {
+      editor.vditor.options.outline.enable = show
+    }
     editor.vditor.outline.toggle(editor.vditor, show)
     syncOutlineToggleHost()
   })
@@ -593,7 +595,9 @@ onMounted(async () => {
         // 大纲初始展开：enable 只是配置，需 toggle 后面板才显示（官方 Outline 按钮同逻辑）
         // 未开启大纲时不创建开关按钮，避免悬浮层覆盖编辑区（如回复浮动面板）
         if (props.outline) {
-          editor!.vditor.options.outline.enable = true
+          if (editor!.vditor.options.outline) {
+            editor!.vditor.options.outline.enable = true
+          }
           editor!.vditor.outline.toggle(editor!.vditor, true)
           syncOutlineToggleHost()
         }
