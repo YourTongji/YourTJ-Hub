@@ -985,12 +985,13 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
  *    限制，导致只显示第一个字；显式按内容撑宽。
  * 3. 居中于按钮（left 50% + translateX(-50%)）：相比右缘对齐（right: 50%）
  *    向左越界更小，发布页无 overflow 容器可完整溢出显示，
- *    回复面板越界最小化（z-index 100 保证盖住编辑区 placeholder）。
- * 同时提升 pin 工具栏 z-index（官方 1 → 100）：编辑区 placeholder 图层
- * 会盖住低 z-index 的气泡（实测 1 被盖、100 可见）。
+ *    回复面板越界最小化。
+ * pin 工具栏 z-index 40：必须低于顶栏 header（z-50，用户菜单 z-70 在其内），
+ * 否则滚动吸顶时工具栏会盖住 header 与用户菜单；同时验证仍盖住编辑区
+ * placeholder 图层（气泡可见）。
  */
 .vditor-official .vditor-toolbar--pin {
-  z-index: 100;
+  z-index: 40;
 }
 
 .vditor-official .vditor-toolbar__item .vditor-tooltipped::after {
