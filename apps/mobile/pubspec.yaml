@@ -8,6 +8,11 @@ workspace:
   - packages/core
   - packages/forum_app
   - packages/ui_kit
+# TDesign's adaptation helper pins older picker plugins even though its API is
+# compatible with the versions already used and verified by forum_app.
+dependency_overrides:
+  image_picker: 1.2.3
+  image_picker_android: 0.8.13+19
 melos:
   scripts:
     analyze:

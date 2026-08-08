@@ -93,43 +93,44 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   /// 发起新会话:弹可联系用户列表(web startChat 语义),选中后发消息进入会话。
   Future<void> _startNewChat() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final UserConnectionPayload? selected =
-        await showModalBottomSheet<UserConnectionPayload>(
-          context: context,
-          builder: (ctx) => SafeArea(
-            child: ListView(
-              shrinkWrap: true,
-              children: [
-                Padding(
-                  padding: const EdgeInsets.all(16),
+    final UserConnectionPayload?
+    selected = await showGfBottomSheet<UserConnectionPayload>(
+      context,
+      builder: (ctx) => SafeArea(
+        child: ListView(
+          shrinkWrap: true,
+          children: [
+            Padding(
+              padding: const EdgeInsets.all(16),
+              child: Text(
+                l10n.messagesNew,
+                style: GfTheme.typographyOf(ctx).title2,
+              ),
+            ),
+            if (_suggestedUsers.isEmpty)
+              Padding(
+                padding: const EdgeInsets.all(24),
+                child: Center(
                   child: Text(
-                    l10n.messagesNew,
-                    style: GfTheme.typographyOf(ctx).title2,
+                    l10n.messagesNoContactableUsers,
+                    style: TextStyle(color: GfTheme.colorsOf(ctx).iconMuted),
                   ),
                 ),
-                if (_suggestedUsers.isEmpty)
-                  Padding(
-                    padding: const EdgeInsets.all(24),
-                    child: Center(
-                      child: Text(
-                        l10n.messagesNoContactableUsers,
-                        style: TextStyle(
-                          color: GfTheme.colorsOf(ctx).iconMuted,
-                        ),
-                      ),
-                    ),
-                  ),
-                for (final user in _suggestedUsers)
-                  GfSettingRow(
-                    leading: GfAvatar(src: resolveApiAssetUrl(user.avatarUrl), size: 36),
-                    title: user.nickname.isEmpty ? user.username : user.nickname,
-                    description: '@${user.username}',
-                    onTap: () => Navigator.pop(ctx, user),
-                  ),
-              ],
-            ),
-          ),
-        );
+              ),
+            for (final user in _suggestedUsers)
+              GfSettingRow(
+                leading: GfAvatar(
+                  src: resolveApiAssetUrl(user.avatarUrl),
+                  size: 36,
+                ),
+                title: user.nickname.isEmpty ? user.username : user.nickname,
+                description: '@${user.username}',
+                onTap: () => Navigator.pop(ctx, user),
+              ),
+          ],
+        ),
+      ),
+    );
     if (selected == null || !mounted) return;
     // 已有会话则直接打开,否则先发一条空消息建立会话(web startChat 语义)。
     ChatItemPayload? existing;
@@ -165,9 +166,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       );
     } catch (_) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.messagesSendFailed(''))));
+        showGfToast(context, l10n.messagesSendFailed(''), error: true);
       }
     }
   }
@@ -176,11 +175,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
+      appBar: GfAppBar(
         title: Text(l10n.messagesTitle),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.edit_outlined),
+          GfIconButton(
+            icon: Icons.edit_outlined,
             tooltip: l10n.messagesNew,
             onPressed: _startNewChat,
           ),
@@ -193,7 +192,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           if (items.isEmpty) return GfEmpty(message: l10n.messagesEmpty);
           return ListView.separated(
             itemCount: items.length,
-            separatorBuilder: (_, _) => const Divider(height: 1),
+            separatorBuilder: (_, _) => const GfDivider(),
             itemBuilder: (context, i) {
               final c = items[i];
               return GfConversationRow(
@@ -316,9 +315,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.messagesSendFailed('$e'))));
+        showGfToast(context, l10n.messagesSendFailed('$e'), error: true);
       }
     }
   }
@@ -328,7 +325,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(widget.conv.peerUsername)),
+      appBar: GfAppBar(title: Text(widget.conv.peerUsername)),
       body: Column(
         children: [
           Expanded(

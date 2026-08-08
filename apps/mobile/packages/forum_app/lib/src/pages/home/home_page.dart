@@ -92,11 +92,11 @@ class _HomePageState extends ConsumerState<HomePage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
+      appBar: GfAppBar(
         title: Text(AppLocalizations.of(context).appTitle),
         actions: [
-          IconButton(
-            icon: const Icon(Icons.settings_outlined),
+          GfIconButton(
+            icon: Icons.settings_outlined,
             onPressed: () => context.go('/settings'),
           ),
         ],

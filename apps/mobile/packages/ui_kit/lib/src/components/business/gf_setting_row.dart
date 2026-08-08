@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -37,9 +38,10 @@ class GfSettingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return ListTile(
+    return td.TCell(
       onTap: onTap,
-      leading:
+      arrow: onTap != null && trailing == null,
+      prefix:
           leading ??
           (icon == null ? null : Icon(icon, size: 20, color: colors.iconMuted)),
       title: Text(title),
@@ -82,14 +84,15 @@ class GfSwitchRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return ListTile(
-      leading:
+    return td.TCell(
+      onTap: () => onChanged(!value),
+      prefix:
           leading ??
           (icon == null ? null : Icon(icon, size: 20, color: colors.iconMuted)),
       title: Text(title),
       subtitle:
           subtitleWidget ?? (description == null ? null : Text(description!)),
-      trailing: Switch(value: value, onChanged: onChanged),
+      trailing: td.TSwitch(value: value, onChanged: onChanged),
     );
   }
 }

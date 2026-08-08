@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart';
 
 import '../components/gf_motion.dart';
 import 'gf_colors.dart';
@@ -13,6 +14,7 @@ import 'gf_typography.dart';
 /// (see [GfTheme]).
 ThemeData gfThemeData(Brightness brightness) {
   final GfColors colors = GfColors.forBrightness(brightness);
+  final ThemeData tdesignTheme = _buildTDesignTheme(colors, brightness);
 
   final ColorScheme colorScheme = ColorScheme(
     brightness: brightness,
@@ -48,21 +50,31 @@ ThemeData gfThemeData(Brightness brightness) {
   );
 
   final GfTypography typography = GfTypography.standard(colors.baseContent);
+  final List<ThemeExtension<dynamic>> extensions = tdesignTheme
+      .extensions
+      .values
+      .toList(growable: true);
+  extensions
+    ..removeWhere((ThemeExtension<dynamic> item) => item is TInputThemeData)
+    ..add(const TInputThemeData(showClearButton: false))
+    ..add(GfRadii.standard)
+    ..add(GfBorders.standard)
+    ..add(GfSizes.standard)
+    ..add(GfShadows.standard)
+    ..add(typography);
 
-  return ThemeData(
-    useMaterial3: true,
+  return tdesignTheme.copyWith(
     brightness: brightness,
     colorScheme: colorScheme,
-    scaffoldBackgroundColor: colors.base100,
+    // TDesign mobile pages use a quiet page canvas and raised white/black
+    // content surfaces. This also makes rows, cards and dialogs visually
+    // distinct without inventing a second set of brand tokens.
+    scaffoldBackgroundColor: colors.base200,
+    canvasColor: colors.base100,
     dividerColor: colors.line,
-    extensions: <ThemeExtension<dynamic>>[
-      GfRadii.standard,
-      GfBorders.standard,
-      GfSizes.standard,
-      GfShadows.standard,
-      typography,
-    ],
-    // App bars follow the web header (h-16 = 64px, 20px w700 title, flat).
+    extensions: extensions,
+    // Navigation bars keep the web header's flat, strong-title treatment in
+    // a mobile-native 56px height.
     appBarTheme: AppBarTheme(
       backgroundColor: colors.base100,
       foregroundColor: colors.baseContent,
@@ -70,16 +82,15 @@ ThemeData gfThemeData(Brightness brightness) {
       elevation: 0,
       scrolledUnderElevation: 0,
       centerTitle: false,
-      toolbarHeight: 64,
+      toolbarHeight: 56,
       titleTextStyle: TextStyle(
         fontSize: 20,
         fontWeight: FontWeight.w700,
         color: colors.baseContent,
       ),
     ),
-    // Bottom navigation follows the web visual language (base-100 surface,
-    // 12px labels, primary selected / icon-muted unselected). The 1px top
-    // divider is drawn by GfShell's container.
+    // Retain Material fallbacks for third-party or legacy leaf widgets. The
+    // application shell itself is rendered by TDesign-backed Gf wrappers.
     navigationBarTheme: NavigationBarThemeData(
       backgroundColor: colors.base100,
       surfaceTintColor: Colors.transparent,
@@ -257,4 +268,105 @@ ThemeData gfThemeData(Brightness brightness) {
       labelSmall: typography.label,
     ),
   );
+}
+
+/// Builds TDesign's complete component-extension graph from the authoritative
+/// YourTJ palette. TDesign remains an implementation detail: web-synchronised
+/// Gf tokens own the colours, radii and spacing, while TDesign supplies the
+/// mobile component behaviour and visual grammar.
+ThemeData _buildTDesignTheme(GfColors colors, Brightness brightness) {
+  Color blend(Color foreground, Color background, double opacity) {
+    return Color.alphaBlend(foreground.withValues(alpha: opacity), background);
+  }
+
+  final TThemeData token = TThemeData.defaultData().copyWithTThemeData(
+    'yourtj-${brightness.name}',
+    colorMap: <String, Color>{
+      'brandColor1': blend(colors.primary, colors.base100, 0.08),
+      'brandColor2': blend(colors.primary, colors.base100, 0.14),
+      'brandColor3': blend(colors.primary, colors.base100, 0.28),
+      'brandColor4': blend(colors.primary, colors.base100, 0.45),
+      'brandColor5': blend(colors.primary, colors.base100, 0.70),
+      'brandColor6': colors.primary,
+      'brandColor7': colors.primary,
+      'brandColor8': blend(colors.primary, colors.neutral, 0.82),
+      'brandLightColor': blend(colors.primary, colors.base100, 0.10),
+      'brandFocusColor': blend(colors.primary, colors.base100, 0.16),
+      'brandDisabledColor': blend(colors.primary, colors.base100, 0.30),
+      'brandHoverColor': colors.primary,
+      'brandNormalColor': colors.primary,
+      'brandClickColor': blend(colors.primary, colors.neutral, 0.82),
+      'errorLightColor': blend(colors.error, colors.base100, 0.10),
+      'errorFocusColor': blend(colors.error, colors.base100, 0.16),
+      'errorDisabledColor': blend(colors.error, colors.base100, 0.30),
+      'errorHoverColor': colors.error,
+      'errorNormalColor': colors.error,
+      'errorClickColor': blend(colors.error, colors.neutral, 0.82),
+      'warningLightColor': blend(colors.warning, colors.base100, 0.10),
+      'warningFocusColor': blend(colors.warning, colors.base100, 0.16),
+      'warningDisabledColor': blend(colors.warning, colors.base100, 0.30),
+      'warningHoverColor': colors.warning,
+      'warningNormalColor': colors.warning,
+      'warningClickColor': blend(colors.warning, colors.neutral, 0.82),
+      'successLightColor': blend(colors.success, colors.base100, 0.10),
+      'successFocusColor': blend(colors.success, colors.base100, 0.16),
+      'successDisabledColor': blend(colors.success, colors.base100, 0.30),
+      'successHoverColor': colors.success,
+      'successNormalColor': colors.success,
+      'successClickColor': blend(colors.success, colors.neutral, 0.82),
+      'whiteColor1': colors.base100,
+      'fontGyColor1': colors.baseContent,
+      'fontGyColor2': colors.baseContent.withValues(alpha: 0.72),
+      'fontGyColor3': colors.baseContent.withValues(alpha: 0.48),
+      'fontGyColor4': colors.baseContent.withValues(alpha: 0.32),
+      'fontWhColor1': colors.primaryContent,
+      'fontWhColor2': colors.primaryContent.withValues(alpha: 0.72),
+      'bgColorPage': colors.base200,
+      'bgColorContainer': colors.base100,
+      'bgColorContainerSelect': colors.base100,
+      'bgColorContainerHover': colors.base200,
+      'bgColorContainerActive': colors.base300,
+      'bgColorSecondaryContainer': colors.base200,
+      'bgColorSecondaryContainerHover': colors.base300,
+      'bgColorSecondaryContainerActive': colors.base300,
+      'bgColorComponent': colors.base300,
+      'bgColorComponentHover': blend(colors.baseContent, colors.base300, 0.06),
+      'bgColorComponentActive': blend(colors.baseContent, colors.base300, 0.12),
+      'bgColorComponentDisabled': colors.base200,
+      'componentStrokeColor': colors.line,
+      'componentBorderColor': colors.line,
+      'textColorPrimary': colors.baseContent,
+      'textColorSecondary': colors.baseContent.withValues(alpha: 0.72),
+      'textColorPlaceholder': colors.baseContent.withValues(alpha: 0.48),
+      'textDisabledColor': colors.baseContent.withValues(alpha: 0.32),
+      'textColorAnti': colors.primaryContent,
+      'textColorBrand': colors.primary,
+      'textColorLink': colors.primary,
+    },
+    radiusMap: const <String, double>{
+      'radiusSmall': 4,
+      'radiusDefault': 8,
+      'radiusLarge': 8,
+      'radiusExtraLarge': 12,
+      'radiusRound': 9999,
+      'radiusCircle': 9999,
+    },
+    marginMap: const <String, double>{
+      'spacer4': 4,
+      'spacer8': 8,
+      'spacer12': 12,
+      'spacer16': 16,
+      'spacer24': 24,
+      'spacer32': 32,
+      'spacer40': 40,
+      'spacer48': 48,
+      'spacer64': 64,
+      'spacer96': 96,
+      'spacer160': 160,
+    },
+  );
+
+  return brightness == Brightness.dark
+      ? TThemeBuilder.dark(token)
+      : TThemeBuilder.light(token);
 }

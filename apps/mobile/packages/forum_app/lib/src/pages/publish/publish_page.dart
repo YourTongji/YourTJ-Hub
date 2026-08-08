@@ -107,9 +107,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     } catch (e) {
       if (mounted) {
         final l10n = AppLocalizations.of(context);
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.publishImageFailed('$e'))));
+        showGfToast(context, l10n.publishImageFailed('$e'), error: true);
       }
     } finally {
       if (mounted) setState(() => _uploading = false);
@@ -173,7 +171,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: GfAppBar(
         title: Text(
           widget.topicId == null ? l10n.publishTitle : l10n.publishEditTitle,
         ),
@@ -191,14 +189,11 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       body: ListView(
         padding: const EdgeInsets.all(16),
         children: [
-          TextField(
+          GfInput(
             controller: _title,
             maxLength: 100,
-            decoration: InputDecoration(
-              labelText: l10n.publishTitleField,
-              hintText: l10n.publishTitleHint,
-              border: const OutlineInputBorder(),
-            ),
+            labelText: l10n.publishTitleField,
+            hintText: l10n.publishTitleHint,
           ),
           const SizedBox(height: 12),
           // 分类选择(数据来自 /publish 数据通道)。
@@ -207,10 +202,10 @@ class _PublishPageState extends ConsumerState<PublishPage> {
               spacing: 8,
               children: [
                 for (final cat in _categories)
-                  FilterChip(
-                    label: Text(cat.name),
+                  GfSelectTag(
+                    label: cat.name,
                     selected: _categoryIds.contains(cat.id),
-                    onSelected: (sel) {
+                    onChanged: (sel) {
                       setState(() {
                         if (sel) {
                           _categoryIds.add(cat.id);
@@ -242,11 +237,18 @@ class _PublishPageState extends ConsumerState<PublishPage> {
           ),
           const SizedBox(height: 8),
           if (_error.isNotEmpty)
-            Text(_error, style: GfTheme.typographyOf(context).small.copyWith(color: colors.error)),
+            Text(
+              _error,
+              style: GfTheme.typographyOf(
+                context,
+              ).small.copyWith(color: colors.error),
+            ),
           if (_message.isNotEmpty)
             Text(
               _message,
-              style: GfTheme.typographyOf(context).small.copyWith(color: colors.success),
+              style: GfTheme.typographyOf(
+                context,
+              ).small.copyWith(color: colors.success),
             ),
           const SizedBox(height: 8),
           Row(
@@ -306,6 +308,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   }
 
   Widget _toolButton(IconData icon, VoidCallback? onTap) {
-    return IconButton(icon: Icon(icon, size: 20), onPressed: onTap);
+    return GfIconButton(icon: icon, iconSize: 20, onPressed: onTap);
   }
 }

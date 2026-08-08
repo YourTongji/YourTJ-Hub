@@ -11,6 +11,9 @@ dependencies:
   flutter:
     sdk: flutter
   extended_image: ^9.0.0
+  # Keep the pre-release pinned: 0.2.7 does not compile on Flutter 3.44,
+  # while the v1 API is intentionally isolated behind this package's Gf* API.
+  tdesign_flutter: 1.0.0-alpha.1
 
 dev_dependencies:
   flutter_test:

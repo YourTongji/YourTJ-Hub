@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -34,36 +35,31 @@ class GfEmpty extends StatelessWidget {
     return Center(
       child: Padding(
         padding: const EdgeInsets.all(24),
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          children: <Widget>[
-            Icon(
-              icon ?? Icons.inbox_outlined,
-              size: 32,
-              color: colors.baseContent.withValues(alpha: 0.35),
-            ),
-            const SizedBox(height: 8),
-            Text(
-              message,
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: 16,
-                fontWeight: FontWeight.w600,
-                color: colors.baseContent,
-              ),
-            ),
-            if (description != null) ...<Widget>[
-              const SizedBox(height: 4),
-              Text(
-                description!,
-                textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: 14,
-                  color: colors.baseContent.withValues(alpha: 0.55),
+        child: td.TEmpty(
+          image: loading
+              ? const td.TLoading(size: td.TLoadingSize.large)
+              : Icon(
+                  icon ?? Icons.inbox_outlined,
+                  size: 40,
+                  color: colors.baseContent.withValues(alpha: 0.35),
                 ),
-              ),
-            ],
-          ],
+          emptyText: message,
+          customOperationWidget: description == null
+              ? null
+              : Padding(
+                  padding: const EdgeInsets.only(top: 4),
+                  child: Text(
+                    description!,
+                    textAlign: TextAlign.center,
+                    style: TextStyle(
+                      fontSize: 14,
+                      color: colors.baseContent.withValues(alpha: 0.55),
+                    ),
+                  ),
+                ),
+          variant: description == null
+              ? td.TEmptyVariant.plain
+              : td.TEmptyVariant.operation,
         ),
       ),
     );

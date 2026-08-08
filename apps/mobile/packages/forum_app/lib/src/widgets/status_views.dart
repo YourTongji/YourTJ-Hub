@@ -11,24 +11,7 @@ class GfLoading extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    return Center(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const CircularProgressIndicator(strokeWidth: 2.5),
-          if (message != null) ...[
-            const SizedBox(height: 12),
-            Text(
-              message!,
-              style: GfTheme.typographyOf(
-                context,
-              ).small.copyWith(color: colors.iconMuted),
-            ),
-          ],
-        ],
-      ),
-    );
+    return Center(child: GfLoadingIndicator(message: message));
   }
 }
 
@@ -87,13 +70,7 @@ class GfListFooter extends StatelessWidget {
     if (loading) {
       return const Padding(
         padding: EdgeInsets.all(16),
-        child: Center(
-          child: SizedBox(
-            width: 22,
-            height: 22,
-            child: CircularProgressIndicator(strokeWidth: 2),
-          ),
-        ),
+        child: Center(child: GfLoadingIndicator(small: true)),
       );
     }
     if (!hasMore) {

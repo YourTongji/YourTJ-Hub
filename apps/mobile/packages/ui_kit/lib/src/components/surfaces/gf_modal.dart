@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -24,21 +25,16 @@ class GfModal extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final GfShadows shadows = GfTheme.shadowsOf(context);
-
-    return Dialog(
+    return td.TDialog(
       backgroundColor: colors.base100,
       elevation: 0,
       shape: RoundedRectangleBorder(
         borderRadius: BorderRadius.circular(radii.box),
         side: BorderSide(color: colors.line, width: borders.width),
       ),
-      child: Container(
-        width: width,
-        padding: padding,
-        decoration: BoxDecoration(boxShadow: shadows.menu),
-        child: child,
-      ),
+      width: width,
+      contentPadding: padding,
+      content: child,
     );
   }
 }
@@ -50,10 +46,10 @@ Future<T?> showGfModal<T>(
   required WidgetBuilder builder,
   bool barrierDismissible = true,
 }) {
-  return showDialog<T>(
-    context: context,
+  return td.TDialog.show<T>(
+    context,
+    dialog: GfModal(child: builder(context)),
     barrierDismissible: barrierDismissible,
     barrierColor: Theme.of(context).colorScheme.scrim,
-    builder: (BuildContext context) => GfModal(child: builder(context)),
   );
 }

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
@@ -12,38 +13,29 @@ void main() {
       GfTab(label: '精华', value: 'digest'),
     ];
 
-    testWidgets('renders all tabs and the active one in both themes',
-        (tester) async {
+    testWidgets('renders all tabs and the active one in both themes', (
+      tester,
+    ) async {
       await forEachBrightness(tester, (tester, brightness) async {
         await tester.pumpWidget(
           gfApp(
-            GfTabBar(
-              tabs: tabs,
-              selected: 'hot',
-              onSelected: (_) {},
-            ),
+            GfTabBar(tabs: tabs, selected: 'hot', onSelected: (_) {}),
             brightness: brightness,
           ),
         );
         for (final GfTab tab in tabs) {
           expect(find.text(tab.label), findsOneWidget);
         }
-        // Active tab renders with the neutral fill: its AnimatedContainer
-        // decoration color is non-transparent.
-        final AnimatedContainer active = tester.widget<AnimatedContainer>(
-          find.ancestor(
-            of: find.text('热门'),
-            matching: find.byType(AnimatedContainer),
-          ),
+        final td.TSelectTag active = tester.widget<td.TSelectTag>(
+          find.widgetWithText(td.TSelectTag, '热门'),
         );
-        final BoxDecoration decoration =
-            active.decoration as BoxDecoration;
-        expect(decoration.color, isNot(Colors.transparent));
+        expect(active.value, isTrue);
       });
     });
 
-    testWidgets('selecting a tab calls onSelected with its value',
-        (tester) async {
+    testWidgets('selecting a tab calls onSelected with its value', (
+      tester,
+    ) async {
       Object? selected;
       await tester.pumpWidget(
         gfApp(
@@ -58,16 +50,11 @@ void main() {
       expect(selected, 'hot');
     });
 
-    testWidgets('mobile mode scrolls horizontally when overflowed',
-        (tester) async {
+    testWidgets('mobile mode scrolls horizontally when overflowed', (
+      tester,
+    ) async {
       await tester.pumpWidget(
-        gfApp(
-          GfTabBar(
-            tabs: tabs,
-            selected: 'latest',
-            onSelected: (_) {},
-          ),
-        ),
+        gfApp(GfTabBar(tabs: tabs, selected: 'latest', onSelected: (_) {})),
       );
       expect(find.byType(SingleChildScrollView), findsOneWidget);
     });

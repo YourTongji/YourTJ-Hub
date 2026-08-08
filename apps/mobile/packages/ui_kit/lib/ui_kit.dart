@@ -5,6 +5,7 @@
 library;
 
 export 'src/components/gf_button.dart';
+export 'src/components/gf_bottom_navigation.dart';
 export 'src/components/business/gf_chat_input.dart';
 export 'src/components/business/gf_conversation_row.dart';
 export 'src/components/business/gf_draft_row.dart';
@@ -22,6 +23,9 @@ export 'src/components/gf_icon_button.dart';
 export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_motion.dart';
 export 'src/components/surfaces/gf_empty.dart';
+export 'src/components/surfaces/gf_app_bar.dart';
+export 'src/components/surfaces/gf_alert_dialog.dart';
+export 'src/components/surfaces/gf_bottom_sheet.dart';
 export 'src/components/surfaces/gf_floating_surface.dart';
 export 'src/components/surfaces/gf_menu_surface.dart';
 export 'src/components/surfaces/gf_modal.dart';
@@ -35,6 +39,8 @@ export 'src/components/atoms/gf_avatar_stack.dart';
 export 'src/components/atoms/gf_badge.dart';
 export 'src/components/atoms/gf_divider.dart';
 export 'src/components/atoms/gf_input.dart';
+export 'src/components/atoms/gf_loading_indicator.dart';
+export 'src/components/atoms/gf_select_tag.dart';
 export 'src/components/atoms/gf_segmented.dart';
 export 'src/components/atoms/gf_skeleton.dart';
 export 'src/components/atoms/gf_status_message.dart';

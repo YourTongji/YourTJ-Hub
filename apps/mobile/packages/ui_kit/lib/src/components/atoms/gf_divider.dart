@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -18,10 +19,16 @@ class GfDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
 
-    return Container(
-      height: 1,
-      margin: EdgeInsets.symmetric(horizontal: inset),
-      color: color ?? colors.line,
+    return Theme(
+      data: Theme.of(context).copyWith(
+        dividerTheme: DividerThemeData(
+          color: color ?? colors.line,
+          thickness: 1,
+          indent: inset,
+          endIndent: inset,
+        ),
+      ),
+      child: const td.TDivider(),
     );
   }
 }

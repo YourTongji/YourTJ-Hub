@@ -1,4 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -19,10 +21,18 @@ class GfInput extends StatefulWidget {
     this.textInputAction,
     this.maxLength,
     this.enabled = true,
+    this.readOnly = false,
     this.onChanged,
     this.onSubmitted,
+    this.onEditingComplete,
+    this.onTap,
     this.autofocus = false,
     this.textAlignVertical,
+    this.textAlign = TextAlign.start,
+    this.inputFormatters,
+    this.decoration,
+    this.style,
+    this.cursorColor,
     this.minLines,
     this.maxLines = 1,
   });
@@ -38,10 +48,18 @@ class GfInput extends StatefulWidget {
   final TextInputAction? textInputAction;
   final int? maxLength;
   final bool enabled;
+  final bool readOnly;
   final ValueChanged<String>? onChanged;
   final ValueChanged<String>? onSubmitted;
+  final VoidCallback? onEditingComplete;
+  final VoidCallback? onTap;
   final bool autofocus;
   final TextAlignVertical? textAlignVertical;
+  final TextAlign textAlign;
+  final List<TextInputFormatter>? inputFormatters;
+  final InputDecoration? decoration;
+  final TextStyle? style;
+  final Color? cursorColor;
   final int? minLines;
   final int maxLines;
 
@@ -107,51 +125,57 @@ class _GfInputState extends State<GfInput> {
               ]
             : null,
       ),
-      child: TextField(
-        controller: widget.controller,
-        focusNode: _effectiveFocusNode,
-        enabled: widget.enabled,
-        obscureText: widget.obscureText,
-        keyboardType: widget.keyboardType,
-        textInputAction: widget.textInputAction,
-        maxLength: widget.maxLength,
-        autofocus: widget.autofocus,
-        textAlignVertical: widget.textAlignVertical,
-        minLines: widget.minLines,
-        maxLines: widget.maxLines,
-        onChanged: widget.onChanged,
-        onSubmitted: widget.onSubmitted,
-        style: const TextStyle(fontSize: 14),
-        onTapOutside: (_) => FocusManager.instance.primaryFocus?.unfocus(),
-        decoration: InputDecoration(
-          hintText: widget.hintText,
-          labelText: widget.labelText,
-          prefixIcon: widget.prefixIcon,
-          suffixIcon: widget.suffixIcon,
-          filled: true,
-          fillColor: colors.base100,
-          isDense: true,
-          contentPadding: const EdgeInsets.symmetric(horizontal: 12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.line, width: borders.width),
-          ),
-          enabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.line, width: borders.width),
-          ),
-          focusedBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(color: colors.primary, width: 1.5),
-          ),
-          disabledBorder: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(radii.field),
-            borderSide: BorderSide(
-              color: colors.line.withValues(alpha: 0.5),
-              width: borders.width,
+      child: GestureDetector(
+        onTap: widget.onTap,
+        child: td.TInput(
+          controller: widget.controller,
+          focusNode: _effectiveFocusNode,
+          enabled: widget.enabled,
+          readOnly: widget.readOnly,
+          obscureText: widget.obscureText,
+          inputType: widget.keyboardType ?? TextInputType.text,
+          inputAction: widget.textInputAction,
+          maxLength: widget.maxLength,
+          autofocus: widget.autofocus,
+          textAlign: widget.textAlign,
+          minLines: widget.minLines,
+          maxLines: widget.maxLines,
+          onChanged: widget.onChanged,
+          onSubmitted: widget.onSubmitted,
+          onEditingComplete: widget.onEditingComplete,
+          inputFormatters: widget.inputFormatters,
+          style: widget.style ?? const TextStyle(fontSize: 14),
+          cursorColor: widget.cursorColor,
+          decoration: (widget.decoration ?? const InputDecoration()).copyWith(
+            hintText: widget.hintText ?? widget.decoration?.hintText,
+            labelText: widget.labelText ?? widget.decoration?.labelText,
+            prefixIcon: widget.prefixIcon ?? widget.decoration?.prefixIcon,
+            suffixIcon: widget.suffixIcon ?? widget.decoration?.suffixIcon,
+            filled: true,
+            fillColor: colors.base100,
+            isDense: true,
+            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            border: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(radii.field),
+              borderSide: BorderSide(color: colors.line, width: borders.width),
             ),
+            enabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(radii.field),
+              borderSide: BorderSide(color: colors.line, width: borders.width),
+            ),
+            focusedBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(radii.field),
+              borderSide: BorderSide(color: colors.primary, width: 1.5),
+            ),
+            disabledBorder: OutlineInputBorder(
+              borderRadius: BorderRadius.circular(radii.field),
+              borderSide: BorderSide(
+                color: colors.line.withValues(alpha: 0.5),
+                width: borders.width,
+              ),
+            ),
+            counterText: widget.maxLength != null ? '' : null,
           ),
-          counterText: widget.maxLength != null ? '' : null,
         ),
       ),
     );

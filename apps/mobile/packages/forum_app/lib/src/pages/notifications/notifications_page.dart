@@ -121,12 +121,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(
+      appBar: GfAppBar(
         title: Text(l10n.notificationsTitle),
         actions: [
-          TextButton(
+          GfButton(
+            label: l10n.notificationsMarkAllRead,
+            variant: GfButtonVariant.ghost,
+            size: GfButtonSize.small,
             onPressed: _markAllRead,
-            child: Text(l10n.notificationsMarkAllRead),
           ),
         ],
       ),
@@ -150,7 +152,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
               },
             ),
           ),
-          const Divider(height: 1),
+          const GfDivider(),
           Expanded(
             child: _list.when(
               loading: () => const GfLoading(),
@@ -161,7 +163,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                 }
                 return ListView.separated(
                   itemCount: _items.length + 1,
-                  separatorBuilder: (_, _) => const Divider(height: 1),
+                  separatorBuilder: (_, _) => const GfDivider(),
                   itemBuilder: (context, i) {
                     if (i == _items.length) {
                       return GfListFooter(

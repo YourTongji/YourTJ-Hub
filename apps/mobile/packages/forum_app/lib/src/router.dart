@@ -113,7 +113,6 @@ class _GfShellState extends ConsumerState<GfShell> {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     // 401 会话失效:清会话并回登录页(ref.listen 必须在 build 中注册)。
@@ -139,101 +138,45 @@ class _GfShellState extends ConsumerState<GfShell> {
           const ProfilePage(),
         ],
       ),
-      bottomNavigationBar: Container(
-        decoration: BoxDecoration(
-          color: colors.base100,
-          border: Border(top: BorderSide(color: colors.line, width: 1)),
-        ),
-        child: NavigationBar(
-          selectedIndex: _index,
-          backgroundColor: colors.base100,
-          indicatorColor: colors.base300,
-          labelBehavior: NavigationDestinationLabelBehavior.alwaysShow,
-          onDestinationSelected: (int i) {
-            setState(() => _index = i);
-            final String path = _paths[i];
-            if (GoRouter.of(context).state.uri.path != path) {
-              context.go(path);
-            }
-          },
-          destinations: [
-            NavigationDestination(
-              icon: Icon(GfTab.home.icon, color: colors.iconMuted),
-              selectedIcon: Icon(GfTab.home.activeIcon, color: colors.primary),
-              label: GfTab.home.label(l10n),
-            ),
-            NavigationDestination(
-              icon: Icon(GfTab.search.icon, color: colors.iconMuted),
-              selectedIcon: Icon(
-                GfTab.search.activeIcon,
-                color: colors.primary,
-              ),
-              label: GfTab.search.label(l10n),
-            ),
-            NavigationDestination(
-              icon: Icon(GfTab.publish.icon, color: colors.iconMuted),
-              selectedIcon: Icon(
-                GfTab.publish.activeIcon,
-                color: colors.primary,
-              ),
-              label: GfTab.publish.label(l10n),
-            ),
-            NavigationDestination(
-              icon: _UnreadBadge(
-                show: _unreadMessages,
-                child: Icon(GfTab.messages.icon, color: colors.iconMuted),
-              ),
-              selectedIcon: Icon(
-                GfTab.messages.activeIcon,
-                color: colors.primary,
-              ),
-              label: GfTab.messages.label(l10n),
-            ),
-            NavigationDestination(
-              icon: _UnreadBadge(
-                show: _unreadNotifications,
-                child: Icon(GfTab.profile.icon, color: colors.iconMuted),
-              ),
-              selectedIcon: Icon(
-                GfTab.profile.activeIcon,
-                color: colors.primary,
-              ),
-              label: GfTab.profile.label(l10n),
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-/// 未读角标(红点)。
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.show, required this.child});
-
-  final bool show;
-  final Widget child;
-
-  @override
-  Widget build(BuildContext context) {
-    return Stack(
-      clipBehavior: Clip.none,
-      children: [
-        child,
-        if (show)
-          Positioned(
-            top: -2,
-            right: -4,
-            child: Container(
-              width: 8,
-              height: 8,
-              decoration: BoxDecoration(
-                color: GfTheme.colorsOf(context).error,
-                shape: BoxShape.circle,
-              ),
-            ),
+      bottomNavigationBar: GfBottomNavigation(
+        currentIndex: _index,
+        onSelected: (int i) {
+          setState(() => _index = i);
+          final String path = _paths[i];
+          if (GoRouter.of(context).state.uri.path != path) {
+            context.go(path);
+          }
+        },
+        items: <GfBottomNavigationItem>[
+          GfBottomNavigationItem(
+            icon: GfTab.home.icon,
+            selectedIcon: GfTab.home.activeIcon,
+            label: GfTab.home.label(l10n),
           ),
-      ],
+          GfBottomNavigationItem(
+            icon: GfTab.search.icon,
+            selectedIcon: GfTab.search.activeIcon,
+            label: GfTab.search.label(l10n),
+          ),
+          GfBottomNavigationItem(
+            icon: GfTab.publish.icon,
+            selectedIcon: GfTab.publish.activeIcon,
+            label: GfTab.publish.label(l10n),
+          ),
+          GfBottomNavigationItem(
+            icon: GfTab.messages.icon,
+            selectedIcon: GfTab.messages.activeIcon,
+            label: GfTab.messages.label(l10n),
+            badge: _unreadMessages,
+          ),
+          GfBottomNavigationItem(
+            icon: GfTab.profile.icon,
+            selectedIcon: GfTab.profile.activeIcon,
+            label: GfTab.profile.label(l10n),
+            badge: _unreadNotifications,
+          ),
+        ],
+      ),
     );
   }
 }

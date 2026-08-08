@@ -84,7 +84,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.profileTitle)),
+      appBar: GfAppBar(title: Text(l10n.profileTitle)),
       body: Column(
         children: [
           Expanded(
@@ -105,7 +105,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
                       index: _tabIndex,
                       onChanged: (i) => setState(() => _tabIndex = i),
                     ),
-                    const Divider(height: 1),
+                    const GfDivider(),
                     Expanded(
                       child: RefreshIndicator(
                         onRefresh: () => _load(silent: true),
@@ -133,19 +133,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
               child: Row(
                 mainAxisAlignment: MainAxisAlignment.spaceAround,
                 children: [
-                  TextButton.icon(
+                  GfButton(
                     icon: const Icon(Icons.settings_outlined, size: 18),
-                    label: Text(l10n.settingsTitle),
+                    label: l10n.settingsTitle,
+                    variant: GfButtonVariant.ghost,
                     onPressed: () => context.go('/settings'),
                   ),
-                  TextButton.icon(
+                  GfButton(
                     icon: const Icon(Icons.notifications_outlined, size: 18),
-                    label: Text(l10n.notificationsTitle),
+                    label: l10n.notificationsTitle,
+                    variant: GfButtonVariant.ghost,
                     onPressed: () => context.go('/notifications'),
                   ),
-                  TextButton.icon(
+                  GfButton(
                     icon: const Icon(Icons.description_outlined, size: 18),
-                    label: Text(l10n.draftsTitle),
+                    label: l10n.draftsTitle,
+                    variant: GfButtonVariant.ghost,
                     onPressed: () => context.go('/drafts'),
                   ),
                 ],
@@ -210,7 +213,9 @@ class _ProfileHeader extends StatelessWidget {
                 if (user.nickname.isNotEmpty && user.nickname != user.username)
                   Text(
                     '@${user.username}',
-                    style: GfTheme.typographyOf(context).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+                    style: GfTheme.typographyOf(context).caption.copyWith(
+                      color: GfTheme.colorsOf(context).iconMuted,
+                    ),
                   ),
                 if (user.bio.isNotEmpty) ...[
                   const SizedBox(height: 6),
@@ -278,7 +283,12 @@ class _StatItem extends StatelessWidget {
             formatNumber(value),
             style: GfTheme.typographyOf(context).bodyStrong,
           ),
-          Text(label, style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted)),
+          Text(
+            label,
+            style: GfTheme.typographyOf(
+              context,
+            ).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+          ),
         ],
       ),
     );
@@ -337,7 +347,9 @@ class _ProfileBody extends StatelessWidget {
             title: props.activities[i].contentPreview,
             trailing: Text(
               timeAgo(props.activities[i].createdAt, l10n: l10n),
-              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -350,7 +362,9 @@ class _ProfileBody extends StatelessWidget {
             title: props.topics[i].title,
             trailing: Text(
               l10n.topicReplies(props.topics[i].replyCount),
-              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -363,7 +377,9 @@ class _ProfileBody extends StatelessWidget {
             title: props.likes[i].title,
             trailing: Text(
               timeAgo(props.likes[i].likedAt, l10n: l10n),
-              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -376,7 +392,9 @@ class _ProfileBody extends StatelessWidget {
             title: props.bookmarks[i].title,
             trailing: Text(
               timeAgo(props.bookmarks[i].bookmarkedAt, l10n: l10n),
-              style: GfTheme.typographyOf(context).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              style: GfTheme.typographyOf(
+                context,
+              ).meta.copyWith(color: GfTheme.colorsOf(context).iconMuted),
             ),
           ),
         ),
@@ -386,7 +404,10 @@ class _ProfileBody extends StatelessWidget {
         ListView.builder(
           itemCount: props.following.length,
           itemBuilder: (context, i) => GfSettingRow(
-            leading: GfAvatar(src: resolveApiAssetUrl(props.following[i].avatarUrl), size: 28),
+            leading: GfAvatar(
+              src: resolveApiAssetUrl(props.following[i].avatarUrl),
+              size: 28,
+            ),
             title: props.following[i].nickname.isEmpty
                 ? props.following[i].username
                 : props.following[i].nickname,
@@ -398,7 +419,10 @@ class _ProfileBody extends StatelessWidget {
         ListView.builder(
           itemCount: props.followers.length,
           itemBuilder: (context, i) => GfSettingRow(
-            leading: GfAvatar(src: resolveApiAssetUrl(props.followers[i].avatarUrl), size: 28),
+            leading: GfAvatar(
+              src: resolveApiAssetUrl(props.followers[i].avatarUrl),
+              size: 28,
+            ),
             title: props.followers[i].nickname.isEmpty
                 ? props.followers[i].username
                 : props.followers[i].nickname,

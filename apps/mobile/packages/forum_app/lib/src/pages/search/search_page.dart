@@ -116,17 +116,11 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(
-        title: TextField(
+      appBar: GfAppBar(
+        title: GfInput(
           controller: _query,
-          decoration: InputDecoration(
-            hintText: l10n.searchHint,
-            border: InputBorder.none,
-            suffixIcon: IconButton(
-              icon: const Icon(Icons.search),
-              onPressed: _search,
-            ),
-          ),
+          hintText: l10n.searchHint,
+          suffixIcon: GfIconButton(icon: Icons.search, onPressed: _search),
           onSubmitted: (_) => _search(),
         ),
       ),
@@ -204,7 +198,7 @@ class _UserResults extends StatelessWidget {
     }
     return ListView.separated(
       itemCount: users.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const GfDivider(),
       itemBuilder: (context, i) {
         final user = users[i];
         return GfSettingRow(
@@ -230,7 +224,7 @@ class _CategoryResults extends StatelessWidget {
     }
     return ListView.separated(
       itemCount: categories.length,
-      separatorBuilder: (_, _) => const Divider(height: 1),
+      separatorBuilder: (_, _) => const GfDivider(),
       itemBuilder: (context, i) {
         final cat = categories[i];
         return GfSettingRow(

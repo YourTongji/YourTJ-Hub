@@ -88,7 +88,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(title: Text(AppLocalizations.of(context).categoryTitle)),
+      appBar: GfAppBar(title: Text(AppLocalizations.of(context).categoryTitle)),
       body: _page.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),

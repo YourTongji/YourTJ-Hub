@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
 
@@ -72,6 +73,11 @@ class GfButton extends StatelessWidget {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
+    final TextStyle textStyle =
+        (Theme.of(context).textTheme.labelLarge ?? const TextStyle()).copyWith(
+          fontSize: 14,
+          fontWeight: FontWeight.w600,
+        );
 
     final (Color background, Color foreground, Color? border) = _palette(
       colors,
@@ -79,58 +85,68 @@ class GfButton extends StatelessWidget {
     );
     final bool enabled = onPressed != null && !loading;
 
-    final Widget content = Row(
-      mainAxisSize: expanded ? MainAxisSize.max : MainAxisSize.min,
-      mainAxisAlignment: MainAxisAlignment.center,
-      children: <Widget>[
-        if (loading)
-          SizedBox(
+    final Widget? effectiveIcon = loading
+        ? SizedBox(
             width: 16,
             height: 16,
             child: CircularProgressIndicator(strokeWidth: 2, color: foreground),
           )
-        else
-          ?icon,
-        if (loading || icon != null) const SizedBox(width: 6),
-        Text(
-          label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ],
-    );
+        : icon;
 
-    final Widget button = Opacity(
-      opacity: enabled ? 1 : 0.6,
-      child: Material(
-        color: background,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radii.field),
-          side: border == null
+    final td.TButton button = td.TButton(
+      size: switch (size) {
+        GfButtonSize.small => td.TButtonSize.extraSmall,
+        GfButtonSize.medium => td.TButtonSize.small,
+        GfButtonSize.large => td.TButtonSize.medium,
+        GfButtonSize.extraLarge => td.TButtonSize.large,
+      },
+      variant: switch (variant) {
+        GfButtonVariant.primary ||
+        GfButtonVariant.neutral ||
+        GfButtonVariant.danger => td.TButtonVariant.fill,
+        GfButtonVariant.secondary ||
+        GfButtonVariant.outline => td.TButtonVariant.outline,
+        GfButtonVariant.ghost => td.TButtonVariant.ghost,
+        GfButtonVariant.muted || GfButtonVariant.link => td.TButtonVariant.text,
+      },
+      colorScheme: switch (variant) {
+        GfButtonVariant.primary ||
+        GfButtonVariant.ghost ||
+        GfButtonVariant.link => td.TButtonColorScheme.primary,
+        GfButtonVariant.danger => td.TButtonColorScheme.danger,
+        _ => td.TButtonColorScheme.defaultTheme,
+      },
+      icon: effectiveIcon,
+      onPressed: enabled ? onPressed : null,
+      style: ButtonStyle(
+        backgroundColor: WidgetStatePropertyAll<Color>(background),
+        foregroundColor: WidgetStatePropertyAll<Color>(foreground),
+        side: WidgetStatePropertyAll<BorderSide>(
+          border == null
               ? BorderSide.none
               : BorderSide(color: border, width: borders.width),
         ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          child: Container(
-            height: size.height,
-            padding: EdgeInsets.symmetric(
-              horizontal: switch (size) {
-                GfButtonSize.small => 12,
-                GfButtonSize.medium => 12,
-                GfButtonSize.large => 16,
-                GfButtonSize.extraLarge => 16,
-              },
-            ),
-            alignment: Alignment.center,
-            child: content,
+        minimumSize: WidgetStatePropertyAll<Size>(Size(0, size.height)),
+        maximumSize: WidgetStatePropertyAll<Size>(
+          Size(double.infinity, size.height),
+        ),
+        padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+          EdgeInsets.symmetric(
+            horizontal: switch (size) {
+              GfButtonSize.small || GfButtonSize.medium => 12,
+              GfButtonSize.large || GfButtonSize.extraLarge => 16,
+            },
           ),
         ),
+        shape: WidgetStatePropertyAll<OutlinedBorder>(
+          RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(radii.field),
+          ),
+        ),
+        textStyle: WidgetStatePropertyAll<TextStyle>(textStyle),
+        elevation: const WidgetStatePropertyAll<double>(0),
       ),
+      child: Text(label),
     );
 
     if (!expanded) return button;

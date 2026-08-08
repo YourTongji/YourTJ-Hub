@@ -89,11 +89,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await _authController.loadCaptcha();
     }
     if (mounted && _authController.error.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).authRegisterSuccess),
-        ),
-      );
+      showGfToast(context, AppLocalizations.of(context).authRegisterSuccess);
       setState(() => _mode = _AuthMode.login);
     }
   }
@@ -110,11 +106,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await _authController.loadCaptcha();
     }
     if (mounted && _authController.error.isEmpty) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(
-          content: Text(AppLocalizations.of(context).authResetEmailSent),
-        ),
-      );
+      showGfToast(context, AppLocalizations.of(context).authResetEmailSent);
       setState(() => _mode = _AuthMode.login);
     }
   }
@@ -144,7 +136,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(_title(l10n))),
+      appBar: GfAppBar(title: Text(_title(l10n))),
       body: ListenableBuilder(
         listenable: _authController,
         builder: (context, _) {
@@ -171,36 +163,27 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 const SizedBox(height: 20),
                 // 用户名(登录/注册)。
                 if (_mode != _AuthMode.forgotPassword) ...[
-                  TextField(
+                  GfInput(
                     controller: _username,
-                    decoration: InputDecoration(
-                      labelText: l10n.authUsernameOrEmail,
-                      border: const OutlineInputBorder(),
-                    ),
+                    labelText: l10n.authUsernameOrEmail,
                   ),
                   const SizedBox(height: 12),
                 ],
                 // 邮箱(注册/找回)。
                 if (_mode != _AuthMode.login) ...[
-                  TextField(
+                  GfInput(
                     controller: _email,
                     keyboardType: TextInputType.emailAddress,
-                    decoration: InputDecoration(
-                      labelText: l10n.authEmail,
-                      border: const OutlineInputBorder(),
-                    ),
+                    labelText: l10n.authEmail,
                   ),
                   const SizedBox(height: 12),
                 ],
                 // 密码(登录/注册)。
                 if (_mode != _AuthMode.forgotPassword) ...[
-                  TextField(
+                  GfInput(
                     controller: _password,
                     obscureText: true,
-                    decoration: InputDecoration(
-                      labelText: l10n.authPassword,
-                      border: const OutlineInputBorder(),
-                    ),
+                    labelText: l10n.authPassword,
                   ),
                   const SizedBox(height: 12),
                 ],
@@ -224,12 +207,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                         ),
                         const SizedBox(width: 12),
                         Expanded(
-                          child: TextField(
+                          child: GfInput(
                             controller: _captcha,
-                            decoration: InputDecoration(
-                              labelText: l10n.authCaptcha,
-                              border: const OutlineInputBorder(),
-                            ),
+                            labelText: l10n.authCaptcha,
                           ),
                         ),
                       ],
@@ -244,13 +224,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 // TOTP 挑战。
                 if (_authController.phase == LoginPhase.needsTotp) ...[
                   const SizedBox(height: 12),
-                  TextField(
+                  GfInput(
                     controller: _totp,
                     keyboardType: TextInputType.number,
-                    decoration: InputDecoration(
-                      labelText: l10n.authTwoFactorCode,
-                      border: const OutlineInputBorder(),
-                    ),
+                    labelText: l10n.authTwoFactorCode,
                     onSubmitted: (_) =>
                         _authController.submitTotp(_totp.text.trim()),
                   ),
@@ -259,7 +236,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                   const SizedBox(height: 12),
                   Text(
                     _authController.error,
-                    style: GfTheme.typographyOf(context).small.copyWith(color: colors.error),
+                    style: GfTheme.typographyOf(
+                      context,
+                    ).small.copyWith(color: colors.error),
                   ),
                 ],
                 const SizedBox(height: 20),

@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
 
@@ -27,62 +28,40 @@ class GfFloatingAction extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfBorders borders = GfTheme.bordersOf(context);
     final GfShadows shadows = GfTheme.shadowsOf(context);
 
-    final Widget action;
-    if (label != null) {
-      action = Material(
-        color: colors.primary,
-        shape: const StadiumBorder(),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: enabled ? onPressed : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
-            child: Row(
-              mainAxisSize: MainAxisSize.min,
-              children: <Widget>[
-                Icon(icon, size: 18, color: colors.primaryContent),
-                const SizedBox(width: 6),
-                Text(
-                  label!,
-                  style: TextStyle(
-                    color: colors.primaryContent,
-                    fontSize: 14,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
+    final bool pill = label != null;
+    final Widget action = DecoratedBox(
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(9999),
+        boxShadow: shadows.floating,
+      ),
+      child: SizedBox(
+        width: pill ? null : 56,
+        height: pill ? 44 : 56,
+        child: td.TButton(
+          size: td.TButtonSize.large,
+          variant: td.TButtonVariant.fill,
+          colorScheme: td.TButtonColorScheme.primary,
+          icon: Icon(icon, size: pill ? 18 : 24),
+          onPressed: enabled ? onPressed : null,
+          style: ButtonStyle(
+            backgroundColor: WidgetStatePropertyAll<Color>(colors.primary),
+            foregroundColor: WidgetStatePropertyAll<Color>(
+              colors.primaryContent,
             ),
-          ),
-        ),
-      );
-    } else {
-      action = Material(
-        color: colors.primary,
-        shape: CircleBorder(
-          side: BorderSide(color: colors.line, width: borders.width),
-        ),
-        shadowColor: Colors.transparent,
-        clipBehavior: Clip.antiAlias,
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            shape: BoxShape.circle,
-            boxShadow: shadows.floating,
-          ),
-          child: InkWell(
-            onTap: enabled ? onPressed : null,
-            customBorder: const CircleBorder(),
-            child: SizedBox(
-              width: 56,
-              height: 56,
-              child: Icon(icon, color: colors.primaryContent, size: 24),
+            padding: WidgetStatePropertyAll<EdgeInsetsGeometry>(
+              EdgeInsets.symmetric(horizontal: pill ? 16 : 0),
             ),
+            shape: const WidgetStatePropertyAll<OutlinedBorder>(
+              StadiumBorder(),
+            ),
+            elevation: const WidgetStatePropertyAll<double>(0),
           ),
+          child: pill ? Text(label!) : null,
         ),
-      );
-    }
+      ),
+    );
 
     return Align(
       alignment: Alignment.bottomCenter,

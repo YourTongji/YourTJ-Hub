@@ -192,11 +192,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       _replyController.clear();
       _replyToPostId = 0;
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).topicReplySuccess),
-          ),
-        );
+        showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
       }
       // 局部刷新:回复成功后静默重载(不置 loading、不清空列表,
       // 保留滚动位置,对齐 web 乐观追加语义)。
@@ -205,16 +201,14 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       }
     } on ApiException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.messageKey)));
+        showGfToast(context, e.messageKey, error: true);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(
-            content: Text(AppLocalizations.of(context).topicReplyFailed('$e')),
-          ),
+        showGfToast(
+          context,
+          AppLocalizations.of(context).topicReplyFailed('$e'),
+          error: true,
         );
       }
     } finally {
@@ -225,28 +219,36 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   Future<void> _reportPost(PostPayload post) async {
     if (!mounted) return;
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final reason = await showDialog<String>(
-      context: context,
+    final reason = await showGfModal<String>(
+      context,
       builder: (ctx) {
         final ctrl = TextEditingController();
-        return AlertDialog(
-          title: Text(l10n.topicReport),
-          content: TextField(
-            controller: ctrl,
-            maxLines: 3,
-            decoration: InputDecoration(
+        return Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: <Widget>[
+            Text(l10n.topicReport, style: GfTheme.typographyOf(ctx).title3),
+            const SizedBox(height: 16),
+            GfInput(
+              controller: ctrl,
+              maxLines: 3,
               hintText: l10n.topicReportHint,
-              border: const OutlineInputBorder(),
             ),
-          ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.commonCancel),
-            ),
-            TextButton(
-              onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
-              child: Text(l10n.topicReportSubmit),
+            const SizedBox(height: 20),
+            Row(
+              mainAxisAlignment: MainAxisAlignment.end,
+              children: <Widget>[
+                GfButton(
+                  label: l10n.commonCancel,
+                  variant: GfButtonVariant.ghost,
+                  onPressed: () => Navigator.pop(ctx),
+                ),
+                const SizedBox(width: 8),
+                GfButton(
+                  label: l10n.topicReportSubmit,
+                  onPressed: () => Navigator.pop(ctx, ctrl.text.trim()),
+                ),
+              ],
             ),
           ],
         );
@@ -263,15 +265,11 @@ class _TopicPageState extends ConsumerState<TopicPage> {
             note: '',
           );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.topicReportSubmitted)));
+        showGfToast(context, l10n.topicReportSubmitted);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.topicReportFailed('$e'))));
+        showGfToast(context, l10n.topicReportFailed('$e'), error: true);
       }
     }
   }
@@ -282,7 +280,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.topicTitle)),
+      appBar: GfAppBar(title: Text(l10n.topicTitle)),
       body: _page.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
@@ -295,7 +293,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                   child: ListView.separated(
                     padding: const EdgeInsets.only(bottom: 12),
                     itemCount: _posts.length + 2,
-                    separatorBuilder: (_, _) => const Divider(height: 1),
+                    separatorBuilder: (_, _) => const GfDivider(),
                     itemBuilder: (context, index) {
                       if (index == 0) {
                         return _TopicHeader(
@@ -407,11 +405,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                         max: props.postStream.maxPostNo,
                         onSelect: (floor) {
                           setState(() => _railOpen = false);
-                          ScaffoldMessenger.of(context).showSnackBar(
-                            SnackBar(
-                              content: Text(l10n.topicFloorSelected(floor)),
-                            ),
-                          );
+                          showGfToast(context, l10n.topicFloorSelected(floor));
                         },
                         onEarliest: () => _load(silent: true),
                         onLatest: () => _loadMore(),
@@ -457,7 +451,10 @@ class _TopicHeader extends StatelessWidget {
           const SizedBox(height: 8),
           Row(
             children: [
-              GfAvatar(src: resolveApiAssetUrl(topic.author.avatarUrl), size: 24),
+              GfAvatar(
+                src: resolveApiAssetUrl(topic.author.avatarUrl),
+                size: 24,
+              ),
               const SizedBox(width: 8),
               Text(
                 topic.author.nickname ?? topic.author.username,
@@ -584,7 +581,10 @@ class _PostCard extends StatelessWidget {
         children: [
           Row(
             children: [
-              GfAvatar(src: resolveApiAssetUrl(post.author.avatarUrl), size: 24),
+              GfAvatar(
+                src: resolveApiAssetUrl(post.author.avatarUrl),
+                size: 24,
+              ),
               const SizedBox(width: 8),
               Expanded(
                 child: Text(

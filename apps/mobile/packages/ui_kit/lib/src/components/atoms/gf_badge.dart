@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../../theme/gf_theme.dart';
 
@@ -38,29 +39,28 @@ class GfBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-
     final (Color background, Color foreground) = _palette(colors);
+    final ThemeData theme = Theme.of(context);
+    final List<ThemeExtension<dynamic>> extensions = theme.extensions.values
+        .toList(growable: true);
+    extensions
+      ..removeWhere((ThemeExtension<dynamic> item) => item is td.TTagThemeData)
+      ..add(
+        td.TTagThemeData(
+          textColor: foreground,
+          backgroundColor: background,
+          padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+          fontWeight: FontWeight.w600,
+          shape: td.TTagShape.round,
+        ),
+      );
 
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-      decoration: BoxDecoration(
-        color: background,
-        borderRadius: BorderRadius.circular(radii.selector),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: <Widget>[
-          if (icon != null) ...<Widget>[icon!, const SizedBox(width: 4)],
-          Text(
-            label,
-            style: TextStyle(
-              color: foreground,
-              fontSize: 12,
-              fontWeight: FontWeight.w600,
-            ),
-          ),
-        ],
+    return Theme(
+      data: theme.copyWith(extensions: extensions),
+      child: td.TTag(
+        label,
+        size: td.TTagSize.small,
+        icon: icon is Icon ? (icon! as Icon).icon : null,
       ),
     );
   }

@@ -10,8 +10,8 @@ import 'package:forum_app/l10n/app_localizations.dart';
 /// Loads the bundled Roboto + Noto Sans CJK + MaterialIcons fonts so golden
 /// baselines render deterministically across platforms.
 ///
-/// The Noto CJK subset is registered into the same `Roboto` family so CJK
-/// glyphs fall back to the identical bundled font bytes on every host —
+/// The Noto CJK subset is registered as an explicit fallback family so CJK
+/// glyphs use the identical bundled font bytes on every host —
 /// without it, macOS renders PingFang while CI (ubuntu) renders a different
 /// fallback, producing pixel diffs for any Chinese text.
 ///
@@ -33,10 +33,13 @@ Future<void> loadTestFonts(WidgetTester tester) async {
     final loader = FontLoader('Roboto')
       ..addFont(regular)
       ..addFont(medium)
-      ..addFont(bold)
+      ..addFont(bold);
+    await loader.load();
+
+    final cjk = FontLoader('NotoSansCJK')
       ..addFont(cjkRegular)
       ..addFont(cjkBold);
-    await loader.load();
+    await cjk.load();
 
     final icons = FontLoader('MaterialIcons')
       ..addFont(readFont('test/assets/fonts/MaterialIcons-Regular.otf'));
@@ -66,7 +69,10 @@ Future<void> pumpPageGolden(
       theme: gfThemeData(brightness).copyWith(
         textTheme: gfThemeData(
           brightness,
-        ).textTheme.apply(fontFamily: 'Roboto'),
+        ).textTheme.apply(
+          fontFamily: 'Roboto',
+          fontFamilyFallback: const <String>['NotoSansCJK'],
+        ),
       ),
       home: Scaffold(
         backgroundColor: GfColors.forBrightness(brightness).base100,

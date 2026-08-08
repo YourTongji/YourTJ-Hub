@@ -1,7 +1,5 @@
 import 'package:flutter/material.dart';
-
-import '../theme/gf_theme.dart';
-import 'gf_motion.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 /// A single selectable tab in [GfTabBar].
 class GfTab {
@@ -35,17 +33,17 @@ class GfTabBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final GfRadii radii = GfTheme.radiiOf(context);
-
     final List<Widget> children = <Widget>[
       for (final GfTab tab in tabs)
-        _GfTabItem(
-          tab: tab,
-          active: tab.value == selected,
-          colors: colors,
-          radii: radii,
-          onTap: () => onSelected(tab.value),
+        Padding(
+          padding: const EdgeInsetsDirectional.only(end: 8),
+          child: td.TSelectTag(
+            tab.label,
+            value: tab.value == selected,
+            size: td.TTagSize.large,
+            colorScheme: td.TTagColorScheme.primary,
+            onChanged: (_) => onSelected(tab.value),
+          ),
         ),
     ];
 
@@ -56,52 +54,5 @@ class GfTabBar extends StatelessWidget {
       );
     }
     return Wrap(spacing: 8, children: children);
-  }
-}
-
-class _GfTabItem extends StatelessWidget {
-  const _GfTabItem({
-    required this.tab,
-    required this.active,
-    required this.colors,
-    required this.radii,
-    required this.onTap,
-  });
-
-  final GfTab tab;
-  final bool active;
-  final GfColors colors;
-  final GfRadii radii;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final Color foreground = active
-        ? colors.neutralContent
-        : colors.baseContent.withValues(alpha: 0.55);
-
-    return AnimatedContainer(
-      duration: GfMotion.instant,
-      curve: GfMotion.standardEase,
-      height: 32,
-      padding: const EdgeInsets.symmetric(horizontal: 12),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: active ? colors.neutral : Colors.transparent,
-        borderRadius: BorderRadius.circular(radii.field),
-      ),
-      child: InkWell(
-        onTap: onTap,
-        borderRadius: BorderRadius.circular(radii.field),
-        child: Text(
-          tab.label,
-          style: TextStyle(
-            color: foreground,
-            fontSize: 14,
-            fontWeight: FontWeight.w600,
-          ),
-        ),
-      ),
-    );
   }
 }

@@ -1,7 +1,7 @@
 import 'package:flutter/material.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 
 import '../theme/gf_theme.dart';
-import 'gf_motion.dart';
 
 /// Icon-only button mirroring web `.gf-icon-button` (components.css):
 /// rounded `gf-radius-field`, `icon-muted` color, hover `base-200`.
@@ -25,29 +25,29 @@ class GfIconButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfRadii radii = GfTheme.radiiOf(context);
-    final bool enabled = onPressed != null;
 
-    final Widget button = Opacity(
-      opacity: enabled ? 1 : 0.6,
-      child: Material(
-        color: Colors.transparent,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(radii.field),
-        ),
-        clipBehavior: Clip.antiAlias,
-        child: InkWell(
-          onTap: onPressed,
-          child: AnimatedContainer(
-            duration: GfMotion.instant,
-            curve: GfMotion.standardEase,
-            width: size,
-            height: size,
-            alignment: Alignment.center,
-            decoration: BoxDecoration(
-              color: Colors.transparent,
+    final Widget button = SizedBox.square(
+      dimension: size,
+      child: td.TButton(
+        size: td.TButtonSize.small,
+        variant: td.TButtonVariant.text,
+        colorScheme: td.TButtonColorScheme.defaultTheme,
+        icon: Icon(icon, size: iconSize),
+        onPressed: onPressed,
+        style: ButtonStyle(
+          padding: const WidgetStatePropertyAll<EdgeInsetsGeometry>(
+            EdgeInsets.zero,
+          ),
+          minimumSize: WidgetStatePropertyAll<Size>(Size.square(size)),
+          maximumSize: WidgetStatePropertyAll<Size>(Size.square(size)),
+          foregroundColor: WidgetStatePropertyAll<Color>(colors.iconMuted),
+          backgroundColor: const WidgetStatePropertyAll<Color>(
+            Colors.transparent,
+          ),
+          shape: WidgetStatePropertyAll<OutlinedBorder>(
+            RoundedRectangleBorder(
               borderRadius: BorderRadius.circular(radii.field),
             ),
-            child: Icon(icon, size: iconSize, color: colors.iconMuted),
           ),
         ),
       ),

@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:tdesign_flutter/tdesign_flutter.dart' as td;
 import 'package:ui_kit/ui_kit.dart';
 
 import '../helpers.dart';
@@ -11,11 +12,7 @@ void main() {
         for (final GfButtonVariant variant in GfButtonVariant.values) {
           await tester.pumpWidget(
             gfApp(
-              GfButton(
-                label: variant.name,
-                variant: variant,
-                onPressed: () {},
-              ),
+              GfButton(label: variant.name, variant: variant, onPressed: () {}),
               brightness: brightness,
             ),
           );
@@ -38,18 +35,14 @@ void main() {
       expect(taps, 1);
     });
 
-    testWidgets('disabled button ignores taps and shows 60% opacity',
-        (tester) async {
+    testWidgets('disabled TDesign button ignores taps', (tester) async {
       int taps = 0;
-      await tester.pumpWidget(
-        gfApp(GfButton(label: 'No', onPressed: null)),
+      await tester.pumpWidget(gfApp(GfButton(label: 'No', onPressed: null)));
+      expect(find.byType(td.TButton), findsOneWidget);
+      expect(
+        tester.widget<td.TButton>(find.byType(td.TButton)).onPressed,
+        isNull,
       );
-      final Opacity opacity = tester.widget<Opacity>(
-        find
-            .ancestor(of: find.text('No'), matching: find.byType(Opacity))
-            .first,
-      );
-      expect(opacity.opacity, 0.6);
       await tester.tap(find.text('No'));
       expect(taps, 0);
     });

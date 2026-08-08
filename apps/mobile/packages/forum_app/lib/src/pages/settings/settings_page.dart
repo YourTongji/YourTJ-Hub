@@ -87,8 +87,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       _snack(l10n.settingsBadgeNoOptions);
       return;
     }
-    final String? selected = await showModalBottomSheet<String>(
-      context: context,
+    final String? selected = await showGfBottomSheet<String>(
+      context,
       builder: (ctx) => SafeArea(
         child: ListView(
           shrinkWrap: true,
@@ -132,23 +132,21 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await ref.read(userRepositoryProvider).wearBadge(selected);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsBadgeUpdated)));
+        showGfToast(context, l10n.settingsBadgeUpdated);
       }
       _loadUser();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsBadgeFailed('$e'))));
+        showGfToast(context, l10n.settingsBadgeFailed('$e'), error: true);
       }
     }
   }
 
   Color _hexColor(String hex) {
     final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
-    return value == null ? GfTheme.colorsOf(context).warning : Color(0xFF000000 | value);
+    return value == null
+        ? GfTheme.colorsOf(context).warning
+        : Color(0xFF000000 | value);
   }
 
   /// 修改密码:对话框输入旧/新密码,调 change-password。
@@ -156,14 +154,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final oldCtrl = TextEditingController();
     final newCtrl = TextEditingController();
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final confirmed = await showGfAlertDialog<bool>(
+      context,
+      builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsChangePassword),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            GfInput(
               controller: oldCtrl,
               obscureText: true,
               decoration: InputDecoration(
@@ -171,7 +169,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               ),
             ),
             const SizedBox(height: 8),
-            TextField(
+            GfInput(
               controller: newCtrl,
               obscureText: true,
               decoration: InputDecoration(labelText: l10n.authNewPassword),
@@ -179,13 +177,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfButton(
+            label: l10n.commonCancel,
+            variant: GfButtonVariant.ghost,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfButton(
+            label: l10n.commonSave,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -202,15 +201,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .read(userRepositoryProvider)
           .changePassword(oldPassword: oldPwd, newPassword: newPwd);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsPasswordUpdated)));
+        showGfToast(context, l10n.settingsPasswordUpdated);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.settingsPasswordFailed('$e'))),
-        );
+        showGfToast(context, l10n.settingsPasswordFailed('$e'), error: true);
       }
     }
   }
@@ -221,24 +216,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final nickCtrl = TextEditingController(text: user.nickname);
     final bioCtrl = TextEditingController(text: user.bio);
     final sigCtrl = TextEditingController(text: user.signature);
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final ok = await showGfAlertDialog<bool>(
+      context,
+      builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsEditProfile),
         content: Column(
           mainAxisSize: MainAxisSize.min,
           children: [
-            TextField(
+            GfInput(
               controller: nickCtrl,
               maxLength: 30,
               decoration: InputDecoration(labelText: l10n.settingsNickname),
             ),
-            TextField(
+            GfInput(
               controller: bioCtrl,
               maxLines: 3,
               decoration: InputDecoration(labelText: l10n.settingsBio),
             ),
-            TextField(
+            GfInput(
               controller: sigCtrl,
               maxLines: 2,
               decoration: InputDecoration(labelText: l10n.settingsSignature),
@@ -246,13 +241,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           ],
         ),
         actions: [
-          TextButton(
+          GfButton(
+            label: l10n.commonCancel,
+            variant: GfButtonVariant.ghost,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfButton(
+            label: l10n.commonSave,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -268,16 +264,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             websiteName: '',
           );
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsInfoSaved)));
+        showGfToast(context, l10n.settingsInfoSaved);
       }
       _loadUser();
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsInfoFailed('$e'))));
+        showGfToast(context, l10n.settingsInfoFailed('$e'), error: true);
       }
     }
   }
@@ -286,23 +278,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   Future<void> _changeEmail() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final ctrl = TextEditingController();
-    final ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final ok = await showGfAlertDialog<bool>(
+      context,
+      builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsEmail),
-        content: TextField(
+        content: GfInput(
           controller: ctrl,
           keyboardType: TextInputType.emailAddress,
           decoration: InputDecoration(labelText: l10n.settingsNewEmail),
         ),
         actions: [
-          TextButton(
+          GfButton(
+            label: l10n.commonCancel,
+            variant: GfButtonVariant.ghost,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfButton(
+            label: l10n.commonSave,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.commonSave),
           ),
         ],
       ),
@@ -316,15 +309,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     try {
       await ref.read(userRepositoryProvider).setUserEmail(email);
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsEmailUpdated)));
+        showGfToast(context, l10n.settingsEmailUpdated);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsEmailFailed('$e'))));
+        showGfToast(context, l10n.settingsEmailFailed('$e'), error: true);
       }
     }
   }
@@ -337,8 +326,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .read(userRepositoryProvider)
           .getOAuthBindings();
       if (!mounted) return;
-      await showModalBottomSheet<void>(
-        context: context,
+      await showGfBottomSheet<void>(
+        context,
         builder: (ctx) => SafeArea(
           child: ListView(
             shrinkWrap: true,
@@ -360,7 +349,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                       ? l10n.settingsBound
                       : l10n.settingsUnbound,
                   trailing: entry.value.bound
-                      ? TextButton(
+                      ? GfButton(
+                          label: l10n.settingsUnbind,
+                          variant: GfButtonVariant.ghost,
+                          size: GfButtonSize.small,
                           onPressed: () async {
                             Navigator.pop(ctx);
                             try {
@@ -368,25 +360,18 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                   .read(userRepositoryProvider)
                                   .unbindOAuth(entry.key);
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(l10n.settingsUnboundDone),
-                                  ),
-                                );
+                                showGfToast(context, l10n.settingsUnboundDone);
                               }
                             } catch (e) {
                               if (mounted) {
-                                ScaffoldMessenger.of(context).showSnackBar(
-                                  SnackBar(
-                                    content: Text(
-                                      l10n.settingsUnbindFailed('$e'),
-                                    ),
-                                  ),
+                                showGfToast(
+                                  context,
+                                  l10n.settingsUnbindFailed('$e'),
+                                  error: true,
                                 );
                               }
                             }
                           },
-                          child: Text(l10n.settingsUnbind),
                         )
                       : null,
                 ),
@@ -408,22 +393,24 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (status.enabled) {
         // 禁用。
         final codeCtrl = TextEditingController();
-        final ok = await showDialog<bool>(
-          context: context,
-          builder: (ctx) => AlertDialog(
+        final ok = await showGfAlertDialog<bool>(
+          context,
+          builder: (ctx) => GfAlertDialog(
             title: Text(l10n.settingsTotpDisableTitle),
-            content: TextField(
+            content: GfInput(
               controller: codeCtrl,
               decoration: InputDecoration(labelText: l10n.settingsTotpCode),
             ),
             actions: [
-              TextButton(
+              GfButton(
+                label: l10n.commonCancel,
+                variant: GfButtonVariant.ghost,
                 onPressed: () => Navigator.pop(ctx, false),
-                child: Text(l10n.commonCancel),
               ),
-              TextButton(
+              GfButton(
+                label: l10n.settingsTotpDisable,
+                variant: GfButtonVariant.danger,
                 onPressed: () => Navigator.pop(ctx, true),
-                child: Text(l10n.settingsTotpDisable),
               ),
             ],
           ),
@@ -434,38 +421,35 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
               .read(userRepositoryProvider)
               .disableTotp(code: codeCtrl.text.trim());
           if (mounted) {
-            ScaffoldMessenger.of(
-              context,
-            ).showSnackBar(SnackBar(content: Text(l10n.settingsTotpDisabled)));
+            showGfToast(context, l10n.settingsTotpDisabled);
           }
         } catch (e) {
           if (mounted) {
-            ScaffoldMessenger.of(context).showSnackBar(
-              SnackBar(content: Text(l10n.settingsTotpFailed('$e'))),
-            );
+            showGfToast(context, l10n.settingsTotpFailed('$e'), error: true);
           }
         }
         return;
       }
       // 启用:先要密码 → setup → enable → 展示恢复码。
       final pwdCtrl = TextEditingController();
-      final okPwd = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
+      final okPwd = await showGfAlertDialog<bool>(
+        context,
+        builder: (ctx) => GfAlertDialog(
           title: Text(l10n.settingsTotpEnableTitle),
-          content: TextField(
+          content: GfInput(
             controller: pwdCtrl,
             obscureText: true,
             decoration: InputDecoration(labelText: l10n.settingsTotpPassword),
           ),
           actions: [
-            TextButton(
+            GfButton(
+              label: l10n.commonCancel,
+              variant: GfButtonVariant.ghost,
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l10n.commonCancel),
             ),
-            TextButton(
+            GfButton(
+              label: l10n.settingsTotpNext,
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l10n.settingsTotpNext),
             ),
           ],
         ),
@@ -476,29 +460,30 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .getTotpSetup(password: pwdCtrl.text.trim());
       if (!mounted) return;
       final codeCtrl = TextEditingController();
-      final okCode = await showDialog<bool>(
-        context: context,
-        builder: (ctx) => AlertDialog(
+      final okCode = await showGfAlertDialog<bool>(
+        context,
+        builder: (ctx) => GfAlertDialog(
           title: Text(l10n.settingsTotpScanSecret),
           content: Column(
             mainAxisSize: MainAxisSize.min,
             children: [
               SelectableText(setup.secret),
               const SizedBox(height: 8),
-              TextField(
+              GfInput(
                 controller: codeCtrl,
                 decoration: InputDecoration(labelText: l10n.settingsTotpCode),
               ),
             ],
           ),
           actions: [
-            TextButton(
+            GfButton(
+              label: l10n.commonCancel,
+              variant: GfButtonVariant.ghost,
               onPressed: () => Navigator.pop(ctx, false),
-              child: Text(l10n.commonCancel),
             ),
-            TextButton(
+            GfButton(
+              label: l10n.settingsTotpEnable,
               onPressed: () => Navigator.pop(ctx, true),
-              child: Text(l10n.settingsTotpEnable),
             ),
           ],
         ),
@@ -508,9 +493,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .read(userRepositoryProvider)
           .enableTotp(code: codeCtrl.text.trim());
       if (!mounted) return;
-      await showDialog<void>(
-        context: context,
-        builder: (ctx) => AlertDialog(
+      await showGfAlertDialog<void>(
+        context,
+        builder: (ctx) => GfAlertDialog(
           title: Text(l10n.settingsTotpEnabled),
           content: Column(
             mainAxisSize: MainAxisSize.min,
@@ -526,9 +511,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ],
           ),
           actions: [
-            TextButton(
+            GfButton(
+              label: l10n.settingsTotpDone,
               onPressed: () => Navigator.pop(ctx),
-              child: Text(l10n.settingsTotpDone),
             ),
           ],
         ),
@@ -558,15 +543,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await ref.read(userRepositoryProvider).revokeSession(id);
       _loadSessions();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsRevoked)));
+        showGfToast(context, l10n.settingsRevoked);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.settingsRevokeFailed('$e'))),
-        );
+        showGfToast(context, l10n.settingsRevokeFailed('$e'), error: true);
       }
     }
   }
@@ -577,15 +558,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       await ref.read(userRepositoryProvider).revokeAllSessions();
       _loadSessions();
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsRevokeAllDone)));
+        showGfToast(context, l10n.settingsRevokeAllDone);
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(l10n.settingsOpFailed('$e'))));
+        showGfToast(context, l10n.settingsOpFailed('$e'), error: true);
       }
     }
   }
@@ -617,14 +594,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           .read(fileRepositoryProvider)
           .uploadAvatar(bytes: webp, filename: 'avatar.webp');
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.settingsAvatarUploaded(url))),
-        );
+        showGfToast(context, l10n.settingsAvatarUploaded(url));
       }
     } catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text(l10n.settingsAvatarUploadFailed('$e'))),
+        showGfToast(
+          context,
+          l10n.settingsAvatarUploadFailed('$e'),
+          error: true,
         );
       }
     } finally {
@@ -638,7 +615,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.settingsTitle)),
+      appBar: GfAppBar(title: Text(l10n.settingsTitle)),
       body: Column(
         children: [
           // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
@@ -656,7 +633,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   setState(() => _tab = value as _SettingsTab),
             ),
           ),
-          const Divider(height: 1),
+          const GfDivider(),
           Expanded(
             child: switch (_tab) {
               _SettingsTab.profile => _buildProfileTab(l10n),
@@ -695,7 +672,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _editProfile(u);
                 },
               ),
-              const Divider(height: 1),
+              const GfDivider(),
               GfSettingRow(
                 icon: Icons.notes_outlined,
                 title: l10n.settingsBio,
@@ -710,7 +687,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   _editProfile(u);
                 },
               ),
-              const Divider(height: 1),
+              const GfDivider(),
               GfSettingRow(
                 icon: Icons.photo_camera_outlined,
                 title: l10n.settingsAvatar,
@@ -744,7 +721,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _changeEmail,
               ),
-              const Divider(height: 1),
+              const GfDivider(),
               GfSettingRow(
                 icon: Icons.lock_outline,
                 title: l10n.settingsChangePassword,
@@ -752,7 +729,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 trailing: const Icon(Icons.chevron_right, size: 18),
                 onTap: _changePassword,
               ),
-              const Divider(height: 1),
+              const GfDivider(),
               GfSettingRow(
                 icon: Icons.workspace_premium_outlined,
                 title: l10n.settingsBadge,
@@ -799,7 +776,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                 value: false,
                 onChanged: (_) => _snack(l10n.settingsSecondPhase),
               ),
-              const Divider(height: 1),
+              const GfDivider(),
               GfSwitchRow(
                 title: l10n.settingsPrivacyLikes,
                 value: true,
@@ -905,12 +882,13 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                                     color: GfTheme.colorsOf(context).iconMuted,
                                   ),
                             )
-                          : IconButton(
-                              icon: const Icon(Icons.delete_outline, size: 18),
+                          : GfIconButton(
+                              icon: Icons.delete_outline,
+                              iconSize: 18,
                               onPressed: () => _revokeSession(s.id),
                             ),
                     ),
-                  const Divider(height: 1),
+                  const GfDivider(),
                   Padding(
                     padding: const EdgeInsets.all(8),
                     child: GfButton(
@@ -951,18 +929,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   /// 登出:确认 → 服务端失效 → 清 token → 跳登录页。
   Future<void> _logout() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final bool? ok = await showDialog<bool>(
-      context: context,
-      builder: (ctx) => AlertDialog(
+    final bool? ok = await showGfAlertDialog<bool>(
+      context,
+      builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsLogoutConfirm),
         actions: [
-          TextButton(
+          GfButton(
+            label: l10n.commonCancel,
+            variant: GfButtonVariant.ghost,
             onPressed: () => Navigator.pop(ctx, false),
-            child: Text(l10n.commonCancel),
           ),
-          TextButton(
+          GfButton(
+            label: l10n.settingsLogout,
+            variant: GfButtonVariant.danger,
             onPressed: () => Navigator.pop(ctx, true),
-            child: Text(l10n.settingsLogout),
           ),
         ],
       ),
@@ -978,9 +958,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   void _snack(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
+    showGfToast(context, message);
   }
 
   String _formatTs(int tsSeconds) {

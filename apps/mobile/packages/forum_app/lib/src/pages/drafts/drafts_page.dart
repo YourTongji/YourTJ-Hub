@@ -53,7 +53,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     return Scaffold(
-      appBar: AppBar(title: Text(l10n.draftsTitle)),
+      appBar: GfAppBar(title: Text(l10n.draftsTitle)),
       body: _page.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
@@ -63,7 +63,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             onRefresh: () => _load(silent: true),
             child: ListView.separated(
               itemCount: props.drafts.length,
-              separatorBuilder: (_, _) => const Divider(height: 1),
+              separatorBuilder: (_, _) => const GfDivider(),
               itemBuilder: (context, i) {
                 final draft = props.drafts[i];
                 final meta = [
