@@ -1,4 +1,4 @@
-import { nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { onBeforeUnmount, ref, watch } from 'vue'
 import { uploadImageFile } from '@/runtime/api'
 import { i18n } from '@/runtime/i18n'
 import { canvasToImageFile, validateImageFile } from '@/runtime/image'
