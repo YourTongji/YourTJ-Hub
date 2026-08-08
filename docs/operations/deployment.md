@@ -199,6 +199,7 @@ instance:
   - PostgreSQL: `backup-db.sh` runs `pg_dump` into `snapshots/<instance>/pg-<db>-<ts>.sql`;
     `sync-db-from-main.sh` drops/recreates `yourtj_dev` and pipes
     `pg_dump -d yourtj_main | psql -d yourtj_dev` (dev is a clean one-way snapshot of main).
+  - PostgreSQL mode also snapshots dev's existing `file.db` and copies main's `file.db` to dev, because `[db.file]` remains SQLite even when the main database is PostgreSQL.
 - Manual equivalent inside the postgres container:
   ```bash
   docker compose exec postgres sh -c \

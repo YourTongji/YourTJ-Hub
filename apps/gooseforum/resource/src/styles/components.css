@@ -4,6 +4,16 @@
     filter: invert(1) hue-rotate(180deg);
   }
 
+  /* 块级公式（$...$）：居中展示，长公式横向滚动避免溢出 */
+  .gf-math-display {
+    display: block;
+    margin: 0.75rem 0;
+    padding: 0.25rem 0;
+    text-align: center;
+    overflow-x: auto;
+    overflow-y: hidden;
+  }
+
   .gf-panel {
     border: var(--gf-border) solid var(--gf-color-line);
     border-radius: var(--gf-radius-box);
@@ -188,6 +198,263 @@
     @apply text-base-content;
   }
 
+  /*
+   * Toast 通知：轻玻璃 + 全站中性语言（design-taste + better-colors）
+   * - 底色 base-100 高不透明度 + 轻微模糊，保证文字对比度
+   * - 类型色以「顶部封条线」呈现：2px 横线两端柔和渐隐，三边回归中性细边
+   * - 图标无圆形容器：现代线条图标直接呈现
+   * - 出场流光：::after 类型色高光带，由 .gf-flash-enter-active 驱动扫过并消逝
+   * - 退场溶解：卡片 leave 软化 + 贴表面波点/横向流光/柔晕（fixed 粒子，不裁切）
+   */
+  .gf-flash-banner {
+    --gf-flash-duration: 5200ms;
+    --gf-flash-accent: var(--gf-color-info);
+    --gf-flash-text: color-mix(in oklab, var(--gf-color-base-content) 92%, transparent);
+
+    position: relative;
+    isolation: isolate;
+    overflow: hidden;
+    border-radius: var(--gf-radius-box);
+    border: 1px solid var(--gf-color-line);
+    background: color-mix(in oklab, var(--gf-color-base-100) 88%, transparent);
+    box-shadow:
+      0 18px 48px -24px rgb(15 23 42 / calc(var(--gf-depth) * 0.5)),
+      0 4px 16px -12px rgb(15 23 42 / calc(var(--gf-depth) * 0.35));
+    backdrop-filter: blur(10px);
+    -webkit-backdrop-filter: blur(10px);
+    color: var(--gf-flash-text);
+    will-change: transform, opacity, filter;
+    transition: box-shadow 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  /* 顶部封条线：2px 类型色横线，两端柔和渐隐，不似贴纸 */
+  .gf-flash-banner::before {
+    content: '';
+    position: absolute;
+    inset: 0 0 auto 0;
+    height: 2px;
+    z-index: 2;
+    pointer-events: none;
+    background: linear-gradient(
+      90deg,
+      transparent 0%,
+      color-mix(in oklab, var(--gf-flash-accent) 40%, transparent) 7%,
+      var(--gf-flash-accent) 16%,
+      var(--gf-flash-accent) 84%,
+      color-mix(in oklab, var(--gf-flash-accent) 40%, transparent) 93%,
+      transparent 100%
+    );
+  }
+
+  /*
+   * 流光层（默认静止在场外，仅 enter-active 时扫过）
+   * 斜切高光带 + 类型色微辉：扫完即 opacity 0，不残留
+   */
+  .gf-flash-banner::after {
+    content: '';
+    position: absolute;
+    top: -20%;
+    bottom: -20%;
+    left: 0;
+    width: 42%;
+    z-index: 3;
+    pointer-events: none;
+    border-radius: inherit;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      color-mix(in oklab, var(--gf-flash-accent) 0%, transparent) 28%,
+      color-mix(in oklab, var(--gf-flash-accent) 22%, white) 46%,
+      color-mix(in oklab, white 55%, var(--gf-flash-accent)) 52%,
+      color-mix(in oklab, var(--gf-flash-accent) 18%, transparent) 62%,
+      transparent 100%
+    );
+    opacity: 0;
+    transform: translate3d(-130%, 0, 0) skewX(-12deg);
+    will-change: transform, opacity;
+    mix-blend-mode: soft-light;
+  }
+
+  /* 悬停：浮影加深 + 极淡类型色辉光（有生命感，不出格） */
+  .gf-flash-banner:hover,
+  .gf-flash-banner:focus-within {
+    box-shadow:
+      0 18px 48px -24px rgb(15 23 42 / calc(var(--gf-depth) * 0.55)),
+      0 4px 16px -12px rgb(15 23 42 / calc(var(--gf-depth) * 0.4)),
+      0 0 0 1px color-mix(in oklab, var(--gf-flash-accent) 10%, transparent),
+      0 0 26px -6px color-mix(in oklab, var(--gf-flash-accent) 28%, transparent);
+  }
+
+  .gf-flash-banner--success {
+    --gf-flash-accent: var(--gf-color-success);
+  }
+
+  .gf-flash-banner--warning {
+    --gf-flash-accent: var(--gf-color-warning);
+  }
+
+  .gf-flash-banner--error {
+    --gf-flash-accent: var(--gf-color-error);
+  }
+
+  .gf-flash-banner--info {
+    --gf-flash-accent: var(--gf-color-info);
+  }
+
+  .gf-flash-banner__body {
+    position: relative;
+    z-index: 1;
+  }
+
+  /* 图标：无圆底容器，类型色线条图标直接呈现 */
+  .gf-flash-banner__icon {
+    color: var(--gf-flash-accent);
+  }
+
+  .gf-flash-banner__glyph {
+    flex-shrink: 0;
+    filter: drop-shadow(0 1px 2px color-mix(in oklab, var(--gf-flash-accent) 35%, transparent));
+  }
+
+  .gf-flash-banner__label {
+    margin: 0;
+    font-size: 0.7rem;
+    line-height: 1.2;
+    font-weight: 600;
+    letter-spacing: 0.02em;
+    color: var(--gf-flash-accent);
+  }
+
+  :lang(en) .gf-flash-banner__label,
+  :lang(it) .gf-flash-banner__label {
+    font-size: 0.6875rem;
+    letter-spacing: 0.06em;
+    text-transform: uppercase;
+  }
+
+  .gf-flash-banner__message {
+    margin: 0.25rem 0 0;
+    font-size: 0.9rem;
+    line-height: 1.5;
+    font-weight: 500;
+    letter-spacing: -0.006em;
+    color: var(--gf-flash-text);
+    overflow-wrap: break-word;
+    text-wrap: pretty;
+  }
+
+  /* 关闭：中性小圆钮，与全站 icon-button 语言一致 */
+  .gf-flash-banner__close {
+    color: color-mix(in oklab, var(--gf-color-base-content) 48%, transparent);
+    background: color-mix(in oklab, var(--gf-color-base-200) 55%, transparent);
+    border: 1px solid transparent;
+    transition-property: color, background-color, transform;
+    transition-duration: 180ms;
+    transition-timing-function: cubic-bezier(0.22, 1, 0.36, 1);
+  }
+
+  .gf-flash-banner__close:hover {
+    color: var(--gf-color-base-content);
+    background: color-mix(in oklab, var(--gf-color-base-200) 85%, transparent);
+  }
+
+  .gf-flash-banner__close:active {
+    transform: scale(0.94);
+  }
+
+  .gf-flash-banner__close:focus-visible {
+    outline: 2px solid color-mix(in oklab, var(--gf-flash-accent) 55%, transparent);
+    outline-offset: 2px;
+  }
+
+  /* 剩余时间微调器：亏月彗星环——类型色弧逆时针收卷，弧首起笔渐显、弧尾彗星尾渐隐 */
+  .gf-flash-banner__moon {
+    position: relative;
+    z-index: 1;
+    width: 20px;
+    height: 20px;
+    margin: 0 auto 9px;
+    border-radius: 9999px;
+    background: conic-gradient(
+      from 0deg,
+      transparent 0deg,
+      color-mix(in oklab, var(--gf-flash-accent) 40%, transparent) 16deg,
+      var(--gf-flash-accent) 32deg,
+      var(--gf-flash-accent) calc(var(--gf-flash-arc) - 24deg),
+      color-mix(in oklab, var(--gf-flash-accent) 40%, transparent) calc(var(--gf-flash-arc) - 8deg),
+      transparent var(--gf-flash-arc)
+    );
+    -webkit-mask: radial-gradient(farthest-side, transparent calc(100% - 2.75px), #000 calc(100% - 2.25px));
+    mask: radial-gradient(farthest-side, transparent calc(100% - 2.75px), #000 calc(100% - 2.25px));
+    animation: gf-flash-arc-shrink var(--gf-flash-duration) linear forwards;
+  }
+
+  .gf-flash-banner:hover .gf-flash-banner__moon,
+  .gf-flash-banner:focus-within .gf-flash-banner__moon {
+    animation-play-state: paused;
+  }
+
+  /* 深色主题：同款 base-100 高不透明轻玻璃 */
+  [data-theme='gf-dark'] .gf-flash-banner {
+    background: color-mix(in oklab, var(--gf-color-base-100) 84%, transparent);
+    box-shadow:
+      0 18px 48px -24px rgb(0 0 0 / 0.55),
+      0 4px 16px -12px rgb(0 0 0 / 0.4);
+  }
+
+  /* 深色下 soft-light 偏弱，改用 screen 让类型色流光更易感知 */
+  [data-theme='gf-dark'] .gf-flash-banner::after {
+    mix-blend-mode: screen;
+    background: linear-gradient(
+      105deg,
+      transparent 0%,
+      color-mix(in oklab, var(--gf-flash-accent) 0%, transparent) 26%,
+      color-mix(in oklab, var(--gf-flash-accent) 45%, transparent) 44%,
+      color-mix(in oklab, white 70%, var(--gf-flash-accent)) 52%,
+      color-mix(in oklab, var(--gf-flash-accent) 28%, transparent) 64%,
+      transparent 100%
+    );
+  }
+
+  [data-theme='gf-dark'] .gf-flash-banner:hover,
+  [data-theme='gf-dark'] .gf-flash-banner:focus-within {
+    box-shadow:
+      0 18px 48px -24px rgb(0 0 0 / 0.6),
+      0 4px 16px -12px rgb(0 0 0 / 0.45),
+      0 0 0 1px color-mix(in oklab, var(--gf-flash-accent) 12%, transparent),
+      0 0 26px -6px color-mix(in oklab, var(--gf-flash-accent) 32%, transparent);
+  }
+
+  @media (max-width: 639px) {
+    .gf-flash-banner {
+      border-radius: var(--gf-radius-box);
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf-flash-banner {
+      will-change: auto;
+    }
+
+    .gf-flash-banner::after {
+      content: none;
+      will-change: auto;
+    }
+
+    .gf-flash-banner__moon {
+      animation: none;
+      --gf-flash-arc: 90deg;
+    }
+  }
+
+  @media (prefers-reduced-transparency: reduce) {
+    .gf-flash-banner {
+      background: var(--gf-color-base-100);
+      backdrop-filter: none;
+      -webkit-backdrop-filter: none;
+    }
+  }
+
   .gf-badge {
     @apply inline-flex items-center gap-1 rounded-full px-2 py-0.5 text-xs font-semibold;
     border-radius: var(--gf-radius-selector);
@@ -247,6 +514,277 @@
 
   .gf-textarea {
     @apply resize-y p-3;
+  }
+
+  /* 个人页/设置页信息栏：简介正文（舒适行高 + 有界 measure；保留换行渲染） */
+  .gf-profile-bio {
+    max-width: 36rem;
+    color: color-mix(in oklab, var(--gf-color-base-content) 75%, transparent);
+    white-space: pre-line;
+    @apply text-sm font-medium leading-[1.55] text-pretty;
+  }
+
+  .gf-profile-bio--empty {
+    color: color-mix(in oklab, var(--gf-color-base-content) 45%, transparent);
+  }
+
+  /*
+   * 签名：手帐式笔迹，无框无底色（拒绝「彩条卡片」模板感）。
+   * 一行小字 + 手绘波浪下划线，像随手划的一道签名；不斜体（CJK 合成斜体难看）。
+   * 移动端全宽收缩；桌面端波浪线最长 9em；hover 时波浪线加深（设置页编辑提示）。
+   */
+  .gf-profile-signature {
+    display: inline-flex;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.15rem;
+    max-width: 100%;
+    margin-top: 0.6rem;
+  }
+
+  .gf-profile-signature__row {
+    @apply flex items-center gap-1.5;
+  }
+
+  .gf-profile-signature__icon {
+    color: color-mix(in oklab, var(--gf-color-primary) 62%, transparent);
+    /* 镜像羽毛笔：笔尖默认朝左下，翻转后指向右侧的签名文字 */
+    transform: scaleX(-1) translateY(-1px);
+    @apply h-3.5 w-3.5 shrink-0;
+  }
+
+  .gf-profile-signature__text {
+    color: color-mix(in oklab, var(--gf-color-base-content) 62%, transparent);
+    white-space: pre-line;
+    @apply text-[13px] font-medium leading-[1.55] text-pretty sm:text-sm;
+  }
+
+  /* 手绘波浪线：圆头笔触、主色淡墨；宽度 = 文字宽度（随签名长度伸缩） */
+  .gf-profile-signature__squiggle {
+    width: calc(100% - 1.35rem);
+    height: 0.5rem;
+    margin-left: 1.35rem;
+    color: color-mix(in oklab, var(--gf-color-primary) 45%, transparent);
+    transition: color 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-profile-signature:hover .gf-profile-signature__squiggle {
+    color: color-mix(in oklab, var(--gf-color-primary) 70%, transparent);
+  }
+
+  @media (max-width: 639.98px) {
+    .gf-profile-signature__squiggle {
+      width: calc(100% - 1.25rem);
+      margin-left: 1.25rem;
+    }
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf-profile-signature__squiggle {
+      transition: none;
+    }
+  }
+
+  /* 设置页：可就地编辑的信息栏行（矩形一律小圆角、不带彩色边饰） */
+  .gf-profile-inline {
+    position: relative;
+    max-width: 36rem;
+    border-radius: 0.25rem;
+    transition:
+      background-color 160ms cubic-bezier(0.2, 0, 0, 1),
+      box-shadow 160ms cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-profile-inline--quote {
+    max-width: 28rem;
+  }
+
+  /* 编辑态突破窄约束：40 字签名一行展开，简介编辑框全宽 */
+  .gf-profile-inline--editing {
+    max-width: 100%;
+  }
+
+  .gf-profile-inline--idle {
+    cursor: text;
+  }
+
+  .gf-profile-inline--idle:hover,
+  .gf-profile-inline--idle:focus-within {
+    background: color-mix(in oklab, var(--gf-color-base-200) 55%, transparent);
+    box-shadow: inset 0 0 0 1px color-mix(in oklab, var(--gf-color-line) 70%, transparent);
+  }
+
+  .gf-profile-inline--idle .gf-profile-inline__edit-btn {
+    opacity: 0;
+    transform: scale(0.96);
+  }
+
+  .gf-profile-inline--idle:hover .gf-profile-inline__edit-btn,
+  .gf-profile-inline--idle:focus-within .gf-profile-inline__edit-btn,
+  .gf-profile-inline--idle .gf-profile-inline__edit-btn:focus-visible {
+    opacity: 1;
+    transform: scale(1);
+  }
+
+  /* 触控设备始终露出铅笔，避免无 hover 时不可发现 */
+  @media (hover: none) {
+    .gf-profile-inline--idle .gf-profile-inline__edit-btn {
+      opacity: 0.72;
+      transform: scale(1);
+    }
+  }
+
+  .gf-profile-inline__body {
+    @apply min-w-0 flex-1 px-1.5 py-1 sm:px-2;
+  }
+
+  .gf-profile-inline__edit-btn {
+    @apply inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-base-content/50 outline-none transition;
+    transition-property: opacity, transform, background-color, color;
+    transition-duration: 160ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-profile-inline__edit-btn:hover,
+  .gf-profile-inline__edit-btn:focus-visible {
+    @apply bg-base-100 text-primary;
+  }
+
+  .gf-profile-inline__edit-btn:focus-visible {
+    @apply ring-4 ring-primary/20;
+  }
+
+  /*
+   * 编辑态：纯中性底色 + 小圆角，不带任何彩色边线。
+   * 聚焦时仅底色略微加深（中性），用光标与工具栏表达编辑状态。
+   */
+  .gf-profile-inline--editing {
+    background: color-mix(in oklab, var(--gf-color-base-200) 35%, transparent);
+  }
+
+  .gf-profile-inline--editing:focus-within {
+    background: color-mix(in oklab, var(--gf-color-base-200) 55%, transparent);
+  }
+
+  /* 进入编辑：160ms 淡入 + 2px 上移，可被中断；退出时直接回到展示态 */
+  .gf-profile-inline__editor {
+    animation: gf-inline-editor-enter 160ms ease-out;
+  }
+
+  @keyframes gf-inline-editor-enter {
+    from {
+      opacity: 0;
+      transform: translateY(2px);
+    }
+    to {
+      opacity: 1;
+      transform: none;
+    }
+  }
+
+  /* textarea 排版与展示态文字一致：编辑时看到的就是「正在改的那行字」 */
+  .gf-profile-inline__textarea {
+    border: 0;
+    background: transparent;
+    color: inherit;
+    resize: none;
+    min-height: 2.75rem;
+    @apply w-full px-1.5 py-1 text-sm font-medium leading-[1.55] outline-none sm:px-2;
+  }
+
+  .gf-profile-inline__textarea--quote {
+    color: color-mix(in oklab, var(--gf-color-base-content) 62%, transparent);
+    min-height: 2.5rem;
+    @apply text-[13px] sm:text-sm;
+  }
+
+  .gf-profile-inline__toolbar {
+    @apply flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5 sm:px-2;
+  }
+
+  /* 清空确认条：清空有内容的字段后点保存出现，确认后才真正落库（延续纯中性、无彩边风格） */
+  .gf-profile-inline__confirm {
+    @apply flex flex-wrap items-center gap-1.5 px-1.5 pb-1.5 sm:px-2;
+  }
+
+  .gf-profile-inline__confirm-text {
+    color: color-mix(in oklab, var(--gf-color-base-content) 55%, transparent);
+    @apply mr-auto text-[11px] font-medium;
+  }
+
+  .gf-profile-inline__confirm-btn {
+    @apply inline-flex h-7 items-center justify-center rounded-md px-2.5 text-[12px] font-semibold text-base-content/60 outline-none active:scale-[0.96];
+    transition-property: color, background-color, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-profile-inline__confirm-btn:hover {
+    @apply bg-base-100 text-base-content;
+  }
+
+  .gf-profile-inline__confirm-btn--clear {
+    @apply text-error;
+  }
+
+  .gf-profile-inline__confirm-btn--clear:hover {
+    @apply bg-base-100;
+  }
+
+  .gf-profile-inline__confirm-btn:focus-visible {
+    @apply ring-4 ring-primary/20;
+  }
+
+  .gf-profile-inline__confirm-btn:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  .gf-profile-inline__hint {
+    color: color-mix(in oklab, var(--gf-color-base-content) 45%, transparent);
+    @apply mr-auto hidden text-[11px] font-medium sm:inline;
+  }
+
+  .gf-profile-inline__count {
+    color: color-mix(in oklab, var(--gf-color-base-content) 40%, transparent);
+    font-variant-numeric: tabular-nums;
+    @apply text-[11px] font-medium;
+  }
+
+  /* 保存/取消：轻量图标动作，替代实心按钮，贴合行内编辑密度 */
+  .gf-profile-inline__action {
+    @apply inline-grid h-7 w-7 shrink-0 place-items-center rounded-md text-base-content/55 outline-none active:scale-[0.96];
+    transition-property: color, background-color, transform;
+    transition-duration: 150ms;
+    transition-timing-function: cubic-bezier(0.2, 0, 0, 1);
+  }
+
+  .gf-profile-inline__action:hover {
+    @apply bg-base-100 text-base-content;
+  }
+
+  .gf-profile-inline__action:focus-visible {
+    @apply ring-4 ring-primary/20;
+  }
+
+  .gf-profile-inline__action--save {
+    @apply text-primary;
+  }
+
+  .gf-profile-inline__action--save:hover {
+    @apply bg-base-100;
+  }
+
+  .gf-profile-inline__action:disabled {
+    @apply cursor-not-allowed opacity-60;
+  }
+
+  @media (prefers-reduced-motion: reduce) {
+    .gf-profile-inline,
+    .gf-profile-inline__edit-btn,
+    .gf-profile-inline__editor {
+      animation: none;
+      transition: none;
+    }
   }
 
   .gf-segmented {

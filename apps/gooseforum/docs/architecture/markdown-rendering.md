@@ -152,11 +152,19 @@ Current client enhancement:
 - Language auto-detection is disabled. Unknown and unlabelled languages remain
   escaped plain-text code blocks, and a load failure leaves the server or
   Markdown-it output unchanged.
+- Inline `$...$` and block `$$...$$` math is rendered with KaTeX by the
+  `v-math-render` directive. The KaTeX chunk (JS, CSS and fonts) is loaded
+  lazily only after a math marker is detected outside code blocks, and ships
+  inside the single binary via the go:embed asset pipeline. Detection uses a
+  brace-balanced scan with MathJax-style inline guards (delimiters must not sit
+  next to whitespace, inline math cannot span lines) so prices and shell
+  variables stay literal; render failures leave the original text unchanged.
+- KaTeX renders from text input only — `trust`/raw-HTML output is never
+  enabled — so math content stays escaped and cannot execute script.
 
 Potential client enhancements:
 
 - Mermaid for diagrams
-- KaTeX or MathJax for math
 
 These should be loaded only on pages that need them, preferably by detecting
 matching code fences or inline markers. They should not become part of the base
@@ -191,3 +199,13 @@ GooseForum should continue with dual implementation:
 The `goja` experiment is useful as a reference, but it should not replace the
 current approach unless the Markdown dialect becomes too complex to keep aligned
 with tests.
+
+Math protection: the server and preview renderers now replace math segments
+with unique placeholders before Markdown parsing and restore them in the
+rendered HTML. This keeps typographer, emphasis parsing, and paragraph splitting
+from corrupting `$...$`/`$$...$$`. Restored math segments are HTML-escaped
+(`html.EscapeString` in Go, the equivalent on the markdown-it preview side) so
+raw HTML inside `$...$` cannot bypass the renderer's raw-HTML filtering. The
+client enhancer still scans rendered text nodes, so historical HTML created
+before the rendered-version bump may keep a split inline expression literal
+until posts are re-rendered.
