@@ -12,6 +12,7 @@ import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import { currentLocale } from '@/runtime/i18n'
 import { loadRuntimeScript } from '@/runtime/runtime-script'
 import { useSiteTheme } from '@/runtime/site-theme'
+import { visualViewportScrollDelta, type VisualViewportTarget } from '@/runtime/visual-viewport'
 
 const { t } = useI18n()
 const { isDark } = useSiteTheme()
@@ -37,6 +38,11 @@ const loading = ref(true)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
+let viewportFrame: number | null = null
+let viewportListenersBound = false
+
+const VIEWPORT_TOP_INSET = 72
+const VIEWPORT_BOTTOM_INSET = 24
 
 const languageAssets = {
   en: { lang: 'en_US', url: enUrl },
@@ -180,6 +186,7 @@ watch(isDark, syncEditorTheme)
 
 onBeforeUnmount(() => {
   destroyed = true
+  unbindVisualViewportListeners()
   const currentEditor = editor
   editor = null
 
@@ -216,7 +223,88 @@ function syncValue() {
 }
 
 function handleNativeInput() {
-  queueMicrotask(syncValue)
+  queueMicrotask(() => {
+    syncValue()
+    if (viewportListenersBound) scheduleCaretVisibilityUpdate()
+  })
+}
+
+function activeCaretRect(): VisualViewportTarget | null {
+  const editorRoot = root.value
+  const activeElement = document.activeElement
+  if (!editorRoot || !(activeElement instanceof HTMLElement) || !editorRoot.contains(activeElement)) return null
+
+  const selection = window.getSelection()
+  if (selection?.rangeCount && selection.focusNode && editorRoot.contains(selection.focusNode)) {
+    const range = selection.getRangeAt(0).cloneRange()
+    range.collapse(false)
+    const rect = range.getBoundingClientRect()
+    if (rect.top || rect.bottom || rect.height) return rect
+
+    const focusElement = selection.focusNode instanceof Element
+      ? selection.focusNode
+      : selection.focusNode.parentElement
+    if (focusElement) {
+      const rect = focusElement.getBoundingClientRect()
+      return { top: rect.top, bottom: Math.min(rect.bottom, rect.top + 32) }
+    }
+  }
+
+  const rect = activeElement.getBoundingClientRect()
+  return { top: rect.top, bottom: Math.min(rect.bottom, rect.top + 32) }
+}
+
+function keepCaretInVisualViewport() {
+  viewportFrame = null
+  const visualViewport = window.visualViewport
+  const caretRect = activeCaretRect()
+  if (!visualViewport || !caretRect) return
+
+  const delta = visualViewportScrollDelta(
+    caretRect,
+    visualViewport,
+    VIEWPORT_TOP_INSET,
+    VIEWPORT_BOTTOM_INSET,
+  )
+  if (delta) window.scrollBy({ top: delta, behavior: 'auto' })
+}
+
+function scheduleCaretVisibilityUpdate() {
+  if (viewportFrame !== null) return
+  viewportFrame = window.requestAnimationFrame(keepCaretInVisualViewport)
+}
+
+function bindVisualViewportListeners() {
+  const visualViewport = window.visualViewport
+  if (!visualViewport || viewportListenersBound) return
+  viewportListenersBound = true
+  visualViewport.addEventListener('resize', scheduleCaretVisibilityUpdate)
+  visualViewport.addEventListener('scroll', scheduleCaretVisibilityUpdate)
+  scheduleCaretVisibilityUpdate()
+}
+
+function unbindVisualViewportListeners() {
+  const visualViewport = window.visualViewport
+  if (visualViewport && viewportListenersBound) {
+    visualViewport.removeEventListener('resize', scheduleCaretVisibilityUpdate)
+    visualViewport.removeEventListener('scroll', scheduleCaretVisibilityUpdate)
+  }
+  viewportListenersBound = false
+  if (viewportFrame === null) return
+  window.cancelAnimationFrame(viewportFrame)
+  viewportFrame = null
+}
+
+function handleEditorFocusIn(event: FocusEvent) {
+  const target = event.target
+  if (!(target instanceof Element) || !target.closest('.vditor-wysiwyg')) return
+  bindVisualViewportListeners()
+}
+
+function handleEditorFocusOut(event: FocusEvent) {
+  const nextTarget = event.relatedTarget
+  if (nextTarget instanceof Element && nextTarget.closest('.vditor-wysiwyg')) return
+  unbindVisualViewportListeners()
 }
 
 function syncUploadControl() {
@@ -254,6 +342,8 @@ defineExpose({ focus, getValue, insertMarkdown, syncValue })
     <div
       ref="root"
       class="vditor-editor"
+      @focusin="handleEditorFocusIn"
+      @focusout="handleEditorFocusOut"
       @input="handleNativeInput"
       @paste.capture="forwardPaste"
       @drop.capture="forwardDrop"
