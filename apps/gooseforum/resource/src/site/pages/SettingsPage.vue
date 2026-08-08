@@ -13,6 +13,7 @@ import {
   Mail,
   Pencil,
   Feather,
+  Settings2,
   Shield,
   Sparkles,
   UserRound,
@@ -50,6 +51,18 @@ import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
 import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import {
+  applyAppearanceSettings,
+  loadAppearanceSettings,
+  loadLocalFonts,
+  quoteFontFamily,
+  resetAppearanceSettings,
+  saveAppearanceSettings,
+  MAX_CUSTOM_CSS_LENGTH,
+  type AppearanceSettings,
+  type FontZone,
+  type LocalFontInfo,
+} from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
 import { socialIcons, socialLabels } from '@/site/utils/social-icons'
@@ -63,7 +76,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -301,6 +314,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'general') return t('settings.tabs.general')
   return fallback || key
 }
 
@@ -642,6 +656,106 @@ async function submitPassword() {
 function savePrivacy() {
   localStorage.setItem('goose-privacy-settings', JSON.stringify(privacy))
   showStatus(t('settings.status.privacySaved'))
+}
+
+const appearance = reactive<AppearanceSettings>(loadAppearanceSettings())
+
+const fontFamilyOptions = computed(() => [
+  { value: 'system', label: t('settings.general.fontSystem') },
+  { value: 'serif', label: t('settings.general.fontSerif') },
+  { value: 'kai', label: t('settings.general.fontKai') },
+  { value: 'hei', label: t('settings.general.fontHei') },
+  { value: 'mono', label: t('settings.general.fontMono') },
+  { value: 'custom', label: t('settings.general.fontCustom') },
+])
+
+const fontZones = computed(() => [
+  { key: 'ui' as FontZone, label: t('settings.general.zoneUi'), description: t('settings.general.zoneUiDescription') },
+  { key: 'body' as FontZone, label: t('settings.general.zoneBody'), description: t('settings.general.zoneBodyDescription') },
+  { key: 'code' as FontZone, label: t('settings.general.zoneCode'), description: t('settings.general.zoneCodeDescription') },
+])
+
+function clampSizes() {
+  for (const zone of ['ui', 'body', 'code'] as FontZone[]) {
+    const raw = Number(appearance.zones[zone].size)
+    appearance.zones[zone].size = Number.isFinite(raw) ? Math.min(24, Math.max(12, Math.round(raw))) : 12
+  }
+}
+
+function previewAppearance() {
+  applyAppearanceSettings({ ...appearance })
+}
+
+function saveAppearance() {
+  clampSizes()
+  appearance.customCss = appearance.customCss.slice(0, MAX_CUSTOM_CSS_LENGTH)
+  saveAppearanceSettings({ ...appearance })
+}
+
+/** 本地字体加载状态（按 zone 独立）：idle / loading / loaded / unsupported / error */
+type LocalFontsStatus = 'idle' | 'loading' | 'loaded' | 'unsupported' | 'error'
+const localFontsStatus = reactive<Record<FontZone, LocalFontsStatus>>({ ui: 'idle', body: 'idle', code: 'idle' })
+const localFonts = ref<LocalFontInfo[]>([])
+
+async function handleLoadLocalFonts(zone: FontZone) {
+  if (localFontsStatus[zone] === 'loading') return
+  localFontsStatus[zone] = 'loading'
+  const result = await loadLocalFonts()
+  if (result.status === 'ok') {
+    localFonts.value = result.fonts
+    localFontsStatus[zone] = 'loaded'
+  } else if (result.status === 'unsupported') {
+    localFontsStatus[zone] = 'unsupported'
+  } else {
+    localFontsStatus[zone] = 'error'
+  }
+}
+
+function selectLocalFont(zone: FontZone, font: LocalFontInfo) {
+  appearance.zones[zone].customFamily = font.family
+  saveAppearance()
+}
+
+function clearCustomFont(zone: FontZone) {
+  appearance.zones[zone].customFamily = ''
+  saveAppearance()
+}
+
+let cssPreviewTimer: number | undefined
+function previewCssDebounced() {
+  window.clearTimeout(cssPreviewTimer)
+  cssPreviewTimer = window.setTimeout(previewAppearance, 300)
+}
+
+const cssFileInput = ref<HTMLInputElement | null>(null)
+function triggerCssFileImport() {
+  cssFileInput.value?.click()
+}
+function onCssFileChange(event: Event) {
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
+  if (!file) return
+  const reader = new FileReader()
+  reader.onload = () => {
+    const text = typeof reader.result === 'string' ? reader.result : ''
+    appearance.customCss = text.slice(0, MAX_CUSTOM_CSS_LENGTH)
+    saveAppearance()
+  }
+  reader.onerror = () => {
+    showError(t('settings.general.cssImportFailed'))
+  }
+  reader.readAsText(file)
+}
+function clearCustomCss() {
+  appearance.customCss = ''
+  saveAppearance()
+}
+
+function confirmResetAppearance() {
+  if (!window.confirm(t('settings.general.resetConfirm'))) return
+  resetAppearanceSettings()
+  Object.assign(appearance, loadAppearanceSettings())
 }
 
 async function loadBindings() {
@@ -1645,6 +1759,137 @@ async function toggleBinding(provider: string) {
                   {{ t('settings.security.revokeAll') }}
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
+              </div>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'general'">
+            <SectionHeader :icon="Settings2" :title="t('settings.general.title')" :description="t('settings.general.description')" />
+            <div class="max-w-2xl divide-y divide-line p-4">
+              <div v-for="zone in fontZones" :key="zone.key" class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span class="min-w-0">
+                    <span class="block text-sm font-semibold text-base-content">{{ zone.label }}</span>
+                    <span class="text-sm text-base-content/55">{{ zone.description }}</span>
+                  </span>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <input
+                      type="number"
+                      min="12"
+                      max="24"
+                      step="1"
+                      class="gf-input h-9 w-20 text-center text-sm"
+                      v-model.number="appearance.zones[zone.key].size"
+                      :aria-label="zone.label + ' ' + t('settings.general.size')"
+                      @input="previewAppearance"
+                      @change="saveAppearance"
+                    />
+                    <SiteSelect
+                      class="w-44 shrink-0"
+                      :options="fontFamilyOptions"
+                      v-model="appearance.zones[zone.key].familyPreset"
+                      @update:model-value="saveAppearance"
+                    />
+                  </div>
+                </div>
+                <div v-if="appearance.zones[zone.key].familyPreset === 'custom'" class="mt-3">
+                  <div
+                    v-if="appearance.zones[zone.key].customFamily"
+                    class="mb-2 flex items-center justify-between gap-2 rounded-md border border-line bg-base-200/50 px-3 py-2"
+                  >
+                    <span
+                      class="min-w-0 truncate text-sm font-medium text-base-content"
+                      :style="{ fontFamily: quoteFontFamily(appearance.zones[zone.key].customFamily) }"
+                    >
+                      {{ appearance.zones[zone.key].customFamily }}
+                    </span>
+                    <button
+                      type="button"
+                      class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content"
+                      :aria-label="t('settings.general.clearCustomFont')"
+                      :title="t('settings.general.clearCustomFont')"
+                      @click="clearCustomFont(zone.key)"
+                    >
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <button
+                    v-if="localFontsStatus[zone.key] === 'idle' || localFontsStatus[zone.key] === 'loading' || localFontsStatus[zone.key] === 'error'"
+                    type="button"
+                    class="gf-button gf-button-md gf-button-secondary w-full"
+                    :disabled="localFontsStatus[zone.key] === 'loading'"
+                    @click="handleLoadLocalFonts(zone.key)"
+                  >
+                    <Loader2 v-if="localFontsStatus[zone.key] === 'loading'" class="h-4 w-4 animate-spin" />
+                    <Check v-else class="h-4 w-4" />
+                    {{ localFontsStatus[zone.key] === 'error' ? t('settings.general.retryLoadFonts') : t('settings.general.loadLocalFonts') }}
+                  </button>
+
+                  <p v-else-if="localFontsStatus[zone.key] === 'unsupported'" class="text-xs text-base-content/55">
+                    {{ t('settings.general.fontsUnsupported') }}
+                  </p>
+
+                  <template v-else-if="localFontsStatus[zone.key] === 'loaded'">
+                    <div v-if="localFonts.length" class="mt-2 max-h-56 overflow-y-auto rounded-md border border-line p-1">
+                      <button
+                        v-for="font in localFonts"
+                        :key="font.family"
+                        type="button"
+                        class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content hover:bg-base-200"
+                        :class="appearance.zones[zone.key].customFamily === font.family ? 'bg-primary/10 text-primary' : ''"
+                        :style="{ fontFamily: quoteFontFamily(font.family) }"
+                        @click="selectLocalFont(zone.key, font)"
+                      >
+                        <span class="min-w-0 flex-1 truncate">{{ font.fullName }}</span>
+                        <Check v-if="appearance.zones[zone.key].customFamily === font.family" class="h-4 w-4 shrink-0" />
+                      </button>
+                    </div>
+                    <p v-else class="text-xs text-base-content/55">
+                      {{ t('settings.general.fontsEmpty') }}
+                      <button type="button" class="ml-1 text-primary underline" @click="handleLoadLocalFonts(zone.key)">
+                        {{ t('settings.general.retryLoadFonts') }}
+                      </button>
+                    </p>
+                  </template>
+                </div>
+              </div>
+
+              <div class="py-4">
+                <div class="flex items-center justify-between gap-4">
+                  <span>
+                    <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.customCss') }}</span>
+                    <span class="text-sm text-base-content/55">{{ t('settings.general.customCssDescription') }}</span>
+                  </span>
+                  <div class="flex shrink-0 items-center gap-2">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" @click="triggerCssFileImport">{{ t('settings.general.importCss') }}</button>
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="!appearance.customCss" @click="clearCustomCss">{{ t('settings.general.clearCss') }}</button>
+                    <input ref="cssFileInput" type="file" accept=".css,text/css" class="hidden" @change="onCssFileChange" />
+                  </div>
+                </div>
+                <textarea
+                  v-model="appearance.customCss"
+                  class="gf-textarea mt-3 h-44 w-full font-mono text-xs"
+                  :placeholder="t('settings.general.customCssPlaceholder')"
+                  :aria-label="t('settings.general.customCss')"
+                  @input="previewCssDebounced"
+                  @blur="saveAppearance"
+                ></textarea>
+              </div>
+
+              <label class="flex items-center justify-between gap-4 py-4">
+                <span>
+                  <span class="block text-sm font-semibold text-base-content">{{ t('settings.general.clickAnimation') }}</span>
+                  <span class="text-sm text-base-content/55">{{ t('settings.general.clickAnimationDescription') }}</span>
+                </span>
+                <input v-model="appearance.clickAnimation" type="checkbox" class="h-5 w-5 rounded border-line text-primary" @change="saveAppearance" />
+              </label>
+
+              <div class="flex items-center justify-between gap-4 py-4">
+                <span class="text-sm text-base-content/55">{{ t('settings.general.resetDescription') }}</span>
+                <button type="button" class="gf-button gf-button-md gf-button-muted shrink-0" @click="confirmResetAppearance">
+                  {{ t('settings.general.reset') }}
+                </button>
               </div>
             </div>
           </section>

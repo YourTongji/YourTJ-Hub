@@ -372,3 +372,33 @@
     transform: none;
   }
 }
+
+.gf-ripple {
+  position: fixed;
+  z-index: 1000;
+  pointer-events: none;
+  overflow: hidden;
+  contain: strict;
+}
+
+.gf-ripple__wave {
+  position: absolute;
+  border-radius: 9999px;
+  background: color-mix(in oklab, var(--gf-color-primary) 22%, transparent);
+  transform: scale(0);
+  opacity: 0.6;
+  animation: gf-ripple 0.45s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+@keyframes gf-ripple {
+  to {
+    transform: scale(1);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-ripple__wave {
+    animation-duration: 0.01ms;
+  }
+}
