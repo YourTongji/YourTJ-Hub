@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { computeWaveSize, RIPPLE_SELECTOR, shouldTriggerRipple } from '../src/runtime/click-ripple'
+import { computeWaveSize, RIPPLE_SELECTOR, shouldSkipRippleTarget, shouldTriggerRipple } from '../src/runtime/click-ripple'
 
 describe('shouldTriggerRipple', () => {
   test('triggers only when enabled, motion allowed, and primary button', () => {
@@ -19,13 +19,38 @@ describe('computeWaveSize', () => {
   })
 })
 
+describe('shouldSkipRippleTarget', () => {
+  const base = { disabled: false, ariaDisabled: false, hasDisabledClass: false, dataRipple: null }
+
+  test('skips disabled elements', () => {
+    expect(shouldSkipRippleTarget({ ...base, disabled: true })).toBe(true)
+  })
+
+  test('skips aria-disabled elements', () => {
+    expect(shouldSkipRippleTarget({ ...base, ariaDisabled: true })).toBe(true)
+  })
+
+  test('skips elements with the disabled class', () => {
+    expect(shouldSkipRippleTarget({ ...base, hasDisabledClass: true })).toBe(true)
+  })
+
+  test('skips elements with data-ripple="false"', () => {
+    expect(shouldSkipRippleTarget({ ...base, dataRipple: 'false' })).toBe(true)
+  })
+
+  test('does not skip when no opt-out applies', () => {
+    expect(shouldSkipRippleTarget(base)).toBe(false)
+    expect(shouldSkipRippleTarget({ ...base, dataRipple: 'true' })).toBe(false)
+  })
+})
+
 describe('RIPPLE_SELECTOR', () => {
   test('covers interactive tags, roles, and gf-* classes', () => {
     const parts = [
       'button', 'a[href]', '[role="button"]', '[role="menuitem"]',
       '[role="switch"]', '[role="tab"]', '[role="checkbox"]',
       '.gf-menu-item', '.gf-icon-button', '.gf-tab', '.gf-segmented-item',
-      '[data-ripple]',
+      '[data-ripple]:not([data-ripple="false"])',
     ]
     for (const part of parts) {
       expect(RIPPLE_SELECTOR).toContain(part)

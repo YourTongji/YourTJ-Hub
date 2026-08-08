@@ -668,6 +668,9 @@ function previewAppearance() {
 }
 
 function saveAppearance() {
+  if (appearance.fontFamilyPreset === 'custom' && !appearance.customFontFamily.trim()) {
+    appearance.fontFamilyPreset = 'system'
+  }
   saveAppearanceSettings({ ...appearance })
 }
 
@@ -1695,6 +1698,7 @@ async function toggleBinding(provider: string) {
                 </div>
                 <input
                   type="range"
+                  :aria-label="t('settings.general.fontSize')"
                   min="14"
                   max="20"
                   step="1"
@@ -1724,10 +1728,12 @@ async function toggleBinding(provider: string) {
                     v-model="appearance.customFontFamily"
                     type="text"
                     class="gf-input w-full"
+                    :aria-label="t('settings.general.fontFamily')"
                     :placeholder="t('settings.general.customFontPlaceholder')"
                     maxlength="200"
                     @input="previewAppearance"
                     @blur="saveAppearance"
+                    @keydown.enter="saveAppearance"
                   />
                 </div>
               </div>

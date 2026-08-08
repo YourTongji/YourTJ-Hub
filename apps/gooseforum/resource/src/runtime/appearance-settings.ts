@@ -37,12 +37,15 @@ export const FONT_PRESETS: Record<'serif' | 'kai' | 'hei', string> = {
 export function normalizeAppearanceSettings(raw: unknown): AppearanceSettings {
   const source = isRecord(raw) ? raw : {}
   const fontSize = clampNumber(source.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX, DEFAULT_FONT_SIZE)
-  const fontFamilyPreset = FONT_FAMILY_PRESETS.includes(source.fontFamilyPreset as FontFamilyPreset)
+  let fontFamilyPreset = FONT_FAMILY_PRESETS.includes(source.fontFamilyPreset as FontFamilyPreset)
     ? (source.fontFamilyPreset as FontFamilyPreset)
     : 'system'
   const customFontFamily = typeof source.customFontFamily === 'string'
     ? source.customFontFamily.slice(0, MAX_CUSTOM_FONT_LENGTH)
     : ''
+  if (fontFamilyPreset === 'custom' && customFontFamily.trim() === '') {
+    fontFamilyPreset = 'system'
+  }
   const clickAnimation = source.clickAnimation === true
   return { fontSize, fontFamilyPreset, customFontFamily, clickAnimation }
 }
@@ -71,7 +74,11 @@ export function loadAppearanceSettings(): AppearanceSettings {
 
 export function applyAppearanceSettings(settings: AppearanceSettings) {
   clickAnimationEnabled = settings.clickAnimation
-  document.documentElement.style.fontSize = `${settings.fontSize}px`
+  if (settings.fontSize === DEFAULT_FONT_SIZE) {
+    document.documentElement.style.removeProperty('font-size')
+  } else {
+    document.documentElement.style.fontSize = `${settings.fontSize}px`
+  }
   const family = resolveFontFamily(settings)
   if (family) {
     document.documentElement.style.setProperty('--gf-font-family', family)
