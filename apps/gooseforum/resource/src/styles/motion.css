@@ -378,6 +378,7 @@
   z-index: 1000;
   pointer-events: none;
   overflow: hidden;
+  contain: strict;
 }
 
 .gf-ripple__wave {

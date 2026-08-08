@@ -587,7 +587,7 @@ export default {
     },
     general: {
       title: '一般設定',
-      description: '読み書きと操作の好みを調整します',
+      description: '閲覧と操作の好みを調整します',
       fontSize: 'フォントサイズ',
       fontSizeDescription: '全体のフォントサイズを調整します（テキストとレイアウトの間隔に影響）',
       fontSizeHint: 'フォントサイズに合わせてレイアウトの間隔も拡大縮小されます',
