@@ -77,6 +77,8 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
             'reply-reference-content--collapsed': !expanded,
             'reply-reference-content--faded': !expanded && overflowing,
           }"
+          v-code-highlight
+          v-math-render
           v-html="target.renderedContent"
         />
       </div>

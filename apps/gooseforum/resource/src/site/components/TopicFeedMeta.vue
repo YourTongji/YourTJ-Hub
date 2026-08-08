@@ -82,6 +82,8 @@ const { t } = useI18n()
       {{ topic.description }}
     </p>
 
+    <slot name="media" />
+
     <div class="mt-3 flex items-center gap-1 border-t border-line/70 pt-2.5 text-xs text-base-content/55">
       <span
         class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"

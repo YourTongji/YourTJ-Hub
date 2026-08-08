@@ -12,7 +12,7 @@ import (
 func EnsureDefaultData() {
 	defaultCategory := category.Get(1)
 	if defaultCategory.Id == 0 {
-		defaultCategory.Name = "GooseForum"
+		defaultCategory.Name = "YourTJHub"
 		defaultCategory.Desc = "🦢 大鹅栖息地 | 自由漫谈的江湖茶馆"
 		category.SaveOrCreateById(&defaultCategory)
 		slog.Info("created default category")

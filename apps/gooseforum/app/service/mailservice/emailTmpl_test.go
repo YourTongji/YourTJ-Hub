@@ -56,13 +56,13 @@ func TestGeneratePasswordResetEmailBodyUsesLocale(t *testing.T) {
 
 func TestNormalizeSenderUsesConfiguredNameAndEmail(t *testing.T) {
 	name, email := normalizeSender(pageConfig.MailSettingsConfig{
-		FromName:     " GooseForum Notice ",
+		FromName:     " YourTJHub Notice ",
 		FromEmail:    " noreply@example.com ",
 		SmtpUsername: "smtp@example.com",
 	})
 
-	if name != "GooseForum Notice" {
-		t.Fatalf("sender name = %q, want %q", name, "GooseForum Notice")
+	if name != "YourTJHub Notice" {
+		t.Fatalf("sender name = %q, want %q", name, "YourTJHub Notice")
 	}
 	if email != "noreply@example.com" {
 		t.Fatalf("sender email = %q, want %q", email, "noreply@example.com")
@@ -74,8 +74,8 @@ func TestNormalizeSenderFallsBackToDefaultNameAndSMTPUsername(t *testing.T) {
 		SmtpUsername: " smtp@example.com ",
 	})
 
-	if name != "GooseForum" {
-		t.Fatalf("sender name = %q, want %q", name, "GooseForum")
+	if name != "YourTJHub" {
+		t.Fatalf("sender name = %q, want %q", name, "YourTJHub")
 	}
 	if email != "smtp@example.com" {
 		t.Fatalf("sender email = %q, want %q", email, "smtp@example.com")
@@ -85,8 +85,8 @@ func TestNormalizeSenderFallsBackToDefaultNameAndSMTPUsername(t *testing.T) {
 func TestNormalizeSenderUsesLocalDefaultEmailWhenMissing(t *testing.T) {
 	name, email := normalizeSender(pageConfig.MailSettingsConfig{})
 
-	if name != "GooseForum" {
-		t.Fatalf("sender name = %q, want %q", name, "GooseForum")
+	if name != "YourTJHub" {
+		t.Fatalf("sender name = %q, want %q", name, "YourTJHub")
 	}
 	if email != "noreply@localhost" {
 		t.Fatalf("sender email = %q, want %q", email, "noreply@localhost")

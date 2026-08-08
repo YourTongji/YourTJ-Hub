@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bold, ClipboardPaste, Code, Code2, CornerDownLeft, Eye, Heading, Image, Italic, Link, List, ListChecks, ListOrdered, MessageSquareQuote, Minus, Send, Strikethrough, Table2, X } from '@lucide/vue'
+import { Bold, ClipboardPaste, Code, Code2, CornerDownLeft, Eye, Heading, Image, Italic, Link, List, ListChecks, ListOrdered, MessageSquareQuote, Minus, Send, Sigma, Strikethrough, Table2, X } from '@lucide/vue'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import { renderMarkdownPreview } from '@/runtime/markdown'
@@ -215,7 +215,7 @@ async function togglePreview() {
   }
 }
 
-type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'quote' | 'code' | 'bulletList' | 'orderedList' | 'horizontalRule' | 'hardBreak'
+type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'math' | 'quote' | 'code' | 'bulletList' | 'orderedList' | 'horizontalRule' | 'hardBreak'
 
 function applyToolbarAction(action: ToolbarAction) {
   if (editorMode.value === 'markdown') {
@@ -223,6 +223,7 @@ function applyToolbarAction(action: ToolbarAction) {
     else if (action === 'italic') insert('*', '*', t('publish.placeholder.italic'))
     else if (action === 'strike') insert('~~', '~~', t('publish.placeholder.strike'))
     else if (action === 'inlineCode') insert('`', '`', 'code')
+    else if (action === 'math') insert('$', '$', t('publish.placeholder.math'))
     else if (action === 'quote') insertPrefixedMarkdownBlock('> ', t('publish.placeholder.quote'))
     else if (action === 'code') insertFencedCodeBlock()
     else if (action === 'bulletList') insertPrefixedMarkdownBlock('- ', t('publish.placeholder.listItem'))
@@ -266,10 +267,6 @@ function setMarkdownLineType(block: Exclude<MarkdownBlockType, 'code_block'>) {
 }
 
 async function openLinkPicker() {
-  if (editorMode.value === 'markdown') {
-    insert('[', '](https://)', t('publish.placeholder.link'))
-    return
-  }
   blockPickerOpen.value = false
   tablePickerOpen.value = false
   linkPickerOpen.value = !linkPickerOpen.value
@@ -280,11 +277,20 @@ async function openLinkPicker() {
   linkInput.value?.select()
 }
 
-function applyLink() {
+async function applyLink() {
   const href = linkUrl.value.trim()
   if (!href) return
+  if (editorMode.value === 'markdown') {
+    insert('[', `](${href})`, t('publish.placeholder.link'))
+    linkPickerOpen.value = false
+    linkUrl.value = ''
+    return
+  }
   linkPickerOpen.value = false
+  linkUrl.value = ''
   visualEditor.value?.setLink(href, t('publish.placeholder.link'))
+  await nextTick()
+  visualEditor.value?.focus()
 }
 
 function openTablePicker() {
@@ -465,7 +471,7 @@ function handleEditorKeydown(event: KeyboardEvent) {
     insert('*', '*', t('publish.placeholder.italic'))
   } else if (key === 'k') {
     event.preventDefault()
-    insert('[', '](https://)', t('publish.placeholder.link'))
+    openLinkPicker()
   }
 }
 
@@ -609,6 +615,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                   <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.italic')" @mousedown.prevent @click="applyToolbarAction('italic')"><Italic class="h-4 w-4" /></button>
                   <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.strike')" @mousedown.prevent @click="applyToolbarAction('strike')"><Strikethrough class="h-4 w-4" /></button>
                   <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.inlineCode')" @mousedown.prevent @click="applyToolbarAction('inlineCode')"><Code class="h-4 w-4" /></button>
+                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.math')" @mousedown.prevent @click="applyToolbarAction('math')"><Sigma class="h-4 w-4" /></button>
                   <div ref="linkPicker" class="relative">
                     <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.link')" :aria-expanded="linkPickerOpen" @mousedown.prevent @click="openLinkPicker"><Link class="h-4 w-4" /></button>
                     <form v-if="linkPickerOpen" class="gf-menu-surface absolute left-0 top-full z-30 mt-1.5 flex w-72 items-center gap-1.5 p-2 shadow-lg" @submit.prevent="applyLink">
@@ -708,7 +715,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 </div>
               </div>
 
-              <div v-if="preview && content.trim()" class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4" v-html="renderedPreview" />
+              <div v-if="preview && content.trim()" v-code-highlight v-math-render class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4" v-html="renderedPreview" />
               <div v-else-if="preview" class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4">
                 <p class="text-sm text-base-content/55">{{ t('publish.emptyPreview') }}</p>
               </div>

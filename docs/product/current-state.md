@@ -6,14 +6,16 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## What works
 
 - **Feature coverage**: Markdown topics/replies, categories, notifications, direct messages, drafts,
   RBAC moderation, admin panel, theme workbench, i18n (en/zh/ja/it), GitHub OAuth + Casdoor OIDC
   (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
-  scheduled SQLite backup, slow-SQL logging.
+  scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
+  tabs, pinyin/initials), sensitive-word moderation with review queue, terms-of-service page, data
+  import/export, pluggable file storage (SQLite BLOB / S3-compatible).
 - **Unified-auth verification**: Casdoor numeric-ID path verified during research (sub = numeric ID,
   Incremental rule + explicit numeric ids); OIDC login/binding now wired into the forum with
   server-side numeric-sub enforcement.
@@ -30,7 +32,7 @@
 | Contract | `Partial` | No swagger annotations, no openapi.yaml upstream; packages/api-contract is a placeholder; pipeline not built |
 | Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: design-token theme, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
-| Branding | `Partial` | GooseForum branding not yet replaced with yourtj (CLI name, UI copy, config keys) |
+| Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |
 | Structural governance | `Partial` | Upstream giant controllers (payload.go 72KB etc.) not split; architecture decisions in note |
 | Storage (files) | `Current` | Pluggable storage: local SQLite BLOB default + S3-compatible object storage (MinIO/COS/OSS/R2), admin panel config + connection test, cursor-driven BLOB→object migration task + `migrate-files` CLI (2026-08-06) |
 | Moderation policy | `Current` | Reserved/banned usernames, sensitive-word block or review (ProcessStatus=2 pending queue with admin approve/reject), banned username auto-freezes existing accounts, moderation audit logs (2026-08-06) |

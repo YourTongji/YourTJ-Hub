@@ -130,7 +130,8 @@ function readThemeCookie() {
 }
 
 function writeThemeCookie(theme: SiteTheme) {
-  document.cookie = `${COOKIE_KEY}=${theme}; path=/; max-age=31536000; samesite=lax`
+  const secure = window.location.protocol === 'https:' ? '; Secure' : ''
+  document.cookie = `${COOKIE_KEY}=${theme}; path=/; max-age=31536000; samesite=lax${secure}`
 }
 
 function normalizeThemeColor(value?: string) {

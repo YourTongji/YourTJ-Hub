@@ -2,38 +2,61 @@
 
 > Doc type: architecture
 >
-> Status: Active (contract pipeline `Partial`, not built)
+> Status: Active (contract pipeline `Partial`)
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## Contract status
 
-- Upstream GooseForum has **no swagger annotations, no openapi.yaml**; JSON is serialized directly
-  from Go structs.
-- The frontend `@gooseforum/client` package (resource/packages/client) is hand-written TS contracts,
-  manually kept in sync with Go structs.
-- `packages/api-contract/openapi.yaml` is currently a placeholder (`paths: {}`).
+The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point is
+`packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
-## Contract pipeline (planned)
+- `POST /api/login`;
+- `POST /api/forum/topics/write`.
+
+The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
+uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
+JSON envelope rather than treating every 2xx status as application success. Middleware-owned failures
+such as unauthenticated access, frozen or unresolvable authenticated accounts, and rate limiting remain
+HTTP `401`, `403`, and `429` with the same failure envelope. Topic write's current permissive `UpButterReq`
+wrapper reports malformed or incomplete JSON as
+an HTTP `200` validation failure, not a guaranteed `400`.
+
+## Contract pipeline (Partial)
 
 ```
-apps/gooseforum (Go structs + swag annotations, or manually maintained first)
-   │  gen script
+Go controller, route wrapper, and Gin middleware (current behavior)
+   │  manually maintained operation descriptions
    ▼
-packages/api-contract/openapi.yaml      ← CI checks: generated output has no diff
-   │  gen-ts.sh                 │  gen-dart.sh
-   ▼                           ▼
-apps/gooseforum/resource/packages/client  apps/mobile/packages/core/lib/src/gen/*.dart
+packages/api-contract/openapi.yaml + paths/ + components/
+   │  Redocly lint and bundle             │  openapi-typescript
+   ▼                                      ▼
+packages/api-contract/fixtures/      @gooseforum/client/openapi types
+   │                                      │
+   └──── route-level httptest assertions ──┴──── CI generated-output no-diff gate
 ```
 
-- **Backend is the fact source**: Go structs → openapi.yaml.
-- **Web/mobile are generated artifacts**: types never silently drift; CI checks "generated output has
-  no diff".
-- **Fixture contract tests**: real API response samples; deserialization tests back runtime behavior.
-- Transition path: since upstream has no annotations, use go-json-schema or progressive swag
-  annotation (annotate each API as you touch it).
+- **Go behavior is the fact source**: controllers, route wrappers, middleware, and their `httptest`
+  coverage establish the behavior being documented.
+- **OpenAPI is the controlled protocol source**: each covered operation documents that behavior in a
+  reviewable, consumable format. It is split into entry point, paths, and schemas but linted and bundled
+  as one contract.
+- **Generated Web types are artifacts**: `@gooseforum/client/openapi` exports only the generated OpenAPI
+  types under `src/gen/`; it does not replace the existing hand-written page payload contracts or create
+  a request client. CI regenerates the types and rejects an uncommitted diff.
+- **Fixtures are representative wire samples**: committed JSON fixtures capture stable envelope shape,
+  message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
+  assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
+- **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
+  this repository yet.
+
+Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
+stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
+base-versus-head bundled-spec breaking gate in a separate change only when `dev` has stable operation
+coverage on both sides of the comparison; that gate must compare the PR base and head contracts rather
+than a hand-maintained duplicate baseline.
 
 ## Data model
 
@@ -85,12 +108,13 @@ Principle: projections must be rebuildable from the fact source; never treat a p
 
 ## Contract change discipline
 
-- Backend field changes ship in the same PR: Go struct → openapi.yaml → TS/Dart generated output →
-  fixture (once the pipeline exists).
-- Until the pipeline exists, at least keep `@gooseforum/client` manually in sync with Go structs and
-  note it in the PR.
+- For an OpenAPI-covered operation, backend behavior, `openapi.yaml`, generated TypeScript output, and
+  representative fixtures/route-level contract tests ship in the same PR.
+- Operations outside the current coverage remain manually synchronized with their consumers until they
+  are added to the controlled contract. `@gooseforum/client` must stay in sync with Go structs.
 - The mobile client mirrors contracts into `apps/mobile/packages/core/lib/src/gen/*.dart` (a
   generated-artifact placeholder until the OpenAPI pipeline lands). Backend/TS contract changes that
   affect the mobile surface must update the Dart mirrors in the same PR; fixture contract tests
   (`core/test/fixtures`) back runtime deserialization.
+- Dart generation and full-route coverage are Planned; do not claim they are current contract gates.
 - Docs status words updated in step (docs/README.md).

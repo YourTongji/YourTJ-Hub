@@ -59,7 +59,7 @@ const slots = useSlots()
   </template>
 
   <template v-else>
-    <div class="relative space-y-4 bg-base-100">
+    <div class="relative space-y-4 p-4">
       <div
         v-for="topic in topics"
         :key="topic.id"

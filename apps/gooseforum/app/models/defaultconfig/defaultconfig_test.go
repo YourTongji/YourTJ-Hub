@@ -7,8 +7,8 @@ func TestPageConfigDefaultsLoad(t *testing.T) {
 	if err != nil {
 		t.Fatalf("load page config defaults: %v", err)
 	}
-	if defaults.Site.SiteName != "GooseForum" {
-		t.Fatalf("site name = %q, want GooseForum", defaults.Site.SiteName)
+	if defaults.Site.SiteName != "YourTJHub" {
+		t.Fatalf("site name = %q, want YourTJHub", defaults.Site.SiteName)
 	}
 	if len(defaults.FriendLinks) == 0 {
 		t.Fatal("friend links defaults should not be empty")

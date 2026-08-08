@@ -1,4 +1,9 @@
 @layer components {
+  /* 深色主题下反转验证码图片：后端固定生成浅底深字，反转后与深色界面协调可读 */
+  [data-theme="gf-dark"] .gf-captcha-image {
+    filter: invert(1) hue-rotate(180deg);
+  }
+
   .gf-panel {
     border: var(--gf-border) solid var(--gf-color-line);
     border-radius: var(--gf-radius-box);
@@ -261,22 +266,5 @@
 
   .gf-segmented-item-idle {
     @apply text-base-content/55 hover:text-base-content;
-  }
-
-  .gf-locale-switch {
-    border: var(--gf-border) solid var(--gf-color-line);
-    border-radius: 999px;
-    background: var(--gf-color-base-100);
-    box-shadow: 0 8px 22px -16px rgb(15 23 42 / calc(var(--gf-depth) * 0.5));
-    @apply inline-flex items-center gap-1 p-1;
-  }
-
-  .gf-locale-switch-item {
-    @apply inline-flex h-8 min-w-8 items-center justify-center px-2 text-xs font-semibold text-base-content/55 transition hover:text-base-content;
-    border-radius: 999px;
-  }
-
-  .gf-locale-switch-item-active {
-    @apply bg-neutral text-neutral-content shadow-sm hover:bg-neutral hover:text-neutral-content;
   }
 }

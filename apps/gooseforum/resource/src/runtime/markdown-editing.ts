@@ -34,6 +34,10 @@ export function fencedCodeBlock(text: string) {
   return `\`\`\`\n${text}\n\`\`\``
 }
 
+export function wrapInlineMath(selected: string) {
+  return `$${selected}$`
+}
+
 export function createMarkdownTable(rowCount: number, columnCount: number) {
   const rows = Math.max(1, rowCount)
   const columns = Math.max(1, columnCount)

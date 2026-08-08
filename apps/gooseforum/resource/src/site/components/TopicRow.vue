@@ -36,6 +36,8 @@ let enterTimer: number | undefined
 let leaveTimer: number | undefined
 
 function onRowEnter(event: MouseEvent) {
+  // 移动端（<1024px）不启用 hover 弹层：触屏没有悬停语义，弹层易误触遮挡内容
+  if (window.innerWidth < 1024) return
   window.clearTimeout(leaveTimer)
   if (expanded.value) return
   enterTimer = window.setTimeout(() => openPreview(event), EXPAND_DELAY)
@@ -47,6 +49,8 @@ function onRowLeave() {
 }
 
 function openPreview(event: MouseEvent) {
+  // 移动端（<1024px）不展示 hover 弹层，与 onRowEnter 的判断保持一致
+  if (window.innerWidth < 1024) return
   if (!rowEl.value || expanded.value) return
   const rect = rowEl.value.getBoundingClientRect()
   const viewportWidth = window.innerWidth

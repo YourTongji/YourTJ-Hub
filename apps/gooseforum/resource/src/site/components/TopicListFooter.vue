@@ -13,6 +13,7 @@ const props = defineProps<{
   loadingMore: boolean
   hasTopics: boolean
   loadError: string
+  bare?: boolean
 }>()
 
 const emit = defineEmits<{
@@ -35,7 +36,8 @@ const previousUrl = computed(() => {
 </script>
 
 <template>
-  <footer class="border-t border-line bg-base-200/50 p-3 text-center">
+  <!-- bare 模式用于卡片布局：页脚与页面背景融合，不带分隔线/底色 -->
+  <footer :class="props.bare ? 'p-3 text-center' : 'border-t border-line bg-base-200/50 p-3 text-center'">
     <button
       v-if="pagination.hasNext"
       type="button"

@@ -4,7 +4,13 @@ on:
   push:
     paths:
       - "apps/gooseforum/app/**"
+      - "apps/gooseforum/resource/packages/client/package.json"
+      - "apps/gooseforum/resource/packages/client/src/gen/**"
       - "packages/api-contract/**"
+      - ".github/workflows/ci-contract.yml"
+      - "Makefile"
+      - "docs/architecture/contracts-and-data.md"
+      - "docs/development/testing.md"
   # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
 
@@ -13,7 +19,19 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - name: Validate openapi.yaml (placeholder until the contract pipeline exists)
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 11.10.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+          cache-dependency-path: packages/api-contract/pnpm-lock.yaml
+      - name: Install contract tooling
         working-directory: packages/api-contract
-        run: |
-          test -f openapi.yaml && echo "openapi.yaml exists" || echo "TODO: generate openapi.yaml once the contract pipeline exists"
+        run: pnpm install --frozen-lockfile
+      - name: Validate, bundle, and generate TypeScript types
+        working-directory: packages/api-contract
+        run: pnpm run check
+      - name: Require generated TypeScript types to be committed
+        run: git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen

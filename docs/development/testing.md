@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-07
 
 ## Principles
 
@@ -28,8 +28,9 @@ cd apps/gooseforum/resource && pnpm typecheck && pnpm build
 # Full
 make test
 
-# Contract (once the contract pipeline exists)
-cd packages/api-contract && dart test test/contracts   # or a script wrapper
+# Contract: lint, bundle, and regenerate the committed OpenAPI TypeScript output
+cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
+# Equivalent Make targets: make contract-lint, make contract-generate-ts, make contract-check
 
 # Build smoke
 make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
@@ -44,7 +45,7 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | service | business unit + transaction cases | go test + sqlmock or testcontainers (when decided) |
 | http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
 | resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
-| contract | fixture deserialization | dart test / jest (once pipeline exists) |
+| contract | OpenAPI lint/bundle/type generation plus real Gin route-chain fixture assertions | pnpm + go test + httptest |
 | mobile | widget/unit | flutter test (melos analyze + test; see local-development.md) |
 | mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地 Casdoor → AppAuth 模拟器回跳 → exchange 验证) |
 
@@ -60,7 +61,11 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
   hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
   and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
 - ci-frontend.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
-- ci-contract.yml: openapi validation + no-diff generation + fixture (apps/gooseforum/app/**, packages/**)
+- ci-contract.yml: on every PR, installs the locked `packages/api-contract` pnpm tooling, runs OpenAPI
+  lint + bundle + TypeScript generation, then rejects an uncommitted diff below
+  `apps/gooseforum/resource/packages/client/src/gen`. It also runs on push when contract-relevant
+  backend, generated types, contract tooling, CI/Make configuration, or contract/testing documentation
+  changes. The route-level HTTP contract fixture tests run inside the backend `go test ./...` gate.
 
 ## Smoke checklist
 
