@@ -381,6 +381,12 @@
   contain: strict;
 }
 
+/* Blue Archive touch overlay: must never steal hit-testing from real UI. */
+#gf-ba-touch-effect-host,
+#gf-ba-touch-effect-host * {
+  pointer-events: none !important;
+}
+
 .gf-ripple__wave {
   position: absolute;
   border-radius: 9999px;

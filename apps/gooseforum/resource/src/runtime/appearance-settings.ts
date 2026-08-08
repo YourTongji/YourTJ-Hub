@@ -178,6 +178,7 @@ export function loadAppearanceSettings(): AppearanceSettings {
 
 export function applyAppearanceSettings(settings: AppearanceSettings) {
   clickAnimationEnabled = settings.clickAnimation
+  syncBaTouchEffectSafe()
   applyCustomCss(settings.customCss)
   if (isFontPristine(settings)) {
     removeFontOverrides()
@@ -285,6 +286,20 @@ function copySettings(settings: AppearanceSettings): AppearanceSettings {
 
 function isRecord(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value)
+}
+
+/**
+ * Lazily notify the BA touch-effect bridge without a hard import cycle at module
+ * evaluation time. Failures are ignored: click FX is purely cosmetic.
+ */
+function syncBaTouchEffectSafe() {
+  void import('@/runtime/ba-touch-effect')
+    .then((module) => {
+      module.syncBaTouchEffect()
+    })
+    .catch(() => {
+      // ignore: dynamic import or runtime start failures must not break settings
+    })
 }
 
 function clampNumber(value: unknown, min: number, max: number, fallback: number): number {

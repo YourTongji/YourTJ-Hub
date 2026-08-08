@@ -652,7 +652,7 @@ export default {
       clearCss: 'Svuota',
       customCssPlaceholder: 'Incolla qui il tuo CSS…',
       clickAnimation: 'Animazione al clic',
-      clickAnimationDescription: 'Mostra un’ondulazione quando si fa clic su pulsanti, menu e altri elementi interattivi',
+      clickAnimationDescription: 'Mostra un effetto cursore al clic o allo scorrimento (richiede WebGL)',
       reset: 'Ripristina predefiniti',
       resetDescription: 'Ripristina le impostazioni sopra ai valori predefiniti',
       resetConfirm: 'Ripristinare le impostazioni di aspetto ai valori predefiniti?',

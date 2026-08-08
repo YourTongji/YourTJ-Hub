@@ -7,7 +7,7 @@ import { currentLocale, i18n } from '@/runtime/i18n'
 import { hydrateFlashMessages } from '@/runtime/flash-message'
 import { applySiteThemePayload, applyStoredTheme } from '@/runtime/site-theme'
 import { applyStoredAppearanceSettings } from '@/runtime/appearance-settings'
-import { installClickRipple } from '@/runtime/click-ripple'
+import { installBaTouchEffect } from '@/runtime/ba-touch-effect'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
 import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
@@ -24,7 +24,7 @@ document.documentElement.lang = currentLocale()
 applySiteThemePayload(initialPayload.layout.theme)
 applyStoredTheme()
 applyStoredAppearanceSettings()
-installClickRipple()
+installBaTouchEffect()
 
 function commitPage(nextPage: typeof initialPage) {
   currentPage.value = nextPage

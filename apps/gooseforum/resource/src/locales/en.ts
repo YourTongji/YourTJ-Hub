@@ -652,7 +652,7 @@ export default {
       clearCss: 'Clear',
       customCssPlaceholder: 'Paste your CSS here…',
       clickAnimation: 'Click animation',
-      clickAnimationDescription: 'Show a ripple when clicking buttons, menus, and other interactive elements',
+      clickAnimationDescription: 'Show cursor effects on click or swipe (requires WebGL)',
       reset: 'Reset to defaults',
       resetDescription: 'Restore the settings above to their defaults',
       resetConfirm: 'Reset appearance settings to defaults?',

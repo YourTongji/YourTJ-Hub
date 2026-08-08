@@ -652,7 +652,7 @@ export default {
       clearCss: '清除',
       customCssPlaceholder: '在此粘贴你的 CSS…',
       clickAnimation: '鼠标点击动画',
-      clickAnimationDescription: '点击按钮、菜单等交互元素时显示涟漪反馈',
+      clickAnimationDescription: '开启后，点击或滑动页面时显示光标特效（需 WebGL）',
       reset: '恢复默认',
       resetDescription: '将以上设置恢复为默认值',
       resetConfirm: '确定要将外观设置恢复为默认值吗？',

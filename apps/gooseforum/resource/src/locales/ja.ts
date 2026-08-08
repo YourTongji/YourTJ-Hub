@@ -652,7 +652,7 @@ export default {
       clearCss: 'クリア',
       customCssPlaceholder: 'ここにCSSを貼り付け…',
       clickAnimation: 'クリックアニメーション',
-      clickAnimationDescription: 'ボタンやメニューなど操作要素をクリックしたときに波紋を表示します',
+      clickAnimationDescription: 'オンにすると、クリックやスワイプ時にカーソル演出を表示します（WebGL が必要）',
       reset: '既定に戻す',
       resetDescription: '上記の設定を既定値に戻します',
       resetConfirm: '外観設定を既定値に戻しますか？',
