@@ -35,7 +35,8 @@ class OneNotificationRepository extends NotificationRepository {
       id: 1,
       eventType: 'reply',
       isRead: false,
-      createdAt: '2026-08-07T10:00:00+08:00',
+      // 固定过去日期(>7 天):timeAgo 回退绝对日期,不随 CI 运行时刻漂移。
+      createdAt: '2025-01-15T10:00:00+08:00',
       title: '有人回复了你的话题',
       content: '回复内容预览',
       actor: const NotificationActorPayload(
