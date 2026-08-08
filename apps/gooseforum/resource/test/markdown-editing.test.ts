@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { createMarkdownTable, fencedCodeBlock, formatMarkdownLines, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock } from '../src/runtime/markdown-editing'
+import { createMarkdownTable, fencedCodeBlock, formatMarkdownLines, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock, wrapInlineMath } from '../src/runtime/markdown-editing'
 
 describe('Markdown editing helpers', () => {
   test('separates inserted blocks from surrounding text', () => {
@@ -16,6 +16,11 @@ describe('Markdown editing helpers', () => {
   test('builds prefixed and fenced blocks', () => {
     expect(prefixMarkdownBlock('one\ntwo', '> ')).toBe('> one\n> two')
     expect(fencedCodeBlock('const value = 1')).toBe('```\nconst value = 1\n```')
+  })
+
+  test('wraps inline math with single dollar delimiters', () => {
+    expect(wrapInlineMath('x')).toBe('$x$')
+    expect(wrapInlineMath('math')).toBe('$math$')
   })
 
   test('creates tables with the requested dimensions', () => {

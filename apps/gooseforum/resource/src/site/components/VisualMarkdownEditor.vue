@@ -10,6 +10,7 @@ import { EditorState, Plugin, TextSelection, type Command, type Transaction } fr
 import { goToNextCell, tableEditing } from 'prosemirror-tables'
 import { EditorView } from 'prosemirror-view'
 import { isEditableBoundaryBlock, parseEditableVisualMarkdown, parseVisualMarkdown, serializeVisualMarkdown, visualMarkdownSchema } from '@/runtime/prosemirror-markdown'
+import { wrapInlineMath } from '@/runtime/markdown-editing'
 
 const props = defineProps<{
   modelValue: string
@@ -238,7 +239,18 @@ function insertTable(rowCount: number, columnCount: number) {
   view.focus()
 }
 
-function applyAction(action: 'bold' | 'italic' | 'strike' | 'inlineCode' | 'quote' | 'code' | 'bulletList' | 'orderedList' | 'horizontalRule' | 'hardBreak') {
+function insertMath() {
+  if (!view) return
+  const { from, to, empty } = view.state.selection
+  const selected = empty ? 'math' : view.state.doc.textBetween(from, to, '\\n', ' ')
+  const markdown = wrapInlineMath(selected)
+  let transaction = view.state.tr.replaceSelectionWith(view.state.schema.text(markdown))
+  transaction = transaction.setSelection(TextSelection.create(transaction.doc, from + 1, from + 1 + selected.length)).scrollIntoView()
+  view.dispatch(transaction)
+  view.focus()
+}
+
+function applyAction(action: 'bold' | 'italic' | 'strike' | 'inlineCode' | 'quote' | 'code' | 'bulletList' | 'orderedList' | 'horizontalRule' | 'hardBreak' | 'math') {
   if (action === 'bold') run(toggleMark(visualMarkdownSchema.marks.strong))
   else if (action === 'italic') run(toggleMark(visualMarkdownSchema.marks.em))
   else if (action === 'strike') run(toggleMark(visualMarkdownSchema.marks.strike))
@@ -247,6 +259,7 @@ function applyAction(action: 'bold' | 'italic' | 'strike' | 'inlineCode' | 'quot
   else if (action === 'code') setBlock(hasAncestor('code_block') ? 'paragraph' : 'code_block')
   else if (action === 'bulletList') toggleList('bullet_list')
   else if (action === 'orderedList') toggleList('ordered_list')
+  else if (action === 'math') insertMath()
   else if (action === 'horizontalRule') insertNode(visualMarkdownSchema.nodes.horizontal_rule.create())
   else insertNode(visualMarkdownSchema.nodes.hard_break.create())
 }

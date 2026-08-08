@@ -8,25 +8,224 @@
   }
 }
 
-.gf-flash-enter-active,
-.gf-flash-leave-active {
+/*
+ * 玻璃态 Toast 动效
+ * - 进入：流光凝实——轻滑入 + 类型色流光扫过并消逝，时长 ~520ms
+ * - 离开：表面溶解——轻位移 + 模糊去饱和 + 波点/流光/柔晕（见 GlobalFlash）
+ * - 多条堆叠：move 平滑重排；离开项 absolute 不挤布局
+ * - 剩余时间：亏月彗星环，conic 弧从 300° 收卷到残弧
+ */
+@property --gf-flash-arc {
+  syntax: '<angle>';
+  inherits: false;
+  initial-value: 300deg;
+}
+
+@keyframes gf-flash-arc-shrink {
+  from {
+    --gf-flash-arc: 300deg;
+  }
+  to {
+    --gf-flash-arc: 45deg;
+  }
+}
+
+/*
+ * 流光扫过：类型色高光带从左侧掠过卡片表面后消逝。
+ * 一次性 staged sequence（非交互态），用 keyframes 是合适的。
+ * 扫过期间略抬 opacity，尾段归零——「流光消逝」本体。
+ */
+@keyframes gf-flash-sheen-sweep {
+  0% {
+    transform: translate3d(-130%, 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+  12% {
+    opacity: 0.9;
+  }
+  58% {
+    opacity: 0.55;
+  }
+  100% {
+    transform: translate3d(130%, 0, 0) skewX(-12deg);
+    opacity: 0;
+  }
+}
+
+/* 顶部封条线：流光经过时短暂点亮，随后回落到常态 */
+@keyframes gf-flash-seal-ignite {
+  0% {
+    opacity: 0.35;
+    filter: brightness(1);
+  }
+  28% {
+    opacity: 1;
+    filter: brightness(1.35);
+  }
+  100% {
+    opacity: 1;
+    filter: brightness(1);
+  }
+}
+
+.gf-flash-stack {
+  position: relative;
+}
+
+.gf-flash-enter-active {
+  z-index: 1;
   transition:
-    opacity 0.28s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.48s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.52s cubic-bezier(0.16, 1, 0.3, 1),
+    filter 0.52s cubic-bezier(0.22, 1, 0.36, 1),
+    box-shadow 0.52s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+/* 进入期驱动流光层与封条点亮（组件 ::after / ::before） */
+.gf-flash-enter-active.gf-flash-banner::after {
+  animation: gf-flash-sheen-sweep 0.68s cubic-bezier(0.22, 1, 0.36, 1) 0.04s both;
+}
+
+.gf-flash-enter-active.gf-flash-banner::before {
+  animation: gf-flash-seal-ignite 0.62s cubic-bezier(0.22, 1, 0.36, 1) both;
 }
 
 .gf-flash-leave-active {
   position: absolute;
+  left: 0;
+  right: 0;
+  width: 100%;
+  z-index: 0;
+  pointer-events: none;
+  transition:
+    /* 退场与表面溶解同拍：卡片软化 ~0.6s，粒子略长于卡片 */
+    opacity 0.6s cubic-bezier(0.22, 0.61, 0.36, 1),
+    transform 0.62s cubic-bezier(0.22, 0.61, 0.36, 1),
+    filter 0.62s cubic-bezier(0.22, 0.61, 0.36, 1),
+    box-shadow 0.45s cubic-bezier(0.22, 0.61, 0.36, 1);
 }
 
-.gf-flash-enter-from,
+/* 退场时封条与流光层一并软灭，避免硬切 */
+.gf-flash-leave-active.gf-flash-banner::before {
+  transition: opacity 0.36s cubic-bezier(0.22, 0.61, 0.36, 1), filter 0.36s ease;
+  opacity: 0;
+  filter: brightness(1.2);
+}
+
+.gf-flash-leave-active.gf-flash-banner::after {
+  /* 退场再扫一道极淡流光，与溶解粒子同向消逝 */
+  animation: gf-flash-sheen-exit 0.5s cubic-bezier(0.22, 0.61, 0.36, 1) both;
+}
+
+.gf-flash-enter-from {
+  opacity: 0;
+  /* 从侧后凝实：略远、略小、略糊，给流光扫过留出「显现」空间 */
+  transform: translate3d(14px, -8px, 0) scale(0.96);
+  filter: blur(6px) saturate(0.7);
+  box-shadow:
+    0 8px 24px -20px rgb(15 23 42 / 0.15),
+    0 0 0 0 transparent;
+}
+
+.gf-flash-enter-to {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0) saturate(1);
+}
+
+.gf-flash-leave-from {
+  opacity: 1;
+  transform: translate3d(0, 0, 0) scale(1);
+  filter: blur(0) saturate(1);
+}
+
 .gf-flash-leave-to {
   opacity: 0;
-  transform: translateX(-14px) scale(0.98);
+  /* 溶解感：更轻上浮 + 微缩 + 模糊去饱和（better-ui：exit 克制，不抢注意力） */
+  transform: translate3d(2px, -12px, 0) scale(0.975);
+  filter: blur(10px) saturate(0.4);
+  box-shadow:
+    0 0 0 0 transparent,
+    0 0 32px -4px color-mix(in oklab, var(--gf-flash-accent, transparent) 18%, transparent);
 }
 
 .gf-flash-move {
-  transition: transform 0.28s cubic-bezier(0.22, 1, 0.36, 1);
+  transition: transform 0.34s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+@media (max-width: 639px) {
+  .gf-flash-enter-from {
+    transform: translate3d(0, 16px, 0) scale(0.96);
+    filter: blur(5px) saturate(0.75);
+  }
+
+  .gf-flash-leave-to {
+    /* 移动端锚在底部：向下轻沉 + 溶解（位移更小，让波点贴表面） */
+    transform: translate3d(0, 10px, 0) scale(0.98);
+    filter: blur(9px) saturate(0.45);
+  }
+
+  /* 移动端流光改为略竖直偏斜的扫过，呼应底部入场 */
+  @keyframes gf-flash-sheen-sweep-mobile {
+    0% {
+      transform: translate3d(-40%, 110%, 0) skewX(-8deg);
+      opacity: 0;
+    }
+    14% {
+      opacity: 0.85;
+    }
+    100% {
+      transform: translate3d(40%, -110%, 0) skewX(-8deg);
+      opacity: 0;
+    }
+  }
+
+  .gf-flash-enter-active.gf-flash-banner::after {
+    animation-name: gf-flash-sheen-sweep-mobile;
+    animation-duration: 0.62s;
+  }
+}
+
+/* 退场流光：比入场更淡、更短，从中部向外消逝 */
+@keyframes gf-flash-sheen-exit {
+  0% {
+    transform: translate3d(-18%, 0, 0) skewX(-10deg);
+    opacity: 0;
+  }
+  22% {
+    opacity: 0.38;
+  }
+  100% {
+    transform: translate3d(110%, -8%, 0) skewX(-10deg);
+    opacity: 0;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-flash-enter-active,
+  .gf-flash-leave-active,
+  .gf-flash-move {
+    transition-duration: 0.01ms;
+  }
+
+  .gf-flash-enter-from,
+  .gf-flash-leave-to {
+    transform: none;
+    filter: none;
+  }
+
+  .gf-flash-enter-active.gf-flash-banner::after,
+  .gf-flash-enter-active.gf-flash-banner::before,
+  .gf-flash-leave-active.gf-flash-banner::after,
+  .gf-flash-leave-active.gf-flash-banner::before {
+    animation: none !important;
+  }
+
+  .gf-flash-leave-active.gf-flash-banner::before {
+    transition: none;
+    opacity: 1;
+    filter: none;
+  }
 }
 
 .gf-page-enter-active {
@@ -173,4 +372,3 @@
     transform: none;
   }
 }
-

@@ -5,6 +5,7 @@ export interface UserCardTarget {
   username: string
   avatarUrl: string
   wornBadge?: UserBadgePayload | null
+  isFollowing?: boolean
 }
 
 export interface UserCardShowDetail {

@@ -1,0 +1,14 @@
+{
+  "contains": [
+    "$x^2 + y^2 = z^2$",
+    "$\\alpha + \\beta$",
+    "$$",
+    "E = mc^2",
+    "$5 discount",
+    "$HOME"
+  ],
+  "notContains": [
+    "<script>",
+    "onerror="
+  ]
+}

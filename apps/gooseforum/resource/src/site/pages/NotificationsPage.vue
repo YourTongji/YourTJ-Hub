@@ -359,10 +359,11 @@ function markItemReadAndNavigate(item: NotificationPayload) {
         </button>
       </div>
 
-      <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
+      <div class="hidden grid-cols-[34px_minmax(0,1fr)_116px_40px] gap-3 border-b border-line bg-base-200/60 px-3 py-2 text-[11px] font-bold uppercase text-base-content/75 md:grid">
         <div />
         <div>{{ t('notifications.table.notification') }}</div>
         <div class="text-right">{{ t('notifications.table.time') }}</div>
+        <div />
       </div>
 
       <div v-if="notifications.length" class="divide-y divide-line">
