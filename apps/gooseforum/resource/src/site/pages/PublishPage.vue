@@ -72,7 +72,10 @@ const {
 function editorSnapshot() {
   return JSON.stringify({
     title: title.value.trim(),
-    content: (editor.value?.getValue() ?? content.value).trim(),
+    // content is kept in sync with the editor through the v-model/input
+    // pipeline, so reading it directly avoids a full DOM→Markdown
+    // serialization on every unsaved-changes check.
+    content: content.value.trim(),
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
   })
 }
