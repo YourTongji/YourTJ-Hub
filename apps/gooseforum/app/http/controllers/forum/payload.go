@@ -2487,13 +2487,18 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			CollectionCount:   stats.CollectionCount,
 			CreatedAt:         user.CreatedAt.Format(time.DateTime),
 		},
-		Tabs: []TabPayload{
-			{Key: "profile", URL: "/settings", Active: true},
-			{Key: "account", URL: "/settings?tab=account"},
-			{Key: "privacy", URL: "/settings?tab=privacy"},
-			{Key: "binding", URL: "/settings?tab=binding"},
-			{Key: "security", URL: "/settings?tab=security"},
-		},
+		Tabs: settingsTabs(),
+	}
+}
+
+func settingsTabs() []TabPayload {
+	return []TabPayload{
+		{Key: "profile", URL: "/settings", Active: true},
+		{Key: "account", URL: "/settings?tab=account"},
+		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "binding", URL: "/settings?tab=binding"},
+		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "general", URL: "/settings?tab=general"},
 	}
 }
 

@@ -35,3 +35,23 @@ func TestIsSafeRedirect(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsTabs(t *testing.T) {
+	got := settingsTabs()
+	want := []TabPayload{
+		{Key: "profile", URL: "/settings", Active: true},
+		{Key: "account", URL: "/settings?tab=account"},
+		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "binding", URL: "/settings?tab=binding"},
+		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "general", URL: "/settings?tab=general"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("settingsTabs() length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("settingsTabs()[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+}
