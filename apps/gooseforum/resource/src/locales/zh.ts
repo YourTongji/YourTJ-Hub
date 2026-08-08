@@ -611,6 +611,8 @@ export default {
       reset: '恢复默认',
       resetDescription: '将以上设置恢复为默认值',
       resetConfirm: '确定要将外观设置恢复为默认值吗？',
+      size: '字号',
+      cssImportFailed: 'CSS 文件读取失败',
     },
     validation: {
       usernameRequired: '用户名不能为空',

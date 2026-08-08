@@ -611,6 +611,8 @@ export default {
       reset: 'Ripristina predefiniti',
       resetDescription: 'Ripristina le impostazioni sopra ai valori predefiniti',
       resetConfirm: 'Ripristinare le impostazioni di aspetto ai valori predefiniti?',
+      size: 'Dimensione',
+      cssImportFailed: 'Impossibile leggere il file CSS',
     },
     validation: {
       usernameRequired: 'Il nome utente è obbligatorio',

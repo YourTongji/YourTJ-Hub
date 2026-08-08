@@ -56,6 +56,7 @@ import {
   loadAppearanceSettings,
   resetAppearanceSettings,
   saveAppearanceSettings,
+  MAX_CUSTOM_CSS_LENGTH,
   type AppearanceSettings,
   type FontZone,
 } from '@/runtime/appearance-settings'
@@ -671,11 +672,20 @@ const fontZones = computed(() => [
   { key: 'code' as FontZone, label: t('settings.general.zoneCode'), description: t('settings.general.zoneCodeDescription') },
 ])
 
+function clampSizes() {
+  for (const zone of ['ui', 'body', 'code'] as FontZone[]) {
+    const raw = Number(appearance.zones[zone].size)
+    appearance.zones[zone].size = Number.isFinite(raw) ? Math.min(24, Math.max(12, Math.round(raw))) : 12
+  }
+}
+
 function previewAppearance() {
   applyAppearanceSettings({ ...appearance })
 }
 
 function saveAppearance() {
+  clampSizes()
+  appearance.customCss = appearance.customCss.slice(0, MAX_CUSTOM_CSS_LENGTH)
   saveAppearanceSettings({ ...appearance })
 }
 
@@ -696,13 +706,18 @@ function triggerCssFileImport() {
   cssFileInput.value?.click()
 }
 function onCssFileChange(event: Event) {
-  const file = (event.target as HTMLInputElement).files?.[0]
-  ;(event.target as HTMLInputElement).value = ''
+  const input = event.target as HTMLInputElement
+  const file = input.files?.[0]
+  input.value = ''
   if (!file) return
   const reader = new FileReader()
   reader.onload = () => {
-    appearance.customCss = typeof reader.result === 'string' ? reader.result : ''
+    const text = typeof reader.result === 'string' ? reader.result : ''
+    appearance.customCss = text.slice(0, MAX_CUSTOM_CSS_LENGTH)
     saveAppearance()
+  }
+  reader.onerror = () => {
+    showError(t('settings.general.cssImportFailed'))
   }
   reader.readAsText(file)
 }
@@ -1739,7 +1754,7 @@ async function toggleBinding(provider: string) {
                       step="1"
                       class="gf-input h-9 w-20 text-center text-sm"
                       v-model.number="appearance.zones[zone.key].size"
-                      :aria-label="zone.label"
+                      :aria-label="zone.label + ' ' + t('settings.general.size')"
                       @input="previewAppearance"
                       @change="saveAppearance"
                     />

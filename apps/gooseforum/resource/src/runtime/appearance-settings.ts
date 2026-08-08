@@ -70,20 +70,18 @@ function normalizeZones(rawZones: unknown, legacy: Record<string, unknown>): Rec
       code: normalizeZone(rawZones.code, 'code'),
     }
   }
-  if (typeof legacy.fontSize !== 'number') {
+  if (typeof legacy.fontSize === 'number') {
+    const size = clampNumber(legacy.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX, 16)
     return {
-      ui: normalizeZone(undefined, 'ui'),
-      body: normalizeZone(undefined, 'body'),
-      code: normalizeZone(undefined, 'code'),
+      ui: normalizeZone({ size, familyPreset: legacy.fontFamilyPreset, customFontFamily: legacy.customFontFamily }, 'ui'),
+      body: normalizeZone({ size, familyPreset: legacy.fontFamilyPreset, customFontFamily: legacy.customFontFamily }, 'body'),
+      code: normalizeZone({}, 'code'),
     }
   }
-  const legacySize = clampNumber(legacy.fontSize, FONT_SIZE_MIN, FONT_SIZE_MAX, 16)
-  const legacyFamily = legacy.fontFamilyPreset
-  const legacyCustom = legacy.customFontFamily
   return {
-    ui: normalizeZone({ size: legacySize, familyPreset: legacyFamily, customFontFamily: legacyCustom }, 'ui'),
-    body: normalizeZone({ size: legacySize, familyPreset: legacyFamily, customFontFamily: legacyCustom }, 'body'),
-    code: normalizeZone({ size: legacySize, familyPreset: legacyFamily, customFontFamily: legacyCustom }, 'code'),
+    ui: normalizeZone({}, 'ui'),
+    body: normalizeZone({}, 'body'),
+    code: normalizeZone({}, 'code'),
   }
 }
 
@@ -141,13 +139,39 @@ export function applyAppearanceSettings(settings: AppearanceSettings) {
   applyFontZones(settings.zones)
 }
 
+function isZoneCustomized(zone: FontZone, zones: Record<FontZone, ZoneFont>): boolean {
+  const zf = zones[zone]
+  return zf.size !== DEFAULT_SIZE[zone] || zf.familyPreset !== DEFAULT_FAMILY[zone]
+}
+
 function applyFontZones(zones: Record<FontZone, ZoneFont>) {
-  document.documentElement.style.fontSize = `${zones.ui.size}px`
+  const root = document.documentElement
+  // UI zone: root font-size + body font-family
+  if (zones.ui.size !== DEFAULT_SIZE.ui) root.style.fontSize = `${zones.ui.size}px`
+  else root.style.removeProperty('font-size')
   setFontVar('--gf-font-family-ui', zones.ui)
-  setFontVar('--gf-font-family-body', zones.body)
-  setFontVar('--gf-font-family-code', zones.code)
-  document.documentElement.style.setProperty('--gf-font-size-body', `${zones.body.size}px`)
-  document.documentElement.style.setProperty('--gf-font-size-code', `${zones.code.size}px`)
+
+  // Body zone
+  if (isZoneCustomized('body', zones)) {
+    root.setAttribute('data-gf-font-body', '')
+    root.style.setProperty('--gf-font-size-body', `${zones.body.size}px`)
+    if (zones.body.familyPreset !== DEFAULT_FAMILY.body) setFontVar('--gf-font-family-body', zones.body)
+  } else {
+    root.removeAttribute('data-gf-font-body')
+    root.style.removeProperty('--gf-font-size-body')
+    root.style.removeProperty('--gf-font-family-body')
+  }
+
+  // Code zone
+  if (isZoneCustomized('code', zones)) {
+    root.setAttribute('data-gf-font-code', '')
+    root.style.setProperty('--gf-font-size-code', `${zones.code.size}px`)
+    if (zones.code.familyPreset !== DEFAULT_FAMILY.code) setFontVar('--gf-font-family-code', zones.code)
+  } else {
+    root.removeAttribute('data-gf-font-code')
+    root.style.removeProperty('--gf-font-size-code')
+    root.style.removeProperty('--gf-font-family-code')
+  }
 }
 
 function setFontVar(name: string, zone: ZoneFont) {
@@ -157,13 +181,15 @@ function setFontVar(name: string, zone: ZoneFont) {
 }
 
 function removeFontOverrides() {
-  const root = document.documentElement.style
-  root.removeProperty('font-size')
-  root.removeProperty('--gf-font-family-ui')
-  root.removeProperty('--gf-font-family-body')
-  root.removeProperty('--gf-font-family-code')
-  root.removeProperty('--gf-font-size-body')
-  root.removeProperty('--gf-font-size-code')
+  const root = document.documentElement
+  root.removeAttribute('data-gf-font-body')
+  root.removeAttribute('data-gf-font-code')
+  root.style.removeProperty('font-size')
+  root.style.removeProperty('--gf-font-family-ui')
+  root.style.removeProperty('--gf-font-family-body')
+  root.style.removeProperty('--gf-font-family-code')
+  root.style.removeProperty('--gf-font-size-body')
+  root.style.removeProperty('--gf-font-size-code')
 }
 
 function applyCustomCss(css: string) {
@@ -185,9 +211,10 @@ export function applyStoredAppearanceSettings() {
 }
 
 export function saveAppearanceSettings(settings: AppearanceSettings) {
-  applyAppearanceSettings(settings)
+  const normalized = normalizeAppearanceSettings(settings)
+  applyAppearanceSettings(normalized)
   try {
-    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(settings))
+    window.localStorage.setItem(STORAGE_KEY, JSON.stringify(normalized))
   } catch {
     // Ignore storage failures in private or restricted browsing contexts.
   }

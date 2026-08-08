@@ -611,6 +611,8 @@ export default {
       reset: 'Reset to defaults',
       resetDescription: 'Restore the settings above to their defaults',
       resetConfirm: 'Reset appearance settings to defaults?',
+      size: 'Size',
+      cssImportFailed: 'Failed to read CSS file',
     },
     validation: {
       usernameRequired: 'Username is required',

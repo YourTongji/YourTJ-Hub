@@ -34,13 +34,14 @@ describe('normalizeAppearanceSettings', () => {
     expect(s.zones.body.familyPreset).toBe('system')
   })
 
-  test('migrates legacy single font shape to all zones', () => {
+  test('migrates legacy single font shape to ui+body only (code keeps defaults)', () => {
     const s = normalizeAppearanceSettings({ fontSize: 18, fontFamilyPreset: 'serif', customFontFamily: '' })
     expect(s.zones.ui.size).toBe(18)
     expect(s.zones.body.size).toBe(18)
-    expect(s.zones.code.size).toBe(18)
     expect(s.zones.ui.familyPreset).toBe('serif')
-    expect(s.zones.code.familyPreset).toBe('serif')
+    expect(s.zones.body.familyPreset).toBe('serif')
+    expect(s.zones.code.size).toBe(14)
+    expect(s.zones.code.familyPreset).toBe('mono')
   })
 
   test('truncates customFamily and customCss', () => {

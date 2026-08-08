@@ -611,6 +611,8 @@ export default {
       reset: '既定に戻す',
       resetDescription: '上記の設定を既定値に戻します',
       resetConfirm: '外観設定を既定値に戻しますか？',
+      size: 'サイズ',
+      cssImportFailed: 'CSSファイルの読み込みに失敗しました',
     },
     validation: {
       usernameRequired: 'ユーザー名を入力してください',
