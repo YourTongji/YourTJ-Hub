@@ -6,6 +6,8 @@ import { installNavigation, preparePayload } from '@/runtime/router'
 import { currentLocale, i18n } from '@/runtime/i18n'
 import { hydrateFlashMessages } from '@/runtime/flash-message'
 import { applySiteThemePayload, applyStoredTheme } from '@/runtime/site-theme'
+import { applyStoredAppearanceSettings } from '@/runtime/appearance-settings'
+import { installClickRipple } from '@/runtime/click-ripple'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
 import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
@@ -21,6 +23,8 @@ const isReloadNavigation = navigationEntry?.type === 'reload'
 document.documentElement.lang = currentLocale()
 applySiteThemePayload(initialPayload.layout.theme)
 applyStoredTheme()
+applyStoredAppearanceSettings()
+installClickRipple()
 
 function commitPage(nextPage: typeof initialPage) {
   currentPage.value = nextPage
