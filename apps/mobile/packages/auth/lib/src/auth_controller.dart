@@ -133,7 +133,7 @@ class AuthController extends ChangeNotifier {
         await _completeLogin(username: _pendingUsername);
       } else {
         _phase = LoginPhase.failed;
-        _error = 'Invalid captcha';
+        _error = 'Invalid two-factor code';
       }
     } catch (e) {
       _phase = LoginPhase.failed;
@@ -218,8 +218,10 @@ class AuthController extends ChangeNotifier {
   /// 登出:尽力通知后端吊销会话 + 清本地。
   Future<void> logout() async {
     try {
-      // 尽力调用;网络失败不阻塞登出。
-      await _client.post<Object?>('/api/auth/logout');
+      // 尽力调用;网络失败不阻塞登出。路径必须与后端
+      // `POST /api/logout`(route4api.go baseApi.POST("logout"))一致,
+      // 否则服务端会话/jti 不会吊销。
+      await _client.post<Object?>('/api/logout');
     } catch (_) {
       // 忽略。
     }
@@ -243,8 +245,10 @@ class AuthController extends ChangeNotifier {
   }
 
   String _mapLoginError(ApiException e) {
-    switch (e.messageKey) {
-      case 'auth.login.captchaRequired':
+    // 用后端原始 messageCode 匹配(见 message_code.go),而非带
+    // `server.` 前缀的 messageKey;验证码码是 `common.captchaRequired`。
+    switch (e.messageCode) {
+      case 'common.captchaRequired':
         _phase = LoginPhase.needsCaptcha;
         return 'Captcha required';
       case 'auth.login.invalidRequest':

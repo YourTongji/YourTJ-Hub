@@ -103,6 +103,7 @@ class AuthRepository {
   Future<String> oidcExchange({
     required String code,
     required String codeVerifier,
+    required String nonce,
     required String redirectUri,
   }) {
     return _client.post<String>(
@@ -110,6 +111,7 @@ class AuthRepository {
       body: {
         'code': code,
         'codeVerifier': codeVerifier,
+        'nonce': nonce,
         'redirectUri': redirectUri,
       },
       parser: (json) {

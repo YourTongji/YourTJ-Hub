@@ -63,7 +63,7 @@ func TestOidcExchangeMissingParams(t *testing.T) {
 
 func TestOidcExchangeRejectsUnknownRedirectURI(t *testing.T) {
 	setCasdoorPrefs("http://127.0.0.1:1")
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","redirectUri":"https://evil.example.com/cb"}`)
+	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"https://evil.example.com/cb"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
@@ -74,7 +74,7 @@ func TestOidcExchangeRejectsUnknownRedirectURI(t *testing.T) {
 
 func TestOidcExchangeNotConfigured(t *testing.T) {
 	setCasdoorPrefs("")
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","redirectUri":"yourtj://callback"}`)
+	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
@@ -91,7 +91,7 @@ func TestOidcExchangeSuccessIssuesToken(t *testing.T) {
 	// assert the controller wiring: a token endpoint failure surfaces as the
 	// generic OAuth failure code instead of a 500.
 	setCasdoorPrefs("http://127.0.0.1:1")
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","redirectUri":"yourtj://callback"}`)
+	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want 401 (exchange failed)", rec.Code)
 	}
@@ -236,8 +236,9 @@ func TestOidcExchangeRejectsFrozenUser(t *testing.T) {
 	m.idToken = m.signIDToken(jwt.MapClaims{
 		"sub":                "1002",
 		"preferred_username": "frozenuser",
+		"nonce":              "n",
 	})
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","redirectUri":"yourtj://callback"}`)
+	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}
@@ -271,8 +272,9 @@ func TestOidcExchangeRejectsSignupDisabled(t *testing.T) {
 	m.idToken = m.signIDToken(jwt.MapClaims{
 		"sub":                "1003",
 		"preferred_username": "signupdisabled",
+		"nonce":              "n",
 	})
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","redirectUri":"yourtj://callback"}`)
+	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
 	}

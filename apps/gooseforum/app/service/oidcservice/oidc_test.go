@@ -429,8 +429,9 @@ func TestExchangeCodeAcceptsNumericSub(t *testing.T) {
 		"sub":                "123456",
 		"preferred_username": "alice",
 		"email":              "alice@example.com",
+		"nonce":              "test-nonce",
 	})
-	result, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	result, err := ExchangeCode("test-code", "test-verifier", "test-nonce", "yourtj://callback")
 	if err != nil {
 		t.Fatalf("ExchangeCode() error = %v", err)
 	}
@@ -444,7 +445,7 @@ func TestExchangeCodeRejectsUnknownRedirectURI(t *testing.T) {
 	configureOIDC(m.issuer())
 	configureMobileRedirect(t, "yourtj://callback")
 
-	_, err := ExchangeCode("test-code", "test-verifier", "https://evil.example.com/callback")
+	_, err := ExchangeCode("test-code", "test-verifier", "test-nonce", "https://evil.example.com/callback")
 	if !errors.Is(err, ErrInvalidMobileRedirectURI) {
 		t.Fatalf("error = %v, want ErrInvalidMobileRedirectURI", err)
 	}
@@ -455,10 +456,10 @@ func TestExchangeCodeRejectsMissingParams(t *testing.T) {
 	configureOIDC(m.issuer())
 	configureMobileRedirect(t, "yourtj://callback")
 
-	if _, err := ExchangeCode("", "test-verifier", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
+	if _, err := ExchangeCode("", "test-verifier", "test-nonce", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
 		t.Fatalf("empty code error = %v, want ErrInvalidExchangeRequest", err)
 	}
-	if _, err := ExchangeCode("test-code", "", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
+	if _, err := ExchangeCode("test-code", "", "test-nonce", "yourtj://callback"); !errors.Is(err, ErrInvalidExchangeRequest) {
 		t.Fatalf("empty verifier error = %v, want ErrInvalidExchangeRequest", err)
 	}
 }
@@ -468,10 +469,25 @@ func TestExchangeCodeRejectsNonNumericSub(t *testing.T) {
 	configureOIDC(m.issuer())
 	configureMobileRedirect(t, "yourtj://callback")
 
-	m.idToken = m.signIDToken(jwt.MapClaims{"sub": "uuid-sub"})
-	_, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	m.idToken = m.signIDToken(jwt.MapClaims{"sub": "uuid-sub", "nonce": "test-nonce"})
+	_, err := ExchangeCode("test-code", "test-verifier", "test-nonce", "yourtj://callback")
 	if !errors.Is(err, ErrNonNumericSub) {
 		t.Fatalf("error = %v, want ErrNonNumericSub", err)
+	}
+}
+
+func TestExchangeCodeRejectsNonceMismatch(t *testing.T) {
+	m := newMockOIDC(t)
+	configureOIDC(m.issuer())
+	configureMobileRedirect(t, "yourtj://callback")
+
+	m.idToken = m.signIDToken(jwt.MapClaims{
+		"sub":                "123456",
+		"preferred_username": "alice",
+		"nonce":              "attacker-nonce",
+	})
+	if _, err := ExchangeCode("test-code", "test-verifier", "test-nonce", "yourtj://callback"); !errors.Is(err, ErrNonceMismatch) {
+		t.Fatalf("error = %v, want ErrNonceMismatch", err)
 	}
 }
 
@@ -481,7 +497,7 @@ func TestExchangeCodeFailsWhenTokenEndpointRejects(t *testing.T) {
 	configureMobileRedirect(t, "yourtj://callback")
 	m.failToken = true
 
-	_, err := ExchangeCode("stale-code", "test-verifier", "yourtj://callback")
+	_, err := ExchangeCode("stale-code", "test-verifier", "test-nonce", "yourtj://callback")
 	if err == nil {
 		t.Fatal("ExchangeCode() error = nil, want token exchange failure")
 	}
@@ -493,7 +509,7 @@ func TestExchangeCodeRequiresConfig(t *testing.T) {
 	preferences.Set("casdoor.client_secret", "")
 	configureMobileRedirect(t, "yourtj://callback")
 
-	_, err := ExchangeCode("test-code", "test-verifier", "yourtj://callback")
+	_, err := ExchangeCode("test-code", "test-verifier", "test-nonce", "yourtj://callback")
 	if !errors.Is(err, ErrOIDCNotConfigured) {
 		t.Fatalf("error = %v, want ErrOIDCNotConfigured", err)
 	}

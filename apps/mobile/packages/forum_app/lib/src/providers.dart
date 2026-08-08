@@ -50,9 +50,12 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
   return GfApiClient(
     dio: ref.watch(dioProvider),
     tokenStorage: storage,
-    // --dart-define=YOURTJ_API_BASE_URL 注入;为空时走平台默认
-    // (Android 模拟器 10.0.2.2,真机/iOS 需显式注入)。
-    baseUrl: AppConfig.apiBaseUrl,
+    // --dart-define=YOURTJ_API_BASE_URL 注入;为空时必须回落到
+    // GfApiClient.defaultBaseUrl(Android 模拟器 10.0.2.2),不能把
+    // Dio baseUrl 显式设成 ''(否则请求打到无效 host)。
+    baseUrl: AppConfig.apiBaseUrl.isNotEmpty
+        ? AppConfig.apiBaseUrl
+        : GfApiClient.defaultBaseUrl,
     // New-Token 滑动续期:写回 tokenStorage 持久化新令牌。
     onTokenRenewed: (newToken) => storage.write(newToken),
     // 401 会话失效:清空令牌并通知 UI 跳转登录页。

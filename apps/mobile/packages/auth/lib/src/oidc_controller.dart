@@ -53,13 +53,16 @@ class OidcController extends ChangeNotifier {
     _error = '';
     notifyListeners();
     try {
+      // nonce 绑定:AppAuth 把 nonce 放进授权请求,后端兑换时校验
+      // id_token.nonce 与本值一致(与 web HandleCallback 相同的绑定)。
+      final String nonce = _randomToken(32);
       final AuthorizationResponse response = await _appAuth.authorize(
         AuthorizationRequest(
           _clientId,
           redirectUri,
           issuer: _issuer,
           scopes: ['openid', 'profile', 'email'],
-          nonce: _randomToken(32),
+          nonce: nonce,
           allowInsecureConnections: kDebugMode,
         ),
       );
@@ -80,6 +83,7 @@ class OidcController extends ChangeNotifier {
       final String token = await _auth.oidcExchange(
         code: response.authorizationCode!,
         codeVerifier: response.codeVerifier!,
+        nonce: nonce,
         redirectUri: redirectUri,
       );
       if (token.isEmpty) {

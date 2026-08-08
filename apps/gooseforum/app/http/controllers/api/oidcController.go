@@ -124,6 +124,7 @@ func OidcCallback(c *gin.Context) {
 type OidcExchangeRequest struct {
 	Code         string `json:"code" validate:"required"`
 	CodeVerifier string `json:"codeVerifier" validate:"required"`
+	Nonce        string `json:"nonce" validate:"required"`
 	RedirectURI  string `json:"redirectUri" validate:"required"`
 }
 
@@ -142,7 +143,7 @@ func OidcExchange(c *gin.Context) {
 		return
 	}
 
-	result, err := oidcservice.ExchangeCode(req.Code, req.CodeVerifier, req.RedirectURI)
+	result, err := oidcservice.ExchangeCode(req.Code, req.CodeVerifier, req.Nonce, req.RedirectURI)
 	if err != nil {
 		slog.Error("OIDC exchange failed", "error", err)
 		switch {

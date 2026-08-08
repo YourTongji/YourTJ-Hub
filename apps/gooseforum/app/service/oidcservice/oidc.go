@@ -279,13 +279,13 @@ func HandleCallback(c *gin.Context) (CallbackResult, error) {
 	return CallbackResult{Sub: sub, Username: username, Email: claims.Email}, nil
 }
 
-// ExchangeCode verifies a mobile OIDC authorization code. Unlike the browser
-// callback flow, the mobile client (AppAuth) generates and holds the PKCE
-// verifier and validates state/nonce itself, so no server-side session is
-// involved and no nonce check happens here. The redirect URI must match the
-// configured mobile allowlist.
-func ExchangeCode(code, codeVerifier, redirectURI string) (CallbackResult, error) {
-	if code == "" || codeVerifier == "" {
+// ExchangeCode verifies a mobile OIDC authorization code. The client sends
+// the nonce it placed in the authorization request; the id_token nonce must
+// match it (same binding the browser callback enforces), so a swapped or
+// replayed authorization code cannot mint a session with a different nonce.
+// The redirect URI must match the configured mobile allowlist.
+func ExchangeCode(code, codeVerifier, nonce, redirectURI string) (CallbackResult, error) {
+	if code == "" || codeVerifier == "" || nonce == "" {
 		return CallbackResult{}, ErrInvalidExchangeRequest
 	}
 	if redirectURI != MobileRedirectURI() {
@@ -314,6 +314,9 @@ func ExchangeCode(code, codeVerifier, redirectURI string) (CallbackResult, error
 	idToken, err := provider.Verifier(&oidc.Config{ClientID: settings.clientID}).Verify(context.Background(), rawIDToken)
 	if err != nil {
 		return CallbackResult{}, fmt.Errorf("校验id_token失败: %w", err)
+	}
+	if idToken.Nonce != nonce {
+		return CallbackResult{}, ErrNonceMismatch
 	}
 	var claims struct {
 		Sub               string `json:"sub"`

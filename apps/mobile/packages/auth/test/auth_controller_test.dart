@@ -61,6 +61,20 @@ void main() {
       expect(controller.error, contains('Invalid username or password'));
     });
 
+    test('common.captchaRequired 进入 needsCaptcha', () async {
+      final controller = _buildController(
+        storage: MemoryTokenStorage(),
+        captchaRequired: true,
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+
+      expect(controller.phase, LoginPhase.needsCaptcha);
+      // loadCaptcha 可用:拿验证码图片。
+      await controller.loadCaptcha();
+      expect(controller.captcha, isNotNull);
+    });
+
     test('登出清理 token 并回到 idle', () async {
       final storage = MemoryTokenStorage()..write('token');
       final controller = _buildController(storage: storage);
@@ -90,6 +104,7 @@ AuthController _buildController({
   required TokenStorage storage,
   bool twoFactorRequired = false,
   bool authFail = false,
+  bool captchaRequired = false,
 }) {
   final storageAdapter = storage;
   final client = GfApiClient(
@@ -100,6 +115,7 @@ AuthController _buildController({
   final auth = FakeAuthRepository(
     twoFactorRequired: twoFactorRequired,
     authFail: authFail,
+    captchaRequired: captchaRequired,
   );
   return AuthController(
     authRepository: auth,
@@ -116,10 +132,15 @@ class DioAdapter {
 
 /// 可编程 AuthRepository fake。
 class FakeAuthRepository implements AuthRepository {
-  FakeAuthRepository({this.twoFactorRequired = false, this.authFail = false});
+  FakeAuthRepository({
+    this.twoFactorRequired = false,
+    this.authFail = false,
+    this.captchaRequired = false,
+  });
 
   final bool twoFactorRequired;
   final bool authFail;
+  final bool captchaRequired;
 
   @override
   Future<CaptchaPayload> getCaptcha() async {
@@ -145,6 +166,12 @@ class FakeAuthRepository implements AuthRepository {
     String? captchaCode,
   }) async {
     if (authFail) throw UnauthorizedException();
+    if (captchaRequired) {
+      throw const ApiException(
+        fallbackMessage: 'captcha required',
+        messageCode: 'common.captchaRequired',
+      );
+    }
     return LoginResult(twoFactorRequired: twoFactorRequired);
   }
 
@@ -179,6 +206,7 @@ class FakeAuthRepository implements AuthRepository {
   Future<String> oidcExchange({
     required String code,
     required String codeVerifier,
+    required String nonce,
     required String redirectUri,
   }) async => 'oidc-token';
 

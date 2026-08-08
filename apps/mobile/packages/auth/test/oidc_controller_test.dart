@@ -45,17 +45,20 @@ class FakeAuthRepository implements AuthRepository {
   int exchangeCalls = 0;
   String? lastCode;
   String? lastVerifier;
+  String? lastNonce;
   String? lastRedirectUri;
 
   @override
   Future<String> oidcExchange({
     required String code,
     required String codeVerifier,
+    required String nonce,
     required String redirectUri,
   }) async {
     exchangeCalls++;
     lastCode = code;
     lastVerifier = codeVerifier;
+    lastNonce = nonce;
     lastRedirectUri = redirectUri;
     if (exchangeError != null) throw exchangeError!;
     return exchangeToken;
@@ -157,10 +160,11 @@ void main() {
     expect(appAuth.lastRequest!.redirectUrl, redirectUri);
     expect(appAuth.lastRequest!.scopes, ['openid', 'profile', 'email']);
     expect(appAuth.lastRequest!.nonce, isNotEmpty);
-    // exchange 收到 code + verifier + redirectUri。
+    // exchange 收到 code + verifier + 同一 nonce + redirectUri。
     expect(auth.exchangeCalls, 1);
     expect(auth.lastCode, 'auth-code-1');
     expect(auth.lastVerifier, 'pkce-verifier-1');
+    expect(auth.lastNonce, appAuth.lastRequest!.nonce);
     expect(auth.lastRedirectUri, redirectUri);
     // token 已持久化。
     expect(await storage.read(), 'forum-jwt-1');
