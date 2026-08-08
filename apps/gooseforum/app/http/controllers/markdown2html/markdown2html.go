@@ -17,7 +17,7 @@ import (
 )
 
 func GetPostVersion() uint32 {
-	return 4
+	return 5
 }
 
 var md = goldmark.New(
@@ -36,12 +36,13 @@ var md = goldmark.New(
 
 // MarkdownToHTML renders Markdown to HTML with the shared server parser.
 func MarkdownToHTML(markdown string) string {
+	protected, placeholders := protectMathSegments(markdown)
 	var buf bytes.Buffer
 	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
-	if err := md.Convert([]byte(markdown), &buf, parser.WithContext(ctx)); err != nil {
+	if err := md.Convert([]byte(protected), &buf, parser.WithContext(ctx)); err != nil {
 		slog.Error("转化失败", "err", err)
 	}
-	return buf.String()
+	return restoreMathSegments(buf.String(), placeholders)
 }
 
 // PostMarkdownToHTML renders public user content and applies UGC link/image policies.

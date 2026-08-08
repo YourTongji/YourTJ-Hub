@@ -44,10 +44,10 @@ const scopeTabs = computed(() => {
   const base = '/search'
   const scopeParam = (value: string) => (value === 'all' || !value ? '' : `&scope=${value}`)
   return [
-    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all' },
-    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics' },
-    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users' },
-    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories' },
+    { key: 'all', label: t('searchPage.scopeAll'), url: `${base}?q=${encodeURIComponent(page.props.query)}`, active: scope.value === 'all', count: page.props.total },
+    { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: page.props.total },
+    { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: page.props.usersTotal },
+    { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: page.props.categoriesTotal },
   ]
 })
 
@@ -94,16 +94,27 @@ watch(
         </template>
       </PageHeader>
 
-      <div v-if="hasQuery && !searchUnavailable" class="mb-3 flex flex-wrap items-center gap-1">
+      <!-- 搜索范围分段：与首页/分类页 gf-tab 体系一致（实心激活胶囊 + 结果计数）。
+           移动端 4 列等宽均分（带左右留白不贴边），桌面端内容自适应靠左 -->
+      <div
+        v-if="hasQuery && !searchUnavailable"
+        class="gf-home-topic-tabs mb-3 grid grid-cols-4 gap-1.5 px-3 sm:flex sm:gap-2 sm:px-0"
+        role="group"
+        :aria-label="t('searchPage.scopeAll')"
+      >
         <a
           v-for="tab in scopeTabs"
           :key="tab.key"
           :href="tab.url"
-          class="rounded-full px-3 py-1 text-sm transition"
-          :class="tab.active ? 'bg-primary text-primary-content' : 'bg-base-200 text-base-content/70 hover:bg-base-300'"
+          class="gf-tab justify-center sm:justify-start"
+          :class="tab.active ? 'gf-tab-active' : 'gf-tab-idle'"
           :aria-pressed="tab.active"
         >
           {{ tab.label }}
+          <span
+            class="ml-1 text-[11px] font-semibold tabular-nums"
+            :class="tab.active ? 'text-neutral-content/70' : 'text-base-content/40'"
+          >{{ formatNumber(tab.count) }}</span>
         </a>
       </div>
 
@@ -170,17 +181,20 @@ watch(
               {{ t('searchPage.categoriesSection') }}
               <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.categoriesCount', { count: formatNumber(page.props.categoriesTotal) }) }}</span>
             </h2>
-            <ul class="divide-y divide-line">
-              <li v-for="cat in categories" :key="cat.id">
-                <a :href="categoryUrl(cat)" class="flex items-center gap-3 px-4 py-3 transition hover:bg-base-200/60">
-                  <span class="flex h-8 w-8 shrink-0 items-center justify-center rounded-field text-base" :style="{ backgroundColor: cat.color || undefined }">{{ cat.icon || '#' }}</span>
-                  <div class="min-w-0">
-                    <p class="truncate text-sm font-medium text-base-content">{{ cat.name }}</p>
-                    <p v-if="cat.desc" class="truncate text-xs text-base-content/55">{{ cat.desc }}</p>
-                  </div>
-                </a>
-              </li>
-            </ul>
+            <div class="grid grid-cols-2 gap-2 p-3 sm:grid-cols-3">
+              <a
+                v-for="cat in categories"
+                :key="cat.id"
+                :href="categoryUrl(cat)"
+                class="flex min-w-0 items-center gap-2.5 rounded-field border border-line bg-base-100 p-3 transition hover:border-primary/40 hover:bg-base-200/60"
+              >
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field text-lg" :style="{ backgroundColor: cat.color || undefined }">{{ cat.icon || '#' }}</span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-base-content">{{ cat.name }}</p>
+                  <p v-if="cat.desc" class="mt-0.5 truncate text-xs text-base-content/55">{{ cat.desc }}</p>
+                </div>
+              </a>
+            </div>
           </div>
         </template>
 

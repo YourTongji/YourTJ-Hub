@@ -1,19 +1,22 @@
 <script setup lang="ts">
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
+  ArrowLeft,
   Ban,
   CalendarDays,
   Camera,
   Check,
-  Image,
+  ImagePlus,
   KeyRound,
   Link as LinkIcon,
   Loader2,
   Mail,
   Pencil,
+  Feather,
   Shield,
   Sparkles,
   UserRound,
+  X,
 } from '@lucide/vue'
 import {
   changePassword,
@@ -42,7 +45,9 @@ import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
-import { useCoverCropUpload } from '@/site/composables/useCoverCropUpload'
+import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
+import AvatarImageEditor from '@/site/components/AvatarImageEditor.vue'
+import CoverImageEditor from '@/site/components/CoverImageEditor.vue'
 import SectionHeader from '@/site/components/SectionHeader.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
@@ -87,49 +92,60 @@ const totpDisableCode = ref('')
 const totpQrUrl = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
-const editingCover = ref(false)
-const savingCover = ref(false)
+/** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
+const SIGNATURE_MAX_LENGTH = 40
+/** 简介的上限字数（信息栏与公开资料表单共用） */
+const BIO_MAX_LENGTH = 80
+/** 简介/签名允许的最多换行次数（保留前 N 个 \n，多余丢弃） */
+const MAX_PROFILE_NEWLINES = 4
+
+/** 信息栏就地编辑：同一时间只开一个字段 */
+type InlineProfileField = 'bio' | 'signature'
+const inlineEditingField = ref<InlineProfileField | null>(null)
+const inlineDraft = ref('')
+const savingInlineProfile = ref(false)
+const inlineFieldRef = ref<HTMLTextAreaElement | null>(null)
+/** 清空确认态：用户清空有内容的字段后点保存，先弹出确认条再落库 */
+const inlineConfirmClear = ref<InlineProfileField | null>(null)
 const savingPresetAvatar = ref('')
 const savingWornBadge = ref(false)
 const presetAvatarDraft = ref(page.props.user.avatarUrl)
 const wornBadgeCode = ref(page.props.user.wornBadgeCode || '')
 const coverUrl = ref(page.props.user.profileCoverUrl || '')
-const coverDraft = ref(page.props.user.profileCoverUrl || '')
 const bindings = ref<OAuthBindingsPayload>({})
 const { push: pushFlash } = useFlashMessages()
+const avatarEditorRef = ref<{ save: () => void } | null>(null)
 const {
-  uploadingAvatar,
   avatarInput,
-  cropperImage,
+  uploadingAvatar,
+  avatarCropOpen,
   avatarUrl,
-  cropModalOpen,
-  cropImageUrl,
-  cropPreviewUrl,
-  cropError,
+  avatarImageUrl,
   chooseAvatar: openAvatarPicker,
   handleAvatarChange,
-  closeCropModal,
-  uploadCroppedAvatar,
+  closeAvatarCrop,
+  saveAvatarFromCanvas,
 } = useAvatarCropUpload({
   initialAvatarUrl: page.props.user.avatarUrl,
-  onStatus: showStatus,
-  onError: showError,
+  // 头像相关反馈统一走全局通知横幅，避免打断设置页表单区域
+  onStatus: (message) => pushMediaFlash(message, 'success'),
+  onError: (message) => pushMediaFlash(message, 'error'),
 })
+const coverEditorRef = ref<{ save: () => void } | null>(null)
 const {
-  uploadingCover,
   coverInput,
-  coverCropperImage,
-  coverCropModalOpen,
-  coverCropImageUrl,
-  coverCropPreviewUrl,
-  coverCropError,
+  coverCropOpen,
+  coverImageUrl,
+  uploadingCover,
   chooseCover: openCoverPicker,
   handleCoverChange,
-  closeCropModal: closeCoverCropModal,
-  uploadCroppedCover,
+  closeCoverCrop,
+  saveCoverFromCanvas,
 } = useCoverCropUpload({
-  onStatus: showStatus,
-  onError: showError,
+  // 封面相关反馈统一走全局通知横幅（成功 / 错误 / 尺寸不足）
+  onStatus: (message) => pushMediaFlash(message, 'success'),
+  onError: (message) => pushMediaFlash(message, 'error'),
+  onWarning: (message) => pushMediaFlash(message, 'warning'),
 })
 
 const socialKeys = ['github', 'twitter', 'linkedIn', 'weibo', 'bilibili', 'zhihu'] as const
@@ -165,7 +181,17 @@ const privacy = reactive({
 })
 
 const displayName = computed(() => profileForm.nickname || usernameForm.username)
-const profileBioText = computed(() => profileForm.bio || profileForm.signature || t('user.emptyBio'))
+const hasProfileBio = computed(() => Boolean(profileForm.bio.trim()))
+const hasProfileSignature = computed(() => Boolean(profileForm.signature.trim()))
+/**
+ * 设置页信息栏：简介与签名分两行，避免「仅签名」时编辑目标歧义。
+ * 公开主页仍用 bio||signature 合成主行（见 UserPage）。
+ */
+const profileBioIsEmpty = computed(() => !hasProfileBio.value)
+const showSignatureQuote = computed(() => hasProfileSignature.value)
+const showSignatureAddSlot = computed(() => !hasProfileSignature.value && inlineEditingField.value !== 'signature')
+const isEditingBio = computed(() => inlineEditingField.value === 'bio')
+const isEditingSignature = computed(() => inlineEditingField.value === 'signature')
 const profileCoverStyle = computed(() => {
   const activeCoverUrl = coverUrl.value.trim()
   const defaultCover = 'linear-gradient(135deg, var(--gf-color-base-200) 0%, var(--gf-color-info-content) 52%, var(--gf-color-base-200) 100%)'
@@ -205,6 +231,7 @@ const localeOptions = computed(() => supportedLocales.map(item => ({
 const presetAvatars = Array.from({ length: 12 }, (_, index) => `/static/pic/${index + 1}.webp`)
 const presetAvatarChanged = computed(() => presetAvatarDraft.value !== avatarUrl.value)
 const avatarPreviewUrl = computed(() => presetAvatarChanged.value ? presetAvatarDraft.value : avatarUrl.value)
+const profileUrl = computed(() => `/u/${page.props.user.id}`)
 const userBadges = computed(() => page.props.user.badges || [])
 const wearableBadges = computed(() => page.props.user.wearableBadges || [])
 const wornBadgePreview = computed(() => wearableBadges.value.find(item => item.code === wornBadgeCode.value) || null)
@@ -231,9 +258,7 @@ watch(
     profileForm.website = page.props.user.website || ''
     profileForm.externalInformation = buildExternalInfo()
     coverUrl.value = page.props.user.profileCoverUrl || ''
-    coverDraft.value = page.props.user.profileCoverUrl || ''
     wornBadgeCode.value = page.props.user.wornBadgeCode || ''
-    editingCover.value = false
   },
 )
 
@@ -284,6 +309,16 @@ function triggerAvatarFlash() {
   pushFlash(item.message, item.type)
 }
 
+// 头像 / 封面编辑的反馈：走全局横幅，不占用设置页卡片内嵌状态条
+function pushMediaFlash(message: string, type: FlashMessageType = 'info') {
+  const trimmed = message.trim()
+  if (!trimmed) return
+  // 避免与内嵌表单状态条同时出现同一条媒体提示
+  if (status.value === trimmed) status.value = ''
+  if (error.value === trimmed) error.value = ''
+  pushFlash(trimmed, type)
+}
+
 function showStatus(message: string) {
   error.value = ''
   status.value = message
@@ -319,9 +354,9 @@ async function applyPresetAvatar() {
   try {
     avatarUrl.value = await savePresetAvatar(presetAvatarDraft.value)
     presetAvatarDraft.value = avatarUrl.value
-    showStatus(t('settings.status.avatarSaved'))
+    pushMediaFlash(t('settings.status.avatarSaved'), 'success')
   } catch (err) {
-    showError(err instanceof Error ? err.message : t('api.avatarPresetFailed'))
+    pushMediaFlash(err instanceof Error ? err.message : t('api.avatarPresetFailed'), 'error')
   } finally {
     savingPresetAvatar.value = ''
   }
@@ -340,7 +375,112 @@ async function applyWornBadge() {
   }
 }
 
+function beginInlineEdit(field: InlineProfileField) {
+  if (savingInlineProfile.value || savingProfile.value) return
+  inlineEditingField.value = field
+  inlineConfirmClear.value = null
+  inlineDraft.value = field === 'bio' ? profileForm.bio : profileForm.signature
+  void nextTick(() => {
+    const fieldElement = inlineFieldRef.value
+    if (!fieldElement) return
+    fieldElement.focus()
+    const textLength = fieldElement.value.length
+    fieldElement.setSelectionRange(textLength, textLength)
+  })
+}
+
+function cancelInlineEdit() {
+  if (savingInlineProfile.value) return
+  inlineEditingField.value = null
+  inlineConfirmClear.value = null
+  inlineDraft.value = ''
+}
+
+function onInlineKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    cancelInlineEdit()
+    return
+  }
+  if (event.key === 'Enter' && (event.metaKey || event.ctrlKey)) {
+    event.preventDefault()
+    void saveInlineEdit()
+  }
+}
+
+/** 限制换行次数：最多保留 MAX_PROFILE_NEWLINES 个换行，多余丢弃 */
+function clampNewlines(value: string): string {
+  let newlinesSeen = 0
+  let result = ''
+  for (const char of value) {
+    if (char === '\n') {
+      if (newlinesSeen >= MAX_PROFILE_NEWLINES) continue
+      newlinesSeen += 1
+    }
+    result += char
+  }
+  return result
+}
+
+function onInlineInput(event: Event) {
+  const nextValue = clampNewlines((event.target as HTMLTextAreaElement).value)
+  inlineDraft.value = nextValue
+  // 重新输入内容时退出清空确认态
+  if (nextValue.trim() && inlineConfirmClear.value) {
+    inlineConfirmClear.value = null
+  }
+}
+
+async function saveInlineEdit() {
+  const field = inlineEditingField.value
+  if (!field || savingInlineProfile.value) return
+
+  const nextValue = clampNewlines(inlineDraft.value)
+  const previousValue = field === 'bio' ? profileForm.bio : profileForm.signature
+  // 内容没变化：直接关闭，不产生网络改动
+  if (nextValue === previousValue) {
+    cancelInlineEdit()
+    return
+  }
+  // 清空有内容的字段：先弹确认条，确认后才真正落库
+  if (!nextValue.trim() && previousValue.trim() && inlineConfirmClear.value !== field) {
+    inlineConfirmClear.value = field
+    return
+  }
+
+  if (field === 'bio') profileForm.bio = nextValue
+  else profileForm.signature = nextValue
+
+  const normalized = normalizeSocialLinks()
+  if (!normalized) {
+    // 社交链接校验失败时回滚本字段，避免信息栏与未提交状态脱节
+    if (field === 'bio') profileForm.bio = previousValue
+    else profileForm.signature = previousValue
+    return
+  }
+
+  savingInlineProfile.value = true
+  try {
+    await saveUserInfo({ ...profileForm, externalInformation: normalized })
+    inlineEditingField.value = null
+    inlineConfirmClear.value = null
+    inlineDraft.value = ''
+    showStatus(t('settings.status.profileSaved'))
+  } catch (err) {
+    if (field === 'bio') profileForm.bio = previousValue
+    else profileForm.signature = previousValue
+    inlineConfirmClear.value = null
+    showError(err instanceof Error ? err.message : t('api.profileSaveFailed'))
+  } finally {
+    savingInlineProfile.value = false
+  }
+}
+
 async function saveProfile() {
+  // 兜底：简介/签名来自信息栏就地编辑（已 clamp），此处再保险一次防止未来入口绕过
+  profileForm.bio = clampNewlines(profileForm.bio)
+  profileForm.signature = clampNewlines(profileForm.signature)
+
   const normalized = normalizeSocialLinks()
   if (!normalized) return
 
@@ -400,40 +540,31 @@ function normalizeSocialLinks(): Record<string, { link?: string }> | undefined {
   return normalized
 }
 
-async function uploadCoverAndSave() {
+// 封面浮层编辑器保存：按当前视图输出 canvas → 上传并保存
+async function onCoverSave(canvas: HTMLCanvasElement) {
+  const coverUrlFromUpload = await saveCoverFromCanvas(canvas)
+  if (!coverUrlFromUpload) return
   try {
-    const coverUrlFromUpload = await uploadCroppedCover()
     await saveUserProfileCover(coverUrlFromUpload)
     coverUrl.value = coverUrlFromUpload
-    coverDraft.value = coverUrlFromUpload
-    showStatus(t('user.coverSaved'))
+    closeCoverCrop()
+    pushMediaFlash(t('user.coverSaved'), 'success')
   } catch (err) {
-    if (err instanceof Error) showError(err.message)
+    pushMediaFlash(err instanceof Error ? err.message : t('api.coverSaveFailed'), 'error')
   }
 }
 
-function toggleCoverEditor() {
-  coverDraft.value = coverUrl.value
-  editingCover.value = !editingCover.value
-}
-
-function cancelCoverEditor() {
-  coverDraft.value = coverUrl.value
-  editingCover.value = false
-}
-
-async function saveCover() {
-  savingCover.value = true
-  try {
-    await saveUserProfileCover(coverDraft.value)
-    coverUrl.value = coverDraft.value.trim()
-    editingCover.value = false
-    showStatus(t('user.coverSaved'))
-  } catch (err) {
-    showError(err instanceof Error ? err.message : t('api.coverSaveFailed'))
-  } finally {
-    savingCover.value = false
+// 头像编辑器保存：canvas → 上传
+async function onAvatarSave(canvas: HTMLCanvasElement) {
+  const url = await saveAvatarFromCanvas(canvas)
+  if (url) {
+    closeAvatarCrop()
+    pushMediaFlash(t('settings.status.avatarSaved'), 'success')
   }
+}
+
+function saveAvatarViaEditor() {
+  avatarEditorRef.value?.save()
 }
 
 async function saveUsername() {
@@ -694,11 +825,45 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
-      <section class="gf-card overflow-hidden">
-        <div class="h-20 border-b border-line bg-base-300 bg-cover bg-center sm:h-24" :style="profileCoverStyle" />
-        <div class="px-4 pb-4 sm:px-5">
+      <section class="gf-card" :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden'">
+        <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
+        <div class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="coverCropOpen ? undefined : profileCoverStyle">
+          <button
+            v-if="!coverCropOpen"
+            type="button"
+            class="absolute right-3 top-3 z-10 inline-flex h-9 items-center gap-1.5 rounded-md bg-black/40 px-3 text-sm font-semibold text-white/90 backdrop-blur-sm transition hover:bg-black/55 focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-white/30 disabled:cursor-wait disabled:opacity-70"
+            :aria-label="t('user.editCover')"
+            :disabled="uploadingCover"
+            @click="openCoverPicker"
+          >
+            <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
+            <ImagePlus v-else class="h-4 w-4" />
+            {{ t('user.editCover') }}
+          </button>
+          <!-- 浮层：预览铺满封面高度，操作条向下盖在头像上层 -->
+          <div v-if="coverCropOpen && coverImageUrl" class="absolute inset-0 z-20">
+            <CoverImageEditor
+              ref="coverEditorRef"
+              float-mode
+              :image-url="coverImageUrl"
+              :aspect-ratio="COVER_ASPECT_RATIO"
+              :saving="uploadingCover"
+              @save="onCoverSave"
+              @cancel="closeCoverCrop"
+            />
+          </div>
+          <input
+            ref="coverInput"
+            type="file"
+            class="hidden"
+            accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
+            @change="handleCoverChange"
+          />
+        </div>
+        <div class="relative z-0 px-4 pb-4 sm:px-5">
           <div class="flex flex-col gap-4 sm:flex-row sm:items-end sm:justify-between">
-            <div class="flex min-w-0 gap-4">
+            <!-- 移动端：头像单独一行盖封面，文字全宽在下方（与 UserPage 一致）；桌面端并排 -->
+            <div class="flex min-w-0 flex-1 flex-col gap-2 sm:flex-row sm:items-start sm:gap-4">
               <button
                 type="button"
                 class="group relative -mt-9 h-24 w-24 shrink-0 rounded-full border-2 border-base-100 bg-base-100 shadow-sm outline-none focus-visible:ring-4 focus-visible:ring-primary/20 sm:-mt-10 sm:h-28 sm:w-28"
@@ -711,12 +876,11 @@ async function toggleBinding(provider: string) {
                   <Loader2 v-if="uploadingAvatar" class="h-8 w-8 animate-spin opacity-100" />
                   <Camera v-else class="h-8 w-8 opacity-0 drop-shadow transition group-hover:opacity-100" />
                 </span>
-                <input ref="avatarInput" type="file" class="hidden" accept="image/*" @change="handleAvatarChange" />
               </button>
 
-              <div class="min-w-0 pt-3">
-                <div class="flex min-w-0 flex-wrap items-center gap-2">
-                  <h2 class="truncate text-2xl font-bold leading-tight text-base-content">{{ displayName }}</h2>
+              <div class="min-w-0 flex-1 sm:pt-3">
+                <div class="flex min-w-0 flex-wrap items-center gap-x-2 gap-y-1 sm:gap-y-2">
+                  <h2 class="truncate text-xl font-bold leading-tight tracking-tight text-base-content sm:text-2xl">{{ displayName }}</h2>
                   <span class="gf-badge gf-badge-info rounded text-[11px]">{{ t('settings.editing') }}</span>
                   <button
                     type="button"
@@ -728,86 +892,215 @@ async function toggleBinding(provider: string) {
                     <Sparkles class="h-4 w-4 text-primary" />
                   </button>
                 </div>
-                <p class="mt-1 text-sm font-medium text-base-content/55">@{{ usernameForm.username }}</p>
-                <p class="mt-2 max-w-3xl text-sm leading-relaxed text-base-content/75">{{ profileBioText }}</p>
+                <p class="mt-0.5 text-[13px] font-medium text-base-content/50 sm:mt-1">@{{ usernameForm.username }}</p>
+                <!-- 简介：展示 / 双击就地编辑（与下方表单共享 profileForm） -->
+                <div
+                  class="gf-profile-inline mt-2"
+                  :class="isEditingBio ? 'gf-profile-inline--editing' : 'gf-profile-inline--idle'"
+                >
+                  <div v-if="!isEditingBio" class="flex items-start gap-1">
+                    <button
+                      type="button"
+                      class="gf-profile-inline__body min-w-0 flex-1 text-left"
+                      :title="t('settings.profile.editBioHint')"
+                      :aria-label="t('settings.profile.editBioAria')"
+                      @dblclick="beginInlineEdit('bio')"
+                    >
+                      <p
+                        class="gf-profile-bio"
+                        :class="{ 'gf-profile-bio--empty': profileBioIsEmpty }"
+                      >
+                        {{ profileBioIsEmpty ? t('settings.profile.addBio') : profileForm.bio }}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-profile-inline__edit-btn mt-0.5"
+                      :aria-label="t('settings.profile.editBioAria')"
+                      :title="t('settings.profile.editBioHint')"
+                      @click="beginInlineEdit('bio')"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div v-else class="gf-profile-inline__editor">
+                    <textarea
+                      ref="inlineFieldRef"
+                      :value="inlineDraft"
+                      class="gf-profile-inline__textarea"
+                      rows="3"
+                      :maxlength="BIO_MAX_LENGTH"
+                      :disabled="savingInlineProfile"
+                      :aria-label="t('settings.profile.bio')"
+                      @input="onInlineInput"
+                      @keydown="onInlineKeydown"
+                    />
+                    <div v-if="inlineConfirmClear !== 'bio'" class="gf-profile-inline__toolbar">
+                      <span class="gf-profile-inline__hint">{{ t('settings.profile.inlineSaveHint') }}</span>
+                      <span class="gf-profile-inline__count">{{ inlineDraft.length }}/{{ BIO_MAX_LENGTH }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action gf-profile-inline__action--save"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.save')"
+                        :title="t('common.save')"
+                        @click="saveInlineEdit"
+                      >
+                        <Loader2 v-if="savingInlineProfile" class="h-4 w-4 animate-spin" />
+                        <Check v-else class="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.cancel')"
+                        :title="t('common.cancel')"
+                        @click="cancelInlineEdit"
+                      >
+                        <X class="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div v-else class="gf-profile-inline__confirm" role="alert">
+                      <span class="gf-profile-inline__confirm-text">{{ t('settings.profile.confirmClearBio') }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn gf-profile-inline__confirm-btn--clear"
+                        :disabled="savingInlineProfile"
+                        @click="saveInlineEdit"
+                      >
+                        {{ t('settings.profile.confirmClearAction') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn"
+                        :disabled="savingInlineProfile"
+                        @click="inlineConfirmClear = null"
+                      >
+                        {{ t('settings.profile.confirmKeepAction') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
+
+                <!-- 签名：始终独立一行（有内容用引用块，无内容用添加占位） -->
+                <div
+                  v-if="showSignatureQuote || isEditingSignature || showSignatureAddSlot"
+                  class="gf-profile-inline gf-profile-inline--quote mt-1.5 sm:mt-2"
+                  :class="isEditingSignature ? 'gf-profile-inline--editing' : 'gf-profile-inline--idle'"
+                >
+                  <div v-if="!isEditingSignature" class="flex items-start gap-1">
+                    <button
+                      type="button"
+                      class="min-w-0 flex-1 text-left"
+                      :title="t('settings.profile.editSignatureHint')"
+                      :aria-label="t('settings.profile.editSignatureAria')"
+                      @dblclick="beginInlineEdit('signature')"
+                    >
+                      <aside v-if="showSignatureQuote" class="gf-profile-signature !mt-0" :aria-label="t('user.signatureLabel')">
+                        <div class="gf-profile-signature__row">
+                          <Feather class="gf-profile-signature__icon" aria-hidden="true" />
+                          <p class="gf-profile-signature__text">{{ profileForm.signature }}</p>
+                        </div>
+                        <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+                          <path
+                            d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
+                            fill="none"
+                            stroke="currentColor"
+                            stroke-width="1.8"
+                            stroke-linecap="round"
+                          />
+                        </svg>
+                      </aside>
+                      <p
+                        v-else
+                        class="gf-profile-bio gf-profile-bio--empty px-1.5 py-1 sm:px-2"
+                      >
+                        {{ t('settings.profile.addSignature') }}
+                      </p>
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-profile-inline__edit-btn mt-1"
+                      :aria-label="t('settings.profile.editSignatureAria')"
+                      :title="t('settings.profile.editSignatureHint')"
+                      @click="beginInlineEdit('signature')"
+                    >
+                      <Pencil class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+                  <div v-else class="gf-profile-inline__editor">
+                    <textarea
+                      ref="inlineFieldRef"
+                      :value="inlineDraft"
+                      class="gf-profile-inline__textarea gf-profile-inline__textarea--quote"
+                      rows="2"
+                      :maxlength="SIGNATURE_MAX_LENGTH"
+                      :disabled="savingInlineProfile"
+                      :aria-label="t('settings.profile.signature')"
+                      @input="onInlineInput"
+                      @keydown="onInlineKeydown"
+                    />
+                    <div v-if="inlineConfirmClear !== 'signature'" class="gf-profile-inline__toolbar">
+                      <span class="gf-profile-inline__hint">{{ t('settings.profile.inlineSaveHint') }}</span>
+                      <span class="gf-profile-inline__count">{{ inlineDraft.length }}/{{ SIGNATURE_MAX_LENGTH }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action gf-profile-inline__action--save"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.save')"
+                        :title="t('common.save')"
+                        @click="saveInlineEdit"
+                      >
+                        <Loader2 v-if="savingInlineProfile" class="h-4 w-4 animate-spin" />
+                        <Check v-else class="h-4 w-4" />
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__action"
+                        :disabled="savingInlineProfile"
+                        :aria-label="t('common.cancel')"
+                        :title="t('common.cancel')"
+                        @click="cancelInlineEdit"
+                      >
+                        <X class="h-4 w-4" />
+                      </button>
+                    </div>
+                    <div v-else class="gf-profile-inline__confirm" role="alert">
+                      <span class="gf-profile-inline__confirm-text">{{ t('settings.profile.confirmClearSignature') }}</span>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn gf-profile-inline__confirm-btn--clear"
+                        :disabled="savingInlineProfile"
+                        @click="saveInlineEdit"
+                      >
+                        {{ t('settings.profile.confirmClearAction') }}
+                      </button>
+                      <button
+                        type="button"
+                        class="gf-profile-inline__confirm-btn"
+                        :disabled="savingInlineProfile"
+                        @click="inlineConfirmClear = null"
+                      >
+                        {{ t('settings.profile.confirmKeepAction') }}
+                      </button>
+                    </div>
+                  </div>
+                </div>
               </div>
             </div>
 
-            <div class="flex shrink-0 flex-col items-start gap-2 sm:items-end">
-              <div class="flex flex-wrap items-center gap-2">
-                <div class="relative">
-                  <button
-                    type="button"
-                    class="gf-button gf-button-md gf-button-secondary"
-                    :aria-expanded="editingCover"
-                    @click="toggleCoverEditor"
-                  >
-                    <Image class="h-4 w-4" />
-                    {{ t('user.editCover') }}
-                  </button>
-                  <div
-                    v-if="editingCover"
-                    class="fixed inset-x-0 bottom-0 z-50 rounded-t-2xl border-t border-line bg-base-100 p-4 shadow-2xl sm:absolute sm:inset-x-auto sm:top-11 sm:bottom-auto sm:left-auto sm:right-0 sm:w-80 sm:rounded-xl sm:border sm:bg-base-100 sm:p-3 sm:shadow-lg"
-                    role="dialog"
-                    aria-modal="false"
-                    :aria-label="t('user.editCover')"
-                  >
-                    <div class="mb-3 flex items-center justify-between sm:hidden">
-                      <span class="text-sm font-semibold text-base-content">{{ t('user.editCover') }}</span>
-                      <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300" @click="cancelCoverEditor">
-                        {{ t('common.close') }}
-                      </button>
-                    </div>
-                    <div class="flex items-center gap-3">
-                      <input ref="coverInput" type="file" class="hidden" accept="image/*" @change="handleCoverChange" />
-                      <button
-                        type="button"
-                        class="gf-button gf-button-md gf-button-primary flex-1"
-                        :disabled="uploadingCover"
-                        @click="openCoverPicker"
-                      >
-                        <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
-                        <Camera v-else class="h-4 w-4" />
-                        {{ t('settings.cover.upload') }}
-                      </button>
-                      <span class="text-xs text-base-content/55">{{ t('settings.cover.ratioHint') }}</span>
-                    </div>
-                    <div class="my-3 flex items-center gap-3 text-xs text-base-content/45">
-                      <span class="h-px flex-1 bg-line" />
-                      {{ t('settings.cover.orUrl') }}
-                      <span class="h-px flex-1 bg-line" />
-                    </div>
-                    <form class="space-y-3" @submit.prevent="saveCover">
-                      <label class="block">
-                        <span class="text-xs font-semibold text-base-content/55">{{ t('user.coverUrl') }}</span>
-                        <input
-                          v-model="coverDraft"
-                          type="url"
-                          class="gf-input mt-1 h-9"
-                          :placeholder="t('user.coverUrl')"
-                        />
-                      </label>
-                      <div class="flex justify-end gap-2">
-                        <button
-                          type="button"
-                          class="gf-button gf-button-sm gf-button-secondary"
-                          :disabled="savingCover || uploadingCover"
-                          @click="cancelCoverEditor"
-                        >
-                          {{ t('common.cancel') }}
-                        </button>
-                        <button
-                          type="submit"
-                          class="gf-button gf-button-sm gf-button-primary min-w-16 disabled:cursor-wait"
-                          :disabled="savingCover || uploadingCover"
-                        >
-                          <Loader2 v-if="savingCover" class="h-4 w-4 animate-spin" />
-                          <span v-else>{{ t('common.save') }}</span>
-                        </button>
-                      </div>
-                    </form>
-                  </div>
-                </div>
+            <!-- 右栏操作区：导航出口置顶/靠前，编辑动作同组 gap-2（better-layout）。
+                 信息栏编辑进行中时隐藏，让编辑框展开到整行宽度（40 字签名一行放下） -->
+            <div v-if="!isEditingBio && !isEditingSignature" class="flex shrink-0 flex-col items-stretch gap-2 sm:items-end">
+              <div class="flex flex-wrap items-center gap-2 sm:justify-end">
+                <a
+                  :href="profileUrl"
+                  class="gf-button gf-button-md gf-button-secondary"
+                  :aria-label="t('settings.backToProfile')"
+                >
+                  <ArrowLeft class="h-4 w-4" />
+                  {{ t('settings.backToProfile') }}
+                </a>
                 <button
                   type="button"
                   class="gf-button gf-button-md gf-button-secondary"
@@ -1052,15 +1345,6 @@ async function toggleBinding(provider: string) {
                   <input v-model="profileForm.website" class="gf-input mt-1" placeholder="https://example.com" />
                 </label>
               </div>
-
-              <label class="block">
-                <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.bio') }}</span>
-                <textarea v-model="profileForm.bio" class="gf-textarea mt-1 min-h-24 py-2" />
-              </label>
-              <label class="block">
-                <span class="text-sm font-medium text-base-content/75">{{ t('settings.profile.signature') }}</span>
-                <textarea v-model="profileForm.signature" class="gf-textarea mt-1 min-h-20 py-2" />
-              </label>
 
               <div class="border-t border-line pt-5">
                 <div class="mb-1 flex items-center gap-2">
@@ -1385,109 +1669,71 @@ async function toggleBinding(provider: string) {
         </div>
       </section>
 
-      <div v-if="cropModalOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
-        <div class="mx-auto flex min-h-full max-w-[760px] items-center justify-center">
-          <div class="gf-menu-surface flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden">
-            <div class="flex items-center justify-between border-b border-line px-5 py-3">
-              <div>
-                <h2 class="text-base font-semibold text-base-content">{{ t('settings.avatar.cropTitle') }}</h2>
-                <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.avatar.cropDescription') }}</p>
-              </div>
-              <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300 hover:text-base-content" @click="closeCropModal">
-                {{ t('common.close') }}
-              </button>
+      <!-- 头像编辑模态框（知乎式：居中 1:1 预览 + 滑条缩放 + 保存） -->
+      <div
+        v-if="avatarCropOpen"
+        class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="avatar-crop-dialog-title"
+      >
+        <div class="mx-auto flex min-h-full items-center justify-center">
+          <div class="gf-menu-surface relative flex w-full max-w-[400px] flex-col overflow-hidden">
+            <button
+              type="button"
+              class="absolute right-3 top-3 z-10 inline-flex h-8 w-8 items-center justify-center rounded-md text-base-content/45 transition hover:bg-base-300 hover:text-base-content"
+              :aria-label="t('common.close')"
+              @click="closeAvatarCrop"
+            >
+              <X class="h-4 w-4" aria-hidden="true" />
+            </button>
+
+            <div class="px-6 pb-2 pt-8 text-center">
+              <h2 id="avatar-crop-dialog-title" class="text-lg font-semibold text-base-content">
+                {{ t('settings.avatar.cropTitle') }}
+              </h2>
+              <p class="mt-1 text-sm text-base-content/55">
+                {{ t('settings.avatar.cropDescription') }}
+              </p>
             </div>
 
-            <div class="grid gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(280px,420px)_180px] md:items-start md:justify-center">
-              <div class="avatar-crop-workspace aspect-square w-full max-w-[420px] justify-self-center overflow-hidden rounded-lg border border-line bg-base-200">
-                <img ref="cropperImage" :src="cropImageUrl" :alt="t('settings.avatar.cropAlt')" class="block" />
-              </div>
-
-              <aside class="grid gap-4 sm:grid-cols-[128px_minmax(0,1fr)] md:block md:space-y-4">
-                <div class="min-w-0">
-                  <div class="mb-2 text-sm font-semibold text-base-content">{{ t('settings.avatar.preview') }}</div>
-                  <div class="flex h-32 w-32 items-center justify-center overflow-hidden rounded-full border border-line bg-base-200">
-                    <img v-if="cropPreviewUrl" :src="cropPreviewUrl" :alt="t('settings.avatar.previewAlt')" class="h-full w-full object-cover" />
-                  </div>
-                </div>
-                <div class="self-start rounded-lg bg-base-200 p-3 text-sm leading-6 text-base-content/55">
-                  {{ t('settings.avatar.cropTip') }}
-                </div>
-              </aside>
+            <div class="flex flex-col items-center px-6 py-4">
+              <AvatarImageEditor
+                v-if="avatarImageUrl"
+                ref="avatarEditorRef"
+                :image-url="avatarImageUrl"
+                :stage-size="256"
+                :output-size="300"
+                :saving="uploadingAvatar"
+                @save="onAvatarSave"
+                @cancel="closeAvatarCrop"
+              />
             </div>
 
-            <div v-if="cropError" class="border-t border-error/20 bg-error/10 px-5 py-3 text-sm font-medium text-error">
-              {{ cropError }}
-            </div>
 
-            <div class="flex items-center justify-end gap-2 border-t border-line bg-base-200 px-5 py-3">
-              <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="closeCropModal">
-                {{ t('common.cancel') }}
-              </button>
+            <div class="px-6 pb-6 pt-2">
               <button
                 type="button"
-                class="gf-button gf-button-lg gf-button-primary min-w-28 disabled:cursor-wait"
-                :disabled="uploadingAvatar"
-                @click="uploadCroppedAvatar"
+                class="gf-button gf-button-lg gf-button-primary w-full font-semibold disabled:cursor-wait"
+                :disabled="uploadingAvatar || !avatarImageUrl"
+                :aria-busy="uploadingAvatar"
+                @click="saveAvatarViaEditor"
               >
                 <Loader2 v-if="uploadingAvatar" class="h-4 w-4 animate-spin" />
-                {{ uploadingAvatar ? t('settings.avatar.uploading') : t('settings.avatar.confirmUpload') }}
+                {{ uploadingAvatar ? t('settings.avatar.uploading') : t('common.save') }}
               </button>
             </div>
           </div>
         </div>
       </div>
-      <div v-if="coverCropModalOpen" class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4" role="dialog" aria-modal="true">
-        <div class="mx-auto flex min-h-full max-w-[760px] items-center justify-center">
-          <div class="gf-menu-surface flex max-h-[calc(100vh-2rem)] w-full flex-col overflow-hidden">
-            <div class="flex items-center justify-between border-b border-line px-5 py-3">
-              <div>
-                <h2 class="text-base font-semibold text-base-content">{{ t('settings.cover.cropTitle') }}</h2>
-                <p class="mt-0.5 text-sm text-base-content/55">{{ t('settings.cover.cropDescription') }}</p>
-              </div>
-              <button type="button" class="rounded-md px-2 py-1 text-sm font-medium text-base-content/55 hover:bg-base-300 hover:text-base-content" @click="closeCoverCropModal">
-                {{ t('common.close') }}
-              </button>
-            </div>
 
-            <div class="grid gap-4 overflow-y-auto p-4 md:grid-cols-[minmax(280px,440px)_180px] md:items-start md:justify-center">
-              <div class="cover-crop-workspace aspect-[4/1] w-full max-w-[440px] justify-self-center overflow-hidden rounded-lg border border-line bg-base-200">
-                <img ref="coverCropperImage" :src="coverCropImageUrl" :alt="t('settings.cover.cropAlt')" class="block" />
-              </div>
+      <input
+        ref="avatarInput"
+        type="file"
+        class="hidden"
+        accept="image/png,image/jpeg,image/webp,image/gif,image/bmp,image/avif"
+        @change="handleAvatarChange"
+      />
 
-              <aside class="grid gap-4 sm:grid-cols-[200px_minmax(0,1fr)] md:block md:space-y-4">
-                <div class="min-w-0">
-                  <div class="mb-2 text-sm font-semibold text-base-content">{{ t('settings.avatar.preview') }}</div>
-                  <div class="flex h-20 w-80 max-w-full items-center justify-center overflow-hidden rounded-lg border border-line bg-base-200">
-                    <img v-if="coverCropPreviewUrl" :src="coverCropPreviewUrl" :alt="t('settings.avatar.previewAlt')" class="h-full w-full object-cover" />
-                  </div>
-                </div>
-                <div class="self-start rounded-lg bg-base-200 p-3 text-sm leading-6 text-base-content/55">
-                  {{ t('settings.cover.cropTip') }}
-                </div>
-              </aside>
-            </div>
-
-            <div v-if="coverCropError" class="border-t border-error/20 bg-error/10 px-5 py-3 text-sm font-medium text-error">
-              {{ coverCropError }}
-            </div>
-
-            <div class="flex items-center justify-end gap-2 border-t border-line bg-base-200 px-5 py-3">
-              <button type="button" class="gf-button gf-button-lg gf-button-muted font-medium" @click="closeCoverCropModal">
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-lg gf-button-primary min-w-28 disabled:cursor-wait"
-                :disabled="uploadingCover"
-                @click="uploadCoverAndSave"
-              >
-                <Loader2 v-if="uploadingCover" class="h-4 w-4 animate-spin" />
-                {{ uploadingCover ? t('settings.cover.uploading') : t('settings.cover.confirmUpload') }}
-              </button>
-            </div>
-          </div>
-        </div>
-      </div>
     </main>
 </template>

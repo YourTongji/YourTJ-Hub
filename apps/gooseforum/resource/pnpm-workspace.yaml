@@ -2,5 +2,7 @@ packages:
   - "."
   - "packages/*"
 allowBuilds:
+  # core-js runs a postinstall build script; keep allowlisted so pnpm does not block it
+  core-js: true
   maplibre-gl: true
   vue-demi: true
