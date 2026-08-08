@@ -54,11 +54,14 @@ import SiteSelect from '@/site/components/SiteSelect.vue'
 import {
   applyAppearanceSettings,
   loadAppearanceSettings,
+  loadLocalFonts,
+  quoteFontFamily,
   resetAppearanceSettings,
   saveAppearanceSettings,
   MAX_CUSTOM_CSS_LENGTH,
   type AppearanceSettings,
   type FontZone,
+  type LocalFontInfo,
 } from '@/runtime/appearance-settings'
 import UserAvatar from '@/site/components/UserAvatar.vue'
 import { badgeClass, badgeIconURL, badgeTooltip } from '@/site/utils/badge-style'
@@ -689,9 +692,32 @@ function saveAppearance() {
   saveAppearanceSettings({ ...appearance })
 }
 
-function saveCustomFont(zone: FontZone) {
-  const zf = appearance.zones[zone]
-  if (zf.familyPreset === 'custom' && !zf.customFamily.trim()) zf.familyPreset = 'system'
+/** 本地字体加载状态（按 zone 独立）：idle / loading / loaded / unsupported / error */
+type LocalFontsStatus = 'idle' | 'loading' | 'loaded' | 'unsupported' | 'error'
+const localFontsStatus = reactive<Record<FontZone, LocalFontsStatus>>({ ui: 'idle', body: 'idle', code: 'idle' })
+const localFonts = ref<LocalFontInfo[]>([])
+
+async function handleLoadLocalFonts(zone: FontZone) {
+  if (localFontsStatus[zone] === 'loading') return
+  localFontsStatus[zone] = 'loading'
+  const result = await loadLocalFonts()
+  if (result.status === 'ok') {
+    localFonts.value = result.fonts
+    localFontsStatus[zone] = 'loaded'
+  } else if (result.status === 'unsupported') {
+    localFontsStatus[zone] = 'unsupported'
+  } else {
+    localFontsStatus[zone] = 'error'
+  }
+}
+
+function selectLocalFont(zone: FontZone, font: LocalFontInfo) {
+  appearance.zones[zone].customFamily = font.family
+  saveAppearance()
+}
+
+function clearCustomFont(zone: FontZone) {
+  appearance.zones[zone].customFamily = ''
   saveAppearance()
 }
 
@@ -1767,17 +1793,65 @@ async function toggleBinding(provider: string) {
                   </div>
                 </div>
                 <div v-if="appearance.zones[zone.key].familyPreset === 'custom'" class="mt-3">
-                  <input
-                    v-model="appearance.zones[zone.key].customFamily"
-                    type="text"
-                    class="gf-input w-full"
-                    maxlength="200"
-                    :placeholder="t('settings.general.customFontPlaceholder')"
-                    :aria-label="zone.label + ' ' + t('settings.general.fontCustom')"
-                    @input="previewAppearance"
-                    @blur="saveCustomFont(zone.key)"
-                    @keydown.enter="saveCustomFont(zone.key)"
-                  />
+                  <div
+                    v-if="appearance.zones[zone.key].customFamily"
+                    class="mb-2 flex items-center justify-between gap-2 rounded-md border border-line bg-base-200/50 px-3 py-2"
+                  >
+                    <span
+                      class="min-w-0 truncate text-sm font-medium text-base-content"
+                      :style="{ fontFamily: quoteFontFamily(appearance.zones[zone.key].customFamily) }"
+                    >
+                      {{ appearance.zones[zone.key].customFamily }}
+                    </span>
+                    <button
+                      type="button"
+                      class="inline-flex h-6 w-6 shrink-0 items-center justify-center rounded text-base-content/45 transition hover:bg-base-300 hover:text-base-content"
+                      :aria-label="t('settings.general.clearCustomFont')"
+                      :title="t('settings.general.clearCustomFont')"
+                      @click="clearCustomFont(zone.key)"
+                    >
+                      <X class="h-3.5 w-3.5" />
+                    </button>
+                  </div>
+
+                  <button
+                    v-if="localFontsStatus[zone.key] === 'idle' || localFontsStatus[zone.key] === 'loading' || localFontsStatus[zone.key] === 'error'"
+                    type="button"
+                    class="gf-button gf-button-md gf-button-secondary w-full"
+                    :disabled="localFontsStatus[zone.key] === 'loading'"
+                    @click="handleLoadLocalFonts(zone.key)"
+                  >
+                    <Loader2 v-if="localFontsStatus[zone.key] === 'loading'" class="h-4 w-4 animate-spin" />
+                    <Check v-else class="h-4 w-4" />
+                    {{ localFontsStatus[zone.key] === 'error' ? t('settings.general.retryLoadFonts') : t('settings.general.loadLocalFonts') }}
+                  </button>
+
+                  <p v-else-if="localFontsStatus[zone.key] === 'unsupported'" class="text-xs text-base-content/55">
+                    {{ t('settings.general.fontsUnsupported') }}
+                  </p>
+
+                  <template v-else-if="localFontsStatus[zone.key] === 'loaded'">
+                    <div v-if="localFonts.length" class="mt-2 max-h-56 overflow-y-auto rounded-md border border-line p-1">
+                      <button
+                        v-for="font in localFonts"
+                        :key="font.family"
+                        type="button"
+                        class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content hover:bg-base-200"
+                        :class="appearance.zones[zone.key].customFamily === font.family ? 'bg-primary/10 text-primary' : ''"
+                        :style="{ fontFamily: quoteFontFamily(font.family) }"
+                        @click="selectLocalFont(zone.key, font)"
+                      >
+                        <span class="min-w-0 flex-1 truncate">{{ font.fullName }}</span>
+                        <Check v-if="appearance.zones[zone.key].customFamily === font.family" class="h-4 w-4 shrink-0" />
+                      </button>
+                    </div>
+                    <p v-else class="text-xs text-base-content/55">
+                      {{ t('settings.general.fontsEmpty') }}
+                      <button type="button" class="ml-1 text-primary underline" @click="handleLoadLocalFonts(zone.key)">
+                        {{ t('settings.general.retryLoadFonts') }}
+                      </button>
+                    </p>
+                  </template>
                 </div>
               </div>
 

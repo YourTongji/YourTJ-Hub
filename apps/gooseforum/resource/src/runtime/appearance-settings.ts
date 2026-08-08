@@ -103,8 +103,55 @@ function normalizeZone(raw: unknown, zone: FontZone): ZoneFont {
 }
 
 export function resolveFontFamily(zone: ZoneFont): string {
-  if (zone.familyPreset === 'custom') return zone.customFamily.trim() || FONT_STACKS.system
+  if (zone.familyPreset === 'custom') return quoteFontFamily(zone.customFamily) || FONT_STACKS.system
   return FONT_STACKS[zone.familyPreset]
+}
+
+/**
+ * 把用户字体名包成安全的 CSS font-family 值。
+ * 字体名含空格（如 "Noto Serif SC"）时必须加引号，否则会被拆成多个族名；
+ * 同时剔除可能破坏 CSS 结构的引号字符。
+ */
+export function quoteFontFamily(name: string): string {
+  const trimmed = name.trim()
+  if (!trimmed) return ''
+  if ((trimmed.startsWith('"') && trimmed.endsWith('"')) || (trimmed.startsWith("'") && trimmed.endsWith("'"))) {
+    return trimmed
+  }
+  return `"${trimmed.replace(/["']/g, '')}"`
+}
+
+export interface LocalFontInfo {
+  family: string
+  fullName: string
+}
+
+export type LocalFontsResult =
+  | { status: 'ok'; fonts: LocalFontInfo[] }
+  | { status: 'unsupported' }
+  | { status: 'error' }
+
+/** 枚举本机字体（Local Font Access API，Chrome/Edge 103+）。 */
+export async function loadLocalFonts(): Promise<LocalFontsResult> {
+  if (typeof window === 'undefined' || typeof window.queryLocalFonts !== 'function') {
+    return { status: 'unsupported' }
+  }
+  try {
+    const fonts = await window.queryLocalFonts()
+    const seen = new Set<string>()
+    const list: LocalFontInfo[] = []
+    for (const font of fonts) {
+      const family = font.family?.trim()
+      if (!family || seen.has(family)) continue
+      seen.add(family)
+      list.push({ family, fullName: font.fullName?.trim() || family })
+    }
+    list.sort((a, b) => a.family.localeCompare(b.family, undefined, { sensitivity: 'base' }))
+    return { status: 'ok', fonts: list }
+  } catch {
+    // 用户拒绝授权或 API 异常。
+    return { status: 'error' }
+  }
 }
 
 export function isFontPristine(settings: AppearanceSettings): boolean {

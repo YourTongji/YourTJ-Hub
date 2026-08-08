@@ -2,8 +2,10 @@ import { describe, expect, test } from 'vitest'
 import {
   DEFAULT_APPEARANCE_SETTINGS,
   isFontPristine,
+  loadLocalFonts,
   MAX_CUSTOM_CSS_LENGTH,
   normalizeAppearanceSettings,
+  quoteFontFamily,
   resolveFontFamily,
 } from '../src/runtime/appearance-settings'
 
@@ -68,11 +70,40 @@ describe('resolveFontFamily', () => {
     expect(resolveFontFamily({ size: 16, familyPreset: 'mono', customFamily: '' })).toContain('ui-monospace')
   })
 
-  test('custom uses trimmed value, blank custom falls back to system stack', () => {
-    expect(resolveFontFamily({ size: 16, familyPreset: 'custom', customFamily: '  KaiTi  ' })).toBe('KaiTi')
+  test('custom uses quoted trimmed value, blank custom falls back to system stack', () => {
+    expect(resolveFontFamily({ size: 16, familyPreset: 'custom', customFamily: '  KaiTi  ' })).toBe('"KaiTi"')
+    expect(resolveFontFamily({ size: 16, familyPreset: 'custom', customFamily: 'KaiTi SC' })).toBe('"KaiTi SC"')
     expect(resolveFontFamily({ size: 16, familyPreset: 'custom', customFamily: '   ' })).toContain('-apple-system')
   })
 })
+
+describe('quoteFontFamily', () => {
+  test('wraps plain names in double quotes', () => {
+    expect(quoteFontFamily('Noto Serif SC')).toBe('"Noto Serif SC"')
+    expect(quoteFontFamily('Kaiti')).toBe('"Kaiti"')
+  })
+
+  test('trims surrounding whitespace and returns empty for blank', () => {
+    expect(quoteFontFamily('  PingFang SC  ')).toBe('"PingFang SC"')
+    expect(quoteFontFamily('   ')).toBe('')
+  })
+
+  test('keeps already-quoted names as-is', () => {
+    expect(quoteFontFamily('"Noto Serif SC"')).toBe('"Noto Serif SC"')
+    expect(quoteFontFamily("'Kaiti'")).toBe("'Kaiti'")
+  })
+
+  test('strips embedded quote characters to avoid CSS injection', () => {
+    expect(quoteFontFamily('Foo"bar')).toBe('"Foobar"')
+    expect(quoteFontFamily("Foo'bar")).toBe('"Foobar"')
+  })
+})
+
+describe('loadLocalFonts', () => {
+  test('returns unsupported when API is missing', async () => {
+    expect(await loadLocalFonts()).toEqual({ status: 'unsupported' })
+  })
+ })
 
 describe('isFontPristine', () => {
   test('true when all zones at defaults', () => {
