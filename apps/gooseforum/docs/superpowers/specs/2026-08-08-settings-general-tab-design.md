@@ -212,3 +212,87 @@ go vet ./... && go test ./...
 2. `click-ripple.ts` + `motion.css` 涟漪样式 + `site/main.ts` 接线 + 单测。
 3. 通用选项卡：`payload.go` → `SettingsPage.vue`（tabKeys/label/区块）→ 四语言 i18n。
 4. 全量验证 + code review + 用户确认后推送 PR。
+
+---
+
+# 追加：通用选项卡功能扩展（2026-08-08，用户确认）
+
+## 9. 新需求
+
+在既有「通用」选项卡基础上新增（沿用站点前端范围、localStorage 持久化、即时生效）：
+
+1. **自定义 CSS 导入**：粘贴文本域 + 文件上传（本地 .css）两种方式。
+2. **字号改为输入框**：去掉滑块，改 `<input type="number">`。
+3. **字体分区调控**：界面 / 正文 / 代码三个分区，各自可调字号与字族。
+
+用户已确认：导入方式两者兼顾；字号与字族都分区；字号范围放宽到 **12–24px**。
+
+## 10. 数据模型（appearance-settings.ts 重构）
+
+```ts
+type FontZone = 'ui' | 'body' | 'code'
+type FontFamilyPreset = 'system' | 'serif' | 'kai' | 'hei' | 'mono' | 'custom'
+
+interface ZoneFont {
+  size: number              // 12–24，默认 ui/body=16、code=14
+  familyPreset: FontFamilyPreset
+  customFamily: string      // preset === 'custom' 时的输入
+}
+
+interface AppearanceSettings {
+  zones: Record<FontZone, ZoneFont>
+  clickAnimation: boolean
+  customCss: string         // 上限 256KB（MAX_CUSTOM_CSS_LENGTH）
+}
+```
+
+- 默认：`ui {16, system}` / `body {16, system}` / `code {14, mono}`。
+- `FONT_STACKS` 统一字族栈常量：system（原 base.css 默认栈）、mono（等宽）、serif/kai/hei。
+- `resolveFontFamily(zone)`：`custom` 非空→自定义；`custom` 空白→system 栈；否则 `FONT_STACKS[preset]`。
+- **兼容迁移**：`normalizeAppearanceSettings` 兼容旧 `{fontSize, fontFamilyPreset, customFontFamily, clickAnimation}`——把旧字号/字族映射到三个分区（保留用户原设置）。
+- 字号 clamp 12–24；customFamily 截断 200 字符；customCss 截断 256KB。
+- `isFontPristine(settings)`：三区均在默认字号且默认字族 → 移除全部字体覆盖（尊重浏览器默认）。
+- `applyCustomCss(css)`：`<style id="goose-custom-css">` 注入/移除（镜像 `site-theme.ts` 的 `applySiteThemeCss`）。
+
+## 11. 分区应用
+
+| 分区 | 作用对象 | 应用 |
+|---|---|---|
+| ui | 全站界面（rem 布局） | `html` 根字号 `= ui.size`；body 字族 `--gf-font-family-ui` |
+| body | `.gf-prose`（帖子/文章） | `--gf-font-size-body` / `--gf-font-family-body` |
+| code | `pre, code`（含 `.gf-prose` 内） | `--gf-font-size-code` / `--gf-font-family-code`（默认等宽回退） |
+
+CSS（`base.css` 改 body 字族变量；`prose.css` / `code-highlighting.css` 追加规则）：
+
+```css
+body { font-family: var(--gf-font-family-ui, <默认栈>); }
+.gf-prose { font-size: var(--gf-font-size-body); font-family: var(--gf-font-family-body); }
+pre, code, .gf-prose pre, .gf-prose code {
+  font-size: var(--gf-font-size-code);
+  font-family: var(--gf-font-family-code, ui-monospace, SFMono-Regular, Menlo, Consolas, monospace);
+}
+```
+
+- 全默认（pristine）时 `applyAppearanceSettings` 移除全部覆盖 → 浏览器默认渲染。
+- 任一分区被定制后，三区全部显式应用（输入框显示的值即最终渲染值）。
+- 字号值作用于各分区绝对像素；正文/代码内部 `em` 相对尺寸随容器缩放。
+
+## 12. 自定义 CSS
+
+- 设置页 textarea（`gf-textarea`）+ 「导入文件」（`<input type="file" accept=".css,text/css">` 读取内容）+ 「清除」。
+- 应用：`applyCustomCss` 注入/移除 `<style id="goose-custom-css">`；持久化到 localStorage。
+- 上限 `MAX_CUSTOM_CSS_LENGTH = 256 * 1024`（字符），超长截断。
+- 安全：现代浏览器禁止 CSS `url(javascript:)` 执行脚本；为自身浏览器注入，无 XSS 风险。
+
+## 13. 设置页 UI（通用选项卡重构）
+
+- **界面/正文/代码 三区行**，每行：分区标题 + 字号 `<input type="number" min="12" max="24">` + 字族 `SiteSelect` + （`custom` 时）自定义字族输入框。字号输入 `@change` 持久化（`@input` 实时预览）。
+- **自定义 CSS 区块**：`gf-textarea`（`@input` 防抖实时预览 + `@blur` 持久化）+ 「导入文件」+「清除」。
+- **点击动画开关**、**恢复默认**（重置三区 + CSS + 开关）。
+
+## 14. 验证
+
+- `appearance-settings.test.ts` 更新：新模型 normalize / 旧数据迁移 / clamp 12–24 / customCss 截断 / resolveFontFamily 各预设 / isFontPristine。
+- vitest / typecheck / build / go（无后端改动，回归即可）。
+- 浏览器实测：三区字号字族分别生效（`.gf-prose` 与 `pre,code` 字体变化、UI 根字号变化）、自定义 CSS 注入生效、导入文件、清除、恢复默认、刷新持久化。
+- 已知说明：代码区 `.gf-prose pre` 需要额外选择器覆盖 typography 插件尺寸（实现时以浏览器实测为准）。
