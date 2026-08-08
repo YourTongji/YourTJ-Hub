@@ -51,6 +51,9 @@ const props = defineProps<{
   headerToggle?: boolean
   /** 头部折叠态：用于按钮激活高亮 */
   headerCollapsed?: boolean
+  /** 移动端 toggle 挂载容器：窄屏下悬浮开关移入宿主提供的行内容器（如「正文」label 行），
+   *  避免占用工具栏宽度导致横向挤压；桌面忽略此值（保持悬浮布局） */
+  toggleHost?: HTMLElement | null
 }>()
 const emit = defineEmits<{
   'update:modelValue': [value: string]
@@ -422,10 +425,13 @@ function syncEditorTheme() {
   syncHighlightTheme()
 }
 
-/** 大纲开关：跟随大纲面板移动——展开时位于标题栏内，收起时悬浮在左缘 */
+/** 大纲开关：随面板移动的展开/收起按钮；
+ *  移动端收起态移入宿主行内容器（toggleHost）后不在 .vditor 内，查找需同时覆盖 host */
 const OUTLINE_TOGGLE_CLASS = 'hub-outline-toggle'
 function outlineToggleButton(): HTMLButtonElement | null {
-  const existing = root.value?.querySelector<HTMLButtonElement>(`.${OUTLINE_TOGGLE_CLASS}`)
+  const existing =
+    root.value?.querySelector<HTMLButtonElement>(`.${OUTLINE_TOGGLE_CLASS}`) ||
+    props.toggleHost?.querySelector<HTMLButtonElement>(`.${OUTLINE_TOGGLE_CLASS}`)
   if (existing) return existing
   if (!root.value) return null
 
@@ -458,14 +464,24 @@ function syncOutlineToggleHost() {
   const shown = outline.element.style.display === 'block'
   button.classList.toggle('vditor-menu--current', shown)
 
+  // 移动端不提供大纲唤起：大纲在窄屏价值低，开关会遮挡编辑区/占位，
+  // 直接隐藏（编辑区最大化）；桌面保持标题栏/悬浮逻辑
+  if (window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) {
+    button.classList.add('is-hidden')
+    return
+  }
+  button.classList.remove('is-hidden')
+
   if (shown) {
     // 展开：按钮归入大纲标题栏（「大纲」文字右侧）
     const title = outline.element.querySelector('.vditor-outline__title')
     button.classList.remove(`${OUTLINE_TOGGLE_CLASS}--float`)
+    button.classList.remove('hub-toggle--inline')
     if (title && button.parentElement !== title) title.appendChild(button)
   } else {
-    // 收起：按钮悬浮在左侧大纲原位置，保持可展开
+    // 收起（桌面）：按钮悬浮在左侧大纲原位置，保持可展开
     button.classList.add(`${OUTLINE_TOGGLE_CLASS}--float`)
+    button.classList.remove('hub-toggle--inline')
     const editorRoot = root.value
     if (editorRoot && button.parentElement !== editorRoot) editorRoot.appendChild(button)
   }
@@ -474,10 +490,13 @@ function syncOutlineToggleHost() {
   if (props.headerToggle) syncHeaderToggleHost()
 }
 
-/** 「向上扩展」按钮：悬浮在大纲列正上方（工具栏左侧空白区），与工具栏工具完全分离 */
+/** 「向上扩展」按钮：悬浮在大纲列正上方（工具栏左侧空白区），与工具栏工具完全分离；
+ *  移动端移入宿主行内容器（toggleHost）后不在 .vditor 内，查找需同时覆盖 host */
 const HEADER_TOGGLE_CLASS = 'hub-header-toggle-float'
 function headerToggleButton(): HTMLButtonElement | null {
-  const existing = root.value?.querySelector<HTMLButtonElement>(`.${HEADER_TOGGLE_CLASS}`)
+  const existing =
+    root.value?.querySelector<HTMLButtonElement>(`.${HEADER_TOGGLE_CLASS}`) ||
+    props.toggleHost?.querySelector<HTMLButtonElement>(`.${HEADER_TOGGLE_CLASS}`)
   if (existing) return existing
   if (!root.value) return null
 
@@ -502,11 +521,21 @@ function syncHeaderToggleHost() {
   const button = headerToggleButton()
   if (!button) return
 
-  // 始终显示：收起大纲时按钮悬浮在左缘，不随大纲隐藏（否则用户找不到入口）
+  // 移动端且宿主提供 toggleHost：按钮移入宿主行内容器（如「正文」label 行），
+  // 工具栏不再需要占位 padding，完全舒展
+  const mobileHost = window.matchMedia(MOBILE_VIEWPORT_QUERY).matches ? props.toggleHost : null
+  if (mobileHost) {
+    button.classList.add('hub-toggle--inline')
+    if (button.parentElement !== mobileHost) mobileHost.appendChild(button)
+    return
+  }
+
+  // 桌面：始终显示（收起大纲时按钮悬浮在左缘，不随大纲隐藏，否则用户找不到入口）
   button.classList.remove('is-hidden')
+  button.classList.remove('hub-toggle--inline')
 
   // 大纲收起时 vditor 会把工具栏 padding-left 恢复为 5px，
-  // 悬浮按钮（0-35px）会盖住第一个工具，这里补偿 35px；
+  // 悬浮按钮（header-toggle 0-35px）会盖住第一个工具，这里补偿 35px；
   // 大纲展开时不动（保留 vditor 设置的大纲占位宽度）
   const outline = editor?.vditor.outline
   const outlineShown = props.outline === true && outline?.element.style.display === 'block'
@@ -781,9 +810,9 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   position: absolute;
   top: 0;
   left: 0;
-  /* 必须高于工具栏（z-index 100）：工具栏加高 z-index 修气泡后，
-     低 z-index 的悬浮按钮会被工具栏盖住不可见 */
-  z-index: 200;
+  /* 高于工具栏（40）保证悬浮在工具栏之上；低于全局弹窗（100），
+     弹窗打开时按钮被遮罩盖住不悬浮在弹窗上 */
+  z-index: 60;
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -943,22 +972,77 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   margin-right: 0;
 }
 
+/* toggle 移入宿主行内容器（移动端「正文」label 行）：
+   按钮在 .vditor 之外，样式必须用全局选择器（.vditor-official 前缀不匹配），
+   自带完整图标尺寸与箭头切换，非悬浮、紧凑 25px */
+.hub-toggle--inline {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  position: relative;
+  width: 25px;
+  height: 25px;
+  padding: 0;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--toolbar-icon-color, var(--second-color));
+  cursor: pointer;
+}
+
+.hub-toggle--inline svg {
+  width: 15px;
+  height: 15px;
+}
+
+.hub-toggle--inline:hover {
+  background: var(--toolbar-background-color, var(--panel-background-color));
+  color: var(--toolbar-icon-hover-color, var(--toolbar-icon-color));
+}
+
+/* header-toggle 双图标：非悬浮时静态排列，按激活态切换显示 */
+.hub-toggle--inline .hub-header-toggle-icon--down {
+  display: none;
+}
+
+.hub-toggle--inline.vditor-menu--current .hub-header-toggle-icon--up {
+  display: none;
+}
+
+.hub-toggle--inline.vditor-menu--current .hub-header-toggle-icon--down {
+  display: inline;
+}
+
+/* 移动端大纲开关：不提供大纲唤起，隐藏 */
+.hub-outline-toggle.is-hidden {
+  display: none;
+}
+
 /* 移动端：恢复官方 sweet-mobile 触控尺寸（44px 高 / 40px 宽按钮），
-   按钮不参与弹性分配（固定 40px，5 个工具一行铺满） */
+   按钮不参与弹性分配（固定 40px，5 个工具一行铺满）。
+   大纲开关收起态移入工具栏行内（header-toggle 右侧 35-60px），
+   不再悬浮在编辑区顶部遮挡 placeholder。 */
 @media (max-width: 520px) {
   .vditor-official {
     --toolbar-height: 44px;
   }
 
   .vditor-official .vditor-toolbar__item {
-    flex: 0 0 auto;
+    /* 自适应：按钮弹性均分富余空间，宽屏舒展、窄屏自动收紧（min-width 40px 触控保底） */
+    flex: 1 1 0;
     min-width: 0;
   }
 
   .vditor-official .vditor-toolbar__item .vditor-tooltipped {
-    width: 40px;
+    width: 100%;
     min-width: 40px;
     padding: 8px 4px;
+  }
+
+  .vditor-official .hub-outline-toggle--float {
+    top: 0;
+    left: 35px;
+    height: var(--toolbar-height);
   }
 }
 

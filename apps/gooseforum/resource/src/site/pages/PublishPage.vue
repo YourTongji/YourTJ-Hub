@@ -46,6 +46,8 @@ const editorHost = ref<HTMLElement | null>(null)
 const categoryPickerOpen = ref(false)
 const categoryPickerRoot = ref<HTMLElement | null>(null)
 const bodySection = ref<HTMLElement | null>(null)
+/** 移动端 toggle 挂载容器（正文 label 行右侧） */
+const editorToggleHost = ref<HTMLElement | null>(null)
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
@@ -386,6 +388,9 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
             <div class="mb-2 flex items-center gap-2">
               <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
               <span v-if="uploadText" class="gf-badge gf-badge-info rounded">{{ uploadText }}</span>
+              <!-- 移动端 toggle 容器：窄屏下编辑器悬浮开关移到这里（正文 label 右侧），
+                   不占用工具栏宽度；桌面隐藏（桌面保持工具栏悬浮布局） -->
+              <div ref="editorToggleHost" class="ml-auto flex items-center gap-1 sm:hidden" />
             </div>
 
             <div ref="editorHost" class="relative">
@@ -397,6 +402,7 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                 :counter="true"
                 :header-toggle="true"
                 :header-collapsed="headerCollapsed"
+                :toggle-host="editorToggleHost"
                 :placeholder="t('publish.visualPlaceholder')"
                 @toggle-header="toggleHeaderCollapsed"
                 @upload="uploadImageFiles"
