@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-08
 
 ## Contract status
 
@@ -14,6 +14,7 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly

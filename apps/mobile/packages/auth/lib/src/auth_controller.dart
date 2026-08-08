@@ -111,8 +111,8 @@ class AuthController extends ChangeNotifier {
       _phase = LoginPhase.failed;
       _error = 'Invalid username or password';
     } on ApiException catch (e) {
-      // _mapLoginError 内部可能把阶段切换为 needsCaptcha。
-      _error = _mapLoginError(e);
+      // _mapAuthError 内部可能把阶段切换为 needsCaptcha。
+      _error = _mapAuthError(e, fallback: 'Unable to sign in, please retry');
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Login failed: $e';
@@ -165,8 +165,7 @@ class AuthController extends ChangeNotifier {
       );
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
-      _phase = LoginPhase.failed;
-      _error = e.messageKey;
+      _error = _mapAuthError(e, fallback: 'Unable to register, please retry');
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Registration failed: $e';
@@ -193,8 +192,10 @@ class AuthController extends ChangeNotifier {
       );
       _phase = LoginPhase.idle;
     } on ApiException catch (e) {
-      _phase = LoginPhase.failed;
-      _error = e.messageKey;
+      _error = _mapAuthError(
+        e,
+        fallback: 'Unable to request a password reset, please retry',
+      );
     } catch (e) {
       _phase = LoginPhase.failed;
       _error = 'Password reset failed: $e';
@@ -234,8 +235,8 @@ class AuthController extends ChangeNotifier {
   Future<void> _completeLogin({required String username}) async {
     final token = await _tokenStorage.read();
     if (token == null || token.isEmpty) {
-      // 登录成功但无 token:读 New-Token 回调已由 GfApiClient 处理,
-      // 此处兜底报错。
+      // GfApiClient 会等待 New-Token 回调完成后才返回；这里仍保留
+      // 协议兜底，防止服务端成功响应遗漏会话令牌。
       _phase = LoginPhase.failed;
       _error = 'Session token missing';
       return;
@@ -244,22 +245,63 @@ class AuthController extends ChangeNotifier {
     _pendingUsername = username;
   }
 
-  String _mapLoginError(ApiException e) {
+  String _mapAuthError(ApiException e, {required String fallback}) {
     // 用后端原始 messageCode 匹配(见 message_code.go),而非带
-    // `server.` 前缀的 messageKey;验证码码是 `common.captchaRequired`。
+    // `server.` 前缀的 messageKey；认证页尚无 server.* l10n 表，
+    // 所以未知错误也返回面向用户的操作级 fallback，不泄露 raw key。
     switch (e.messageCode) {
       case 'common.captchaRequired':
         _phase = LoginPhase.needsCaptcha;
         return 'Captcha required';
+      case 'auth.captcha.invalid':
+        _phase = LoginPhase.needsCaptcha;
+        return 'Invalid or expired captcha';
       case 'auth.login.invalidRequest':
         _phase = LoginPhase.failed;
         return 'Invalid login request, please retry';
+      case 'auth.password.invalidFormat':
+      case 'auth.credentials.invalid':
+        _phase = LoginPhase.failed;
+        return 'Invalid username or password';
       case 'auth.account.frozen':
         _phase = LoginPhase.failed;
         return 'Account is frozen';
+      case 'auth.email.unverified':
+        _phase = LoginPhase.failed;
+        return 'Please verify your email before signing in';
+      case 'auth.signupDisabled':
+        _phase = LoginPhase.failed;
+        return 'Registration is currently disabled';
+      case 'auth.username.invalid':
+        _phase = LoginPhase.failed;
+        return 'Username format is invalid';
+      case 'auth.username.exists':
+        _phase = LoginPhase.failed;
+        return 'Username is already in use';
+      case 'auth.email.exists':
+        _phase = LoginPhase.failed;
+        return 'Email is already in use';
+      case 'auth.emailDomain.invalid':
+        _phase = LoginPhase.failed;
+        return 'Email address is invalid';
+      case 'auth.emailDomain.notAllowed':
+        _phase = LoginPhase.failed;
+        return 'This email domain is not allowed';
+      case 'auth.password.tooShort':
+        _phase = LoginPhase.failed;
+        return 'Password is too short';
+      case 'auth.password.tooLong':
+        _phase = LoginPhase.failed;
+        return 'Password is too long';
+      case 'auth.password.needsLetterNumber':
+        _phase = LoginPhase.failed;
+        return 'Password must contain both letters and numbers';
+      case 'auth.passwordReset.mailFailed':
+        _phase = LoginPhase.failed;
+        return 'Unable to send the password reset email';
       default:
         _phase = LoginPhase.failed;
-        return e.messageKey;
+        return fallback;
     }
   }
 }

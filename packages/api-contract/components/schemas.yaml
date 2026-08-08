@@ -98,6 +98,48 @@ LoginResponse:
     - $ref: '#/LoginSuccess'
     - $ref: '#/ApiFailure'
 
+OidcExchangeRequest:
+  type: object
+  required: [code, codeVerifier, nonce, redirectUri]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      description: One-time authorization code returned to the AppAuth redirect URI.
+    codeVerifier:
+      type: string
+      minLength: 1
+      description: PKCE verifier generated and retained by the mobile client.
+    nonce:
+      type: string
+      minLength: 1
+      description: Nonce sent in the authorization request; it must equal the verified ID token nonce.
+    redirectUri:
+      type: string
+      format: uri
+      minLength: 1
+      description: Mobile callback URI. The server requires an exact match with its configured allowlist value.
+  additionalProperties: false
+
+OidcExchangeResult:
+  type: object
+  required: [token]
+  properties:
+    token:
+      type: string
+      minLength: 1
+      description: Forum JWT session credential for Bearer authentication.
+  additionalProperties: false
+
+OidcExchangeSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/OidcExchangeResult'
+
 WriteTopicRequest:
   type: object
   required: [content, title, categoryId]

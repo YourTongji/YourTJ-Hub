@@ -40,7 +40,7 @@ void main() {
 
       final client = container.read(apiClientProvider);
       // 模拟 GfApiClient 收到 New-Token 响应头后触发的回调。
-      client.onTokenRenewed?.call('fresh-token');
+      await client.onTokenRenewed?.call('fresh-token');
 
       expect(await storage.read(), 'fresh-token');
     });

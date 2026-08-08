@@ -988,6 +988,390 @@ abstract class _LoginResult implements LoginResult {
       throw _privateConstructorUsedError;
 }
 
+OidcExchangeRequest _$OidcExchangeRequestFromJson(Map<String, dynamic> json) {
+  return _OidcExchangeRequest.fromJson(json);
+}
+
+/// @nodoc
+mixin _$OidcExchangeRequest {
+  String get code => throw _privateConstructorUsedError;
+  String get codeVerifier => throw _privateConstructorUsedError;
+  String get nonce => throw _privateConstructorUsedError;
+  String get redirectUri => throw _privateConstructorUsedError;
+
+  /// Serializes this OidcExchangeRequest to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of OidcExchangeRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $OidcExchangeRequestCopyWith<OidcExchangeRequest> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OidcExchangeRequestCopyWith<$Res> {
+  factory $OidcExchangeRequestCopyWith(
+    OidcExchangeRequest value,
+    $Res Function(OidcExchangeRequest) then,
+  ) = _$OidcExchangeRequestCopyWithImpl<$Res, OidcExchangeRequest>;
+  @useResult
+  $Res call({
+    String code,
+    String codeVerifier,
+    String nonce,
+    String redirectUri,
+  });
+}
+
+/// @nodoc
+class _$OidcExchangeRequestCopyWithImpl<$Res, $Val extends OidcExchangeRequest>
+    implements $OidcExchangeRequestCopyWith<$Res> {
+  _$OidcExchangeRequestCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of OidcExchangeRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? code = null,
+    Object? codeVerifier = null,
+    Object? nonce = null,
+    Object? redirectUri = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            code: null == code
+                ? _value.code
+                : code // ignore: cast_nullable_to_non_nullable
+                      as String,
+            codeVerifier: null == codeVerifier
+                ? _value.codeVerifier
+                : codeVerifier // ignore: cast_nullable_to_non_nullable
+                      as String,
+            nonce: null == nonce
+                ? _value.nonce
+                : nonce // ignore: cast_nullable_to_non_nullable
+                      as String,
+            redirectUri: null == redirectUri
+                ? _value.redirectUri
+                : redirectUri // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$OidcExchangeRequestImplCopyWith<$Res>
+    implements $OidcExchangeRequestCopyWith<$Res> {
+  factory _$$OidcExchangeRequestImplCopyWith(
+    _$OidcExchangeRequestImpl value,
+    $Res Function(_$OidcExchangeRequestImpl) then,
+  ) = __$$OidcExchangeRequestImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String code,
+    String codeVerifier,
+    String nonce,
+    String redirectUri,
+  });
+}
+
+/// @nodoc
+class __$$OidcExchangeRequestImplCopyWithImpl<$Res>
+    extends _$OidcExchangeRequestCopyWithImpl<$Res, _$OidcExchangeRequestImpl>
+    implements _$$OidcExchangeRequestImplCopyWith<$Res> {
+  __$$OidcExchangeRequestImplCopyWithImpl(
+    _$OidcExchangeRequestImpl _value,
+    $Res Function(_$OidcExchangeRequestImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OidcExchangeRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? code = null,
+    Object? codeVerifier = null,
+    Object? nonce = null,
+    Object? redirectUri = null,
+  }) {
+    return _then(
+      _$OidcExchangeRequestImpl(
+        code: null == code
+            ? _value.code
+            : code // ignore: cast_nullable_to_non_nullable
+                  as String,
+        codeVerifier: null == codeVerifier
+            ? _value.codeVerifier
+            : codeVerifier // ignore: cast_nullable_to_non_nullable
+                  as String,
+        nonce: null == nonce
+            ? _value.nonce
+            : nonce // ignore: cast_nullable_to_non_nullable
+                  as String,
+        redirectUri: null == redirectUri
+            ? _value.redirectUri
+            : redirectUri // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$OidcExchangeRequestImpl implements _OidcExchangeRequest {
+  const _$OidcExchangeRequestImpl({
+    required this.code,
+    required this.codeVerifier,
+    required this.nonce,
+    required this.redirectUri,
+  });
+
+  factory _$OidcExchangeRequestImpl.fromJson(Map<String, dynamic> json) =>
+      _$$OidcExchangeRequestImplFromJson(json);
+
+  @override
+  final String code;
+  @override
+  final String codeVerifier;
+  @override
+  final String nonce;
+  @override
+  final String redirectUri;
+
+  @override
+  String toString() {
+    return 'OidcExchangeRequest(code: $code, codeVerifier: $codeVerifier, nonce: $nonce, redirectUri: $redirectUri)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OidcExchangeRequestImpl &&
+            (identical(other.code, code) || other.code == code) &&
+            (identical(other.codeVerifier, codeVerifier) ||
+                other.codeVerifier == codeVerifier) &&
+            (identical(other.nonce, nonce) || other.nonce == nonce) &&
+            (identical(other.redirectUri, redirectUri) ||
+                other.redirectUri == redirectUri));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, code, codeVerifier, nonce, redirectUri);
+
+  /// Create a copy of OidcExchangeRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OidcExchangeRequestImplCopyWith<_$OidcExchangeRequestImpl> get copyWith =>
+      __$$OidcExchangeRequestImplCopyWithImpl<_$OidcExchangeRequestImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$OidcExchangeRequestImplToJson(this);
+  }
+}
+
+abstract class _OidcExchangeRequest implements OidcExchangeRequest {
+  const factory _OidcExchangeRequest({
+    required final String code,
+    required final String codeVerifier,
+    required final String nonce,
+    required final String redirectUri,
+  }) = _$OidcExchangeRequestImpl;
+
+  factory _OidcExchangeRequest.fromJson(Map<String, dynamic> json) =
+      _$OidcExchangeRequestImpl.fromJson;
+
+  @override
+  String get code;
+  @override
+  String get codeVerifier;
+  @override
+  String get nonce;
+  @override
+  String get redirectUri;
+
+  /// Create a copy of OidcExchangeRequest
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OidcExchangeRequestImplCopyWith<_$OidcExchangeRequestImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+OidcExchangeResult _$OidcExchangeResultFromJson(Map<String, dynamic> json) {
+  return _OidcExchangeResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$OidcExchangeResult {
+  String get token => throw _privateConstructorUsedError;
+
+  /// Serializes this OidcExchangeResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of OidcExchangeResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $OidcExchangeResultCopyWith<OidcExchangeResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $OidcExchangeResultCopyWith<$Res> {
+  factory $OidcExchangeResultCopyWith(
+    OidcExchangeResult value,
+    $Res Function(OidcExchangeResult) then,
+  ) = _$OidcExchangeResultCopyWithImpl<$Res, OidcExchangeResult>;
+  @useResult
+  $Res call({String token});
+}
+
+/// @nodoc
+class _$OidcExchangeResultCopyWithImpl<$Res, $Val extends OidcExchangeResult>
+    implements $OidcExchangeResultCopyWith<$Res> {
+  _$OidcExchangeResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of OidcExchangeResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? token = null}) {
+    return _then(
+      _value.copyWith(
+            token: null == token
+                ? _value.token
+                : token // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$OidcExchangeResultImplCopyWith<$Res>
+    implements $OidcExchangeResultCopyWith<$Res> {
+  factory _$$OidcExchangeResultImplCopyWith(
+    _$OidcExchangeResultImpl value,
+    $Res Function(_$OidcExchangeResultImpl) then,
+  ) = __$$OidcExchangeResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String token});
+}
+
+/// @nodoc
+class __$$OidcExchangeResultImplCopyWithImpl<$Res>
+    extends _$OidcExchangeResultCopyWithImpl<$Res, _$OidcExchangeResultImpl>
+    implements _$$OidcExchangeResultImplCopyWith<$Res> {
+  __$$OidcExchangeResultImplCopyWithImpl(
+    _$OidcExchangeResultImpl _value,
+    $Res Function(_$OidcExchangeResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of OidcExchangeResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? token = null}) {
+    return _then(
+      _$OidcExchangeResultImpl(
+        token: null == token
+            ? _value.token
+            : token // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$OidcExchangeResultImpl implements _OidcExchangeResult {
+  const _$OidcExchangeResultImpl({required this.token});
+
+  factory _$OidcExchangeResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$OidcExchangeResultImplFromJson(json);
+
+  @override
+  final String token;
+
+  @override
+  String toString() {
+    return 'OidcExchangeResult(token: $token)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$OidcExchangeResultImpl &&
+            (identical(other.token, token) || other.token == token));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, token);
+
+  /// Create a copy of OidcExchangeResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$OidcExchangeResultImplCopyWith<_$OidcExchangeResultImpl> get copyWith =>
+      __$$OidcExchangeResultImplCopyWithImpl<_$OidcExchangeResultImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$OidcExchangeResultImplToJson(this);
+  }
+}
+
+abstract class _OidcExchangeResult implements OidcExchangeResult {
+  const factory _OidcExchangeResult({required final String token}) =
+      _$OidcExchangeResultImpl;
+
+  factory _OidcExchangeResult.fromJson(Map<String, dynamic> json) =
+      _$OidcExchangeResultImpl.fromJson;
+
+  @override
+  String get token;
+
+  /// Create a copy of OidcExchangeResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$OidcExchangeResultImplCopyWith<_$OidcExchangeResultImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 TotpSetupPayload _$TotpSetupPayloadFromJson(Map<String, dynamic> json) {
   return _TotpSetupPayload.fromJson(json);
 }

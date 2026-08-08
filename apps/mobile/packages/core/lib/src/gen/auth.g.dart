@@ -74,6 +74,32 @@ Map<String, dynamic> _$$LoginResultImplToJson(_$LoginResultImpl instance) =>
       'message': instance.message,
     };
 
+_$OidcExchangeRequestImpl _$$OidcExchangeRequestImplFromJson(
+  Map<String, dynamic> json,
+) => _$OidcExchangeRequestImpl(
+  code: json['code'] as String,
+  codeVerifier: json['codeVerifier'] as String,
+  nonce: json['nonce'] as String,
+  redirectUri: json['redirectUri'] as String,
+);
+
+Map<String, dynamic> _$$OidcExchangeRequestImplToJson(
+  _$OidcExchangeRequestImpl instance,
+) => <String, dynamic>{
+  'code': instance.code,
+  'codeVerifier': instance.codeVerifier,
+  'nonce': instance.nonce,
+  'redirectUri': instance.redirectUri,
+};
+
+_$OidcExchangeResultImpl _$$OidcExchangeResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$OidcExchangeResultImpl(token: json['token'] as String);
+
+Map<String, dynamic> _$$OidcExchangeResultImplToJson(
+  _$OidcExchangeResultImpl instance,
+) => <String, dynamic>{'token': instance.token};
+
 _$TotpSetupPayloadImpl _$$TotpSetupPayloadImplFromJson(
   Map<String, dynamic> json,
 ) => _$TotpSetupPayloadImpl(

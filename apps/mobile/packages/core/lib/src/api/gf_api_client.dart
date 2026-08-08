@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:dio/dio.dart';
 
 import '../gen/response.dart';
@@ -5,6 +7,7 @@ import '../token/token_storage.dart';
 import 'api_error.dart';
 
 typedef JsonParser<T> = T Function(Object? json);
+typedef TokenRenewedCallback = FutureOr<void> Function(String newToken);
 
 /// GooseForum 后端 JSON API 客户端。
 ///
@@ -43,7 +46,7 @@ class GfApiClient {
   final String baseUrl;
 
   /// 收到 New-Token 响应头时回调(滑动续期,上层负责持久化)。
-  final void Function(String newToken)? onTokenRenewed;
+  final TokenRenewedCallback? onTokenRenewed;
 
   /// 收到 401 时回调(会话失效,上层负责清理)。
   final void Function()? onUnauthorized;
@@ -116,8 +119,14 @@ class GfApiClient {
     }
   }
 
-  T _resolve<T>(Response<dynamic> response, JsonParser<T>? parser) {
-    _handleTokenRenewal(response);
+  Future<T> _resolve<T>(
+    Response<dynamic> response,
+    JsonParser<T>? parser,
+  ) async {
+    // Password login and TOTP return their session only through New-Token.
+    // Persist it before resolving the request so callers can immediately read
+    // TokenStorage without racing flutter_secure_storage.
+    await _handleTokenRenewal(response);
     final statusCode = response.statusCode;
     final data = response.data;
 
@@ -174,10 +183,13 @@ class GfApiClient {
     }
   }
 
-  void _handleTokenRenewal(Response<dynamic> response) {
+  Future<void> _handleTokenRenewal(Response<dynamic> response) async {
     final newToken = response.headers.value('New-Token');
     if (newToken != null && newToken.trim().isNotEmpty) {
-      onTokenRenewed?.call(newToken.trim());
+      final callback = onTokenRenewed;
+      if (callback != null) {
+        await callback(newToken.trim());
+      }
     }
   }
 

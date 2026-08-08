@@ -19,9 +19,8 @@ abstract class LoginPageProps with _$LoginPageProps {
 
 @freezed
 abstract class ResetPasswordPageProps with _$ResetPasswordPageProps {
-  const factory ResetPasswordPageProps({
-    required String token,
-  }) = _ResetPasswordPageProps;
+  const factory ResetPasswordPageProps({required String token}) =
+      _ResetPasswordPageProps;
 
   factory ResetPasswordPageProps.fromJson(Map<String, dynamic> json) =>
       _$ResetPasswordPagePropsFromJson(json);
@@ -57,7 +56,30 @@ abstract class LoginResult with _$LoginResult {
     String? message,
   }) = _LoginResult;
 
-  factory LoginResult.fromJson(Map<String, dynamic> json) => _$LoginResultFromJson(json);
+  factory LoginResult.fromJson(Map<String, dynamic> json) =>
+      _$LoginResultFromJson(json);
+}
+
+@freezed
+abstract class OidcExchangeRequest with _$OidcExchangeRequest {
+  const factory OidcExchangeRequest({
+    required String code,
+    required String codeVerifier,
+    required String nonce,
+    required String redirectUri,
+  }) = _OidcExchangeRequest;
+
+  factory OidcExchangeRequest.fromJson(Map<String, dynamic> json) =>
+      _$OidcExchangeRequestFromJson(json);
+}
+
+@freezed
+abstract class OidcExchangeResult with _$OidcExchangeResult {
+  const factory OidcExchangeResult({required String token}) =
+      _OidcExchangeResult;
+
+  factory OidcExchangeResult.fromJson(Map<String, dynamic> json) =>
+      _$OidcExchangeResultFromJson(json);
 }
 
 @freezed
@@ -73,9 +95,8 @@ abstract class TotpSetupPayload with _$TotpSetupPayload {
 
 @freezed
 abstract class TotpEnablePayload with _$TotpEnablePayload {
-  const factory TotpEnablePayload({
-    required List<String> recoveryCodes,
-  }) = _TotpEnablePayload;
+  const factory TotpEnablePayload({required List<String> recoveryCodes}) =
+      _TotpEnablePayload;
 
   factory TotpEnablePayload.fromJson(Map<String, dynamic> json) =>
       _$TotpEnablePayloadFromJson(json);
@@ -83,9 +104,7 @@ abstract class TotpEnablePayload with _$TotpEnablePayload {
 
 @freezed
 abstract class TotpStatusPayload with _$TotpStatusPayload {
-  const factory TotpStatusPayload({
-    required bool enabled,
-  }) = _TotpStatusPayload;
+  const factory TotpStatusPayload({required bool enabled}) = _TotpStatusPayload;
 
   factory TotpStatusPayload.fromJson(Map<String, dynamic> json) =>
       _$TotpStatusPayloadFromJson(json);
@@ -122,9 +141,8 @@ abstract class UserSessionPayload with _$UserSessionPayload {
 /// 登录/注册/找回密码等接口的成功消息,取自 component.MessageCode 文案。
 @freezed
 abstract class SuccessMessagePayload with _$SuccessMessagePayload {
-  const factory SuccessMessagePayload({
-    required String message,
-  }) = _SuccessMessagePayload;
+  const factory SuccessMessagePayload({required String message}) =
+      _SuccessMessagePayload;
 
   factory SuccessMessagePayload.fromJson(Map<String, dynamic> json) =>
       _$SuccessMessagePayloadFromJson(json);

@@ -28,8 +28,8 @@ TEST_USER="${TEST_USER:-mobile_e2e}"
 TEST_PASS="${TEST_PASS:-Test1234!}"
 EMULATOR_HOST="${EMULATOR_HOST:-10.0.2.2}"          # 模拟器访问宿主机
 APP_ID="tj.yourtj.forum_app"
-ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
-FORUM_APP="$ROOT/packages/forum_app"
+ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/../../.." && pwd)"
+FORUM_APP="$ROOT/apps/mobile/packages/forum_app"
 
 # ---------------------------------------------------------------- 工具函数
 info()  { printf '\033[1;34m[OIDC-E2E]\033[0m %s\n' "$*"; }
@@ -111,7 +111,7 @@ verify_server_side() {
   local db_file="${YOURTJ_DB_FILE:-}"
   if [ -z "$db_file" ]; then
     db_file="$(sed -n 's/.*path[[:space:]]*=[[:space:]]*"*\([^"]*\.db\)"*.*/\1/p' \
-      "$ROOT/../config.toml" 2>/dev/null | head -1 || true)"
+      "$ROOT/config.toml" 2>/dev/null | head -1 || true)"
     [ -n "$db_file" ] || db_file="yourtj-hub.db"
   fi
   if command -v sqlite3 >/dev/null 2>&1 && [ -f "$db_file" ]; then

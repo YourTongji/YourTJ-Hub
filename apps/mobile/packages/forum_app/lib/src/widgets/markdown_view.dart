@@ -2,6 +2,8 @@ import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
 
+import '../asset_url.dart';
+
 /// 帖子 markdown 渲染视图。
 ///
 /// 基于 markdown_widget,渲染样式对齐 web 端 prose.css 语义:
@@ -27,7 +29,9 @@ class GfMarkdownView extends StatelessWidget {
   final bool selectable;
 
   List<String> _extractImages() {
-    final RegExp re = RegExp(r'!\[[^\]]*\]\((https?://[^)\s]+)\)');
+    // Local storage uploads intentionally return `/file/img/...`; keep both
+    // relative and absolute destinations so the viewer mirrors the renderer.
+    final RegExp re = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
     return re.allMatches(data).map((m) => m.group(1)!).toList(growable: false);
   }
 
@@ -48,7 +52,10 @@ class GfMarkdownView extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final List<String> urls = images ?? _extractImages();
+    final List<String> sourceUrls = images ?? _extractImages();
+    final List<String> resolvedUrls = sourceUrls
+        .map(resolveApiAssetUrl)
+        .toList(growable: false);
 
     // web prose.css 图片高度上限:min(360px, 70vh)。
     final double maxImageHeight = MediaQuery.of(context).size.height * 0.7 < 360
@@ -65,10 +72,15 @@ class GfMarkdownView extends StatelessWidget {
           // 图片:contain + 高度约束 + 圆角边框(prose.css img)。
           ImgConfig(
             builder: (String url, Map<String, String> attributes) {
+              final String resolvedUrl = resolveApiAssetUrl(url);
               return GestureDetector(
                 onTap: () {
-                  final int index = urls.indexOf(url);
-                  _openViewer(context, urls, index < 0 ? 0 : index);
+                  final int index = sourceUrls.indexOf(url);
+                  _openViewer(
+                    context,
+                    resolvedUrls.isEmpty ? [resolvedUrl] : resolvedUrls,
+                    index < 0 ? 0 : index,
+                  );
                 },
                 child: ConstrainedBox(
                   constraints: BoxConstraints(maxHeight: maxImageHeight),
@@ -82,7 +94,7 @@ class GfMarkdownView extends StatelessWidget {
                     ),
                     clipBehavior: Clip.antiAlias,
                     child: Image.network(
-                      url,
+                      resolvedUrl,
                       fit: BoxFit.contain,
                       errorBuilder: (_, _, _) => SizedBox(
                         height: 60,

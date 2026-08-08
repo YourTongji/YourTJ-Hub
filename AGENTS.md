@@ -27,12 +27,12 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   database since issue #11** (file db stays SQLite).
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
-- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, planned).
+- Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
 - Auth: GitHub OAuth (goth) + **Casdoor OIDC integrated** (PKCE, numeric `sub` enforced server-side);
   TOTP 2FA and session management (`jti` + `user_sessions`) in place (issue #8).
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
-  login and topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP
-  tests; broader route coverage still needs manual or annotation-based work.
+  password login, mobile OIDC exchange, and topic writing, with lint/bundle, generated TypeScript types,
+  fixtures, and route-level HTTP tests; broader route coverage still needs manual or annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
@@ -47,7 +47,7 @@ apps/
     docs/             Upstream-owned docs (reference only)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
-  api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (planned)
+  api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
   casdoor/   Unified auth deployment config (numeric-ID init checklist)
   search/    Meilisearch deployment config

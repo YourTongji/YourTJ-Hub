@@ -106,17 +106,18 @@ class AuthRepository {
     required String nonce,
     required String redirectUri,
   }) {
+    final request = OidcExchangeRequest(
+      code: code,
+      codeVerifier: codeVerifier,
+      nonce: nonce,
+      redirectUri: redirectUri,
+    );
     return _client.post<String>(
       '/api/auth/oidc/exchange',
-      body: {
-        'code': code,
-        'codeVerifier': codeVerifier,
-        'nonce': nonce,
-        'redirectUri': redirectUri,
-      },
+      body: request.toJson(),
       parser: (json) {
         if (json is String) return json;
-        return (json as Map<String, dynamic>)['token'] as String? ?? '';
+        return OidcExchangeResult.fromJson(json as Map<String, dynamic>).token;
       },
     );
   }

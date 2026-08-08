@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 import 'dart:typed_data';
 
@@ -49,10 +50,10 @@ void main() {
       });
       dio.httpClientAdapter = adapter;
 
-      final result = await client.post<bool>('/api/forum/topics/status', body: {
-        'topicId': 1,
-        'topicStatus': 1,
-      });
+      final result = await client.post<bool>(
+        '/api/forum/topics/status',
+        body: {'topicId': 1, 'topicStatus': 1},
+      );
       expect(result, isTrue);
       expect(adapter.requests, hasLength(1));
       expect(adapter.requests.single.path, '/api/forum/topics/status');
@@ -85,6 +86,42 @@ void main() {
       expect(renewedTokens, ['fresh-token']);
     });
 
+    test('请求会等待异步 New-Token 持久化完成', () async {
+      storage = _MemoryTokenStorage();
+      dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      final writeStarted = Completer<void>();
+      final allowWrite = Completer<void>();
+      client = GfApiClient(
+        dio: dio,
+        tokenStorage: storage,
+        onTokenRenewed: (token) async {
+          writeStarted.complete();
+          await allowWrite.future;
+          await storage.write(token);
+        },
+      );
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(
+          200,
+          {'code': 0, 'result': true},
+          headers: {'New-Token': 'persisted-token'},
+        );
+      });
+
+      var requestCompleted = false;
+      final request = client
+          .get<bool>('/api/ping', parser: (json) => json as bool)
+          .whenComplete(() => requestCompleted = true);
+      await writeStarted.future;
+
+      expect(requestCompleted, isFalse);
+      expect(await storage.read(), isNull);
+
+      allowWrite.complete();
+      expect(await request, isTrue);
+      expect(await storage.read(), 'persisted-token');
+    });
+
     test('401 触发 onUnauthorized 回调并抛 UnauthorizedException', () async {
       setupClient(initialToken: 'expired');
       final adapter = MockAdapter((request) async {
@@ -104,7 +141,11 @@ void main() {
       final adapter = MockAdapter((request) async {
         return ResponseData(
           429,
-          {'code': 1, 'messageCode': 'rate.limited', 'params': {'retryAfterSeconds': 30}},
+          {
+            'code': 1,
+            'messageCode': 'rate.limited',
+            'params': {'retryAfterSeconds': 30},
+          },
           headers: {'Retry-After': '30'},
         );
       });
@@ -129,7 +170,13 @@ void main() {
 
       await expectLater(
         client.get<bool>('/api/ping'),
-        throwsA(isA<RateLimitException>().having((e) => e.retryAfterSeconds, 'retryAfterSeconds', isNull)),
+        throwsA(
+          isA<RateLimitException>().having(
+            (e) => e.retryAfterSeconds,
+            'retryAfterSeconds',
+            isNull,
+          ),
+        ),
       );
     });
 
@@ -148,8 +195,16 @@ void main() {
         client.post<bool>('/api/login', body: {}),
         throwsA(
           isA<ApiException>()
-              .having((e) => e.messageCode, 'messageCode', 'auth.login.invalidCredentials')
-              .having((e) => e.messageKey, 'messageKey', 'server.auth.login.invalidCredentials')
+              .having(
+                (e) => e.messageCode,
+                'messageCode',
+                'auth.login.invalidCredentials',
+              )
+              .having(
+                (e) => e.messageKey,
+                'messageKey',
+                'server.auth.login.invalidCredentials',
+              )
               .having((e) => e.params?['username'], 'params', 'alice'),
         ),
       );
@@ -216,6 +271,35 @@ void main() {
       expect(capturedBody.containsKey('website'), isFalse);
     });
 
+    test('AuthRepository.oidcExchange 使用受控请求与响应镜像', () async {
+      final storage = _MemoryTokenStorage();
+      final dio = Dio(BaseOptions(baseUrl: 'http://test'));
+      final client = GfApiClient(dio: dio, tokenStorage: storage);
+      late Map<String, dynamic> capturedBody;
+      dio.httpClientAdapter = MockAdapter((request) async {
+        capturedBody = request.data as Map<String, dynamic>;
+        return ResponseData(200, {
+          'code': 0,
+          'result': {'token': 'forum-session-token'},
+        });
+      });
+
+      final token = await AuthRepository(client).oidcExchange(
+        code: 'authorization-code',
+        codeVerifier: 'pkce-verifier',
+        nonce: 'request-nonce',
+        redirectUri: 'yourtj://callback',
+      );
+
+      expect(capturedBody, {
+        'code': 'authorization-code',
+        'codeVerifier': 'pkce-verifier',
+        'nonce': 'request-nonce',
+        'redirectUri': 'yourtj://callback',
+      });
+      expect(token, 'forum-session-token');
+    });
+
     test('TopicRepository.writeTopic 请求体含蜜罐? 绝不包含', () async {
       final storage = _MemoryTokenStorage();
       final dio = Dio(BaseOptions(baseUrl: 'http://test'));
@@ -258,7 +342,11 @@ void main() {
       });
       final repo = NotificationRepository(client);
 
-      final result = await repo.fetchNotifications(filter: 'unread', cursor: 20, limit: 10);
+      final result = await repo.fetchNotifications(
+        filter: 'unread',
+        cursor: 20,
+        limit: 10,
+      );
       expect(result.unreadCount, 0);
       expect(capturedUri.path, '/api/forum/notifications');
       expect(capturedUri.queryParameters['filter'], 'unread');
@@ -279,7 +367,12 @@ void main() {
             'sort': 'hot',
             'tabs': <dynamic>[],
             'topics': <dynamic>[],
-            'pagination': {'page': 1, 'nextPage': 1, 'hasNext': false, 'nextUrl': ''},
+            'pagination': {
+              'page': 1,
+              'nextPage': 1,
+              'hasNext': false,
+              'nextUrl': '',
+            },
             'announcement': {'enabled': false, 'html': ''},
           },
           'meta': {'title': 'yourtj'},
@@ -304,16 +397,14 @@ void main() {
               'requiresEmailVerification': false,
               'adminPermissions': <dynamic>[],
             },
-            'sidebar': {
-              'categories': <dynamic>[],
-              'activeKey': '',
-            },
-            'footer': {
-              'links': <dynamic>[],
-              'primary': <dynamic>[],
-            },
+            'sidebar': {'categories': <dynamic>[], 'activeKey': ''},
+            'footer': {'links': <dynamic>[], 'primary': <dynamic>[]},
             'unread': {'notifications': false, 'messages': false},
-            'theme': {'enabled': false, 'current': 'gf-light', 'themeColor': ''},
+            'theme': {
+              'enabled': false,
+              'current': 'gf-light',
+              'themeColor': '',
+            },
           },
           'url': '/',
           'version': '1.0',
