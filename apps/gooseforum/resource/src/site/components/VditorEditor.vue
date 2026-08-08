@@ -1,12 +1,5 @@
-<script lang="ts">
-// Module-scoped so that fast route switches share one in-flight promise per
-// runtime asset instead of reloading or clobbering each other's <script> tags.
-const pendingScripts = new Map<string, Promise<void>>()
-const SCRIPT_TIMEOUT_MS = 20000
-</script>
-
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { Loader2 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import Vditor from 'vditor'
@@ -17,10 +10,11 @@ import enUrl from 'vditor/dist/js/i18n/en_US.js?url'
 import jaUrl from 'vditor/dist/js/i18n/ja_JP.js?url'
 import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import { currentLocale } from '@/runtime/i18n'
+import { loadRuntimeScript } from '@/runtime/runtime-script'
 import { useSiteTheme } from '@/runtime/site-theme'
 
 const { t } = useI18n()
-const { theme: siteTheme } = useSiteTheme()
+const { isDark } = useSiteTheme()
 
 const props = defineProps<{
   modelValue: string
@@ -51,60 +45,14 @@ const languageAssets = {
   zh: { lang: 'zh_CN', url: zhUrl },
 } as const
 
-const vditorTheme = computed(() => (siteTheme.value === 'gf-dark' ? 'dark' : 'classic'))
-
-function loadRuntimeScript(url: string, id: string) {
-  const existing = document.getElementById(id) as HTMLScriptElement | null
-  if (existing?.dataset.loaded === 'true') return Promise.resolve()
-  const pending = pendingScripts.get(id)
-  if (pending) return pending
-
-  const promise = new Promise<void>((resolve, reject) => {
-    let settled = false
-    let script: HTMLScriptElement | null = null
-    let timeoutId = 0
-
-    const handleLoad = () => {
-      if (!script) return
-      script.dataset.loaded = 'true'
-      if (settled) return
-      settled = true
-      window.clearTimeout(timeoutId)
-      script.removeEventListener('load', handleLoad)
-      script.removeEventListener('error', handleError)
-      pendingScripts.delete(id)
-      resolve()
-    }
-    const handleError = () => {
-      script?.remove()
-      if (settled) return
-      settled = true
-      window.clearTimeout(timeoutId)
-      pendingScripts.delete(id)
-      reject(new Error(`Failed to load Vditor runtime asset: ${url}`))
-    }
-    const handleTimeout = () => {
-      script?.remove()
-      if (settled) return
-      settled = true
-      pendingScripts.delete(id)
-      reject(new Error(`Timed out loading Vditor runtime asset: ${url}`))
-    }
-
-    // A leftover node (e.g. from a failed previous attempt) is never going to
-    // fire load/error again, so rebuild it instead of waiting forever.
-    existing?.remove()
-    script = document.createElement('script')
-    script.id = id
-    script.src = url
-    script.async = true
-    script.addEventListener('load', handleLoad)
-    script.addEventListener('error', handleError)
-    timeoutId = window.setTimeout(handleTimeout, SCRIPT_TIMEOUT_MS)
-    document.head.appendChild(script)
-  })
-  pendingScripts.set(id, promise)
-  return promise
+function syncEditorTheme() {
+  if (!editor || !ready || destroyed) return
+  editor.setTheme(isDark.value ? 'dark' : 'classic')
+  // Content styling is owned by the site design tokens below, so no global
+  // Vditor content-theme stylesheet is injected.
+  if (editor.vditor.options.preview?.theme) {
+    editor.vditor.options.preview.theme.current = isDark.value ? 'dark' : 'light'
+  }
 }
 
 onMounted(async () => {
@@ -124,14 +72,15 @@ onMounted(async () => {
   }
   if (destroyed || !root.value) return
 
+  const mountTarget = root.value
+  if (destroyed || !mountTarget) return
+
+  let nextEditor: Vditor | null = null
   try {
-    editor = new Vditor(root.value, {
+    nextEditor = new Vditor(mountTarget, {
       _lutePath: luteUrl,
       cache: { enable: false },
-      // Vditor lazily loads its remaining runtime assets (icons, i18n, lute)
-      // by appending <script> tags whose ids must match the exact names above.
-      // The assets are preloaded with those ids, so an empty cdn never hits
-      // the network.
+      // Runtime assets are preloaded with the ids Vditor checks internally.
       cdn: '',
       counter: { enable: false },
       customWysiwygToolbar() {},
@@ -146,15 +95,15 @@ onMounted(async () => {
       mode: 'wysiwyg',
       outline: { enable: false, position: 'left' },
       placeholder: props.placeholder,
+      theme: isDark.value ? 'dark' : 'classic',
       preview: {
         hljs: { enable: false, lineNumber: false },
         markdown: { codeBlockPreview: false, mathBlockPreview: false },
         mode: 'editor',
         render: { media: { enable: false } },
-        theme: { current: 'light', path: '' },
+        theme: { current: isDark.value ? 'dark' : 'light', path: '' },
       },
       resize: { enable: false },
-      theme: vditorTheme.value,
       toolbar: [
         'headings',
         'bold',
@@ -187,24 +136,25 @@ onMounted(async () => {
       },
       value: props.modelValue,
       after() {
-        if (destroyed) {
-          editor?.destroy()
-          editor = null
+        if (destroyed || !mountTarget.isConnected || editor !== nextEditor) {
+          const staleEditor = nextEditor
+          if (editor === staleEditor) editor = null
+          nextEditor = null
+          // Vditor still runs its icon setup after after() returns.
+          queueMicrotask(() => staleEditor?.destroy())
           return
         }
         ready = true
         loading.value = false
         if (editor && props.modelValue !== editor.getValue()) editor.setValue(props.modelValue, true)
+        syncEditorTheme()
         syncUploadControl()
       },
       input(value) {
         emit('update:modelValue', value)
       },
     })
-    if (destroyed) {
-      editor?.destroy()
-      editor = null
-    }
+    editor = nextEditor
   } catch (error) {
     loading.value = false
     emit('error', error instanceof Error ? error : new Error(String(error)))
@@ -222,20 +172,23 @@ watch(() => props.placeholder, (placeholder) => {
   editor.vditor.wysiwyg?.element.setAttribute('data-placeholder', placeholder)
 })
 
-watch(vditorTheme, (theme) => {
-  if (!editor) return
-  editor.setTheme(theme)
-})
-
 watch(() => props.uploading, () => {
   queueMicrotask(syncUploadControl)
 })
 
+watch(isDark, syncEditorTheme)
+
 onBeforeUnmount(() => {
   destroyed = true
-  ready = false
-  editor?.destroy()
+  const currentEditor = editor
   editor = null
+
+  // Vditor does not cancel its pending Lute initialization in destroy(). Keep
+  // after() intact so it can destroy the editor once initUI() has completed.
+  if (!ready) return
+
+  ready = false
+  currentEditor?.destroy()
 })
 
 function focus() {
@@ -374,6 +327,10 @@ defineExpose({ focus, getValue, insertMarkdown, syncValue })
   padding: 16px;
 }
 
+.vditor-editor :deep(.vditor-reset) {
+  color: var(--gf-color-base-content);
+}
+
 .vditor-editor :deep(.vditor-wysiwyg pre.vditor-reset:empty::before) {
   color: color-mix(in oklch, var(--gf-color-base-content) 45%, transparent);
 }
@@ -385,8 +342,42 @@ defineExpose({ focus, getValue, insertMarkdown, syncValue })
   border-color: var(--gf-color-line);
 }
 
+.vditor-editor :deep(.vditor-reset blockquote) {
+  color: color-mix(in oklch, var(--gf-color-base-content) 70%, transparent);
+}
+
+.vditor-editor :deep(.vditor-reset h1),
+.vditor-editor :deep(.vditor-reset h2),
+.vditor-editor :deep(.vditor-reset hr) {
+  border-color: var(--gf-color-line);
+}
+
+.vditor-editor :deep(.vditor-reset hr) {
+  background: var(--gf-color-line);
+}
+
+.vditor-editor :deep(.vditor-reset table tr),
+.vditor-editor :deep(.vditor-reset table tbody tr:nth-child(2n)) {
+  background: var(--gf-color-base-100);
+}
+
+.vditor-editor :deep(.vditor-reset table tbody tr:nth-child(2n)) {
+  background: var(--gf-color-base-200);
+}
+
 .vditor-editor :deep(.vditor-reset code:not(.hljs):not(.highlight-chroma)) {
   background: var(--gf-color-base-200);
+  color: var(--gf-color-base-content);
+}
+
+.vditor-editor :deep(.vditor-reset pre > code) {
+  background-color: var(--gf-color-base-200);
+  background-image: none;
+  color: var(--gf-color-base-content);
+}
+
+.vditor-editor :deep(.vditor-reset ::selection) {
+  background: color-mix(in oklch, var(--gf-color-primary) 35%, transparent);
   color: var(--gf-color-base-content);
 }
 </style>

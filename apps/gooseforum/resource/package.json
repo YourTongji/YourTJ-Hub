@@ -10,6 +10,7 @@
     "dev:watch": "vite --host 0.0.0.0",
     "build": "pnpm client:build && vue-tsc --noEmit && vite build",
     "typecheck": "pnpm client:build && vue-tsc --noEmit",
+    "test": "vitest run --dir test",
     "audit:site-colors": "node scripts/audit-site-colors.mjs"
   },
   "dependencies": {

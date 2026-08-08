@@ -26,6 +26,9 @@ jobs:
       - name: Typecheck
         working-directory: apps/gooseforum/resource
         run: pnpm typecheck
+      - name: Test
+        working-directory: apps/gooseforum/resource
+        run: pnpm test
       - name: Build
         working-directory: apps/gooseforum/resource
         run: pnpm build
