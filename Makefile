@@ -29,6 +29,6 @@ contract-check: ## Validate, bundle, generate, and require committed OpenAPI Typ
 test: ## Run backend, contract, and frontend checks
 	cd apps/gooseforum && go vet ./... && go test ./...
 	$(MAKE) contract-check
-	cd apps/gooseforum/resource && pnpm typecheck
+	cd apps/gooseforum/resource && pnpm typecheck && pnpm test
 
 gen: contract-generate-ts ## Generate currently supported API client artifacts

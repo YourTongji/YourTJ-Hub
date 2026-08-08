@@ -1,5 +1,30 @@
 import { onBeforeUnmount, ref } from 'vue'
 
+export interface VisualViewportTarget {
+  bottom: number
+  top: number
+}
+
+export interface VisualViewportBounds {
+  height: number
+  offsetTop: number
+}
+
+/** Returns the smallest vertical scroll needed to keep a target visible. */
+export function visualViewportScrollDelta(
+  target: VisualViewportTarget,
+  viewport: VisualViewportBounds,
+  topInset = 0,
+  bottomInset = 0,
+) {
+  const visibleTop = viewport.offsetTop + topInset
+  const visibleBottom = viewport.offsetTop + viewport.height - bottomInset
+
+  if (target.bottom > visibleBottom) return target.bottom - visibleBottom
+  if (target.top < visibleTop) return target.top - visibleTop
+  return 0
+}
+
 /**
  * 追踪软键盘（visual viewport 收缩）相对布局视口的底部偏移。
  *
