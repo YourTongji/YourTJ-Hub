@@ -104,7 +104,7 @@ void main() {
   }
 
   Future<void> settleBrandLogo(WidgetTester tester) async {
-    final BuildContext context = tester.element(find.byType(HomePage));
+    final BuildContext context = tester.element(find.byType(Scaffold).first);
     await tester.runAsync(() async {
       await precacheImage(
         const AssetImage('assets/images/brand-default.png'),
@@ -237,6 +237,7 @@ void main() {
       tester,
       UncontrolledProviderScope(container: container, child: const LoginPage()),
     );
+    await settleBrandLogo(tester);
     await expectLater(
       find.byType(Scaffold).first,
       matchesGoldenFile('golden/pages/login_page.png'),
