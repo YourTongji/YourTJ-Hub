@@ -668,10 +668,17 @@ function previewAppearance() {
 }
 
 function saveAppearance() {
+  const draft = appearance.fontFamilyPreset === 'custom' && !appearance.customFontFamily.trim()
+    ? { ...appearance, fontFamilyPreset: 'system' as const }
+    : { ...appearance }
+  saveAppearanceSettings(draft)
+}
+
+function saveCustomFont() {
   if (appearance.fontFamilyPreset === 'custom' && !appearance.customFontFamily.trim()) {
     appearance.fontFamilyPreset = 'system'
   }
-  saveAppearanceSettings({ ...appearance })
+  saveAppearance()
 }
 
 function confirmResetAppearance() {
@@ -1732,8 +1739,8 @@ async function toggleBinding(provider: string) {
                     :placeholder="t('settings.general.customFontPlaceholder')"
                     maxlength="200"
                     @input="previewAppearance"
-                    @blur="saveAppearance"
-                    @keydown.enter="saveAppearance"
+                    @blur="saveCustomFont"
+                    @keydown.enter="saveCustomFont"
                   />
                 </div>
               </div>
