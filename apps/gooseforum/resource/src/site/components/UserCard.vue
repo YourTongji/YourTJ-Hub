@@ -5,11 +5,11 @@ import {
   Bird,
   CalendarDays,
   ExternalLink,
+  Feather,
   Loader2,
   Radio,
-  UserPlus,
 } from '@lucide/vue'
-import { getUserCard } from '@/runtime/api'
+import { getUserCard, followUser } from '@/runtime/api'
 import { formatDate, formatNumber, timeAgo } from '@/runtime/format'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import type { UserCardPayload } from '@gooseforum/client'
@@ -35,7 +35,17 @@ const username = computed(() => card.value?.username || fallbackUser.value?.user
 const avatarUrl = computed(() => card.value?.avatarUrl || fallbackUser.value?.avatarUrl || '')
 const wornBadge = computed(() => card.value?.wornBadge || fallbackUser.value?.wornBadge || null)
 const profileUrl = computed(() => `/u/${card.value?.userId || fallbackUser.value?.id || 0}`)
-const bioText = computed(() => card.value?.bio || card.value?.signature || '')
+// 悬停卡片简介只展示 bio，签名不再回退到简介行
+const bioText = computed(() => card.value?.bio || '')
+// 全卡背景：用户封面铺满整卡（无封面/加载中保持纯色底，避免彩色跳动）
+const coverStyle = computed(() => {
+  const coverUrl = card.value?.profileCoverUrl?.trim()
+  return coverUrl
+    ? { backgroundImage: `url(${JSON.stringify(coverUrl)})`, backgroundSize: 'cover', backgroundPosition: 'center' }
+    : {}
+})
+const isFollowing = ref(false)
+const followLoading = ref(false)
 const externalLinks = computed(() => {
   const links: Array<{ key: string; label: string; url: string; icon?: SimpleIcon }> = []
   const primaryUrl = normalizeWebsiteURL(card.value?.website || '')
@@ -106,11 +116,13 @@ async function show(event: Event) {
   fallbackUser.value = detail.user
   visible.value = true
   error.value = ''
+  isFollowing.value = Boolean(detail.user.isFollowing)
   requestAnimationFrame(() => placeCard(detail.target))
 
   const cached = cache.get(detail.user.id)
   if (cached) {
     card.value = cached
+    isFollowing.value = cached.isFollowing
     loading.value = false
     return
   }
@@ -123,12 +135,28 @@ async function show(event: Event) {
     if (token !== requestToken) return
     cache.set(detail.user.id, result)
     card.value = result
+    isFollowing.value = result.isFollowing
     requestAnimationFrame(() => placeCard(detail.target))
   } catch {
     if (token !== requestToken) return
     error.value = t('userCard.unavailable')
   } finally {
     if (token === requestToken) loading.value = false
+  }
+}
+
+async function toggleFollow() {
+  const userCard = card.value
+  if (!userCard || userCard.isSelf || followLoading.value) return
+  followLoading.value = true
+  try {
+    await followUser(userCard.userId, isFollowing.value)
+    isFollowing.value = !isFollowing.value
+    userCard.isFollowing = isFollowing.value
+  } catch {
+    // 关注失败保持原状态，静默处理（API 错误已由后端提示）
+  } finally {
+    followLoading.value = false
   }
 }
 
@@ -170,12 +198,16 @@ onBeforeUnmount(() => {
         v-if="visible"
         ref="cardEl"
         class="gf-menu-surface fixed z-[90] w-[min(20rem,calc(100vw-1.5rem))] p-3 text-base-content"
-        :style="{ left: `${position.left}px`, top: `${position.top}px` }"
+        :style="{ left: `${position.left}px`, top: `${position.top}px`, ...coverStyle }"
         @click.stop
       >
+      <!-- 全卡背景蒙版：主题色半透明罩层，保证封面图上的文字对比度（better-colors） -->
+      <div class="pointer-events-none absolute inset-0 rounded-[inherit] bg-base-100/80" aria-hidden="true" />
+      <div class="relative">
       <div class="flex items-start gap-3">
-        <a :href="profileUrl" class="shrink-0 rounded-full ring-2 ring-base-100">
-          <UserAvatar :src="avatarUrl" :alt="username" :badge="wornBadge" size="medium" class="h-14 w-14 rounded-full ring-1 ring-line" img-class="rounded-full" />
+        <!-- 头像单环：a 固定 56×56 圆环（flex 消除 inline-block 基线空隙，避免 ring 变椭圆） -->
+        <a :href="profileUrl" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
+          <UserAvatar :src="avatarUrl" :alt="username" :badge="wornBadge" size="medium" class="h-14 w-14 rounded-full" img-class="rounded-full" />
         </a>
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2">
@@ -216,6 +248,26 @@ onBeforeUnmount(() => {
           <div v-else-if="error" key="error" class="gf-status-message gf-status-message-error mt-3 flex min-h-[164px] items-center">{{ error }}</div>
           <div v-else key="content">
         <p v-if="bioText" class="mt-3 line-clamp-2 text-sm leading-relaxed text-base-content/75">{{ bioText }}</p>
+
+        <aside
+          v-if="card?.signature"
+          class="gf-profile-signature gf-user-card__signature"
+          :aria-label="t('user.signatureLabel')"
+        >
+          <div class="gf-profile-signature__row">
+            <Feather class="gf-profile-signature__icon gf-user-card__signature-icon" aria-hidden="true" />
+            <p class="gf-profile-signature__text gf-user-card__signature-text">{{ card.signature }}</p>
+          </div>
+          <svg class="gf-profile-signature__squiggle" viewBox="0 0 100 8" preserveAspectRatio="none" aria-hidden="true">
+            <path
+              d="M2 5 C 10 0, 18 8, 26 5 S 42 8, 50 5 S 66 8, 74 5 S 90 8, 98 5"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.8"
+              stroke-linecap="round"
+            />
+          </svg>
+        </aside>
 
         <div v-if="visibleBadges.length" class="mt-3 flex gap-2">
           <span
@@ -292,21 +344,61 @@ onBeforeUnmount(() => {
         </div>
 
         <div class="mt-3 flex items-center justify-between gap-3">
-          <div class="inline-flex items-center gap-1.5 text-xs text-base-content/55">
-            <CalendarDays class="h-3.5 w-3.5" />
-            {{ t('userCard.joinedAt', { date: card?.createdAt ? formatDate(card.createdAt) : '-' }) }}
+          <!-- 加入日期：flex-1 独占剩余空间，不被按钮组挤压 -->
+          <div class="min-w-0 flex-1">
+            <span class="inline-flex items-center gap-1.5 text-xs text-base-content/55">
+              <CalendarDays class="h-3.5 w-3.5 shrink-0" />
+              <span class="truncate">{{ t('userCard.joinedAt', { date: card?.createdAt ? formatDate(card.createdAt) : '-' }) }}</span>
+            </span>
           </div>
-          <a
-            :href="profileUrl"
-            class="gf-button gf-button-sm gf-button-neutral"
-          >
-            <UserPlus class="h-4 w-4" />
-            {{ card?.isFollowing ? t('userCard.following') : t('userCard.viewProfile') }}
-          </a>
+          <!-- 底部操作组：关注（主色文字按钮）+ 查看主页（次级图标按钮），宽度最小化 -->
+          <div class="flex shrink-0 items-center gap-1.5">
+            <button
+              v-if="card && !card.isSelf"
+              type="button"
+              class="gf-button gf-button-sm"
+              :class="isFollowing ? 'bg-base-300 text-base-content hover:bg-base-300' : 'bg-primary text-primary-content hover:bg-primary'"
+              :disabled="followLoading"
+              @click="toggleFollow"
+            >
+              <Loader2 v-if="followLoading" class="h-3.5 w-3.5 animate-spin" />
+              {{ isFollowing ? t('userCard.following') : t('userCard.follow') }}
+            </button>
+            <a
+              :href="profileUrl"
+              class="gf-icon-button h-8 w-8"
+              :title="t('userCard.viewProfile')"
+              :aria-label="t('userCard.viewProfile')"
+            >
+              <ExternalLink class="h-4 w-4" />
+            </a>
+          </div>
         </div>
           </div>
         </Transition>
       </div>
+      </div>
     </Transition>
   </Teleport>
 </template>
+
+<style scoped>
+/* 卡片内签名：紧凑手帐式（复用主页签名视觉语言，缩小到卡片密度） */
+.gf-user-card__signature {
+  margin-top: 0.5rem;
+}
+
+.gf-user-card__signature-icon {
+  height: 0.8rem;
+  width: 0.8rem;
+}
+
+.gf-user-card__signature-text {
+  font-size: 0.75rem;
+}
+
+.gf-user-card__signature-text:lang(en),
+.gf-user-card__signature-text:lang(it) {
+  font-size: 0.75rem;
+}
+</style>

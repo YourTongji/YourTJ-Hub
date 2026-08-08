@@ -16,6 +16,11 @@ import (
 
 func TestAssetsGzipSwitch(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	previousEnv := preferences.GetString("app.env", "production")
+	preferences.Set("app.env", "production")
+	t.Cleanup(func() {
+		preferences.Set("app.env", previousEnv)
+	})
 
 	type manifestItem struct {
 		File string   `json:"file"`

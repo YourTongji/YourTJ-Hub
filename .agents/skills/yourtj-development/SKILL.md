@@ -100,7 +100,7 @@ Then run the exact gates for changed paths:
     dbname=postgres sslmode=disable" go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v
   ```
   CI runs the same gate in the `ci-backend-pg` job; do not rely on it passing locally — run it.
-- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output lands in static/dist).
+- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output lands in static/dist).
 - Full build: `make build` then smoke-test the binary (`./bin/yourtj-hub serve`, then curl the
   configured port, default 5234).
 - Contract (once the pipeline exists): regenerate openapi.yaml + TS/Dart, inspect diff, run fixture

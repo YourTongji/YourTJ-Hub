@@ -95,7 +95,7 @@ docs/        Docs center (product/architecture/development/operations)
   `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
   command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
   break PG and are forbidden in models.
-- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm build` (output into resource/static/dist)
+- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)
 - Report the commands actually run and their results; a local subset is not CI passing.
