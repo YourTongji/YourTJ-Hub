@@ -151,26 +151,21 @@ function applyFontZones(zones: Record<FontZone, ZoneFont>) {
   else root.style.removeProperty('font-size')
   setFontVar('--gf-font-family-ui', zones.ui)
 
-  // Body zone
-  if (isZoneCustomized('body', zones)) {
-    root.setAttribute('data-gf-font-body', '')
-    root.style.setProperty('--gf-font-size-body', `${zones.body.size}px`)
-    if (zones.body.familyPreset !== DEFAULT_FAMILY.body) setFontVar('--gf-font-family-body', zones.body)
-  } else {
-    root.removeAttribute('data-gf-font-body')
-    root.style.removeProperty('--gf-font-size-body')
-    root.style.removeProperty('--gf-font-family-body')
-  }
+  applyZoneFont('body', zones, root)
+  applyZoneFont('code', zones, root)
+}
 
-  // Code zone
-  if (isZoneCustomized('code', zones)) {
-    root.setAttribute('data-gf-font-code', '')
-    root.style.setProperty('--gf-font-size-code', `${zones.code.size}px`)
-    if (zones.code.familyPreset !== DEFAULT_FAMILY.code) setFontVar('--gf-font-family-code', zones.code)
+function applyZoneFont(zone: 'body' | 'code', zones: Record<FontZone, ZoneFont>, root: HTMLElement) {
+  const zf = zones[zone]
+  if (isZoneCustomized(zone, zones)) {
+    root.setAttribute(`data-gf-font-${zone}`, '')
+    root.style.setProperty(`--gf-font-size-${zone}`, `${zf.size}px`)
+    if (zf.familyPreset !== DEFAULT_FAMILY[zone]) setFontVar(`--gf-font-family-${zone}`, zf)
+    else root.style.removeProperty(`--gf-font-family-${zone}`)
   } else {
-    root.removeAttribute('data-gf-font-code')
-    root.style.removeProperty('--gf-font-size-code')
-    root.style.removeProperty('--gf-font-family-code')
+    root.removeAttribute(`data-gf-font-${zone}`)
+    root.style.removeProperty(`--gf-font-size-${zone}`)
+    root.style.removeProperty(`--gf-font-family-${zone}`)
   }
 }
 
