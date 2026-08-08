@@ -124,6 +124,10 @@ void main() {
     testWidgets('renders input with hint', (tester) async {
       await tester.pumpWidget(gfApp(const GfInput(hintText: 'Search...')));
       expect(find.text('Search...'), findsOneWidget);
+      expect(
+        tester.getSize(find.byType(GfInput)).height,
+        greaterThanOrEqualTo(48),
+      );
     });
 
     testWidgets('renders textarea with multiline', (tester) async {

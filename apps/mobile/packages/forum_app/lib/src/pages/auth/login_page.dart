@@ -10,6 +10,7 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../app_config.dart';
 import '../../providers.dart';
+import '../../theme_mode.dart';
 
 /// 登录页模式。
 enum _AuthMode { login, register, forgotPassword }
@@ -130,140 +131,237 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _AuthMode.forgotPassword => l10n.authForgotTitle,
   };
 
+  String _subtitle(AppLocalizations l10n) => switch (_mode) {
+    _AuthMode.login => l10n.authLoginSubtitle,
+    _AuthMode.register => l10n.authRegisterSubtitle,
+    _AuthMode.forgotPassword => l10n.authForgotSubtitle,
+  };
+
+  void _switchMode(_AuthMode mode) {
+    _captcha.clear();
+    setState(() => _mode = mode);
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final Brightness brightness = Theme.of(context).brightness;
 
     return Scaffold(
-      appBar: GfAppBar(title: Text(_title(l10n))),
-      body: ListenableBuilder(
-        listenable: _authController,
-        builder: (context, _) {
-          return SingleChildScrollView(
-            padding: const EdgeInsets.all(24),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  l10n.loginWelcome,
-                  style: GfTheme.typographyOf(context).display,
+      backgroundColor: colors.base200,
+      body: Stack(
+        fit: StackFit.expand,
+        children: <Widget>[
+          const GfDotGridBackground(),
+          SafeArea(
+            child: Stack(
+              children: <Widget>[
+                Positioned(
+                  top: 4,
+                  right: 8,
+                  child: GfIconButton(
+                    icon: brightness == Brightness.dark
+                        ? Icons.light_mode_outlined
+                        : Icons.dark_mode_outlined,
+                    onPressed: () => ref
+                        .read(themeModeProvider.notifier)
+                        .toggleDark(brightness != Brightness.dark),
+                  ),
                 ),
-                const SizedBox(height: 24),
-                // 模式切换(web gf-segmented)。
-                GfSegmented<_AuthMode>(
-                  segments: [
-                    (l10n.loginModeLogin, _AuthMode.login),
-                    (l10n.loginModeRegister, _AuthMode.register),
-                    (l10n.loginModeForgot, _AuthMode.forgotPassword),
-                  ],
-                  selected: _mode,
-                  onSelected: (value) => setState(() => _mode = value),
-                ),
-                const SizedBox(height: 20),
-                // 用户名(登录/注册)。
-                if (_mode != _AuthMode.forgotPassword) ...[
-                  GfInput(
-                    controller: _username,
-                    labelText: l10n.authUsernameOrEmail,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                // 邮箱(注册/找回)。
-                if (_mode != _AuthMode.login) ...[
-                  GfInput(
-                    controller: _email,
-                    keyboardType: TextInputType.emailAddress,
-                    labelText: l10n.authEmail,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                // 密码(登录/注册)。
-                if (_mode != _AuthMode.forgotPassword) ...[
-                  GfInput(
-                    controller: _password,
-                    obscureText: true,
-                    labelText: l10n.authPassword,
-                  ),
-                  const SizedBox(height: 12),
-                ],
-                // 验证码挑战。
-                if (_authController.phase == LoginPhase.needsCaptcha) ...[
-                  const SizedBox(height: 12),
-                  if (_authController.captcha != null)
-                    Row(
-                      children: [
-                        Image.memory(
-                          base64Decode(
-                            _authController.captcha!.captchaImg.replaceFirst(
-                              RegExp(r'^data:image/\w+;base64,'),
-                              '',
-                            ),
-                          ),
-                          width: 140,
-                          height: 48,
-                          fit: BoxFit.cover,
-                          gaplessPlayback: true,
+                Center(
+                  child: SingleChildScrollView(
+                    padding: const EdgeInsets.fromLTRB(20, 64, 20, 32),
+                    child: ConstrainedBox(
+                      constraints: const BoxConstraints(maxWidth: 520),
+                      child: GfCard(
+                        emphasized: true,
+                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                        child: ListenableBuilder(
+                          listenable: _authController,
+                          builder: (BuildContext context, Widget? child) {
+                            return _buildCardContent(context, l10n, colors);
+                          },
                         ),
-                        const SizedBox(width: 12),
-                        Expanded(
-                          child: GfInput(
-                            controller: _captcha,
-                            labelText: l10n.authCaptcha,
-                          ),
-                        ),
-                      ],
-                    )
-                  else
-                    GfButton(
-                      label: l10n.authGetCode,
-                      variant: GfButtonVariant.ghost,
-                      onPressed: _authController.loadCaptcha,
+                      ),
                     ),
-                ],
-                // TOTP 挑战。
-                if (_authController.phase == LoginPhase.needsTotp) ...[
-                  const SizedBox(height: 12),
-                  GfInput(
-                    controller: _totp,
-                    keyboardType: TextInputType.number,
-                    labelText: l10n.authTwoFactorCode,
-                    onSubmitted: (_) =>
-                        _authController.submitTotp(_totp.text.trim()),
                   ),
-                ],
-                if (_authController.error.isNotEmpty) ...[
-                  const SizedBox(height: 12),
-                  Text(
-                    _authController.error,
-                    style: GfTheme.typographyOf(
-                      context,
-                    ).small.copyWith(color: colors.error),
-                  ),
-                ],
-                const SizedBox(height: 20),
-                GfButton(
-                  label: _submitLabel(l10n),
-                  variant: GfButtonVariant.primary,
-                  expanded: true,
-                  loading: _authController.busy,
-                  onPressed: _authController.busy ? null : _submit,
                 ),
-                if (_mode == _AuthMode.login) ...[
-                  const SizedBox(height: 12),
-                  GfButton(
-                    label: l10n.authCasdoorLogin,
-                    variant: GfButtonVariant.outline,
-                    expanded: true,
-                    loading: _authController.busy,
-                    onPressed: _authController.busy ? null : _loginOidc,
-                  ),
-                ],
               ],
             ),
-          );
-        },
+          ),
+        ],
       ),
+    );
+  }
+
+  Widget _buildCardContent(
+    BuildContext context,
+    AppLocalizations l10n,
+    GfColors colors,
+  ) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: <Widget>[
+        Align(
+          alignment: Alignment.centerLeft,
+          child: Image.asset(
+            'assets/images/brand-default.png',
+            width: 176,
+            height: 44,
+            fit: BoxFit.contain,
+            alignment: Alignment.centerLeft,
+          ),
+        ),
+        const SizedBox(height: 24),
+        Text(
+          _title(l10n),
+          style: GfTheme.typographyOf(context).display.copyWith(fontSize: 27),
+        ),
+        const SizedBox(height: 6),
+        Text(
+          _subtitle(l10n),
+          style: GfTheme.typographyOf(
+            context,
+          ).small.copyWith(color: colors.baseContent.withValues(alpha: 0.55)),
+        ),
+        const SizedBox(height: 22),
+        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+          GfSegmented<_AuthMode>(
+            segments: <(String, _AuthMode)>[
+              (l10n.loginModeLogin, _AuthMode.login),
+              (l10n.loginModeRegister, _AuthMode.register),
+            ],
+            selected: _mode,
+            onSelected: _switchMode,
+          ),
+          const SizedBox(height: 20),
+        ],
+        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+          GfInput(
+            controller: _username,
+            hintText: _mode == _AuthMode.login
+                ? l10n.authUsernameOrEmail
+                : l10n.authUsername,
+            prefixIcon: const Icon(Icons.person_outline, size: 20),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (_mode != _AuthMode.login) ...<Widget>[
+          GfInput(
+            controller: _email,
+            keyboardType: TextInputType.emailAddress,
+            hintText: l10n.authEmail,
+            prefixIcon: const Icon(Icons.mail_outline, size: 20),
+          ),
+          const SizedBox(height: 12),
+        ],
+        if (_mode != _AuthMode.forgotPassword) ...<Widget>[
+          GfInput(
+            controller: _password,
+            obscureText: true,
+            hintText: l10n.authPassword,
+            prefixIcon: const Icon(Icons.lock_outline, size: 20),
+          ),
+          if (_mode == _AuthMode.login) ...<Widget>[
+            const SizedBox(height: 4),
+            Align(
+              alignment: Alignment.centerRight,
+              child: GfButton(
+                label: l10n.authForgotPassword,
+                variant: GfButtonVariant.link,
+                size: GfButtonSize.small,
+                onPressed: () => _switchMode(_AuthMode.forgotPassword),
+              ),
+            ),
+          ] else
+            const SizedBox(height: 12),
+        ],
+        if (_authController.phase == LoginPhase.needsCaptcha) ...<Widget>[
+          const SizedBox(height: 4),
+          if (_authController.captcha != null)
+            Row(
+              children: <Widget>[
+                ClipRRect(
+                  borderRadius: BorderRadius.circular(8),
+                  child: Image.memory(
+                    base64Decode(
+                      _authController.captcha!.captchaImg.replaceFirst(
+                        RegExp(r'^data:image/\w+;base64,'),
+                        '',
+                      ),
+                    ),
+                    width: 128,
+                    height: 48,
+                    fit: BoxFit.cover,
+                    gaplessPlayback: true,
+                  ),
+                ),
+                const SizedBox(width: 12),
+                Expanded(
+                  child: GfInput(
+                    controller: _captcha,
+                    hintText: l10n.authCaptcha,
+                  ),
+                ),
+              ],
+            )
+          else
+            GfButton(
+              label: l10n.authGetCode,
+              variant: GfButtonVariant.ghost,
+              onPressed: _authController.loadCaptcha,
+            ),
+        ],
+        if (_authController.phase == LoginPhase.needsTotp) ...<Widget>[
+          const SizedBox(height: 12),
+          GfInput(
+            controller: _totp,
+            keyboardType: TextInputType.number,
+            hintText: l10n.authTwoFactorCode,
+            prefixIcon: const Icon(Icons.shield_outlined, size: 20),
+            onSubmitted: (_) => _authController.submitTotp(_totp.text.trim()),
+          ),
+        ],
+        if (_authController.error.isNotEmpty) ...<Widget>[
+          const SizedBox(height: 12),
+          Text(
+            _authController.error,
+            style: GfTheme.typographyOf(
+              context,
+            ).small.copyWith(color: colors.error),
+          ),
+        ],
+        const SizedBox(height: 20),
+        GfButton(
+          label: _submitLabel(l10n),
+          variant: GfButtonVariant.primary,
+          size: GfButtonSize.extraLarge,
+          expanded: true,
+          loading: _authController.busy,
+          onPressed: _authController.busy ? null : _submit,
+        ),
+        if (_mode == _AuthMode.login) ...<Widget>[
+          const SizedBox(height: 12),
+          GfButton(
+            label: l10n.authCasdoorLogin,
+            variant: GfButtonVariant.outline,
+            size: GfButtonSize.extraLarge,
+            expanded: true,
+            loading: _authController.busy,
+            onPressed: _authController.busy ? null : _loginOidc,
+          ),
+        ],
+        if (_mode == _AuthMode.forgotPassword) ...<Widget>[
+          const SizedBox(height: 8),
+          GfButton(
+            label: l10n.authBackToLogin,
+            variant: GfButtonVariant.link,
+            expanded: true,
+            onPressed: () => _switchMode(_AuthMode.login),
+          ),
+        ],
+      ],
     );
   }
 

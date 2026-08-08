@@ -3,10 +3,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
+import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
@@ -241,6 +244,10 @@ Map<String, dynamic> settingsPayloadJson() {
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   Future<ProviderContainer> makeContainer({
     required CountingPageRepository pageRepo,
     PagingTopicRepository? topicRepo,
@@ -312,6 +319,63 @@ void main() {
         greaterThan(callsBefore),
         reason: '下拉刷新应再次调用 fetch 重载第一页',
       );
+    });
+  });
+
+  group('首页话题布局', () {
+    testWidgets('卡片和列表可通过胶囊切换且记住选择', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const HomePage()));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfTopicCard), findsOneWidget);
+      expect(find.byType(GfTopicRow), findsNothing);
+      final Finder brandLogo = find.byType(Image);
+      expect(brandLogo, findsOneWidget);
+      expect(tester.getTopLeft(brandLogo).dx, inInclusiveRange(0, 24));
+      expect(tester.getSize(brandLogo), const Size(128, 34));
+
+      await tester.tap(find.text('列表'));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfTopicCard), findsNothing);
+      expect(find.byType(GfTopicRow), findsOneWidget);
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      expect(preferences.getString('goose:home-feed-mode'), 'list');
+    });
+  });
+
+  group('登录表单', () {
+    testWidgets('忘记密码入口不被遮挡并可进入重置模式', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const LoginPage()));
+      await tester.pumpAndSettle();
+
+      final Finder forgotPassword = find.text('忘记密码？');
+      expect(forgotPassword, findsOneWidget);
+      expect(forgotPassword.hitTestable(), findsOneWidget);
+
+      await tester.tap(forgotPassword);
+      await tester.pumpAndSettle();
+
+      expect(find.text('重置密码'), findsOneWidget);
+      expect(find.text('邮箱'), findsOneWidget);
+      expect(find.text('返回登录'), findsOneWidget);
     });
   });
 

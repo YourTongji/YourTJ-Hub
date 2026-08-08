@@ -88,4 +88,41 @@ void main() {
       expect(taps, 1);
     });
   });
+
+  group('GfTopicCard', () {
+    testWidgets('renders web-aligned author, content and metrics', (
+      tester,
+    ) async {
+      await tester.pumpWidget(
+        gfApp(
+          SizedBox(
+            width: 360,
+            child: GfTopicCard(
+              title: '校园卡片话题',
+              description: '卡片摘要内容',
+              authorName: 'Alice',
+              authorAvatarUrl: '',
+              categories: const <GfTopicCategory>[
+                GfTopicCategory(name: '校园生活', color: Color(0xFF00BC7D)),
+              ],
+              imageUrls: const <String>[],
+              activityText: '3 小时前',
+              replyCount: 42,
+              viewCount: 128,
+              onTap: () {},
+            ),
+          ),
+        ),
+      );
+
+      expect(find.text('Alice'), findsOneWidget);
+      expect(find.text('校园卡片话题'), findsOneWidget);
+      expect(find.text('卡片摘要内容'), findsOneWidget);
+      expect(find.text('校园生活'), findsOneWidget);
+      expect(find.text('42'), findsOneWidget);
+      expect(find.text('128'), findsOneWidget);
+      expect(find.byIcon(Icons.chat_bubble_outline), findsOneWidget);
+      expect(find.byIcon(Icons.visibility_outlined), findsOneWidget);
+    });
+  });
 }

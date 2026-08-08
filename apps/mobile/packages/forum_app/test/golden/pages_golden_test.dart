@@ -4,6 +4,7 @@ import 'dart:io';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
@@ -72,6 +73,10 @@ void main() {
   // goldens on Linux and skip elsewhere.
   final bool skipGoldens = !Platform.isLinux;
 
+  setUp(() {
+    SharedPreferences.setMockInitialValues(<String, Object>{});
+  });
+
   Future<ProviderContainer> makeContainer({
     NotificationRepository? notifRepo,
   }) async {
@@ -97,15 +102,43 @@ void main() {
     return container;
   }
 
+  Future<void> settleBrandLogo(WidgetTester tester) async {
+    final BuildContext context = tester.element(find.byType(HomePage));
+    await tester.runAsync(() async {
+      await precacheImage(
+        const AssetImage('assets/images/brand-default.png'),
+        context,
+      );
+    });
+    await tester.pump();
+  }
+
   testWidgets('home page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
       UncontrolledProviderScope(container: container, child: const HomePage()),
     );
+    await settleBrandLogo(tester);
     await expectLater(
       find.byType(Scaffold).first,
       matchesGoldenFile('golden/pages/home_page.png'),
+    );
+  });
+
+  testWidgets('home page list golden', skip: skipGoldens, (tester) async {
+    SharedPreferences.setMockInitialValues(<String, Object>{
+      'goose:home-feed-mode': 'list',
+    });
+    final container = await makeContainer();
+    await pumpPageGolden(
+      tester,
+      UncontrolledProviderScope(container: container, child: const HomePage()),
+    );
+    await settleBrandLogo(tester);
+    await expectLater(
+      find.byType(Scaffold).first,
+      matchesGoldenFile('golden/pages/home_page_list.png'),
     );
   });
 

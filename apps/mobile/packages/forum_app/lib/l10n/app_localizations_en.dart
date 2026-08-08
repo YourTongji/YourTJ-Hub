@@ -105,6 +105,18 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authForgotTitle => 'Reset password';
 
   @override
+  String get authLoginSubtitle =>
+      'Welcome back. Continue your discussions and writing.';
+
+  @override
+  String get authRegisterSubtitle =>
+      'Create an account and join the campus conversation.';
+
+  @override
+  String get authForgotSubtitle =>
+      'Enter your email and we will send a reset link.';
+
+  @override
   String get authUsernameOrEmail => 'Username or email';
 
   @override
@@ -725,6 +737,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get sortPopular => 'Popular';
+
+  @override
+  String get topicFeedModeList => 'List';
+
+  @override
+  String get topicFeedModeCard => 'Cards';
 
   @override
   String get topicNewTopic => 'New topic';

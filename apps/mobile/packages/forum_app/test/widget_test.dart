@@ -10,6 +10,7 @@ import 'package:forum_app/src/app.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
+import 'package:ui_kit/ui_kit.dart';
 
 /// 测试用内存 TokenStorage(生产为 SecureTokenStorage)。
 class MemoryTokenStorage implements TokenStorage {
@@ -72,10 +73,22 @@ void main() {
     // 底部导航 5 个 tab 存在(zh)。
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('搜索'), findsOneWidget);
-    // 「发布」出现 2 次:底部 tab + GfFloatingAction 浮动按钮。
-    expect(find.text('发布'), findsNWidgets(2));
+    // Web-aligned 首页不再叠加悬浮发布按钮，入口由底部 tab 提供。
+    expect(find.text('发布'), findsOneWidget);
     expect(find.text('消息'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
+
+    // 顶部搜索入口跳转后，底部导航的选中态也必须同步。
+    await tester.tap(find.byIcon(Icons.search).first);
+    await tester.pumpAndSettle();
+    final GfBottomNavigation navigation = tester.widget(
+      find.byType(GfBottomNavigation),
+    );
+    expect(appRouter.state.uri.path, '/search');
+    expect(navigation.currentIndex, 1);
+
+    appRouter.go('/');
+    await tester.pumpAndSettle();
   });
 
   testWidgets('设置/通知/草稿路由可达:router 注册且可导航', (tester) async {
@@ -91,8 +104,9 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 首页齿轮按钮存在(设置入口)。
-    expect(find.byIcon(Icons.settings_outlined), findsWidgets);
+    // 首页顶部对齐 Web：搜索、主题切换和头像入口。
+    expect(find.byIcon(Icons.search), findsWidgets);
+    expect(find.byIcon(Icons.dark_mode_outlined), findsOneWidget);
 
     // 底部导航切到"我的"。
     await tester.tap(find.text('我的'));

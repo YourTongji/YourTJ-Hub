@@ -37,29 +37,36 @@ class GfAppBar extends StatelessWidget implements PreferredSizeWidget {
         automaticallyImplyLeading &&
         Navigator.canPop(context);
 
-    return td.TNavBar(
-      titleWidget: title,
-      leading: leading == null
-          ? null
-          : <td.TNavBarItem>[
-              td.TNavBarItem(customWidget: leading, onTap: () {}),
-            ],
-      actions: <td.TNavBarItem>[
-        for (final Widget action in actions)
-          td.TNavBarItem(customWidget: action, onTap: () {}),
-      ],
-      centerTitle: centerTitle,
-      useDefaultBack: showDefaultBack,
-      height: preferredSize.height,
-      belowTitleWidget: bottom,
-      backgroundColor: colors.base100,
-      titleColor: colors.baseContent,
-      backIconColor: colors.iconMuted,
-      titleFontWeight: FontWeight.w700,
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-      boxShadow: <BoxShadow>[
-        BoxShadow(color: colors.line, offset: const Offset(0, 1)),
-      ],
+    // Scaffold adds the status-bar inset to the app-bar slot but arbitrary
+    // PreferredSizeWidget children do not consume it automatically. SafeArea
+    // keeps TNavBar below the Dynamic Island/notch while preserving the 56px
+    // content height used by Android and tests.
+    return SafeArea(
+      bottom: false,
+      child: td.TNavBar(
+        titleWidget: title,
+        leading: leading == null
+            ? null
+            : <td.TNavBarItem>[
+                td.TNavBarItem(customWidget: leading, onTap: () {}),
+              ],
+        actions: <td.TNavBarItem>[
+          for (final Widget action in actions)
+            td.TNavBarItem(customWidget: action, onTap: () {}),
+        ],
+        centerTitle: centerTitle,
+        useDefaultBack: showDefaultBack,
+        height: preferredSize.height,
+        belowTitleWidget: bottom,
+        backgroundColor: colors.base100,
+        titleColor: colors.baseContent,
+        backIconColor: colors.iconMuted,
+        titleFontWeight: FontWeight.w700,
+        padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
+        boxShadow: <BoxShadow>[
+          BoxShadow(color: colors.line, offset: const Offset(0, 1)),
+        ],
+      ),
     );
   }
 }

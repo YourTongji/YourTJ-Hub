@@ -70,6 +70,9 @@
   "authLoginTitle": "Sign in",
   "authRegisterTitle": "Create account",
   "authForgotTitle": "Reset password",
+  "authLoginSubtitle": "Welcome back. Continue your discussions and writing.",
+  "authRegisterSubtitle": "Create an account and join the campus conversation.",
+  "authForgotSubtitle": "Enter your email and we will send a reset link.",
   "authUsernameOrEmail": "Username or email",
   "authUsername": "Username",
   "authEmail": "Email",
@@ -416,5 +419,7 @@
   "sortLatest": "Latest",
   "sortHot": "Hot",
   "sortPopular": "Popular",
+  "topicFeedModeList": "List",
+  "topicFeedModeCard": "Cards",
   "topicNewTopic": "New topic"
 }

@@ -153,8 +153,13 @@ class _GfInputState extends State<GfInput> {
             suffixIcon: widget.suffixIcon ?? widget.decoration?.suffixIcon,
             filled: true,
             fillColor: colors.base100,
-            isDense: true,
-            contentPadding: const EdgeInsets.symmetric(horizontal: 12),
+            isDense: false,
+            constraints:
+                widget.decoration?.constraints ??
+                const BoxConstraints(minHeight: 48),
+            contentPadding:
+                widget.decoration?.contentPadding ??
+                const EdgeInsets.symmetric(horizontal: 12, vertical: 13),
             border: OutlineInputBorder(
               borderRadius: BorderRadius.circular(radii.field),
               borderSide: BorderSide(color: colors.line, width: borders.width),

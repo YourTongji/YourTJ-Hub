@@ -28,6 +28,22 @@ void main() {
     expect(find.byIcon(Icons.settings), findsOneWidget);
   });
 
+  testWidgets('GfAppBar keeps TDesign chrome below the status safe area', (
+    tester,
+  ) async {
+    await tester.pumpWidget(
+      MaterialApp(
+        theme: gfThemeData(Brightness.light),
+        home: MediaQuery(
+          data: const MediaQueryData(padding: EdgeInsets.only(top: 44)),
+          child: const Scaffold(appBar: GfAppBar(title: Text('安全区'))),
+        ),
+      ),
+    );
+
+    expect(tester.getTopLeft(find.byType(td.TNavBar)).dy, 44);
+  });
+
   testWidgets('GfBottomNavigation reports the selected TDesign tab', (
     tester,
   ) async {

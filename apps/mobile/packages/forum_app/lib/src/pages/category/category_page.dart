@@ -23,7 +23,7 @@ class CategoryPage extends ConsumerStatefulWidget {
 
 class _CategoryPageState extends ConsumerState<CategoryPage> {
   AsyncValue<CategoryPageProps> _page = const AsyncValue.loading();
-  final List<dynamic> _topics = [];
+  final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
 
   @override

@@ -114,6 +114,8 @@ class _GfShellState extends ConsumerState<GfShell> {
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
+    final int routeIndex = _paths.indexOf(GoRouterState.of(context).uri.path);
+    final int effectiveIndex = routeIndex < 0 ? _index : routeIndex;
 
     // 401 会话失效:清会话并回登录页(ref.listen 必须在 build 中注册)。
     ref.listen(unauthorizedEventsProvider, (prev, next) {
@@ -123,13 +125,8 @@ class _GfShellState extends ConsumerState<GfShell> {
     });
 
     return Scaffold(
-      // 底部浮动发布按钮(对齐 web TopicFloatingControls 语义)。
-      floatingActionButton: GfFloatingAction(
-        label: l10n.navPublish,
-        onPressed: () => context.go('/publish'),
-      ),
       body: IndexedStack(
-        index: _index,
+        index: effectiveIndex,
         children: [
           widget.child,
           const SearchPage(),
@@ -139,7 +136,7 @@ class _GfShellState extends ConsumerState<GfShell> {
         ],
       ),
       bottomNavigationBar: GfBottomNavigation(
-        currentIndex: _index,
+        currentIndex: effectiveIndex,
         onSelected: (int i) {
           setState(() => _index = i);
           final String path = _paths[i];

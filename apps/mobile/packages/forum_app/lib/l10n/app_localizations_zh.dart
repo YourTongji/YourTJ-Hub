@@ -105,6 +105,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authForgotTitle => '重置密码';
 
   @override
+  String get authLoginSubtitle => '欢迎回来，继续你的讨论和创作。';
+
+  @override
+  String get authRegisterSubtitle => '创建账号，加入校园里的每一次讨论。';
+
+  @override
+  String get authForgotSubtitle => '输入邮箱，我们会发送一封重置密码邮件。';
+
+  @override
   String get authUsernameOrEmail => '用户名或邮箱';
 
   @override
@@ -724,6 +733,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get sortPopular => '流行';
+
+  @override
+  String get topicFeedModeList => '列表';
+
+  @override
+  String get topicFeedModeCard => '卡片';
 
   @override
   String get topicNewTopic => '新建话题';

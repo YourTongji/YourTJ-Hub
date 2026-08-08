@@ -3,12 +3,15 @@ import 'dart:async';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../../../l10n/app_localizations.dart';
+import '../../asset_url.dart';
 import '../../providers.dart';
+import '../../theme_mode.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 
@@ -21,15 +24,49 @@ class HomePage extends ConsumerStatefulWidget {
 }
 
 class _HomePageState extends ConsumerState<HomePage> {
+  static const String _feedModeKey = 'goose:home-feed-mode';
+
   AsyncValue<HomeProps> _page = const AsyncValue.loading();
+  LayoutPayload? _layout;
   String _sort = '';
-  final List<dynamic> _topics = [];
+  final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
+  GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
 
   @override
   void initState() {
     super.initState();
+    _restoreFeedMode();
     _load();
+  }
+
+  Future<void> _restoreFeedMode() async {
+    try {
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      final String? stored = preferences.getString(_feedModeKey);
+      if (!mounted || stored == null) return;
+      setState(() {
+        _feedMode = GfTopicFeedMode.values.firstWhere(
+          (GfTopicFeedMode mode) => mode.name == stored,
+          orElse: () => GfTopicFeedMode.card,
+        );
+      });
+    } catch (_) {
+      // Restricted storage keeps the web-compatible mobile default: card.
+    }
+  }
+
+  Future<void> _setFeedMode(GfTopicFeedMode mode) async {
+    if (_feedMode == mode) return;
+    setState(() => _feedMode = mode);
+    try {
+      final SharedPreferences preferences =
+          await SharedPreferences.getInstance();
+      await preferences.setString(_feedModeKey, mode.name);
+    } catch (_) {
+      // The in-memory choice remains valid for this session.
+    }
   }
 
   Future<void> _load({bool silent = false}) async {
@@ -50,6 +87,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       }
       setState(() {
         _page = AsyncValue.data(props);
+        _layout = payload.layout;
         _topics.clear();
         _topics.addAll(props.topics);
       });
@@ -91,13 +129,45 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final Brightness brightness = Theme.of(context).brightness;
+    final LayoutPayload? layout = _layout;
+    final bool authenticated = layout?.viewer.isAuthenticated == true;
+
     return Scaffold(
       appBar: GfAppBar(
-        title: Text(AppLocalizations.of(context).appTitle),
-        actions: [
+        automaticallyImplyLeading: false,
+        leading: _BrandLogo(layout: layout),
+        title: const SizedBox.shrink(),
+        actions: <Widget>[
           GfIconButton(
-            icon: Icons.settings_outlined,
-            onPressed: () => context.go('/settings'),
+            icon: Icons.search,
+            onPressed: () => context.go('/search'),
+          ),
+          GfIconButton(
+            icon: brightness == Brightness.dark
+                ? Icons.light_mode_outlined
+                : Icons.dark_mode_outlined,
+            onPressed: () => ref
+                .read(themeModeProvider.notifier)
+                .toggleDark(brightness != Brightness.dark),
+          ),
+          Semantics(
+            button: true,
+            label: authenticated ? 'Profile' : 'Login',
+            child: InkWell(
+              borderRadius: BorderRadius.circular(999),
+              onTap: () => context.go(authenticated ? '/profile' : '/login'),
+              child: Padding(
+                padding: const EdgeInsets.all(2),
+                child: GfAvatar(
+                  src: layout == null
+                      ? ''
+                      : resolveApiAssetUrl(layout.viewer.avatarUrl),
+                  size: 34,
+                  ring: true,
+                ),
+              ),
+            ),
           ),
         ],
       ),
@@ -108,13 +178,20 @@ class _HomePageState extends ConsumerState<HomePage> {
           return Column(
             children: [
               _AnnouncementBanner(props: props),
-              _SortTabs(props: props, selected: _sort, onSelected: _switchSort),
+              _HomeToolbar(
+                props: props,
+                selected: _sort,
+                feedMode: _feedMode,
+                onSelected: _switchSort,
+                onFeedModeSelected: _setFeedMode,
+              ),
               Expanded(
                 child: RefreshIndicator(
                   onRefresh: () => _load(silent: true),
                   child: GfTopicList(
                     loading: _loadingMore,
                     topics: _topics,
+                    feedMode: _feedMode,
                     hasMore: props.pagination.hasNext,
                     onLoadMore: _loadMore,
                   ),
@@ -124,6 +201,35 @@ class _HomePageState extends ConsumerState<HomePage> {
           );
         },
       ),
+    );
+  }
+}
+
+class _BrandLogo extends StatelessWidget {
+  const _BrandLogo({required this.layout});
+
+  final LayoutPayload? layout;
+
+  @override
+  Widget build(BuildContext context) {
+    const Widget fallback = Image(
+      image: AssetImage('assets/images/brand-default.png'),
+      width: 128,
+      height: 34,
+      fit: BoxFit.contain,
+      alignment: Alignment.centerLeft,
+    );
+    final String brandImage = layout?.site.brandImage ?? '';
+    if (layout?.site.brandType != 'image' || brandImage.isEmpty) {
+      return fallback;
+    }
+    return Image.network(
+      resolveApiAssetUrl(brandImage),
+      width: 128,
+      height: 34,
+      fit: BoxFit.contain,
+      alignment: Alignment.centerLeft,
+      errorBuilder: (_, _, _) => fallback,
     );
   }
 }
@@ -246,16 +352,20 @@ class _AnnouncementBannerState extends ConsumerState<_AnnouncementBanner> {
   }
 }
 
-class _SortTabs extends ConsumerWidget {
-  const _SortTabs({
+class _HomeToolbar extends ConsumerWidget {
+  const _HomeToolbar({
     required this.props,
     required this.selected,
+    required this.feedMode,
     required this.onSelected,
+    required this.onFeedModeSelected,
   });
 
   final HomeProps props;
   final String selected;
+  final GfTopicFeedMode feedMode;
   final ValueChanged<String> onSelected;
+  final ValueChanged<GfTopicFeedMode> onFeedModeSelected;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
@@ -269,14 +379,18 @@ class _SortTabs extends ConsumerWidget {
         }
       }
     }
-    // 工具栏对齐 web HomePage.vue:排序 tabs + 新建话题按钮。
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Container(
-          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 4),
-          alignment: Alignment.centerLeft,
-          child: GfTabBar(
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+
+    // Web keeps tabs + feed switch + new-topic in one row. Mobile uses two
+    // compact rows so all three controls retain comfortable touch targets.
+    return Container(
+      color: colors.base100,
+      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          GfTabBar(
             tabs: <GfTab>[
               for (final tab in props.tabs)
                 GfTab(
@@ -289,19 +403,37 @@ class _SortTabs extends ConsumerWidget {
             selected: effective,
             onSelected: (Object value) => onSelected(value as String),
           ),
-        ),
-        Padding(
-          padding: const EdgeInsets.fromLTRB(12, 2, 12, 6),
-          child: GfButton(
-            label: AppLocalizations.of(context).topicNewTopic,
-            icon: const Icon(Icons.add, size: 16),
-            variant: GfButtonVariant.primary,
-            size: GfButtonSize.medium,
-            expanded: true,
-            onPressed: () => context.go('/publish'),
+          const SizedBox(height: 8),
+          Row(
+            children: <Widget>[
+              GfPillSwitch<GfTopicFeedMode>(
+                options: <GfPillOption<GfTopicFeedMode>>[
+                  GfPillOption<GfTopicFeedMode>(
+                    label: l10n.topicFeedModeList,
+                    value: GfTopicFeedMode.list,
+                    icon: Icons.view_list_outlined,
+                  ),
+                  GfPillOption<GfTopicFeedMode>(
+                    label: l10n.topicFeedModeCard,
+                    value: GfTopicFeedMode.card,
+                    icon: Icons.grid_view_outlined,
+                  ),
+                ],
+                selected: feedMode,
+                onSelected: onFeedModeSelected,
+              ),
+              const Spacer(),
+              GfButton(
+                label: l10n.topicNewTopic,
+                icon: const Icon(Icons.add, size: 16),
+                variant: GfButtonVariant.primary,
+                size: GfButtonSize.small,
+                onPressed: () => context.go('/publish'),
+              ),
+            ],
           ),
-        ),
-      ],
+        ],
+      ),
     );
   }
 

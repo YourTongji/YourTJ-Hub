@@ -266,6 +266,24 @@ abstract class AppLocalizations {
   /// **'Reset password'**
   String get authForgotTitle;
 
+  /// No description provided for @authLoginSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Welcome back. Continue your discussions and writing.'**
+  String get authLoginSubtitle;
+
+  /// No description provided for @authRegisterSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Create an account and join the campus conversation.'**
+  String get authRegisterSubtitle;
+
+  /// No description provided for @authForgotSubtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter your email and we will send a reset link.'**
+  String get authForgotSubtitle;
+
   /// No description provided for @authUsernameOrEmail.
   ///
   /// In en, this message translates to:
@@ -1411,6 +1429,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Popular'**
   String get sortPopular;
+
+  /// No description provided for @topicFeedModeList.
+  ///
+  /// In en, this message translates to:
+  /// **'List'**
+  String get topicFeedModeList;
+
+  /// No description provided for @topicFeedModeCard.
+  ///
+  /// In en, this message translates to:
+  /// **'Cards'**
+  String get topicFeedModeCard;
 
   /// No description provided for @topicNewTopic.
   ///
