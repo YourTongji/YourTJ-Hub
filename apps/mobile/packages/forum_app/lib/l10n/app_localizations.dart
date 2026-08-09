@@ -374,11 +374,11 @@ abstract class AppLocalizations {
   /// **'Get code'**
   String get authGetCode;
 
-  /// No description provided for @authCasdoorLogin.
+  /// No description provided for @authOidcLogin.
   ///
   /// In en, this message translates to:
-  /// **'Sign in with Casdoor'**
-  String get authCasdoorLogin;
+  /// **'Sign in with yourtj'**
+  String get authOidcLogin;
 
   /// No description provided for @authRegisterSuccess.
   ///
@@ -1001,13 +1001,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsOAuth.
   ///
   /// In en, this message translates to:
-  /// **'Casdoor unified identity'**
+  /// **'External account connections'**
   String get settingsOAuth;
 
   /// No description provided for @settingsOAuthSub.
   ///
   /// In en, this message translates to:
-  /// **'OIDC login bindings'**
+  /// **'GitHub and Google login connections'**
   String get settingsOAuthSub;
 
   /// No description provided for @settingsOAuthManage.

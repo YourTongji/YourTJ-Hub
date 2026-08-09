@@ -81,12 +81,29 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
-# Casdoor OIDC 配置（统一身份登录，移动端依赖本段）
-[casdoor]
-endpoint = ""
-client_id = ""
-client_secret = ""
-# 移动端 OIDC 回调（custom scheme），须与 Casdoor 应用 Redirect URLs 白名单一致
-mobile_redirect_uri = "yourtj://callback"
+# 内建 OIDC Provider（可选；为选课站等第一方服务提供标准 OIDC 登录）
+[oidc]
+enabled = false
+# issuer 默认取 site_url + /api/oauth；显式配置可覆盖
+# issuer = "https://forum.example.com/api/oauth"
+# RS256 签名私钥：内联 PEM 或密钥文件（二者都为空时自动生成并持久化到 signing_key_file）
+# signing_key = ""
+signing_key_file = "./storage/oidc/signing_key.pem"
+# 访问令牌/授权码/id_token 有效期（秒）
+access_token_ttl = 3600
+auth_request_ttl = 600
+id_token_ttl = 3600
+# 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
+[[oidc.clients]]
+id = "yourtj-mobile"
+name = "yourtj 移动端"
+redirect_uris = ["yourtj://callback"]
+# secret = ""
+# 示例：web 端第一方服务（confidential）
+# [[oidc.clients]]
+# id = "course-select"
+# name = "选课站"
+# secret = "请替换为强随机密钥"
+# redirect_uris = ["https://course.example.com/callback"]
 
 # end #

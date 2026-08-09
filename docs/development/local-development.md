@@ -21,7 +21,7 @@
 ## Startup
 
 ```bash
-# 1. Start local dependencies (postgres + meilisearch + mariadb + casdoor)
+# 1. Start local dependencies (postgres + meilisearch)
 make dev
 
 # 2. Forum backend (default port 5234)
@@ -58,10 +58,8 @@ melos run test                       # 全包测试
 |---|---|---|
 | Forum backend | http://localhost:5234 | config.toml `[server] port` |
 | Frontend dev | http://localhost:3010 | vite, hits backend directly |
-| casdoor | http://localhost:8001 | unified auth (admin/123, dev) |
 | meilisearch | http://localhost:7700 | master key: `yourtj-dev-master-key` |
 | postgres | localhost:5432 | yourtj/yourtj, db yourtj (reserved) |
-| mariadb | localhost:13306 | casdoor-only |
 
 ## Mobile → backend
 
@@ -82,11 +80,10 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client |
 
-Casdoor OIDC is configured from the `[casdoor]` section in `config.toml`
-(`endpoint` / `client_id` / `client_secret`, see `deploy/config.toml.example`); the values are read at
-startup via preferences and there is no admin-panel UI to change them (set them in the file and
-restart). The OIDC login entry only appears once these are set (`oidcservice.IsConfigured()` gates
-it).
+The built-in OIDC Provider is configured from the `[oidc]` section in `config.toml`
+(`enabled`, `issuer`, `signing_key_file`, `[[oidc.clients]]`, see `deploy/config.toml.example`); the
+values are read at startup via preferences and there is no admin-panel UI to change them (set them in
+the file and restart). The endpoints are mounted under `/api/oauth` only when `oidc.enabled = true`.
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 

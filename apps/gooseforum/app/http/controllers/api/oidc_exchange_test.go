@@ -2,26 +2,33 @@ package api
 
 import (
 	"bytes"
-	"crypto/rand"
-	"crypto/rsa"
+	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
-	"math/big"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"path/filepath"
+	"strings"
 	"testing"
-	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/golang-jwt/jwt/v5"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
+	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
+	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
+	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
+	"github.com/leancodebox/GooseForum/app/models/forum/role"
+	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
+	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
+	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
+	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/oidcservice"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 func postOidcExchange(t *testing.T, body string) (*httptest.ResponseRecorder, component.ResultStruct) {
@@ -40,13 +47,6 @@ func postOidcExchange(t *testing.T, body string) (*httptest.ResponseRecorder, co
 	return recorder, res
 }
 
-func setCasdoorPrefs(endpoint string) {
-	preferences.Set("casdoor.endpoint", endpoint)
-	preferences.Set("casdoor.client_id", "test-client")
-	preferences.Set("casdoor.client_secret", "test-secret")
-	preferences.Set("casdoor.mobile_redirect_uri", "yourtj://callback")
-}
-
 func TestOidcExchangeInvalidJSON(t *testing.T) {
 	rec, _ := postOidcExchange(t, "{not-json")
 	if rec.Code != http.StatusBadRequest {
@@ -62,7 +62,8 @@ func TestOidcExchangeMissingParams(t *testing.T) {
 }
 
 func TestOidcExchangeRejectsUnknownRedirectURI(t *testing.T) {
-	setCasdoorPrefs("http://127.0.0.1:1")
+	preferences.Set("oidc.enabled", true)
+	preferences.Set("oidc.signing_key_file", filepath.Join(t.TempDir(), "key.pem"))
 	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"https://evil.example.com/cb"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
@@ -73,7 +74,7 @@ func TestOidcExchangeRejectsUnknownRedirectURI(t *testing.T) {
 }
 
 func TestOidcExchangeNotConfigured(t *testing.T) {
-	setCasdoorPrefs("")
+	preferences.Set("oidc.enabled", false)
 	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusForbidden {
 		t.Fatalf("status = %d, want 403", rec.Code)
@@ -83,202 +84,222 @@ func TestOidcExchangeNotConfigured(t *testing.T) {
 	}
 }
 
-// TestOidcExchangeSuccessIssuesToken drives the happy path against a real
-// in-process OIDC provider: exchange a signed id_token for a session token.
-func TestOidcExchangeSuccessIssuesToken(t *testing.T) {
-	// The full happy path needs a live OIDC provider; the oidcservice layer
-	// covers it in oidc_test.go (TestExchangeCodeAcceptsNumericSub). Here we
-	// assert the controller wiring: a token endpoint failure surfaces as the
-	// generic OAuth failure code instead of a 500.
-	setCasdoorPrefs("http://127.0.0.1:1")
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
+// TestOidcExchangeRejectsInvalidCode 验证伪造/未知授权码被拒绝（401）。
+func TestOidcExchangeRejectsInvalidCode(t *testing.T) {
+	preferences.Set("oidc.enabled", true)
+	preferences.Set("oidc.signing_key_file", filepath.Join(t.TempDir(), "key.pem"))
+	preferences.Set("oidc.issuer", "http://127.0.0.1:1/api/oauth")
+	rec, res := postOidcExchange(t, `{"code":"stale-code","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
 	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("status = %d, want 401 (exchange failed)", rec.Code)
+		t.Fatalf("status = %d, want 401", rec.Code)
 	}
 	if res.Code != component.FAIL {
 		t.Fatalf("code = %v, want FAIL", res.Code)
 	}
 }
 
-// --- 登录分支覆盖:冻结用户 / EnableSignup 关闭 ---
-//
-// 以下两个用例驱动 OidcExchange 走过 ExchangeCode 成功点,进入控制器登录分支
-// (oidcController.go:163-177),验证 403 语义。mockOIDCProvider 是进程内
-// OpenID Connect 提供者;每个用例使用独立的 httptest server,端点不同使
-// oidcservice.Provider() 的 settings 缓存自然失效,无需访问包内缓存变量。
+// --- 真实 provider flow helper ---
 
-type mockOIDCProvider struct {
-	t       *testing.T
-	server  *httptest.Server
-	key     *rsa.PrivateKey
-	kid     string
-	idToken string
-}
+const testIssuer = "https://forum.example.com/api/oauth"
 
-func newMockOIDC(t *testing.T) *mockOIDCProvider {
-	t.Helper()
-	key, err := rsa.GenerateKey(rand.Reader, 2048)
-	if err != nil {
-		t.Fatalf("generate rsa key: %v", err)
-	}
-	m := &mockOIDCProvider{t: t, key: key, kid: "test-key"}
-	mux := http.NewServeMux()
-	mux.HandleFunc("/.well-known/openid-configuration", m.handleDiscovery)
-	mux.HandleFunc("/jwks", m.handleJWKS)
-	mux.HandleFunc("/token", m.handleToken)
-	m.server = httptest.NewServer(mux)
-	t.Cleanup(m.server.Close)
-	return m
-}
-
-func (m *mockOIDCProvider) issuer() string { return m.server.URL }
-
-func (m *mockOIDCProvider) handleDiscovery(w http.ResponseWriter, _ *http.Request) {
-	writeOIDCJSON(w, map[string]any{
-		"issuer":                                m.issuer(),
-		"authorization_endpoint":                m.issuer() + "/authorize",
-		"token_endpoint":                        m.issuer() + "/token",
-		"jwks_uri":                              m.issuer() + "/jwks",
-		"id_token_signing_alg_values_supported": []string{"RS256"},
-	})
-}
-
-func (m *mockOIDCProvider) handleJWKS(w http.ResponseWriter, _ *http.Request) {
-	pub := &m.key.PublicKey
-	writeOIDCJSON(w, map[string]any{
-		"keys": []map[string]any{{
-			"kty": "RSA",
-			"kid": m.kid,
-			"use": "sig",
-			"alg": "RS256",
-			"n":   base64.RawURLEncoding.EncodeToString(pub.N.Bytes()),
-			"e":   base64.RawURLEncoding.EncodeToString(big.NewInt(int64(pub.E)).Bytes()),
-		}},
-	})
-}
-
-func (m *mockOIDCProvider) handleToken(w http.ResponseWriter, r *http.Request) {
-	_ = r.ParseForm()
-	if r.Form.Get("code_verifier") == "" {
-		m.t.Errorf("token request missing code_verifier")
-	}
-	writeOIDCJSON(w, map[string]any{
-		"access_token": "mock-access-token",
-		"token_type":   "Bearer",
-		"expires_in":   3600,
-		"id_token":     m.idToken,
-	})
-}
-
-func writeOIDCJSON(w http.ResponseWriter, v any) {
-	w.Header().Set("Content-Type", "application/json")
-	_ = json.NewEncoder(w).Encode(v)
-}
-
-func (m *mockOIDCProvider) signIDToken(claims jwt.MapClaims) string {
-	m.t.Helper()
-	if _, ok := claims["iss"]; !ok {
-		claims["iss"] = m.issuer()
-	}
-	if _, ok := claims["aud"]; !ok {
-		claims["aud"] = "test-client"
-	}
-	if _, ok := claims["exp"]; !ok {
-		claims["exp"] = time.Now().Add(time.Hour).Unix()
-	}
-	token := jwt.NewWithClaims(jwt.SigningMethodRS256, claims)
-	token.Header["kid"] = m.kid
-	signed, err := token.SignedString(m.key)
-	if err != nil {
-		m.t.Fatalf("sign id_token: %v", err)
-	}
-	return signed
-}
-
-// setupOidcExchangeDB 迁移并清空 exchange 登录分支所需的表。
-func setupOidcExchangeDB(t *testing.T) {
+func setupOIDCProviderTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(
+	models := []any{
 		&users.EntityComplete{},
-		&userOAuth.Entity{},
-		&pageConfig.Entity{},
-	); err != nil {
-		t.Fatalf("migrate oidc exchange tables: %v", err)
+		&userSessions.Entity{},
+		&userStatistics.Entity{},
+		&userPoints.Entity{},
+		&pointsRecord.Entity{},
+		&role.Entity{},
+		&rolePermissionRs.Entity{},
+		&oidcAuthRequests.Entity{},
+		&oidcAccessTokens.Entity{},
 	}
-	conn.Where("1 = 1").Delete(&userOAuth.Entity{})
-	conn.Where("1 = 1").Delete(&users.EntityComplete{})
-	conn.Where("page_type = ?", pageConfig.SecuritySettings).Delete(&pageConfig.Entity{})
-	hotdataserve.ClearSecuritySettingsConfigCache()
+	for _, model := range models {
+		if err := conn.AutoMigrate(model); err != nil {
+			t.Fatalf("migrate %T: %v", model, err)
+		}
+	}
+	preferences.Set("oidc.enabled", true)
+	preferences.Set("oidc.issuer", testIssuer)
+	preferences.Set("oidc.signing_key", "")
+	preferences.Set("oidc.signing_key_file", filepath.Join(t.TempDir(), "signing_key.pem"))
+	preferences.Set("oidc.clients", []map[string]any{
+		{"id": "yourtj-mobile", "name": "Mobile", "redirect_uris": []any{"yourtj://callback"}},
+	})
 }
 
-// TestOidcExchangeRejectsFrozenUser 验证已绑定 OIDC 身份的用户被冻结时,
-// exchange 返回 403 + MessageOAuthAccountFrozen(oidcController.go:174-175)。
-func TestOidcExchangeRejectsFrozenUser(t *testing.T) {
-	setupOidcExchangeDB(t)
-	m := newMockOIDC(t)
-	setCasdoorPrefs(m.issuer())
-
-	user := users.MakeUser("frozenuser", "x", "frozen@example.com")
-	user.IsFrozen = users.StatusFrozen
-	user.IsActivated = users.ActivationSuccess
-	if err := users.Create(user); err != nil {
-		t.Fatalf("create frozen user: %v", err)
+func loginUserCookie(t *testing.T, username string) *http.Cookie {
+	t.Helper()
+	user, err := userservice.CreateUser(username, "password123", username+"@example.com", false)
+	if err != nil {
+		t.Fatalf("CreateUser: %v", err)
 	}
-	if err := userOAuth.Create(&userOAuth.Entity{
-		UserId:      user.Id,
-		Provider:    oidcservice.ProviderCasdoor,
-		ProviderUid: "1002",
-	}); err != nil {
-		t.Fatalf("create oauth binding: %v", err)
+	token, jti, err := jwtopt.CreateSessionToken(user.Id, user.TokenVersion)
+	if err != nil {
+		t.Fatalf("CreateSessionToken: %v", err)
+	}
+	if err := sessionservice.Create(user.Id, jti, "test-agent", "127.0.0.1"); err != nil {
+		t.Fatalf("sessionservice.Create: %v", err)
+	}
+	return &http.Cookie{Name: "access_token", Value: token}
+}
+
+// obtainMobileCode 走真实 provider 流程：mobile authorize → binding callback →
+// 返回 (code, verifier, nonce)。
+func obtainMobileCode(t *testing.T, cookie *http.Cookie) (code, verifier, nonce string) {
+	t.Helper()
+	handler, err := oidcservice.Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	verifier = "test-verifier-0123456789-abcdefghijklmnopqrstuvwxyz"
+	sum := sha256.Sum256([]byte(verifier))
+	challenge := base64.RawURLEncoding.EncodeToString(sum[:])
+	nonce = "mobile-nonce"
+
+	values := url.Values{}
+	values.Set("client_id", "yourtj-mobile")
+	values.Set("redirect_uri", "yourtj://callback")
+	values.Set("response_type", "code")
+	values.Set("scope", "openid profile email")
+	values.Set("state", "st")
+	values.Set("nonce", nonce)
+	values.Set("code_challenge", challenge)
+	values.Set("code_challenge_method", "S256")
+	target := testIssuer + "/authorize?" + values.Encode()
+
+	authReq := httptest.NewRequest(http.MethodGet, target, nil)
+	authRec := httptest.NewRecorder()
+	handler.ServeHTTP(authRec, authReq)
+	if authRec.Code != http.StatusFound {
+		t.Fatalf("authorize status = %d, want 302", authRec.Code)
+	}
+	loc, err := url.Parse(authRec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse login redirect: %v", err)
+	}
+	callbackTarget := loc.Query().Get("redirect")
+	callbackURL, err := url.Parse(callbackTarget)
+	if err != nil || callbackURL.Path != "/api/oauth/authorize/callback" {
+		t.Fatalf("login redirect does not point to oauth callback: %q", callbackTarget)
+	}
+	requestID := callbackURL.Query().Get("id")
+	if requestID == "" {
+		t.Fatalf("login redirect missing id")
+	}
+	var binding *http.Cookie
+	for _, c := range authRec.Result().Cookies() {
+		if c.Name == "yourtj_oidc_binding" {
+			binding = c
+			break
+		}
+	}
+	if binding == nil {
+		t.Fatalf("authorize did not set browser binding cookie")
 	}
 
-	m.idToken = m.signIDToken(jwt.MapClaims{
-		"sub":                "1002",
-		"preferred_username": "frozenuser",
-		"nonce":              "n",
+	cbReq := httptest.NewRequest(http.MethodGet, testIssuer+"/authorize/callback?id="+url.QueryEscape(requestID), nil)
+	cbReq.AddCookie(cookie)
+	cbReq.AddCookie(binding)
+	cbRec := httptest.NewRecorder()
+	handler.ServeHTTP(cbRec, cbReq)
+	if cbRec.Code != http.StatusFound {
+		t.Fatalf("callback status = %d, want 302 (body: %s)", cbRec.Code, cbRec.Body.String())
+	}
+	cbLoc, err := url.Parse(cbRec.Header().Get("Location"))
+	if err != nil {
+		t.Fatalf("parse callback location: %v", err)
+	}
+	code = cbLoc.Query().Get("code")
+	if code == "" {
+		t.Fatalf("callback location missing code")
+	}
+	return code, verifier, nonce
+}
+
+// TestOidcExchangeSuccessIssuesForumJWT 验证真实 provider 完整路径下
+// controller 返回 200 + forum JWT + session row。
+func TestOidcExchangeSuccessIssuesForumJWT(t *testing.T) {
+	setupOIDCProviderTestDB(t)
+	cookie := loginUserCookie(t, "exchangeuser")
+
+	code, verifier, nonce := obtainMobileCode(t, cookie)
+	body, _ := json.Marshal(map[string]string{
+		"code":         code,
+		"codeVerifier": verifier,
+		"nonce":        nonce,
+		"redirectUri":  "yourtj://callback",
 	})
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
+	rec, res := postOidcExchange(t, string(body))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200 (body: %s)", rec.Code, rec.Body.String())
+	}
+	token, _ := res.Result.(map[string]any)["token"].(string)
+	if token == "" {
+		t.Fatalf("response missing token: %v", res.Result)
+	}
+	// forum JWT 必须可验证且映射到 session row
+	userID, _, _, ok := validateForumToken(t, token)
+	if !ok || userID == 0 {
+		t.Fatalf("issued forum JWT is not a valid session token")
+	}
+}
+
+// TestOidcExchangeRejectsFrozenUser 真实 provider 流程兑换成功后，
+// 冻结用户 → controller 返回 403 + MessageOAuthAccountFrozen。
+func TestOidcExchangeRejectsFrozenUser(t *testing.T) {
+	setupOIDCProviderTestDB(t)
+	cookie := loginUserCookie(t, "frozenuser")
+
+	code, verifier, nonce := obtainMobileCode(t, cookie)
+
+	// 冻结用户（兑换成功后 controller 的冻结检查生效）
+	claims, _, err := jwtopt.VerifyTokenWithFreshClaims(cookie.Value)
+	if err != nil {
+		t.Fatalf("verify login cookie: %v", err)
+	}
+	if err := db.Connect().Model(&users.EntityComplete{}).Where("id = ?", claims.UserId).Update("is_frozen", users.StatusFrozen).Error; err != nil {
+		t.Fatalf("freeze user: %v", err)
+	}
+
+	body, _ := json.Marshal(map[string]string{
+		"code":         code,
+		"codeVerifier": verifier,
+		"nonce":        nonce,
+		"redirectUri":  "yourtj://callback",
+	})
+	rec, res := postOidcExchange(t, string(body))
 	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", rec.Code)
+		t.Fatalf("status = %d, want 403 (body: %s)", rec.Code, rec.Body.String())
 	}
 	if res.MessageCode != component.MessageOAuthAccountFrozen {
 		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageOAuthAccountFrozen)
 	}
 }
 
-// TestOidcExchangeRejectsSignupDisabled 验证站点关闭注册且无已有 Casdoor
-// 绑定时,exchange 返回 403 + MessageAuthSignupDisabled(oidcController.go:164-165)。
-func TestOidcExchangeRejectsSignupDisabled(t *testing.T) {
-	setupOidcExchangeDB(t)
-	m := newMockOIDC(t)
-	setCasdoorPrefs(m.issuer())
-
-	// 关闭注册:写入 securitySettings 配置行并清缓存,确保读取到该值。
-	if err := db.Connect().Create(&pageConfig.Entity{
-		PageType: pageConfig.SecuritySettings,
-		Config: `{"enableSignup":false,"enableEmailVerification":false,` +
-			`"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":[],` +
-			`"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":true}`,
-	}).Error; err != nil {
-		t.Fatalf("write security settings: %v", err)
+// validateForumToken 复刻 authsessionservice 校验（避免 import cycle 不便）。
+func validateForumToken(t *testing.T, token string) (uint64, string, string, bool) {
+	t.Helper()
+	if token == "" {
+		return 0, "", "", false
 	}
-	hotdataserve.ClearSecuritySettingsConfigCache()
-	t.Cleanup(func() {
-		db.Connect().Where("page_type = ?", pageConfig.SecuritySettings).Delete(&pageConfig.Entity{})
-		hotdataserve.ClearSecuritySettingsConfigCache()
-	})
-
-	m.idToken = m.signIDToken(jwt.MapClaims{
-		"sub":                "1003",
-		"preferred_username": "signupdisabled",
-		"nonce":              "n",
-	})
-	rec, res := postOidcExchange(t, `{"code":"c","codeVerifier":"v","nonce":"n","redirectUri":"yourtj://callback"}`)
-	if rec.Code != http.StatusForbidden {
-		t.Fatalf("status = %d, want 403", rec.Code)
+	claims, refreshed, err := jwtopt.VerifyTokenWithFreshClaims(token)
+	if err != nil {
+		return 0, "", "", false
 	}
-	if res.MessageCode != component.MessageAuthSignupDisabled {
-		t.Fatalf("messageCode = %q, want %q", res.MessageCode, component.MessageAuthSignupDisabled)
+	user, ok := userservice.GetUserInfo(claims.UserId)
+	if !ok || user.TokenVersion != claims.TokenVersion {
+		return 0, "", "", false
 	}
+	if claims.Jti == "" {
+		return 0, "", "", false
+	}
+	entity := sessionservice.GetValidByJti(claims.Jti)
+	if entity == nil || entity.UserId != claims.UserId {
+		return 0, "", "", false
+	}
+	_ = strings.TrimSpace(refreshed)
+	return claims.UserId, claims.Jti, refreshed, true
 }

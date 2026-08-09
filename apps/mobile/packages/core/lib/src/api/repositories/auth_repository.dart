@@ -99,7 +99,7 @@ class AuthRepository {
     );
   }
 
-  /// 移动端 OIDC 登录:用 Casdoor 授权码 + PKCE verifier 交换会话令牌。
+  /// 移动端 OIDC 登录：用论坛内建 Provider 的授权码和 PKCE verifier 交换会话令牌。
   Future<String> oidcExchange({
     required String code,
     required String codeVerifier,

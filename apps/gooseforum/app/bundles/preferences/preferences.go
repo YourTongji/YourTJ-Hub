@@ -95,6 +95,12 @@ func IsSet(path string) bool {
 	return v.IsSet(path) && v.Get(path) != nil
 }
 
+// GetRaw returns the raw setting value without type coercion. It is used to
+// read structured settings such as the OIDC client list.
+func GetRaw(path string) any {
+	return internalGet(path)
+}
+
 func Set(path string, value any) {
 	v.Set(path, value)
 }

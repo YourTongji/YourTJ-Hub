@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/http/controllers"
 	"github.com/leancodebox/GooseForum/app/http/middleware"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/resource"
 )
@@ -129,8 +131,17 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
-	baseApi.GET("auth/oidc/login", api.OidcLogin)
-	baseApi.GET("auth/oidc/callback", middleware.JWTAuth, api.OidcCallback)
+
+	// 内建 OIDC Provider（/api/oauth/*）。未启用或配置错误时不注册路由，
+	// 但错误必须记录（生产误配 fail closed 时便于排查）。
+	if oidcHandler, err := oidcservice.Router(); err != nil {
+		if !errors.Is(err, oidcservice.ErrOIDCDisabled) {
+			slog.Error("OIDC provider router init failed", "error", err)
+		}
+	} else if oidcHandler != nil {
+		baseApi.Any("oauth/*path", gin.WrapH(oidcHandler))
+	}
+
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 

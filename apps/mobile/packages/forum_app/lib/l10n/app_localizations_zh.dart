@@ -159,7 +159,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authGetCode => '获取验证码';
 
   @override
-  String get authCasdoorLogin => '统一身份登录(Casdoor)';
+  String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
   String get authRegisterSuccess => '注册成功,请登录';
@@ -493,10 +493,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsOAuth => 'Casdoor 统一身份';
+  String get settingsOAuth => '外部账号关联';
 
   @override
-  String get settingsOAuthSub => 'OIDC 登录绑定';
+  String get settingsOAuthSub => 'GitHub 与 Google 登录关联';
 
   @override
   String get settingsOAuthManage => 'OAuth 绑定管理';

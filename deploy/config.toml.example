@@ -71,8 +71,19 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
-[casdoor]
-endpoint = "REPLACE_CASDOOR_ENDPOINT"
-client_id = "REPLACE_CASDOOR_CLIENT_ID"
-client_secret = "REPLACE_CASDOOR_CLIENT_SECRET"
-mobile_redirect_uri = "yourtj://callback"
+[oidc]
+enabled = false
+# issuer 默认取 site_url + /api/oauth；显式配置可覆盖
+# issuer = "https://forum.example.com/api/oauth"
+# RS256 签名私钥：内联 PEM 或密钥文件（二者都为空时自动生成并持久化到 signing_key_file）
+# signing_key = ""
+signing_key_file = "./storage/oidc/signing_key.pem"
+access_token_ttl = 3600
+auth_request_ttl = 600
+id_token_ttl = 3600
+# 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
+[[oidc.clients]]
+id = "yourtj-mobile"
+name = "yourtj 移动端"
+redirect_uris = ["yourtj://callback"]
+# secret = ""
