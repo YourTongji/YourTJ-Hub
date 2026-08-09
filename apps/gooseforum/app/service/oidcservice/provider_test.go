@@ -1,6 +1,7 @@
 package oidcservice
 
 import (
+	"context"
 	"crypto/sha256"
 	"encoding/base64"
 	"encoding/json"
@@ -8,6 +9,7 @@ import (
 	"net/http/httptest"
 	"net/url"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -413,6 +415,51 @@ func TestFullCodeFlowIDTokenClaims(t *testing.T) {
 	}
 }
 
+func TestSetUserinfoFromRequestMapsGrantedClaims(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, defaultClients())
+	_, user := loginCookie(t, "userinfohook")
+	provider, err := Provider()
+	if err != nil {
+		t.Fatalf("Provider() error = %v", err)
+	}
+	st, ok := provider.Storage().(*storage)
+	if !ok {
+		t.Fatalf("provider storage = %T, want *storage", provider.Storage())
+	}
+	request := &authRequest{entity: &oidcAuthRequests.Entity{
+		ClientId: "web-client",
+		Subject:  user.Id,
+	}}
+	userinfo := new(oidc.UserInfo)
+	if err := st.SetUserinfoFromRequest(
+		context.Background(),
+		userinfo,
+		request,
+		[]string{oidc.ScopeProfile, oidc.ScopeEmail},
+	); err != nil {
+		t.Fatalf("SetUserinfoFromRequest() error = %v", err)
+	}
+	wantSubject := strconv.FormatUint(user.Id, 10)
+	if userinfo.Subject != wantSubject {
+		t.Fatalf("userinfo subject = %q, want %q", userinfo.Subject, wantSubject)
+	}
+	wantName := user.Nickname
+	if wantName == "" {
+		wantName = user.Username
+	}
+	if userinfo.PreferredUsername != user.Username || userinfo.Name != wantName {
+		t.Fatalf("userinfo profile = username %q, name %q; want username %q, name %q", userinfo.PreferredUsername, userinfo.Name, user.Username, wantName)
+	}
+	if userinfo.Email != user.Email {
+		t.Fatalf("userinfo email = %q, want %q", userinfo.Email, user.Email)
+	}
+	wantVerified := oidc.Bool(user.IsActivated == users.ActivationSuccess)
+	if userinfo.EmailVerified != wantVerified {
+		t.Fatalf("userinfo email_verified = %v, want %v", userinfo.EmailVerified, wantVerified)
+	}
+}
+
 func TestCodeSingleUseReplayRejected(t *testing.T) {
 	issuer := "https://forum.example.com/api/oauth"
 	setupProviderConfig(t, issuer, defaultClients())
@@ -557,7 +604,11 @@ func TestUserinfoRespectsRevocation(t *testing.T) {
 	accessToken, _ := body["access_token"].(string)
 
 	// 解密 bearer token 提取 tokenID 并标记撤销
-	plain, err := providerStore.crypto.Decrypt(accessToken)
+	provider, err := Provider()
+	if err != nil {
+		t.Fatalf("Provider() error = %v", err)
+	}
+	plain, err := provider.Crypto().Decrypt(accessToken)
 	if err != nil {
 		t.Fatalf("decrypt access token: %v", err)
 	}
@@ -706,6 +757,86 @@ func TestBrowserBindingCookieAttributes(t *testing.T) {
 	}
 }
 
+// TestBrowserBindingCookieMaxAgeFollowsAuthRequestTTL 验证 binding cookie 的
+// MaxAge 跟随 oidc.auth_request_ttl（而非写死 10 分钟）。
+func TestBrowserBindingCookieMaxAgeFollowsAuthRequestTTL(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, defaultClients())
+	originalTTL := preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))
+	preferences.Set("oidc.auth_request_ttl", 42)
+	t.Cleanup(func() { preferences.Set("oidc.auth_request_ttl", originalTTL) })
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	verifier, _ := pkcePair(t)
+	rec := doGet(t, h, authorizeURL(issuer, "web-client", "https://example.com/callback", "st", "no", verifier))
+	if rec.Code != http.StatusFound {
+		t.Fatalf("authorize status = %d, want 302", rec.Code)
+	}
+	var binding *http.Cookie
+	for _, c := range rec.Result().Cookies() {
+		if c.Name == browserBindingCookieName {
+			binding = c
+			break
+		}
+	}
+	if binding == nil {
+		t.Fatal("browser binding cookie not set")
+	}
+	if binding.MaxAge != 42 {
+		t.Fatalf("binding cookie MaxAge = %d, want 42 (auth_request_ttl)", binding.MaxAge)
+	}
+}
+
+// TestCreateAuthRequestCleansExpiredRows 验证创建授权请求前会顺手清理过期行，
+// 避免过期授权请求只等到启动/每日 cron 才被清除。
+func TestCreateAuthRequestCleansExpiredRows(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, defaultClients())
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	expired := &oidcAuthRequests.Entity{
+		RequestId:    "expired-row",
+		ClientId:     "web-client",
+		ResponseType: "code",
+		ExpiresAt:    time.Now().Add(-time.Minute),
+	}
+	if err := oidcAuthRequests.Create(expired); err != nil {
+		t.Fatalf("seed expired row: %v", err)
+	}
+	verifier, _ := pkcePair(t)
+	rec := doGet(t, h, authorizeURL(issuer, "web-client", "https://example.com/callback", "st", "no", verifier))
+	if rec.Code != http.StatusFound {
+		t.Fatalf("authorize status = %d, want 302", rec.Code)
+	}
+	if entity := oidcAuthRequests.GetByRequestId("expired-row"); entity != nil {
+		t.Fatal("expired auth request row must be cleaned up on new authorize")
+	}
+}
+
+// TestDeriveCryptoKeyStickyFallback 验证无 app.signingKey 时回退加密密钥在
+// 进程内保持稳定（provider 重建不更换 opaque-token 加密密钥）。
+func TestDeriveCryptoKeyStickyFallback(t *testing.T) {
+	original := preferences.GetString("app.signingKey", "")
+	preferences.Set("app.signingKey", "")
+	t.Cleanup(func() { preferences.Set("app.signingKey", original) })
+	first := deriveCryptoKey()
+	second := deriveCryptoKey()
+	if first != second {
+		t.Fatal("fallback crypto key must be sticky within the process")
+	}
+	if first == ([32]byte{}) {
+		t.Fatal("fallback crypto key must not be zero")
+	}
+}
+
 func TestCompleteLoginValidatesRequest(t *testing.T) {
 	conn := db.Connect()
 	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
@@ -835,6 +966,22 @@ func TestConfigKeyChangesWithTTLAndSecret(t *testing.T) {
 	}
 }
 
+func TestLoadConfigDefaultsNonPositiveAuthRequestTTL(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, defaultClients())
+	originalTTL := preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))
+	preferences.Set("oidc.auth_request_ttl", 0)
+	t.Cleanup(func() { preferences.Set("oidc.auth_request_ttl", originalTTL) })
+
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if cfg.AuthRequestTTL != defaultAuthRequestTTL {
+		t.Fatalf("AuthRequestTTL = %v, want %v", cfg.AuthRequestTTL, defaultAuthRequestTTL)
+	}
+}
+
 // TestValidateIssuer 验证 issuer 校验规则。
 func TestValidateIssuer(t *testing.T) {
 	valid := []string{
@@ -876,10 +1023,18 @@ func verifyIDToken(t *testing.T, idToken string) map[string]any {
 		t.Fatalf("signatures = %d, want 1", len(parsed.Signatures))
 	}
 	kid := parsed.Signatures[0].Header.KeyID
-	if kid == "" || kid != providerStore.km.KeyID() {
-		t.Fatalf("kid = %q, want %q", kid, providerStore.km.KeyID())
+	provider, err := Provider()
+	if err != nil {
+		t.Fatalf("Provider() error = %v", err)
 	}
-	payload, err := parsed.Verify(providerStore.km.PublicKey())
+	st, ok := provider.Storage().(*storage)
+	if !ok {
+		t.Fatalf("provider storage = %T, want *storage", provider.Storage())
+	}
+	if kid == "" || kid != st.km.KeyID() {
+		t.Fatalf("kid = %q, want %q", kid, st.km.KeyID())
+	}
+	payload, err := parsed.Verify(st.km.PublicKey())
 	if err != nil {
 		t.Fatalf("verify id_token signature: %v", err)
 	}

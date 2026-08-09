@@ -19,8 +19,8 @@ melos:
       run: melos exec -- "flutter analyze"
       description: Run flutter analyze in all packages.
     test:
-      run: melos exec -- "flutter test"
-      description: Run flutter test in all packages.
+      run: melos exec --concurrency=1 -- "flutter test"
+      description: Run flutter test in all packages (serial; concurrent flutter test processes contend for the Flutter startup lock).
     gen:
       run: melos exec --depends-on=build_runner -- "dart run build_runner build --delete-conflicting-outputs"
       description: Regenerate freezed/json_serializable outputs in packages that use build_runner.

@@ -32,9 +32,6 @@ const (
 	// start to the callback completion on the same browser. The raw value is
 	// never persisted; only its SHA-256 hash is stored with the auth request.
 	browserBindingCookieName = "yourtj_oidc_binding"
-	// browserBindingTTL bounds how long a binding cookie stays valid, which
-	// also bounds how long a pending auth request can be completed.
-	browserBindingTTL = 10 * time.Minute
 )
 
 // browserBindingCtxKey carries the SHA-256 hash (hex) of the browser-binding
@@ -47,7 +44,6 @@ var (
 
 	providerMu     sync.Mutex
 	providerInst   *op.Provider
-	providerStore  *storage
 	providerCfgKey string
 	providerErr    error
 )
@@ -128,7 +124,7 @@ func buildProvider(cfg Config) (*op.Provider, error) {
 		return nil, err
 	}
 	cryptoKey := deriveCryptoKey()
-	st := newStorage(cfg, km, op.NewAES256GCMCrypto(cryptoKey, "oidc-opaque-token"))
+	st := newStorage(cfg, km)
 
 	opts := []op.Option{}
 	if strings.HasPrefix(cfg.Issuer, "http://") {
@@ -153,7 +149,6 @@ func buildProvider(cfg Config) (*op.Provider, error) {
 	if err != nil {
 		return nil, err
 	}
-	providerStore = st
 	return p, nil
 }
 
@@ -255,11 +250,18 @@ func withBrowserBinding(provider *op.Provider, next http.Handler) http.Handler {
 			}
 			issuer := provider.IssuerFromRequest(r)
 			secure := strings.HasPrefix(issuer, "https://")
+			// The cookie must stay valid at least as long as the pending
+			// authorization request it binds, so its lifetime follows the
+			// configured auth request TTL of this provider's storage.
+			ttl := defaultAuthRequestTTL
+			if st, ok := provider.Storage().(*storage); ok {
+				ttl = st.browserBindingTTL()
+			}
 			http.SetCookie(w, &http.Cookie{
 				Name:     browserBindingCookieName,
 				Value:    value,
 				Path:     issuerPath,
-				MaxAge:   int(browserBindingTTL.Seconds()),
+				MaxAge:   int(ttl.Seconds()),
 				HttpOnly: true,
 				SameSite: http.SameSiteLaxMode,
 				Secure:   secure,
@@ -333,21 +335,38 @@ func authorizeCallbackBridge(provider *op.Provider) http.HandlerFunc {
 	}
 }
 
+// fallbackCryptoKey is the process-sticky random fallback used by
+// deriveCryptoKey when app.signingKey is unset. It is generated once per
+// process from secure randomness and never persisted, so provider rebuilds
+// do not re-randomize the opaque-token encryption key mid-process. A process
+// restart rotates it, which is acceptable because the missing signing key is
+// a misconfiguration and the encrypted tokens are short-lived.
+var (
+	fallbackCryptoKeyMu  sync.Mutex
+	fallbackCryptoKey    [32]byte
+	fallbackCryptoKeySet bool
+)
+
 // deriveCryptoKey derives the opaque-access-token encryption key from the
 // forum signing key using a domain-separated SHA-256. It never reuses
-// app.signingKey directly.
+// app.signingKey directly. When no signing key is configured, a secure
+// random key is generated once and kept for the rest of the process.
 func deriveCryptoKey() [32]byte {
 	signingKey := preferences.GetString("app.signingKey", "")
-	if signingKey == "" {
-		var key [32]byte
+	if signingKey != "" {
+		return sha256.Sum256([]byte("yourtj-oidc-opaque-token|" + signingKey))
+	}
+	fallbackCryptoKeyMu.Lock()
+	defer fallbackCryptoKeyMu.Unlock()
+	if !fallbackCryptoKeySet {
 		b, err := algorithm.GenerateRandomBytes(32)
 		if err != nil {
 			panic(fmt.Sprintf("oidcservice: derive crypto key: %v", err))
 		}
-		copy(key[:], b)
-		return key
+		copy(fallbackCryptoKey[:], b)
+		fallbackCryptoKeySet = true
 	}
-	return sha256.Sum256([]byte("yourtj-oidc-opaque-token|" + signingKey))
+	return fallbackCryptoKey
 }
 
 func randomHex(size int) (string, error) {

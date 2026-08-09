@@ -29,17 +29,26 @@ var (
 type storage struct {
 	cfg     Config
 	km      *oidcprovider.KeyManager
-	crypto  op.Crypto
 	clients map[string]*client
 }
 
-func newStorage(cfg Config, km *oidcprovider.KeyManager, crypto op.Crypto) *storage {
+func newStorage(cfg Config, km *oidcprovider.KeyManager) *storage {
 	clients := make(map[string]*client, len(cfg.Clients))
 	for i := range cfg.Clients {
 		c := &client{cfg: cfg.Clients[i], ttl: cfg.IDTokenTTL}
 		clients[c.GetID()] = c
 	}
-	return &storage{cfg: cfg, km: km, crypto: crypto, clients: clients}
+	return &storage{cfg: cfg, km: km, clients: clients}
+}
+
+// browserBindingTTL returns the lifetime of a pending authorization request
+// for this storage instance. It bounds the browser-binding cookie set on
+// /authorize so the cookie never outlives the request it binds.
+func (s *storage) browserBindingTTL() time.Duration {
+	if s.cfg.AuthRequestTTL <= 0 {
+		return defaultAuthRequestTTL
+	}
+	return s.cfg.AuthRequestTTL
 }
 
 // --- op.OPStorage ---
@@ -69,10 +78,17 @@ func (s *storage) AuthorizeClientIDSecret(_ context.Context, clientID, clientSec
 	return nil
 }
 
-// SetUserinfoFromScopes fills userinfo from the user record based on the
-// requested scopes (used when minting ID tokens).
-func (s *storage) SetUserinfoFromScopes(_ context.Context, userinfo *oidc.UserInfo, userID, _ string, scopes []string) error {
-	sub, err := strconv.ParseUint(userID, 10, 64)
+// SetUserinfoFromScopes is deprecated by the library and intentionally empty;
+// ID token userinfo is filled by SetUserinfoFromRequest below.
+func (s *storage) SetUserinfoFromScopes(_ context.Context, _ *oidc.UserInfo, _, _ string, _ []string) error {
+	return nil
+}
+
+// SetUserinfoFromRequest fills userinfo from the user record based on the
+// requested scopes (used when minting ID tokens). The library calls this
+// optional interface after SetUserinfoFromScopes, which is deprecated.
+func (s *storage) SetUserinfoFromRequest(_ context.Context, userinfo *oidc.UserInfo, request op.IDTokenRequest, scopes []string) error {
+	sub, err := strconv.ParseUint(request.GetSubject(), 10, 64)
 	if err != nil || sub == 0 {
 		return oidc.ErrInvalidRequest().WithDescription("invalid subject")
 	}
@@ -80,7 +96,7 @@ func (s *storage) SetUserinfoFromScopes(_ context.Context, userinfo *oidc.UserIn
 	if err != nil || user.Id == 0 {
 		return oidc.ErrInvalidRequest().WithDescription("user not found")
 	}
-	fillUserinfo(userinfo, userID, user, scopes)
+	fillUserinfo(userinfo, request.GetSubject(), user, scopes)
 	return nil
 }
 
@@ -175,6 +191,9 @@ func (s *storage) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthReque
 		BrowserBinding: browserBindingHashFromContext(ctx),
 		ExpiresAt:      now().Add(s.cfg.AuthRequestTTL),
 	}
+	// Opportunistic housekeeping: expired rows are otherwise only removed at
+	// startup/daily cron; cleaning here is cheap (indexed) and owner-level.
+	oidcAuthRequests.DeleteExpired(now())
 	if err := oidcAuthRequests.Create(entity); err != nil {
 		return nil, oidc.ErrServerError().WithParent(err)
 	}

@@ -56,11 +56,14 @@ func LoadConfig() (Config, error) {
 		AuthRequestTTL: time.Duration(preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))) * time.Second,
 		IDTokenTTL:     time.Duration(preferences.GetInt64("oidc.id_token_ttl", int64(defaultIDTokenTTL/time.Second))) * time.Second,
 	}
+	if cfg.AuthRequestTTL <= 0 {
+		cfg.AuthRequestTTL = defaultAuthRequestTTL
+	}
 	cfg.Issuer = strings.TrimSpace(preferences.GetString("oidc.issuer", ""))
 	if cfg.Issuer == "" {
 		siteURL := strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl)
 		if siteURL == "" {
-			siteURL = preferences.GetString("server.url", "http://localhost")
+			siteURL = preferences.GetString("server.url", "http://localhost:5234")
 		}
 		cfg.Issuer = strings.TrimSuffix(siteURL, "/") + issuerPath
 	}

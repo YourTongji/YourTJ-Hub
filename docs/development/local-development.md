@@ -64,7 +64,8 @@ melos run test                       # 全包测试
 ## Mobile → backend
 
 - iOS simulator: `http://localhost:5234` directly
-- Android emulator: `http://10.0.2.2:5234`
+- Android emulator: ordinary API development may use `http://10.0.2.2:5234`; OIDC must instead use
+  `http://localhost:5234` through `adb reverse` so the issuer remains an allowed loopback URL
 - Physical device: LAN IP (inject baseUrl via dart-define, when mobile lands)
 
 ## Configuration (config.toml)
@@ -84,6 +85,14 @@ The built-in OIDC Provider is configured from the `[oidc]` section in `config.to
 (`enabled`, `issuer`, `signing_key_file`, `[[oidc.clients]]`, see `deploy/config.toml.example`); the
 values are read at startup via preferences and there is no admin-panel UI to change them (set them in
 the file and restart). The endpoints are mounted under `/api/oauth` only when `oidc.enabled = true`.
+OIDC clients require the issuer to exactly equal the advertised discovery value, and the provider
+only accepts loopback `http` issuers. The local configuration template advertises
+`http://localhost:5234/api/oauth`, so the Android emulator reaches that exact address through
+`adb reverse tcp:5234 tcp:5234` (see `apps/mobile/scripts/oidc_e2e.sh`); `10.0.2.2` is not a valid
+local issuer.
+Existing local `config.toml` files are not regenerated automatically; if one still has
+`server.url = "http://localhost"`, change it to `http://localhost:5234` or set
+`oidc.issuer = "http://localhost:5234/api/oauth"` before running the mobile OIDC flow.
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 

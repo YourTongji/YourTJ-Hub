@@ -15,7 +15,7 @@ signingKey = "{{.SigningKey}}"
 cdn_url = ""
 
 [server]
-url = "http://localhost"
+url = "http://localhost:5234"
 port = 5234
 accessLog = false
 gzip = true # 应用层 gzip 开关
