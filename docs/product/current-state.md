@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-08
+> Last verified: 2026-08-09
 
 ## What works
 
@@ -29,7 +29,7 @@
 | Database | `Current` | SQLite default, MySQL optional, PostgreSQL main-db support landed (issue #11); file db stays SQLite; data migration from SQLite→PG is manual |
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
 | Auth | `Partial` | GitHub OAuth + Casdoor OIDC (PKCE/nonce/numeric-sub enforced) integrated; TOTP 2FA for password login; session listing/revoke; Casdoor-side MFA/Passkey pending deployment config |
-| Contract | `Partial` | No swagger annotations, no openapi.yaml upstream; packages/api-contract is a placeholder; pipeline not built |
+| Contract | `Partial` | OpenAPI 3.1 currently covers password login, mobile OIDC exchange and topic writing; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; Dart generation and broader route coverage remain `Planned` |
 | Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: YourTJ token theme bridged into pinned TDesign v1 alpha components, iOS-safe branded navigation, Web-aligned persistent list/card topic feeds, dot-grid auth cards, unified Gf form/dialog/status surfaces, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
 | Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |
@@ -44,6 +44,7 @@
 
 Before expanding features, close these baselines (avoid building on a wrong foundation):
 
-1. Auth chain closed (Casdoor → exchange → JWT), numeric-ID constraint enforced server-side.
-2. Contract pipeline (swag or manual openapi → TS/Dart generation) before broad API rework, to prevent
-   contract drift.
+1. Complete the remaining Casdoor-side MFA/Passkey deployment configuration without weakening the
+   numeric-ID and revocable-session invariants already enforced by the forum.
+2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
+   become a new source of contract drift.

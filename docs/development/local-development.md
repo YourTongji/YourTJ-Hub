@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-09
 
 ## Dependencies
 
@@ -25,7 +25,7 @@
 make dev
 
 # 2. Forum backend (default port 5234)
-#    First-time setup: place a config.toml in apps/gooseforum (gitignored), based on upstream config
+#    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
 make server        # = cd apps/gooseforum && go run . serve
 
 # 3. Frontend dev server (:3010, vite; run pnpm install first)
