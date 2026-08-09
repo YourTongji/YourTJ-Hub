@@ -10,7 +10,7 @@ import 'package:forum_app/src/app.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
-import 'package:ui_kit/ui_kit.dart';
+import 'package:ui_kit/ui_kit.dart' hide GfTab;
 
 /// 测试用内存 TokenStorage(生产为 SecureTokenStorage)。
 class MemoryTokenStorage implements TokenStorage {
@@ -77,6 +77,8 @@ void main() {
     expect(find.text('发布'), findsOneWidget);
     expect(find.text('消息'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
+    expect(GfTab.publish.icon, Icons.add);
+    expect(GfTab.publish.activeIcon, Icons.add);
 
     // 顶部搜索入口跳转后，底部导航的选中态也必须同步。
     await tester.tap(find.byIcon(Icons.search).first);

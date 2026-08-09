@@ -42,6 +42,51 @@ class FakeTopicRepository extends TopicRepository {
   FakeTopicRepository(super.client);
 
   @override
+  Future<SearchPageProps> search({
+    required String query,
+    String scope = '',
+    int page = 1,
+  }) async {
+    final HomeProps home = parsePageProps<HomeProps>(
+      parsePayload(homePayloadJson()),
+    )!;
+    return SearchPageProps(
+      query: query,
+      scope: scope,
+      topics: home.topics,
+      users: const <UserSearchPayload>[
+        UserSearchPayload(
+          id: 2,
+          username: 'bob',
+          nickname: 'Bob',
+          avatarUrl: '',
+          bio: '校园开发者',
+        ),
+      ],
+      categories: const <CategorySearchPayload>[
+        CategorySearchPayload(
+          id: 1,
+          name: '开发',
+          slug: 'dev',
+          icon: '#',
+          color: '#2563eb',
+          desc: '技术交流',
+        ),
+      ],
+      total: 1,
+      usersTotal: 1,
+      categoriesTotal: 1,
+      totalPages: 1,
+      pagination: const PaginationPayload(
+        page: 1,
+        nextPage: 0,
+        hasNext: false,
+        nextUrl: '',
+      ),
+    );
+  }
+
+  @override
   Future<PostWindowPayload> getPostWindow({
     required int topicId,
     int? anchorPostId,
@@ -156,6 +201,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('第一楼'), findsOneWidget);
+    expect(find.text('独立回复'), findsOneWidget);
+    expect(find.text('嵌套回复'), findsOneWidget);
+    expect(find.text('回复 @bob'), findsOneWidget);
     expect(find.text('移动端测试话题'), findsOneWidget);
 
     // markdown_widget 的 VisibilityDetector 会创建 500ms 延迟 Timer,

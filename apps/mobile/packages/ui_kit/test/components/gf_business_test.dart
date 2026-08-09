@@ -126,7 +126,13 @@ void main() {
       );
       expect(find.text('Alice'), findsOneWidget);
       expect(find.text('你好'), findsOneWidget);
-      expect(find.text('3'), findsOneWidget);
+      expect(
+        find.byWidgetPredicate(
+          (Widget widget) =>
+              widget is Semantics && widget.properties.label == '3 unread',
+        ),
+        findsOneWidget,
+      );
     });
 
     testWidgets('renders own and other message bubbles', (tester) async {

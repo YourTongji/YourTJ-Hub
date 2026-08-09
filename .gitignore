@@ -20,6 +20,7 @@ apps/gooseforum/config.toml
 # Flutter / Dart
 apps/mobile/**/.dart_tool/
 apps/mobile/**/build/
+apps/mobile/**/test/failures/
 apps/mobile/.melos/
 apps/mobile/.flutter-plugins*
 apps/mobile/.packages

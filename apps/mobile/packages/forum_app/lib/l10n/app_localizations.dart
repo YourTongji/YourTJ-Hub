@@ -689,8 +689,44 @@ abstract class AppLocalizations {
   /// No description provided for @messagesEmpty.
   ///
   /// In en, this message translates to:
-  /// **'No conversations'**
+  /// **'No conversations yet'**
   String get messagesEmpty;
+
+  /// No description provided for @messagesEmptyDescription.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a conversation with someone from the community.'**
+  String get messagesEmptyDescription;
+
+  /// No description provided for @messagesSearchConversations.
+  ///
+  /// In en, this message translates to:
+  /// **'Search conversations'**
+  String get messagesSearchConversations;
+
+  /// No description provided for @messagesConversation.
+  ///
+  /// In en, this message translates to:
+  /// **'Private conversation'**
+  String get messagesConversation;
+
+  /// No description provided for @messagesStartChat.
+  ///
+  /// In en, this message translates to:
+  /// **'Start a conversation'**
+  String get messagesStartChat;
+
+  /// No description provided for @messagesFirstMessageTo.
+  ///
+  /// In en, this message translates to:
+  /// **'Send the first message to {user}.'**
+  String messagesFirstMessageTo(String user);
+
+  /// No description provided for @messagesNoMessagesYet.
+  ///
+  /// In en, this message translates to:
+  /// **'No messages yet'**
+  String get messagesNoMessagesYet;
 
   /// No description provided for @messagesEmptyDetail.
   ///

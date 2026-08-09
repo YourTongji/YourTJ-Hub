@@ -34,11 +34,38 @@ class GfConversationRow extends StatelessWidget {
     return InkWell(
       onTap: onTap,
       child: Container(
-        color: active ? colors.info.withValues(alpha: 0.10) : colors.base100,
+        decoration: BoxDecoration(
+          color: active ? colors.info.withValues(alpha: 0.10) : colors.base100,
+          border: active
+              ? Border(left: BorderSide(color: colors.primary, width: 3))
+              : null,
+        ),
         padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 12),
         child: Row(
           children: <Widget>[
-            GfAvatar(src: avatarUrl, size: 40),
+            Stack(
+              clipBehavior: Clip.none,
+              children: <Widget>[
+                GfAvatar(src: avatarUrl, size: 40, ring: true),
+                if (unreadCount > 0)
+                  Positioned(
+                    right: -1,
+                    top: -1,
+                    child: Semantics(
+                      label: '$unreadCount unread',
+                      child: Container(
+                        width: 10,
+                        height: 10,
+                        decoration: BoxDecoration(
+                          color: colors.error,
+                          shape: BoxShape.circle,
+                          border: Border.all(color: colors.base100, width: 2),
+                        ),
+                      ),
+                    ),
+                  ),
+              ],
+            ),
             const SizedBox(width: 12),
             Expanded(
               child: Column(
@@ -87,39 +114,11 @@ class GfConversationRow extends StatelessWidget {
                           ),
                         ),
                       ),
-                      if (unreadCount > 0) ...<Widget>[
-                        const SizedBox(width: 8),
-                        Container(
-                          padding: const EdgeInsets.symmetric(
-                            horizontal: 6,
-                            vertical: 1,
-                          ),
-                          decoration: BoxDecoration(
-                            color: colors.error,
-                            borderRadius: BorderRadius.circular(10),
-                          ),
-                          child: Text(
-                            '$unreadCount',
-                            style: TextStyle(
-                              fontSize: 11,
-                              fontWeight: FontWeight.w600,
-                              color: colors.errorContent,
-                            ),
-                          ),
-                        ),
-                      ],
                     ],
                   ),
                 ],
               ),
             ),
-            if (active)
-              Container(
-                width: 3,
-                height: 40,
-                margin: const EdgeInsets.only(left: 12),
-                color: colors.primary,
-              ),
           ],
         ),
       ),

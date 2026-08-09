@@ -11,9 +11,11 @@ import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
+import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
+import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 
@@ -63,6 +65,41 @@ class NoopCache implements OfflineTopicCache, OfflineChatCache {
   Future<void> close() async {}
 }
 
+class RecordingChatRepository extends ChatRepository {
+  RecordingChatRepository(super.client);
+
+  final List<(int, String)> sent = <(int, String)>[];
+
+  @override
+  Future<int> sendMessage({
+    required int peerId,
+    required String content,
+    int msgType = 1,
+  }) async {
+    sent.add((peerId, content));
+    return 9;
+  }
+
+  @override
+  Future<ChatMessagesResponse> getMessages({
+    required int convId,
+    int beforeId = 0,
+    int afterId = 0,
+    int limit = 30,
+  }) async {
+    return const ChatMessagesResponse(
+      list: <ChatMessagePayload>[],
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      nextBeforeId: 0,
+      latestId: 0,
+    );
+  }
+
+  @override
+  Future<bool> markRead({required int convId}) async => true;
+}
+
 /// 记录 fetch 调用次数的 PageRepository。
 class CountingPageRepository extends PageRepository {
   CountingPageRepository(super.client);
@@ -77,6 +114,12 @@ class CountingPageRepository extends PageRepository {
     }
     if (path == '/settings') {
       return parsePayload(settingsPayloadJson());
+    }
+    if (path == '/messages') {
+      return parsePayload(messagesPayloadJson());
+    }
+    if (path.startsWith('/p/post/')) {
+      return parsePayload(topicDetailPayloadJson());
     }
     throw UnimplementedError('unexpected page path: $path');
   }
@@ -126,6 +169,55 @@ class PagingTopicRepository extends TopicRepository {
       totalPages: 2,
       pagination: const PaginationPayload(
         page: 2,
+        nextPage: 0,
+        hasNext: false,
+        nextUrl: '',
+      ),
+    );
+  }
+}
+
+class AggregateSearchRepository extends PagingTopicRepository {
+  AggregateSearchRepository(super.client);
+
+  final List<String> scopes = <String>[];
+
+  @override
+  Future<SearchPageProps> search({
+    required String query,
+    String scope = '',
+    int page = 1,
+  }) async {
+    scopes.add(scope);
+    return SearchPageProps(
+      query: query,
+      scope: scope,
+      topics: <TopicPayload>[makeTopic(1, '聚合帖子结果')],
+      users: const <UserSearchPayload>[
+        UserSearchPayload(
+          id: 2,
+          username: 'bob',
+          nickname: 'Bob',
+          avatarUrl: '',
+          bio: '校园开发者',
+        ),
+      ],
+      categories: const <CategorySearchPayload>[
+        CategorySearchPayload(
+          id: 3,
+          name: '开发',
+          slug: 'dev',
+          icon: '#',
+          color: '#2563eb',
+          desc: '技术交流',
+        ),
+      ],
+      total: 1,
+      usersTotal: 1,
+      categoriesTotal: 1,
+      totalPages: 1,
+      pagination: const PaginationPayload(
+        page: 1,
         nextPage: 0,
         hasNext: false,
         nextUrl: '',
@@ -253,6 +345,7 @@ void main() {
     PagingTopicRepository? topicRepo,
     FilteringNotificationRepository? notifRepo,
     LogoutAuthRepository? authRepo,
+    ChatRepository? chatRepo,
   }) async {
     final storage = MemTokenStorage()..write('token');
     final client = GfApiClient(
@@ -273,6 +366,8 @@ void main() {
         authRepositoryProvider.overrideWithValue(
           authRepo ?? LogoutAuthRepository(client),
         ),
+        if (chatRepo != null)
+          chatRepositoryProvider.overrideWithValue(chatRepo),
         offlineTopicCacheProvider.overrideWithValue(NoopCache()),
         offlineChatCacheProvider.overrideWithValue(NoopCache()),
       ],
@@ -337,6 +432,13 @@ void main() {
 
       expect(find.byType(GfTopicCard), findsOneWidget);
       expect(find.byType(GfTopicRow), findsNothing);
+      expect(find.text('新建话题'), findsNothing);
+      final Finder feedSwitch = find.byType(GfPillSwitch<GfTopicFeedMode>);
+      expect(tester.getSize(feedSwitch).height, 32);
+      expect(
+        tester.getCenter(feedSwitch).dy,
+        closeTo(tester.getCenter(find.byType(GfTabBar)).dy, 1),
+      );
       final Finder brandLogo = find.byType(Image);
       expect(brandLogo, findsOneWidget);
       expect(tester.getTopLeft(brandLogo).dx, inInclusiveRange(0, 24));
@@ -379,6 +481,40 @@ void main() {
     });
   });
 
+  group('话题回复', () {
+    testWidgets('点击帖子回复后展开编辑器并自动聚焦', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfPostComposer), findsNothing);
+      await tester.tap(find.byTooltip('回复').first);
+      await tester.pump();
+
+      final Finder composer = find.byType(GfPostComposer);
+      final Finder replyField = find.descendant(
+        of: composer,
+        matching: find.byType(TextField),
+      );
+      expect(composer, findsOneWidget);
+      expect(replyField, findsOneWidget);
+      final TextField textField = tester.widget<TextField>(replyField);
+      expect(textField.focusNode, isNotNull);
+      expect(textField.focusNode!.hasFocus, isTrue);
+      expect(textField.controller!.text, '@alice ');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+  });
+
   group('搜索分页', () {
     testWidgets('加载更多调用 page+1 并追加结果', (tester) async {
       final topicRepo = PagingTopicRepository(
@@ -417,6 +553,130 @@ void main() {
       expect(topicRepo.searchPages, [1, 2], reason: '加载更多应调用 search(page+1)');
       expect(find.text('结果-第一页'), findsOneWidget);
       expect(find.text('结果-第二页'), findsOneWidget, reason: '第二页结果应追加到列表');
+    });
+
+    testWidgets('全部范围同时展示帖子、用户与分类，并使用复数 scope', (tester) async {
+      final topicRepo = AggregateSearchRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        topicRepo: topicRepo,
+      );
+      await tester.pumpWidget(app(container, const SearchPage()));
+      await tester.pumpAndSettle();
+
+      await tester.enterText(find.byType(TextField), '同济');
+      await tester.tap(find.byIcon(Icons.search));
+      await tester.pumpAndSettle();
+
+      expect(topicRepo.scopes, <String>['']);
+      expect(find.text('聚合帖子结果'), findsOneWidget);
+      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('@bob'), findsOneWidget);
+      expect(find.text('开发'), findsOneWidget);
+
+      await tester.tap(find.text('用户').first);
+      await tester.pumpAndSettle();
+      expect(topicRepo.scopes.last, 'users');
+    });
+  });
+
+  group('私信列表', () {
+    testWidgets('新私信弹层可渲染并搜索用户', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('新私信'));
+      await tester.pumpAndSettle();
+
+      expect(find.text('新私信'), findsOneWidget);
+      expect(find.text('Bob'), findsOneWidget);
+      expect(find.text('@bob'), findsOneWidget);
+      expect(tester.takeException(), isNull);
+
+      await tester.enterText(find.byType(TextField).last, 'bob');
+      await tester.pumpAndSettle();
+      expect(find.text('Bob'), findsOneWidget);
+
+      await tester.tap(find.byIcon(Icons.close));
+      await tester.pumpAndSettle();
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('选择新用户不发空消息，首条真实消息才建立会话', (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final chatRepo = RecordingChatRepository(client);
+      final pageRepo = CountingPageRepository(client);
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        chatRepo: chatRepo,
+      );
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.byTooltip('新私信'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Dave'));
+      await tester.pumpAndSettle();
+
+      expect(chatRepo.sent, isEmpty, reason: '选联系人时不应向后端发送空消息');
+      expect(find.text('开始聊天'), findsOneWidget);
+      expect(find.text('给 Dave 发出第一条消息。'), findsOneWidget);
+
+      await tester.enterText(find.byType(TextField), '你好');
+      await tester.pump();
+      await tester.tap(find.text('发送'));
+      await tester.pumpAndSettle();
+      expect(chatRepo.sent, <(int, String)>[(4, '你好')]);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('会话搜索同时过滤用户名和消息预览', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+
+      expect(find.text('bob'), findsOneWidget);
+      expect(find.text('carol'), findsOneWidget);
+      await tester.enterText(find.byType(TextField), '樱花');
+      await tester.pumpAndSettle();
+
+      expect(find.text('bob'), findsNothing);
+      expect(find.text('carol'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 

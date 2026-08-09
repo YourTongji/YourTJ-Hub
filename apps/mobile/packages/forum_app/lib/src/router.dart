@@ -24,7 +24,7 @@ import 'providers.dart';
 enum GfTab {
   home(Icons.home_outlined, Icons.home),
   search(Icons.search, Icons.search),
-  publish(Icons.edit, Icons.edit),
+  publish(Icons.add, Icons.add),
   messages(Icons.forum_outlined, Icons.forum),
   profile(Icons.person_outline, Icons.person);
 

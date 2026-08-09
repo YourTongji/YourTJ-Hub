@@ -13,6 +13,7 @@ class GfPostComposer extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onPublish,
+    this.focusNode,
     this.targetName,
     this.onCloseTarget,
     this.onPickImage,
@@ -24,6 +25,7 @@ class GfPostComposer extends StatelessWidget {
 
   final TextEditingController controller;
   final VoidCallback onPublish;
+  final FocusNode? focusNode;
 
   /// When replying to a user, the target name shown in the reference bar.
   final String? targetName;
@@ -100,6 +102,7 @@ class GfPostComposer extends StatelessWidget {
             ),
             child: TextField(
               controller: controller,
+              focusNode: focusNode,
               maxLines: null,
               minLines: 3,
               expands: false,
