@@ -1,0 +1,137 @@
+logout:
+  post:
+    tags: [Authentication]
+    summary: Log out and revoke the current session
+    operationId: logout
+    security: []
+    description: |
+      Session is optional. When the request carries a valid session token (cookie or Bearer), the
+      server revokes that session record, so the token immediately stops authenticating. An absent
+      or invalid token is treated as already logged out, which makes this operation idempotent.
+      The `access_token` cookie is always cleared. A business failure (HTTP 200 with `code: 1`,
+      `session.revoke.failed`) is only emitted when revoking a valid session record fails.
+    responses:
+      '200':
+        description: Logout completed (or the caller was already logged out), or a revocation failure.
+        headers:
+          Set-Cookie:
+            description: Always expires the HTTP-only `access_token` session cookie.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/LogoutResponse
+            examples:
+              success:
+                externalValue: ../fixtures/logout-success.json
+
+listSessions:
+  get:
+    tags: [Authentication]
+    summary: List the authenticated user's sessions
+    operationId: listSessions
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Returns every live session of the caller, newest first, marking the session that carries the
+      current token. `ipMasked` is privacy-masked (the last IPv4 octet or the IPv6 interface ID is
+      hidden); the raw IP is never exposed. Frozen accounts are intentionally not rejected here so
+      they can still inspect and revoke their sessions.
+    responses:
+      '200':
+        description: Session list, or a legacy business failure envelope (`session.list.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SessionListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/sessions-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/sessions-unauthenticated.json
+
+revokeSession:
+  post:
+    tags: [Authentication]
+    summary: Revoke one of the authenticated user's sessions
+    operationId: revokeSession
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Revokes the session with the given ID, which must belong to the caller. The session carrying
+      the current token cannot be revoked this way (`session.current.notRevocable`) — use logout or
+      revoke-all instead. Revocation takes effect immediately: the revoked token gets 401 on its
+      next request. The route binds the body non-strictly, so malformed JSON, a missing `id`, or a
+      zero `id` degrade to `id: 0` and surface as `session.notFound`, not as a validation error.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/RevokeSessionRequest
+    responses:
+      '200':
+        description: Revocation result or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SessionMessageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/sessions-revoke-success.json
+              currentSessionNotRevocable:
+                externalValue: ../fixtures/sessions-revoke-current.json
+              sessionNotFound:
+                summary: Also the response for malformed JSON or a missing/zero `id` (non-strict binding).
+                externalValue: ../fixtures/sessions-revoke-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/sessions-unauthenticated.json
+
+revokeAllSessions:
+  post:
+    tags: [Authentication]
+    summary: Revoke every session of the authenticated user
+    operationId: revokeAllSessions
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Deletes all session records of the caller, including the one carrying the current token, and
+      increments the account's token version as a second layer of invalidation. Every existing
+      token of the account gets 401 on its next request; the client must log in again afterwards.
+    responses:
+      '200':
+        description: All sessions revoked, or a legacy business failure envelope (`session.revoke.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SessionMessageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/sessions-revoke-all-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/sessions-unauthenticated.json

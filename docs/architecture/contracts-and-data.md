@@ -14,8 +14,17 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
+- `GET /api/user/sessions`;
+- `POST /api/user/sessions/revoke`;
+- `POST /api/user/sessions/revoke-all`;
 - `POST /api/forum/topics/write`.
+
+Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
+`auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
+extending an existing one, so parallel contract PRs only meet in the `openapi.yaml` entry point and
+the generated TypeScript output.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the

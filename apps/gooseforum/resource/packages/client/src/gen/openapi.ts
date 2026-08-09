@@ -21,6 +21,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/logout": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Log out and revoke the current session
+         * @description Session is optional. When the request carries a valid session token (cookie or Bearer), the
+         *     server revokes that session record, so the token immediately stops authenticating. An absent
+         *     or invalid token is treated as already logged out, which makes this operation idempotent.
+         *     The `access_token` cookie is always cleared. A business failure (HTTP 200 with `code: 1`,
+         *     `session.revoke.failed`) is only emitted when revoking a valid session record fails.
+         */
+        post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/exchange": {
         parameters: {
             query?: never;
@@ -38,6 +62,75 @@ export interface paths {
          *     expiry and nonce, enforces a positive numeric `sub`, then issues a forum JWT session.
          */
         post: operations["exchangeMobileOidcCode"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/sessions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the authenticated user's sessions
+         * @description Returns every live session of the caller, newest first, marking the session that carries the
+         *     current token. `ipMasked` is privacy-masked (the last IPv4 octet or the IPv6 interface ID is
+         *     hidden); the raw IP is never exposed. Frozen accounts are intentionally not rejected here so
+         *     they can still inspect and revoke their sessions.
+         */
+        get: operations["listSessions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/sessions/revoke": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke one of the authenticated user's sessions
+         * @description Revokes the session with the given ID, which must belong to the caller. The session carrying
+         *     the current token cannot be revoked this way (`session.current.notRevocable`) — use logout or
+         *     revoke-all instead. Revocation takes effect immediately: the revoked token gets 401 on its
+         *     next request. The route binds the body non-strictly, so malformed JSON, a missing `id`, or a
+         *     zero `id` degrade to `id: 0` and surface as `session.notFound`, not as a validation error.
+         */
+        post: operations["revokeSession"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/sessions/revoke-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke every session of the authenticated user
+         * @description Deletes all session records of the caller, including the one carrying the current token, and
+         *     increments the account's token version as a second layer of invalidation. Every existing
+         *     token of the account gets 401 on its next request; the client must log in again afterwards.
+         */
+        post: operations["revokeAllSessions"];
         delete?: never;
         options?: never;
         head?: never;
@@ -101,6 +194,11 @@ export interface components {
         };
         LoginResponse: components["schemas"]["LoginSuccess"] | components["schemas"]["ApiFailure"];
         LoginResult: string | components["schemas"]["TotpChallengeResult"];
+        LogoutResponse: components["schemas"]["LogoutSuccess"] | components["schemas"]["ApiFailure"];
+        LogoutSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "logout";
+        };
         OidcExchangeRequest: {
             /** @description One-time authorization code returned to the AppAuth redirect URI. */
             code: string;
@@ -159,6 +257,44 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        RevokeSessionRequest: {
+            /**
+             * Format: uint64
+             * @description Session ID from the session list. Must belong to the caller.
+             */
+            id: number;
+        };
+        SessionListResponse: components["schemas"]["SessionListSuccess"] | components["schemas"]["ApiFailure"];
+        SessionListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UserSession"][];
+        };
+        SessionMessageResponse: components["schemas"]["SessionMessageSuccess"] | components["schemas"]["ApiFailure"];
+        SessionMessageSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Human-readable confirmation message; `messageCode` pins the stable identifier. */
+            result: string;
+            /** @enum {string} */
+            messageCode: "session.revoke.success" | "session.revokeAll.success";
+        };
+        UserSession: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Privacy-masked client IP; the last IPv4 octet or the IPv6 interface ID is hidden. */
+            ipMasked: string;
+            /** @description Truncated raw user agent; clients render a parsed device label. */
+            userAgent: string;
+            /**
+             * Format: int64
+             * @description Session creation time in Unix milliseconds.
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Session expiry time in Unix milliseconds.
+             */
+            expiresAt: number;
+            /** @description True for the session that carries the current token. */
+            isCurrent: boolean;
+        };
     };
     responses: never;
     parameters: never;
@@ -202,6 +338,28 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    logout: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Logout completed (or the caller was already logged out), or a revocation failure. */
+            200: {
+                headers: {
+                    /** @description Always expires the HTTP-only `access_token` session cookie. */
+                    "Set-Cookie"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LogoutResponse"];
                 };
             };
         };
@@ -271,6 +429,97 @@ export interface operations {
             };
             /** @description The local account, session, or forum JWT could not be created. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Session list, or a legacy business failure envelope (`session.list.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    revokeSession: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RevokeSessionRequest"];
+            };
+        };
+        responses: {
+            /** @description Revocation result or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionMessageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    revokeAllSessions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All sessions revoked, or a legacy business failure envelope (`session.revoke.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SessionMessageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
