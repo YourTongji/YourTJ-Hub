@@ -236,4 +236,6 @@ const (
 	MessageAdminAgentRotateFailed    MessageCode = "admin.agent.rotateFailed"    // 轮换令牌失败，params.error 可带原始错误。
 	MessageAdminAgentDisableFailed   MessageCode = "admin.agent.disableFailed"   // 禁用 Agent 失败，params.error 可带原始错误。
 	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
+	// Agent 收件箱
+	MessageAgentInboxNotFound MessageCode = "agent.inbox.notFound" // 收件箱项不存在或不属于当前 Agent。
 )

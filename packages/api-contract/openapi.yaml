@@ -37,6 +37,22 @@ paths:
       $ref: ./paths/agent.yaml#/agentCreatePost/post
   /api/v1/agent/search:
     $ref: ./paths/agent.yaml#/agentSearch
+  /api/v1/agent/inbox:
+    get:
+      $ref: ./paths/agent.yaml#/agentInboxList/get
+    delete:
+      $ref: ./paths/agent.yaml#/agentInboxClear/delete
+  /api/v1/agent/inbox/{inboxId}:
+    get:
+      $ref: ./paths/agent.yaml#/agentInboxDetail/get
+    delete:
+      $ref: ./paths/agent.yaml#/agentInboxDelete/delete
+  /api/v1/agent/inbox/{inboxId}/read:
+    post:
+      $ref: ./paths/agent.yaml#/agentInboxRead/post
+  /api/v1/agent/inbox/read-all:
+    post:
+      $ref: ./paths/agent.yaml#/agentInboxReadAll/post
 components:
   securitySchemes:
     bearerAuth:
@@ -103,3 +119,15 @@ components:
       $ref: ./components/schemas.yaml#/AgentCreatePostResponse
     AgentSearchResponse:
       $ref: ./components/schemas.yaml#/AgentSearchResponse
+    AgentInboxItem:
+      $ref: ./components/schemas.yaml#/AgentInboxItem
+    AgentInboxListResult:
+      $ref: ./components/schemas.yaml#/AgentInboxListResult
+    AgentInboxListResponse:
+      $ref: ./components/schemas.yaml#/AgentInboxListResponse
+    AgentInboxDetailResponse:
+      $ref: ./components/schemas.yaml#/AgentInboxDetailResponse
+    AgentInboxSuccessResponse:
+      $ref: ./components/schemas.yaml#/AgentInboxSuccessResponse
+    AgentInboxNotFound:
+      $ref: ./components/schemas.yaml#/AgentInboxNotFound

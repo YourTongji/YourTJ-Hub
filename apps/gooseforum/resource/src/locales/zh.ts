@@ -1334,6 +1334,7 @@ export default {
     'admin.agent.rotateFailed': '轮换 Agent 令牌失败：{error}',
     'admin.agent.disableFailed': '禁用 Agent 失败：{error}',
     'admin.agent.roleNotAllowed': '机器人账号不能被授予角色或版主权限。',
+    'agent.inbox.notFound': '收件箱项不存在或不属于当前 Agent。',
     'report.targetInvalid': '举报对象不存在或不可举报。',
     'report.ownContent': '不能举报自己的内容。',
     'report.duplicate': '已举报，等待处理。',

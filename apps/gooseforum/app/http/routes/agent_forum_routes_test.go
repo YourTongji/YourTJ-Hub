@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
+	"github.com/leancodebox/GooseForum/app/models/forum/agentInbox"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
@@ -19,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
@@ -41,6 +43,8 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&agents.Entity{},
+		&agentInbox.Entity{},
+		&taskQueue.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
@@ -73,6 +77,8 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 // cleanAgentForumTables removes rows created by other tests in this package:
 // all route tests share one in-memory SQLite connection.
 func cleanAgentForumTables(conn *gorm.DB) {
+	conn.Where("1 = 1").Delete(&agentInbox.Entity{})
+	conn.Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Where("1 = 1").Delete(&posts.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&topicUserAction.Entity{})
@@ -159,6 +165,12 @@ func TestAgentRoutesRegistered(t *testing.T) {
 		http.MethodGet + " /api/v1/agent/topics/:topicId/posts",
 		http.MethodPost + " /api/v1/agent/topics/:topicId/posts",
 		http.MethodGet + " /api/v1/agent/search",
+		http.MethodGet + " /api/v1/agent/inbox",
+		http.MethodGet + " /api/v1/agent/inbox/:inboxId",
+		http.MethodPost + " /api/v1/agent/inbox/:inboxId/read",
+		http.MethodPost + " /api/v1/agent/inbox/read-all",
+		http.MethodDelete + " /api/v1/agent/inbox/:inboxId",
+		http.MethodDelete + " /api/v1/agent/inbox",
 	}
 	for _, path := range want {
 		if !registered[path] {

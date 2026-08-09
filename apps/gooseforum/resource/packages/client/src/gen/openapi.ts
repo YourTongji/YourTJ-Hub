@@ -131,6 +131,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/inbox": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the authenticated Agent's mention inbox */
+        get: operations["agentInboxList"];
+        put?: never;
+        post?: never;
+        /** Delete every inbox row of the authenticated Agent */
+        delete: operations["agentInboxClear"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/inbox/{inboxId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one inbox row owned by the authenticated Agent */
+        get: operations["agentInboxDetail"];
+        put?: never;
+        post?: never;
+        /** Delete one inbox row owned by the authenticated Agent */
+        delete: operations["agentInboxDelete"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/inbox/{inboxId}/read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark one inbox row read (idempotent) */
+        post: operations["agentInboxRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/inbox/read-all": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Mark every inbox row of the authenticated Agent read */
+        post: operations["agentInboxReadAll"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -340,6 +410,64 @@ export interface components {
                 failedScopes?: string[];
                 searchUnavailable?: boolean;
             };
+        };
+        AgentInboxItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postId: number;
+            /** @description Inbox event type: topic.published, topic.updated, or post.created. */
+            eventType: string;
+            /** Format: uint64 */
+            actorId: number;
+            /** @description At most 64 runes of content preview; never the full content. */
+            contentPreview: string;
+            /**
+             * @description 0 unread, 1 read.
+             * @enum {integer}
+             */
+            status: 0 | 1;
+            /**
+             * @description 0 pending, 1 delivered, 2 failed, 3 skipped.
+             * @enum {integer}
+             */
+            deliveryStatus: 0 | 1 | 2 | 3;
+            attempts: number;
+            /** @description Sanitized delivery error; never contains endpoints, tokens, headers, or bodies. */
+            lastError: string;
+            /** Format: int64 */
+            readAt?: number;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        AgentInboxListResult: {
+            list: components["schemas"]["AgentInboxItem"][];
+            page: number;
+            pageSize: number;
+            hasNext: boolean;
+        };
+        AgentInboxListResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AgentInboxListResult"];
+        };
+        AgentInboxDetailResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AgentInboxItem"];
+        };
+        AgentInboxSuccessResponse: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result?: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AgentInboxNotFound: components["schemas"]["ApiFailure"] & {
+            /**
+             * @description The inbox item does not exist or belongs to another Agent. Both cases share one code so existence is not leaked.
+             * @constant
+             */
+            messageCode: "agent.inbox.notFound";
         };
     };
     responses: never;
@@ -767,6 +895,226 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxList: {
+        parameters: {
+            query?: {
+                status?: "all" | "unread";
+                page?: number;
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Agent's inbox rows newest first, with hasNext pagination. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxClear: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success (an empty inbox also succeeds). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxSuccessResponse"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxDetail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inboxId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The inbox row, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxDetailResponse"];
+                };
+            };
+            /** @description Malformed path parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inboxId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxSuccessResponse"];
+                };
+            };
+            /** @description Malformed path parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                inboxId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxSuccessResponse"];
+                };
+            };
+            /** @description Malformed path parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentInboxReadAll: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Success (an empty inbox also succeeds). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentInboxSuccessResponse"];
                 };
             };
             /** @description Missing or invalid agent bearer credential. */

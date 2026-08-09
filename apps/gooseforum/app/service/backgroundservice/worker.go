@@ -7,6 +7,7 @@ package backgroundservice
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"time"
 
@@ -22,6 +23,8 @@ const (
 	maxRetries    = 3
 )
 
+var errTaskHandlerPanicked = errors.New("task handler panicked")
+
 // TaskHandler processes one queued task. Returning an error triggers
 // retry/failure bookkeeping on the task row.
 type TaskHandler func(ctx context.Context, task *taskQueue.Entity) error
@@ -29,6 +32,17 @@ type TaskHandler func(ctx context.Context, task *taskQueue.Entity) error
 // RunWorker starts a polling worker for tasks whose type starts with
 // typePrefix. The worker stops when the process closer fires.
 func RunWorker(name, typePrefix string, handler TaskHandler) {
+	runWorker(name, typePrefix, 0, handler)
+}
+
+// RunWorkerWithStaleRecovery additionally requeues tasks that stayed running
+// beyond staleAfter. It is intended for bounded handlers whose durable work
+// must survive a process crash after the task was claimed.
+func RunWorkerWithStaleRecovery(name, typePrefix string, staleAfter time.Duration, handler TaskHandler) {
+	runWorker(name, typePrefix, staleAfter, handler)
+}
+
+func runWorker(name, typePrefix string, staleAfter time.Duration, handler TaskHandler) {
 	stopCh := make(chan struct{})
 	closer.RegisterPriority(closer.PriorityProducer, func() error {
 		close(stopCh)
@@ -39,6 +53,9 @@ func RunWorker(name, typePrefix string, handler TaskHandler) {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		for {
+			if staleAfter > 0 {
+				requeueStaleTasks(typePrefix, staleAfter)
+			}
 			if !drainTasks(stopCh, typePrefix, handler) {
 				return
 			}
@@ -49,6 +66,17 @@ func RunWorker(name, typePrefix string, handler TaskHandler) {
 			}
 		}
 	}()
+}
+
+func requeueStaleTasks(typePrefix string, staleAfter time.Duration) {
+	count, err := taskQueue.RequeueStaleRunningByType(typePrefix, time.Now().Add(-staleAfter))
+	if err != nil {
+		slog.Error("background: stale task recovery failed", "worker", typePrefix, "err", err)
+		return
+	}
+	if count > 0 {
+		slog.Warn("background: requeued stale running tasks", "worker", typePrefix, "count", count)
+	}
 }
 
 func drainTasks(stopCh <-chan struct{}, typePrefix string, handler TaskHandler) bool {
@@ -79,7 +107,7 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 		return true
 	}
 
-	if err := handler(context.Background(), task); err != nil {
+	if err := invokeTaskHandler(handler, task); err != nil {
 		slog.Error("background: task failed", "worker", typePrefix, "id", task.Id, "type", task.Type, "retryCount", task.RetryCount, "err", err)
 		if task.RetryCount < maxRetries {
 			if updateErr := taskQueue.IncrementRetryCount(task.Id); updateErr != nil {
@@ -105,4 +133,13 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 		slog.Error("background: mark task success failed", "worker", typePrefix, "id", task.Id, "err", err)
 	}
 	return true
+}
+
+func invokeTaskHandler(handler TaskHandler, task *taskQueue.Entity) (err error) {
+	defer func() {
+		if recover() != nil {
+			err = errTaskHandlerPanicked
+		}
+	}()
+	return handler(context.Background(), task)
 }

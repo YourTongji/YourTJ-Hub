@@ -93,5 +93,51 @@ abstract class AgentCreatePostResult with _$AgentCreatePostResult {
       _$AgentCreatePostResultFromJson(json);
 }
 
+@freezed
+abstract class AgentInboxItem with _$AgentInboxItem {
+  const factory AgentInboxItem({
+    required int id,
+    required int topicId,
+    required int postId,
+    required String eventType,
+    required int actorId,
+    required String contentPreview,
+    required int status,
+    required int deliveryStatus,
+    required int attempts,
+    required String lastError,
+    int? readAt,
+    required int createdAt,
+    required int updatedAt,
+  }) = _AgentInboxItem;
+
+  factory AgentInboxItem.fromJson(Map<String, dynamic> json) =>
+      _$AgentInboxItemFromJson(json);
+}
+
+@freezed
+abstract class AgentInboxListResult with _$AgentInboxListResult {
+  const factory AgentInboxListResult({
+    required List<AgentInboxItem> list,
+    required int page,
+    required int pageSize,
+    required bool hasNext,
+  }) = _AgentInboxListResult;
+
+  factory AgentInboxListResult.fromJson(Map<String, dynamic> json) =>
+      _$AgentInboxListResultFromJson(json);
+}
+
+@freezed
+abstract class AgentInboxSuccessResult with _$AgentInboxSuccessResult {
+  const factory AgentInboxSuccessResult({
+    required String result,
+    required String messageCode,
+  }) = _AgentInboxSuccessResult;
+
+  factory AgentInboxSuccessResult.fromJson(Map<String, dynamic> json) =>
+      _$AgentInboxSuccessResultFromJson(json);
+}
+
 typedef AgentPostListResult = PostWindowPayload;
 typedef AgentSearchResult = SearchPageProps;

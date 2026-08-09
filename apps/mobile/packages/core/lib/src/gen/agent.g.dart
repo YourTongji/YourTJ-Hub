@@ -134,3 +134,72 @@ Map<String, dynamic> _$$AgentCreatePostResultImplToJson(
   'postNo': instance.postNo,
   'renderedContent': instance.renderedContent,
 };
+
+_$AgentInboxItemImpl _$$AgentInboxItemImplFromJson(Map<String, dynamic> json) =>
+    _$AgentInboxItemImpl(
+      id: (json['id'] as num).toInt(),
+      topicId: (json['topicId'] as num).toInt(),
+      postId: (json['postId'] as num).toInt(),
+      eventType: json['eventType'] as String,
+      actorId: (json['actorId'] as num).toInt(),
+      contentPreview: json['contentPreview'] as String,
+      status: (json['status'] as num).toInt(),
+      deliveryStatus: (json['deliveryStatus'] as num).toInt(),
+      attempts: (json['attempts'] as num).toInt(),
+      lastError: json['lastError'] as String,
+      readAt: (json['readAt'] as num?)?.toInt(),
+      createdAt: (json['createdAt'] as num).toInt(),
+      updatedAt: (json['updatedAt'] as num).toInt(),
+    );
+
+Map<String, dynamic> _$$AgentInboxItemImplToJson(
+  _$AgentInboxItemImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'topicId': instance.topicId,
+  'postId': instance.postId,
+  'eventType': instance.eventType,
+  'actorId': instance.actorId,
+  'contentPreview': instance.contentPreview,
+  'status': instance.status,
+  'deliveryStatus': instance.deliveryStatus,
+  'attempts': instance.attempts,
+  'lastError': instance.lastError,
+  'readAt': instance.readAt,
+  'createdAt': instance.createdAt,
+  'updatedAt': instance.updatedAt,
+};
+
+_$AgentInboxListResultImpl _$$AgentInboxListResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$AgentInboxListResultImpl(
+  list: (json['list'] as List<dynamic>)
+      .map((e) => AgentInboxItem.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  page: (json['page'] as num).toInt(),
+  pageSize: (json['pageSize'] as num).toInt(),
+  hasNext: json['hasNext'] as bool,
+);
+
+Map<String, dynamic> _$$AgentInboxListResultImplToJson(
+  _$AgentInboxListResultImpl instance,
+) => <String, dynamic>{
+  'list': instance.list,
+  'page': instance.page,
+  'pageSize': instance.pageSize,
+  'hasNext': instance.hasNext,
+};
+
+_$AgentInboxSuccessResultImpl _$$AgentInboxSuccessResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$AgentInboxSuccessResultImpl(
+  result: json['result'] as String,
+  messageCode: json['messageCode'] as String,
+);
+
+Map<String, dynamic> _$$AgentInboxSuccessResultImplToJson(
+  _$AgentInboxSuccessResultImpl instance,
+) => <String, dynamic>{
+  'result': instance.result,
+  'messageCode': instance.messageCode,
+};

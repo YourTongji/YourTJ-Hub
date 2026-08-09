@@ -1333,6 +1333,7 @@ export default {
     'admin.agent.rotateFailed': 'Rotazione del token dell’agent non riuscita: {error}',
     'admin.agent.disableFailed': 'Disattivazione dell’agent non riuscita: {error}',
     'admin.agent.roleNotAllowed': 'Gli account bot non possono ricevere ruoli o permessi da moderatore.',
+    'agent.inbox.notFound': 'Voce della casella non trovata o appartenente a un altro agent.',
     'report.targetInvalid': 'Il contenuto segnalato non esiste o non può essere segnalato.',
     'report.ownContent': 'Non puoi segnalare i tuoi contenuti.',
     'report.duplicate': 'Già segnalato e in attesa di revisione.',

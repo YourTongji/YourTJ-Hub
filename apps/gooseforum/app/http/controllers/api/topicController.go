@@ -216,7 +216,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		hotdataserve.ClearTopicListCache()
 		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
-		if topic.Status == 1 && !pendingReview {
+		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
@@ -252,7 +252,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-		if topic.Status == 1 && !pendingReview {
+		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -260,7 +260,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		hotdataserve.ClearTopicListCache()
-		if topic.Status == 1 && !pendingReview {
+		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicunseenservice.MarkVisited(req.UserId, topic.Id, firstPost.Id, time.Now()); err != nil {
@@ -294,7 +294,7 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
-	if topic.Status == 1 {
+	if topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
 	return component.SuccessResponse(true)
