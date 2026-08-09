@@ -15,7 +15,11 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 
 - `POST /api/login`;
 - `POST /api/auth/oidc/exchange`;
-- `POST /api/forum/topics/write`.
+- `POST /api/forum/topics/write`;
+- `GET /api/v1/agent/me`;
+- `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
+- `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
+- `GET /api/v1/agent/search`.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
@@ -69,6 +73,14 @@ than a hand-maintained duplicate baseline.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
   token_hash, webhook_endpoint, enabled, created_by, last_used_at); the token hash is the only stored
   secret material, the prefix is a non-secret lookup key.
+- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
+  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
+  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
+  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
+  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
+  honeypot, captcha, and new-user cooldown gates are skipped.
+- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
+  contract surface.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 
