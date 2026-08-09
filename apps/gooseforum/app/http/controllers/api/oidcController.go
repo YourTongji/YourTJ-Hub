@@ -51,7 +51,7 @@ func OidcCallback(c *gin.Context) {
 
 	if currentUserId > 0 {
 		// 绑定模式：已登录用户绑定 Casdoor 身份
-		if userInfo, ok := userservice.GetUserInfo(currentUserId); !ok || userInfo.IsFrozen == users.StatusFrozen {
+		if userInfo, ok := userservice.GetUserInfo(currentUserId); !ok || userInfo.IsFrozen == users.StatusFrozen || userInfo.ActorType == users.ActorTypeBot {
 			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessagePermissionUserFrozen)
 			return
 		}

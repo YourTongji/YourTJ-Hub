@@ -9,6 +9,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
@@ -58,6 +59,11 @@ func JWTAuthGetUserId(c *gin.Context) uint64 {
 	}
 	user, ok := userservice.GetUserInfo(claims.UserId)
 	if !ok || user.TokenVersion != claims.TokenVersion {
+		return 0
+	}
+	// 机器人（Agent）账号不参与人类会话：bot 行无法通过 JWT 会话中间件，
+	// 也就无法创建/列出人类会话或访问任何登录态接口。
+	if user.ActorType == users.ActorTypeBot {
 		return 0
 	}
 	// Every accepted token must map to a live session record. Challenge

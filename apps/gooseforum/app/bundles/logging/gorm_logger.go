@@ -35,7 +35,7 @@ type GormLoggerConfig struct {
 // 如果 config 为 nil，将使用默认配置
 func NewGormLogger(config *GormLoggerConfig) *GormLogger {
 	if config == nil {
-		config = &GormLoggerConfig{}
+		config = &GormLoggerConfig{ParameterizedQueries: true}
 	}
 
 	// 设置默认值

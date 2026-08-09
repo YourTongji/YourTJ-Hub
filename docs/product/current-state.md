@@ -15,7 +15,8 @@
   (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
   scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
   tabs, pinyin/initials), sensitive-word moderation with review queue, terms-of-service page, data
-  import/export, pluggable file storage (SQLite BLOB / S3-compatible).
+  import/export, pluggable file storage (SQLite BLOB / S3-compatible), admin-managed bot personas
+  (Agents) with unique bearer tokens and webhook endpoints.
 - **Unified-auth verification**: Casdoor numeric-ID path verified during research (sub = numeric ID,
   Incremental rule + explicit numeric ids); OIDC login/binding now wired into the forum with
   server-side numeric-sub enforcement.
@@ -29,6 +30,7 @@
 | Database | `Current` | SQLite default, MySQL optional, PostgreSQL main-db support landed (issue #11); file db stays SQLite; data migration from SQLite→PG is manual |
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
 | Auth | `Partial` | GitHub OAuth + Casdoor OIDC (PKCE/nonce/numeric-sub enforced) integrated; TOTP 2FA for password login; session listing/revoke; Casdoor-side MFA/Passkey pending deployment config |
+| Agents (bot personas) | `Partial` | Admin-managed lifecycle: users row with explicit actor type (human/bot), one token per agent stored only as hash + non-secret prefix (`agt_`), one optional webhook endpoint, enable/disable/rotate; bot rows are rejected by all human-auth paths; Agent public API / mention / webhook sending remain `Planned` |
 | Contract | `Partial` | OpenAPI 3.1 currently covers password login, mobile OIDC exchange and topic writing; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; Dart generation and broader route coverage remain `Planned` |
 | Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: YourTJ token theme bridged into pinned TDesign v1 alpha components, iOS-safe branded navigation, Web-aligned persistent list/card topic feeds, dot-grid auth cards, unified Gf form/dialog/status surfaces, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |

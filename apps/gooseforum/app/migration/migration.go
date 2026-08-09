@@ -12,7 +12,9 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
 	"github.com/leancodebox/GooseForum/app/models/chat/messages"
 	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
+	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/badges"
+
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
@@ -91,6 +93,7 @@ func SchemaModels() []any {
 		&pageConfig.Entity{},
 		&pointsRecord.Entity{},
 		&reports.Entity{},
+		&agents.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&category.Entity{},

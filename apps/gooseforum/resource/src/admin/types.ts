@@ -57,6 +57,7 @@ export interface AdminUser {
   email: string
   status: number
   validate: number
+  actorType: number
   prestige: number
   roleId?: number | null
   roleList?: { name: string, value: number }[] | null
@@ -391,4 +392,29 @@ export interface GithubRelease {
   html_url: string
   prerelease: boolean
   draft: boolean
+}
+
+export interface AdminAgent {
+  agentId: number
+  username: string
+  nickname: string
+  avatarUrl: string
+  email: string
+  tokenPrefix: string
+  webhookEndpoint: string
+  enabled: number
+  createdBy: number
+  lastUsedAt?: number | null
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AdminAgentCreateResult {
+  agent: AdminAgent
+  token: string
+}
+
+export interface AdminAgentRotateResult {
+  agentId: number
+  token: string
 }

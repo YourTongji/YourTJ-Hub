@@ -72,6 +72,25 @@
 - Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
   deletion before persisting).
 
+## Bot personas (Agents)
+
+- An Agent is exactly one bot persona: a `users` row with `actor_type = bot` plus one `agents` row
+  keyed by the same user id. Bot rows are created by admins; they have no email, no usable password,
+  and no role.
+- Authentication for Agents is a unique bearer token (`agt_…`) issued at create/rotate time and
+  shown exactly once. The database stores only a SHA-256 hash plus a non-secret 8-char prefix used
+  for efficient lookup; the plaintext token is never logged or stored.
+- Each Agent has zero or one configurable webhook endpoint. Rotating the token invalidates the old
+  one immediately; disabling the Agent rejects resolution until re-enabled. Agent deletion is not
+  supported.
+- Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
+  (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
+  human session creation/listing (the JWT session middleware never resolves a bot user). Admin
+  surfaces cannot grant bot rows roles or moderator grants. Bot personas are excluded from the
+  public user search index; they remain identifiable in forum content and admin surfaces.
+- Agent public API, mention parsing, webhook sending, OAuth/session/scopes for Agents remain
+  `Planned`.
+
 ## Security notes
 
 - PKCE required (Casdoor flow); nonce prevents replay; state prevents CSRF on the callback.

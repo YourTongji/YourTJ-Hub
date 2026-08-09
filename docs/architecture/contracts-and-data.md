@@ -66,6 +66,9 @@ than a hand-maintained duplicate baseline.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
+- Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
+  token_hash, webhook_endpoint, enabled, created_by, last_used_at); the token hash is the only stored
+  secret material, the prefix is a non-secret lookup key.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 

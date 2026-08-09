@@ -2,6 +2,9 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   ApiEnvelope,
+  AdminAgent,
+  AdminAgentCreateResult,
+  AdminAgentRotateResult,
   AdminTaskRow,
   AdminTopic,
   AdminBadge,
@@ -394,4 +397,24 @@ export function importData(file: File) {
   const body = new FormData()
   body.append('file', file)
   return postForm<ImportReport>('/api/admin/data/import', body, adminText('k00hk'))
+}
+
+export function getAgentList() {
+  return postJson<AdminAgent[]>('/api/admin/agent-list', {}, adminText('k00k2'))
+}
+
+export function createAgent(data: { username: string, nickname?: string, webhookEndpoint?: string }) {
+  return postJson<AdminAgentCreateResult>('/api/admin/agent-create', data, adminText('k00k3'))
+}
+
+export function updateAgent(data: { agentId: number, nickname?: string, webhookEndpoint?: string, enabled?: number }) {
+  return postJson<AdminAgent>('/api/admin/agent-update', data, adminText('k00k4'))
+}
+
+export function rotateAgentToken(agentId: number) {
+  return postJson<AdminAgentRotateResult>('/api/admin/agent-rotate-token', { agentId }, adminText('k00k5'))
+}
+
+export function disableAgent(agentId: number) {
+  return postJson<unknown>('/api/admin/agent-disable', { agentId }, adminText('k00k6'))
 }

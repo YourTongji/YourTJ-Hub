@@ -138,6 +138,7 @@ type UserItem struct {
 	AvatarUrl      string                              `json:"avatarUrl"`
 	Email          string                              `json:"email"`
 	Status         int8                                `json:"status"`
+	ActorType      int8                                `json:"actorType"`
 	Validate       int8                                `json:"validate"`
 	Prestige       int64                               `json:"prestige"`
 	RoleList       []datastruct.Option[string, uint64] `json:"roleList"`
@@ -184,6 +185,7 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 			AvatarUrl:      t.GetWebAvatarUrl(),
 			Username:       t.Username,
 			Email:          t.Email,
+			ActorType:      t.ActorType,
 			Status:         t.IsFrozen,
 			Validate:       t.IsActivated,
 			Prestige:       t.Prestige,
@@ -359,6 +361,10 @@ func EditUser(req component.BetterRequest[EditUserReq]) component.Response {
 	user, err := users.Get(params.UserId)
 	if err != nil || user.Id == 0 {
 		return component.FailResponseCode(component.MessageAdminTargetUserFetchFailed, nil)
+	}
+	// 机器人（Agent）账号不允许被授予任何角色（管理/版主等）。
+	if user.IsBot() && params.RoleId != 0 {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
 	}
 	opt := false
 	changes := make([]string, 0, 3)
@@ -943,6 +949,10 @@ func AddCategoryModerator(req component.BetterRequest[AddCategoryModeratorReq]) 
 	if !ok {
 		return component.FailResponseCode(component.MessageAdminModeratorUserNotFound, nil)
 	}
+	// 机器人（Agent）账号不允许成为版主。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
+	}
 
 	entity := moderators.GetByUserScope(user.Id, moderators.ScopeCategory, categoryEntity.Id)
 	entity.UserId = user.Id
@@ -982,6 +992,10 @@ func AddGlobalModerator(req component.BetterRequest[ModeratorUserReq]) component
 	user, ok := resolveModeratorUser(req.Params)
 	if !ok {
 		return component.FailResponseCode(component.MessageAdminModeratorUserNotFound, nil)
+	}
+	// 机器人（Agent）账号不允许成为版主。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
 	}
 	entity := moderators.GetByUserScope(user.Id, moderators.ScopeGlobal, 0)
 	entity.UserId = user.Id

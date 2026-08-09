@@ -53,6 +53,11 @@ const (
 	ActivationSuccess = 1
 )
 
+const (
+	ActorTypeHuman int8 = 0
+	ActorTypeBot   int8 = 1
+)
+
 // fieldPrestige 声望
 const fieldPrestige = "prestige"
 
@@ -89,6 +94,7 @@ type EntityComplete struct {
 	IsFrozen     int8       `gorm:"column:is_frozen;not null;default:0;" json:"isFrozen"`                        // 状态：0正常 1冻结
 	IsActivated  int8       `gorm:"column:is_activated;not null;default:0;" json:"isActivated"`                  // 是否验证通过: 0未激活 1 已激活
 	ActivatedAt  *time.Time `gorm:"column:activated_at;" json:"activatedAt"`                                     // 激活时间
+	ActorType    int8       `gorm:"column:actor_type;not null;default:0;" json:"actorType"`                      // 账号主体类型：0 人类 1 机器人（Agent）
 
 	// info
 	Nickname            string              `gorm:"column:nickname;type:varchar(64);not null;default:'';" json:"nickname"`                                  //
@@ -136,4 +142,9 @@ func (itself *EntityComplete) Activate() {
 	itself.IsActivated = ActivationSuccess
 	activatedAt := time.Now()
 	itself.ActivatedAt = &activatedAt
+}
+
+// IsBot 判断是否为机器人（Agent）账号。
+func (itself *EntityComplete) IsBot() bool {
+	return itself.ActorType == ActorTypeBot
 }

@@ -353,6 +353,10 @@ func MatchOrCreateUser(result CallbackResult) (*users.EntityComplete, error) {
 		if err != nil {
 			return nil, fmt.Errorf("获取用户信息失败: %w", err)
 		}
+		// 机器人（Agent）账号禁止通过 OIDC/Casdoor 登录或绑定。
+		if user.IsBot() {
+			return nil, fmt.Errorf("机器人账号不允许 OIDC 登录")
+		}
 		return &user, nil
 	}
 

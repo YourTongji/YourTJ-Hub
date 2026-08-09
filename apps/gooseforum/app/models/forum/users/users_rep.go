@@ -27,6 +27,11 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	if err != nil {
 		return &user, err
 	}
+	// 机器人（Agent）账号不参与密码登录：用户名存在与否均按凭据无效处理，
+	// 避免枚举 bot 账号，也与“bot 邮箱为空、密码不可用”的约束一致。
+	if user.IsBot() {
+		return &EntityComplete{}, fmt.Errorf("bot accounts cannot log in with password")
+	}
 	err = algorithm.VerifyEncryptPassword(user.Password, password)
 	if err != nil {
 		return &EntityComplete{}, err

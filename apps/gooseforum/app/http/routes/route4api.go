@@ -222,7 +222,12 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("role-delete", UpButterReq(api.RoleDel))
 
 	adminApi.Group("", middleware.CheckPermission(permission.Admin)).
-		POST("opt-record-page", UpButterReq(api.OptRecordPage))
+		POST("opt-record-page", UpButterReq(api.OptRecordPage)).
+		POST("agent-list", UpButterReq(api.AgentList)).
+		POST("agent-create", UpButterReq(api.AgentCreate)).
+		POST("agent-update", UpButterReq(api.AgentUpdate)).
+		POST("agent-rotate-token", UpButterReq(api.AgentRotateToken)).
+		POST("agent-disable", UpButterReq(api.AgentDisable))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).

@@ -38,7 +38,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		t.Fatalf("AutoMigrate on postgres failed: %v", err)
 	}
 
-	// 关键新表必须存在（issue #8 回归点）
+	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
 		"user_sessions",
 		"user_totp",
@@ -46,10 +46,14 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"user_totp_challenges",
 		"user_o_auth",
 		"users",
+		"agents",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
 		}
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
+		t.Error("users.actor_type column missing after postgres migration")
 	}
 }
 
@@ -91,6 +95,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"user_o_auth",
 		"users",
 		"topics",
+		"agents",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
