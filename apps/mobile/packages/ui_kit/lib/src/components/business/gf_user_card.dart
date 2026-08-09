@@ -133,35 +133,39 @@ class GfUserCard extends StatelessWidget {
                     ],
                     if (stats.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 16),
-                      GridView.count(
-                        crossAxisCount: 4,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        mainAxisExtent: 44,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           for (final (String label, String value) in stats)
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: <Widget>[
-                                Text(
-                                  value,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.baseContent,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  label,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: colors.baseContent.withValues(
-                                      alpha: 0.55,
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: colors.baseContent,
                                     ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colors.baseContent.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                       ),

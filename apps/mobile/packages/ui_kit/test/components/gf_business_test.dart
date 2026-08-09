@@ -169,21 +169,37 @@ void main() {
       expect(find.text('草稿描述'), findsOneWidget);
     });
 
-    testWidgets('renders user card with stats', (tester) async {
+    testWidgets('renders four-column user stats at mobile width', (
+      tester,
+    ) async {
+      tester.view.devicePixelRatio = 1;
+      tester.view.physicalSize = const Size(390, 844);
+      addTearDown(tester.view.reset);
+
       await tester.pumpWidget(
         gfApp(
-          GfUserCard(
-            avatarUrl: '',
-            name: 'Tongji',
-            username: 'tongji',
-            bio: '你好',
-            stats: const <(String, String)>[('话题', '12')],
+          MediaQuery(
+            data: const MediaQueryData(textScaler: TextScaler.linear(1.3)),
+            child: GfUserCard(
+              avatarUrl: '',
+              name: 'Tongji',
+              username: 'tongji',
+              bio: '你好',
+              stats: const <(String, String)>[
+                ('话题', '12'),
+                ('回复', '34'),
+                ('关注', '56'),
+                ('粉丝', '78'),
+              ],
+            ),
           ),
         ),
       );
+
       expect(find.text('Tongji'), findsOneWidget);
       expect(find.text('@tongji'), findsOneWidget);
       expect(find.text('12'), findsOneWidget);
+      expect(tester.takeException(), isNull);
     });
 
     testWidgets('renders setting rows', (tester) async {
