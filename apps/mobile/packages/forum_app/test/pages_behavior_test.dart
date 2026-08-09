@@ -15,6 +15,7 @@ import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
 import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
+import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
 
@@ -116,6 +117,9 @@ class CountingPageRepository extends PageRepository {
     }
     if (path == '/messages') {
       return parsePayload(messagesPayloadJson());
+    }
+    if (path.startsWith('/p/post/')) {
+      return parsePayload(topicDetailPayloadJson());
     }
     throw UnimplementedError('unexpected page path: $path');
   }
@@ -474,6 +478,40 @@ void main() {
       expect(find.text('重置密码'), findsOneWidget);
       expect(find.text('邮箱'), findsOneWidget);
       expect(find.text('返回登录'), findsOneWidget);
+    });
+  });
+
+  group('话题回复', () {
+    testWidgets('点击帖子回复后展开编辑器并自动聚焦', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      await tester.pumpWidget(app(container, const TopicPage(topicId: 100)));
+      await tester.pumpAndSettle();
+
+      expect(find.byType(GfPostComposer), findsNothing);
+      await tester.tap(find.byTooltip('回复').first);
+      await tester.pump();
+
+      final Finder composer = find.byType(GfPostComposer);
+      final Finder replyField = find.descendant(
+        of: composer,
+        matching: find.byType(TextField),
+      );
+      expect(composer, findsOneWidget);
+      expect(replyField, findsOneWidget);
+      final TextField textField = tester.widget<TextField>(replyField);
+      expect(textField.focusNode, isNotNull);
+      expect(textField.focusNode!.hasFocus, isTrue);
+      expect(textField.controller!.text, '@alice ');
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
   });
 

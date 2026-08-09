@@ -234,6 +234,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
+  void _focusReplyComposerAfterLayout() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted || !_composerOpen) return;
+      _replyFocus.requestFocus();
+    });
+  }
+
   Future<void> _reportPost(PostPayload post) async {
     await _reportTarget(targetType: 'post', targetId: post.id);
   }
@@ -431,6 +438,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                             constraints: const BoxConstraints(maxWidth: 560),
                             child: GfPostComposer(
                               controller: _replyController,
+                              focusNode: _replyFocus,
                               targetName: _replyToPostId != 0
                                   ? l10n.topicReplying
                                   : null,
@@ -463,8 +471,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                               if (_replyToPostId == 0) {
                                 _replyController.clear();
                               }
-                              FocusScope.of(context).requestFocus(_replyFocus);
                               setState(() => _composerOpen = true);
+                              _focusReplyComposerAfterLayout();
                             },
                             currentNo: props.postStream.posts.isEmpty
                                 ? 1
@@ -517,7 +525,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       );
       _composerOpen = true;
     });
-    FocusScope.of(context).requestFocus(_replyFocus);
+    _focusReplyComposerAfterLayout();
   }
 }
 
