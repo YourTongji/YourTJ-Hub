@@ -1,0 +1,8 @@
+{
+  "result": {
+    "publicKey": "PUBLIC_KEY_REDACTED",
+    "serverTs": 1786204800000,
+    "algorithm": "RSA-OAEP-256"
+  },
+  "code": 0
+}
