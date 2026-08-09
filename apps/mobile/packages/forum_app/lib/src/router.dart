@@ -6,6 +6,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import '../l10n/app_localizations.dart';
+import 'navigation/tab_scroll_registry.dart';
 import 'pages/auth/login_page.dart';
 import 'pages/category/category_page.dart';
 import 'pages/drafts/drafts_page.dart';
@@ -19,63 +20,50 @@ import 'pages/settings/settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 
-/// 应用底部导航项(对齐 web AppShell 移动端导航)。
-/// label 在 build 内经 AppLocalizations 映射(zh/en 一期)。
-enum GfTab {
-  home(Icons.home_outlined, Icons.home),
-  search(Icons.search, Icons.search),
-  publish(Icons.add, Icons.add),
-  messages(Icons.forum_outlined, Icons.forum),
-  profile(Icons.person_outline, Icons.person);
+extension on GfShellDestination {
+  IconData get icon => switch (this) {
+    GfShellDestination.home => Icons.home_outlined,
+    GfShellDestination.search => Icons.search_outlined,
+    GfShellDestination.messages => Icons.forum_outlined,
+    GfShellDestination.profile => Icons.person_outline,
+  };
 
-  const GfTab(this.icon, this.activeIcon);
+  IconData get activeIcon => switch (this) {
+    GfShellDestination.home => Icons.home,
+    GfShellDestination.search => Icons.search,
+    GfShellDestination.messages => Icons.forum,
+    GfShellDestination.profile => Icons.person,
+  };
 
-  final IconData icon;
-  final IconData activeIcon;
-
-  /// 当前语言下的导航标签。
   String label(AppLocalizations l10n) => switch (this) {
-    GfTab.home => l10n.navHome,
-    GfTab.search => l10n.navSearch,
-    GfTab.publish => l10n.navPublish,
-    GfTab.messages => l10n.navMessages,
-    GfTab.profile => l10n.navProfile,
+    GfShellDestination.home => l10n.navHome,
+    GfShellDestination.search => l10n.navSearch,
+    GfShellDestination.messages => l10n.navMessages,
+    GfShellDestination.profile => l10n.navProfile,
   };
 }
 
-/// 底部导航壳:五个 tab 对应 web 端移动端导航入口。
-///
-/// 轮询 unread-status 驱动消息/通知角标(与后端无 WebSocket 的现状一致)。
+/// Persistent mobile shell with four navigation destinations and one compose
+/// action. Each branch owns its own navigator and state; compose is pushed as
+/// a global page rather than kept alive as a destination.
 class GfShell extends ConsumerStatefulWidget {
-  const GfShell({super.key, required this.child});
+  const GfShell({super.key, required this.navigationShell});
 
-  final Widget child;
+  final StatefulNavigationShell navigationShell;
 
   @override
   ConsumerState<GfShell> createState() => _GfShellState();
 }
 
 class _GfShellState extends ConsumerState<GfShell> {
-  int _index = 0;
   Timer? _unreadTimer;
-
-  /// 未读状态:通知/私信角标。
   bool _unreadNotifications = false;
   bool _unreadMessages = false;
-
-  static const List<String> _paths = [
-    '/',
-    '/search',
-    '/publish',
-    '/messages',
-    '/profile',
-  ];
 
   @override
   void initState() {
     super.initState();
     _pollUnread();
-    // 前台 30s 轮询 unread-status(通知/私信角标)。
     _unreadTimer = Timer.periodic(
       const Duration(seconds: 30),
       (_) => _pollUnread(),
@@ -89,9 +77,8 @@ class _GfShellState extends ConsumerState<GfShell> {
   }
 
   Future<void> _pollUnread() async {
-    // 未登录不轮询(避免匿名 401 被误判为会话失效)。
     try {
-      final token = await ref.read(tokenStorageProvider).read();
+      final String? token = await ref.read(tokenStorageProvider).read();
       if (token == null || token.isEmpty) return;
     } catch (_) {
       return;
@@ -100,144 +87,137 @@ class _GfShellState extends ConsumerState<GfShell> {
       final status = await ref
           .read(notificationRepositoryProvider)
           .getUnreadStatus();
-      if (mounted) {
-        setState(() {
-          _unreadNotifications = status.notifications;
-          _unreadMessages = status.messages;
-        });
+      if (!mounted) return;
+      if (_unreadNotifications == status.notifications &&
+          _unreadMessages == status.messages) {
+        return;
       }
+      setState(() {
+        _unreadNotifications = status.notifications;
+        _unreadMessages = status.messages;
+      });
     } catch (_) {
-      // 网络失败时静默。
+      // Unread state is best-effort and never blocks navigation.
     }
+  }
+
+  void _selectDestination(int index) {
+    if (index == widget.navigationShell.currentIndex) {
+      ref
+          .read(tabScrollRegistryProvider)
+          .scrollToTop(GfShellDestination.values[index]);
+      return;
+    }
+    widget.navigationShell.goBranch(index);
   }
 
   @override
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final int routeIndex = _paths.indexOf(GoRouterState.of(context).uri.path);
-    final int effectiveIndex = routeIndex < 0 ? _index : routeIndex;
 
-    // 401 会话失效:清会话并回登录页(ref.listen 必须在 build 中注册)。
-    ref.listen(unauthorizedEventsProvider, (prev, next) {
-      if (next > (prev ?? 0) && mounted) {
-        context.go('/login');
+    ref.listen(unauthorizedEventsProvider, (int? previous, int next) {
+      if (next > (previous ?? 0) &&
+          mounted &&
+          appRouter.state.uri.path != '/login') {
+        context.push('/login');
       }
     });
 
     return Scaffold(
-      body: IndexedStack(
-        index: effectiveIndex,
-        children: [
-          widget.child,
-          const SearchPage(),
-          const PublishPage(),
-          const MessagesPage(),
-          const ProfilePage(),
-        ],
-      ),
+      body: widget.navigationShell,
       bottomNavigationBar: GfBottomNavigation(
-        currentIndex: effectiveIndex,
-        onSelected: (int i) {
-          setState(() => _index = i);
-          final String path = _paths[i];
-          if (GoRouter.of(context).state.uri.path != path) {
-            context.go(path);
-          }
-        },
+        currentIndex: widget.navigationShell.currentIndex,
+        onSelected: _selectDestination,
+        onAction: () => context.push('/publish'),
+        actionLabel: l10n.navPublish,
         items: <GfBottomNavigationItem>[
-          GfBottomNavigationItem(
-            icon: GfTab.home.icon,
-            selectedIcon: GfTab.home.activeIcon,
-            label: GfTab.home.label(l10n),
-          ),
-          GfBottomNavigationItem(
-            icon: GfTab.search.icon,
-            selectedIcon: GfTab.search.activeIcon,
-            label: GfTab.search.label(l10n),
-          ),
-          GfBottomNavigationItem(
-            icon: GfTab.publish.icon,
-            selectedIcon: GfTab.publish.activeIcon,
-            label: GfTab.publish.label(l10n),
-          ),
-          GfBottomNavigationItem(
-            icon: GfTab.messages.icon,
-            selectedIcon: GfTab.messages.activeIcon,
-            label: GfTab.messages.label(l10n),
-            badge: _unreadMessages,
-          ),
-          GfBottomNavigationItem(
-            icon: GfTab.profile.icon,
-            selectedIcon: GfTab.profile.activeIcon,
-            label: GfTab.profile.label(l10n),
-            badge: _unreadNotifications,
-          ),
+          for (final GfShellDestination destination
+              in GfShellDestination.values)
+            GfBottomNavigationItem(
+              icon: destination.icon,
+              selectedIcon: destination.activeIcon,
+              label: destination.label(l10n),
+              badge: destination == GfShellDestination.messages
+                  ? _unreadMessages
+                  : destination == GfShellDestination.profile
+                  ? _unreadNotifications
+                  : false,
+            ),
         ],
       ),
     );
   }
 }
 
-/// 路由表:与 web 端路径语义对应。
-///
-/// - `/` 首页
-/// - `/c/:slug/:id` 分类页
-/// - `/p/:postId` 话题详情(web: /p/post/:id)
-/// - `/u/:userId` 用户主页
-/// - `/search` `/messages` `/publish` 底部 tab
-/// - `/settings` 设置页
-/// - `/drafts` 草稿列表
+/// Resolves the topic being edited from both the mobile link and the
+/// server-authored draft edit URL.
+int? publishTopicIdFromUri(Uri uri) {
+  final String rawTopicId =
+      uri.queryParameters['topicId'] ?? uri.queryParameters['id'] ?? '';
+  return int.tryParse(rawTopicId);
+}
+
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
-  routes: [
-    ShellRoute(
-      builder: (context, state, child) => GfShell(child: child),
-      routes: [
-        GoRoute(path: '/', builder: (context, state) => const HomePage()),
-        GoRoute(
-          path: '/search',
-          builder: (context, state) => const SearchPage(),
+  routes: <RouteBase>[
+    StatefulShellRoute.indexedStack(
+      builder:
+          (
+            BuildContext context,
+            GoRouterState state,
+            StatefulNavigationShell navigationShell,
+          ) => GfShell(navigationShell: navigationShell),
+      branches: <StatefulShellBranch>[
+        StatefulShellBranch(
+          routes: <RouteBase>[
+            GoRoute(path: '/', builder: (_, _) => const HomePage()),
+          ],
         ),
-        GoRoute(
-          path: '/publish',
-          builder: (context, state) => const PublishPage(),
+        StatefulShellBranch(
+          routes: <RouteBase>[
+            GoRoute(path: '/search', builder: (_, _) => const SearchPage()),
+          ],
         ),
-        GoRoute(
-          path: '/messages',
-          builder: (context, state) => const MessagesPage(),
+        StatefulShellBranch(
+          routes: <RouteBase>[
+            GoRoute(path: '/messages', builder: (_, _) => const MessagesPage()),
+          ],
         ),
-        GoRoute(
-          path: '/profile',
-          builder: (context, state) => const ProfilePage(),
+        StatefulShellBranch(
+          routes: <RouteBase>[
+            GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
+          ],
         ),
       ],
     ),
     GoRoute(
+      path: '/publish',
+      builder: (BuildContext context, GoRouterState state) =>
+          PublishPage(topicId: publishTopicIdFromUri(state.uri)),
+    ),
+    GoRoute(
       path: '/c/:slug/:id',
-      builder: (context, state) => CategoryPage(
+      builder: (BuildContext context, GoRouterState state) => CategoryPage(
         slug: state.pathParameters['slug']!,
         categoryId: int.parse(state.pathParameters['id']!),
       ),
     ),
     GoRoute(
       path: '/p/:postId',
-      builder: (context, state) =>
+      builder: (BuildContext context, GoRouterState state) =>
           TopicPage(topicId: int.parse(state.pathParameters['postId']!)),
     ),
     GoRoute(
       path: '/u/:userId',
-      builder: (context, state) =>
+      builder: (BuildContext context, GoRouterState state) =>
           ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
     ),
-    GoRoute(
-      path: '/settings',
-      builder: (context, state) => const SettingsPage(),
-    ),
+    GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
     GoRoute(
       path: '/notifications',
-      builder: (context, state) => const NotificationsPage(),
+      builder: (_, _) => const NotificationsPage(),
     ),
-    GoRoute(path: '/login', builder: (context, state) => const LoginPage()),
-    GoRoute(path: '/drafts', builder: (context, state) => const DraftsPage()),
+    GoRoute(path: '/login', builder: (_, _) => const LoginPage()),
+    GoRoute(path: '/drafts', builder: (_, _) => const DraftsPage()),
   ],
 );

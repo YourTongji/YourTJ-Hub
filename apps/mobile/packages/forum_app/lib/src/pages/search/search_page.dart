@@ -9,6 +9,7 @@ import '../../asset_url.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
+import '../../navigation/tab_scroll_registry.dart';
 import '../../widgets/status_views.dart';
 
 /// 聚合搜索页。结构与 Web SearchPage.vue 保持一致：页面头搜索框、
@@ -26,9 +27,23 @@ class _SearchPageState extends ConsumerState<SearchPage> {
   String _scope = 'all';
   int _page = 1;
   bool _loadingMore = false;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
+  late final GfTabScrollRegistry _tabScrollRegistry;
+
+  @override
+  void initState() {
+    super.initState();
+    _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
+      ..register(GfShellDestination.search, _scrollToTopController);
+  }
 
   @override
   void dispose() {
+    _tabScrollRegistry.unregister(
+      GfShellDestination.search,
+      _scrollToTopController,
+    );
     _query.dispose();
     super.dispose();
   }
@@ -170,13 +185,18 @@ class _SearchPageState extends ConsumerState<SearchPage> {
         if (props.searchUnavailable == true) {
           return GfEmpty(message: l10n.searchUnavailable);
         }
-        return _SearchResults(
-          props: props,
-          scope: _scope,
-          loadingMore: _loadingMore,
-          hasMore: _page < props.totalPages,
-          onLoadMore: _loadMore,
-          onRefresh: _refresh,
+        return GfScrollToTop(
+          semanticLabel: AppLocalizations.of(context).commonBackToTop,
+          controller: _scrollToTopController,
+          builder: (_, ScrollController controller) => _SearchResults(
+            props: props,
+            scope: _scope,
+            loadingMore: _loadingMore,
+            hasMore: _page < props.totalPages,
+            onLoadMore: _loadMore,
+            onRefresh: _refresh,
+            controller: controller,
+          ),
         );
       },
     );
@@ -326,6 +346,7 @@ class _SearchResults extends StatelessWidget {
     required this.hasMore,
     required this.onLoadMore,
     required this.onRefresh,
+    this.controller,
   });
 
   final SearchPageProps props;
@@ -334,6 +355,7 @@ class _SearchResults extends StatelessWidget {
   final bool hasMore;
   final VoidCallback onLoadMore;
   final Future<void> Function() onRefresh;
+  final ScrollController? controller;
 
   @override
   Widget build(BuildContext context) {
@@ -350,6 +372,7 @@ class _SearchResults extends StatelessWidget {
     return RefreshIndicator(
       onRefresh: onRefresh,
       child: ListView(
+        controller: controller,
         physics: const AlwaysScrollableScrollPhysics(),
         padding: const EdgeInsets.fromLTRB(12, 0, 12, 24),
         children: <Widget>[

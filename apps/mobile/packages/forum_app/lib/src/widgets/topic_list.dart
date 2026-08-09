@@ -16,12 +16,14 @@ class GfTopicList extends StatelessWidget {
     super.key,
     required this.loading,
     required this.topics,
+    this.controller,
     this.feedMode = GfTopicFeedMode.list,
     required this.hasMore,
     required this.onLoadMore,
   });
 
   final bool loading;
+  final ScrollController? controller;
   final List<TopicPayload> topics;
   final GfTopicFeedMode feedMode;
   final bool hasMore;
@@ -34,6 +36,8 @@ class GfTopicList extends StatelessWidget {
       return GfEmpty(message: AppLocalizations.of(context).topicEmpty);
     }
     return ListView.separated(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: feedMode == GfTopicFeedMode.card
           ? const EdgeInsets.all(12)
           : EdgeInsets.zero,

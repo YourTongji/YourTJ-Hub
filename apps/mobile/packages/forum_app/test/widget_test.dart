@@ -70,15 +70,18 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 底部导航 5 个 tab 存在(zh)。
+    // 四个持久目的地与独立发布动作均可见。
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('搜索'), findsOneWidget);
-    // Web-aligned 首页不再叠加悬浮发布按钮，入口由底部 tab 提供。
     expect(find.text('发布'), findsOneWidget);
     expect(find.text('消息'), findsOneWidget);
     expect(find.text('我的'), findsOneWidget);
-    expect(GfTab.publish.icon, Icons.add);
-    expect(GfTab.publish.activeIcon, Icons.add);
+    final GfBottomNavigation initialNavigation = tester.widget(
+      find.byType(GfBottomNavigation),
+    );
+    expect(initialNavigation.items, hasLength(4));
+    expect(initialNavigation.actionLabel, '发布');
+    expect(initialNavigation.actionIcon, Icons.add);
 
     // 顶部搜索入口跳转后，底部导航的选中态也必须同步。
     await tester.tap(find.byIcon(Icons.search).first);
@@ -129,21 +132,26 @@ void main() {
     final GoRouter router = appRouter;
     final List<RouteBase> routes = router.configuration.routes;
 
-    // 顶层路由:ShellRoute + 4 个独立页。
+    // 顶层包含持久 StatefulShell 与全局发布/详情等页面。
     expect(routes.length, greaterThanOrEqualTo(5));
 
-    // ShellRoute 内的 5 个 tab 路由。
     final RouteBase shell = routes.first;
-    expect(shell, isA<ShellRoute>());
-    final ShellRoute shellRoute = shell as ShellRoute;
-    final List<String> paths = [
-      for (final r in shellRoute.routes) (r as GoRoute).path,
+    expect(shell, isA<StatefulShellRoute>());
+    final StatefulShellRoute shellRoute = shell as StatefulShellRoute;
+    final List<String> shellPaths = <String>[
+      for (final StatefulShellBranch branch in shellRoute.branches)
+        for (final RouteBase route in branch.routes)
+          if (route is GoRoute) route.path,
     ];
-    expect(paths, contains('/'));
-    expect(paths, contains('/search'));
-    expect(paths, contains('/publish'));
-    expect(paths, contains('/messages'));
-    expect(paths, contains('/profile'));
+    expect(
+      shellPaths,
+      containsAll(<String>['/', '/search', '/messages', '/profile']),
+    );
+    expect(shellPaths, isNot(contains('/publish')));
+    expect(
+      routes.whereType<GoRoute>().map((GoRoute route) => route.path),
+      contains('/publish'),
+    );
   });
   test('AppLocalizations zh/en 均可用', () {
     expect(AppLocalizationsZh().navHome, '首页');
