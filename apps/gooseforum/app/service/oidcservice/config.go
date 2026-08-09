@@ -4,6 +4,7 @@ import (
 	"fmt"
 	"net"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 
@@ -63,8 +64,9 @@ func LoadConfig() (Config, error) {
 	if cfg.Issuer == "" {
 		siteURL := strings.TrimSpace(hotdataserve.GetSiteSettingsConfigCache().SiteUrl)
 		if siteURL == "" {
-			siteURL = preferences.GetString("server.url", "http://localhost:5234")
+			siteURL = preferences.GetString("server.url", "http://localhost")
 		}
+		siteURL = addLoopbackPort(siteURL, preferences.GetInt("server.port", 5234))
 		cfg.Issuer = strings.TrimSuffix(siteURL, "/") + issuerPath
 	}
 	if err := validateIssuer(cfg.Issuer); err != nil {
@@ -77,6 +79,25 @@ func LoadConfig() (Config, error) {
 	}
 	cfg.Clients = clients
 	return cfg, nil
+}
+
+func addLoopbackPort(rawURL string, port int) string {
+	if port <= 0 {
+		return rawURL
+	}
+	u, err := url.Parse(rawURL)
+	if err != nil || u.Host == "" || u.Port() != "" {
+		return rawURL
+	}
+	host := u.Hostname()
+	if host != "localhost" {
+		ip := net.ParseIP(host)
+		if ip == nil || !ip.IsLoopback() {
+			return rawURL
+		}
+	}
+	u.Host = net.JoinHostPort(host, strconv.Itoa(port))
+	return u.String()
 }
 
 // validateIssuer enforces the issuer shape:

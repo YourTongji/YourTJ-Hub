@@ -86,13 +86,12 @@ The built-in OIDC Provider is configured from the `[oidc]` section in `config.to
 values are read at startup via preferences and there is no admin-panel UI to change them (set them in
 the file and restart). The endpoints are mounted under `/api/oauth` only when `oidc.enabled = true`.
 OIDC clients require the issuer to exactly equal the advertised discovery value, and the provider
-only accepts loopback `http` issuers. The local configuration template advertises
-`http://localhost:5234/api/oauth`, so the Android emulator reaches that exact address through
+only accepts loopback `http` issuers. When `oidc.issuer` is omitted, a loopback `server.url` without
+an explicit port is combined with `server.port`, so the default local issuer is
+`http://localhost:5234/api/oauth`. The Android emulator reaches that exact address through
 `adb reverse tcp:5234 tcp:5234` (see `apps/mobile/scripts/oidc_e2e.sh`); `10.0.2.2` is not a valid
-local issuer.
-Existing local `config.toml` files are not regenerated automatically; if one still has
-`server.url = "http://localhost"`, change it to `http://localhost:5234` or set
-`oidc.issuer = "http://localhost:5234/api/oauth"` before running the mobile OIDC flow.
+local issuer. Existing local `config.toml` files keep working without regeneration; set
+`oidc.issuer` explicitly only when the advertised issuer must differ from the derived site URL.
 
 To run the forum against the local PostgreSQL instead of SQLite, set in `config.toml`:
 

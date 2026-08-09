@@ -982,6 +982,30 @@ func TestLoadConfigDefaultsNonPositiveAuthRequestTTL(t *testing.T) {
 	}
 }
 
+func TestAddLoopbackPort(t *testing.T) {
+	tests := []struct {
+		name string
+		raw  string
+		port int
+		want string
+	}{
+		{name: "localhost", raw: "http://localhost", port: 5234, want: "http://localhost:5234"},
+		{name: "IPv4 loopback", raw: "http://127.0.0.1", port: 5234, want: "http://127.0.0.1:5234"},
+		{name: "IPv6 loopback", raw: "http://[::1]", port: 5234, want: "http://[::1]:5234"},
+		{name: "preserve path", raw: "http://localhost/base", port: 5234, want: "http://localhost:5234/base"},
+		{name: "preserve explicit port", raw: "http://localhost:8080", port: 5234, want: "http://localhost:8080"},
+		{name: "preserve public host", raw: "https://forum.example.com", port: 5234, want: "https://forum.example.com"},
+		{name: "preserve invalid port", raw: "http://localhost", port: 0, want: "http://localhost"},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			if got := addLoopbackPort(test.raw, test.port); got != test.want {
+				t.Fatalf("addLoopbackPort(%q, %d) = %q, want %q", test.raw, test.port, got, test.want)
+			}
+		})
+	}
+}
+
 // TestValidateIssuer 验证 issuer 校验规则。
 func TestValidateIssuer(t *testing.T) {
 	valid := []string{
