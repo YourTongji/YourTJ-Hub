@@ -221,4 +221,41 @@ void main() {
       expect(find.text('开启通知'), findsOneWidget);
     });
   });
+
+  group('GfPostComposer', () {
+    testWidgets(
+      'places image action above input and disables it while uploading',
+      (tester) async {
+        int imageTaps = 0;
+        final TextEditingController controller = TextEditingController();
+        addTearDown(controller.dispose);
+
+        await tester.pumpWidget(
+          gfApp(
+            SizedBox(
+              width: 360,
+              child: GfPostComposer(
+                controller: controller,
+                publishLabel: '发送',
+                hintText: '参与讨论',
+                onPublish: () {},
+                onPickImage: () => imageTaps++,
+                imageTooltip: '添加图片',
+                uploading: true,
+              ),
+            ),
+          ),
+        );
+
+        expect(find.byType(CircularProgressIndicator), findsOneWidget);
+        final Finder imageButton = find.byTooltip('添加图片');
+        expect(imageButton, findsOneWidget);
+        await tester.tap(imageButton);
+        expect(imageTaps, 0);
+        final Offset imageTopLeft = tester.getTopLeft(imageButton);
+        final Offset inputTopLeft = tester.getTopLeft(find.byType(TextField));
+        expect(imageTopLeft.dy, lessThan(inputTopLeft.dy));
+      },
+    );
+  });
 }
