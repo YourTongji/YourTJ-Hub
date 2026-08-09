@@ -2,7 +2,7 @@ import 'package:flutter/material.dart';
 
 import '../theme/gf_theme.dart';
 
-/// Tappable card surface used for list rows.
+/// Card surface with optional tap interaction.
 ///
 /// Mobile form (default): full width, no border, no radius, hairline divider
 /// at the bottom — matching the web `<640px` breakpoint where `.gf-card`
@@ -43,6 +43,23 @@ class GfCard extends StatelessWidget {
         : BorderRadius.zero;
     final Color dividerColor = colors.line.withValues(alpha: 0.7);
 
+    final Widget content = Container(
+      decoration: emphasized ? BoxDecoration(boxShadow: shadows.card) : null,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: <Widget>[
+          Padding(padding: padding, child: child),
+          if (!emphasized && showDivider)
+            Container(
+              height: borders.width,
+              margin: const EdgeInsets.symmetric(horizontal: 16),
+              color: dividerColor,
+            ),
+        ],
+      ),
+    );
+
     return Material(
       color: colors.base100,
       shape: emphasized
@@ -54,27 +71,7 @@ class GfCard extends StatelessWidget {
       clipBehavior: emphasized ? Clip.antiAlias : Clip.none,
       elevation: 0,
       shadowColor: Colors.transparent,
-      child: InkWell(
-        onTap: onTap,
-        child: Container(
-          decoration: emphasized
-              ? BoxDecoration(boxShadow: shadows.card)
-              : null,
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.stretch,
-            children: <Widget>[
-              Padding(padding: padding, child: child),
-              if (!emphasized && showDivider)
-                Container(
-                  height: borders.width,
-                  margin: const EdgeInsets.symmetric(horizontal: 16),
-                  color: dividerColor,
-                ),
-            ],
-          ),
-        ),
-      ),
+      child: onTap == null ? content : InkWell(onTap: onTap, child: content),
     );
   }
 }
