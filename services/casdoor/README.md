@@ -24,7 +24,18 @@
 # - GET /api/auth/oidc/login — PKCE + state + nonce, redirects to Casdoor
 # - GET /api/auth/oidc/callback — exchanges code, verifies iss/aud/nonce/exp, enforces
 #   numeric sub (ParseUint), then binds (signed-in) or signs in (creates local user)
-# - config keys: casdoor.endpoint / casdoor.client_id / casdoor.client_secret
+# - POST /api/auth/oidc/exchange — mobile (Flutter) login: client-held PKCE verifier
+#   + custom-scheme redirect, returns the forum JWT in the response body. The
+#   redirect URI must be in the configured allowlist (config key
+#   casdoor.mobile_redirect_uri, default yourtj://callback) and must be added to
+#   the Casdoor application's Redirect URLs alongside the web callback.
+# - config keys: casdoor.endpoint / casdoor.client_id / casdoor.client_secret /
+#   casdoor.mobile_redirect_uri (optional, default yourtj://callback)
+#
+# Mobile client: register yourtj://callback in the Casdoor application's
+# Redirect URLs allowlist (custom schemes are supported — the official Android/iOS
+# SDKs use casdoor://callback by default). The Flutter client uses AppAuth with
+# PKCE S256 and exchanges the authorization code at POST /api/auth/oidc/exchange.
 #
 # MFA / Passkey (Casdoor-side, recommended for OAuth/Casdoor logins):
 # - TOTP/MFA and Passkey (WebAuthn) are enabled inside Casdoor's app settings; the

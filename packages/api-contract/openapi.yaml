@@ -3,7 +3,8 @@ info:
   title: yourtj-hub API
   version: 0.1.0
   description: |
-    The controlled HTTP contract for yourtj-hub. This first release covers login and topic writing.
+    The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
+    mobile OIDC code exchange, and topic writing.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -16,6 +17,8 @@ tags:
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
+  /api/auth/oidc/exchange:
+    $ref: ./paths/auth.yaml#/oidcExchange
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
 components:
@@ -43,6 +46,12 @@ components:
       $ref: ./components/schemas.yaml#/LoginResponse
     LoginResult:
       $ref: ./components/schemas.yaml#/LoginResult
+    OidcExchangeRequest:
+      $ref: ./components/schemas.yaml#/OidcExchangeRequest
+    OidcExchangeResult:
+      $ref: ./components/schemas.yaml#/OidcExchangeResult
+    OidcExchangeSuccess:
+      $ref: ./components/schemas.yaml#/OidcExchangeSuccess
     TotpChallengeResult:
       $ref: ./components/schemas.yaml#/TotpChallengeResult
     WriteTopicRequest:

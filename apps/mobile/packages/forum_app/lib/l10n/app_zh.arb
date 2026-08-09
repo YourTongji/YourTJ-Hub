@@ -1,0 +1,438 @@
+{
+  "@@locale": "zh",
+  "appTitle": "yourtj",
+  "navHome": "首页",
+  "navSearch": "搜索",
+  "navPublish": "发布",
+  "navMessages": "消息",
+  "navProfile": "我的",
+  "commonCancel": "取消",
+  "commonSave": "保存",
+  "commonLoading": "加载中…",
+  "commonLoadMore": "加载更多",
+  "commonRetry": "重试",
+  "commonClose": "关闭",
+  "commonSend": "发送",
+  "commonSearch": "搜索",
+  "commonEdit": "编辑",
+  "commonCurrent": "当前",
+  "commonEmpty": "暂无内容",
+  "commonBack": "返回",
+  "timeAgoJustNow": "刚刚",
+  "timeAgoMinutes": "{count} 分钟前",
+  "@timeAgoMinutes": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoHours": "{count} 小时前",
+  "@timeAgoHours": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoDays": "{count} 天前",
+  "@timeAgoDays": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoWeeks": "{count} 周前",
+  "@timeAgoWeeks": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoMonths": "{count} 个月前",
+  "@timeAgoMonths": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "timeAgoYears": "{count} 年前",
+  "@timeAgoYears": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "authLoginTitle": "登录账号",
+  "authRegisterTitle": "创建新账号",
+  "authForgotTitle": "重置密码",
+  "authLoginSubtitle": "欢迎回来，继续你的讨论和创作。",
+  "authRegisterSubtitle": "创建账号，加入校园里的每一次讨论。",
+  "authForgotSubtitle": "输入邮箱，我们会发送一封重置密码邮件。",
+  "authUsernameOrEmail": "用户名或邮箱",
+  "authUsername": "用户名",
+  "authEmail": "邮箱",
+  "authPassword": "密码",
+  "authNewPassword": "新密码",
+  "authConfirmPassword": "确认密码",
+  "authCaptcha": "验证码",
+  "authForgotPassword": "忘记密码？",
+  "authCreateAccount": "创建账号",
+  "authSendResetEmail": "发送重置邮件",
+  "authBackToLogin": "返回登录",
+  "authTwoFactorTitle": "两步验证",
+  "authTwoFactorCode": "TOTP 验证码",
+  "authVerify": "验证",
+  "authGetCode": "获取验证码",
+  "authCasdoorLogin": "统一身份登录(Casdoor)",
+  "authRegisterSuccess": "注册成功,请登录",
+  "authResetEmailSent": "重置邮件已发送,请查收",
+  "authLoading": "处理中…",
+  "loginWelcome": "欢迎回到 yourtj",
+  "loginModeLogin": "登录",
+  "loginModeRegister": "注册",
+  "loginModeForgot": "找回密码",
+  "publishTitle": "发布话题",
+  "publishEditTitle": "编辑话题",
+  "publishPublish": "发布",
+  "publishSaveDraft": "保存草稿",
+  "publishTitleField": "标题",
+  "publishTitleHint": "请输入标题(5-100 字)",
+  "publishBodyPlaceholder": "正文内容…",
+  "publishTitleRequired": "标题不能为空",
+  "publishContentRequired": "内容不能为空",
+  "publishSuccess": "发布成功",
+  "publishSavedDraft": "已保存为草稿",
+  "publishFailed": "发布失败:{error}",
+  "@publishFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishImageFailed": "图片上传失败:{error}",
+  "@publishImageFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicTitle": "话题",
+  "topicReply": "回复",
+  "topicReplySuccess": "回复成功",
+  "topicReplyFailed": "回复失败:{error}",
+  "@topicReplyFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicReplyHint": "写下你的评论…",
+  "topicReplying": "回复中…(点击取消)",
+  "topicReport": "举报帖子",
+  "topicReportHint": "请描述举报原因",
+  "topicReportSubmit": "提交",
+  "topicReportSubmitted": "举报已提交",
+  "topicReportFailed": "举报失败:{error}",
+  "@topicReportFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "topicReplies": "{count} 回复",
+  "@topicReplies": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      }
+    }
+  },
+  "topicNoTitle": "无标题",
+  "profileTitle": "个人主页",
+  "profileFollow": "关注",
+  "profileFollowing": "已关注",
+  "profileTopics": "主题",
+  "profileReplies": "回复",
+  "profileLikes": "获赞",
+  "profileFollowers": "粉丝",
+  "profileFollowingCount": "关注",
+  "profileBadges": "徽章",
+  "profileNoBadges": "暂无徽章",
+  "profileEmptyActivity": "暂无动态",
+  "profileEmptyTopics": "暂无主题",
+  "profileEmptyLikes": "暂无点赞",
+  "profileEmptyBookmarks": "暂无收藏",
+  "profileEmptyFollowing": "暂无关注",
+  "profileEmptyFollowers": "暂无粉丝",
+  "profileNotLoggedIn": "未登录",
+  "messagesTitle": "消息",
+  "messagesEmpty": "还没有私信会话",
+  "messagesEmptyDescription": "从社区里找一个人开始聊聊。",
+  "messagesSearchConversations": "搜索会话",
+  "messagesConversation": "私信对话",
+  "messagesStartChat": "开始聊天",
+  "messagesFirstMessageTo": "给 {user} 发出第一条消息。",
+  "@messagesFirstMessageTo": {
+    "placeholders": {
+      "user": {
+        "type": "String"
+      }
+    }
+  },
+  "messagesNoMessagesYet": "还没有消息",
+  "messagesEmptyDetail": "暂无消息,说点什么吧",
+  "messagesInputHint": "输入消息…",
+  "messagesSendFailed": "发送失败:{error}",
+  "@messagesSendFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "notificationsTitle": "通知",
+  "notificationsEmpty": "暂无通知",
+  "notificationsMarkAllRead": "全部已读",
+  "notificationsAll": "全部",
+  "notificationsUnread": "未读",
+  "searchTitle": "搜索",
+  "searchHint": "搜索帖子、用户、分类…",
+  "searchEmpty": "输入关键词开始搜索",
+  "searchNoUsers": "没有匹配的用户",
+  "searchNoCategories": "没有匹配的分类",
+  "searchUnavailable": "搜索暂不可用",
+  "searchAll": "全部",
+  "searchTopics": "帖子",
+  "searchUsers": "用户",
+  "searchCategories": "分类",
+  "categoryTitle": "分类",
+  "settingsTitle": "设置",
+  "settingsTabProfile": "资料",
+  "settingsTabAccount": "账户",
+  "settingsTabPrivacy": "隐私",
+  "settingsTabBinding": "绑定",
+  "settingsTabSecurity": "安全",
+  "settingsSectionProfile": "个人资料",
+  "settingsNickname": "昵称",
+  "settingsNicknameEdit": "编辑显示昵称",
+  "settingsBio": "个人简介",
+  "settingsBioEdit": "编辑简介与签名",
+  "settingsAvatar": "头像",
+  "settingsAvatarUpload": "上传头像(前端转 webp)",
+  "settingsAvatarUploading": "上传中…",
+  "settingsEmail": "邮箱",
+  "settingsEmailEdit": "修改绑定邮箱",
+  "settingsEmailUpdated": "邮箱已更新,请验证",
+  "settingsEmailFailed": "邮箱修改失败:{error}",
+  "@settingsEmailFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsNewEmail": "新邮箱",
+  "settingsChangePassword": "修改密码",
+  "settingsChangePasswordSub": "更换登录密码",
+  "settingsCurrentPassword": "当前密码",
+  "settingsPasswordUpdated": "密码已更新",
+  "settingsPasswordFailed": "修改失败:{error}",
+  "@settingsPasswordFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadge": "徽章",
+  "settingsBadgeNone": "未佩戴",
+  "settingsBadgeCurrent": "当前:{name}",
+  "@settingsBadgeCurrent": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsBadgePick": "选择佩戴徽章",
+  "settingsBadgeNoOptions": "暂无可佩戴徽章",
+  "settingsBadgeUpdated": "已更新佩戴徽章",
+  "settingsBadgeFailed": "佩戴失败:{error}",
+  "@settingsBadgeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsOAuth": "Casdoor 统一身份",
+  "settingsOAuthSub": "OIDC 登录绑定",
+  "settingsOAuthManage": "OAuth 绑定管理",
+  "settingsOAuthBindings": "OAuth 绑定管理",
+  "settingsBound": "已绑定",
+  "settingsUnbound": "未绑定",
+  "settingsUnbind": "解绑",
+  "settingsUnboundDone": "已解绑",
+  "settingsUnbindFailed": "解绑失败:{error}",
+  "@settingsUnbindFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsLoadBindingsFailed": "加载绑定失败:{error}",
+  "@settingsLoadBindingsFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsPrivacyDirect": "私信仅好友可见",
+  "settingsPrivacyLikes": "公开我的点赞",
+  "settingsSessions": "会话管理",
+  "settingsSessionsEmpty": "暂无会话",
+  "settingsRevokeAll": "吊销全部会话",
+  "settingsRevoked": "已吊销会话",
+  "settingsRevokeFailed": "吊销失败:{error}",
+  "@settingsRevokeFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsRevokeAllDone": "已吊销全部会话",
+  "settingsOpFailed": "操作失败:{error}",
+  "@settingsOpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsAppearance": "外观",
+  "settingsDarkMode": "深色模式",
+  "settingsDarkCurrent": "当前:深色",
+  "settingsLightCurrent": "当前:浅色",
+  "settingsAbout": "关于",
+  "settingsAboutVersion": "版本 0.1.0 · 同济大学校园论坛",
+  "settingsEditProfile": "编辑资料",
+  "settingsSignature": "签名",
+  "settingsSaveInfo": "保存",
+  "settingsInfoSaved": "资料已更新",
+  "settingsInfoFailed": "资料更新失败:{error}",
+  "@settingsInfoFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsUserDataLoading": "账户数据加载中,请稍后再试",
+  "settingsFillComplete": "请填写完整",
+  "settingsSecondPhase": "二期接入",
+  "settingsTotpTitle": "两步验证(TOTP)",
+  "settingsTotpEnable": "启用",
+  "settingsTotpDisable": "禁用",
+  "settingsTotpPasswordPrompt": "输入密码以管理 TOTP",
+  "settingsTotpSetupSecret": "在验证器应用中扫描或输入密钥",
+  "settingsTotpCode": "输入 6 位动态验证码",
+  "settingsTotpRecoveryCodes": "恢复码(请妥善保存):",
+  "settingsTotpEnabled": "TOTP 已启用",
+  "settingsTotpDisabled": "TOTP 已禁用",
+  "settingsTotpFailed": "TOTP 操作失败:{error}",
+  "@settingsTotpFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsTotpDisableTitle": "禁用 TOTP",
+  "settingsTotpEnableTitle": "启用 TOTP",
+  "settingsTotpPassword": "输入密码",
+  "settingsTotpNext": "下一步",
+  "settingsTotpScanSecret": "扫描或输入密钥",
+  "settingsTotpDone": "完成",
+  "settingsTotpUnavailable": "TOTP 不可用",
+  "draftsTitle": "草稿箱",
+  "draftsEmpty": "暂无草稿",
+  "draftsNew": "新建草稿",
+  "draftsBlocked": "被屏蔽",
+  "draftsMetaCreated": "创建于 {date}",
+  "draftsMetaViews": "{count} 次浏览",
+  "draftsMetaReplies": "{count} 条回复",
+  "messagesNew": "新私信",
+  "messagesSearchUsers": "搜索用户",
+  "messagesNoContactableUsers": "暂无可联系用户",
+  "settingsLogout": "退出登录",
+  "settingsLogoutConfirm": "确定退出 yourtj 吗?",
+  "settingsAvatarUploadFailed": "头像上传失败:{error}",
+  "@settingsAvatarUploadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "commonParseFailed": "页面数据解析失败",
+  "topicEmpty": "暂无话题",
+  "settingsAvatarUploaded": "头像已上传:{url}",
+  "@settingsAvatarUploaded": {
+    "placeholders": {
+      "url": {
+        "type": "String"
+      }
+    }
+  },
+  "settingsImageDecodeFailed": "图片解码失败",
+  "dateMonthDayTime": "{month}月{day}日 {time}",
+  "@dateMonthDayTime": {
+    "placeholders": {
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "dateYearMonthDayTime": "{year}年{month}月{day}日 {time}",
+  "@dateYearMonthDayTime": {
+    "placeholders": {
+      "year": {
+        "type": "int"
+      },
+      "month": {
+        "type": "int"
+      },
+      "day": {
+        "type": "int"
+      },
+      "time": {
+        "type": "String"
+      }
+    }
+  },
+  "topicFloorSelected": "已跳转到 {floor} 楼",
+  "sortLatest": "最新",
+  "sortHot": "热门",
+  "sortPopular": "流行",
+  "topicFeedModeList": "列表",
+  "topicFeedModeCard": "卡片",
+  "topicNewTopic": "新建话题"
+}

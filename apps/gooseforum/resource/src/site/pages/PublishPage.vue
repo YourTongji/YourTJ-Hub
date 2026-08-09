@@ -1,15 +1,12 @@
 <script setup lang="ts">
 import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
-import { Bold, ClipboardPaste, Code, Code2, CornerDownLeft, Eye, Heading, Image, Italic, Link, List, ListChecks, ListOrdered, MessageSquareQuote, Minus, Send, Sigma, Strikethrough, Table2, X } from '@lucide/vue'
+import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
-import { renderMarkdownPreview } from '@/runtime/markdown'
-import { createMarkdownTable, fencedCodeBlock, formatMarkdownLines, prefixMarkdownBlock, replaceMarkdownSelectionWithBlock, type MarkdownBlockType } from '@/runtime/markdown-editing'
-import { hasUnsupportedVisualMarkdown, markdownFromClipboard } from '@/runtime/rich-paste'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
 import PageHeader from '@/site/components/PageHeader.vue'
-import VisualMarkdownEditor from '@/site/components/VisualMarkdownEditor.vue'
+import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -34,11 +31,8 @@ const title = ref(page.props.topic.title || '')
 const content = ref(page.props.topic.content || '')
 const categoryIds = ref<number[]>([...(page.props.topic.categoryIds || [])])
 const currentTopicId = ref(page.props.topicId)
-const editorMode = ref<'markdown' | 'visual'>(hasUnsupportedVisualMarkdown(content.value) ? 'markdown' : 'visual')
-const preview = ref(false)
 const submitting = ref(false)
 const uploading = ref(false)
-const dragOver = ref(false)
 const uploadTotal = ref(0)
 const uploadDone = ref(0)
 const message = ref('')
@@ -47,38 +41,33 @@ const error = ref('')
 const validationAttempted = ref(false)
 const titleInput = ref<HTMLInputElement | null>(null)
 const categorySection = ref<HTMLElement | null>(null)
+const headerSection = ref<HTMLElement | null>(null)
+const editorHost = ref<HTMLElement | null>(null)
+const categoryPickerOpen = ref(false)
+const categoryPickerRoot = ref<HTMLElement | null>(null)
 const bodySection = ref<HTMLElement | null>(null)
-const editor = ref<HTMLTextAreaElement | null>(null)
-const visualEditor = ref<InstanceType<typeof VisualMarkdownEditor> | null>(null)
-const blockPicker = ref<HTMLElement | null>(null)
-const blockPickerOpen = ref(false)
-const linkPicker = ref<HTMLElement | null>(null)
-const linkInput = ref<HTMLInputElement | null>(null)
-const linkPickerOpen = ref(false)
-const linkUrl = ref('https://')
-const tablePicker = ref<HTMLElement | null>(null)
-const tablePickerOpen = ref(false)
-const tablePickerRows = ref(3)
-const tablePickerColumns = ref(3)
-const tablePickerMaxRows = 8
-const tablePickerMaxColumns = 8
-const tablePickerCells = Array.from({ length: tablePickerMaxRows * tablePickerMaxColumns }, (_, index) => ({
-  row: Math.floor(index / tablePickerMaxColumns) + 1,
-  column: (index % tablePickerMaxColumns) + 1,
-}))
+/** 移动端 toggle 挂载容器（正文 label 行右侧） */
+const editorToggleHost = ref<HTMLElement | null>(null)
+const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 
 const isValid = computed(() => Boolean(title.value.trim() && content.value.trim() && categoryIds.value.length > 0))
 const categoryMissing = computed(() => validationAttempted.value && categoryIds.value.length === 0)
 const validationError = computed(() => validationAttempted.value && !isValid.value ? t('publish.validation.requiredFields') : '')
-const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
-const renderedPreview = computed(() => renderMarkdownPreview(content.value))
 const draftSaveable = computed(() => isValid.value && !submitting.value && !uploading.value)
-const savedSnapshot = ref(editorSnapshot())
-const hasUnsavedChanges = computed(() => editorSnapshot() !== savedSnapshot.value)
+const titleFilled = computed(() => Boolean(title.value.trim()))
+const bodyCharCount = computed(() => content.value.trim().length)
+const bodyFilled = computed(() => bodyCharCount.value > 0)
+const selectedCategories = computed(() => page.props.categories.filter((category) => categoryIds.value.includes(category.id)))
+const categoriesFull = computed(() => categoryIds.value.length >= 3)
+/** 向上扩展：折叠标题/分类区，让编辑区占满 */
+const headerCollapsed = ref(false)
+const collapsedHeaderHeight = ref(0)
 const uploadText = computed(() => {
   if (!uploading.value) return ''
   return uploadTotal.value > 1 ? t('publish.processingImages', { done: uploadDone.value, total: uploadTotal.value }) : t('publish.processingImage')
 })
+const savedSnapshot = ref(editorSnapshot())
+const hasUnsavedChanges = computed(() => editorSnapshot() !== savedSnapshot.value)
 const {
   leavePromptOpen,
   forceNextNavigation,
@@ -94,6 +83,9 @@ const {
 function editorSnapshot() {
   return JSON.stringify({
     title: title.value.trim(),
+    // content is kept in sync with the editor through the v-model/input
+    // pipeline, so reading it directly avoids a full DOM→Markdown
+    // serialization on every unsaved-changes check.
     content: content.value.trim(),
     categoryIds: [...categoryIds.value].sort((a, b) => a - b),
   })
@@ -112,7 +104,34 @@ function toggleCategory(id: number) {
   categoryIds.value = [...categoryIds.value, id]
 }
 
+/** 分类下拉：点击外部关闭（better-ui：popover 走文档级 pointerdown 收敛） */
+function handleCategoryPickerPointerDown(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Node && categoryPickerRoot.value?.contains(target)) return
+  categoryPickerOpen.value = false
+}
+
+function handleCategoryPickerKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    categoryPickerOpen.value = false
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    categoryPickerOpen.value = true
+  }
+}
+
+onMounted(() => {
+  document.addEventListener('pointerdown', handleCategoryPickerPointerDown)
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleCategoryPickerPointerDown)
+})
+
 async function validateRequiredFields() {
+  content.value = editor.value?.syncValue() ?? content.value
   if (isValid.value) return true
   validationAttempted.value = true
   await nextTick()
@@ -124,23 +143,42 @@ async function validateRequiredFields() {
     categorySection.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
   } else {
     bodySection.value?.scrollIntoView({ behavior: 'smooth', block: 'center' })
-    editor.value?.focus({ preventScroll: true })
+    editor.value?.focus()
   }
   return false
 }
 
-function insert(before: string, after = '', placeholder = '') {
-  const el = editor.value
-  if (!el) return
-  const start = el.selectionStart
-  const end = el.selectionEnd
-  const selected = content.value.slice(start, end) || placeholder
-  content.value = `${content.value.slice(0, start)}${before}${selected}${after}${content.value.slice(end)}`
-  nextTick(() => {
-    el.focus()
-    const cursor = start + before.length + selected.length
-    el.setSelectionRange(start + before.length, cursor)
+/** 工具栏「向上扩展」：折叠/展开标题+分类区，并把高度让给编辑器（带 0.3s 动画） */
+const HEADER_ANIM_MS = 300
+let headerHeightAnimTimer = 0
+function toggleHeaderCollapsed() {
+  const header = headerSection.value
+  if (header) {
+    collapsedHeaderHeight.value = header.offsetHeight
+  }
+  headerCollapsed.value = !headerCollapsed.value
+  void nextTick(() => {
+    if (editor.value) {
+      // 编辑器高度平滑过渡：临时开启 transition 后 setHeight，动画完移除。
+      // PostComposer 拖拽依赖实时跟随，故不能对 .vditor 全局加 height transition。
+      const vditorEl = editorHost.value?.querySelector<HTMLElement>('.vditor')
+      if (vditorEl) {
+        vditorEl.classList.add('hub-height-anim')
+        window.clearTimeout(headerHeightAnimTimer)
+        headerHeightAnimTimer = window.setTimeout(
+          () => vditorEl.classList.remove('hub-height-anim'),
+          HEADER_ANIM_MS + 100,
+        )
+      }
+      // 折叠：编辑器高度 = 默认 480 + 头部高度 + 间距；展开：回到 480
+      const target = headerCollapsed.value ? 480 + collapsedHeaderHeight.value + 20 : 480
+      editor.value.setHeight(target)
+    }
   })
+}
+
+function handleEditorError(editorError: Error) {
+  error.value = editorError.message
 }
 
 function imageAlt(filename: string) {
@@ -148,232 +186,7 @@ function imageAlt(filename: string) {
 }
 
 function insertMarkdownBlock(text: string) {
-  if (editorMode.value === 'visual') {
-    visualEditor.value?.insertMarkdown(text)
-    return
-  }
-  const el = editor.value
-  if (!el) {
-    content.value = content.value ? `${content.value}\n${text}` : text
-    return
-  }
-
-  const start = el.selectionStart
-  const end = el.selectionEnd
-  const result = replaceMarkdownSelectionWithBlock(content.value, start, end, text)
-  content.value = result.value
-
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(result.selectionEnd, result.selectionEnd)
-  })
-}
-
-function selectedMarkdownText(placeholder: string) {
-  const el = editor.value
-  if (!el) return placeholder
-  return content.value.slice(el.selectionStart, el.selectionEnd) || placeholder
-}
-
-function insertPrefixedMarkdownBlock(prefix: string, placeholder: string) {
-  insertMarkdownBlock(prefixMarkdownBlock(selectedMarkdownText(placeholder), prefix))
-}
-
-function insertFencedCodeBlock() {
-  insertMarkdownBlock(fencedCodeBlock(selectedMarkdownText('code')))
-}
-
-async function selectEditorMode(mode: 'markdown' | 'visual') {
-  if (editorMode.value === mode && !preview.value) return
-  if (mode === 'visual' && hasUnsupportedVisualMarkdown(content.value)) {
-    error.value = t('publish.visualUnsupported')
-    return
-  }
-  error.value = ''
-  blockPickerOpen.value = false
-  linkPickerOpen.value = false
-  tablePickerOpen.value = false
-  editorMode.value = mode
-  preview.value = false
-  await nextTick()
-  if (mode === 'visual') {
-    visualEditor.value?.focus()
-  } else {
-    editor.value?.focus()
-  }
-}
-
-async function togglePreview() {
-  blockPickerOpen.value = false
-  linkPickerOpen.value = false
-  tablePickerOpen.value = false
-  preview.value = !preview.value
-  if (!preview.value && editorMode.value === 'visual') {
-    await nextTick()
-    visualEditor.value?.restoreEditableBoundaries()
-    visualEditor.value?.focus()
-  }
-}
-
-type ToolbarAction = 'bold' | 'italic' | 'strike' | 'inlineCode' | 'math' | 'quote' | 'code' | 'bulletList' | 'orderedList' | 'horizontalRule' | 'hardBreak'
-
-function applyToolbarAction(action: ToolbarAction) {
-  if (editorMode.value === 'markdown') {
-    if (action === 'bold') insert('**', '**', t('publish.placeholder.bold'))
-    else if (action === 'italic') insert('*', '*', t('publish.placeholder.italic'))
-    else if (action === 'strike') insert('~~', '~~', t('publish.placeholder.strike'))
-    else if (action === 'inlineCode') insert('`', '`', 'code')
-    else if (action === 'math') insert('$', '$', t('publish.placeholder.math'))
-    else if (action === 'quote') insertPrefixedMarkdownBlock('> ', t('publish.placeholder.quote'))
-    else if (action === 'code') insertFencedCodeBlock()
-    else if (action === 'bulletList') insertPrefixedMarkdownBlock('- ', t('publish.placeholder.listItem'))
-    else if (action === 'orderedList') insertPrefixedMarkdownBlock('1. ', t('publish.placeholder.listItem'))
-    else if (action === 'horizontalRule') insertMarkdownBlock('---')
-    else insert('  \n')
-    return
-  }
-
-  visualEditor.value?.applyAction(action)
-}
-
-function openBlockPicker() {
-  linkPickerOpen.value = false
-  tablePickerOpen.value = false
-  blockPickerOpen.value = !blockPickerOpen.value
-}
-
-function applyBlockType(block: MarkdownBlockType) {
-  blockPickerOpen.value = false
-  if (editorMode.value === 'visual') {
-    visualEditor.value?.setBlock(block)
-    return
-  }
-  if (block === 'code_block') {
-    insertFencedCodeBlock()
-    return
-  }
-  setMarkdownLineType(block)
-}
-
-function setMarkdownLineType(block: Exclude<MarkdownBlockType, 'code_block'>) {
-  const el = editor.value
-  if (!el) return
-  const result = formatMarkdownLines(content.value, el.selectionStart, el.selectionEnd, block)
-  content.value = result.value
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(result.selectionStart, result.selectionEnd)
-  })
-}
-
-async function openLinkPicker() {
-  blockPickerOpen.value = false
-  tablePickerOpen.value = false
-  linkPickerOpen.value = !linkPickerOpen.value
-  if (!linkPickerOpen.value) return
-  linkUrl.value = visualEditor.value?.activeLinkHref() || 'https://'
-  await nextTick()
-  linkInput.value?.focus()
-  linkInput.value?.select()
-}
-
-async function applyLink() {
-  const href = linkUrl.value.trim()
-  if (!href) return
-  if (editorMode.value === 'markdown') {
-    insert('[', `](${href})`, t('publish.placeholder.link'))
-    linkPickerOpen.value = false
-    linkUrl.value = ''
-    return
-  }
-  linkPickerOpen.value = false
-  linkUrl.value = ''
-  visualEditor.value?.setLink(href, t('publish.placeholder.link'))
-  await nextTick()
-  visualEditor.value?.focus()
-}
-
-function openTablePicker() {
-  blockPickerOpen.value = false
-  linkPickerOpen.value = false
-  tablePickerRows.value = 3
-  tablePickerColumns.value = 3
-  tablePickerOpen.value = !tablePickerOpen.value
-}
-
-function selectTableSize(row: number, column: number) {
-  tablePickerRows.value = row
-  tablePickerColumns.value = column
-}
-
-function insertTable(row: number, column: number) {
-  tablePickerOpen.value = false
-  if (editorMode.value === 'visual') visualEditor.value?.insertTable(row, column)
-  else insertMarkdownBlock(createMarkdownTable(row, column))
-}
-
-function closeToolbarPopovers(event: PointerEvent) {
-  const target = event.target as Node
-  if (blockPicker.value?.contains(target) || linkPicker.value?.contains(target) || tablePicker.value?.contains(target)) return
-  blockPickerOpen.value = false
-  linkPickerOpen.value = false
-  tablePickerOpen.value = false
-}
-
-onMounted(() => document.addEventListener('pointerdown', closeToolbarPopovers))
-onBeforeUnmount(() => document.removeEventListener('pointerdown', closeToolbarPopovers))
-
-async function pastePlainText() {
-  error.value = ''
-  try {
-    const text = await navigator.clipboard.readText()
-    if (!text) return
-    if (editorMode.value === 'visual') {
-      visualEditor.value?.insertText(text)
-    } else {
-      insertPlainTextInMarkdown(text)
-    }
-  } catch {
-    error.value = t('publish.clipboardReadFailed')
-  }
-}
-
-function insertPlainTextInMarkdown(text: string) {
-  const el = editor.value
-  if (!el) {
-    content.value += text
-    return
-  }
-  const start = el.selectionStart
-  const end = el.selectionEnd
-  content.value = `${content.value.slice(0, start)}${text}${content.value.slice(end)}`
-  nextTick(() => {
-    el.focus()
-    el.setSelectionRange(start + text.length, start + text.length)
-  })
-}
-
-function imageFilesFromList(files: FileList | File[] | null | undefined) {
-  return Array.from(files || []).filter((file) => file.type.startsWith('image/'))
-}
-
-function imageFilesFromDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return []
-  return imageFilesFromList(dataTransfer.files)
-}
-
-function hasImageDataTransfer(dataTransfer: DataTransfer | null) {
-  if (!dataTransfer) return false
-  if (Array.from(dataTransfer.items || []).some((item) => item.kind === 'file' && item.type.startsWith('image/'))) return true
-  return imageFilesFromList(dataTransfer.files).length > 0
-}
-
-function imageFilesFromClipboard(data: DataTransfer | null) {
-  if (!data) return []
-  return Array.from(data.items || [])
-    .filter((item) => item.kind === 'file' && item.type.startsWith('image/'))
-    .map((item) => item.getAsFile())
-    .filter((file): file is File => Boolean(file))
+  editor.value?.insertMarkdown(text)
 }
 
 async function uploadImageFiles(files: File[]) {
@@ -425,56 +238,6 @@ async function uploadImageFiles(files: File[]) {
   }
 }
 
-async function handleImage(event: Event) {
-  const input = event.target as HTMLInputElement
-  const files = imageFilesFromList(input.files)
-  input.value = ''
-  await uploadImageFiles(files)
-}
-
-async function handlePaste(event: ClipboardEvent) {
-  const files = imageFilesFromClipboard(event.clipboardData)
-  if (files.length) {
-    event.preventDefault()
-    await uploadImageFiles(files)
-    return
-  }
-
-  const markdown = markdownFromClipboard(event.clipboardData)
-  if (!markdown) return
-  event.preventDefault()
-  insertMarkdownBlock(markdown)
-}
-
-async function handleDrop(event: DragEvent) {
-  dragOver.value = false
-  const files = imageFilesFromDataTransfer(event.dataTransfer)
-  if (!files.length) return
-  event.preventDefault()
-  await uploadImageFiles(files)
-}
-
-function handleDragOver(event: DragEvent) {
-  if (!hasImageDataTransfer(event.dataTransfer)) return
-  event.preventDefault()
-  dragOver.value = true
-}
-
-function handleEditorKeydown(event: KeyboardEvent) {
-  if (!(event.metaKey || event.ctrlKey)) return
-  const key = event.key.toLowerCase()
-  if (key === 'b') {
-    event.preventDefault()
-    insert('**', '**', t('publish.placeholder.bold'))
-  } else if (key === 'i') {
-    event.preventDefault()
-    insert('*', '*', t('publish.placeholder.italic'))
-  } else if (key === 'k') {
-    event.preventDefault()
-    openLinkPicker()
-  }
-}
-
 async function save() {
   if (submitting.value || uploading.value || !(await validateRequiredFields())) return
   submitting.value = true
@@ -514,6 +277,7 @@ async function saveDraft() {
 }
 
 async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean> {
+  content.value = editor.value?.syncValue() ?? content.value
   submitting.value = true
   error.value = ''
   message.value = ''
@@ -549,203 +313,190 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
     <main class="min-w-0 pb-8">
       <PageHeader :title="props.isEditing ? t('publish.editTitle') : t('publish.createTitle')" :description="t('publish.subtitle')" />
 
-      <div class="grid gap-3 xl:grid-cols-[minmax(0,1fr)_280px]">
-        <section class="gf-card p-4 sm:p-5">
-          <div class="space-y-5">
-            <label class="block">
-              <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
-              <input
-                ref="titleInput"
-                v-model="title"
-                class="mt-1 h-11 w-full rounded-md border border-line px-3 text-lg font-semibold outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
-                :placeholder="t('publish.titlePlaceholder')"
-              />
-            </label>
+      <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
+      <section class="gf-card p-4 sm:p-5">
+        <div class="space-y-5">
+          <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间）。
+               折叠动画：外层 grid-template-rows 0fr↔1fr + 内层 min-h-0/overflow-hidden 高度平滑塌陷 -->
+          <!-- space-y 会给非最后子元素加 20px margin-bottom；原 v-show（display:none）折叠时该 margin 不渲染，
+                grid 高度 0 时 margin 仍占位，故折叠时把 margin-bottom 归零（带过渡），保持与折叠前布局一致 -->
+          <div
+            class="grid"
+            :style="{
+              gridTemplateRows: headerCollapsed ? '0fr' : '1fr',
+              marginBottom: headerCollapsed ? '0px' : '',
+              transition: 'grid-template-rows 0.3s ease, margin-bottom 0.3s ease',
+            }"
+          >
+            <div class="min-h-0 overflow-hidden">
+              <div ref="headerSection" :class="headerCollapsed ? 'invisible' : ''" class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+                <label class="block min-w-0 flex-1">
+                  <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
+                  <input
+                    ref="titleInput"
+                    v-model="title"
+                    class="mt-1 h-11 w-full rounded-md border border-line px-3 text-lg font-semibold outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+                    :placeholder="t('publish.titlePlaceholder')"
+                  />
+                </label>
 
-            <div ref="categorySection">
-              <div class="mb-2 flex items-center justify-between">
-                <div class="flex min-w-0 items-baseline gap-2">
-                  <span class="text-sm font-semibold text-base-content/75">
-                    {{ t('publish.fields.category') }}
-                  </span>
-                  <span v-if="categoryMissing" class="truncate text-xs text-error/80">
-                    {{ t('publish.validation.categoryRequired') }}
-                  </span>
-                </div>
-                <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
-              </div>
-              <div class="flex flex-wrap gap-2">
-                <button
-                  v-for="category in props.categories"
-                  :key="category.id"
-                  type="button"
-                  class="inline-flex items-center gap-1.5 rounded-md border px-2.5 py-1.5 text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-                  :class="categoryIds.includes(category.id) ? 'border-primary bg-info/10 text-primary' : 'border-line text-base-content/75 hover:border-line hover:bg-base-200'"
-                  :disabled="!categoryIds.includes(category.id) && categoryIds.length >= 3"
-                  @click="toggleCategory(category.id)"
-                >
-                  <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                  {{ category.name }}
-                </button>
-              </div>
-            </div>
-
-            <div ref="bodySection">
-              <div class="mb-1 flex items-center">
-                <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
-              </div>
-
-              <div class="mb-2 flex flex-wrap items-center gap-1 py-2">
-                <div v-if="!preview" class="flex flex-wrap items-center gap-1">
-                  <div ref="blockPicker" class="relative mr-1">
-                    <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.blockType')" :aria-expanded="blockPickerOpen" @mousedown.prevent @click="openBlockPicker"><Heading class="h-4 w-4" /></button>
-                    <div v-if="blockPickerOpen" class="gf-menu-surface absolute left-0 top-full z-30 mt-1.5 w-48 p-2 shadow-lg" role="menu" @keydown.esc.stop="blockPickerOpen = false">
-                      <button type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-base-content/75 hover:bg-base-200 hover:text-base-content" @click="applyBlockType('paragraph')">
-                        <span class="w-7 font-medium">P</span>{{ t('publish.toolbar.paragraph') }}
-                      </button>
-                      <button v-for="level in 6" :key="level" type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-base-content/75 hover:bg-base-200 hover:text-base-content" @click="applyBlockType(`heading_${level}` as MarkdownBlockType)">
-                        <span class="w-7 font-semibold">H{{ level }}</span>{{ t('publish.toolbar.heading', { level }) }}
-                      </button>
-                      <button type="button" class="flex w-full items-center gap-2 rounded px-2 py-1.5 text-left text-sm text-base-content/75 hover:bg-base-200 hover:text-base-content" @click="applyBlockType('code_block')">
-                        <Code2 class="h-4 w-7" />{{ t('publish.toolbar.codeBlock') }}
-                      </button>
-                    </div>
+                <div ref="categorySection" class="shrink-0 sm:w-60">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.category') }}</span>
+                    <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
                   </div>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.bold')" @mousedown.prevent @click="applyToolbarAction('bold')"><Bold class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.italic')" @mousedown.prevent @click="applyToolbarAction('italic')"><Italic class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.strike')" @mousedown.prevent @click="applyToolbarAction('strike')"><Strikethrough class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.inlineCode')" @mousedown.prevent @click="applyToolbarAction('inlineCode')"><Code class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.math')" @mousedown.prevent @click="applyToolbarAction('math')"><Sigma class="h-4 w-4" /></button>
-                  <div ref="linkPicker" class="relative">
-                    <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.link')" :aria-expanded="linkPickerOpen" @mousedown.prevent @click="openLinkPicker"><Link class="h-4 w-4" /></button>
-                    <form v-if="linkPickerOpen" class="gf-menu-surface absolute left-0 top-full z-30 mt-1.5 flex w-72 items-center gap-1.5 p-2 shadow-lg" @submit.prevent="applyLink">
-                      <input ref="linkInput" v-model="linkUrl" type="text" inputmode="url" class="h-8 min-w-0 flex-1 rounded border border-line bg-base-100 px-2 text-sm outline-none focus:border-primary" :placeholder="t('publish.toolbar.linkUrl')" />
-                      <button type="submit" class="gf-button gf-button-primary h-8 px-2.5" :disabled="!linkUrl.trim()">{{ t('publish.toolbar.applyLink') }}</button>
-                    </form>
-                  </div>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.quote')" @mousedown.prevent @click="applyToolbarAction('quote')"><MessageSquareQuote class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.code')" @mousedown.prevent @click="applyToolbarAction('code')"><Code2 class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.bulletList')" @mousedown.prevent @click="applyToolbarAction('bulletList')"><List class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.orderedList')" @mousedown.prevent @click="applyToolbarAction('orderedList')"><ListOrdered class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.horizontalRule')" @mousedown.prevent @click="applyToolbarAction('horizontalRule')"><Minus class="h-4 w-4" /></button>
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.hardBreak')" @mousedown.prevent @click="applyToolbarAction('hardBreak')"><CornerDownLeft class="h-4 w-4" /></button>
-                  <div ref="tablePicker" class="relative">
-                    <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.toolbar.table')" :aria-expanded="tablePickerOpen" @mousedown.prevent @click="openTablePicker"><Table2 class="h-4 w-4" /></button>
-                    <div
-                      v-if="tablePickerOpen"
-                      class="gf-menu-surface absolute left-0 top-full z-30 mt-1.5 p-2.5 shadow-lg"
-                      role="menu"
-                      @keydown.esc.stop="tablePickerOpen = false"
+                  <div ref="categoryPickerRoot" class="relative mt-1">
+                    <button
+                      type="button"
+                      class="gf-input flex h-11 w-full items-center gap-2 text-left"
+                      :class="categoryMissing ? '!border-error' : ''"
+                      :aria-expanded="categoryPickerOpen"
+                      :aria-label="t('publish.fields.category')"
+                      @click="categoryPickerOpen = !categoryPickerOpen"
+                      @keydown="handleCategoryPickerKeydown"
                     >
-                      <div class="mb-2 text-center text-xs font-medium text-base-content/75">
-                        {{ t('publish.toolbar.tableSize', { rows: tablePickerRows, columns: tablePickerColumns }) }}
-                      </div>
-                      <div class="grid gap-1" :style="{ gridTemplateColumns: `repeat(${tablePickerMaxColumns}, 1.25rem)` }">
+                      <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
+                        <span
+                          v-for="category in selectedCategories"
+                          :key="category.id"
+                          class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
+                          :style="{ backgroundColor: category.color + '22', color: category.color }"
+                        >
+                          <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
+                          <span class="truncate">{{ category.name }}</span>
+                        </span>
+                      </span>
+                      <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
+                      <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
+                      <svg
+                        class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
+                        :class="{ 'rotate-180': categoryPickerOpen }"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    <Transition name="gf-menu">
+                      <div
+                        v-if="categoryPickerOpen"
+                        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[300] max-h-64 overflow-y-auto p-1"
+                      >
                         <button
-                          v-for="cell in tablePickerCells"
-                          :key="`${cell.row}-${cell.column}`"
+                          v-for="category in props.categories"
+                          :key="category.id"
                           type="button"
-                          class="h-5 w-5 rounded-[2px] border transition-colors"
-                          :class="cell.row <= tablePickerRows && cell.column <= tablePickerColumns ? 'border-primary bg-primary/25' : 'border-line bg-base-100 hover:border-primary/60'"
-                          :aria-label="t('publish.toolbar.tableSize', { rows: cell.row, columns: cell.column })"
-                          @mouseenter="selectTableSize(cell.row, cell.column)"
-                          @focus="selectTableSize(cell.row, cell.column)"
-                          @click="insertTable(cell.row, cell.column)"
-                        />
+                          class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                          :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
+                          :disabled="!categoryIds.includes(category.id) && categoriesFull"
+                          @click="toggleCategory(category.id)"
+                        >
+                          <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                          <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
+                          <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
+                        </button>
+                        <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
                       </div>
-                    </div>
+                    </Transition>
                   </div>
-                  <span class="mx-1 h-5 w-px bg-line" />
-                  <button type="button" class="rounded p-1.5 text-base-content/55 hover:bg-base-200 hover:text-base-content" :title="t('publish.pastePlainText')" @mousedown.prevent @click="pastePlainText"><ClipboardPaste class="h-4 w-4" /></button>
-                  <span v-if="uploadText" class="gf-badge gf-badge-info rounded">{{ uploadText }}</span>
-                  <label class="rounded p-1.5 text-base-content/55 transition hover:bg-base-200 hover:text-base-content" :title="t('publish.uploadImageTitle')">
-                    <Image class="h-4 w-4" />
-                    <input type="file" accept="image/*" multiple class="hidden" :disabled="uploading" @change="handleImage" />
-                  </label>
+                  <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
                 </div>
-
-                <div class="ml-auto flex items-center gap-1.5 text-xs font-semibold">
-                  <div class="inline-flex rounded-md border border-line p-0.5">
-                    <button type="button" class="rounded px-2 py-1" :class="editorMode === 'visual' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('visual')">{{ t('publish.visualMode') }}</button>
-                    <button type="button" class="rounded px-2 py-1" :class="editorMode === 'markdown' ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:text-base-content'" @click="selectEditorMode('markdown')">{{ t('publish.markdownMode') }}</button>
-                  </div>
-                  <button type="button" class="inline-flex items-center gap-1 rounded-md border border-line px-2 py-1.5" :class="preview ? 'bg-neutral text-neutral-content' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'" @click="togglePreview">
-                    <Eye class="h-3.5 w-3.5" />
-                    {{ t('publish.preview') }}
-                  </button>
-                </div>
-              </div>
-
-              <div
-                v-show="!preview"
-                :class="[
-                  'min-h-80 bg-transparent',
-                  dragOver ? 'bg-info/10 ring-1 ring-inset ring-primary shadow-[0_0_0_4px_rgba(59,130,246,0.12)]' : '',
-                ]"
-              >
-                <div class="relative">
-                  <textarea
-                    v-if="editorMode === 'markdown'"
-                    ref="editor"
-                    v-model="content"
-                    class="block min-h-80 w-full resize-none border-0 bg-transparent px-1 py-4 text-[15px] leading-relaxed outline-none placeholder:text-base-content/45"
-                    :placeholder="t('publish.bodyPlaceholder')"
-                    @keydown="handleEditorKeydown"
-                    @paste="handlePaste"
-                    @drop="handleDrop"
-                    @dragover="handleDragOver"
-                    @dragleave="dragOver = false"
-                  />
-                  <VisualMarkdownEditor
-                    v-else
-                    ref="visualEditor"
-                    v-model="content"
-                    :placeholder="t('publish.visualPlaceholder')"
-                    @paste="handlePaste"
-                    @drop="handleDrop"
-                    @dragover="handleDragOver"
-                    @dragleave="dragOver = false"
-                  />
-                  <div
-                    v-if="dragOver"
-                    class="pointer-events-none absolute inset-3 grid place-items-center rounded-lg border-2 border-dashed border-primary/60 bg-info/10 text-sm font-semibold text-primary"
-                  >
-                    {{ t('publish.dropToUpload') }}
-                  </div>
-                </div>
-              </div>
-
-              <div v-if="preview && content.trim()" v-code-highlight v-math-render class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4" v-html="renderedPreview" />
-              <div v-else-if="preview" class="gf-prose gf-prose-post min-h-80 max-w-none px-1 py-4">
-                <p class="text-sm text-base-content/55">{{ t('publish.emptyPreview') }}</p>
               </div>
             </div>
+          </div>
 
-            <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
-            <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
-            <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
+          <div ref="bodySection">
+            <div class="mb-2 flex items-center gap-2">
+              <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.body') }}</span>
+              <span v-if="uploadText" class="gf-badge gf-badge-info rounded">{{ uploadText }}</span>
+              <!-- 移动端 toggle 容器：窄屏下编辑器悬浮开关移到这里（正文 label 右侧），
+                   不占用工具栏宽度；桌面隐藏（桌面保持工具栏悬浮布局） -->
+              <div ref="editorToggleHost" class="ml-auto flex items-center gap-1 sm:hidden" />
+            </div>
 
-            <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
-              <button
-                type="button"
-                class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"
-                :disabled="captchaLoading"
-                @click="loadCaptcha()"
-              >
-                <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
-                <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
-              </button>
-              <input
-                v-model="captchaCode"
-                class="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
-                :placeholder="t('auth.captcha')"
-                maxlength="8"
+            <div ref="editorHost" class="relative">
+              <VditorOfficial
+                ref="editor"
+                v-model="content"
+                :height="480"
+                :outline="true"
+                :counter="true"
+                :header-toggle="true"
+                :header-collapsed="headerCollapsed"
+                :toggle-host="editorToggleHost"
+                :placeholder="t('publish.visualPlaceholder')"
+                @toggle-header="toggleHeaderCollapsed"
+                @upload="uploadImageFiles"
+                @error="handleEditorError"
               />
-              <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
             </div>
-            <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+          </div>
 
-            <div class="flex items-center justify-end gap-2 border-t border-line pt-4">
+          <p v-if="validationError" class="gf-status-message gf-status-message-error">{{ validationError }}</p>
+          <p v-if="error" class="gf-status-message gf-status-message-error">{{ error }}</p>
+          <p v-if="message" class="gf-status-message gf-status-message-success">{{ message }}</p>
+
+          <div v-if="captchaRequired" class="gf-card flex flex-wrap items-center gap-3 p-3">
+            <button
+              type="button"
+              class="relative h-10 w-28 shrink-0 overflow-hidden rounded-md border border-line"
+              :disabled="captchaLoading"
+              @click="loadCaptcha()"
+            >
+              <Loader2 v-if="captchaLoading || !captchaImg" class="mx-auto h-5 w-5 animate-spin text-base-content/55" />
+              <img v-else :src="captchaImg" :alt="t('auth.captchaAlt')" class="h-full w-full object-cover" />
+            </button>
+            <input
+              v-model="captchaCode"
+              class="h-10 min-w-0 flex-1 rounded-md border border-line px-3 text-sm outline-none focus:border-primary"
+              :placeholder="t('auth.captcha')"
+              maxlength="8"
+            />
+            <span class="text-xs text-base-content/55">{{ t('auth.validation.captchaLoadFailed') }}</span>
+          </div>
+          <input v-model="website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
+
+          <!-- 页脚：左侧发布检查状态条 + 右侧操作（better-layout：控制区合并、用间距分组） -->
+          <div class="flex flex-col gap-4 border-t border-line pt-4 sm:flex-row sm:items-center sm:justify-between sm:gap-6">
+            <div
+              class="flex min-w-0 flex-wrap items-center gap-x-3 gap-y-1.5 text-xs text-base-content/65"
+              role="status"
+              :aria-label="t('publish.checklist.title')"
+            >
+              <span class="inline-flex items-center gap-1.5 font-semibold text-base-content/75">
+                <ListChecks class="h-3.5 w-3.5 shrink-0 text-base-content/55" aria-hidden="true" />
+                {{ t('publish.checklist.title') }}
+              </span>
+              <span class="hidden h-3 w-px bg-line sm:inline-block" aria-hidden="true" />
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.title') }}</span>
+                <span :class="titleFilled ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ titleFilled ? t('publish.checklist.done') : t('publish.checklist.pending') }}
+                </span>
+              </span>
+              <span class="text-base-content/35" aria-hidden="true">·</span>
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.category') }}</span>
+                <span :class="categoryIds.length ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ categoryIds.length }}/3
+                </span>
+              </span>
+              <span class="text-base-content/35" aria-hidden="true">·</span>
+              <span class="inline-flex items-center gap-1">
+                <span>{{ t('publish.fields.body') }}</span>
+                <span :class="bodyFilled ? 'font-medium text-success' : 'text-base-content/55'">
+                  {{ t('publish.checklist.characters', { count: bodyCharCount }) }}
+                </span>
+              </span>
+            </div>
+
+            <div class="flex flex-wrap items-center justify-end gap-2 sm:shrink-0">
               <a href="/" class="gf-button gf-button-lg gf-button-muted">{{ t('common.cancel') }}</a>
               <button
                 type="button"
@@ -766,70 +517,78 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
               </button>
             </div>
           </div>
-        </section>
+        </div>
+      </section>
 
-        <aside class="space-y-3">
-          <section class="gf-card p-4">
-            <div class="flex items-center gap-2">
-              <ListChecks class="h-4 w-4 text-base-content/55" />
-              <h2 class="text-sm font-semibold text-base-content">{{ t('publish.checklist.title') }}</h2>
-            </div>
-            <ul class="mt-3 space-y-2 text-sm text-base-content/75">
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.title') }}</span><span :class="title.trim() ? 'text-success' : 'text-base-content/55'">{{ title.trim() ? t('publish.checklist.done') : t('publish.checklist.pending') }}</span></li>
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.category') }}</span><span :class="categoryIds.length ? 'text-success' : 'text-base-content/55'">{{ categoryIds.length }}/3</span></li>
-              <li class="flex items-center justify-between gap-3"><span>{{ t('publish.fields.body') }}</span><span :class="content.trim() ? 'text-success' : 'text-base-content/55'">{{ t('publish.checklist.characters', { count: content.trim().length }) }}</span></li>
-            </ul>
-          </section>
+      <Transition name="gf-modal">
+        <div
+          v-if="leavePromptOpen"
+          class="fixed inset-0 z-[100] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="leave-prompt-title"
+          @click.self="closeLeavePrompt"
+        >
+          <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <!-- 头部：警示图标 + 标题 + 描述 + 关闭（对齐全站确认弹窗模式） -->
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-warning/10 text-warning">
+                  <FileText class="h-5 w-5" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="leave-prompt-title" class="text-base font-bold text-base-content">{{ t('publish.leaveTitle') }}</h2>
+                  <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('publish.leaveDescription') }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+                  :aria-label="t('common.close')"
+                  @click="closeLeavePrompt"
+                >
+                  <X class="h-4 w-4" />
+                </button>
+              </div>
 
-          <section v-if="selectedCategories.length" class="gf-card p-4">
-            <h2 class="text-sm font-semibold text-base-content">{{ t('publish.selectedCategories') }}</h2>
-            <div class="mt-3 flex flex-wrap gap-2">
-              <button
-                v-for="category in selectedCategories"
-                :key="category.id"
-                type="button"
-                class="inline-flex items-center gap-1.5 rounded-md border border-line px-2 py-1 text-sm text-base-content/75 hover:bg-base-200"
-                @click="toggleCategory(category.id)"
+              <!-- 草稿条件提示：圆角块 + 图标（比整条底色条更精致） -->
+              <div
+                v-if="!isValid"
+                class="mt-4 flex items-start gap-2.5 rounded-xl border border-warning/20 bg-warning/10 px-3.5 py-3 text-sm leading-5 text-warning/90"
               >
-                <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                {{ category.name }}
-                <X class="h-3 w-3" />
-              </button>
+                <AlertTriangle class="mt-0.5 h-4 w-4 shrink-0" />
+                <span>{{ t('publish.draftRequirement') }}</span>
+              </div>
+
+              <!-- 操作区：移动端主按钮置顶堆叠，桌面右对齐；危险操作（不保存离开）用 error 色 -->
+              <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button type="button" class="gf-button gf-button-lg gf-button-muted" @click="closeLeavePrompt">
+                  {{ t('publish.continueEditing') }}
+                </button>
+                <button type="button" class="gf-button gf-button-lg gf-button-error" @click="discardAndLeave">
+                  {{ t('publish.leaveWithoutSaving') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-primary min-w-28"
+                  :disabled="!draftSaveable"
+                  @click="saveDraftAndLeave"
+                >
+                  <Loader2 v-if="submitting" class="h-4 w-4 animate-spin" />
+                  <FileText v-else class="h-4 w-4" />
+                  {{ submitting ? t('common.saving') : t('publish.saveDraft') }}
+                </button>
+              </div>
             </div>
-          </section>
-        </aside>
-      </div>
-
-      <div v-if="leavePromptOpen" class="fixed inset-0 z-[100] flex items-center justify-center bg-neutral/50 px-4 backdrop-blur-sm" role="dialog" aria-modal="true">
-        <div class="gf-menu-surface w-full max-w-md overflow-hidden">
-          <div class="border-b border-line px-5 py-4">
-            <h2 class="text-base font-semibold text-base-content">{{ t('publish.leaveTitle') }}</h2>
-            <p class="mt-1 text-sm leading-6 text-base-content/55">
-              {{ t('publish.leaveDescription') }}
-            </p>
-          </div>
-
-          <div v-if="!isValid" class="border-b border-warning/20 bg-warning/10 px-5 py-3 text-sm font-medium text-warning">
-            {{ t('publish.draftRequirement') }}
-          </div>
-
-          <div class="flex flex-wrap items-center justify-end gap-2 bg-base-200 px-5 py-4">
-            <button type="button" class="gf-button gf-button-lg gf-button-muted" @click="closeLeavePrompt">
-              {{ t('publish.continueEditing') }}
-            </button>
-            <button type="button" class="gf-button gf-button-lg gf-button-secondary" @click="discardAndLeave">
-              {{ t('publish.leaveWithoutSaving') }}
-            </button>
-            <button
-              type="button"
-              class="gf-button gf-button-lg gf-button-primary min-w-28"
-              :disabled="!draftSaveable"
-              @click="saveDraftAndLeave"
-            >
-              {{ submitting ? t('common.saving') : t('publish.saveDraft') }}
-            </button>
           </div>
         </div>
-      </div>
+      </Transition>
     </main>
 </template>
+
+<style>
+/* 发布页「收起标题分类」时编辑器高度平滑过渡：临时类，动画后移除。
+   PostComposer 拖拽依赖实时跟随，故不能对 .vditor 全局加 height transition。 */
+.hub-height-anim {
+  transition: height 0.3s ease;
+}
+</style>

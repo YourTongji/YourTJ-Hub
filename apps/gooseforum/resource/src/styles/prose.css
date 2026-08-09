@@ -207,3 +207,8 @@
     max-height: min(360px, 70vh);
   }
 }
+
+html[data-gf-font-body] .gf-prose {
+  font-size: var(--gf-font-size-body, 1rem);
+  font-family: var(--gf-font-family-body, inherit);
+}

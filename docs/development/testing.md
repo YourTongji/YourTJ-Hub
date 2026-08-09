@@ -23,7 +23,7 @@
 cd apps/gooseforum && go vet ./... && go test ./...
 
 # Frontend
-cd apps/gooseforum/resource && pnpm typecheck && pnpm build
+cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build
 
 # Full
 make test
@@ -46,7 +46,8 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | http/controllers | handler + rendering tests (upstream has some) | go test + httptest |
 | resource (frontend) | typecheck + component tests | vue-tsc + Vitest |
 | contract | OpenAPI lint/bundle/type generation plus real Gin route-chain fixture assertions | pnpm + go test + httptest |
-| mobile | widget/unit | flutter test (when mobile lands) |
+| mobile | widget/unit | flutter test (melos analyze + test; see local-development.md) |
+| mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地 Casdoor → AppAuth 模拟器回跳 → exchange 验证) |
 
 ## CI mapping
 
@@ -59,7 +60,7 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
   locally when unset). **Any model/migration change must pass these PG tests** — models must not
   hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
   and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
-- ci-frontend.yml: pnpm typecheck + build (apps/gooseforum/resource/**)
+- ci-frontend.yml: pnpm typecheck + site unit tests + build (apps/gooseforum/resource/**)
 - ci-contract.yml: on every PR, installs the locked `packages/api-contract` pnpm tooling, runs OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. It also runs on push when contract-relevant

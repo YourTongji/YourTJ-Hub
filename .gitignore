@@ -1,3 +1,6 @@
+# 会话产物（casdoor cookies / 截图等），不入库
+/.synergy/
+
 research/
 
 # Go
@@ -17,9 +20,12 @@ apps/gooseforum/config.toml
 # Flutter / Dart
 apps/mobile/**/.dart_tool/
 apps/mobile/**/build/
+apps/mobile/**/test/failures/
 apps/mobile/.melos/
 apps/mobile/.flutter-plugins*
 apps/mobile/.packages
+# 本地 Flutter SDK（workspace 内克隆，仅本地构建用）
+/.flutter-sdk/
 
 # 环境变量
 .env
@@ -33,3 +39,4 @@ deploy/.env
 .vscode/
 *.swp
 *.tsbuildinfo
+*.iml

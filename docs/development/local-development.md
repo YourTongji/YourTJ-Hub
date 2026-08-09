@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-09
 
 ## Dependencies
 
@@ -15,7 +15,8 @@
   pnpm-workspace.yaml; **note**: the home-directory `/Users/yzxoi/pnpm-workspace.yaml` can interfere
   with pnpm's upward lookup — run pnpm from inside `resource/`)
 - Docker + Compose (local dependency services)
-- Flutter SDK (mobile planned, not installed yet)
+- Flutter SDK (mobile; workspace-local clone under `.flutter-sdk/` when external paths are blocked,
+  otherwise a normal install ≥3.27) + melos (`dart pub global activate melos`)
 
 ## Startup
 
@@ -24,7 +25,7 @@
 make dev
 
 # 2. Forum backend (default port 5234)
-#    First-time setup: place a config.toml in apps/gooseforum (gitignored), based on upstream config
+#    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
 make server        # = cd apps/gooseforum && go run . serve
 
 # 3. Frontend dev server (:3010, vite; run pnpm install first)
@@ -33,6 +34,24 @@ make web           # = cd apps/gooseforum/resource && pnpm dev
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
+```bash
+# 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
+cd apps/mobile && melos bootstrap   # 首次或依赖变更后
+melos run analyze                    # 全包静态检查
+melos run test                       # 全包测试
+```
+
+## Mobile workspace
+
+- `apps/mobile` is a melos workspace with four packages: `core` (contracts/API client/markdown
+  conversion), `auth` (login/TOTP/OIDC/token storage), `ui_kit` (design tokens + Gf* components),
+  `forum_app` (routes/pages/state). Scripts (`analyze`/`test`/`gen`) are declared in
+  `apps/mobile/pubspec.yaml` under the `melos:` key.
+- Design tokens: `ui_kit/lib/src/theme/tokens.json` is the single derived source of the web design
+  language (source of truth: `apps/gooseforum/resource/src/styles/tokens.css`). **A PR that changes
+  `tokens.css` must update `tokens.json` in the same commit** (contract-style discipline).
+- Mobile contract mirrors live in `core/lib/src/gen/*.dart` (see
+  [contracts-and-data](../architecture/contracts-and-data.md)).
 
 ## Service addresses
 

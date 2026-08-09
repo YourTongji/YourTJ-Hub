@@ -56,3 +56,11 @@
     font-weight: 700;
   }
 }
+
+html[data-gf-font-code] pre,
+html[data-gf-font-code] code,
+html[data-gf-font-code] .gf-prose pre,
+html[data-gf-font-code] .gf-prose code {
+  font-size: var(--gf-font-size-code, 0.875em);
+  font-family: var(--gf-font-family-code, ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace);
+}

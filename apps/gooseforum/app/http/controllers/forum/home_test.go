@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 )
 
 func TestHomePageRequestReturnsPayload(t *testing.T) {
@@ -72,19 +73,27 @@ func TestResourceEntryUsesViteInLocalMode(t *testing.T) {
 }
 
 func TestResourceEntryUsesConfiguredDevServer(t *testing.T) {
-	t.Setenv("GOOSE_UNUSED", "keeps test isolated")
+	previousEnv := preferences.GetString("app.env", "production")
+	previousDevServer := preferences.GetString("resource.devServer", "")
+	previousDevBase := preferences.GetString("resource.devBase", "/assets/")
+	t.Cleanup(func() {
+		preferences.Set("app.env", previousEnv)
+		preferences.Set("resource.devServer", previousDevServer)
+		preferences.Set("resource.devBase", previousDevBase)
+	})
+
+	preferences.Set("app.env", "local")
+	preferences.Set("resource.devServer", "http://127.0.0.1:4173")
+	preferences.Set("resource.devBase", "/dev-assets/")
+
 	html := string(resourceEntry("src/site/main.ts"))
-	devServer := viteDevServer()
-	if devServer == "" {
-		t.Skip("current test config uses production manifest")
-	}
-	if !strings.Contains(html, strings.TrimRight(devServer, "/")+`/assets/@vite/client`) {
+	if !strings.Contains(html, `/dev-assets/@vite/client`) {
 		t.Fatalf("expected resource entry to include Vite client: %s", html)
 	}
-	if !strings.Contains(html, strings.TrimRight(devServer, "/")+`/assets/src/site/main.ts`) {
+	if !strings.Contains(html, `/dev-assets/src/site/main.ts`) {
 		t.Fatalf("expected resource entry to include Vite entry: %s", html)
 	}
-	if strings.Contains(html, `/assets/assets/`) {
-		t.Fatalf("expected dev resource entry not to use built manifest assets: %s", html)
+	if strings.Contains(html, `http://127.0.0.1:4173`) {
+		t.Fatalf("expected same-origin resource paths instead of the Vite server URL: %s", html)
 	}
 }

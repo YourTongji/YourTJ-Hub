@@ -35,3 +35,47 @@ func TestIsSafeRedirect(t *testing.T) {
 		}
 	}
 }
+
+func TestSettingsTabs(t *testing.T) {
+	got := settingsTabs()
+	want := []TabPayload{
+		{Key: "profile", URL: "/settings", Active: true},
+		{Key: "account", URL: "/settings?tab=account"},
+		{Key: "privacy", URL: "/settings?tab=privacy"},
+		{Key: "binding", URL: "/settings?tab=binding"},
+		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "general", URL: "/settings?tab=general"},
+	}
+	if len(got) != len(want) {
+		t.Fatalf("settingsTabs() length = %d, want %d", len(got), len(want))
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Errorf("settingsTabs()[%d] = %+v, want %+v", i, got[i], want[i])
+		}
+	}
+
+	// Invariant assertions: lock the contract beyond the exact-match list above.
+	activeCount := 0
+	seen := make(map[string]bool, len(got))
+	for _, tab := range got {
+		if tab.Active {
+			activeCount++
+		}
+		if seen[tab.Key] {
+			t.Errorf("settingsTabs() has duplicate key %q", tab.Key)
+		}
+		seen[tab.Key] = true
+
+		if tab.Key == "profile" {
+			if tab.URL != "/settings" {
+				t.Errorf("settingsTabs() profile URL = %q, want /settings", tab.URL)
+			}
+		} else if wantURL := "/settings?tab=" + tab.Key; tab.URL != wantURL {
+			t.Errorf("settingsTabs() %q URL = %q, want %q", tab.Key, tab.URL, wantURL)
+		}
+	}
+	if activeCount != 1 {
+		t.Errorf("settingsTabs() active tab count = %d, want exactly 1", activeCount)
+	}
+}
