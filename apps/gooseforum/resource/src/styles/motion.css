@@ -317,8 +317,12 @@
     transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
 }
 
-.composer-rise-leave-active {
+/* 双类提高优先级：面板本身带 Tailwind pointer-events-auto，leave 必须盖过它 */
+.composer-rise-leave-active,
+.composer-rise-leave-active.pointer-events-auto {
   will-change: transform;
+  /* leave 期间禁用命中，避免 ~300ms 半透明面板挡住下方气泡点击 */
+  pointer-events: none;
   transition:
     opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
     transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);

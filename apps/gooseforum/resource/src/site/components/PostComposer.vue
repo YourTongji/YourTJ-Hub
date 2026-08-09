@@ -39,13 +39,15 @@ const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
 const editorReady = ref(false)
+const editorInitFailed = ref(false)
 const uploadingImage = ref(false)
 
-// Vditor 异步就绪（after()）前在编辑区显示加载占位，避免首开时面板内是空白框、Vditor 随后突兀注入
+// Vditor 异步就绪（after()）前在编辑区显示加载占位；初始化失败时结束 loading，避免转圈不止
 watch(
-  () => editor.value?.editorReady,
-  (ready) => {
+  () => [editor.value?.editorReady, editor.value?.editorFailed] as const,
+  ([ready, failed]) => {
     editorReady.value = !!ready
+    editorInitFailed.value = !!failed
   },
   { immediate: true },
 )
@@ -108,9 +110,11 @@ watch(
   () => props.open,
   async (open) => {
     if (!open) return
+    // 面板关闭会卸载内层 Vditor；再次打开时清失败态，重新走 loading → ready/error
+    editorInitFailed.value = false
     await nextTick()
     window.requestAnimationFrame(() => {
-      editor.value?.focus()
+      if (!editorInitFailed.value) editor.value?.focus()
     })
   },
   { immediate: true },
@@ -122,7 +126,9 @@ function closeComposer() {
 }
 
 function handleEditorError(editorError: Error) {
-  emit('imageError', editorError.message)
+  // 兜底：即使子组件尚未 expose editorFailed，也立刻结束 loading 遮罩
+  editorInitFailed.value = true
+  emit('imageError', editorError.message || t('common.loadFailed'))
 }
 
 function insertMarkdownBlock(text: string) {
@@ -226,15 +232,16 @@ function submit() {
             </div>
 
             <div ref="editorArea" class="relative min-h-0 flex-1 overflow-y-auto">
-              <!-- Vditor 异步就绪（after()）前显示加载占位，避免首开时编辑区为空白框、Vditor 随后突兀注入 -->
+              <!-- Vditor 异步就绪前显示加载占位；初始化失败则结束转圈并提示失败（可关面板重开重试） -->
               <div
-                v-if="!editorReady"
-                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/50 text-sm text-base-content/55"
-                role="status"
+                v-if="!editorReady || editorInitFailed"
+                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/50 text-sm"
+                :class="editorInitFailed ? 'text-error' : 'text-base-content/55'"
+                :role="editorInitFailed ? 'alert' : 'status'"
                 aria-live="polite"
               >
-                <Loader2 class="h-4 w-4 animate-spin" />
-                <span>{{ t('common.loadingShort') }}</span>
+                <Loader2 v-if="!editorInitFailed" class="h-4 w-4 animate-spin" />
+                <span>{{ editorInitFailed ? t('common.loadFailed') : t('common.loadingShort') }}</span>
               </div>
               <!-- 与发布页同款官版编辑器（紧凑工具栏）：粘贴/拖拽图片走官方 upload.handler → uploadImageFiles -->
               <VditorOfficial

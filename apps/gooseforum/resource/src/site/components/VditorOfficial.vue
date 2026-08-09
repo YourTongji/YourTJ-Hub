@@ -71,6 +71,8 @@ const { t, te } = useI18n()
 const { isDark } = useSiteTheme()
 const root = ref<HTMLElement | null>(null)
 const editorReady = ref(false)
+/** 资源预载 / 构造失败时为 true；宿主可据此结束 loading，避免遮罩永远转圈 */
+const editorFailed = ref(false)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
@@ -699,6 +701,8 @@ onMounted(async () => {
     ])
     await loadRuntimeScript(katexChemUrl, 'vditorKatexChemScript')
   } catch (error) {
+    editorFailed.value = true
+    editorReady.value = false
     emit('error', error instanceof Error ? error : new Error(String(error)))
     return
   }
@@ -755,6 +759,7 @@ onMounted(async () => {
           return
         }
         ready = true
+        editorFailed.value = false
         editorReady.value = true
         syncContentTheme()
         syncHighlightTheme()
@@ -779,6 +784,8 @@ onMounted(async () => {
     })
     editor = nextEditor
   } catch (error) {
+    editorFailed.value = true
+    editorReady.value = false
     emit('error', error instanceof Error ? error : new Error(String(error)))
   }
 })
@@ -797,6 +804,7 @@ onBeforeUnmount(() => {
   const currentEditor = editor
   editor = null
   editorReady.value = false
+  editorFailed.value = false
   // 与官方 beforeDestroy 一致：ready 后直接 destroy；未 ready 时由 after() 兜底。
   if (!ready) return
   ready = false
@@ -837,7 +845,7 @@ function syncValue() {
   return value
 }
 
-defineExpose({ editorReady, focus, getValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorFailed, editorReady, focus, getValue, insertMarkdown, setHeight, syncValue })
 </script>
 
 <template>
