@@ -70,6 +70,7 @@ const emit = defineEmits<{
 const { t, te } = useI18n()
 const { isDark } = useSiteTheme()
 const root = ref<HTMLElement | null>(null)
+const editorReady = ref(false)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
@@ -754,6 +755,7 @@ onMounted(async () => {
           return
         }
         ready = true
+        editorReady.value = true
         syncContentTheme()
         syncHighlightTheme()
         attachToolbarLabels()
@@ -794,6 +796,7 @@ onBeforeUnmount(() => {
   fullscreenLabelObserver = null
   const currentEditor = editor
   editor = null
+  editorReady.value = false
   // 与官方 beforeDestroy 一致：ready 后直接 destroy；未 ready 时由 after() 兜底。
   if (!ready) return
   ready = false
@@ -834,7 +837,7 @@ function syncValue() {
   return value
 }
 
-defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorReady, focus, getValue, insertMarkdown, setHeight, syncValue })
 </script>
 
 <template>

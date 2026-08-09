@@ -38,7 +38,17 @@ const { t } = useI18n()
 const { bottomOffset: keyboardOffset } = useKeyboardVisualViewportOffset()
 
 const editor = ref<InstanceType<typeof VditorOfficial> | null>(null)
+const editorReady = ref(false)
 const uploadingImage = ref(false)
+
+// Vditor 异步就绪（after()）前在编辑区显示加载占位，避免首开时面板内是空白框、Vditor 随后突兀注入
+watch(
+  () => editor.value?.editorReady,
+  (ready) => {
+    editorReady.value = !!ready
+  },
+  { immediate: true },
+)
 const composerBusy = computed(() => props.submitting || uploadingImage.value)
 
 /** 桌面端浮动面板高度：默认更高，顶部手柄可拖拽调整 */
@@ -216,6 +226,16 @@ function submit() {
             </div>
 
             <div ref="editorArea" class="relative min-h-0 flex-1 overflow-y-auto">
+              <!-- Vditor 异步就绪（after()）前显示加载占位，避免首开时编辑区为空白框、Vditor 随后突兀注入 -->
+              <div
+                v-if="!editorReady"
+                class="absolute inset-0 z-10 flex items-center justify-center gap-2 bg-base-100/50 text-sm text-base-content/55"
+                role="status"
+                aria-live="polite"
+              >
+                <Loader2 class="h-4 w-4 animate-spin" />
+                <span>{{ t('common.loadingShort') }}</span>
+              </div>
               <!-- 与发布页同款官版编辑器（紧凑工具栏）：粘贴/拖拽图片走官方 upload.handler → uploadImageFiles -->
               <VditorOfficial
                 ref="editor"
