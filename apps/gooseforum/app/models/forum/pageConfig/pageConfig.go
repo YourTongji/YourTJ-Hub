@@ -278,6 +278,13 @@ type PostingContent struct {
 		MaxDailyUploadsPerUser       int      `json:"maxDailyUploadsPerUser"`
 		NewUserUploadCooldownMinutes int      `json:"newUserUploadCooldownMinutes"`
 	} `json:"uploadControl"`
+	LLMS LLMSConfig `json:"llms"`
+}
+
+type LLMSConfig struct {
+	Enabled  bool `json:"enabled"`
+	FullText bool `json:"fullText"`
+	Files    bool `json:"files"`
 }
 
 // RateLimitRule 单个动作的限流配额。Action 取值见 rateLimitActions。

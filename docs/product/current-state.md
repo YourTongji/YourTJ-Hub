@@ -15,7 +15,8 @@
   (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
   scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
   tabs, pinyin/initials), sensitive-word moderation with review queue, terms-of-service page, data
-  import/export, pluggable file storage (SQLite BLOB / S3-compatible).
+  import/export, pluggable file storage (SQLite BLOB / S3-compatible), configurable AI-readable
+  public-content exports (`/llms.txt`, `/llms-full.txt`, `/p/posts/{id}.md`).
 - **Unified-auth verification**: Casdoor numeric-ID path verified during research (sub = numeric ID,
   Incremental rule + explicit numeric ids); OIDC login/binding now wired into the forum with
   server-side numeric-sub enforcement.
@@ -39,6 +40,7 @@
 | Terms of service | `Current` | Editable ToS (markdown) in admin, rendered at `/terms`, registration page links and agreement checkbox (2026-08-06) |
 | Data import/export | `Current` | Admin panel JSON/CSV export (users/topics/posts, background task + download) and JSON import with per-row validation report and idempotent skip; export files retained 7 days (2026-08-06) |
 | Abuse protection | `Current` | Per-action rate limiting (memory fixed-window, IP+user) on register/login/forgot-password/topic.write/post.create/message.send/upload/interact; 429 + Retry-After; captcha switch + new-user post threshold + honeypot + submit-timing detection; all limits hot-tunable in admin settings |
+| AI-readable content | `Current` | Admin posting settings independently gate the llms.txt index, full-text export, and per-topic Markdown; exports include only published topics with normal first posts and normal, non-deleted replies; generated content is cached for 10 seconds and invalidated by topic/reply/category events or relevant setting changes |
 
 ## Correctness first
 

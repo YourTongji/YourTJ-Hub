@@ -88,6 +88,31 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	return
 }
 
+func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err error) {
+	if limit <= 0 {
+		return []*Entity{}, nil
+	}
+	err = builder().
+		Where(queryopt.Gt("id", afterID)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
+		Order(queryopt.Asc("id")).
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
+func GetPublished(id uint64) (entity Entity, err error) {
+	err = builder().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
+		First(&entity).Error
+	return
+}
+
 func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	var entities []*Entity
 	err := builder().

@@ -113,6 +113,9 @@ func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
+	ginApp.GET("/llms.txt", controllers.RenderLLMSIndex)
+	ginApp.GET("/llms-full.txt", controllers.RenderLLMSFull)
+	ginApp.GET("/p/posts/:document", controllers.RenderLLMSTopic)
 }
 
 func apiRoute(ginApp *gin.Engine) {

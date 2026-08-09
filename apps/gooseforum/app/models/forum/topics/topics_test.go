@@ -1,6 +1,7 @@
 package topics
 
 import (
+	"errors"
 	"testing"
 	"time"
 
@@ -45,6 +46,73 @@ func TestTopicAndPostSchemaMigrates(t *testing.T) {
 	}
 	if !conn.Migrator().HasIndex(&posts.Entity{}, "idx_posts_topic_created") {
 		t.Fatal("posts idx_posts_topic_created index was not created")
+	}
+}
+
+func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}, &posts.Entity{}); err != nil {
+		t.Fatalf("migrate published topic tables: %v", err)
+	}
+
+	const (
+		firstTopicID            = uint64(110)
+		secondTopicID           = uint64(120)
+		draftTopicID            = uint64(130)
+		blockedTopicID          = uint64(140)
+		blockedFirstPostTopicID = uint64(150)
+	)
+	topicIDs := []uint64{firstTopicID, secondTopicID, draftTopicID, blockedTopicID, blockedFirstPostTopicID}
+	postIDs := []uint64{1010, 1020, 1030, 1040, 1050}
+	conn.Unscoped().Where("id IN ?", topicIDs).Delete(&Entity{})
+	conn.Unscoped().Where("id IN ?", postIDs).Delete(&posts.Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", topicIDs).Delete(&Entity{})
+		conn.Unscoped().Where("id IN ?", postIDs).Delete(&posts.Entity{})
+	})
+
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	if err := conn.Create(&[]posts.Entity{
+		{Id: postIDs[0], TopicId: firstTopicID, PostNo: 1, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[1], TopicId: secondTopicID, PostNo: 1, Content: "second", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[2], TopicId: draftTopicID, PostNo: 1, Content: "draft", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[3], TopicId: blockedTopicID, PostNo: 1, Content: "blocked topic", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postIDs[4], TopicId: blockedFirstPostTopicID, PostNo: 1, Content: "blocked first post", ProcessStatus: posts.ProcessStatusBlocked, CreatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create published topic posts: %v", err)
+	}
+	if err := conn.Create(&[]Entity{
+		{Id: firstTopicID, Title: "first", FirstPostId: postIDs[0], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: secondTopicID, Title: "second", FirstPostId: postIDs[1], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: draftTopicID, Title: "draft", FirstPostId: postIDs[2], Status: 0, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: blockedTopicID, Title: "blocked", FirstPostId: postIDs[3], Status: 1, ProcessStatus: ProcessStatusBlocked, CreatedAt: now, UpdatedAt: now},
+		{Id: blockedFirstPostTopicID, Title: "blocked first", FirstPostId: postIDs[4], Status: 1, ProcessStatus: ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+	}).Error; err != nil {
+		t.Fatalf("create published topics: %v", err)
+	}
+
+	firstBatch, err := GetPublishedAfterID(100, 1)
+	if err != nil {
+		t.Fatalf("GetPublishedAfterID first batch: %v", err)
+	}
+	if len(firstBatch) != 1 || firstBatch[0].Id != firstTopicID {
+		t.Fatalf("first published batch = %#v, want topic %d", firstBatch, firstTopicID)
+	}
+	secondBatch, err := GetPublishedAfterID(firstTopicID, 10)
+	if err != nil {
+		t.Fatalf("GetPublishedAfterID second batch: %v", err)
+	}
+	if len(secondBatch) != 1 || secondBatch[0].Id != secondTopicID {
+		t.Fatalf("second published batch = %#v, want only topic %d", secondBatch, secondTopicID)
+	}
+
+	if topic, err := GetPublished(firstTopicID); err != nil || topic.Id != firstTopicID {
+		t.Fatalf("GetPublished(%d) = %#v, err=%v", firstTopicID, topic, err)
+	}
+	for _, id := range []uint64{draftTopicID, blockedTopicID, blockedFirstPostTopicID} {
+		if _, err := GetPublished(id); !errors.Is(err, gorm.ErrRecordNotFound) {
+			t.Fatalf("GetPublished(%d) err=%v, want record not found", id, err)
+		}
 	}
 }
 

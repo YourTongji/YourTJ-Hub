@@ -41,6 +41,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
@@ -1184,7 +1185,10 @@ type SaveSiteSettingsReq struct {
 
 // SaveSiteSettings 保存站点设置
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, hotdataserve.ClearSiteSettingsConfigCache)
+	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+		hotdataserve.ClearSiteSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 func GetSiteChrome(req component.BetterRequest[component.Null]) component.Response {
@@ -1352,7 +1356,10 @@ type SavePostingSettingsReq struct {
 
 // SavePostingSettings 保存发布内容设置
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, hotdataserve.ClearPostingSettingsConfigCache)
+	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, func() {
+		hotdataserve.ClearPostingSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 // GetRateLimitSettings 获取滥用防护（限流）设置
