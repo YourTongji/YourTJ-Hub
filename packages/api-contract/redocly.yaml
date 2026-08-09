@@ -3,7 +3,3 @@ extends:
 rules:
   info-license: off
   no-server-example.com: off
-  # logout is intentionally always-200 (idempotent, no auth middleware), so requiring a 4XX
-  # response on every operation would force a dishonest entry onto it; 4XX behavior of the
-  # remaining operations is asserted by the route-level contract tests instead.
-  operation-4xx-response: off

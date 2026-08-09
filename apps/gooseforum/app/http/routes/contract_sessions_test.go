@@ -255,16 +255,22 @@ func TestRevokeSessionHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-revoke-not-found.json"))
 	})
 
-	t.Run("malformed body degrades to id zero and reports not found", func(t *testing.T) {
+	t.Run("malformed, missing, or zero id is a validation failure", func(t *testing.T) {
 		conn, router := setupSessionContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		token := contractSessionToken(t, user)
 
-		recorder := serveSessionJSON(router, http.MethodPost, "/api/user/sessions/revoke", "{", token)
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("invalid revoke status = %d, want 200", recorder.Code)
+		for name, body := range map[string]string{
+			"malformed JSON": "{",
+			"missing id":     `{}`,
+			"zero id":        `{"id":0}`,
+		} {
+			recorder := serveSessionJSON(router, http.MethodPost, "/api/user/sessions/revoke", body, token)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("%s: status = %d, want 200", name, recorder.Code)
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-revoke-invalid.json"))
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-revoke-not-found.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {

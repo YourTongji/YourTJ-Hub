@@ -105,8 +105,9 @@ export interface paths {
          * @description Revokes the session with the given ID, which must belong to the caller. The session carrying
          *     the current token cannot be revoked this way (`session.current.notRevocable`) — use logout or
          *     revoke-all instead. Revocation takes effect immediately: the revoked token gets 401 on its
-         *     next request. The route binds the body non-strictly, so malformed JSON, a missing `id`, or a
-         *     zero `id` degrade to `id: 0` and surface as `session.notFound`, not as a validation error.
+         *     next request. Malformed JSON, a missing `id`, or a zero `id` are rejected as
+         *     `common.request.invalidParams` (still a legacy HTTP 200 envelope), which keeps them
+         *     distinguishable from revoking a session that does not exist (`session.notFound`).
          */
         post: operations["revokeSession"];
         delete?: never;
