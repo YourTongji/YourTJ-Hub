@@ -92,7 +92,12 @@ const mobileHeaderTitleVisible = ref(false)
 const effectiveShowHeaderTitle = computed(() => showHeaderTitle.value && (!isMobileHeaderViewport.value || mobileHeaderTitleVisible.value))
 const composerOpen = ref(false)
 const composerMode = computed(() => editingPostId.value ? 'edit' : 'create')
-const composerMounted = computed(() => composerOpen.value)
+// PostComposer 首次打开后保持挂载：若随开合销毁重建，内层 <Transition> 首次挂载不播 enter、
+// leave 也会被整体销毁绕过，弹簧上弹/收回动画将失效。此值只在首次打开时置 true，永不重置。
+const composerMounted = ref(false)
+watch(composerOpen, (open) => {
+  if (open) composerMounted.value = true
+}, { immediate: true })
 const mobilePostRailOpen = ref(false)
 const activePostNo = ref(firstPostNo(initialPosts) || 1)
 const postRailProgressCurrent = ref(0)

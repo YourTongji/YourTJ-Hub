@@ -170,12 +170,13 @@ function submit() {
 </script>
 
 <template>
-  <Teleport v-if="open" to="body">
+  <Teleport to="body">
     <div class="pointer-events-none fixed inset-x-0 z-[90] px-3 sm:px-6" :style="{ bottom: `calc(${keyboardOffset}px + 1rem)` }">
       <div class="relative mx-auto flex w-full max-w-full justify-center">
-        <Transition name="floating-reply">
+        <!-- appear：覆盖首次打开时组件刚挂载、Transition 与其子元素同帧出现的场景 -->
+        <Transition name="composer-rise" appear>
           <div
-            v-if="authenticated"
+            v-if="open && authenticated"
             class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
             :style="{
               height: isMobileComposer() ? undefined : `${composerHeight}px`,

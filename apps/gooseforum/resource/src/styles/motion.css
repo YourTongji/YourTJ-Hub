@@ -293,17 +293,41 @@
   transform: translateY(6px) scale(0.98);
 }
 
+/* 底部气泡/回复位置轨道：与 composer 收回同时上弹，轻量淡入 + 上滑 12px */
 .floating-reply-enter-active,
 .floating-reply-leave-active {
+  will-change: transform;
   transition:
-    opacity 0.18s cubic-bezier(0.22, 1, 0.36, 1),
-    transform 0.18s cubic-bezier(0.22, 1, 0.36, 1);
+    opacity 0.2s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.2s cubic-bezier(0.22, 1, 0.36, 1);
 }
 
 .floating-reply-enter-from,
 .floating-reply-leave-to {
   opacity: 0;
-  transform: translateY(10px) scale(0.98);
+  transform: translateY(12px) scale(0.98);
+}
+
+/* 回复编辑器：仿 MacOS 弹簧上弹（enter 400ms 带回弹过冲），收回为其逆操作（300ms 平滑）。
+   enter 曲线 y 峰值约 1.098：面板略微越过落点再回位，scale 峰值约 1.004（短暂柔和、落定锐利）。 */
+.composer-rise-enter-active {
+  will-change: transform;
+  transition:
+    opacity 0.4s cubic-bezier(0.34, 1.56, 0.64, 1),
+    transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1);
+}
+
+.composer-rise-leave-active {
+  will-change: transform;
+  transition:
+    opacity 0.3s cubic-bezier(0.22, 1, 0.36, 1),
+    transform 0.3s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.composer-rise-enter-from,
+.composer-rise-leave-to {
+  opacity: 0;
+  transform: translateY(32px) scale(0.96);
 }
 
 .user-card-pop-enter-active,
@@ -349,6 +373,8 @@
   .gf-flash-move,
   .floating-reply-enter-active,
   .floating-reply-leave-active,
+  .composer-rise-enter-active,
+  .composer-rise-leave-active,
   .user-card-pop-enter-active,
   .user-card-pop-leave-active,
   .user-card-content-enter-active,
@@ -365,6 +391,8 @@
   .gf-modal-leave-to > *,
   .floating-reply-enter-from,
   .floating-reply-leave-to,
+  .composer-rise-enter-from,
+  .composer-rise-leave-to,
   .user-card-pop-enter-from,
   .user-card-pop-leave-to,
   .user-card-content-enter-from,
