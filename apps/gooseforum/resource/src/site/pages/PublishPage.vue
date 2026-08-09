@@ -148,7 +148,9 @@ async function validateRequiredFields() {
   return false
 }
 
-/** 工具栏「向上扩展」：折叠/展开标题+分类区，并把高度让给编辑器 */
+/** 工具栏「向上扩展」：折叠/展开标题+分类区，并把高度让给编辑器（带 0.3s 动画） */
+const HEADER_ANIM_MS = 300
+let headerHeightAnimTimer = 0
 function toggleHeaderCollapsed() {
   const header = headerSection.value
   if (header) {
@@ -157,6 +159,17 @@ function toggleHeaderCollapsed() {
   headerCollapsed.value = !headerCollapsed.value
   void nextTick(() => {
     if (editor.value) {
+      // 编辑器高度平滑过渡：临时开启 transition 后 setHeight，动画完移除。
+      // PostComposer 拖拽依赖实时跟随，故不能对 .vditor 全局加 height transition。
+      const vditorEl = editorHost.value?.querySelector<HTMLElement>('.vditor')
+      if (vditorEl) {
+        vditorEl.classList.add('hub-height-anim')
+        window.clearTimeout(headerHeightAnimTimer)
+        headerHeightAnimTimer = window.setTimeout(
+          () => vditorEl.classList.remove('hub-height-anim'),
+          HEADER_ANIM_MS + 100,
+        )
+      }
       // 折叠：编辑器高度 = 默认 480 + 头部高度 + 间距；展开：回到 480
       const target = headerCollapsed.value ? 480 + collapsedHeaderHeight.value + 20 : 480
       editor.value.setHeight(target)
@@ -303,84 +316,98 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       <!-- 单栏全宽：发布检查并入页脚，正文区吃满主列宽度 -->
       <section class="gf-card p-4 sm:p-5">
         <div class="space-y-5">
-          <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间） -->
-          <div ref="headerSection" v-show="!headerCollapsed" class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
-            <label class="block min-w-0 flex-1">
-              <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
-              <input
-                ref="titleInput"
-                v-model="title"
-                class="mt-1 h-11 w-full rounded-md border border-line px-3 text-lg font-semibold outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
-                :placeholder="t('publish.titlePlaceholder')"
-              />
-            </label>
+          <!-- 标题 + 分类同一行（better-layout：主输入吃满、元数据靠右共享边缘；可整体折叠给编辑区腾空间）。
+               折叠动画：外层 grid-template-rows 0fr↔1fr + 内层 min-h-0/overflow-hidden 高度平滑塌陷 -->
+          <!-- space-y 会给非最后子元素加 20px margin-bottom；原 v-show（display:none）折叠时该 margin 不渲染，
+                grid 高度 0 时 margin 仍占位，故折叠时把 margin-bottom 归零（带过渡），保持与折叠前布局一致 -->
+          <div
+            class="grid"
+            :style="{
+              gridTemplateRows: headerCollapsed ? '0fr' : '1fr',
+              marginBottom: headerCollapsed ? '0px' : '',
+              transition: 'grid-template-rows 0.3s ease, margin-bottom 0.3s ease',
+            }"
+          >
+            <div class="min-h-0 overflow-hidden">
+              <div ref="headerSection" :class="headerCollapsed ? 'invisible' : ''" class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
+                <label class="block min-w-0 flex-1">
+                  <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
+                  <input
+                    ref="titleInput"
+                    v-model="title"
+                    class="mt-1 h-11 w-full rounded-md border border-line px-3 text-lg font-semibold outline-none transition focus:border-primary focus:ring-4 focus:ring-primary/20"
+                    :placeholder="t('publish.titlePlaceholder')"
+                  />
+                </label>
 
-            <div ref="categorySection" class="shrink-0 sm:w-60">
-              <div class="flex items-center justify-between gap-2">
-                <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.category') }}</span>
-                <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
-              </div>
-              <div ref="categoryPickerRoot" class="relative mt-1">
-                <button
-                  type="button"
-                  class="gf-input flex h-11 w-full items-center gap-2 text-left"
-                  :class="categoryMissing ? '!border-error' : ''"
-                  :aria-expanded="categoryPickerOpen"
-                  :aria-label="t('publish.fields.category')"
-                  @click="categoryPickerOpen = !categoryPickerOpen"
-                  @keydown="handleCategoryPickerKeydown"
-                >
-                  <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
-                    <span
-                      v-for="category in selectedCategories"
-                      :key="category.id"
-                      class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
-                      :style="{ backgroundColor: category.color + '22', color: category.color }"
-                    >
-                      <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
-                      <span class="truncate">{{ category.name }}</span>
-                    </span>
-                  </span>
-                  <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
-                  <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
-                  <svg
-                    class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
-                    :class="{ 'rotate-180': categoryPickerOpen }"
-                    viewBox="0 0 24 24"
-                    fill="none"
-                    stroke="currentColor"
-                    stroke-width="2"
-                    stroke-linecap="round"
-                    stroke-linejoin="round"
-                    aria-hidden="true"
-                  >
-                    <path d="m6 9 6 6 6-6" />
-                  </svg>
-                </button>
-
-                <Transition name="gf-menu">
-                  <div
-                    v-if="categoryPickerOpen"
-                    class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[300] max-h-64 overflow-y-auto p-1"
-                  >
-                    <button
-                      v-for="category in props.categories"
-                      :key="category.id"
-                      type="button"
-                      class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-                      :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
-                      :disabled="!categoryIds.includes(category.id) && categoriesFull"
-                      @click="toggleCategory(category.id)"
-                    >
-                      <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                      <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
-                      <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
-                    </button>
-                    <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
+                <div ref="categorySection" class="shrink-0 sm:w-60">
+                  <div class="flex items-center justify-between gap-2">
+                    <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.category') }}</span>
+                    <span class="text-xs text-base-content/55">{{ t('publish.maxCategories') }}</span>
                   </div>
-                </Transition>
+                  <div ref="categoryPickerRoot" class="relative mt-1">
+                    <button
+                      type="button"
+                      class="gf-input flex h-11 w-full items-center gap-2 text-left"
+                      :class="categoryMissing ? '!border-error' : ''"
+                      :aria-expanded="categoryPickerOpen"
+                      :aria-label="t('publish.fields.category')"
+                      @click="categoryPickerOpen = !categoryPickerOpen"
+                      @keydown="handleCategoryPickerKeydown"
+                    >
+                      <span v-if="selectedCategories.length" class="flex min-w-0 flex-1 flex-wrap items-center gap-1.5 overflow-hidden">
+                        <span
+                          v-for="category in selectedCategories"
+                          :key="category.id"
+                          class="inline-flex max-w-full items-center gap-1.5 truncate rounded-md px-2 py-0.5 text-xs font-semibold"
+                          :style="{ backgroundColor: category.color + '22', color: category.color }"
+                        >
+                          <span class="h-1.5 w-1.5 shrink-0 rounded-full" :style="{ backgroundColor: category.color }" />
+                          <span class="truncate">{{ category.name }}</span>
+                        </span>
+                      </span>
+                      <span v-else class="flex-1 text-sm text-base-content/45">{{ t('publish.selectCategory') }}</span>
+                      <span class="text-xs tabular-nums text-base-content/55">{{ categoryIds.length }}/3</span>
+                      <svg
+                        class="h-4 w-4 shrink-0 text-base-content/45 transition-transform duration-150"
+                        :class="{ 'rotate-180': categoryPickerOpen }"
+                        viewBox="0 0 24 24"
+                        fill="none"
+                        stroke="currentColor"
+                        stroke-width="2"
+                        stroke-linecap="round"
+                        stroke-linejoin="round"
+                        aria-hidden="true"
+                      >
+                        <path d="m6 9 6 6 6-6" />
+                      </svg>
+                    </button>
+
+                    <Transition name="gf-menu">
+                      <div
+                        v-if="categoryPickerOpen"
+                        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[300] max-h-64 overflow-y-auto p-1"
+                      >
+                        <button
+                          v-for="category in props.categories"
+                          :key="category.id"
+                          type="button"
+                          class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                          :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
+                          :disabled="!categoryIds.includes(category.id) && categoriesFull"
+                          @click="toggleCategory(category.id)"
+                        >
+                          <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                          <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
+                          <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
+                        </button>
+                        <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
+                      </div>
+                    </Transition>
+                  </div>
+                  <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
+                </div>
               </div>
-              <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
             </div>
           </div>
 
@@ -557,3 +584,11 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
       </Transition>
     </main>
 </template>
+
+<style>
+/* 发布页「收起标题分类」时编辑器高度平滑过渡：临时类，动画后移除。
+   PostComposer 拖拽依赖实时跟随，故不能对 .vditor 全局加 height transition。 */
+.hub-height-anim {
+  transition: height 0.3s ease;
+}
+</style>
