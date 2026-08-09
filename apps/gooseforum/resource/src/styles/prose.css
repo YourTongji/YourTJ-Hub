@@ -23,6 +23,25 @@
     max-width: 100%;
   }
 
+  /* Keep oversized display math scrollable inside the post instead of widening the page. */
+  .gf-prose .katex-display {
+    box-sizing: border-box;
+    display: block;
+    width: 100%;
+    max-width: 100%;
+    min-width: 0;
+    overflow-x: auto;
+    overflow-y: hidden;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .gf-prose .katex-display > .katex {
+    display: inline-block;
+    max-width: none;
+    white-space: nowrap;
+  }
+
   .gf-prose :where(p, li, blockquote, h1, h2, h3, h4, h5, h6, a, strong, em) {
     overflow-wrap: anywhere;
     word-break: break-word;
@@ -70,6 +89,14 @@
 
   .gf-prose-post p {
     @apply my-1.5;
+  }
+
+  @media (max-width: 639px) {
+    .gf-prose .katex-display {
+      padding-bottom: 0.4rem;
+      scrollbar-width: thin;
+      text-align: start;
+    }
   }
 
   .gf-prose-post > :first-child {

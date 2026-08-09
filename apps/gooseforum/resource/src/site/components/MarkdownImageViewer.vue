@@ -2,6 +2,7 @@
 import { computed, nextTick, onBeforeUnmount, ref } from 'vue'
 import { ChevronLeft, ChevronRight, Maximize2, Minimize2, X } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
+import { decideSwipe } from '@/runtime/swipe'
 
 interface MarkdownPreviewImage {
   src: string
@@ -12,11 +13,26 @@ const { t } = useI18n()
 const images = ref<MarkdownPreviewImage[]>([])
 const currentIndex = ref(0)
 const actualSize = ref(false)
+const actualImageWidth = ref<number | null>(null)
 const viewerOpen = computed(() => images.value.length > 0)
 const currentImage = computed(() => images.value[currentIndex.value])
 const hasMultipleImages = computed(() => images.value.length > 1)
 let lastBodyOverflow = ''
 let bodyScrollLocked = false
+
+const ACTUAL_IMAGE_SCALE = 2
+
+/** 最近一次图片切换方向，用于给滑动过渡动画选择 enter/leave 位移 */
+const slideDirection = ref<'next' | 'prev'>('next')
+
+/** 触摸滑动手势状态（仅移动端生效） */
+const SWIPE_LOCK_MS = 200
+let touchStartX = 0
+let touchStartY = 0
+let touchTracking = false
+let lastSwipeAt = 0
+/** 滑动后抑制紧随其后的 click，避免把滑动手势误判为"点击空白关闭" */
+let suppressNextClick = false
 
 function open(nextImages: MarkdownPreviewImage[], index: number) {
   const normalizedImages = nextImages.filter((image) => image.src)
@@ -25,6 +41,7 @@ function open(nextImages: MarkdownPreviewImage[], index: number) {
   images.value = normalizedImages
   currentIndex.value = Math.max(0, Math.min(index, normalizedImages.length - 1))
   actualSize.value = false
+  actualImageWidth.value = null
   lockBodyScroll()
   void nextTick(() => {
     window.addEventListener('keydown', handleKeydown)
@@ -36,24 +53,44 @@ function close() {
   images.value = []
   currentIndex.value = 0
   actualSize.value = false
+  actualImageWidth.value = null
   window.removeEventListener('keydown', handleKeydown)
   unlockBodyScroll()
 }
 
 function showPrevious() {
   if (!hasMultipleImages.value) return
+  slideDirection.value = 'prev'
   currentIndex.value = currentIndex.value <= 0 ? images.value.length - 1 : currentIndex.value - 1
   actualSize.value = false
+  actualImageWidth.value = null
 }
 
 function showNext() {
   if (!hasMultipleImages.value) return
+  slideDirection.value = 'next'
   currentIndex.value = currentIndex.value >= images.value.length - 1 ? 0 : currentIndex.value + 1
   actualSize.value = false
+  actualImageWidth.value = null
 }
 
 function toggleActualSize() {
+  if (!actualSize.value) {
+    updateActualImageWidth()
+  }
   actualSize.value = !actualSize.value
+}
+
+function updateActualImageWidth(imageElement?: HTMLImageElement) {
+  const naturalWidth = imageElement?.naturalWidth
+  if (!naturalWidth) return
+  actualImageWidth.value = naturalWidth * ACTUAL_IMAGE_SCALE
+}
+
+function handleImageLoad(event: Event) {
+  const imageElement = event.currentTarget
+  if (!(imageElement instanceof HTMLImageElement)) return
+  updateActualImageWidth(imageElement)
 }
 
 function handleKeydown(event: KeyboardEvent) {
@@ -76,6 +113,51 @@ function handleKeydown(event: KeyboardEvent) {
     event.preventDefault()
     toggleActualSize()
   }
+}
+
+function handleTouchStart(event: TouchEvent) {
+  const touch = event.touches[0]
+  if (!touch) return
+  touchStartX = touch.clientX
+  touchStartY = touch.clientY
+  touchTracking = true
+  suppressNextClick = false
+}
+
+function handleTouchEnd(event: TouchEvent) {
+  const touch = event.changedTouches[0]
+  if (!touch || !touchTracking) return
+
+  const swipeDecision = decideSwipe(touchStartX, touchStartY, touch.clientX, touch.clientY)
+  touchStartX = 0
+  touchStartY = 0
+  touchTracking = false
+  if (swipeDecision.direction === 'none') return
+
+  // 即使短时间内被节流，也要吞掉浏览器可能合成的 click。
+  suppressNextClick = true
+  const now = Date.now()
+  if (now - lastSwipeAt < SWIPE_LOCK_MS) return
+  lastSwipeAt = now
+
+  if (swipeDecision.direction === 'left') showNext()
+  else showPrevious()
+}
+
+function handleTouchCancel() {
+  touchStartX = 0
+  touchStartY = 0
+  touchTracking = false
+  suppressNextClick = false
+}
+
+/** 点击 stage 留白（图片之外的空白）时关闭；滑动后忽略紧随的 click */
+function handleStageClick() {
+  if (suppressNextClick) {
+    suppressNextClick = false
+    return
+  }
+  close()
 }
 
 function lockBodyScroll() {
@@ -160,16 +242,26 @@ defineExpose({
           <span class="sr-only">{{ t('common.previousPage') }}</span>
         </button>
 
-        <div class="gf-markdown-image-viewer-stage grid h-full w-full place-items-center overflow-hidden p-0">
-          <img
-            :key="currentImage.src"
-            :src="currentImage.src"
-            :alt="currentImage.alt"
-            class="gf-markdown-image-viewer-image rounded-md object-contain"
-            :class="actualSize ? 'max-h-[calc(100dvh-3rem)] max-w-[calc(100vw-1.5rem)] cursor-zoom-out sm:max-w-[calc(100vw-3rem)]' : 'max-h-[calc(100dvh-6rem)] max-w-[calc(100vw-1.5rem)] cursor-zoom-in sm:max-w-[calc(100vw-7rem)]'"
-            decoding="async"
-            @click.stop="toggleActualSize"
-          >
+        <div
+          class="gf-markdown-image-viewer-stage grid h-full w-full place-items-center overflow-hidden p-0"
+          @touchstart.passive="handleTouchStart"
+          @touchend.passive="handleTouchEnd"
+          @touchcancel.passive="handleTouchCancel"
+          @click.self="handleStageClick"
+        >
+          <Transition :name="slideDirection === 'next' ? 'gf-image-slide-next' : 'gf-image-slide-prev'" mode="out-in">
+            <img
+              :key="currentImage.src"
+              :src="currentImage.src"
+              :alt="currentImage.alt"
+              class="gf-markdown-image-viewer-image rounded-md object-contain"
+              :class="actualSize ? 'gf-markdown-image-viewer-image--actual cursor-zoom-out' : 'cursor-zoom-in'"
+              decoding="async"
+              :style="actualSize && actualImageWidth ? { width: `${actualImageWidth}px` } : undefined"
+              @load="handleImageLoad"
+              @click.stop="toggleActualSize"
+            >
+          </Transition>
         </div>
 
         <button
@@ -225,8 +317,67 @@ defineExpose({
 }
 
 .gf-markdown-image-viewer-image {
+  display: block;
+  width: auto;
+  height: auto;
+  max-width: calc(100vw - 1.5rem);
+  max-height: calc(100dvh - 6rem);
   box-shadow:
     0 28px 80px -36px color-mix(in oklch, var(--gf-color-neutral) 82%, transparent),
     0 10px 32px -24px color-mix(in oklch, var(--gf-color-neutral) 68%, transparent);
+}
+
+/* 放大态由脚本按原图宽度设置目标值，CSS 只负责限制视口，避免图片撑满灯箱。 */
+.gf-markdown-image-viewer-image--actual {
+  max-width: calc(100vw - 1.5rem);
+  max-height: calc(100dvh - 3rem);
+}
+
+@media (min-width: 640px) {
+  .gf-markdown-image-viewer-image {
+    max-width: calc(100vw - 7rem);
+  }
+
+  .gf-markdown-image-viewer-image--actual {
+    max-width: min(calc(100vw - 7rem), 64rem);
+  }
+}
+
+.gf-markdown-image-viewer-stage {
+  /* 纵向滑动交给页面，横向滑动由灯箱切图逻辑处理。 */
+  touch-action: pan-y;
+}
+
+/* 图片切换的滑动过渡：方向由 slideDirection 决定，进入滑入、离开滑出 */
+.gf-markdown-image-viewer-image {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 1, 0.36, 1),
+    opacity 0.22s cubic-bezier(0.22, 1, 0.36, 1);
+}
+
+.gf-image-slide-next-enter-from,
+.gf-image-slide-prev-leave-to {
+  transform: translateX(10%);
+  opacity: 0;
+}
+
+.gf-image-slide-prev-enter-from,
+.gf-image-slide-next-leave-to {
+  transform: translateX(-10%);
+  opacity: 0;
+}
+
+.gf-image-slide-next-enter-to,
+.gf-image-slide-prev-enter-to,
+.gf-image-slide-next-leave-from,
+.gf-image-slide-prev-leave-from {
+  transform: translateX(0);
+  opacity: 1;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-markdown-image-viewer-image {
+    transition: none;
+  }
 }
 </style>

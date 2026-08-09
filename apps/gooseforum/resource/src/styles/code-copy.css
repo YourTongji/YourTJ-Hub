@@ -1,0 +1,99 @@
+/* 代码块右上角复制按钮（code-copy-directive.ts 挂载的 .gf-code-copy） */
+
+.gf-prose .gf-code-block {
+  position: relative;
+}
+
+.gf-code-copy {
+  position: absolute;
+  top: 0.375rem;
+  right: 0.375rem;
+  z-index: 1;
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  height: 1.625rem;
+  padding: 0 0.5rem;
+  border-radius: var(--gf-radius-field);
+  font-size: 0.75rem;
+  font-weight: 500;
+  color: var(--gf-color-base-content);
+  background: color-mix(in oklch, var(--gf-color-base-100) 82%, transparent);
+  border: var(--gf-border) solid var(--gf-color-line);
+  box-shadow: 0 2px 8px -4px rgb(15 23 42 / calc(var(--gf-depth) * 0.35));
+  cursor: pointer;
+  transition: opacity 0.15s ease, transform 0.12s ease, background-color 0.15s ease, color 0.15s ease;
+}
+
+.gf-code-copy:hover {
+  background: var(--gf-color-base-100);
+}
+
+.gf-code-copy:focus-visible {
+  outline: none;
+  box-shadow:
+    0 2px 8px -4px rgb(15 23 42 / calc(var(--gf-depth) * 0.35)),
+    0 0 0 2px var(--gf-color-base-100),
+    0 0 0 4px var(--gf-color-primary);
+}
+
+.gf-code-copy:active {
+  transform: scale(0.96);
+}
+
+.gf-code-copy svg {
+  width: 0.875rem;
+  height: 0.875rem;
+  stroke-width: 1.5;
+}
+
+/* 图标槽各自占位，默认 Copy 可见；复制成功后 cross-fade 到 Check */
+.gf-code-copy__icon-default,
+.gf-code-copy__icon-check {
+  display: inline-grid;
+  place-items: center;
+}
+
+.gf-code-copy__icon-check {
+  display: none;
+}
+
+.gf-code-copy--copied .gf-code-copy__icon-default {
+  display: none;
+}
+
+.gf-code-copy--copied .gf-code-copy__icon-check {
+  display: inline-grid;
+  color: var(--gf-color-success);
+}
+
+.gf-code-copy--failed {
+  color: var(--gf-color-error);
+}
+
+/* 桌面（有 hover）：默认隐藏，hover 代码块或聚焦按钮时浮现 */
+@media (hover: hover) {
+  .gf-code-copy {
+    opacity: 0;
+    pointer-events: none;
+  }
+
+  .gf-code-block:hover .gf-code-copy,
+  .gf-code-copy:focus-visible {
+    opacity: 1;
+    pointer-events: auto;
+  }
+}
+
+/* 移动 / 触屏（无 hover）：按钮常显但低调，作为静态线索 */
+@media (hover: none) {
+  .gf-code-copy {
+    opacity: 0.85;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .gf-code-copy {
+    transition: none;
+  }
+}

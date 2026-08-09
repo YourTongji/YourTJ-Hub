@@ -40,7 +40,7 @@ YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息
 
 | 领域 | 状态 | 当前能力 |
 |---|---|---|
-| 论坛 | `Current` | 主题与回复、板块、通知、私信、草稿、Markdown、RBAC 管理与多语言界面 |
+| 论坛 | `Current` | 主题与回复、板块、通知、私信、草稿、Markdown（含公式局部横向滚动、图片灯箱预览、滑动切图与缩放）、RBAC 管理与多语言界面 |
 | 身份与安全 | `Partial` | 密码、GitHub OAuth、Casdoor OIDC、TOTP 2FA、可撤销会话；Casdoor 侧部署能力仍需完善 |
 | 搜索 | `Partial` | Meilisearch 聚合搜索、拼音匹配与事件驱动索引；搜索服务为可选依赖 |
 | 数据与文件 | `Current` | SQLite 默认，支持 MySQL / PostgreSQL 主库；文件可存于 SQLite BLOB 或 S3 兼容对象存储 |
