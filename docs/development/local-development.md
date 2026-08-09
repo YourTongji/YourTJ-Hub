@@ -34,6 +34,7 @@ make web           # = cd apps/gooseforum/resource && pnpm dev
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
+```bash
 # 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
 cd apps/mobile && melos bootstrap   # 首次或依赖变更后
 melos run analyze                    # 全包静态检查
