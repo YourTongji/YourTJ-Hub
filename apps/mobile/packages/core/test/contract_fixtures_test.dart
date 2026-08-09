@@ -1,4 +1,5 @@
 import 'dart:convert';
+import 'dart:io';
 
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -392,6 +393,33 @@ void main() {
     });
   });
 
+  group('登录安全受控契约', () {
+    test('解析登录公钥 fixture', () {
+      final response = GfResponse<LoginPublicKeyPayload>.fromJson(
+        _contractFixture('login-public-key-success.json'),
+        (json) => LoginPublicKeyPayload.fromJson(
+          json as Map<String, dynamic>,
+        ),
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.publicKey, 'PUBLIC_KEY_REDACTED');
+      expect(response.result?.serverTs, 1786204800000);
+      expect(response.result?.algorithm, 'RSA-OAEP-256');
+    });
+
+    test('解析 TOTP 登录验证成功 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('totp-verify-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '登录成功');
+      expect(response.messageCode, 'auth.login.success');
+    });
+  });
+
   group('GfResponse 响应包装', () {
     test('code == 0 成功', () {
       final response = GfResponse<int>.fromJson(
@@ -417,6 +445,25 @@ void main() {
       expect(response.result, isNull);
     });
   });
+}
+
+Map<String, dynamic> _contractFixture(String filename) {
+  var directory = Directory.current.absolute;
+  while (true) {
+    final separator = Platform.pathSeparator;
+    final candidate = File(
+      '${directory.path}${separator}packages${separator}api-contract'
+      '${separator}fixtures$separator$filename',
+    );
+    if (candidate.existsSync()) {
+      return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
+    }
+    final parent = directory.parent;
+    if (parent.path == directory.path) {
+      throw StateError('找不到 OpenAPI fixture: $filename');
+    }
+    directory = parent;
+  }
 }
 
 Map<String, dynamic> _layout() {

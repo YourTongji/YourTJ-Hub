@@ -1,0 +1,82 @@
+loginPublicKey:
+  get:
+    tags: [Authentication]
+    summary: Retrieve the password-login encryption public key
+    operationId: getLoginPublicKey
+    security: []
+    description: |
+      Returns the current RSA public key and server time used by password-login clients to build
+      an RSA-OAEP-256 encrypted password payload. The public key is intentionally public; private
+      key material never leaves the server. This route currently has no authentication middleware
+      and always returns an HTTP 200 success envelope.
+    responses:
+      '200':
+        description: Public key and server clock required to encrypt a password-login request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/LoginPublicKeyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/login-public-key-success.json
+
+verifyTotp:
+  post:
+    tags: [Authentication]
+    summary: Complete a password login with TOTP or a recovery code
+    operationId: verifyTotpLogin
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      The supplied JWT must be a live, unconsumed, short-lived `totp_challenge` token issued by
+      password login; a normal session JWT is rejected. The middleware accepts that challenge via
+      Bearer authentication or the `access_token` cookie. When `code` is non-empty it takes
+      precedence over `recoveryCode`; an empty request is a legacy HTTP 200
+      `totp.code.invalid` business failure. Invalid codes and the internal per-user TOTP attempt
+      limit also remain HTTP 200 failures, and the internal limit does not emit `Retry-After`.
+      Successful verification atomically consumes the challenge before issuing a session, so the
+      same challenge cannot create a second session. The current route does not re-check frozen
+      account state after the challenge has been issued.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TotpVerifyRequest
+    responses:
+      '200':
+        description: Login completed, or a legacy validation, verification, rate-limit, or session failure envelope.
+        headers:
+          Set-Cookie:
+            description: On success, replaces the challenge cookie with an HTTP-only session cookie.
+            schema:
+              type: string
+          New-Token:
+            description: On success, contains the newly issued forum session JWT.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpVerifyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/totp-verify-success.json
+              malformedRequest:
+                externalValue: ../fixtures/totp-verify-invalid-format.json
+              invalidCode:
+                externalValue: ../fixtures/totp-verify-invalid-code.json
+              rateLimited:
+                externalValue: ../fixtures/totp-verify-rate-limited.json
+      '401':
+        description: Missing, invalid, expired, wrong-purpose, stale, or already-consumed challenge token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/totp-verify-unauthenticated.json
+              challengeConsumed:
+                externalValue: ../fixtures/totp-verify-challenge-consumed.json
