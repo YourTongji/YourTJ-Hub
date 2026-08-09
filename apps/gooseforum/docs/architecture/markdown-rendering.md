@@ -137,6 +137,10 @@ validation, compression, upload, paste, and drag-and-drop handling remain in
 the publish page. A separate Markdown preview is not exposed because Vditor
 already provides WYSIWYG authoring. It does not use an external CDN. Vditor
 HTML is editor state only; the submitted value remains Markdown.
+Dark/light chrome uses Vditor `setTheme`; body text color follows via a local
+`content-theme` stylesheet swap plus a CSS binding of `.vditor-reset` to
+`--textarea-text-color` (Vditor's base CSS hardcodes light text color, and an
+empty `preview.theme.path` would otherwise skip content-theme loading).
 
 The current client preview renderer is centralized in
 `resource/src/runtime/markdown.ts`. Pages should call this helper instead of
