@@ -16,8 +16,8 @@ dependency_overrides:
 melos:
   scripts:
     analyze:
-      run: melos exec -- "flutter analyze"
-      description: Run flutter analyze in all packages.
+      run: melos exec --concurrency=1 -- "flutter analyze"
+      description: Run flutter analyze in all packages (serial; concurrent Flutter commands contend for the startup lock).
     test:
       run: melos exec --concurrency=1 -- "flutter test"
       description: Run flutter test in all packages (serial; concurrent flutter test processes contend for the Flutter startup lock).
