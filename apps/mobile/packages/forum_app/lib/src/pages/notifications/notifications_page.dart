@@ -219,7 +219,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
                                 tone: tone,
                                 title: n.title,
                                 subtitle: n.content,
-                                time: timeAgo(n.createdAt),
+                                time: timeAgo(n.createdAt, l10n: l10n),
                                 unread: !n.isRead,
                                 onTap: () => _openNotification(n),
                               );

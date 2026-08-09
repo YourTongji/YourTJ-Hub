@@ -38,6 +38,16 @@ class _PublishPageRepository extends PageRepository {
   }
 }
 
+class _CountingMarkdownConverter extends MarkdownConverter {
+  int documentToMarkdownCalls = 0;
+
+  @override
+  String documentToMarkdown(Document document) {
+    documentToMarkdownCalls++;
+    return super.documentToMarkdown(document);
+  }
+}
+
 class _RecordingTopicRepository extends TopicRepository {
   _RecordingTopicRepository(super.client, {this.resultId = 99});
 
@@ -152,6 +162,7 @@ void main() {
     required bool editing,
     String editQueryKey = 'topicId',
     int resultId = 99,
+    MarkdownConverter? markdownConverter,
   }) async {
     final _MemoryTokenStorage storage = _MemoryTokenStorage();
     final GfApiClient client = GfApiClient(
@@ -172,8 +183,10 @@ void main() {
       routes: <RouteBase>[
         GoRoute(
           path: '/publish',
-          builder: (BuildContext context, GoRouterState state) =>
-              PublishPage(topicId: publishTopicIdFromUri(state.uri)),
+          builder: (BuildContext context, GoRouterState state) => PublishPage(
+            topicId: publishTopicIdFromUri(state.uri),
+            markdownConverter: markdownConverter,
+          ),
         ),
         GoRoute(
           path: '/p/:id',
@@ -262,6 +275,43 @@ void main() {
     await tester.pump(const Duration(milliseconds: 600));
   });
 
+  testWidgets('仅移动编辑器选区不会重新转换实时预览', (tester) async {
+    tester.view.physicalSize = const Size(1000, 900);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(tester.view.reset);
+    final _CountingMarkdownConverter converter = _CountingMarkdownConverter();
+
+    await pumpPublishPage(tester, editing: true, markdownConverter: converter);
+    final QuillController controller = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    final int callsBeforeSelection = converter.documentToMarkdownCalls;
+
+    controller.updateSelection(
+      const TextSelection.collapsed(offset: 1),
+      ChangeSource.local,
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(converter.documentToMarkdownCalls, callsBeforeSelection);
+
+    controller.replaceText(
+      0,
+      0,
+      '补充',
+      const TextSelection.collapsed(offset: 2),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+
+    expect(
+      converter.documentToMarkdownCalls,
+      greaterThan(callsBeforeSelection),
+    );
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
   testWidgets('服务端草稿 editUrl 的 id 参数进入编辑模式', (tester) async {
     final result = await pumpPublishPage(
       tester,
@@ -310,6 +360,36 @@ void main() {
     expect(result.router.state.uri.path, '/publish');
     expect(result.router.state.uri.queryParameters['topicId'], '42');
     expect(find.text('已保存为草稿'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pump(const Duration(milliseconds: 600));
+  });
+
+  testWidgets('无分类保存草稿和发布都要求选择分类', (tester) async {
+    final result = await pumpPublishPage(tester, editing: false, resultId: 55);
+    await tester.enterText(find.byType(TextField).first, '无分类草稿');
+    final QuillController controller = tester
+        .widget<QuillEditor>(find.byType(QuillEditor))
+        .controller;
+    controller.replaceText(
+      0,
+      controller.document.length - 1,
+      '草稿正文',
+      const TextSelection.collapsed(offset: 4),
+    );
+    await tester.pump(const Duration(milliseconds: 250));
+
+    await tester.ensureVisible(find.byKey(const Key('publish-save-draft')));
+    await tester.tap(find.byKey(const Key('publish-save-draft')));
+    await tester.pump();
+
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
+
+    await tester.tap(find.byKey(const Key('publish-appbar-submit')));
+    await tester.pump();
+    expect(find.text('请至少选择一个分类'), findsOneWidget);
+    expect(result.topicRepository.writes, isEmpty);
 
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pump(const Duration(milliseconds: 600));

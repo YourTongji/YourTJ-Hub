@@ -727,7 +727,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     for (final PostPayload post in posts) {
       if (post.postNo == 1) return post;
     }
-    return posts.isEmpty ? null : posts.first;
+    return null;
   }
 }
 
@@ -787,7 +787,7 @@ class _TopicHeader extends StatelessWidget {
                     ),
                     const SizedBox(height: 2),
                     Text(
-                      '@${topic.author.username} · ${timeAgo(topic.createdAt)}',
+                      '@${topic.author.username} · ${timeAgo(topic.createdAt, l10n: l10n)}',
                       style: GfTheme.typographyOf(
                         context,
                       ).caption.copyWith(color: colors.iconMuted),
@@ -1108,7 +1108,7 @@ class _PostCard extends StatelessWidget {
           Row(
             children: <Widget>[
               Text(
-                timeAgo(post.createdAt),
+                timeAgo(post.createdAt, l10n: l10n),
                 style: GfTheme.typographyOf(
                   context,
                 ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
@@ -1216,7 +1216,7 @@ class _NestedPostCard extends StatelessWidget {
                 Row(
                   children: <Widget>[
                     Text(
-                      timeAgo(post.createdAt),
+                      timeAgo(post.createdAt, l10n: l10n),
                       style: GfTheme.typographyOf(
                         context,
                       ).caption.copyWith(color: colors.iconMuted),

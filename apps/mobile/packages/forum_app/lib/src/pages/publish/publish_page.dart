@@ -26,6 +26,7 @@ class PublishPage extends ConsumerStatefulWidget {
     this.editTitle,
     this.editContent,
     this.editCategoryIds,
+    @visibleForTesting this.markdownConverter,
   });
 
   final int? topicId;
@@ -35,6 +36,9 @@ class PublishPage extends ConsumerStatefulWidget {
   final String? editTitle;
   final String? editContent;
   final List<int>? editCategoryIds;
+
+  @visibleForTesting
+  final MarkdownConverter? markdownConverter;
 
   @override
   ConsumerState<PublishPage> createState() => _PublishPageState();
@@ -50,9 +54,10 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   final TextEditingController _title = TextEditingController();
   final List<int> _categoryIds = <int>[];
   final List<PublishCategoryPayload> _categories = <PublishCategoryPayload>[];
-  final MarkdownConverter _converter = MarkdownConverter();
+  late final MarkdownConverter _converter;
 
   late QuillController _quill;
+  late StreamSubscription<DocChange> _documentChanges;
   late int _currentTopicId;
 
   _ComposeMode _mode = _ComposeMode.edit;
@@ -68,6 +73,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   @override
   void initState() {
     super.initState();
+    _converter = widget.markdownConverter ?? MarkdownConverter();
     _currentTopicId = widget.topicId ?? 0;
     _title.text = widget.editTitle ?? '';
     _categoryIds.addAll(widget.editCategoryIds ?? const <int>[]);
@@ -81,14 +87,16 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       document: _converter.mdToDocument(markdown),
       selection: const TextSelection.collapsed(offset: 0),
     );
-    controller.addListener(_handleEditorChanged);
+    _documentChanges = controller.document.changes.listen(
+      (DocChange _) => _handleEditorChanged(),
+    );
     return controller;
   }
 
   void _replaceEditorDocument(String markdown) {
     _previewDebounce?.cancel();
     _previewDebounce = null;
-    _quill.removeListener(_handleEditorChanged);
+    unawaited(_documentChanges.cancel());
     _quill.dispose();
     _quill = _createController(markdown);
     _previewMarkdown = _markdownFromEditor();
@@ -189,7 +197,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
   void dispose() {
     _previewDebounce?.cancel();
     _title.dispose();
-    _quill.removeListener(_handleEditorChanged);
+    unawaited(_documentChanges.cancel());
     _quill.dispose();
     super.dispose();
   }
@@ -230,7 +238,6 @@ class _PublishPageState extends ConsumerState<PublishPage> {
         TextSelection.collapsed(offset: insertAt + 1),
         ChangeSource.local,
       );
-      _handleEditorChanged();
     } catch (error) {
       if (mounted) {
         final AppLocalizations l10n = AppLocalizations.of(context);

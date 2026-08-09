@@ -19,6 +19,7 @@ yourtj 移动端论坛客户端(Flutter)。`apps/mobile` melos 工作区的入�
 | `/search` | SearchPage | 聚合搜索 + scope tabs |
 | `/messages` | MessagesPage | IM 会话与聊天 |
 | `/profile` | ProfilePage | 用户主页/个人资料 |
+| `/u/:userId` | ProfilePage | 用户主页(他人视角) |
 | `/publish` | PublishPage | 全局发布/编辑 |
 | `/p/:postId` | TopicPage | 话题详情 + 回复 |
 | `/c/:slug/:id` | CategoryPage | 分类话题 |

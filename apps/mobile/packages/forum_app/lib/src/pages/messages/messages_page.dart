@@ -336,28 +336,33 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           _scrollController.position.maxScrollExtent -
                   _scrollController.position.pixels <
               80;
-      final resp = await ref
+      final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(convId: _convId, afterId: _latestId);
+      final Set<int> seenIds = _messages
+          .map((ChatMessagePayload message) => message.id)
+          .toSet();
+      final List<ChatMessagePayload> newMessages = resp.list
+          .where((ChatMessagePayload message) => seenIds.add(message.id))
+          .toList();
       if (mounted) {
         setState(() {
-          if (resp.list.isNotEmpty) {
-            final Set<int> existing = _messages.map((m) => m.id).toSet();
-            _messages.addAll(resp.list.where((m) => !existing.contains(m.id)));
+          if (newMessages.isNotEmpty) {
+            _messages.addAll(newMessages);
             _messages.sort((a, b) => a.id.compareTo(b.id));
-            _latestId = resp.latestId;
           }
+          if (resp.list.isNotEmpty) _latestId = resp.latestId;
           _hasMoreBefore = resp.hasMoreBefore;
           _nextBeforeId = resp.nextBeforeId;
           _loading = false;
         });
         if (initial || pinnedToBottom) _scrollToBottom();
       }
-      // 新消息写入离线缓存。
-      final cache = ref.read(offlineChatCacheProvider);
-      await cache.putMessages(_convId, resp.list);
-      // 收到新消息后再次上报已读回执(消息已展示即已读)。
-      if (resp.list.isNotEmpty) {
+      if (newMessages.isNotEmpty) {
+        // 只持久化真正新增的消息，避免轮询重复写缓存和重复上报已读。
+        await ref
+            .read(offlineChatCacheProvider)
+            .putMessages(_convId, newMessages);
         await _markRead();
       }
     } catch (_) {
@@ -410,6 +415,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           addedExtent.clamp(0, _scrollController.position.maxScrollExtent),
         );
       });
+    } catch (_) {
+      // 历史消息加载失败保持当前列表，允许下一次滚动重试。
     } finally {
       if (mounted) setState(() => _loadingOlder = false);
     }
@@ -481,13 +488,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
             ),
           ],
         ),
-        actions: <Widget>[
-          GfIconButton(
-            icon: Icons.more_horiz,
-            tooltip: widget.conv.peerUsername,
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: <Widget>[
@@ -991,7 +991,10 @@ class _MessageRow extends StatelessWidget {
             child: GfMessageBubble(
               text: message.content,
               mine: message.isSelf,
-              time: formatChatTime(message.createdAt),
+              time: formatChatTime(
+                message.createdAt,
+                l10n: AppLocalizations.of(context),
+              ),
               maxWidthFactor: 0.74,
             ),
           ),
