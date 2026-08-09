@@ -56,7 +56,8 @@ function setFeedMode(mode: 'table' | 'card') {
 
 // 列表/卡片切换：绝对定位的「药丸」滑到激活按钮下方。
 // 位置按按钮实际渲染尺寸测量（绝对值定位相对于容器的 padding box）；
-// 字体加载、窗口缩放、i18n 文案宽度变化均由 ResizeObserver 兜底。
+// 字体加载、窗口缩放、i18n 文案宽度变化均由 ResizeObserver 兜底
+// （同时观察按钮本身，容器尺寸不变但按钮宽度变化时也能及时重测）。
 const feedModeGroup = ref<HTMLElement | null>(null)
 const feedModeTableBtn = ref<HTMLElement | null>(null)
 const feedModeCardBtn = ref<HTMLElement | null>(null)
@@ -80,13 +81,13 @@ function updateFeedModePill() {
   feedModePillReady.value = true
 }
 
-// 激活按钮文字在白药丸到达时（delay 300ms 与滑动时长一致）翻白；
+// 激活按钮文字在白药丸到达时（delay 与药丸滑动时长一致，均由 --gf-feed-slide-ms 决定）翻白；
 // 非激活按钮文字立即变灰（随药丸离去淡出）。reduced-motion 下全部瞬时切换。
 function feedModeButtonClass(active: boolean): string[] {
   const base = active ? 'text-primary-content' : 'text-base-content/55 hover:text-base-content'
   if (reducedMotion.value) return [base]
   return active
-    ? [base, 'transition-colors', 'delay-300', 'duration-100']
+    ? [base, 'transition-colors', 'delay-[var(--gf-feed-slide-ms)]', 'duration-100']
     : [base, 'transition-colors', 'duration-200']
 }
 
@@ -265,6 +266,9 @@ onMounted(() => {
   void nextTick(updateFeedModePill)
   feedModeResizeObserver = new ResizeObserver(() => updateFeedModePill())
   if (feedModeGroup.value) feedModeResizeObserver.observe(feedModeGroup.value)
+  // 额外观察两个按钮：某些布局变化（如换行、padding 调整）可能只改变按钮宽度而容器不变
+  if (feedModeTableBtn.value) feedModeResizeObserver.observe(feedModeTableBtn.value)
+  if (feedModeCardBtn.value) feedModeResizeObserver.observe(feedModeCardBtn.value)
 })
 onActivated(() => {
   void nextTick(observeSentinel)
@@ -393,7 +397,7 @@ onBeforeUnmount(() => {
               <span
                 aria-hidden="true"
                 class="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-primary"
-                :class="feedModePillReady && !reducedMotion ? 'transition-[left,width] duration-300 ease-out' : ''"
+                :class="feedModePillReady && !reducedMotion ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out' : ''"
                 :style="{ left: `${feedModePillLeft}px`, width: `${feedModePillWidth}px` }"
               />
               <button
@@ -466,6 +470,12 @@ onBeforeUnmount(() => {
   }
   20% { transform: rotate(-10deg) scale(1.05); }
   25% { transform: rotate(5deg) scale(1.02); }
+}
+
+/* 信息流切换：药丸滑动时长；激活按钮文字翻白的 delay 与之共享（见 feedModeButtonClass），
+   调整滑动速度时只改这一处。 */
+.gf-home-topic-tools {
+  --gf-feed-slide-ms: 300ms;
 }
 
 /* 卡片模式：工具栏自身成为独立的圆角卡片（四角圆角 + 边框 + 阴影），
