@@ -45,7 +45,10 @@ func ListSessions(req component.BetterRequest[component.Null]) component.Respons
 }
 
 type RevokeSessionReq struct {
-	Id uint64 `json:"id" binding:"required"`
+	// binding:"required" only applies during Gin's binding phase; the route binds
+	// non-strictly (UpButterReq), so validate:"required" is what actually rejects
+	// malformed JSON / missing id / id 0 before the handler sees a zero value.
+	Id uint64 `json:"id" binding:"required" validate:"required"`
 }
 
 // RevokeSession 吊销指定会话（当前会话不可吊销，避免自锁）
