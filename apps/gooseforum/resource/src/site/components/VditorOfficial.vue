@@ -428,6 +428,82 @@ function syncEditorTheme() {
 /** 大纲开关：随面板移动的展开/收起按钮；
  *  移动端收起态移入宿主行内容器（toggleHost）后不在 .vditor 内，查找需同时覆盖 host */
 const OUTLINE_TOGGLE_CLASS = 'hub-outline-toggle'
+/** 大纲展开/收起动画：宽度 250↔0 + 透明度过渡（0.3s < 0.5s）。
+ *  宽度过渡让 flex 编辑区平滑重排，正文 padding 由 JS 同步设为目标值，正文平滑不跳转。 */
+const OUTLINE_WIDTH = 250
+const OUTLINE_ANIM_MS = 300
+let outlineVisible = true
+let outlineAnimTimer = 0
+let outlineEndHandler: ((event: TransitionEvent) => void) | null = null
+
+/**
+ * 大纲显隐动画：设目标宽度/透明度与正文 padding，过渡完成后收尾（display 切到终态）。
+ * 宽度从 250→0（收起）会让 flex 中编辑区平滑变宽，正文 padding 同步过渡到居中值，
+ * 避免 outline display:none 瞬间重排导致正文「先猛跳、再回移」。
+ */
+function animateOutline(show: boolean) {
+  const vditor = editor?.vditor
+  const outlineEl = vditor?.outline.element
+  const rootEl = root.value
+  if (!vditor || !outlineEl || !rootEl) {
+    syncOutlineToggleHost()
+    return
+  }
+  const reset = rootEl.querySelector<HTMLElement>('.vditor-wysiwyg pre.vditor-reset')
+  if (!reset) {
+    syncOutlineToggleHost()
+    return
+  }
+  const maxWidth = vditor.options.preview?.maxWidth ?? 800
+  const contentEl = rootEl.querySelector<HTMLElement>('.vditor-content')
+  const fullWidth = contentEl?.clientWidth ?? reset.clientWidth
+  // 与 vditor setPadding 同款公式：outline 占位（250）与否决定编辑区内容居中 padding
+  const targetPad = Math.max(35, (fullWidth - (show ? OUTLINE_WIDTH : 0) - maxWidth) / 2)
+
+  window.clearTimeout(outlineAnimTimer)
+  if (outlineEndHandler) outlineEl.removeEventListener('transitionend', outlineEndHandler)
+
+  if (show) {
+    const wasHidden = outlineEl.style.display === 'none'
+    outlineEl.style.display = 'block'
+    if (wasHidden) {
+      // 完全收起→展开：从 width:0 起播（强制 reflow 保证 transition 从 0 开始）
+      outlineEl.style.width = '0px'
+      outlineEl.style.opacity = '0'
+      vditor.outline.render(vditor)
+      void outlineEl.offsetWidth
+    }
+    reset.style.padding = `10px ${targetPad}px`
+    outlineEl.style.width = `${OUTLINE_WIDTH}px`
+    outlineEl.style.opacity = '1'
+  } else {
+    reset.style.padding = `10px ${targetPad}px`
+    outlineEl.style.width = '0px'
+    outlineEl.style.opacity = '0'
+  }
+
+  const finish = () => {
+    window.clearTimeout(outlineAnimTimer)
+    if (outlineEndHandler) {
+      outlineEl.removeEventListener('transitionend', outlineEndHandler)
+      outlineEndHandler = null
+    }
+    if (show) {
+      outlineEl.style.width = `${OUTLINE_WIDTH}px`
+      outlineEl.style.opacity = '1'
+      outlineEl.style.display = 'block'
+    } else {
+      outlineEl.style.display = 'none'
+    }
+    syncOutlineToggleHost()
+  }
+  outlineEndHandler = (event) => {
+    if (event.propertyName === 'width') finish()
+  }
+  outlineEl.addEventListener('transitionend', outlineEndHandler)
+  outlineAnimTimer = window.setTimeout(finish, OUTLINE_ANIM_MS + 80)
+}
+
 function outlineToggleButton(): HTMLButtonElement | null {
   const existing =
     root.value?.querySelector<HTMLButtonElement>(`.${OUTLINE_TOGGLE_CLASS}`) ||
@@ -444,12 +520,12 @@ function outlineToggleButton(): HTMLButtonElement | null {
   button.innerHTML = '<svg><use xlink:href="#vditor-icon-align-center"></use></svg>'
   button.addEventListener('click', () => {
     if (!editor || !ready || !editor.vditor.outline) return
-    const show = editor.vditor.outline.element.style.display !== 'block'
-    if (editor.vditor.options.outline) {
-      editor.vditor.options.outline.enable = show
+    const currentEditor = editor
+    if (currentEditor.vditor.options.outline) {
+      currentEditor.vditor.options.outline.enable = !outlineVisible
     }
-    editor.vditor.outline.toggle(editor.vditor, show)
-    syncOutlineToggleHost()
+    outlineVisible = !outlineVisible
+    animateOutline(outlineVisible)
   })
   root.value.appendChild(button)
   return button
@@ -780,20 +856,41 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   color: var(--toolbar-icon-hover-color, var(--toolbar-icon-color));
 }
 
-/* 收起态：悬浮在左侧大纲原位置 */
+/* 收起态：悬浮在编辑区左上角内侧，距左边框与上边框（编辑区顶部）各 6px，两距离相等。
+   边框对齐编辑框 1px，小圆角，无阴影。 */
 .vditor-official .hub-outline-toggle--float {
   position: absolute;
-  top: var(--toolbar-height, 35px);
-  left: 0;
+  top: calc(var(--toolbar-height, 35px) + 6px);
+  left: 6px;
   z-index: 5;
   margin-left: 0;
-  border-right: 1px solid var(--border-color);
-  border-radius: 0;
-  background: var(--panel-background-color);
+  border: 1px solid var(--border-color);
+  border-radius: 4px;
+  background: var(--textarea-background-color);
+  box-shadow: none;
 }
 
 .vditor-official .hub-outline-toggle--float:hover {
   background: var(--toolbar-background-color);
+}
+
+/*
+ * 大纲展开/收起动画：宽度 250↔0 + 透明度过渡（0.3s < 0.5s）。
+ * 宽度过渡驱动 flex 布局平滑重排（编辑区随大纲平滑变宽/变窄），
+ * 配合 pre.vditor-reset 的 padding 过渡（JS 同步设目标值），
+ * 正文始终在居中区域内平滑移动，无瞬间跳转。
+ * 收起由 JS 在宽度过渡结束后再 display:none。
+ */
+.vditor-official .vditor-outline {
+  transition: width 0.3s ease, opacity 0.3s ease;
+  /* 宽度过渡期间横向裁剪；纵向保留 vditor 原有滚动能力 */
+  overflow-x: hidden;
+  overflow-y: auto;
+}
+
+/* 编辑区内容随大纲显隐平滑左右移动（padding 由 JS 动画设为最终目标值） */
+.vditor-official .vditor-wysiwyg pre.vditor-reset {
+  transition: padding 0.3s ease;
 }
 
 /* 标题栏改为 flex：让开关按钮靠右对齐 */
@@ -940,6 +1037,13 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   display: flex;
   flex-wrap: nowrap;
   height: var(--toolbar-height);
+}
+
+/* 字数统计垂直居中：vditor 默认 margin(上 8px 下 0)+flex stretch 会把背景块
+   拉到紧贴工具栏底边（上方留 8px、下方几乎贴边），改为 flex 垂直居中上下对称 */
+.vditor-official .vditor-counter {
+  align-self: center;
+  margin: 0 3px 0 0;
 }
 
 /* 按钮间距：margin 实现 5px 均匀空隙；最后一个按钮不追加 margin（右边 padding 已够） */
