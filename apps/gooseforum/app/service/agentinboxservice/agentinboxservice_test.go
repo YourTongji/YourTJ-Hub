@@ -3,6 +3,7 @@ package agentinboxservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 
@@ -16,6 +17,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"github.com/leancodebox/GooseForum/app/service/agentwebhookservice"
+	"gorm.io/gorm"
 )
 
 func setupMentionTestDB(t *testing.T) {
@@ -184,6 +186,47 @@ func TestHandleMentionEventIgnoresUnknownHumansAndSelf(t *testing.T) {
 	db.Connect().Find(&after)
 	if len(after) != 1 {
 		t.Fatalf("self mention must be ignored, got %d rows", len(after))
+	}
+}
+
+func TestHandleMentionEventRequiresExactUsernameCase(t *testing.T) {
+	setupMentionTestDB(t)
+	createMentionAgent(t, "CaseBot")
+	humanID := createHuman(t, "case-author")
+
+	if err := HandleMentionEvent(context.Background(), MentionEventParams{
+		EventType: agentInbox.EventTypePostCreated,
+		TopicId:   102,
+		PostId:    1002,
+		ActorId:   humanID,
+		Content:   "Wrong case @casebot",
+		Preview:   "Wrong case",
+	}); err != nil {
+		t.Fatalf("HandleMentionEvent wrong case: %v", err)
+	}
+	if countTasks(t) != 0 {
+		t.Fatal("case-mismatched mention must not enqueue a task")
+	}
+	var inboxCount int64
+	if err := db.Connect().Model(&agentInbox.Entity{}).Count(&inboxCount).Error; err != nil {
+		t.Fatalf("count inbox: %v", err)
+	}
+	if inboxCount != 0 {
+		t.Fatalf("case-mismatched mention created %d inbox rows", inboxCount)
+	}
+
+	if err := HandleMentionEvent(context.Background(), MentionEventParams{
+		EventType: agentInbox.EventTypePostCreated,
+		TopicId:   102,
+		PostId:    1002,
+		ActorId:   humanID,
+		Content:   "Exact case @CaseBot",
+		Preview:   "Exact case",
+	}); err != nil {
+		t.Fatalf("HandleMentionEvent exact case: %v", err)
+	}
+	if countTasks(t) != 1 {
+		t.Fatal("exact-case mention must enqueue one task")
 	}
 }
 
@@ -446,5 +489,99 @@ func TestHandleMentionEventRejectsUnpublishedContent(t *testing.T) {
 	}
 	if inboxCount != 0 || countTasks(t) != 0 {
 		t.Fatalf("unpublished content created inbox/tasks: inbox=%d tasks=%d", inboxCount, countTasks(t))
+	}
+}
+
+func TestEnqueueMentionTxRollsBackWithContentTransaction(t *testing.T) {
+	setupMentionTestDB(t)
+	rollbackErr := errors.New("force rollback")
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		topic := topics.Entity{Id: 9001, Title: "Rollback @target-bot-r", UserId: 91, Status: 1, ProcessStatus: topics.ProcessStatusNormal}
+		if err := tx.Create(&topic).Error; err != nil {
+			return err
+		}
+		post := posts.Entity{Id: 9101, TopicId: topic.Id, PostNo: 1, UserId: 91, Content: "rollback", ProcessStatus: posts.ProcessStatusNormal}
+		if err := tx.Create(&post).Error; err != nil {
+			return err
+		}
+		if err := EnqueueMentionTx(tx, MentionEventParams{
+			EventType: agentInbox.EventTypeTopicPublished,
+			TopicId:   topic.Id,
+			PostId:    post.Id,
+			ActorId:   topic.UserId,
+			Title:     topic.Title,
+			Content:   post.Content,
+			Preview:   post.Content,
+		}); err != nil {
+			return err
+		}
+		return rollbackErr
+	})
+	if !errors.Is(err, rollbackErr) {
+		t.Fatalf("transaction error = %v, want rollback sentinel", err)
+	}
+	var topicCount, postCount, taskCount int64
+	if err := db.Connect().Model(&topics.Entity{}).Where("id = ?", 9001).Count(&topicCount).Error; err != nil {
+		t.Fatalf("count rolled-back topic: %v", err)
+	}
+	if err := db.Connect().Model(&posts.Entity{}).Where("id = ?", 9101).Count(&postCount).Error; err != nil {
+		t.Fatalf("count rolled-back post: %v", err)
+	}
+	if err := db.Connect().Model(&taskQueue.Entity{}).Where("type = ?", TaskTypeAgentMention).Count(&taskCount).Error; err != nil {
+		t.Fatalf("count rolled-back task: %v", err)
+	}
+	if topicCount != 0 || postCount != 0 || taskCount != 0 {
+		t.Fatalf("rollback left topic=%d post=%d task=%d", topicCount, postCount, taskCount)
+	}
+}
+
+func TestRunTaskConsumesDurableMentionOutbox(t *testing.T) {
+	setupMentionTestDB(t)
+	agentID := createMentionAgent(t, "target-bot-r")
+	humanID := createHuman(t, "author-nine")
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		return EnqueueMentionTx(tx, MentionEventParams{
+			EventType: agentInbox.EventTypeTopicPublished,
+			TopicId:   101,
+			PostId:    1001,
+			ActorId:   humanID,
+			Title:     "Durable @target-bot-r",
+			Content:   "body",
+			Preview:   strings.Repeat("长", 80),
+		})
+	}); err != nil {
+		t.Fatalf("enqueue durable mention: %v", err)
+	}
+	var mentionTask taskQueue.Entity
+	if err := db.Connect().Where("type = ?", TaskTypeAgentMention).First(&mentionTask).Error; err != nil {
+		t.Fatalf("find durable mention task: %v", err)
+	}
+	var payload TaskPayload
+	if err := json.Unmarshal([]byte(mentionTask.TaskJson), &payload); err != nil {
+		t.Fatalf("decode durable task: %v", err)
+	}
+	if len(payload.Names) != 1 || payload.Names[0] != "target-bot-r" || len([]rune(payload.Preview)) != maxPreviewRunes {
+		t.Fatalf("durable payload = %#v", payload)
+	}
+	if strings.Contains(mentionTask.TaskJson, "body") {
+		t.Fatalf("durable task leaked full content: %s", mentionTask.TaskJson)
+	}
+	if err := RunTask(context.Background(), &mentionTask); err != nil {
+		t.Fatalf("RunTask: %v", err)
+	}
+	var inbox agentInbox.Entity
+	if err := db.Connect().Where("agent_id = ? AND topic_id = ? AND post_id = ?", agentID, 101, 1001).First(&inbox).Error; err != nil {
+		t.Fatalf("find ingested inbox: %v", err)
+	}
+	if inbox.ContentPreview != payload.Preview || inbox.DeliveryStatus != agentInbox.DeliveryPending {
+		t.Fatalf("inbox = %#v, payload=%#v", inbox, payload)
+	}
+	var webhookTask taskQueue.Entity
+	if err := db.Connect().Where("type = ?", agentwebhookservice.TaskTypeAgentWebhook).First(&webhookTask).Error; err != nil {
+		t.Fatalf("find webhook task: %v", err)
+	}
+	var webhookPayload agentwebhookservice.TaskPayload
+	if err := json.Unmarshal([]byte(webhookTask.TaskJson), &webhookPayload); err != nil || webhookPayload.InboxId != inbox.Id {
+		t.Fatalf("webhook task = %#v payload=%#v err=%v", webhookTask, webhookPayload, err)
 	}
 }

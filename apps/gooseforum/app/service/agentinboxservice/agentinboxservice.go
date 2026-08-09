@@ -1,11 +1,14 @@
-// Package agentinboxservice turns published-content events into Agent inbox
-// rows and durable webhook tasks. Inbox rows are the single source of truth
-// for delivery state; task_queue rows are disposable scheduling entries.
+// Package agentinboxservice turns published content writes into durable
+// mention-ingestion tasks, Agent inbox rows, and webhook delivery tasks.
+// Inbox rows are the source of truth for delivery state; agent.mention tasks
+// bridge the content commit to inbox ingestion without a process-crash gap.
 package agentinboxservice
 
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"log/slog"
 
 	"github.com/leancodebox/GooseForum/app/bundles/agentmention"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
@@ -19,8 +22,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// maxPreviewRunes bounds the stored content preview (inbox column is 255 chars).
-const maxPreviewRunes = 64
+const (
+	// TaskTypeAgentMention is the durable outbox task for mention ingestion.
+	TaskTypeAgentMention = "agent.mention"
+	// maxPreviewRunes bounds the stored content preview (inbox column is 255 chars).
+	maxPreviewRunes = 64
+)
 
 // MentionEventParams is the normalized event data needed to detect mentions.
 type MentionEventParams struct {
@@ -33,31 +40,92 @@ type MentionEventParams struct {
 	Preview   string // already content-derived preview; truncated to 64 runes here
 }
 
-// HandleMentionEvent scans title+content for @username candidates in text
-// order (max 10 distinct), resolves them to existing bot Agents (unknown
-// users, humans, non-bot rows and the event actor itself are ignored), and
-// transactionally upserts one inbox row per Agent plus one queued
-// agent.webhook task per row. Event replay/edit upserts the same row and
-// resets unread+pending state, then queues fresh delivery.
-func HandleMentionEvent(ctx context.Context, params MentionEventParams) error {
+// TaskPayload is the bounded durable mention outbox payload. It carries only
+// stable IDs, at most ten parsed usernames, and a short preview — never full
+// topic/post content.
+type TaskPayload struct {
+	EventType string   `json:"eventType"`
+	TopicId   uint64   `json:"topicId"`
+	PostId    uint64   `json:"postId"`
+	ActorId   uint64   `json:"actorId"`
+	Names     []string `json:"names"`
+	Preview   string   `json:"preview"`
+}
+
+// EnqueueMentionTx parses a published write and stores its bounded ingestion
+// task in the caller's content transaction. A process crash after commit can
+// therefore delay ingestion, but cannot lose it.
+func EnqueueMentionTx(tx *gorm.DB, params MentionEventParams) error {
 	names := agentmention.Find(params.Title + "\n" + params.Content)
 	if len(names) == 0 {
 		return nil
 	}
-	targets := make([]*agents.Entity, 0, len(names))
-	for _, name := range names {
-		user, err := users.GetByUsername(name)
-		if err != nil || user.Id == 0 || !user.IsBot() || user.Id == params.ActorId {
-			continue
-		}
-		agent := agents.GetByUserID(user.Id)
-		if agent == nil {
-			continue
-		}
-		targets = append(targets, agent)
+	payload, err := json.Marshal(TaskPayload{
+		EventType: params.EventType,
+		TopicId:   params.TopicId,
+		PostId:    params.PostId,
+		ActorId:   params.ActorId,
+		Names:     names,
+		Preview:   truncatePreview(params.Preview),
+	})
+	if err != nil {
+		return err
 	}
-	if len(targets) == 0 {
+	return taskQueue.CreateTx(tx, &taskQueue.Entity{
+		Type:     TaskTypeAgentMention,
+		Status:   taskQueue.StatusPending,
+		TaskJson: string(payload),
+	})
+}
+
+// RunTask consumes one durable mention-ingestion task. Malformed payloads are
+// terminal no-ops; transient database failures are returned for worker retry.
+func RunTask(ctx context.Context, task *taskQueue.Entity) error {
+	payload, err := decodeTaskPayload(task.TaskJson)
+	if err != nil {
+		slog.Error("agentinbox: malformed mention task payload", "id", task.Id, "err", err)
 		return nil
+	}
+	return handleMentionNames(ctx, payload.Names, MentionEventParams{
+		EventType: payload.EventType,
+		TopicId:   payload.TopicId,
+		PostId:    payload.PostId,
+		ActorId:   payload.ActorId,
+		Preview:   payload.Preview,
+	})
+}
+
+func decodeTaskPayload(taskJSON string) (TaskPayload, error) {
+	var payload TaskPayload
+	if err := json.Unmarshal([]byte(taskJSON), &payload); err != nil {
+		return payload, err
+	}
+	if payload.TopicId == 0 || payload.PostId == 0 || payload.ActorId == 0 || len(payload.Names) == 0 || len(payload.Names) > 10 {
+		return payload, errors.New("agentinbox: invalid mention task payload")
+	}
+	switch payload.EventType {
+	case agentInbox.EventTypeTopicPublished, agentInbox.EventTypeTopicUpdated, agentInbox.EventTypePostCreated:
+	default:
+		return payload, errors.New("agentinbox: invalid mention event type")
+	}
+	payload.Preview = truncatePreview(payload.Preview)
+	return payload, nil
+}
+
+// HandleMentionEvent is the synchronous seam for focused service tests.
+// Production write paths must use EnqueueMentionTx so the trigger commits
+// atomically with the published content.
+func HandleMentionEvent(ctx context.Context, params MentionEventParams) error {
+	names := agentmention.Find(params.Title + "\n" + params.Content)
+	return handleMentionNames(ctx, names, params)
+}
+
+func handleMentionNames(ctx context.Context, names []string, params MentionEventParams) error {
+	if len(names) == 0 {
+		return nil
+	}
+	if err := ctx.Err(); err != nil {
+		return err
 	}
 	preview := truncatePreview(params.Preview)
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
@@ -68,7 +136,32 @@ func HandleMentionEvent(ctx context.Context, params MentionEventParams) error {
 		if !published {
 			return nil
 		}
-		for _, agent := range targets {
+
+		seenAgentIds := make(map[uint64]struct{}, len(names))
+		for _, name := range names {
+			var user users.EntityComplete
+			if err := tx.Where("username = ?", name).First(&user).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return err
+			}
+			// MySQL commonly compares varchar columns case-insensitively. Recheck
+			// in Go so mention matching stays exact across all supported databases.
+			if user.Id == 0 || user.Username != name || !user.IsBot() || user.Id == params.ActorId {
+				continue
+			}
+			if _, duplicate := seenAgentIds[user.Id]; duplicate {
+				continue
+			}
+			var agent agents.Entity
+			if err := tx.Where("user_id = ?", user.Id).First(&agent).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					continue
+				}
+				return err
+			}
+			seenAgentIds[user.Id] = struct{}{}
 			inbox := &agentInbox.Entity{
 				AgentId:        agent.UserId,
 				TopicId:        params.TopicId,

@@ -373,6 +373,13 @@ func (r staticResolver) LookupIPAddr(_ context.Context, _ string) ([]net.IPAddr,
 	return r.addrs, r.err
 }
 
+type blockingResolver struct{}
+
+func (blockingResolver) LookupIPAddr(ctx context.Context, _ string) ([]net.IPAddr, error) {
+	<-ctx.Done()
+	return nil, ctx.Err()
+}
+
 func TestResolvePinnedRejectsAnyNonPublic(t *testing.T) {
 	public := net.ParseIP("93.184.216.34")
 	loopback := net.ParseIP("127.0.0.1")
@@ -559,6 +566,21 @@ func TestWebhookSenderTimeout(t *testing.T) {
 	}
 	if elapsed := time.Since(start); elapsed > time.Second {
 		t.Fatalf("timeout took %v, want bounded by client timeout", elapsed)
+	}
+}
+
+func TestWebhookSenderTimeoutIncludesDNSResolution(t *testing.T) {
+	sender := &webhookSender{
+		resolver: blockingResolver{},
+		timeout:  50 * time.Millisecond,
+	}
+	start := time.Now()
+	err := sender.Send(context.Background(), "https://example.com/hook", WebhookPayload{EventId: 1})
+	if err == nil || err.Error() != "webhook request timed out" {
+		t.Fatalf("Send = %v, want DNS timeout", err)
+	}
+	if elapsed := time.Since(start); elapsed > time.Second {
+		t.Fatalf("DNS timeout took %v, want bounded by sender timeout", elapsed)
 	}
 }
 

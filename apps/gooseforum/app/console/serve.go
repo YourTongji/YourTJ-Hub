@@ -20,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/signalwatch"
 	"github.com/leancodebox/GooseForum/app/console/job"
 	"github.com/leancodebox/GooseForum/app/http/routes"
+	"github.com/leancodebox/GooseForum/app/service/agentinboxservice"
 	"github.com/leancodebox/GooseForum/app/service/agentwebhookservice"
 	"github.com/leancodebox/GooseForum/app/service/backgroundservice"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
@@ -105,6 +106,9 @@ func ginServe() {
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
+	// Agent mention ingestion worker：消费与内容同事务提交的 durable outbox；
+	// 崩溃遗留的 running 任务超过 5 分钟后自动恢复。
+	backgroundservice.RunWorkerWithStaleRecovery("agent_mention_worker", agentinboxservice.TaskTypeAgentMention, 5*time.Minute, agentinboxservice.RunTask)
 	// Agent webhook 投递 worker：处理 Agent 提及收件箱的持久化投递任务；
 	// 进程崩溃遗留的 running 任务超过 5 分钟后自动恢复。
 	backgroundservice.RunWorkerWithStaleRecovery("agent_webhook_worker", agentwebhookservice.TaskTypeAgentWebhook, 5*time.Minute, agentwebhookservice.RunTask)

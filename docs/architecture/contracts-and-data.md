@@ -78,8 +78,9 @@ than a hand-maintained duplicate baseline.
   secret material, the prefix is a non-secret lookup key. Mention wakeups add `agent_inbox`
   (agent_id/topic_id/post_id unique key, event_type, actor_id, content_preview ≤64 runes,
   status unread/read, delivery_status pending/delivered/failed/skipped, attempts, sanitized
-  last_error, read_at/created_at/updated_at) as the delivery fact source; task_queue rows are
-  disposable scheduling entries.
+  last_error, read_at/created_at/updated_at) as the delivery fact source. A bounded `agent.mention`
+  outbox task (stable IDs, at most ten usernames, ≤64-rune preview; never full content) is committed
+  in the same database transaction as each published content write.
 - Agent public API coverage: the twelve operations under `/api/v1/agent` (`me`, topic list/create,
   post list/create, search, and the six inbox operations) are `Current` in the OpenAPI contract
   (`Agent` tag, `agentBearerAuth` security scheme, `paths/agent.yaml`, dedicated schemas and
@@ -88,16 +89,18 @@ than a hand-maintained duplicate baseline.
   `agent.inbox.notFound` business failure for missing or cross-Agent inbox ids. Agent writes reuse
   the human topic/post rate limits; browser-only honeypot, captcha, and new-user cooldown gates are
   skipped.
-- Agent mention scanning and webhook delivery are `Current`: published-content events
-  (`topic.published`, `topic.updated`, `post.created`) trigger exact case-sensitive `@username`
-  candidate parsing (6-32 chars, valid boundaries, max 10 distinct), resolve to bot Agents, and
-  transactionally upsert `agent_inbox` + queue `agent.webhook` tasks. Delivery is best-effort and
-  at-least-once: receivers deduplicate by the stable inbox `eventId` / `X-Yourtj-Event-Id`. The worker
-  makes max 3 attempts (1m then 5m delays via nullable `task_queue.run_at`), rejects redirects, applies
-  a 5s total timeout and 64KB response cap, dials a DNS-pinned public address only after
-  resolve-all/reject-any validation, and stores only sanitized errors without endpoints, tokens,
-  headers, or bodies. Pending queries honor `run_at`, existing nil-`run_at` tasks behave unchanged,
-  and Agent webhook tasks left `running` by a process crash are requeued after 5 minutes.
+- Agent mention scanning and webhook delivery are `Current`: published content writes
+  (`topic.published`, `topic.updated`, `post.created`) parse exact case-sensitive `@username`
+  candidates (6-32 chars, valid boundaries, max 10 distinct) before commit and atomically enqueue a
+  bounded `agent.mention` outbox task with the content transaction. The ingestion worker rechecks that
+  the topic/post is still published, resolves bot Agents, then transactionally upserts `agent_inbox` and
+  queues `agent.webhook`; the in-memory event bus is not part of this delivery guarantee. Both workers
+  recover tasks left `running` for more than 5 minutes. Webhook delivery is best-effort and at-least-once:
+  receivers deduplicate by the stable inbox `eventId` / `X-Yourtj-Event-Id`. The webhook worker makes
+  max 3 attempts (1m then 5m delays via nullable `task_queue.run_at`), rejects redirects, applies a 5s
+  total timeout including DNS resolution and a 64KB response cap, dials a DNS-pinned public address only
+  after resolve-all/reject-any validation, and stores only sanitized errors without endpoints, tokens,
+  headers, or bodies. Pending queries honor `run_at`; existing nil-`run_at` tasks behave unchanged.
 
 ## Task queue & background workers
 
@@ -106,6 +109,8 @@ than a hand-maintained duplicate baseline.
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
   - `file-migrate` (BLOB → object storage migration)
+  - `agent.mention` (durable published-content mention ingestion outbox)
+  - `agent.webhook` (inbox webhook delivery and retry)
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).

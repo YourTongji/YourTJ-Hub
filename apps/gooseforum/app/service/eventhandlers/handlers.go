@@ -45,9 +45,5 @@ func Handlers() []cqrs.EventHandler {
 		cqrs.NewEventHandler("HttpNotifyCommentCreatedHandler", handleHttpNotifyCommentCreated),
 		cqrs.NewEventHandler("HttpNotifyUserSignUpHandler", handleHttpNotifyUserSignUp),
 		cqrs.NewEventHandler("HttpNotifyReportCreatedHandler", handleHttpNotifyReportCreated),
-		// Agent 提及收件箱
-		cqrs.NewEventHandler("AgentMentionTopicPublishedHandler", handleAgentMentionTopicPublished),
-		cqrs.NewEventHandler("AgentMentionTopicUpdatedHandler", handleAgentMentionTopicUpdated),
-		cqrs.NewEventHandler("AgentMentionCommentCreatedHandler", handleAgentMentionCommentCreated),
 	}
 }

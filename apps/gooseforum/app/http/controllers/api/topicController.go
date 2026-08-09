@@ -6,9 +6,11 @@ import (
 	"strings"
 	"time"
 
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
+	"github.com/leancodebox/GooseForum/app/models/forum/agentInbox"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
@@ -18,12 +20,14 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/agentinboxservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"gorm.io/gorm"
 )
 
 // checkContentPolicy 检查内容是否命中敏感词。
@@ -58,6 +62,15 @@ func truncateExcerpt(content string) string {
 		return content
 	}
 	return content[:100]
+}
+
+// isPublishedTopicContent keeps durable mention ingestion and the remaining
+// event-bus projections on the same publication predicate.
+func isPublishedTopicContent(topic topics.Entity, firstPost posts.Entity, pendingReview bool) bool {
+	return topic.Status == 1 &&
+		!pendingReview &&
+		topic.ProcessStatus == topics.ProcessStatusNormal &&
+		firstPost.ProcessStatus == posts.ProcessStatusNormal
 }
 
 func GetSiteStatistics() component.Response {
@@ -206,17 +219,33 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
-		if err := topics.Save(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		if err := posts.Save(&firstPost); err != nil {
+		if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+			if err := topics.SaveTx(tx, &topic); err != nil {
+				return err
+			}
+			if err := posts.SaveTx(tx, &firstPost); err != nil {
+				return err
+			}
+			if isPublishedTopicContent(topic, firstPost, pendingReview) {
+				return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+					EventType: agentInbox.EventTypeTopicUpdated,
+					TopicId:   topic.Id,
+					PostId:    firstPost.Id,
+					ActorId:   req.UserId,
+					Title:     topic.Title,
+					Content:   firstPost.Content,
+					Preview:   firstPost.Content,
+				})
+			}
+			return nil
+		}); err != nil {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		hotdataserve.ClearTopicListCache()
 		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
-		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
+		if isPublishedTopicContent(topic, firstPost, pendingReview) {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
@@ -226,33 +255,49 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		topic.PostCount = 1
 		topic.PostSeq = 1
 		topic.Posters = []topics.Poster{{UserID: req.UserId}}
-		if err := topics.Create(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		firstPost = posts.Entity{
-			TopicId:         topic.Id,
-			PostNo:          1,
-			UserId:          req.UserId,
-			Content:         req.Params.Content,
-			RenderedHTML:    "",
-			RenderedVersion: markdown2html.GetPostVersion(),
-			ProcessStatus:   posts.ProcessStatusNormal,
-		}
-		if pendingReview {
-			firstPost.ProcessStatus = posts.ProcessStatusPending
-		}
-		if err := posts.Create(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		topic.FirstPostId = firstPost.Id
-		topic.LastPostId = firstPost.Id
-		now := time.Now()
-		topic.LastPostedAt = &now
-		if err := topics.Save(&topic); err != nil {
+		if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+			if err := topics.CreateTx(tx, &topic); err != nil {
+				return err
+			}
+			firstPost = posts.Entity{
+				TopicId:         topic.Id,
+				PostNo:          1,
+				UserId:          req.UserId,
+				Content:         req.Params.Content,
+				RenderedHTML:    "",
+				RenderedVersion: markdown2html.GetPostVersion(),
+				ProcessStatus:   posts.ProcessStatusNormal,
+			}
+			if pendingReview {
+				firstPost.ProcessStatus = posts.ProcessStatusPending
+			}
+			if err := posts.CreateTx(tx, &firstPost); err != nil {
+				return err
+			}
+			topic.FirstPostId = firstPost.Id
+			topic.LastPostId = firstPost.Id
+			now := time.Now()
+			topic.LastPostedAt = &now
+			if err := topics.SaveTx(tx, &topic); err != nil {
+				return err
+			}
+			if isPublishedTopicContent(topic, firstPost, pendingReview) {
+				return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+					EventType: agentInbox.EventTypeTopicPublished,
+					TopicId:   topic.Id,
+					PostId:    firstPost.Id,
+					ActorId:   req.UserId,
+					Title:     topic.Title,
+					Content:   firstPost.Content,
+					Preview:   firstPost.Content,
+				})
+			}
+			return nil
+		}); err != nil {
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
+		if isPublishedTopicContent(topic, firstPost, pendingReview) {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
@@ -260,7 +305,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageOperationFailed, nil)
 		}
 		hotdataserve.ClearTopicListCache()
-		if topic.Status == 1 && !pendingReview && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
+		if isPublishedTopicContent(topic, firstPost, pendingReview) {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
 		if err := topicunseenservice.MarkVisited(req.UserId, topic.Id, firstPost.Id, time.Now()); err != nil {
@@ -289,12 +334,28 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.SuccessResponse(true)
 	}
 	topic.Status = nextStatus
-	if err := topics.Save(&topic); err != nil {
+	firstPost := posts.Get(topic.FirstPostId)
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := topics.SaveTx(tx, &topic); err != nil {
+			return err
+		}
+		if isPublishedTopicContent(topic, firstPost, false) {
+			return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+				EventType: agentInbox.EventTypeTopicPublished,
+				TopicId:   topic.Id,
+				PostId:    firstPost.Id,
+				ActorId:   topic.UserId,
+				Title:     topic.Title,
+				Content:   firstPost.Content,
+				Preview:   firstPost.Content,
+			})
+		}
+		return nil
+	}); err != nil {
 		return component.FailResponseCode(component.MessageTopicSaveFailed, nil)
 	}
-	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
-	if topic.Status == 1 && topic.ProcessStatus == topics.ProcessStatusNormal && firstPost.ProcessStatus == posts.ProcessStatusNormal {
+	if isPublishedTopicContent(topic, firstPost, false) {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
 	return component.SuccessResponse(true)
@@ -411,7 +472,19 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
 
-	err = postservice.CreateTopicPost(postEntity, topicEntity)
+	err = postservice.CreateTopicPostWithTx(postEntity, topicEntity, func(tx *gorm.DB) error {
+		if !isPublishedTopicContent(topicEntity, *postEntity, pendingReview) {
+			return nil
+		}
+		return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+			EventType: agentInbox.EventTypePostCreated,
+			TopicId:   topicEntity.Id,
+			PostId:    postEntity.Id,
+			ActorId:   req.UserId,
+			Content:   req.Params.Content,
+			Preview:   req.Params.Content,
+		})
+	})
 	if err != nil {
 		return component.FailResponseCode(
 			component.MessageCommentCreateFailed,

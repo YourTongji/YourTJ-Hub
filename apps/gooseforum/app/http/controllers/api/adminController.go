@@ -13,6 +13,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/randopt"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
@@ -20,6 +21,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
 	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
+	"github.com/leancodebox/GooseForum/app/models/forum/agentInbox"
 	"github.com/leancodebox/GooseForum/app/models/forum/badges"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
@@ -37,6 +39,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/agentinboxservice"
 	"github.com/leancodebox/GooseForum/app/service/badgeservice"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
@@ -50,6 +53,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/themeservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 type TrafficOverviewReq struct {
@@ -1690,20 +1694,42 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := topics.UpdateProcessStatus(topic.Id, targetStatus); err != nil {
+		firstPost := posts.Get(topic.FirstPostId)
+		topicEventType := agentInbox.EventTypeTopicPublished
+		wasPublished := userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id)
+		if wasPublished {
+			topicEventType = agentInbox.EventTypeTopicUpdated
+		}
+		if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+			if err := topics.UpdateProcessStatusTx(tx, topic.Id, targetStatus); err != nil {
+				return err
+			}
+			if topic.FirstPostId > 0 {
+				if err := posts.UpdateProcessStatusTx(tx, topic.FirstPostId, targetStatus); err != nil {
+					return err
+				}
+			}
+			if req.Params.Approve && topic.Status == 1 && firstPost.Id > 0 {
+				return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+					EventType: topicEventType,
+					TopicId:   topic.Id,
+					PostId:    firstPost.Id,
+					ActorId:   topic.UserId,
+					Title:     topic.Title,
+					Content:   firstPost.Content,
+					Preview:   firstPost.Content,
+				})
+			}
+			return nil
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
-		}
-		// 首楼同步状态
-		if topic.FirstPostId > 0 {
-			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
 		}
 		hotdataserve.ClearTopicListCache()
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if req.Params.Approve && topic.Status == 1 {
-			firstPost := posts.Get(topic.FirstPostId)
-			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
+			if wasPublished {
 				eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {
 				userStatistics.WriteTopic(topic.UserId)
@@ -1720,13 +1746,29 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if post.ProcessStatus != posts.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
-		if err := posts.UpdateProcessStatus(post.Id, targetStatus); err != nil {
+		publishPost := req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id)
+		if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+			if err := posts.UpdateProcessStatusTx(tx, post.Id, targetStatus); err != nil {
+				return err
+			}
+			if publishPost {
+				return agentinboxservice.EnqueueMentionTx(tx, agentinboxservice.MentionEventParams{
+					EventType: agentInbox.EventTypePostCreated,
+					TopicId:   post.TopicId,
+					PostId:    post.Id,
+					ActorId:   post.UserId,
+					Content:   post.Content,
+					Preview:   post.Content,
+				})
+			}
+			return nil
+		}); err != nil {
 			return component.FailResponseCode(component.MessageAdminReviewFailed,
 				component.MessageParams{"error": err.Error()})
 		}
 		hotdataserve.ClearTopicListCache()
 		// 批准后补发事件：仅对新建待审回复补发（编辑场景创建时已发布过事件）。
-		if req.Params.Approve && !userActivities.HasRecord(userActivities.ActionComment, userActivities.SubjectPost, post.Id) {
+		if publishPost {
 			userStatistics.WriteComment(post.UserId)
 			topicEntity := topics.GetSimple(post.TopicId)
 			replyToAuthorID := uint64(0)

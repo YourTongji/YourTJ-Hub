@@ -269,6 +269,9 @@ func absoluteURL(path string) string {
 // Send validates the endpoint, resolves and pins a public IP, and POSTs the
 // payload without redirects, within totalTimeout, reading at most 64KB.
 func (s *webhookSender) Send(ctx context.Context, endpoint string, payload WebhookPayload) error {
+	deliveryCtx, cancel := context.WithTimeout(ctx, s.timeout)
+	defer cancel()
+
 	target, err := validateEndpoint(endpoint)
 	if err != nil {
 		return err
@@ -277,11 +280,14 @@ func (s *webhookSender) Send(ctx context.Context, endpoint string, payload Webho
 	if err != nil {
 		return errors.New("webhook payload marshal failed")
 	}
-	pinnedIP, err := resolvePinned(ctx, s.resolver, target.Hostname())
+	pinnedIP, err := resolvePinned(deliveryCtx, s.resolver, target.Hostname())
 	if err != nil {
+		if errors.Is(deliveryCtx.Err(), context.DeadlineExceeded) {
+			return errors.New("webhook request timed out")
+		}
 		return err
 	}
-	req, err := http.NewRequestWithContext(ctx, http.MethodPost, target.String(), bytes.NewReader(body))
+	req, err := http.NewRequestWithContext(deliveryCtx, http.MethodPost, target.String(), bytes.NewReader(body))
 	if err != nil {
 		return errors.New("webhook request build failed")
 	}
