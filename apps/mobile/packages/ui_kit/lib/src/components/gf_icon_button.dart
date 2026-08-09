@@ -11,7 +11,7 @@ class GfIconButton extends StatelessWidget {
     required this.icon,
     required this.onPressed,
     this.tooltip,
-    this.size = 36,
+    this.size = 44,
     this.iconSize = 20,
   });
 

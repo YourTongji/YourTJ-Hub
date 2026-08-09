@@ -137,7 +137,7 @@ class GfUserCard extends StatelessWidget {
                         crossAxisCount: 4,
                         shrinkWrap: true,
                         physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: 2.2,
+                        mainAxisExtent: 44,
                         children: <Widget>[
                           for (final (String label, String value) in stats)
                             Column(

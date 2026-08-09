@@ -63,6 +63,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonBack => '返回';
 
   @override
+  String get commonBackToTop => '返回顶部';
+
+  @override
+  String get commonUseLightTheme => '切换浅色模式';
+
+  @override
+  String get commonUseDarkTheme => '切换深色模式';
+
+  @override
   String get timeAgoJustNow => '刚刚';
 
   @override
@@ -223,6 +232,58 @@ class AppLocalizationsZh extends AppLocalizations {
   @override
   String publishImageFailed(String error) {
     return '图片上传失败:$error';
+  }
+
+  @override
+  String get composePreview => '预览';
+
+  @override
+  String get composeEdit => '编辑';
+
+  @override
+  String get publishBodyField => '正文';
+
+  @override
+  String get publishCategoryRequired => '请至少选择一个分类';
+
+  @override
+  String get publishPreviewEmpty => '开始输入后，这里会实时显示排版效果';
+
+  @override
+  String publishLoadFailed(String error) {
+    return '编辑器数据加载失败:$error';
+  }
+
+  @override
+  String get publishToolBold => '粗体';
+
+  @override
+  String get publishToolItalic => '斜体';
+
+  @override
+  String get publishToolStrike => '删除线';
+
+  @override
+  String get publishToolQuote => '引用';
+
+  @override
+  String get publishToolCode => '行内代码';
+
+  @override
+  String get publishToolBulletList => '无序列表';
+
+  @override
+  String get publishToolOrderedList => '有序列表';
+
+  @override
+  String get publishToolImage => '添加图片';
+
+  @override
+  String get publishRemoveImage => '移除图片';
+
+  @override
+  String topicReplyTarget(String name) {
+    return '回复 $name';
   }
 
   @override
