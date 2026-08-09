@@ -10,6 +10,7 @@ import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
 import '../../widgets/status_views.dart';
 
@@ -34,12 +35,34 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   String _viewerAvatar = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
+  late final GfTabScrollRegistry _tabScrollRegistry;
+  bool _pollingConfigured = false;
 
   @override
   void initState() {
     super.initState();
+    _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
+      ..register(GfShellDestination.messages, _scrollToTopController);
     _load();
-    // 前台 15s 轮询(与后端无 WebSocket 的现状一致)。
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPolling(TickerMode.valuesOf(context).enabled);
+  }
+
+  void _syncPolling(bool shouldPoll) {
+    final bool wasConfigured = _pollingConfigured;
+    _pollingConfigured = true;
+    if (shouldPoll == (_pollTimer != null)) return;
+
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (!shouldPoll) return;
+    if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
@@ -50,6 +73,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   void dispose() {
     _pollTimer?.cancel();
     _conversationSearch.dispose();
+    _tabScrollRegistry.unregister(
+      GfShellDestination.messages,
+      _scrollToTopController,
+    );
     super.dispose();
   }
 
@@ -67,11 +94,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           _viewerAvatar = resolveApiAssetUrl(props.layout.viewer.avatarUrl);
         });
       }
-      // 会话列表写入离线缓存(断网可读)。
-      final cache = ref.read(offlineChatCacheProvider);
-      for (final c in items) {
-        await cache.putConversation(c);
-      }
+      // 会话列表在单事务中批量写入离线缓存(断网可读)。
+      await ref.read(offlineChatCacheProvider).putConversations(items);
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
       if (mounted) {
@@ -171,6 +195,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           GfIconButton(
             icon: Icons.add_comment_outlined,
             tooltip: l10n.messagesNew,
+            size: 44,
             onPressed: _startNewChat,
           ),
         ],
@@ -179,34 +204,39 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
         data: (items) {
-          return Column(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.base100,
-                  border: Border(bottom: BorderSide(color: colors.line)),
+          return GfScrollToTop(
+            semanticLabel: l10n.commonBackToTop,
+            controller: _scrollToTopController,
+            builder: (_, ScrollController controller) => Column(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.base100,
+                    border: Border(bottom: BorderSide(color: colors.line)),
+                  ),
+                  child: GfInput(
+                    controller: _conversationSearch,
+                    hintText: l10n.messagesSearchConversations,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    decoration: _compactSearchDecoration,
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
-                child: GfInput(
-                  controller: _conversationSearch,
-                  hintText: l10n.messagesSearchConversations,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  decoration: _compactSearchDecoration,
-                  onChanged: (_) => setState(() {}),
+                Expanded(
+                  child: _ConversationList(
+                    controller: controller,
+                    items: items,
+                    query: _conversationSearch.text,
+                    emptyMessage: l10n.messagesEmpty,
+                    emptyDescription: l10n.messagesEmptyDescription,
+                    actionLabel: l10n.messagesNew,
+                    onStart: _startNewChat,
+                    onOpen: _openConversation,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _ConversationList(
-                  items: items,
-                  query: _conversationSearch.text,
-                  emptyMessage: l10n.messagesEmpty,
-                  emptyDescription: l10n.messagesEmptyDescription,
-                  actionLabel: l10n.messagesNew,
-                  onStart: _startNewChat,
-                  onOpen: _openConversation,
-                ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -236,6 +266,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   late int _convId;
   int _latestId = 0;
   int _nextBeforeId = 0;
+  bool _pollingConfigured = false;
 
   @override
   void initState() {
@@ -245,6 +276,23 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     _scrollController.addListener(_onScroll);
     // 打开会话即上报已读回执(清服务端未读数)。
     _markRead();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPolling(TickerMode.valuesOf(context).enabled);
+  }
+
+  void _syncPolling(bool shouldPoll) {
+    final bool wasConfigured = _pollingConfigured;
+    _pollingConfigured = true;
+    if (shouldPoll == (_pollTimer != null)) return;
+
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (!shouldPoll) return;
+    if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
@@ -506,6 +554,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
 class _ConversationList extends StatelessWidget {
   const _ConversationList({
+    required this.controller,
     required this.items,
     required this.query,
     required this.emptyMessage,
@@ -515,6 +564,7 @@ class _ConversationList extends StatelessWidget {
     required this.onOpen,
   });
 
+  final ScrollController controller;
   final List<ChatItemPayload> items;
   final String query;
   final String emptyMessage;
@@ -541,6 +591,7 @@ class _ConversationList extends StatelessWidget {
     }
     final AppLocalizations l10n = AppLocalizations.of(context);
     return ListView.separated(
+      controller: controller,
       itemCount: filtered.length,
       separatorBuilder: (_, _) => const GfDivider(),
       itemBuilder: (BuildContext context, int index) {

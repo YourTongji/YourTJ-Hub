@@ -38,6 +38,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .category(widget.slug, widget.categoryId);
+      if (!mounted) return;
       final props = parsePageProps<CategoryPageProps>(payload);
       if (props == null) {
         setState(
@@ -54,6 +55,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
         _topics.addAll(props.topics);
       });
     } catch (e, st) {
+      if (!mounted) return;
       setState(() => _page = AsyncValue.error(e, st));
     }
   }
@@ -69,6 +71,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .fetch(nextUrl);
+      if (!mounted) return;
       final CategoryPageProps? next = parsePageProps<CategoryPageProps>(
         payload,
       );
@@ -81,7 +84,7 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
     } catch (_) {
       // 加载更多失败静默(用户可再次点击)。
     } finally {
-      setState(() => _loadingMore = false);
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -128,13 +131,17 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
                 ),
               ),
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () => _load(silent: true),
-                  child: GfTopicList(
-                    loading: _loadingMore,
-                    topics: _topics,
-                    hasMore: props.pagination.hasNext,
-                    onLoadMore: _loadMore,
+                child: GfScrollToTop(
+                  semanticLabel: AppLocalizations.of(context).commonBackToTop,
+                  builder: (_, ScrollController controller) => RefreshIndicator(
+                    onRefresh: () => _load(silent: true),
+                    child: GfTopicList(
+                      controller: controller,
+                      loading: _loadingMore,
+                      topics: _topics,
+                      hasMore: props.pagination.hasNext,
+                      onLoadMore: _loadMore,
+                    ),
                   ),
                 ),
               ),
