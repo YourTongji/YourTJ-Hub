@@ -183,6 +183,16 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
+
+	// Agent public API: opaque bearer-token authentication only. Writes reuse
+	// the human topic/post rate limits keyed by IP and bot userId.
+	agentApi := baseApi.Group("v1/agent", middleware.AgentAuth)
+	agentApi.GET("me", UpButterReq(api.AgentMe))
+	agentApi.GET("topics", UpQueryReq(api.AgentTopicList))
+	agentApi.POST("topics", middleware.RateLimit(middleware.RateLimitTopicWrite), UpJsonReq(api.AgentWriteTopic))
+	agentApi.GET("topics/:topicId/posts", UpUriQueryReq(api.AgentPostList))
+	agentApi.POST("topics/:topicId/posts", middleware.RateLimit(middleware.RateLimitPostCreate), UpUriJsonReq(api.AgentCreatePost))
+	agentApi.GET("search", UpQueryReq(forum.SearchJSON))
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))

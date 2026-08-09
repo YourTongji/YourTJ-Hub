@@ -3,8 +3,11 @@ package api
 import (
 	"errors"
 	"log/slog"
+	"net/http"
 
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
+	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
 )
@@ -176,4 +179,187 @@ func AgentDisable(req component.BetterRequest[AgentIdReq]) component.Response {
 // AgentIdReq is the shared single-agent request payload.
 type AgentIdReq struct {
 	AgentId uint64 `json:"agentId" validate:"required"`
+}
+
+// AgentMeResponse is the authenticated Agent's own view. Only the non-secret
+// token prefix is exposed; the token and its hash never leave the server.
+type AgentMeResponse struct {
+	AgentId     uint64 `json:"agentId"`
+	Username    string `json:"username"`
+	Nickname    string `json:"nickname"`
+	AvatarUrl   string `json:"avatarUrl"`
+	TokenPrefix string `json:"tokenPrefix"`
+	Enabled     int8   `json:"enabled"`
+	CreatedAt   int64  `json:"createdAt"`
+	UpdatedAt   int64  `json:"updatedAt"`
+}
+
+// AgentMe returns the Agent's own profile. The bearer middleware already
+// resolved the credential; a miss here means the row vanished in between,
+// which resolves to the same 401 envelope as any other failed resolution.
+func AgentMe(req component.BetterRequest[component.Null]) component.Response {
+	view, err := agentservice.Get(req.UserId)
+	if err != nil {
+		return component.BuildResponse(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
+	}
+	return component.SuccessResponse(AgentMeResponse{
+		AgentId:     view.Agent.UserId,
+		Username:    view.User.Username,
+		Nickname:    view.User.Nickname,
+		AvatarUrl:   view.User.GetWebAvatarUrl(),
+		TokenPrefix: view.Agent.TokenPrefix,
+		Enabled:     view.Agent.Enabled,
+		CreatedAt:   view.Agent.CreatedAt.UnixMilli(),
+		UpdatedAt:   view.Agent.UpdatedAt.UnixMilli(),
+	})
+}
+
+type AgentTopicListReq struct {
+	Page       int    `form:"page"`
+	PageSize   int    `form:"pageSize"`
+	Sort       string `form:"sort"`
+	CategoryId uint64 `form:"categoryId"`
+}
+
+// AgentTopicItem is the published-topic view for Agents.
+type AgentTopicItem struct {
+	Id            uint64   `json:"id"`
+	Title         string   `json:"title"`
+	Excerpt       string   `json:"excerpt"`
+	CategoryIds   []uint64 `json:"categoryIds"`
+	UserId        uint64   `json:"userId"`
+	Status        int8     `json:"status"`
+	ProcessStatus int8     `json:"processStatus"`
+	ReplyCount    uint64   `json:"replyCount"`
+	ViewCount     uint64   `json:"viewCount"`
+	PostCount     uint64   `json:"postCount"`
+	LastPostedAt  *int64   `json:"lastPostedAt,omitempty"`
+	CreatedAt     int64    `json:"createdAt"`
+	UpdatedAt     int64    `json:"updatedAt"`
+}
+
+type AgentTopicListResponse struct {
+	List     []AgentTopicItem `json:"list"`
+	Page     int              `json:"page"`
+	PageSize int              `json:"pageSize"`
+	HasNext  bool             `json:"hasNext"`
+}
+
+// AgentTopicList lists published (status=1, process_status=0) topics with the
+// same pagination, sort, and category filter as the forum topic page.
+func AgentTopicList(req component.BetterRequest[AgentTopicListReq]) component.Response {
+	pageResult := topics.Page(topics.PageQuery{
+		Page:         req.Params.Page,
+		PageSize:     req.Params.PageSize,
+		FilterStatus: true,
+		CategoryId:   req.Params.CategoryId,
+		Sort:         req.Params.Sort,
+	})
+	list := make([]AgentTopicItem, 0, len(pageResult.Data))
+	for _, entity := range pageResult.Data {
+		list = append(list, toAgentTopicItem(entity))
+	}
+	return component.SuccessResponse(AgentTopicListResponse{
+		List:     list,
+		Page:     pageResult.Page,
+		PageSize: pageResult.PageSize,
+		HasNext:  pageResult.HasNext,
+	})
+}
+
+func toAgentTopicItem(entity topics.Entity) AgentTopicItem {
+	var lastPostedAt *int64
+	if entity.LastPostedAt != nil {
+		value := entity.LastPostedAt.UnixMilli()
+		lastPostedAt = &value
+	}
+	return AgentTopicItem{
+		Id:            entity.Id,
+		Title:         entity.Title,
+		Excerpt:       entity.Excerpt,
+		CategoryIds:   entity.CategoryIds,
+		UserId:        entity.UserId,
+		Status:        entity.Status,
+		ProcessStatus: entity.ProcessStatus,
+		ReplyCount:    entity.ReplyCount,
+		ViewCount:     entity.ViewCount,
+		PostCount:     entity.PostCount,
+		LastPostedAt:  lastPostedAt,
+		CreatedAt:     entity.CreatedAt.UnixMilli(),
+		UpdatedAt:     entity.UpdatedAt.UnixMilli(),
+	}
+}
+
+// AgentWriteTopicReq is the Agent topic payload. Agent DTOs deliberately omit
+// the website/captcha fields of the human endpoint.
+type AgentWriteTopicReq struct {
+	Title      string   `json:"title" validate:"required"`
+	Content    string   `json:"content" validate:"required"`
+	CategoryId []uint64 `json:"categoryId" validate:"min=1,max=3"`
+}
+
+// AgentWriteTopic creates a published topic (topicStatus=1) owned by the
+// authenticated Agent. The shared write core skips browser-only gates
+// (honeypot, captcha, new-user cooldown) while keeping every other rule.
+func AgentWriteTopic(req component.BetterRequest[AgentWriteTopicReq]) component.Response {
+	return writeTopic(component.BetterRequest[WriteTopicReq]{
+		Params: WriteTopicReq{
+			Title:       req.Params.Title,
+			Content:     req.Params.Content,
+			CategoryId:  req.Params.CategoryId,
+			TopicStatus: 1,
+		},
+		UserId:     req.UserId,
+		GinContext: req.GinContext,
+	}, true)
+}
+
+// AgentPostListReq binds the path topicId plus the same window query
+// parameters as the forum PostWindow endpoint.
+type AgentPostListReq struct {
+	TopicId      uint64 `uri:"topicId" json:"-"`
+	AnchorPostId uint64 `form:"anchorPostId"`
+	AnchorPostNo uint64 `form:"anchorPostNo"`
+	BeforePostNo uint64 `form:"beforePostNo"`
+	AfterPostNo  uint64 `form:"afterPostNo"`
+	Limit        int    `form:"limit"`
+}
+
+// AgentPostList reuses the forum PostWindow behavior for Agent readers.
+func AgentPostList(req component.BetterRequest[AgentPostListReq]) component.Response {
+	return forum.PostWindow(component.BetterRequest[forum.PostWindowReq]{
+		Params: forum.PostWindowReq{
+			TopicID:      req.Params.TopicId,
+			AnchorPostID: req.Params.AnchorPostId,
+			AnchorPostNo: req.Params.AnchorPostNo,
+			BeforePostNo: req.Params.BeforePostNo,
+			AfterPostNo:  req.Params.AfterPostNo,
+			Limit:        req.Params.Limit,
+		},
+		UserId:     req.UserId,
+		GinContext: req.GinContext,
+	})
+}
+
+// AgentCreatePostReq binds the path topicId and the reply payload. The topic
+// id in the path is authoritative.
+type AgentCreatePostReq struct {
+	TopicId       uint64 `uri:"topicId" json:"-"`
+	Content       string `json:"content"`
+	ReplyToPostId uint64 `json:"replyToPostId"`
+}
+
+// AgentCreatePost appends a post to the topic from the path. The shared write
+// core skips browser-only gates while keeping every other rule and side
+// effect.
+func AgentCreatePost(req component.BetterRequest[AgentCreatePostReq]) component.Response {
+	return createPost(component.BetterRequest[CreatePostReq]{
+		Params: CreatePostReq{
+			TopicId:       req.Params.TopicId,
+			Content:       req.Params.Content,
+			ReplyToPostId: req.Params.ReplyToPostId,
+		},
+		UserId:     req.UserId,
+		GinContext: req.GinContext,
+	}, true)
 }
