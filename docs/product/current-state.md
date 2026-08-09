@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-08
+> Last verified: 2026-08-09
 
 ## What works
 
@@ -29,10 +29,10 @@
 | Database | `Current` | SQLite default, MySQL optional, PostgreSQL main-db support landed (issue #11); file db stays SQLite; data migration from SQLite→PG is manual |
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
 | Auth | `Partial` | GitHub OAuth + Casdoor OIDC (PKCE/nonce/numeric-sub enforced) integrated; TOTP 2FA for password login; session listing/revoke; Casdoor-side MFA/Passkey pending deployment config |
-| Contract | `Partial` | `packages/api-contract` is the controlled OpenAPI 3.1 center (login, logout, mobile OIDC exchange, session list/revoke/revoke-all, topic write) with Redocly lint/bundle, CI no-diff TS generation, and fixture route-level contract tests; mobile Dart mirrors stay hand-maintained under fixture deserialization checks; broader route coverage and Dart generation pending |
+| Contract | `Partial` | OpenAPI 3.1 currently covers password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all) and topic writing; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; mobile Dart mirrors stay hand-maintained under fixture deserialization checks; Dart generation and broader route coverage remain `Planned` |
 | Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: YourTJ token theme bridged into pinned TDesign v1 alpha components, iOS-safe branded navigation, Web-aligned persistent list/card topic feeds, dot-grid auth cards, unified Gf form/dialog/status surfaces, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
-| Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |
+| Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); default wordmark assets `resource/static/pic/brand-default.{png,webp}` + mobile `assets/images/brand-default.png` regenerated from `hublogo.png` (transparent RGBA, 2026-08-09); admin `brandType=image` still overrides with uploaded `/file/img/…`; CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |
 | Structural governance | `Partial` | Upstream giant controllers (payload.go 72KB etc.) not split; architecture decisions in note |
 | Storage (files) | `Current` | Pluggable storage: local SQLite BLOB default + S3-compatible object storage (MinIO/COS/OSS/R2), admin panel config + connection test, cursor-driven BLOB→object migration task + `migrate-files` CLI (2026-08-06) |
 | Moderation policy | `Current` | Reserved/banned usernames, sensitive-word block or review (ProcessStatus=2 pending queue with admin approve/reject), banned username auto-freezes existing accounts, moderation audit logs (2026-08-06) |
@@ -44,6 +44,7 @@
 
 Before expanding features, close these baselines (avoid building on a wrong foundation):
 
-1. Auth chain closed (Casdoor → exchange → JWT), numeric-ID constraint enforced server-side.
-2. Contract pipeline (swag or manual openapi → TS/Dart generation) before broad API rework, to prevent
-   contract drift.
+1. Complete the remaining Casdoor-side MFA/Passkey deployment configuration without weakening the
+   numeric-ID and revocable-session invariants already enforced by the forum.
+2. Expand OpenAPI and generated-client coverage before broad API rework, so uncovered routes do not
+   become a new source of contract drift.

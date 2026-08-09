@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-07
+> Last verified: 2026-08-09
 
 ## Dependencies
 
@@ -25,7 +25,7 @@
 make dev
 
 # 2. Forum backend (default port 5234)
-#    First-time setup: place a config.toml in apps/gooseforum (gitignored), based on upstream config
+#    First start creates apps/gooseforum/config.toml from the embedded template (gitignored)
 make server        # = cd apps/gooseforum && go run . serve
 
 # 3. Frontend dev server (:3010, vite; run pnpm install first)
@@ -34,6 +34,7 @@ make web           # = cd apps/gooseforum/resource && pnpm dev
 # 4. Production build: resource → static/dist → go build single binary
 make build
 ```
+```bash
 # 5. Mobile app (Flutter, apps/mobile melos workspace; requires Flutter SDK + melos)
 cd apps/mobile && melos bootstrap   # 首次或依赖变更后
 melos run analyze                    # 全包静态检查

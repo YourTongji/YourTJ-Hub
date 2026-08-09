@@ -10,6 +10,8 @@ import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import katexJsUrl from 'katex/dist/katex.min.js?url'
 import katexChemUrl from 'katex/dist/contrib/mhchem.min.js?url'
 import katexCssUrl from 'katex/dist/katex.min.css?url'
+import contentThemeLightCssUrl from 'vditor/dist/css/content-theme/light.css?url'
+import contentThemeDarkCssUrl from 'vditor/dist/css/content-theme/dark.css?url'
 import hljsLightCssUrl from 'highlight.js/styles/github.css?url'
 import hljsDarkCssUrl from 'highlight.js/styles/github-dark.css?url'
 import hljs from 'highlight.js'
@@ -32,6 +34,8 @@ import { useI18n } from 'vue-i18n'
  *   #vditorHljsThirdScript 让官方流程直接进入高亮逻辑
  * - katex.min.js / mhchem.min.js 用 loadRuntimeScript 预载（带官方 id）
  * - KaTeX 样式由 link#vditorKatexStyle 提供；高亮样式由自定义 link 按主题切换
+ * - content-theme light/dark 由 syncContentTheme 本地切换（path 为空时官方不会加载；
+ *   另用 CSS 把 .vditor-reset 绑到 --textarea-text-color，避免深色正文仍用 #24292e）
  *
  * 站点集成：v-model 双向、上传经 upload 事件交宿主处理、卸载销毁。
  * 不做任何样式覆盖或功能裁剪——保持官版外观与行为。
@@ -69,6 +73,8 @@ const root = ref<HTMLElement | null>(null)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
+/** 监听全屏按钮 childList：官方用 innerHTML 换图标会冲掉按钮内小字 */
+let fullscreenLabelObserver: MutationObserver | null = null
 
 /**
  * 官方默认工具栏（vditor src/ts/util/Options.ts），调整：
@@ -256,6 +262,26 @@ function mathToolbarItems(): IMenuItem[] {
   return [mathInline, mathBlock]
 }
 
+/**
+ * 正文 content-theme：官方 index.css 把 .vditor-reset 写死为 #24292e，
+ * 深色正文色只在 content-theme/dark.css 里覆盖。
+ * 本组件 cdn/path 为空（离线），setContentTheme 不会加载样式，
+ * 这里按站点深浅色自行切换 light/dark 主题表（与 hljs 同套路）。
+ */
+const CONTENT_THEME_LINK_ID = 'hubVditorContentTheme'
+function syncContentTheme() {
+  const themeName = isDark.value ? 'dark' : 'light'
+  const existing = document.getElementById(CONTENT_THEME_LINK_ID) as HTMLLinkElement | null
+  if (existing && existing.dataset.theme === themeName) return
+  existing?.remove()
+  const link = document.createElement('link')
+  link.id = CONTENT_THEME_LINK_ID
+  link.rel = 'stylesheet'
+  link.dataset.theme = themeName
+  link.href = isDark.value ? contentThemeDarkCssUrl : contentThemeLightCssUrl
+  document.head.appendChild(link)
+}
+
 /** 高亮主题样式：与站点深浅色联动，替换 link 实现（不依赖 vditor 内置主题切换） */
 const HIGHLIGHT_THEME_LINK_ID = 'hubVditorHljsTheme'
 function syncHighlightTheme() {
@@ -315,33 +341,65 @@ function toolbarLabel(type: string): string {
   return window.VditorI18n?.[type] || ''
 }
 
+/**
+ * 在工具栏按钮内部补/保「图标下小字」（不挪到按钮外）。
+ * 全屏等会 innerHTML 整按钮，需可重复调用。
+ */
+function ensureToolbarButtonLabel(item: HTMLElement) {
+  const type = item.getAttribute('data-type') || ''
+  const labelText =
+    toolbarLabel(type) ||
+    (item.getAttribute('aria-label') || '').replace(HOTKEY_PATTERN, '').trim()
+  if (!labelText) return
+
+  const existing = item.querySelector<HTMLElement>(':scope > .vditor-toolbar-label')
+  if (existing) {
+    if (existing.textContent !== labelText) existing.textContent = labelText
+    return
+  }
+
+  const span = document.createElement('span')
+  span.className = 'vditor-toolbar-label'
+  span.textContent = labelText
+  item.appendChild(span)
+}
+
+/**
+ * 官方 Fullscreen 进入/退出时执行：
+ *   this.innerHTML = '<svg>…' / menuItem.icon
+ * 会清掉我们塞在 button 内的小字。监听 childList，仍在按钮内补回（不外置）。
+ */
+function guardFullscreenToolbarLabel() {
+  const button = root.value?.querySelector<HTMLElement>(
+    '.vditor-toolbar__item > [data-type="fullscreen"]',
+  )
+  if (!button) return
+
+  fullscreenLabelObserver?.disconnect()
+  fullscreenLabelObserver = new MutationObserver(() => {
+    if (destroyed || !button.isConnected) {
+      fullscreenLabelObserver?.disconnect()
+      fullscreenLabelObserver = null
+      return
+    }
+    ensureToolbarButtonLabel(button)
+  })
+  fullscreenLabelObserver.observe(button, { childList: true })
+}
+
 function attachToolbarLabels() {
   // 移动端保持官方 sweet-mobile 纯图标工具栏（44px 触控高度），不注入文字标签
   if (!root.value || window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
   root.value.querySelectorAll<HTMLElement>('.vditor-toolbar__item .vditor-tooltipped').forEach((item) => {
-    if (item.querySelector('.vditor-toolbar-label')) return
-    const type = item.getAttribute('data-type') || ''
-    const label =
-      toolbarLabel(type) ||
-      (item.getAttribute('aria-label') || '').replace(HOTKEY_PATTERN, '').trim()
-    if (!label) return
-    const span = document.createElement('span')
-    span.className = 'vditor-toolbar-label'
-    span.textContent = label
-    item.appendChild(span)
+    ensureToolbarButtonLabel(item)
   })
   // more 子菜单：vditor 的 Custom 类会把自定义项（公式等）强制渲染成纯图标、
   // 覆盖 level-2 的文字 tip；这里给含 svg 的项补上文字标签，保持菜单项可读
   root.value.querySelectorAll<HTMLElement>('.vditor-hint button[data-type]').forEach((item) => {
     if (!item.querySelector('svg') || item.querySelector('.vditor-toolbar-label')) return
-    const type = item.getAttribute('data-type') || ''
-    const label = toolbarLabel(type)
-    if (!label) return
-    const span = document.createElement('span')
-    span.className = 'vditor-toolbar-label'
-    span.textContent = label
-    item.appendChild(span)
+    ensureToolbarButtonLabel(item)
   })
+  guardFullscreenToolbarLabel()
   attachTooltipSmartPosition()
 }
 
@@ -422,6 +480,7 @@ function syncEditorTheme() {
   if (editor.vditor.options.preview?.theme) {
     editor.vditor.options.preview.theme.current = isDark.value ? 'dark' : 'light'
   }
+  syncContentTheme()
   syncHighlightTheme()
 }
 
@@ -695,6 +754,7 @@ onMounted(async () => {
           return
         }
         ready = true
+        syncContentTheme()
         syncHighlightTheme()
         attachToolbarLabels()
         // 大纲初始展开：enable 只是配置，需 toggle 后面板才显示（官方 Outline 按钮同逻辑）
@@ -730,6 +790,8 @@ watch(isDark, syncEditorTheme)
 
 onBeforeUnmount(() => {
   destroyed = true
+  fullscreenLabelObserver?.disconnect()
+  fullscreenLabelObserver = null
   const currentEditor = editor
   editor = null
   // 与官方 beforeDestroy 一致：ready 后直接 destroy；未 ready 时由 after() 兜底。
@@ -795,6 +857,16 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
 
 .vditor-official .vditor-reset ol ol ol {
   list-style-type: lower-roman;
+}
+
+/*
+ * 正文文字色：官方 index.css 写死 .vditor-reset { color: #24292e }，
+ * 不读 --textarea-text-color；.vditor--dark 只换 chrome token。
+ * content-theme 异步加载前用 chrome token 立即跟主题，避免深色下仍是深色字。
+ * 选择器加 .vditor-official 提高特异性，压过官方 content-theme 的硬编码色。
+ */
+.vditor-official .vditor-reset {
+  color: var(--textarea-text-color);
 }
 
 /*
