@@ -15,8 +15,9 @@
   OIDC Provider (PKCE), TOTP 2FA + recovery codes, session management (jti + user_sessions, per-session revoke),
   scheduled SQLite backup, slow-SQL logging, aggregate search (topics/users/categories with scope
   tabs, pinyin/initials), sensitive-word moderation with review queue, terms-of-service page, data
-  import/export, pluggable file storage (SQLite BLOB / S3-compatible), configurable AI-readable
-  public-content exports (`/llms.txt`, `/llms-full.txt`, `/p/posts/{id}.md`).
+  import/export, pluggable file storage (SQLite BLOB / S3-compatible), admin-managed bot personas
+  (Agents) with unique bearer tokens and webhook endpoints, and configurable AI-readable public-content
+  exports (`/llms.txt`, `/llms-full.txt`, `/p/posts/{id}.md`).
 - **Built-in OIDC Provider**: the forum issues standard OIDC tokens (authorization code + PKCE S256,
   RS256 id_token, opaque access tokens) for first-party clients; `sub` is always the numeric users.id.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).
@@ -28,8 +29,9 @@
 | Forum itself | `Current` | Upstream features complete and runnable; `make build` single binary verified locally (2026-08-06: go vet/test, pnpm typecheck/build, smoke all green) |
 | Database | `Current` | SQLite default, MySQL optional, PostgreSQL main-db support landed (issue #11); file db stays SQLite; data migration from SQLite→PG is manual |
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
-| Auth | `Partial` | Password + TOTP 2FA + GitHub OAuth + built-in OIDC Provider (authorization code/PKCE S256, RS256 id_token, opaque access tokens, numeric sub) implemented; mobile exchange keeps the forum-JWT contract |
-| Contract | `Partial` | OpenAPI 3.1 currently covers password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all) and topic writing; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; mobile Dart mirrors stay hand-maintained under fixture deserialization checks; Dart generation and broader route coverage remain `Planned` |
+| Auth | `Partial` | Password + TOTP 2FA + GitHub OAuth + built-in OIDC Provider (authorization code/PKCE S256, RS256 id_token, opaque access tokens, numeric sub) implemented; mobile exchange keeps the forum-JWT contract; bot personas are rejected by all human-session and OIDC paths |
+| Agents (bot personas) | `Partial` | Admin-managed lifecycle and six-operation Agent forum API are `Current`: users row with explicit actor type (human/bot), one token per agent stored only as hash + non-secret prefix (`agt_`), enable/rotate, and disable that revokes the credential (re-enabling requires rotation), dedicated bearer authentication, published topic listing, topic/post writes, post windows and aggregate search; bot rows are rejected by all human-auth paths; mention parsing and webhook wakeups remain `Planned` |
+| Contract | `Partial` | OpenAPI 3.1 currently covers password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing and the six-operation Agent forum API; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; mobile Dart mirrors stay hand-maintained under fixture deserialization checks; automated Dart generation and broader route coverage remain `Planned` |
 | Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: YourTJ token theme bridged into pinned TDesign v1 alpha components, iOS-safe branded navigation, Web-aligned persistent list/card topic feeds, dot-grid auth cards, unified Gf form/dialog/status surfaces, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
 | Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); default wordmark assets `resource/static/pic/brand-default.{png,webp}` + mobile `assets/images/brand-default.png` regenerated from `hublogo.png` (transparent RGBA, 2026-08-09); admin `brandType=image` still overrides with uploaded `/file/img/…`; CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |

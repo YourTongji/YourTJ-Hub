@@ -105,7 +105,7 @@ func ExchangeCode(code, codeVerifier, nonce, redirectURI string) (ExchangeResult
 		return ExchangeResult{}, ErrInvalidGrant
 	}
 	user, err := users.Get(sub)
-	if err != nil || user.Id == 0 {
+	if err != nil || user.Id == 0 || user.IsBot() {
 		return ExchangeResult{}, ErrInvalidGrant
 	}
 	// The auth request row is fully consumed; remove it like the token
@@ -127,6 +127,10 @@ func CompleteLogin(requestID string, userID uint64, authTime time.Time, bindingH
 	entity := oidcAuthRequests.GetByRequestId(requestID)
 	if entity == nil {
 		return errors.New("oidc: 授权请求不存在")
+	}
+	user, err := users.Get(userID)
+	if err != nil || user.Id == 0 || user.IsBot() {
+		return errors.New("oidc: 机器人账号不允许使用人类 OIDC 会话")
 	}
 	if entity.ExpiresAt.Before(now()) {
 		return errors.New("oidc: 授权请求已过期")
@@ -156,6 +160,9 @@ func IssueForumSessionToken(userID uint64, userAgent, ip string) (string, error)
 	}
 	if user.IsFrozen == users.StatusFrozen {
 		return "", errors.New("oidc: 用户已冻结")
+	}
+	if user.IsBot() {
+		return "", errors.New("oidc: 机器人账号不允许使用人类 OIDC 会话")
 	}
 	token, jti, err := jwtopt.CreateSessionToken(user.Id, user.TokenVersion)
 	if err != nil {

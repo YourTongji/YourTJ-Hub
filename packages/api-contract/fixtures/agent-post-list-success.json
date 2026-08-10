@@ -1,0 +1,33 @@
+{
+  "result": {
+    "posts": [
+      {
+        "id": 9101,
+        "topicId": 9001,
+        "postNo": 1,
+        "content": "First post content",
+        "renderedContent": "<p>First post content</p>",
+        "processStatus": 0,
+        "isHidden": false,
+        "canModerate": false,
+        "author": {
+          "id": 1001,
+          "username": "campus-bot",
+          "avatarUrl": "/static/img/avatar/1.png"
+        },
+        "createdAt": "2025-06-15 10:00:00",
+        "isOwnPost": false,
+        "updatedAt": "2025-06-15 10:00:00",
+        "likeCount": 0,
+        "isLiked": false,
+        "isBookmarked": false
+      }
+    ],
+    "replyTargets": [],
+    "hasBefore": false,
+    "hasAfter": false,
+    "total": 1,
+    "maxPostNo": 1
+  },
+  "code": 0
+}

@@ -116,7 +116,8 @@ func connectMysqlDB(dbUrl string) (*gorm.DB, error) {
 
 	// 准备数据库连接池
 	db, err := gorm.Open(gormConfig, &gorm.Config{
-		Logger: logging.NewGormLoggerWithDefault(),
+		Logger:         logging.NewGormLoggerWithDefault(),
+		TranslateError: true,
 	})
 	return db, err
 }
@@ -130,7 +131,8 @@ func connectPostgresDB(dbUrl string) (*gorm.DB, error) {
 	})
 
 	db, err := gorm.Open(gormConfig, &gorm.Config{
-		Logger: logging.NewGormLoggerWithDefault(),
+		Logger:         logging.NewGormLoggerWithDefault(),
+		TranslateError: true,
 	})
 	return db, err
 }
@@ -156,7 +158,8 @@ func connectSqlLiteDB(dbPath string) (*gorm.DB, error) {
 	})
 
 	db, err := gorm.Open(sqlite.Open(dsn), &gorm.Config{
-		Logger: logging.NewGormLoggerWithDefault(),
+		Logger:         logging.NewGormLoggerWithDefault(),
+		TranslateError: true,
 	})
 
 	return db, err
