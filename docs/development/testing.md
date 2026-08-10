@@ -56,12 +56,14 @@ PR branch is validated once by its `pull_request` run rather than again by a dup
 `push` run. CI runs for the same PR or branch supersede older in-progress runs.
 
 The required backend, frontend, and contract workflows start for every PR so their
-required status checks cannot remain pending. Each first detects the changed paths and
-skips its heavy job when its owned inputs are unchanged. `ci-mobile` is not a required
-check and uses path filters directly, so an unrelated PR does not start a Flutter runner.
+required status checks cannot remain pending. Each required job performs its own path
+detection, so a detection failure fails that required check; its heavy Go or pnpm steps
+run only when its owned inputs changed. `ci-mobile` is not a required check and uses
+path filters directly, so an unrelated PR does not start a Flutter runner.
 
 - ci-backend.yml: changed backend or contract-fixture paths run go vet + go test + go build
-  (apps/gooseforum/app/**, main.go, go.mod, go.sum, packages/api-contract/**); the
+  (apps/gooseforum/app/**, main.go, go.mod, go.sum, embedded resource Go/GoHTML files,
+  markdown compatibility fixtures, packages/api-contract/**); the
   PostgreSQL integration tests in `app/bundles/connect/sqlconnect` are gated by `TEST_PG_DSN` and
   skip when unset (CI stays green without a PG service)
 - ci-backend.yml also runs `ci-backend-pg` only for model, migration, SQL-connection, or Go module
@@ -72,7 +74,7 @@ check and uses path filters directly, so an unrelated PR does not start a Flutte
   hardcode MySQL-only types (`bigint unsigned` / `datetime` / `tinyint`), which GORM renders verbatim
   and PostgreSQL rejects, silently leaving tables uncreated (issue #8 production regression).
 - ci-frontend.yml: changed frontend paths run pnpm typecheck + site unit tests + build
-  (apps/gooseforum/resource/**).
+  (apps/gooseforum/resource/** and shared markdown compatibility fixtures).
 - ci-contract.yml: changed contract inputs install the locked `packages/api-contract` pnpm tooling, run OpenAPI
   lint + bundle + TypeScript generation, then rejects an uncommitted diff below
   `apps/gooseforum/resource/packages/client/src/gen`. Its inputs are the contract package, generated

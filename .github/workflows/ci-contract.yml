@@ -20,10 +20,8 @@ permissions:
   pull-requests: read
 
 jobs:
-  changes:
+  ci-contract:
     runs-on: ubuntu-latest
-    outputs:
-      contract: ${{ steps.filter.outputs.contract }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -41,25 +39,24 @@ jobs:
               - 'packages/api-contract/**'
               - '.github/workflows/ci-contract.yml'
 
-  ci-contract:
-    needs: changes
-    if: needs.changes.outputs.contract == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        if: steps.filter.outputs.contract == 'true'
         with:
           version: 11.10.0
       - uses: actions/setup-node@v4
+        if: steps.filter.outputs.contract == 'true'
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: packages/api-contract/pnpm-lock.yaml
       - name: Install contract tooling
+        if: steps.filter.outputs.contract == 'true'
         working-directory: packages/api-contract
         run: pnpm install --frozen-lockfile
       - name: Validate, bundle, and generate TypeScript types
+        if: steps.filter.outputs.contract == 'true'
         working-directory: packages/api-contract
         run: pnpm run check
       - name: Require generated TypeScript types to be committed
+        if: steps.filter.outputs.contract == 'true'
         run: git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen

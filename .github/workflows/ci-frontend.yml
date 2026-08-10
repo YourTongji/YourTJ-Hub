@@ -5,6 +5,7 @@ on:
     branches: [dev, main]
     paths:
       - "apps/gooseforum/resource/**"
+      - "apps/gooseforum/testdata/markdown-compat/**"
       - ".github/workflows/ci-frontend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
@@ -18,10 +19,8 @@ permissions:
   pull-requests: read
 
 jobs:
-  changes:
+  ci-frontend:
     runs-on: ubuntu-latest
-    outputs:
-      frontend: ${{ steps.filter.outputs.frontend }}
     steps:
       - uses: actions/checkout@v5
         with:
@@ -35,31 +34,32 @@ jobs:
           filters: |
             frontend:
               - 'apps/gooseforum/resource/**'
+              - 'apps/gooseforum/testdata/markdown-compat/**'
               - '.github/workflows/ci-frontend.yml'
 
-  ci-frontend:
-    needs: changes
-    if: needs.changes.outputs.frontend == 'true'
-    runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
       - uses: pnpm/action-setup@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           version: 11
       - uses: actions/setup-node@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
       - name: Install
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm install --frozen-lockfile
       - name: Typecheck
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm typecheck
       - name: Test
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm test
       - name: Build
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm build
