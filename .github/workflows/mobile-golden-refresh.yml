@@ -1,35 +1,27 @@
 name: mobile-golden-refresh
 
 on:
-  push:
-    branches:
-      - feat/mobile-secondary-integration
+  workflow_dispatch:
+    inputs:
+      ref:
+        description: >-
+          Git ref (branch, tag, or SHA) to render page goldens from. Defaults
+          to the default branch HEAD.
+        required: false
+        default: ''
+        type: string
 
 permissions:
   contents: read
 
 jobs:
   render:
-    name: render-${{ matrix.layer }}
+    name: render-page-goldens
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - layer: foundation
-            ref: 8a5f349191466104540d666fad9e953f42be761c
-          - layer: navigation
-            ref: 2b994979df2b67497c7288cd0db51d29b0850606
-          - layer: core-content
-            ref: 57b757eee61fc827e93a66a8b0f788072df24a49
-          - layer: publisher
-            ref: 30cd33cc7bbf656302a68cca3e6ded1580939e1b
-          - layer: integration
-            ref: e3f119a3c91f970dc685978d1a63678f5b4a8664
     steps:
       - uses: actions/checkout@v4
         with:
-          ref: ${{ matrix.ref }}
+          ref: ${{ inputs.ref || github.ref }}
       - uses: subosito/flutter-action@v2
         with:
           channel: stable
@@ -45,11 +37,11 @@ jobs:
         run: flutter test --update-goldens test/golden/pages_golden_test.dart
       - name: Archive page goldens
         run: >-
-          tar -czf "${{ matrix.layer }}-page-goldens.tar.gz"
+          tar -czf page-goldens.tar.gz
           -C apps/mobile/packages/forum_app/test/golden golden/pages
       - uses: actions/upload-artifact@v4
         with:
-          name: ${{ matrix.layer }}-page-goldens
-          path: ${{ matrix.layer }}-page-goldens.tar.gz
+          name: page-goldens
+          path: page-goldens.tar.gz
           if-no-files-found: error
           retention-days: 1
