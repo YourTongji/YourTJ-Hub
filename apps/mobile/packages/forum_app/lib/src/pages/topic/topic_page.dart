@@ -297,11 +297,26 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     final String? url = _replyImageUrl;
     if (url == null) return;
     final String token = '![image]($url)';
-    if (!_replyController.text.contains(token)) return;
-    final String updated = _replyController.text.replaceFirst(token, '').trim();
-    _replyController.value = TextEditingValue(
-      text: updated,
-      selection: TextSelection.collapsed(offset: updated.length),
+    final TextEditingValue value = _replyController.value;
+    final int start = value.text.indexOf(token);
+    if (start < 0) return;
+    final int end = start + token.length;
+
+    int adjustOffset(int offset) {
+      if (offset < 0 || offset <= start) return offset;
+      if (offset <= end) return start;
+      return offset - token.length;
+    }
+
+    _replyController.value = value.copyWith(
+      text: value.text.replaceRange(start, end, ''),
+      selection: TextSelection(
+        baseOffset: adjustOffset(value.selection.baseOffset),
+        extentOffset: adjustOffset(value.selection.extentOffset),
+        affinity: value.selection.affinity,
+        isDirectional: value.selection.isDirectional,
+      ),
+      composing: TextRange.empty,
     );
     setState(() => _replyImageUrl = null);
   }
@@ -549,11 +564,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                           const SliverToBoxAdapter(child: GfDivider()),
                           SliverToBoxAdapter(
                             child: _ReplySectionHeader(
-                              count: groups.fold<int>(
-                                0,
-                                (int sum, _PostGroup group) =>
-                                    sum + 1 + group.replies.length,
-                              ),
+                              count: props.topic.replyCount,
                             ),
                           ),
                           if (groups.isEmpty)
@@ -799,7 +810,7 @@ class _TopicHeader extends StatelessWidget {
                 icon: watched ? Icons.notifications : Icons.notifications_none,
                 size: 44,
                 iconSize: 20,
-                tooltip: watched ? l10n.profileFollowing : l10n.profileFollow,
+                tooltip: watched ? l10n.topicUnwatch : l10n.topicWatch,
                 onPressed: onWatch,
               ),
               if (canReportTopic) ...<Widget>[

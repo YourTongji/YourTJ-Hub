@@ -30,11 +30,15 @@ class GfBadge extends StatelessWidget {
     required this.label,
     this.variant = GfBadgeVariant.muted,
     this.icon,
+    this.color,
   });
 
   final String label;
   final GfBadgeVariant variant;
   final Widget? icon;
+
+  /// Optional source color for domain badges that carry their own palette.
+  final Color? color;
 
   @override
   Widget build(BuildContext context) {
@@ -66,6 +70,10 @@ class GfBadge extends StatelessWidget {
   }
 
   (Color, Color) _palette(GfColors colors) {
+    final Color? customColor = color;
+    if (customColor != null) {
+      return (customColor.withValues(alpha: 0.12), customColor);
+    }
     switch (variant) {
       case GfBadgeVariant.muted:
         return (colors.base300, colors.baseContent.withValues(alpha: 0.55));

@@ -324,6 +324,12 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get topicWatch => '关注话题回复';
+
+  @override
+  String get topicUnwatch => '取消关注话题回复';
+
+  @override
   String topicReplies(int count) {
     return '$count 回复';
   }

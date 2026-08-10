@@ -14,6 +14,31 @@ import '../../providers.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 
+Color _userBadgeColor(UserBadgePayload badge) {
+  const Map<String, Color> colors = <String, Color>{
+    'blue': Color(0xFF1D4ED8),
+    'emerald': Color(0xFF047857),
+    'teal': Color(0xFF0F766E),
+    'sky': Color(0xFF0369A1),
+    'cyan': Color(0xFF0E7490),
+    'rose': Color(0xFFBE123C),
+    'violet': Color(0xFF6D28D9),
+    'purple': Color(0xFF7E22CE),
+    'fuchsia': Color(0xFFA21CAF),
+    'indigo': Color(0xFF4338CA),
+    'amber': Color(0xFFB45309),
+    'orange': Color(0xFFC2410C),
+    'yellow': Color(0xFFA16207),
+    'slate': Color(0xFF334155),
+  };
+  return colors[badge.color] ??
+      (badge.level == 'gold'
+          ? colors['amber']!
+          : badge.level == 'special'
+          ? colors['indigo']!
+          : colors['blue']!);
+}
+
 /// User profile aligned with the web identity card while keeping mobile
 /// navigation, actions and content streams clear and thumb-friendly.
 class ProfilePage extends ConsumerStatefulWidget {
@@ -29,6 +54,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   AsyncValue<UserProfileProps> _page = const AsyncValue.loading();
   int _tabIndex = 0;
   bool _following = false;
+  bool _loginRequired = false;
 
   final GfScrollToTopController _scrollToTopController =
       GfScrollToTopController();
@@ -58,19 +84,23 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
 
   Future<void> _load({bool silent = false}) async {
     if (!silent && mounted) {
-      setState(() => _page = const AsyncValue.loading());
+      setState(() {
+        _page = const AsyncValue.loading();
+        _loginRequired = false;
+      });
     }
     try {
       final int? currentId = (await ref.read(currentUserProvider.future))?.id;
       final int uid = widget.userId ?? currentId ?? 0;
       if (uid == 0) {
         if (!mounted) return;
-        setState(
-          () => _page = AsyncValue.error(
+        setState(() {
+          _loginRequired = true;
+          _page = AsyncValue.error(
             AppLocalizations.of(context).profileNotLoggedIn,
             StackTrace.current,
-          ),
-        );
+          );
+        });
         return;
       }
 
@@ -80,6 +110,7 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       final UserProfileProps? props = parsePageProps<UserProfileProps>(payload);
       if (!mounted) return;
       setState(() {
+        _loginRequired = false;
         _page = props == null
             ? AsyncValue.error(
                 AppLocalizations.of(context).commonParseFailed,
@@ -92,7 +123,12 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         }
       });
     } catch (e, st) {
-      if (mounted) setState(() => _page = AsyncValue.error(e, st));
+      if (mounted) {
+        setState(() {
+          _loginRequired = false;
+          _page = AsyncValue.error(e, st);
+        });
+      }
     }
   }
 
@@ -130,7 +166,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       ),
       body: _page.when(
         loading: () => const GfProfileSkeleton(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) => _isShellProfile
+            ? _ProfileErrorBody(
+                message: '$e',
+                onRetry: _load,
+                showLogin: _loginRequired,
+                l10n: l10n,
+              )
+            : GfErrorRetry(message: '$e', onRetry: _load),
         data: (UserProfileProps props) {
           return GfScrollToTop(
             semanticLabel: l10n.commonBackToTop,
@@ -175,11 +218,22 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
   Widget _profileCard(UserProfileProps props) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final UserCardPayload user = props.user;
-    final Set<String> badges = <String>{
-      for (final UserBadgePayload badge in user.badges) badge.name,
-      for (final UserBadgePayload badge in props.badges) badge.name,
-      if (user.isAdmin) 'Admin',
-    };
+    final Map<String, GfUserBadge> badges = <String, GfUserBadge>{};
+    for (final UserBadgePayload badge in <UserBadgePayload>[
+      ...user.badges,
+      ...props.badges,
+    ]) {
+      badges.putIfAbsent(
+        badge.code.isEmpty ? badge.name : badge.code,
+        () => GfUserBadge(label: badge.name, color: _userBadgeColor(badge)),
+      );
+    }
+    if (user.isAdmin) {
+      badges['admin'] = const GfUserBadge(
+        label: 'Admin',
+        color: Color(0xFFB45309),
+      );
+    }
 
     final List<Widget> actions = <Widget>[];
     if (user.isSelf || props.isOwnProfile) {
@@ -205,14 +259,14 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
           ),
         );
       }
-      if (props.canMessage) {
+      if (props.canMessage && props.messageUrl.trim().isNotEmpty) {
         actions.add(
           GfButton(
             icon: const Icon(Icons.mail_outline_rounded, size: 18),
             label: l10n.messagesNew,
             variant: GfButtonVariant.outline,
             size: GfButtonSize.small,
-            onPressed: () => context.go('/messages'),
+            onPressed: () => context.push(props.messageUrl),
           ),
         );
       }
@@ -225,16 +279,53 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
       username: user.username,
       bio: user.bio,
       signature: user.signature,
-      badges: badges.toList(growable: false),
+      coloredBadges: badges.values.toList(growable: false),
       stats: <(String, String)>[
         (l10n.profileTopics, formatNumber(user.topicCount)),
         (l10n.profileReplies, formatNumber(user.replyCount)),
         (l10n.profileLikes, formatNumber(user.likeReceivedCount)),
         (l10n.profileFollowers, formatNumber(user.followerCount)),
+        (l10n.profileFollowingCount, formatNumber(user.followingCount)),
       ],
       actions: actions.isEmpty
           ? null
           : Wrap(spacing: 8, runSpacing: 8, children: actions),
+    );
+  }
+}
+
+class _ProfileErrorBody extends StatelessWidget {
+  const _ProfileErrorBody({
+    required this.message,
+    required this.onRetry,
+    required this.showLogin,
+    required this.l10n,
+  });
+
+  final String message;
+  final VoidCallback onRetry;
+  final bool showLogin;
+  final AppLocalizations l10n;
+
+  @override
+  Widget build(BuildContext context) {
+    return ListView(
+      padding: const EdgeInsets.only(top: 12, bottom: 32),
+      children: <Widget>[
+        GfErrorRetry(message: message, onRetry: onRetry),
+        if (showLogin) ...<Widget>[
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 12),
+            child: GfButton(
+              icon: const Icon(Icons.login, size: 18),
+              label: l10n.loginModeLogin,
+              onPressed: () => context.push('/login'),
+            ),
+          ),
+          const SizedBox(height: 12),
+        ],
+        _AccountShortcuts(l10n: l10n),
+      ],
     );
   }
 }

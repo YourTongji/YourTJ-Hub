@@ -10,6 +10,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/drafts/drafts_page.dart';
@@ -183,6 +184,39 @@ class PollingChatRepository extends ChatRepository {
   }
 }
 
+class IncomingChatRepository extends RecordingChatRepository {
+  IncomingChatRepository(super.client);
+
+  final List<int> fetchedConvIds = <int>[];
+
+  @override
+  Future<ChatMessagesResponse> getMessages({
+    required int convId,
+    int beforeId = 0,
+    int afterId = 0,
+    int limit = 30,
+  }) async {
+    fetchedConvIds.add(convId);
+    return const ChatMessagesResponse(
+      list: <ChatMessagePayload>[
+        ChatMessagePayload(
+          id: 41,
+          senderId: 2,
+          content: '刚刚发来的消息',
+          msgType: 1,
+          isRead: 0,
+          createdAt: '2026-08-10T12:00:00+08:00',
+          isSelf: false,
+        ),
+      ],
+      hasMoreBefore: false,
+      hasMoreAfter: false,
+      nextBeforeId: 0,
+      latestId: 41,
+    );
+  }
+}
+
 /// 记录 fetch 调用次数的 PageRepository。
 class CountingPageRepository extends PageRepository {
   CountingPageRepository(super.client);
@@ -200,6 +234,12 @@ class CountingPageRepository extends PageRepository {
     }
     if (path == '/messages') {
       return parsePayload(messagesPayloadJson());
+    }
+    if (path == '/u/1') {
+      return parsePayload(userProfilePayloadJson());
+    }
+    if (path == '/u/2') {
+      return parsePayload(peerProfilePayloadJson());
     }
     if (path.startsWith('/p/post/')) {
       return parsePayload(topicDetailPayloadJson());
@@ -460,6 +500,48 @@ Map<String, dynamic> anchoredTopicPayloadJson() {
     ..['total'] = 3
     ..['maxPostNo'] = 3;
   return json;
+}
+
+/// 记录 search 调用 page 的 TopicRepository。
+
+class ActivatingConversationPageRepository extends CountingPageRepository {
+  ActivatingConversationPageRepository(super.client);
+
+  int messagesFetches = 0;
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path != '/messages') return super.fetch(path);
+
+    fetchCalls++;
+    messagesFetches++;
+    final Map<String, dynamic> payload = messagesPayloadJson();
+    final Map<String, dynamic> props = payload['props'] as Map<String, dynamic>;
+    final List<dynamic> conversations = props['conversations'] as List<dynamic>;
+    if (messagesFetches == 1) {
+      conversations.clear();
+    } else {
+      final Map<String, dynamic> conversation =
+          conversations.first as Map<String, dynamic>;
+      conversation
+        ..['convId'] = 9
+        ..['lastMsg'] = '刚刚发来的消息';
+    }
+    return parsePayload(payload);
+  }
+}
+
+class ErroringProfilePageRepository extends CountingPageRepository {
+  ErroringProfilePageRepository(super.client);
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path.startsWith('/u/')) {
+      fetchCalls++;
+      throw StateError('profile request failed');
+    }
+    return super.fetch(path);
+  }
 }
 
 /// 记录 search 调用 page 的 TopicRepository。
@@ -868,6 +950,7 @@ void main() {
     ChatRepository? chatRepo,
     UserRepository? userRepo,
     OfflineChatCache? chatCache,
+    int? currentUserId,
   }) async {
     final storage = MemTokenStorage()..write('token');
     final client = GfApiClient(
@@ -878,6 +961,11 @@ void main() {
     final container = ProviderContainer(
       overrides: [
         tokenStorageProvider.overrideWithValue(storage),
+        currentUserProvider.overrideWith(
+          (ref) async => currentUserId == null
+              ? null
+              : CurrentUser(id: currentUserId, username: 'alice'),
+        ),
         pageRepositoryProvider.overrideWithValue(pageRepo),
         topicRepositoryProvider.overrideWithValue(
           topicRepo ?? PagingTopicRepository(client),
@@ -912,6 +1000,52 @@ void main() {
         supportedLocales: AppLocalizations.supportedLocales,
         locale: const Locale('zh'),
         home: home,
+      ),
+    );
+  }
+
+  GoRouter profileRouter({required String initialLocation}) {
+    return GoRouter(
+      initialLocation: initialLocation,
+      routes: <RouteBase>[
+        GoRoute(path: '/profile', builder: (_, _) => const ProfilePage()),
+        GoRoute(
+          path: '/u/:userId',
+          builder: (_, GoRouterState state) =>
+              ProfilePage(userId: int.parse(state.pathParameters['userId']!)),
+        ),
+        GoRoute(
+          path: '/messages',
+          builder: (_, GoRouterState state) => MessagesPage(
+            targetUserId: int.tryParse(
+              state.uri.queryParameters['userId'] ?? '',
+            ),
+            targetUsername: state.uri.queryParameters['username'] ?? '',
+            targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
+          ),
+        ),
+        GoRoute(
+          path: '/settings',
+          builder: (_, _) =>
+              const Scaffold(body: Center(child: Text('settings-page'))),
+        ),
+        GoRoute(
+          path: '/login',
+          builder: (_, _) =>
+              const Scaffold(body: Center(child: Text('login-page'))),
+        ),
+      ],
+    );
+  }
+
+  Widget routerApp(ProviderContainer container, GoRouter router) {
+    return UncontrolledProviderScope(
+      container: container,
+      child: MaterialApp.router(
+        routerConfig: router,
+        localizationsDelegates: AppLocalizations.localizationsDelegates,
+        supportedLocales: AppLocalizations.supportedLocales,
+        locale: const Locale('zh'),
       ),
     );
   }
@@ -1555,6 +1689,156 @@ void main() {
 
       expect(router.state.uri.toString(), '/publish?id=42');
       expect(find.text('publish-42'), findsOneWidget);
+    });
+  });
+
+  group('个人主页发私信', () {
+    test('messageUrl 正确解码 Go QueryEscape 的空格', () {
+      final Uri uri = Uri.parse(
+        '/messages?userId=4&username=Bob+Smith&avatar=',
+      );
+
+      expect(uri.queryParameters['username'], 'Bob Smith');
+    });
+
+    testWidgets('按 messageUrl 打开目标会话且返回原用户主页', (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingPageRepository(client);
+      final chatRepo = RecordingChatRepository(client);
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        chatRepo: chatRepo,
+      );
+      final GoRouter router = profileRouter(initialLocation: '/u/2');
+
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      expect(find.text('Bob'), findsOneWidget);
+      await tester.tap(find.text('新私信'));
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/messages');
+      expect(router.state.uri.queryParameters['userId'], '2');
+      expect(find.text('bob'), findsOneWidget);
+      expect(find.text('开始聊天'), findsOneWidget);
+      expect(router.canPop(), isTrue);
+
+      router.pop();
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/u/2');
+      expect(find.text('Bob'), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+  });
+
+  testWidgets('轮询发现新会话后立即加载对方消息', (tester) async {
+    final client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: MemTokenStorage(),
+      baseUrl: 'http://fake.local',
+    );
+    final pageRepo = ActivatingConversationPageRepository(client);
+    final chatRepo = IncomingChatRepository(client);
+    final container = await makeContainer(
+      pageRepo: pageRepo,
+      chatRepo: chatRepo,
+    );
+
+    await tester.pumpWidget(
+      app(
+        container,
+        const MessagesPage(targetUserId: 2, targetUsername: 'Bob'),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('开始聊天'), findsOneWidget);
+    expect(chatRepo.fetchedConvIds, isEmpty);
+
+    await tester.pump(const Duration(seconds: 15));
+    await tester.pumpAndSettle();
+
+    expect(pageRepo.messagesFetches, greaterThanOrEqualTo(2));
+    expect(chatRepo.fetchedConvIds, contains(9));
+    expect(find.text('刚刚发来的消息'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  group('个人主页错误态', () {
+    testWidgets('未登录时仍展示登录与设置入口', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      final GoRouter router = profileRouter(initialLocation: '/profile');
+
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      expect(find.text('未登录'), findsOneWidget);
+      expect(find.text('登录'), findsOneWidget);
+      expect(find.text('设置'), findsOneWidget);
+    });
+
+    testWidgets('未登录时登录入口可导航', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(pageRepo: pageRepo);
+      final GoRouter router = profileRouter(initialLocation: '/profile');
+
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('登录'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/login');
+      expect(find.text('login-page'), findsOneWidget);
+    });
+
+    testWidgets('资料请求失败时设置入口仍可导航', (tester) async {
+      final pageRepo = ErroringProfilePageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        currentUserId: 1,
+      );
+      final GoRouter router = profileRouter(initialLocation: '/profile');
+
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('profile request failed'), findsOneWidget);
+      expect(find.text('登录'), findsNothing);
+      expect(find.text('设置'), findsOneWidget);
+
+      await tester.tap(find.text('设置'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/settings');
+      expect(find.text('settings-page'), findsOneWidget);
     });
   });
 
