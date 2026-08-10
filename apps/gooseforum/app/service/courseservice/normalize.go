@@ -12,8 +12,8 @@ func Normalize(input string) string {
 	var b strings.Builder
 	for _, r := range input {
 		switch {
-		case r >= 0xFF01 && r <= 0xFF5E: // 全角 → 半角
-			b.WriteRune(r - 0xFEE0)
+		case r >= 0xFF01 && r <= 0xFF5E: // 全角 → 半角（随后统一小写）
+			b.WriteRune(unicode.ToLower(r - 0xFEE0))
 		case r == 0x3000: // 全角空格
 			b.WriteRune(' ')
 		case unicode.IsLetter(r) || unicode.IsDigit(r):

@@ -44,8 +44,16 @@ func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) 
 	if q.Keyword != "" {
 		kw := "%" + q.Keyword + "%"
 		b = b.Where(
-			"(normalized_name LIKE ? OR primary_code LIKE ? OR name_pinyin LIKE ? OR name_initials LIKE ? OR EXISTS (SELECT 1 FROM course_alias WHERE course_alias.course_id = course.id AND course_alias.deleted_at IS NULL AND (course_alias.value LIKE ? OR course_alias.normalized_value LIKE ?)))",
-			kw, kw, kw, kw, kw, kw,
+			`(normalized_name LIKE ? OR primary_code LIKE ? OR name_pinyin LIKE ? OR name_initials LIKE ?
+OR EXISTS (SELECT 1 FROM course_alias WHERE course_alias.course_id = course.id AND course_alias.deleted_at IS NULL AND (course_alias.value LIKE ? OR course_alias.normalized_value LIKE ?))
+OR EXISTS (
+	SELECT 1 FROM course_offering
+	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
+	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL
+	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
+))`,
+			kw, kw, kw, kw, kw, kw, kw, kw, kw, kw,
 		)
 	}
 	if q.TermCode != "" || q.Campus != "" {
@@ -132,23 +140,28 @@ func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
 
 // ---- Offering ----
 
+// ListOfferingsByCourse 单课程的可见开课实例，按学期时间序（starts_on，回退 code）倒序。
 func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err error) {
 	err = offeringBuilder().
-		Where(queryopt.Eq("course_id", courseId)).
-		Where(queryopt.Eq("status", OfferingStatusVisible)).
-		Order("term_id DESC, id ASC").Find(&entities).Error
+		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
+		Where(queryopt.Eq("course_offering.course_id", courseId)).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Order("COALESCE(course_term.starts_on, course_term.code) DESC, course_offering.id ASC").
+		Find(&entities).Error
 	return
 }
 
 // ListOfferingsByCourses 批量返回多门课程的开课实例（列表页避免 N+1）。
+// 排序通过 term 的 starts_on（未设置时回退 code 字典序）保证学期时间序，不依赖自增 id。
 func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err error) {
 	if len(courseIds) == 0 {
 		return []OfferingEntity{}, nil
 	}
 	err = offeringBuilder().
-		Where(queryopt.In("course_id", courseIds)).
-		Where(queryopt.Eq("status", OfferingStatusVisible)).
-		Order("course_id ASC, term_id DESC, id ASC").
+		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
+		Where(queryopt.In("course_offering.course_id", courseIds)).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Order("course_offering.course_id ASC, COALESCE(course_term.starts_on, course_term.code) DESC, course_offering.id ASC").
 		Find(&entities).Error
 	return
 }

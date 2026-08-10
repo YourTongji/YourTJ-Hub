@@ -78,6 +78,7 @@
   "meta.admin": "管理后台",
   "meta.moderation": "版主管理",
   "meta.moderationDesc": "处理你负责范围内的帖子封禁与解封。",
+  "meta.internalError": "服务暂时不可用",
   "meta.notFound": "页面不存在",
   "meta.publish": "发布话题",
   "meta.editTopic": "编辑话题",

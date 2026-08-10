@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/url"
@@ -35,7 +36,12 @@ func CourseDetail(c *gin.Context) {
 	courseId := cast.ToUint64(c.Param("courseId"))
 	detail, err := courseservice.GetCourseDetail(courseId)
 	if err != nil {
-		renderNotFoundWithMessage(c, component.MessagePageNotFound)
+		if errors.Is(err, courseservice.ErrCourseNotFound) {
+			renderNotFoundWithMessage(c, component.MessagePageNotFound)
+			return
+		}
+		slog.Error("course_detail_read_failed", "courseId", courseId, "error", err)
+		renderInternalError(c)
 		return
 	}
 	payload := PagePayload{
@@ -60,6 +66,7 @@ type CourseListReq struct {
 }
 
 // CourseListJSON 课程目录 JSON API（公开只读，供前端异步加载与后续移动端使用）。
+// page/size 越界值按 service 归一化处理（page>=1、1<=size<=50），与 OpenAPI 描述一致。
 func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Response {
 	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
 		Keyword:    strings.TrimSpace(req.Params.Keyword),
@@ -89,8 +96,13 @@ func CourseDetailJSON(req component.BetterRequest[CourseDetailReq]) component.Re
 	}
 	detail, err := courseservice.GetCourseDetail(req.Params.CourseId)
 	if err != nil {
-		return component.BuildResponse(http.StatusNotFound,
-			component.FailDataCode(component.MessagePageNotFound, nil))
+		if errors.Is(err, courseservice.ErrCourseNotFound) {
+			return component.BuildResponse(http.StatusNotFound,
+				component.FailDataCode(component.MessagePageNotFound, nil))
+		}
+		slog.Error("course_detail_read_failed", "courseId", req.Params.CourseId, "error", err)
+		return component.BuildResponse(http.StatusInternalServerError,
+			component.FailDataCode(component.MessageOperationFailed, nil))
 	}
 	return component.SuccessResponse(detail)
 }
@@ -146,6 +158,9 @@ func buildCourseListURL(c *gin.Context, page int) string {
 	}
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(page))
+	if v := strings.TrimSpace(c.Query("size")); v != "" {
+		params.Set("size", v)
+	}
 	if v := strings.TrimSpace(c.Query("keyword")); v != "" {
 		params.Set("keyword", v)
 	}

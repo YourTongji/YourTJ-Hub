@@ -78,6 +78,7 @@
   "meta.admin": "Admin",
   "meta.moderation": "Moderation",
   "meta.moderationDesc": "Handle post bans and unbans within your remit.",
+  "meta.internalError": "Service temporarily unavailable",
   "meta.notFound": "Page not found",
   "meta.publish": "New topic",
   "meta.editTopic": "Edit topic",

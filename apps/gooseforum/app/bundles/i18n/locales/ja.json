@@ -78,6 +78,7 @@
   "meta.admin": "管理画面",
   "meta.moderation": "モデレーション",
   "meta.moderationDesc": "担当範囲内の投稿の禁止・解除を処理します。",
+  "meta.internalError": "サービスは一時的に利用できません",
   "meta.notFound": "ページが見つかりません",
   "meta.publish": "トピックを投稿",
   "meta.editTopic": "トピックを編集",

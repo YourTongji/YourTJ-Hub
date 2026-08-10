@@ -6,6 +6,9 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
 )
 
+// ErrCourseNotFound 课程不存在或已隐藏（与存储层错误区分，控制器映射为 404）。
+var ErrCourseNotFound = errors.New("course not found")
+
 // CourseSummary 课程列表卡片（Slice A 只读目录；评价统计在 Slice C 追加）。
 type CourseSummary struct {
 	Id          uint64   `json:"id"`
@@ -92,11 +95,11 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	return CatalogPage{List: summaries, Page: page, Size: size, Total: total, HasNext: int64(page)*int64(size) < total}, nil
 }
 
-// GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回错误。
+// GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。
 func GetCourseDetail(id uint64) (CourseDetail, error) {
 	entity := course.GetCourse(id)
 	if entity.Id == 0 || entity.Status != course.StatusVisible {
-		return CourseDetail{}, errors.New("course not found")
+		return CourseDetail{}, ErrCourseNotFound
 	}
 	detail := CourseDetail{
 		Id:          entity.Id,

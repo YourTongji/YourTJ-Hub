@@ -78,6 +78,7 @@
   "meta.admin": "Amministrazione",
   "meta.moderation": "Moderazione",
   "meta.moderationDesc": "Gestisci i ban e gli sban dei post di tua competenza.",
+  "meta.internalError": "Servizio temporaneamente non disponibile",
   "meta.notFound": "Pagina non trovata",
   "meta.publish": "Nuovo argomento",
   "meta.editTopic": "Modifica argomento",

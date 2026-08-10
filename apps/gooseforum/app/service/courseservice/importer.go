@@ -113,14 +113,6 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		Errors:       []ImportError{},
 	}
 
-	if !dryRun {
-		existing, err := course.GetImportRunByManifestHash(manifestHash)
-		if err == nil && existing.Status == course.ImportStatusCompleted {
-			report.Skipped = 1 // 幂等：该 manifest 已导入完成
-			return report, nil
-		}
-	}
-
 	rows, err := loadManifestFiles(filepath.Dir(manifestPath), manifest)
 	if err != nil {
 		return nil, err
@@ -132,33 +124,59 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		return report, nil
 	}
 
-	now := time.Now()
-	run := course.ImportRunEntity{
-		Source:       manifest.Source,
-		ManifestHash: manifestHash,
-		Status:       course.ImportStatusRunning,
-		StartedAt:    &now,
-	}
-	if err := course.CreateImportRun(&run); err != nil {
-		return nil, fmt.Errorf("create import run: %w", err)
-	}
-	if err := applyRows(ctx, run.Id, rows, report); err != nil {
-		run.Status = course.ImportStatusFailed
+	if !dryRun {
+		now := time.Now()
+		run := course.ImportRunEntity{
+			Source:       manifest.Source,
+			ManifestHash: manifestHash,
+			Status:       course.ImportStatusRunning,
+			StartedAt:    &now,
+		}
+		existing, err := course.GetImportRunByManifestHash(manifestHash)
+		switch {
+		case err == nil && existing.Status == course.ImportStatusCompleted:
+			report.Skipped = 1 // 幂等：该 manifest 已导入完成
+			return report, nil
+		case err == nil:
+			// 复用失败的 run：重置为 running，行级 checksum 幂等负责断点续跑。
+			run = existing
+			run.Status = course.ImportStatusRunning
+			run.StartedAt = &now
+			run.FinishedAt = nil
+			run.InsertedCount = 0
+			run.UpdatedCount = 0
+			run.QuarantinedCount = 0
+			run.ErrorCount = 0
+			if err := course.SaveImportRun(&run); err != nil {
+				return nil, fmt.Errorf("reset import run: %w", err)
+			}
+		case errors.Is(err, gorm.ErrRecordNotFound):
+			if err := course.CreateImportRun(&run); err != nil {
+				return nil, fmt.Errorf("create import run: %w", err)
+			}
+		default:
+			return nil, fmt.Errorf("get import run: %w", err)
+		}
+
+		if err := applyRows(ctx, run.Id, rows, report); err != nil {
+			run.Status = course.ImportStatusFailed
+			run.ErrorCount = len(report.Errors)
+			finished := time.Now()
+			run.FinishedAt = &finished
+			_ = course.SaveImportRun(&run)
+			return report, err
+		}
+		run.Status = course.ImportStatusCompleted
+		run.InsertedCount = report.Inserted
+		run.UpdatedCount = report.Updated
+		run.QuarantinedCount = report.Quarantined
 		run.ErrorCount = len(report.Errors)
 		finished := time.Now()
 		run.FinishedAt = &finished
-		_ = course.SaveImportRun(&run)
-		return report, err
-	}
-	run.Status = course.ImportStatusCompleted
-	run.InsertedCount = report.Inserted
-	run.UpdatedCount = report.Updated
-	run.QuarantinedCount = report.Quarantined
-	run.ErrorCount = len(report.Errors)
-	finished := time.Now()
-	run.FinishedAt = &finished
-	if err := course.SaveImportRun(&run); err != nil {
-		return nil, fmt.Errorf("save import run: %w", err)
+		if err := course.SaveImportRun(&run); err != nil {
+			return nil, fmt.Errorf("save import run: %w", err)
+		}
+		return report, nil
 	}
 	return report, nil
 }
@@ -239,9 +257,19 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 	}
 
 	courseByCode := make(map[string]string) // primary_code -> external id
+	externalIDs := make(map[string]string)  // external id -> primary_code
 	for _, row := range rows.courses {
 		code := strings.TrimSpace(row.Code)
 		key := course.EntityTypeCourse + "|" + row.ID
+		if strings.TrimSpace(row.ID) == "" {
+			quarantine("course", key, "missing external id")
+			continue
+		}
+		if prev, ok := externalIDs[row.ID]; ok && prev != code {
+			quarantine("course", key, fmt.Sprintf("duplicate external id %s (codes %s vs %s)", row.ID, prev, code))
+			continue
+		}
+		externalIDs[row.ID] = code
 		if code == "" || strings.TrimSpace(row.Name) == "" {
 			quarantine("course", key, "missing code or name")
 			continue
@@ -275,28 +303,34 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 			}
 		}
 	}
-	// instructor 自然键冲突
 	instructorKeys := make(map[string]string) // name|dept -> external id
+	instructorIDs := make(map[string]struct{})
 	for _, row := range rows.instructors {
 		key := course.EntityTypeInstructor + "|" + row.ID
+		if strings.TrimSpace(row.ID) == "" {
+			quarantine("instructor", key, "missing external id")
+			continue
+		}
+		instructorIDs[row.ID] = struct{}{}
 		naturalKey := Normalize(row.Name) + "|" + Normalize(row.Department)
 		if prev, ok := instructorKeys[naturalKey]; ok && prev != row.ID {
 			quarantine("instructor", key, fmt.Sprintf("ambiguous natural key %q (external %s vs %s)", naturalKey, prev, row.ID))
+			delete(instructorIDs, row.ID)
 			continue
 		}
 		instructorKeys[naturalKey] = row.ID
 	}
-	// offering 依赖检查
+	// offering 依赖检查：被隔离的 instructor 视为不可解析，引用它的 offering 也整体隔离。
 	courseIDs := make(map[string]struct{})
 	for _, row := range rows.courses {
 		courseIDs[row.ID] = struct{}{}
 	}
-	instructorIDs := make(map[string]struct{})
-	for _, row := range rows.instructors {
-		instructorIDs[row.ID] = struct{}{}
-	}
 	for _, row := range rows.offerings {
 		key := course.EntityTypeOffering + "|" + row.ID
+		if strings.TrimSpace(row.ID) == "" {
+			quarantine("offering", key, "missing external id")
+			continue
+		}
 		if _, ok := courseIDs[row.CourseID]; !ok {
 			quarantine("offering", key, fmt.Sprintf("unknown course_id %s", row.CourseID))
 			continue
@@ -307,7 +341,8 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 		}
 		for _, insID := range row.InstructorIDs {
 			if _, ok := instructorIDs[insID]; !ok {
-				quarantine("offering", key, fmt.Sprintf("unknown instructor_id %s", insID))
+				quarantine("offering", key, fmt.Sprintf("unresolvable instructor_id %s", insID))
+				break
 			}
 		}
 	}
@@ -381,6 +416,15 @@ func rowChecksum(row any) string {
 	return hex.EncodeToString(sum[:])
 }
 
+// mapKeys 返回 map 的键切片（用于 GORM NOT IN 查询）。
+func mapKeys[K comparable, V any](m map[K]V) []K {
+	keys := make([]K, 0, len(m))
+	for k := range m {
+		keys = append(keys, k)
+	}
+	return keys
+}
+
 func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *CatalogImportReport) error {
 	code := strings.TrimSpace(row.Code)
 	name := strings.TrimSpace(row.Name)
@@ -389,7 +433,8 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 		return nil
 	}
 	checksum := rowChecksum(row)
-	if ref, err := sourceRefByExternal(tx, row.ID, course.EntityTypeCourse); err == nil && ref.Checksum == checksum {
+	ref, refErr := sourceRefByExternal(tx, row.ID, course.EntityTypeCourse)
+	if refErr == nil && ref.Checksum == checksum {
 		report.Skipped++ // 行内容未变化
 		return nil
 	}
@@ -405,10 +450,14 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 		NameInitials:   initials,
 		Status:         course.StatusVisible,
 	}
-	existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
-	if err == nil {
-		entity.Id = existing.Id
-		if err := tx.Model(&course.Entity{}).Where("id = ?", existing.Id).Updates(map[string]any{
+
+	switch {
+	case refErr == nil:
+		// 已有 source mapping：primary_code 可变，external id 才是稳定身份。
+		// 若主课号变化，直接更新映射实体，避免创建第二门课程。
+		entity.Id = ref.LocalId
+		if err := tx.Model(&course.Entity{}).Where("id = ?", ref.LocalId).Updates(map[string]any{
+			"primary_code":    entity.PrimaryCode,
 			"name":            entity.Name,
 			"department":      entity.Department,
 			"credit_x10":      entity.CreditX10,
@@ -417,23 +466,47 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 			"name_initials":   entity.NameInitials,
 			"status":          entity.Status,
 		}).Error; err != nil {
-			return fmt.Errorf("update course %s: %w", code, err)
+			return fmt.Errorf("update course %s (id %d): %w", code, ref.LocalId, err)
 		}
 		report.Updated++
-	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("lookup course %s: %w", code, err)
-	} else {
-		if err := tx.Model(&course.Entity{}).Create(&entity).Error; err != nil {
-			return fmt.Errorf("create course %s: %w", code, err)
+	case errors.Is(refErr, gorm.ErrRecordNotFound):
+		// 兼容旧导入数据：按主课号查找；找不到则创建。
+		existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
+		if err == nil {
+			entity.Id = existing.Id
+			if err := tx.Model(&course.Entity{}).Where("id = ?", existing.Id).Updates(map[string]any{
+				"primary_code":    entity.PrimaryCode,
+				"name":            entity.Name,
+				"department":      entity.Department,
+				"credit_x10":      entity.CreditX10,
+				"normalized_name": entity.NormalizedName,
+				"name_pinyin":     entity.NamePinyin,
+				"name_initials":   entity.NameInitials,
+				"status":          entity.Status,
+			}).Error; err != nil {
+				return fmt.Errorf("update course %s: %w", code, err)
+			}
+			report.Updated++
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("lookup course %s: %w", code, err)
+		} else {
+			if err := tx.Model(&course.Entity{}).Create(&entity).Error; err != nil {
+				return fmt.Errorf("create course %s: %w", code, err)
+			}
+			report.Inserted++
 		}
-		report.Inserted++
+	default:
+		return fmt.Errorf("lookup course source ref %s: %w", row.ID, refErr)
 	}
-	// aliases（事务内查找，避免同批次重复/跨课程冲突）
+
+	// aliases：事务内全量 reconcile（来源行删除的别名一并移除）。
+	normSet := make(map[string]struct{}, len(row.Aliases))
 	for _, alias := range row.Aliases {
 		norm := Normalize(alias)
 		if norm == "" {
 			continue
 		}
+		normSet[norm] = struct{}{}
 		existingAlias, err := course.GetAliasByNormalizedValueTx(tx, course.AliasKindName, norm)
 		if err == nil {
 			if existingAlias.CourseId != entity.Id {
@@ -455,6 +528,15 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 		if err := tx.Model(&course.AliasEntity{}).Create(&aliasEntity).Error; err != nil {
 			return fmt.Errorf("create alias %q: %w", alias, err)
 		}
+	}
+	// 移除该来源行此前导入、本次已删除的别名（source 字段记录外部课程 ID）。
+	reconcile := tx.Model(&course.AliasEntity{}).
+		Where("course_id = ? AND kind = ? AND source = ?", entity.Id, course.AliasKindName, row.ID)
+	if len(normSet) > 0 {
+		reconcile = reconcile.Where("normalized_value NOT IN ?", mapKeys(normSet))
+	}
+	if err := reconcile.Delete(&course.AliasEntity{}).Error; err != nil {
+		return fmt.Errorf("reconcile aliases for course %s: %w", code, err)
 	}
 	return touchSourceRef(tx, runID, row.ID, entity.Id, course.EntityTypeCourse, checksum)
 }
@@ -520,12 +602,13 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 	if err != nil {
 		return err
 	}
+	// 任一教师引用不可解析则整个 offering 隔离，不部分写入。
 	instructorLocalIDs := make([]uint64, 0, len(row.InstructorIDs))
 	for _, insID := range row.InstructorIDs {
 		ins, err := sourceRefLocalID(tx, insID, course.EntityTypeInstructor)
 		if err != nil {
 			report.Quarantined++
-			continue
+			return nil
 		}
 		instructorLocalIDs = append(instructorLocalIDs, ins)
 	}
@@ -541,15 +624,15 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", existingRef.LocalId).First(&offering).Error; err != nil {
 			return fmt.Errorf("load existing offering %d: %w", existingRef.LocalId, err)
 		}
-		offering.TermId = termEntity.Id
-		offering.Campus = row.Campus
-		offering.Faculty = row.Faculty
-		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(map[string]any{
-			"term_id": offering.TermId,
-			"campus":  offering.Campus,
-			"faculty": offering.Faculty,
-			"status":  course.OfferingStatusVisible,
-		}).Error; err != nil {
+		// 课程修正也一并更新，防止 offering 挂在旧课程上。
+		updates := map[string]any{
+			"course_id": courseLocalID,
+			"term_id":   termEntity.Id,
+			"campus":    row.Campus,
+			"faculty":   row.Faculty,
+			"status":    course.OfferingStatusVisible,
+		}
+		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
 			return fmt.Errorf("update offering %d: %w", offering.Id, err)
 		}
 		if err := replaceOfferingInstructorsTx(tx, offering.Id, instructorLocalIDs); err != nil {

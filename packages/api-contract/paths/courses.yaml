@@ -101,3 +101,12 @@ getCourse:
             examples:
               notFound:
                 externalValue: ../fixtures/course-not-found.json
+      '500':
+        description: Course detail query failed (aliases, offerings, instructors, or terms).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              internalError:
+                externalValue: ../fixtures/course-internal-error.json
