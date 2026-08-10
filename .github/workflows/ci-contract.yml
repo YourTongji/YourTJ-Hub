@@ -2,20 +2,48 @@ name: ci-contract
 
 on:
   push:
+    branches: [dev, main]
     paths:
-      - "apps/gooseforum/app/**"
       - "apps/gooseforum/resource/packages/client/package.json"
       - "apps/gooseforum/resource/packages/client/src/gen/**"
       - "packages/api-contract/**"
       - ".github/workflows/ci-contract.yml"
-      - "Makefile"
-      - "docs/architecture/contracts-and-data.md"
-      - "docs/development/testing.md"
   # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      contract: ${{ steps.filter.outputs.contract }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # On dev/main pushes, compare with the commit before this push.
+          # This input is ignored for pull_request, which uses its base branch.
+          base: ${{ github.ref_name }}
+          filters: |
+            contract:
+              - 'apps/gooseforum/resource/packages/client/package.json'
+              - 'apps/gooseforum/resource/packages/client/src/gen/**'
+              - 'packages/api-contract/**'
+              - '.github/workflows/ci-contract.yml'
+
   ci-contract:
+    needs: changes
+    if: needs.changes.outputs.contract == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4

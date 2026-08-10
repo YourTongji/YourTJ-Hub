@@ -2,10 +2,18 @@ name: ci-mobile
 
 on:
   push:
+    branches: [dev, main]
     paths:
       - "apps/mobile/**"
-  # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
+      - ".github/workflows/ci-mobile.yml"
   pull_request:
+    paths:
+      - "apps/mobile/**"
+      - ".github/workflows/ci-mobile.yml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   ci-mobile:

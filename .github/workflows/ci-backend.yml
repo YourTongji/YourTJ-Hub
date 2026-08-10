@@ -2,16 +2,60 @@ name: ci-backend
 
 on:
   push:
+    branches: [dev, main]
     paths:
       - "apps/gooseforum/app/**"
       - "apps/gooseforum/main.go"
       - "apps/gooseforum/go.mod"
       - "apps/gooseforum/go.sum"
+      - "packages/api-contract/**"
+      - ".github/workflows/ci-backend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      backend: ${{ steps.filter.outputs.backend }}
+      backend_pg: ${{ steps.filter.outputs.backend_pg }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # On dev/main pushes, compare with the commit before this push.
+          # This input is ignored for pull_request, which uses its base branch.
+          base: ${{ github.ref_name }}
+          filters: |
+            backend:
+              - 'apps/gooseforum/app/**'
+              - 'apps/gooseforum/main.go'
+              - 'apps/gooseforum/go.mod'
+              - 'apps/gooseforum/go.sum'
+              - 'packages/api-contract/**'
+              - '.github/workflows/ci-backend.yml'
+            backend_pg:
+              - 'apps/gooseforum/app/bundles/connect/sqlconnect/**'
+              - 'apps/gooseforum/app/migration/**'
+              - 'apps/gooseforum/app/models/**'
+              - 'apps/gooseforum/go.mod'
+              - 'apps/gooseforum/go.sum'
+              - '.github/workflows/ci-backend.yml'
+
   ci-backend:
+    needs: changes
+    if: needs.changes.outputs.backend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -32,6 +76,8 @@ jobs:
   # 硬编码 MySQL 类型(bigint unsigned/datetime/tinyint)导致 PG 建表失败、
   # 服务带残缺 schema 启动, 登录/注册运行期才报错。此 job 用真实 PG 验证。
   ci-backend-pg:
+    needs: changes
+    if: needs.changes.outputs.backend_pg == 'true'
     runs-on: ubuntu-latest
     services:
       postgres:

@@ -2,13 +2,44 @@ name: ci-frontend
 
 on:
   push:
+    branches: [dev, main]
     paths:
       - "apps/gooseforum/resource/**"
+      - ".github/workflows/ci-frontend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
 
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:
+  changes:
+    runs-on: ubuntu-latest
+    outputs:
+      frontend: ${{ steps.filter.outputs.frontend }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          # On dev/main pushes, compare with the commit before this push.
+          # This input is ignored for pull_request, which uses its base branch.
+          base: ${{ github.ref_name }}
+          filters: |
+            frontend:
+              - 'apps/gooseforum/resource/**'
+              - '.github/workflows/ci-frontend.yml'
+
   ci-frontend:
+    needs: changes
+    if: needs.changes.outputs.frontend == 'true'
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
