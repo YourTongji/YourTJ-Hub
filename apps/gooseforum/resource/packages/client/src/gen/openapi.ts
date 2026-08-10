@@ -33,10 +33,11 @@ export interface paths {
         /**
          * Log out and revoke the current session
          * @description Session is optional. When the request carries a valid session token (cookie or Bearer), the
-         *     server revokes that session record, so the token immediately stops authenticating. An absent
-         *     or invalid token is treated as already logged out, which makes this operation idempotent.
-         *     The `access_token` cookie is always cleared. A business failure (HTTP 200 with `code: 1`,
-         *     `session.revoke.failed`) is only emitted when revoking a valid session record fails.
+         *     server revokes that session record, so the token immediately stops authenticating. An absent,
+         *     unverifiable, or already-revoked token is treated as already logged out, which makes this
+         *     operation idempotent. The `access_token` cookie is cleared on the success and
+         *     already-logged-out paths; the rare `session.revoke.failed` business failure (HTTP 200 with
+         *     `code: 1`) currently returns before the cookie is cleared (tracked in issue #79).
          */
         post: operations["logout"];
         delete?: never;
@@ -77,10 +78,12 @@ export interface paths {
         };
         /**
          * List the authenticated user's sessions
-         * @description Returns every live session of the caller, newest first, marking the session that carries the
-         *     current token. `ipMasked` is privacy-masked (the last IPv4 octet or the IPv6 interface ID is
-         *     hidden); the raw IP is never exposed. Frozen accounts are intentionally not rejected here so
-         *     they can still inspect and revoke their sessions.
+         * @description Returns all stored session rows of the caller, newest first, marking the session that carries
+         *     the current token; expired rows may appear until housekeeping removes them (tracked in issue
+         *     #79). Parseable addresses in `ipMasked` are privacy-masked (the last IPv4 octet or the IPv6
+         *     interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in
+         *     issue #79). Frozen accounts are intentionally not rejected here so they can still inspect and
+         *     revoke their sessions.
          */
         get: operations["listSessions"];
         put?: never;
@@ -107,7 +110,8 @@ export interface paths {
          *     revoke-all instead. Revocation takes effect immediately: the revoked token gets 401 on its
          *     next request. Malformed JSON, a missing `id`, or a zero `id` are rejected as
          *     `common.request.invalidParams` (still a legacy HTTP 200 envelope), which keeps them
-         *     distinguishable from revoking a session that does not exist (`session.notFound`).
+         *     distinguishable from revoking a session that does not exist (`session.notFound`). Frozen
+         *     accounts are not rejected here either, so they can still cut off their other sessions.
          */
         post: operations["revokeSession"];
         delete?: never;
@@ -128,8 +132,10 @@ export interface paths {
         /**
          * Revoke every session of the authenticated user
          * @description Deletes all session records of the caller, including the one carrying the current token, and
-         *     increments the account's token version as a second layer of invalidation. Every existing
-         *     token of the account gets 401 on its next request; the client must log in again afterwards.
+         *     increments the account's token version as a second layer of invalidation; the increment is
+         *     currently best-effort (not transactional with the deletion, tracked in issue #79). Every
+         *     existing token of the account gets 401 on its next request; the client must log in again
+         *     afterwards. Frozen accounts are not rejected here either.
          */
         post: operations["revokeAllSessions"];
         delete?: never;
@@ -279,7 +285,7 @@ export interface components {
         UserSession: {
             /** Format: uint64 */
             id: number;
-            /** @description Privacy-masked client IP; the last IPv4 octet or the IPv6 interface ID is hidden. */
+            /** @description Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in issue */
             ipMasked: string;
             /** @description Truncated raw user agent; clients render a parsed device label. */
             userAgent: string;
@@ -355,7 +361,7 @@ export interface operations {
             /** @description Logout completed (or the caller was already logged out), or a revocation failure. */
             200: {
                 headers: {
-                    /** @description Always expires the HTTP-only `access_token` session cookie. */
+                    /** @description Expires the HTTP-only `access_token` session cookie on the success and already-logged-out paths. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };

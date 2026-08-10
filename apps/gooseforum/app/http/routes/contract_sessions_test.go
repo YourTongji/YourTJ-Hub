@@ -12,6 +12,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/http/controllers/api"
 	"github.com/leancodebox/GooseForum/app/http/middleware"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 
@@ -133,6 +134,28 @@ func TestLogoutHTTPContract(t *testing.T) {
 			t.Fatalf("anonymous logout status = %d, want 200", recorder.Code)
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "logout-success.json"))
+		if cookie := recorder.Header().Get("Set-Cookie"); !strings.Contains(cookie, "access_token=") {
+			t.Fatalf("anonymous logout response missing access_token clearing cookie: %q", cookie)
+		}
+	})
+
+	t.Run("logout twice with the same bearer stays an idempotent success", func(t *testing.T) {
+		conn, router := setupSessionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		token := contractSessionToken(t, user)
+
+		first := serveSessionJSON(router, http.MethodPost, "/api/logout", "", token)
+		if first.Code != http.StatusOK {
+			t.Fatalf("first logout status = %d, want 200", first.Code)
+		}
+		second := serveSessionJSON(router, http.MethodPost, "/api/logout", "", token)
+		if second.Code != http.StatusOK {
+			t.Fatalf("second logout status = %d, want 200: %s", second.Code, second.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, second), contractFixture(t, "logout-success.json"))
+		if cookie := second.Header().Get("Set-Cookie"); !strings.Contains(cookie, "access_token=") {
+			t.Fatalf("second logout response missing access_token clearing cookie: %q", cookie)
+		}
 	})
 }
 
@@ -295,6 +318,16 @@ func TestRevokeAllSessionsHTTPContract(t *testing.T) {
 			t.Fatalf("revoke-all status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-revoke-all-success.json"))
+
+		// The contract promises token version invalidation as the second layer; pin it
+		// directly, since deleted session rows alone already make tokens 401.
+		reloaded, err := users.Get(user.Id)
+		if err != nil {
+			t.Fatalf("reload user after revoke-all: %v", err)
+		}
+		if reloaded.TokenVersion != user.TokenVersion+1 {
+			t.Fatalf("tokenVersion = %d, want %d (second-layer invalidation)", reloaded.TokenVersion, user.TokenVersion+1)
+		}
 
 		for name, revokedToken := range map[string]string{"current": token, "other": otherToken} {
 			revoked := serveSessionJSON(router, http.MethodGet, "/api/user/sessions", "", revokedToken)
