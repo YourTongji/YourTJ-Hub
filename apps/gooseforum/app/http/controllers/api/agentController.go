@@ -88,6 +88,8 @@ func AgentCreate(req component.BetterRequest[AgentCreateReq]) component.Response
 		switch {
 		case errors.Is(err, agentservice.ErrAgentUsernameExists):
 			return component.FailResponseCode(component.MessageAdminAgentUsernameExists, nil)
+		case errors.Is(err, agentservice.ErrAgentNicknameInvalid):
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 		case errors.Is(err, agentservice.ErrAgentWebhookInvalid):
 			return component.FailResponseCode(component.MessageAdminAgentWebhookInvalid, nil)
 		default:
@@ -125,6 +127,8 @@ func AgentUpdate(req component.BetterRequest[AgentUpdateReq]) component.Response
 		switch {
 		case errors.Is(err, agentservice.ErrAgentNotFound):
 			return component.FailResponseCode(component.MessageAdminAgentNotFound, nil)
+		case errors.Is(err, agentservice.ErrAgentNicknameInvalid):
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 		case errors.Is(err, agentservice.ErrAgentWebhookInvalid):
 			return component.FailResponseCode(component.MessageAdminAgentWebhookInvalid, nil)
 		case errors.Is(err, agentservice.ErrAgentEnabledInvalid):

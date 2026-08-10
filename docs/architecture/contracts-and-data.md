@@ -71,8 +71,11 @@ than a hand-maintained duplicate baseline.
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
-  token_hash, webhook_endpoint, enabled, created_by, last_used_at); the token hash is the only stored
-  secret material, the prefix is a non-secret lookup key.
+  token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
+  unique index shared by human and bot accounts. The token hash is the only stored secret material,
+  the prefix is a non-secret lookup key. Agent token rotation, disablement, and profile changes use
+  column-scoped updates rather than saving stale snapshots; successful authentication touches
+  `last_used_at` at most once per minute.
 - Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
   post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
   security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
@@ -81,6 +84,9 @@ than a hand-maintained duplicate baseline.
   honeypot, captcha, and new-user cooldown gates are skipped.
 - Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
   contract surface.
+- SQL connections enable GORM error translation so uniqueness races map to stable domain errors. The
+  structured GORM logger implements `ParamsFilter`; parameterized logging therefore keeps bind values
+  out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 

@@ -2,6 +2,7 @@ package migration
 
 import (
 	_ "embed"
+	"fmt"
 	"log/slog"
 	"os"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"gorm.io/gorm"
 )
 
 func M() {
@@ -60,6 +62,10 @@ func migrateSchema() {
 	var err error
 
 	db := dbconnect.Connect()
+	if err = validateUniqueUsernames(db); err != nil {
+		slog.Error("dbconnect migration preflight failed", "err", err)
+		os.Exit(1)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -77,6 +83,43 @@ func migrateSchema() {
 		os.Exit(1)
 	}
 	slog.Info("db4fileconnect migration end")
+}
+
+type duplicateUsername struct {
+	Username string
+	Count    int64
+}
+
+// validateUniqueUsernames fails before AutoMigrate attempts to add the global
+// username unique index. Identity rows are never rewritten automatically; an
+// operator must resolve blank or duplicate legacy usernames deliberately.
+func validateUniqueUsernames(db *gorm.DB) error {
+	if !db.Migrator().HasTable("users") {
+		return nil
+	}
+
+	var blankCount int64
+	if err := db.Table("users").Where("username = ?", "").Count(&blankCount).Error; err != nil {
+		return fmt.Errorf("inspect blank usernames: %w", err)
+	}
+	var duplicates []duplicateUsername
+	if err := db.Table("users").
+		Select("username, COUNT(*) AS count").
+		Where("username <> ?", "").
+		Group("username").
+		Having("COUNT(*) > 1").
+		Limit(10).
+		Scan(&duplicates).Error; err != nil {
+		return fmt.Errorf("inspect duplicate usernames: %w", err)
+	}
+	if blankCount == 0 && len(duplicates) == 0 {
+		return nil
+	}
+	return fmt.Errorf(
+		"cannot create uniq_users_username: found %d blank username row(s) and duplicate usernames %v; assign every user a non-empty globally unique username before restarting",
+		blankCount,
+		duplicates,
+	)
 }
 
 // SchemaModels 返回主库（db.default）的全部迁移模型。

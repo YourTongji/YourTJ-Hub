@@ -67,6 +67,16 @@ func NewGormLogger(config *GormLoggerConfig) *GormLogger {
 	}
 }
 
+// ParamsFilter keeps query parameters out of GORM's rendered SQL when
+// ParameterizedQueries is enabled. GORM checks this optional interface before
+// invoking Dialector.Explain; without it, the config flag is inert.
+func (l *GormLogger) ParamsFilter(_ context.Context, sql string, params ...interface{}) (string, []interface{}) {
+	if l.config.ParameterizedQueries {
+		return sql, nil
+	}
+	return sql, params
+}
+
 // NewGormLoggerWithDefault 使用默认配置创建 GormLogger
 func NewGormLoggerWithDefault() *GormLogger {
 	return NewGormLogger(nil)

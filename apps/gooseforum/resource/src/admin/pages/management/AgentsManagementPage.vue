@@ -55,6 +55,7 @@ async function loadAgents() {
 
 function openCreate() {
   Object.assign(form, { username: '', nickname: '', webhookEndpoint: '', enabled: true })
+  copied.value = false
   creating.value = true
 }
 
@@ -82,6 +83,7 @@ async function submitCreate() {
     })
     creating.value = false
     await loadAgents()
+    copied.value = false
     rotatingToken.value = result.token
     rotating.value = result.agent
     adminToast.success(adminText('k000e'))
@@ -113,7 +115,7 @@ async function submitUpdate() {
 }
 
 async function confirmRotate() {
-  if (!rotating.value) return
+  if (!rotating.value || saving.value) return
   saving.value = true
   copied.value = false
   try {
@@ -232,7 +234,7 @@ onMounted(() => {
                   <AdminActionButton compact :title="adminText('k00kj')" @click="openEdit(agent)">
                     <Pencil class="size-3.5" />
                   </AdminActionButton>
-                  <AdminActionButton compact tone="primary" :title="adminText('k00kk')" @click="rotating = agent; rotatingToken = ''">
+                  <AdminActionButton compact tone="primary" :title="adminText('k00kk')" @click="rotating = agent; rotatingToken = ''; copied = false">
                     <KeyRound class="size-3.5" />
                   </AdminActionButton>
                   <AdminActionButton
@@ -265,7 +267,7 @@ onMounted(() => {
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ka') }}
-            <Input v-model="form.nickname" />
+            <Input v-model="form.nickname" maxlength="64" />
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00kb') }}
@@ -288,7 +290,7 @@ onMounted(() => {
         <form class="grid gap-4" @submit.prevent="submitUpdate">
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ka') }}
-            <Input v-model="form.nickname" />
+            <Input v-model="form.nickname" maxlength="64" />
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00kb') }}
@@ -309,8 +311,8 @@ onMounted(() => {
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="rotating !== null" @update:open="(open) => !open && (rotating = null)">
-      <DialogContent class="sm:max-w-lg">
+    <Dialog :open="rotating !== null" @update:open="(open) => !open && !saving && (rotating = null)">
+      <DialogContent class="sm:max-w-lg" :show-close-button="!saving">
         <DialogHeader>
           <DialogTitle>{{ adminText('k00kk') }}</DialogTitle>
           <DialogDescription>{{ adminText('k00kt') }}</DialogDescription>
@@ -324,7 +326,7 @@ onMounted(() => {
             <span>{{ adminText('k00ku') }}</span>
           </div>
           <DialogFooter>
-            <Button variant="outline" type="button" @click="rotating = null">{{ adminText('k009q') }}</Button>
+            <Button variant="outline" type="button" :disabled="saving" @click="rotating = null">{{ adminText('k009q') }}</Button>
             <Button type="button" :disabled="copied" @click="copyToken">
               <Copy class="size-4" />
               {{ copied ? adminText('k00kv') : adminText('k00kw') }}
@@ -332,7 +334,7 @@ onMounted(() => {
           </DialogFooter>
         </div>
         <DialogFooter v-else>
-          <Button variant="outline" type="button" @click="rotating = null">{{ adminText('k009q') }}</Button>
+          <Button variant="outline" type="button" :disabled="saving" @click="rotating = null">{{ adminText('k009q') }}</Button>
           <Button type="button" :disabled="saving" @click="confirmRotate">
             <KeyRound class="size-4" />
             {{ saving ? adminText('k00kp') : adminText('k00kx') }}

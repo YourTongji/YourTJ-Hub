@@ -12,7 +12,8 @@ import (
 	"encoding/base64"
 	"encoding/hex"
 	"errors"
-	"net"
+	"log/slog"
+	"net/netip"
 	"net/url"
 	"strings"
 	"time"
@@ -34,17 +35,22 @@ const (
 	tokenRandomBytes = 24
 	// tokenPrefixChars is how many random characters the non-secret prefix keeps.
 	tokenPrefixChars = 8
+	// maxNicknameRunes matches users.nickname varchar(64) across every DB.
+	maxNicknameRunes = 64
 	// maxWebhookLength bounds the stored webhook endpoint.
 	maxWebhookLength = 512
+	// lastUsedTouchInterval avoids a write on every authenticated request.
+	lastUsedTouchInterval = time.Minute
 )
 
 var (
-	ErrAgentNotFound       = errors.New("agentservice: agent not found")
-	ErrAgentDisabled       = errors.New("agentservice: agent disabled")
-	ErrAgentTokenInvalid   = errors.New("agentservice: invalid agent token")
-	ErrAgentUsernameExists = errors.New("agentservice: username already exists")
-	ErrAgentWebhookInvalid = errors.New("agentservice: webhook endpoint invalid")
-	ErrAgentEnabledInvalid = errors.New("agentservice: enabled status invalid")
+	ErrAgentNotFound        = errors.New("agentservice: agent not found")
+	ErrAgentDisabled        = errors.New("agentservice: agent disabled")
+	ErrAgentTokenInvalid    = errors.New("agentservice: invalid agent token")
+	ErrAgentUsernameExists  = errors.New("agentservice: username already exists")
+	ErrAgentNicknameInvalid = errors.New("agentservice: nickname invalid")
+	ErrAgentWebhookInvalid  = errors.New("agentservice: webhook endpoint invalid")
+	ErrAgentEnabledInvalid  = errors.New("agentservice: enabled status invalid")
 )
 
 // TokenPair carries the plaintext token plus the derived stored fields.
@@ -113,8 +119,13 @@ func ResolveByToken(token string) (*agents.Entity, *users.EntityComplete, error)
 		return nil, nil, ErrAgentTokenInvalid
 	}
 	now := time.Now()
-	_ = agents.TouchLastUsedAt(agent.UserId, now)
-	agent.LastUsedAt = &now
+	if agent.LastUsedAt == nil || now.Sub(*agent.LastUsedAt) >= lastUsedTouchInterval {
+		if err := agents.TouchLastUsedAt(agent.UserId, now); err != nil {
+			slog.Warn("agent last-used update failed", "agentId", agent.UserId, "error", err)
+		} else {
+			agent.LastUsedAt = &now
+		}
+	}
 	return agent, &user, nil
 }
 
@@ -144,6 +155,10 @@ func Create(p CreateParams) (CreateResult, error) {
 	if users.ExistUsername(username) {
 		return CreateResult{}, ErrAgentUsernameExists
 	}
+	nickname, err := normalizeNickname(p.Nickname)
+	if err != nil {
+		return CreateResult{}, err
+	}
 	webhook, err := normalizeWebhookEndpoint(p.WebhookEndpoint)
 	if err != nil {
 		return CreateResult{}, err
@@ -156,7 +171,7 @@ func Create(p CreateParams) (CreateResult, error) {
 	now := time.Now()
 	userEntity := users.EntityComplete{
 		Username:    username,
-		Nickname:    strings.TrimSpace(p.Nickname),
+		Nickname:    nickname,
 		ActorType:   users.ActorTypeBot,
 		IsActivated: users.ActivationSuccess,
 		IsFrozen:    users.StatusNormal,
@@ -186,6 +201,9 @@ func Create(p CreateParams) (CreateResult, error) {
 		return nil
 	})
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return CreateResult{}, ErrAgentUsernameExists
+		}
 		return CreateResult{}, err
 	}
 	return CreateResult{Agent: agentEntity, User: userEntity, Token: tokenPair.Token}, nil
@@ -241,43 +259,72 @@ type UpdateParams struct {
 // Update changes the agent profile (nickname on the bot user), webhook
 // endpoint, and/or enabled state atomically across both rows.
 func Update(userID uint64, p UpdateParams) (*AgentView, error) {
-	view, err := Get(userID)
-	if err != nil {
-		return nil, err
-	}
-	agent := view.Agent
+	agentUpdates := make(map[string]any, 2)
 	if p.WebhookEndpoint != nil {
 		normalized, err := normalizeWebhookEndpoint(*p.WebhookEndpoint)
 		if err != nil {
 			return nil, err
 		}
-		agent.WebhookEndpoint = normalized
+		agentUpdates["webhook_endpoint"] = normalized
 	}
 	if p.Enabled != nil {
 		if *p.Enabled != agents.StatusDisabled && *p.Enabled != agents.StatusEnabled {
 			return nil, ErrAgentEnabledInvalid
 		}
-		agent.Enabled = *p.Enabled
+		agentUpdates["enabled"] = *p.Enabled
 	}
-	nicknameChanged := p.Nickname != nil
-	if nicknameChanged {
-		view.User.Nickname = strings.TrimSpace(*p.Nickname)
-	}
-	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Save(&agent).Error; err != nil {
-			return err
+
+	var nickname *string
+	if p.Nickname != nil {
+		normalized, err := normalizeNickname(*p.Nickname)
+		if err != nil {
+			return nil, err
 		}
-		if nicknameChanged {
-			return tx.Save(&view.User).Error
+		nickname = &normalized
+	}
+
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if len(agentUpdates) > 0 {
+			if err := agents.UpdateColumns(tx, userID, agentUpdates); err != nil {
+				return err
+			}
+		} else if agents.GetByUserIDWithDB(tx, userID) == nil {
+			return gorm.ErrRecordNotFound
+		}
+		if nickname != nil {
+			result := tx.Model(&users.EntityComplete{}).
+				Where("id = ? AND actor_type = ?", userID, users.ActorTypeBot).
+				Update("nickname", *nickname)
+			if result.Error != nil {
+				return result.Error
+			}
+			if result.RowsAffected == 0 {
+				var count int64
+				if err := tx.Model(&users.EntityComplete{}).
+					Where("id = ? AND actor_type = ?", userID, users.ActorTypeBot).
+					Count(&count).Error; err != nil {
+					return err
+				}
+				if count == 0 {
+					return gorm.ErrRecordNotFound
+				}
+			}
 		}
 		return nil
 	}); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, ErrAgentNotFound
+		}
 		return nil, err
 	}
-	if nicknameChanged {
+
+	view, err := Get(userID)
+	if err != nil {
+		return nil, err
+	}
+	if nickname != nil {
 		userservice.RefreshUserCaches(&view.User)
 	}
-	view.Agent = agent
 	return view, nil
 }
 
@@ -285,18 +332,14 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 // immediately because the stored prefix and hash are replaced atomically in
 // one update. The new plaintext token is returned exactly once.
 func RotateToken(userID uint64) (string, error) {
-	view, err := Get(userID)
-	if err != nil {
-		return "", err
-	}
 	tokenPair, err := GenerateToken()
 	if err != nil {
 		return "", err
 	}
-	agent := view.Agent
-	agent.TokenPrefix = tokenPair.Prefix
-	agent.TokenHash = tokenPair.Hash
-	if err := agents.Save(&agent); err != nil {
+	if err := agents.UpdateToken(userID, tokenPair.Prefix, tokenPair.Hash); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", ErrAgentNotFound
+		}
 		return "", err
 	}
 	return tokenPair.Token, nil
@@ -304,13 +347,21 @@ func RotateToken(userID uint64) (string, error) {
 
 // Disable turns the agent off. Resolution is rejected while disabled.
 func Disable(userID uint64) error {
-	view, err := Get(userID)
-	if err != nil {
+	if err := agents.UpdateEnabled(userID, agents.StatusDisabled); err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return ErrAgentNotFound
+		}
 		return err
 	}
-	agent := view.Agent
-	agent.Enabled = agents.StatusDisabled
-	return agents.Save(&agent)
+	return nil
+}
+
+func normalizeNickname(raw string) (string, error) {
+	value := strings.TrimSpace(raw)
+	if len([]rune(value)) > maxNicknameRunes {
+		return "", ErrAgentNicknameInvalid
+	}
+	return value, nil
 }
 
 // normalizeWebhookEndpoint trims and validates the optional webhook endpoint.
@@ -333,8 +384,51 @@ func normalizeWebhookEndpoint(raw string) (string, error) {
 	if hostname == "" || hostname == "localhost" || strings.HasSuffix(hostname, ".localhost") || strings.HasSuffix(hostname, ".local") || strings.HasSuffix(hostname, ".internal") {
 		return "", ErrAgentWebhookInvalid
 	}
-	if ip := net.ParseIP(hostname); ip != nil && (ip.IsLoopback() || ip.IsPrivate() || ip.IsLinkLocalUnicast() || ip.IsLinkLocalMulticast() || ip.IsUnspecified()) {
+	if strings.Contains(hostname, "%") || looksLikeLegacyNumericIP(hostname) {
+		return "", ErrAgentWebhookInvalid
+	}
+	if ip, err := netip.ParseAddr(hostname); err == nil && (!ip.IsGlobalUnicast() || ip.IsPrivate() || ip.IsLoopback() || ip.IsLinkLocalUnicast() || ip.IsUnspecified()) {
 		return "", ErrAgentWebhookInvalid
 	}
 	return value, nil
+}
+
+func looksLikeLegacyNumericIP(hostname string) bool {
+	parts := strings.Split(hostname, ".")
+	if len(parts) > 4 {
+		return false
+	}
+	for _, part := range parts {
+		if !isLegacyNumericIPPart(part) {
+			return false
+		}
+	}
+	// Standard dotted-decimal addresses are handled by netip.ParseAddr. Any
+	// other all-numeric form is a legacy inet_aton spelling and must not be
+	// allowed to reach a future DNS/dial path.
+	_, err := netip.ParseAddr(hostname)
+	return err != nil
+}
+
+func isLegacyNumericIPPart(part string) bool {
+	if part == "" {
+		return false
+	}
+	if strings.HasPrefix(part, "0x") {
+		if len(part) == 2 {
+			return false
+		}
+		for _, r := range part[2:] {
+			if !((r >= '0' && r <= '9') || (r >= 'a' && r <= 'f')) {
+				return false
+			}
+		}
+		return true
+	}
+	for _, r := range part {
+		if r < '0' || r > '9' {
+			return false
+		}
+	}
+	return true
 }

@@ -4,11 +4,13 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"gorm.io/gorm"
 )
 
 func setupAgentTestDB(t *testing.T) {
@@ -122,6 +124,33 @@ func TestCreateAgentDuplicateUsernameRejected(t *testing.T) {
 	}
 }
 
+func TestUsersUsernameHasDatabaseUniqueConstraint(t *testing.T) {
+	setupAgentTestDB(t)
+	first := users.EntityComplete{Username: "unique-user", ActorType: users.ActorTypeHuman}
+	if err := db.Connect().Create(&first).Error; err != nil {
+		t.Fatalf("create first user: %v", err)
+	}
+	duplicate := users.EntityComplete{Username: first.Username, ActorType: users.ActorTypeBot}
+	if err := db.Connect().Create(&duplicate).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate username error = %v, want gorm.ErrDuplicatedKey", err)
+	}
+}
+
+func TestCreateAndUpdateRejectOverlongNickname(t *testing.T) {
+	setupAgentTestDB(t)
+	tooLong := strings.Repeat("鹅", maxNicknameRunes+1)
+	if _, err := Create(CreateParams{Username: "long-nickname-create", Nickname: tooLong}); !errors.Is(err, ErrAgentNicknameInvalid) {
+		t.Fatalf("Create(overlong nickname) error = %v, want ErrAgentNicknameInvalid", err)
+	}
+	result, err := Create(CreateParams{Username: "long-nickname-update"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{Nickname: &tooLong}); !errors.Is(err, ErrAgentNicknameInvalid) {
+		t.Fatalf("Update(overlong nickname) error = %v, want ErrAgentNicknameInvalid", err)
+	}
+}
+
 func TestCreateAgentInvalidWebhookRejected(t *testing.T) {
 	setupAgentTestDB(t)
 	for _, raw := range []string{
@@ -130,9 +159,16 @@ func TestCreateAgentInvalidWebhookRejected(t *testing.T) {
 		"https://",
 		"http://localhost:8080/hook",
 		"http://127.0.0.1/hook",
+		"http://127.1/hook",
+		"http://0x7f000001/hook",
+		"http://0x7f.1/hook",
+		"http://127.0x0.1/hook",
+		"http://0x7f.0x0.0x1/hook",
+		"http://2130706433/hook",
 		"http://10.0.0.1/hook",
 		"http://169.254.169.254/latest/meta-data",
 		"http://[::1]/hook",
+		"http://[fe80::1%25eth0]/hook",
 		"https://user:pass@example.com/hook",
 		"https://example.com/hook#fragment",
 	} {
@@ -253,6 +289,52 @@ func TestDisableInvalidatesAccess(t *testing.T) {
 	}
 }
 
+func TestAgentSecurityUpdatesPreserveUnownedColumns(t *testing.T) {
+	setupAgentTestDB(t)
+	result, err := Create(CreateParams{Username: "security-columns", WebhookEndpoint: "https://before.example.com/hook"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	newToken, err := RotateToken(result.Agent.UserId)
+	if err != nil {
+		t.Fatalf("RotateToken() error = %v", err)
+	}
+	rotated := agents.GetByUserID(result.Agent.UserId)
+	if rotated == nil {
+		t.Fatal("rotated agent missing")
+	}
+	if err := Disable(result.Agent.UserId); err != nil {
+		t.Fatalf("Disable() error = %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{WebhookEndpoint: ptr("https://after.example.com/hook")}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	stored := agents.GetByUserID(result.Agent.UserId)
+	if stored == nil {
+		t.Fatal("stored agent missing")
+	}
+	if stored.Enabled != agents.StatusDisabled {
+		t.Fatalf("enabled = %d, want disabled", stored.Enabled)
+	}
+	if stored.TokenPrefix != rotated.TokenPrefix || stored.TokenHash != rotated.TokenHash {
+		t.Fatal("disable/profile update reverted rotated token")
+	}
+	if stored.WebhookEndpoint != "https://after.example.com/hook" {
+		t.Fatalf("webhook = %q", stored.WebhookEndpoint)
+	}
+	if _, _, err := ResolveByToken(result.Token); !errors.Is(err, ErrAgentDisabled) && !errors.Is(err, ErrAgentTokenInvalid) {
+		t.Fatalf("old token error = %v, want disabled or invalid", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); err != nil {
+		t.Fatalf("re-enable error = %v", err)
+	}
+	if _, _, err := ResolveByToken(newToken); err != nil {
+		t.Fatalf("rotated token after re-enable error = %v", err)
+	}
+}
+
 func TestUpdateProfileAndWebhook(t *testing.T) {
 	setupAgentTestDB(t)
 	result, err := Create(CreateParams{Username: "update-agent", Nickname: "Before"})
@@ -283,6 +365,55 @@ func TestUpdateProfileAndWebhook(t *testing.T) {
 
 	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(2))}); !errors.Is(err, ErrAgentEnabledInvalid) {
 		t.Fatalf("Update(invalid enabled) error = %v, want ErrAgentEnabledInvalid", err)
+	}
+}
+
+func TestAgentUpdatesAreIdempotent(t *testing.T) {
+	setupAgentTestDB(t)
+	result, err := Create(CreateParams{Username: "idempotent-agent", Nickname: "Same", WebhookEndpoint: "https://same.example.com/hook"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{
+		Nickname:        ptr("Same"),
+		WebhookEndpoint: ptr("https://same.example.com/hook"),
+		Enabled:         ptr(int8(agents.StatusEnabled)),
+	}); err != nil {
+		t.Fatalf("Update(no-op) error = %v", err)
+	}
+	if err := Disable(result.Agent.UserId); err != nil {
+		t.Fatalf("Disable() error = %v", err)
+	}
+	if err := Disable(result.Agent.UserId); err != nil {
+		t.Fatalf("Disable(no-op) error = %v", err)
+	}
+}
+
+func TestAgentUpdateRefreshesUpdatedAt(t *testing.T) {
+	setupAgentTestDB(t)
+	result, err := Create(CreateParams{Username: "updated-at-agent"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+
+	baseline := time.Date(2020, time.January, 2, 3, 4, 5, 0, time.UTC)
+	if err := db.Connect().Model(&agents.Entity{}).
+		Where("user_id = ?", result.Agent.UserId).
+		UpdateColumn("updated_at", baseline).Error; err != nil {
+		t.Fatalf("set baseline updated_at: %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{
+		WebhookEndpoint: ptr("https://updated.example.com/hook"),
+	}); err != nil {
+		t.Fatalf("Update() error = %v", err)
+	}
+
+	stored := agents.GetByUserID(result.Agent.UserId)
+	if stored == nil {
+		t.Fatal("stored agent missing")
+	}
+	if !stored.UpdatedAt.After(baseline) {
+		t.Fatalf("updated_at = %v, want after %v", stored.UpdatedAt, baseline)
 	}
 }
 

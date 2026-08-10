@@ -13,20 +13,31 @@ import (
 	"github.com/gin-gonic/gin"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/http/controllers/api"
+	"github.com/leancodebox/GooseForum/app/http/middleware"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
+	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
+	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/permission"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"gorm.io/gorm"
 )
 
 func setupAgentAdminTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &agents.Entity{}, &userStatistics.Entity{}, &userSessions.Entity{}, &rolePermissionRs.Entity{}); err != nil {
 		t.Fatalf("migrate agent tables: %v", err)
 	}
+	conn.Where("1 = 1").Delete(&userSessions.Entity{})
+	conn.Where("1 = 1").Delete(&rolePermissionRs.Entity{})
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
-	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
+	if err := conn.Exec("DELETE FROM sqlite_sequence WHERE name = ?", "users").Error; err != nil {
+		t.Fatalf("reset users sequence: %v", err)
+	}
 }
 
 // agentAdminRouter registers the agent routes with an authenticated admin
@@ -43,6 +54,14 @@ func agentAdminRouter(userID uint64) *gin.Engine {
 	router.POST("api/admin/agent-update", UpButterReq(api.AgentUpdate))
 	router.POST("api/admin/agent-rotate-token", UpButterReq(api.AgentRotateToken))
 	router.POST("api/admin/agent-disable", UpButterReq(api.AgentDisable))
+	return router
+}
+
+func protectedAgentAdminRouter() *gin.Engine {
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	adminAPI := router.Group("/api/admin", middleware.JWTAuthCheck, middleware.CheckWritableAccount)
+	adminAPI.POST("/agent-list", middleware.CheckPermission(permission.Admin), UpButterReq(api.AgentList))
 	return router
 }
 
@@ -161,6 +180,62 @@ func TestAgentListReturnsAgents(t *testing.T) {
 	if !ok || len(list) != 2 {
 		t.Fatalf("list result = %#v, want 2 items", resp["result"])
 	}
+}
+
+func TestAgentAdminRoutesRequireAdminPermission(t *testing.T) {
+	setupAgentAdminTestDB(t)
+	conn := db.Connect()
+	regularRoleID := contractTestID()
+	adminRoleID := contractTestID()
+	for adminRoleID == regularRoleID {
+		adminRoleID = contractTestID()
+	}
+
+	regularUser := createAgentAdminAuthUser(t, conn, contractTestID(), regularRoleID)
+	adminUser := createAgentAdminAuthUser(t, conn, contractTestID(), adminRoleID)
+	if err := conn.Create(&rolePermissionRs.Entity{
+		RoleId:       adminRoleID,
+		PermissionId: permission.Admin.Id(),
+		Effective:    1,
+	}).Error; err != nil {
+		t.Fatalf("grant admin permission: %v", err)
+	}
+	permission.InvalidateRole(regularRoleID)
+	permission.InvalidateRole(adminRoleID)
+	t.Cleanup(func() {
+		permission.InvalidateRole(regularRoleID)
+		permission.InvalidateRole(adminRoleID)
+	})
+
+	router := protectedAgentAdminRouter()
+	regular := serveJSON(router, "/api/admin/agent-list", `{}`, contractSessionToken(t, regularUser))
+	if regular.Code != http.StatusForbidden {
+		t.Fatalf("regular user status = %d, want 403: %s", regular.Code, regular.Body.String())
+	}
+	regularEnvelope := decodeContractEnvelope(t, regular)
+	if regularEnvelope.MessageCode != "permission.denied" {
+		t.Fatalf("regular user messageCode = %q, want permission.denied", regularEnvelope.MessageCode)
+	}
+
+	admin := serveJSON(router, "/api/admin/agent-list", `{}`, contractSessionToken(t, adminUser))
+	if admin.Code != http.StatusOK {
+		t.Fatalf("admin status = %d, want 200: %s", admin.Code, admin.Body.String())
+	}
+	adminEnvelope := decodeContractEnvelope(t, admin)
+	if adminEnvelope.Code != 0 {
+		t.Fatalf("admin response code = %d, want 0: %s", adminEnvelope.Code, admin.Body.String())
+	}
+}
+
+func createAgentAdminAuthUser(t *testing.T, conn *gorm.DB, userID, roleID uint64) *users.EntityComplete {
+	t.Helper()
+	user := createHTTPContractUser(t, conn, userID)
+	user.RoleId = roleID
+	if err := conn.Model(user).Update("role_id", roleID).Error; err != nil {
+		t.Fatalf("assign role %d to user %d: %v", roleID, userID, err)
+	}
+	userservice.RefreshUserCaches(user)
+	return user
 }
 
 func TestAgentUpdateProfileWebhookAndEnable(t *testing.T) {

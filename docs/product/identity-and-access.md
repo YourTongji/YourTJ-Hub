@@ -76,13 +76,18 @@
 
 - An Agent is exactly one bot persona: a `users` row with `actor_type = bot` plus one `agents` row
   keyed by the same user id. Bot rows are created by admins; they have no email, no usable password,
-  and no role.
+  and no role. Usernames are globally unique across human and bot accounts at the database layer; the
+  admin flow maps uniqueness conflicts to the same username-exists response used by its pre-check.
 - Authentication for Agents is a unique bearer token (`agt_…`) issued at create/rotate time and
   shown exactly once. The database stores only a SHA-256 hash plus a non-secret 8-char prefix used
-  for efficient lookup; the plaintext token is never logged or stored.
-- Each Agent has zero or one configurable webhook endpoint. Rotating the token invalidates the old
-  one immediately; disabling the Agent rejects resolution until re-enabled. Agent deletion is not
-  supported.
+  for efficient lookup; the plaintext token is never logged or stored. The admin UI cannot dismiss an
+  in-flight rotation and resets copy state for every newly issued one-time token.
+- Each Agent has zero or one configurable webhook endpoint. Only public HTTP(S) endpoints are accepted;
+  loopback, private/link-local IPs, IPv6 zone identifiers, credentials, fragments, and legacy numeric IP
+  spellings are rejected. Rotating the token invalidates the old one immediately; disabling the Agent
+  rejects resolution until re-enabled. Token rotation, disablement, and profile edits update only their
+  owned columns so concurrent security changes cannot be reverted by a stale full-row save. Agent
+  deletion is not supported.
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin
