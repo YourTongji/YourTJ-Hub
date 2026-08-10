@@ -680,6 +680,18 @@ abstract class AppLocalizations {
   /// **'Report failed: {error}'**
   String topicReportFailed(String error);
 
+  /// No description provided for @topicWatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch topic replies'**
+  String get topicWatch;
+
+  /// No description provided for @topicUnwatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop watching topic replies'**
+  String get topicUnwatch;
+
   /// No description provided for @topicReplies.
   ///
   /// In en, this message translates to:

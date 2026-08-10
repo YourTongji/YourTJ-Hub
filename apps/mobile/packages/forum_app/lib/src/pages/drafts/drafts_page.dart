@@ -35,6 +35,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .fetch('/drafts');
+      if (!mounted) return;
       final DraftsPageProps? props = parsePageProps<DraftsPageProps>(payload);
       setState(() {
         _page = props == null
@@ -45,6 +46,7 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
             : AsyncValue.data(props);
       });
     } catch (e, st) {
+      if (!mounted) return;
       setState(() => _page = AsyncValue.error(e, st));
     }
   }
@@ -57,42 +59,73 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       body: _page.when(
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
-        data: (props) {
-          if (props.drafts.isEmpty) return GfEmpty(message: l10n.draftsEmpty);
-          return RefreshIndicator(
-            onRefresh: () => _load(silent: true),
-            child: ListView.separated(
-              itemCount: props.drafts.length,
-              separatorBuilder: (_, _) => const GfDivider(),
-              itemBuilder: (context, i) {
-                final draft = props.drafts[i];
-                final meta = [
-                  l10n.draftsMetaCreated(formatDateTime(draft.createdAt)),
-                  l10n.draftsMetaViews(draft.viewCount),
-                  l10n.draftsMetaReplies(draft.replyCount),
-                ].join(' · ');
-                return GfDraftRow(
-                  title: draft.title.isEmpty ? l10n.topicNoTitle : draft.title,
-                  description: draft.description,
-                  categories: [
-                    for (final cat in draft.categories)
-                      GfTopicCategory(
-                        name: cat.name,
-                        color: colorFromHex(cat.color),
-                      ),
-                  ],
-                  blocked: draft.processStatus == 1,
-                  meta: meta,
-                  updatedTime: formatDate(draft.updatedAt),
-                  onTap: () {
-                    // 跳转编辑:web 草稿 editUrl 形如 /publish?topicId=xxx。
-                    context.push('/publish?topicId=${draft.id}');
-                  },
-                );
-              },
-            ),
-          );
-        },
+        data: (props) => GfScrollToTop(
+          semanticLabel: l10n.commonBackToTop,
+          threshold: 360,
+          builder: (BuildContext context, ScrollController controller) {
+            return RefreshIndicator(
+              onRefresh: () => _load(silent: true),
+              child: props.drafts.isEmpty
+                  ? CustomScrollView(
+                      controller: controller,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      slivers: <Widget>[
+                        SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.center,
+                            children: <Widget>[
+                              GfEmpty(
+                                icon: Icons.edit_note_outlined,
+                                message: l10n.draftsEmpty,
+                              ),
+                              GfButton(
+                                icon: const Icon(Icons.add_rounded, size: 18),
+                                label: l10n.navPublish,
+                                onPressed: () => context.push('/publish'),
+                              ),
+                              const SizedBox(height: 48),
+                            ],
+                          ),
+                        ),
+                      ],
+                    )
+                  : ListView.separated(
+                      controller: controller,
+                      physics: const AlwaysScrollableScrollPhysics(),
+                      itemCount: props.drafts.length,
+                      separatorBuilder: (_, _) => const GfDivider(),
+                      itemBuilder: (context, i) {
+                        final draft = props.drafts[i];
+                        final meta = [
+                          l10n.draftsMetaCreated(
+                            formatDateTime(draft.createdAt),
+                          ),
+                          l10n.draftsMetaViews(draft.viewCount),
+                          l10n.draftsMetaReplies(draft.replyCount),
+                        ].join(' · ');
+                        return GfDraftRow(
+                          title: draft.title.isEmpty
+                              ? l10n.topicNoTitle
+                              : draft.title,
+                          description: draft.description,
+                          categories: <GfTopicCategory>[
+                            for (final cat in draft.categories)
+                              GfTopicCategory(
+                                name: cat.name,
+                                color: colorFromHex(cat.color),
+                              ),
+                          ],
+                          blocked: draft.processStatus == 1,
+                          meta: meta,
+                          updatedTime: formatDate(draft.updatedAt),
+                          onTap: () => context.push('/publish?id=${draft.id}'),
+                        );
+                      },
+                    ),
+            );
+          },
+        ),
       ),
     );
   }

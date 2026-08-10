@@ -180,7 +180,17 @@ final GoRouter appRouter = GoRouter(
         ),
         StatefulShellBranch(
           routes: <RouteBase>[
-            GoRoute(path: '/messages', builder: (_, _) => const MessagesPage()),
+            GoRoute(
+              path: '/messages',
+              builder: (BuildContext context, GoRouterState state) =>
+                  MessagesPage(
+                    targetUserId: int.tryParse(
+                      state.uri.queryParameters['userId'] ?? '',
+                    ),
+                    targetUsername: state.uri.queryParameters['username'] ?? '',
+                    targetAvatarUrl: state.uri.queryParameters['avatar'] ?? '',
+                  ),
+            ),
           ],
         ),
         StatefulShellBranch(

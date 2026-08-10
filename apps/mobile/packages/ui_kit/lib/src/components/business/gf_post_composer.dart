@@ -13,28 +13,44 @@ class GfPostComposer extends StatelessWidget {
     super.key,
     required this.controller,
     required this.onPublish,
+    required this.publishLabel,
+    required this.hintText,
     this.focusNode,
     this.targetName,
+    this.targetLabel,
     this.onCloseTarget,
     this.onPickImage,
+    this.imageTooltip,
+    this.imageUrl,
+    this.onRemoveImage,
+    this.removeImageTooltip,
+    this.uploading = false,
     this.publishing = false,
-    this.publishLabel = '发布',
-    this.hintText = '写下你的回复…',
+    this.canPublish = true,
     this.toolbar,
-  });
+  }) : assert(onPickImage == null || imageTooltip != null),
+       assert(onRemoveImage == null || removeImageTooltip != null);
 
   final TextEditingController controller;
-  final VoidCallback onPublish;
   final FocusNode? focusNode;
+  final VoidCallback onPublish;
 
-  /// When replying to a user, the target name shown in the reference bar.
+  /// When replying to a user, the target name and localized label shown in the
+  /// reference bar.
   final String? targetName;
+  final String? targetLabel;
   final VoidCallback? onCloseTarget;
 
-  /// Image upload button (web toolbar image button).
+  /// Image upload action, localized accessibility labels, and optional preview.
   final VoidCallback? onPickImage;
+  final String? imageTooltip;
+  final String? imageUrl;
+  final VoidCallback? onRemoveImage;
+  final String? removeImageTooltip;
+  final bool uploading;
 
   final bool publishing;
+  final bool canPublish;
   final String publishLabel;
   final String hintText;
 
@@ -70,7 +86,7 @@ class GfPostComposer extends StatelessWidget {
                   const SizedBox(width: 6),
                   Expanded(
                     child: Text(
-                      '回复 $targetName',
+                      targetLabel ?? targetName!,
                       maxLines: 1,
                       overflow: TextOverflow.ellipsis,
                       style: TextStyle(
@@ -91,12 +107,80 @@ class GfPostComposer extends StatelessWidget {
                 ],
               ),
             ),
-          if (toolbar != null) ...<Widget>[toolbar!, const SizedBox(height: 8)],
+          if (toolbar != null || onPickImage != null) ...<Widget>[
+            Row(
+              children: <Widget>[
+                if (onPickImage != null)
+                  IconButton(
+                    icon: uploading
+                        ? const SizedBox.square(
+                            dimension: 20,
+                            child: CircularProgressIndicator(strokeWidth: 2),
+                          )
+                        : Icon(
+                            Icons.image_outlined,
+                            size: 21,
+                            color: colors.iconMuted,
+                          ),
+                    onPressed: uploading ? null : onPickImage,
+                    tooltip: imageTooltip,
+                    visualDensity: VisualDensity.compact,
+                  ),
+                if (toolbar != null) Expanded(child: toolbar!),
+              ],
+            ),
+            const SizedBox(height: 6),
+          ],
+          if (imageUrl != null && imageUrl!.isNotEmpty) ...<Widget>[
+            Align(
+              alignment: Alignment.centerLeft,
+              child: Stack(
+                clipBehavior: Clip.none,
+                children: <Widget>[
+                  ClipRRect(
+                    borderRadius: BorderRadius.circular(radii.field),
+                    child: Image.network(
+                      imageUrl!,
+                      width: 88,
+                      height: 72,
+                      fit: BoxFit.cover,
+                      errorBuilder: (_, _, _) => Container(
+                        width: 88,
+                        height: 72,
+                        color: colors.base300,
+                        alignment: Alignment.center,
+                        child: Icon(
+                          Icons.broken_image_outlined,
+                          color: colors.iconMuted,
+                        ),
+                      ),
+                    ),
+                  ),
+                  if (onRemoveImage != null)
+                    Positioned(
+                      right: -10,
+                      top: -10,
+                      child: IconButton.filled(
+                        onPressed: onRemoveImage,
+                        tooltip: removeImageTooltip,
+                        icon: const Icon(Icons.close, size: 15),
+                        style: IconButton.styleFrom(
+                          minimumSize: const Size(32, 32),
+                          backgroundColor: colors.baseContent,
+                          foregroundColor: colors.base100,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+            ),
+            const SizedBox(height: 8),
+          ],
           Container(
-            constraints: const BoxConstraints(minHeight: 80, maxHeight: 160),
-            padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+            constraints: const BoxConstraints(minHeight: 76, maxHeight: 160),
+            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
             decoration: BoxDecoration(
-              color: colors.base200,
+              color: colors.base100,
               borderRadius: BorderRadius.circular(radii.field),
               border: Border.all(color: colors.line, width: 1),
             ),
@@ -104,9 +188,9 @@ class GfPostComposer extends StatelessWidget {
               controller: controller,
               focusNode: focusNode,
               maxLines: null,
-              minLines: 3,
+              minLines: 2,
               expands: false,
-              style: const TextStyle(fontSize: 14, height: 1.5),
+              style: const TextStyle(fontSize: 16, height: 1.5),
               decoration: InputDecoration(
                 hintText: hintText,
                 border: InputBorder.none,
@@ -115,26 +199,14 @@ class GfPostComposer extends StatelessWidget {
             ),
           ),
           const SizedBox(height: 10),
-          Row(
-            children: <Widget>[
-              if (onPickImage != null)
-                IconButton(
-                  icon: Icon(
-                    Icons.image_outlined,
-                    size: 20,
-                    color: colors.iconMuted,
-                  ),
-                  onPressed: onPickImage,
-                  tooltip: '图片',
-                ),
-              const Spacer(),
-              GfButton(
-                label: publishLabel,
-                size: GfButtonSize.medium,
-                loading: publishing,
-                onPressed: publishing ? null : onPublish,
-              ),
-            ],
+          Align(
+            alignment: Alignment.centerRight,
+            child: GfButton(
+              label: publishLabel,
+              size: GfButtonSize.medium,
+              loading: publishing,
+              onPressed: publishing || !canPublish ? null : onPublish,
+            ),
           ),
         ],
       ),

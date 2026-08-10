@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -13,7 +14,7 @@ import '../asset_url.dart';
 /// - 表格:line 边框
 /// - 图片:object-contain + max-height min(360, 70vh) + 圆角边框
 /// 图片点击打开 [GfImageViewer] 全屏查看(web MarkdownImageViewer.vue 语义)。
-class GfMarkdownView extends StatelessWidget {
+class GfMarkdownView extends StatefulWidget {
   const GfMarkdownView({
     super.key,
     required this.data,
@@ -28,11 +29,37 @@ class GfMarkdownView extends StatelessWidget {
 
   final bool selectable;
 
+  @override
+  State<GfMarkdownView> createState() => _GfMarkdownViewState();
+}
+
+class _GfMarkdownViewState extends State<GfMarkdownView> {
+  late Widget _markdownBody;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _markdownBody = _buildMarkdownBody();
+  }
+
+  @override
+  void didUpdateWidget(covariant GfMarkdownView oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.data != widget.data ||
+        oldWidget.selectable != widget.selectable ||
+        !listEquals(oldWidget.images, widget.images)) {
+      _markdownBody = _buildMarkdownBody();
+    }
+  }
+
   List<String> _extractImages() {
     // Local storage uploads intentionally return `/file/img/...`; keep both
     // relative and absolute destinations so the viewer mirrors the renderer.
     final RegExp re = RegExp(r'!\[[^\]]*\]\(([^)\s]+)\)');
-    return re.allMatches(data).map((m) => m.group(1)!).toList(growable: false);
+    return re
+        .allMatches(widget.data)
+        .map((m) => m.group(1)!)
+        .toList(growable: false);
   }
 
   void _openViewer(BuildContext context, List<String> urls, int index) {
@@ -48,23 +75,25 @@ class GfMarkdownView extends StatelessWidget {
     );
   }
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _buildMarkdownBody() {
     final GfColors colors = GfTheme.colorsOf(context);
     final GfBorders borders = GfTheme.bordersOf(context);
-    final List<String> sourceUrls = images ?? _extractImages();
+    final List<String> sourceUrls = widget.images ?? _extractImages();
     final List<String> resolvedUrls = sourceUrls
         .map(resolveApiAssetUrl)
         .toList(growable: false);
+    final MediaQueryData media = MediaQuery.of(context);
 
     // web prose.css 图片高度上限:min(360px, 70vh)。
-    final double maxImageHeight = MediaQuery.of(context).size.height * 0.7 < 360
-        ? MediaQuery.of(context).size.height * 0.7
+    final double maxImageHeight = media.size.height * 0.7 < 360
+        ? media.size.height * 0.7
         : 360;
+    final int imageCacheWidth = (media.size.width * media.devicePixelRatio)
+        .round();
 
     return MarkdownWidget(
-      data: data,
-      selectable: selectable,
+      data: widget.data,
+      selectable: widget.selectable,
       shrinkWrap: true,
       physics: const NeverScrollableScrollPhysics(),
       config: MarkdownConfig(
@@ -96,6 +125,7 @@ class GfMarkdownView extends StatelessWidget {
                     child: Image.network(
                       resolvedUrl,
                       fit: BoxFit.contain,
+                      cacheWidth: imageCacheWidth,
                       errorBuilder: (_, _, _) => SizedBox(
                         height: 60,
                         child: Center(
@@ -154,4 +184,7 @@ class GfMarkdownView extends StatelessWidget {
       ),
     );
   }
+
+  @override
+  Widget build(BuildContext context) => _markdownBody;
 }

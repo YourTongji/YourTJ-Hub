@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-10
 
 ## What works
 
@@ -31,7 +31,7 @@
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
 | Auth | `Partial` | GitHub OAuth + Casdoor OIDC (PKCE/nonce/numeric-sub enforced) integrated; TOTP 2FA for password login; session listing/revoke; Casdoor-side MFA/Passkey pending deployment config |
 | Contract | `Partial` | OpenAPI 3.1 currently covers password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all) and topic writing; Redocly lint/bundle, generated TypeScript no-diff checks, committed fixtures and real Gin route tests are in CI; mobile Dart mirrors stay hand-maintained under fixture deserialization checks; Dart generation and broader route coverage remain `Planned` |
-| Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app) implemented: YourTJ token theme bridged into pinned TDesign v1 alpha components, iOS-safe branded navigation, Web-aligned persistent list/card topic feeds, dot-grid auth cards, unified Gf form/dialog/status surfaces, browsing/creation/user/search/notification/IM surfaces, OIDC exchange login; CI `ci-mobile`; not yet deployed to stores (push notifications/custom theme sync/ja-it planned later) |
+| Mobile | `Partial` | Flutter client (`apps/mobile`, melos: core/auth/ui_kit/forum_app): persistent four-destination shell (home/search/messages/profile) with per-branch state and a central global publish action; explicit 44dp back actions on pushed pages and long-page scroll-to-top; Web-aligned list/card topic feeds; redesigned topic detail and profile; global Markdown publish editor (narrow-screen edit/preview switch, wide two-column editor+preview, formatting/image toolbar, drafts and edit prefill); reply composer with image action; structured skeleton loading; unified settings/login/notifications/drafts; OIDC exchange login with dot-grid auth cards; repo-owned `ui_kit` Gf* components over pinned TDesign v1 alpha; CI `ci-mobile`; not store-deployed — push notifications, custom theme sync, and ja/it locales remain gaps |
 | Points | `Planned` | services/credit is a README placeholder; explicitly phase 2, not implemented now |
 | Branding | `Partial` | Default UI copy, activation template, locales and admin brand settings rebranded to YourTJHub (2026-08-07); default wordmark assets `resource/static/pic/brand-default.{png,webp}` + mobile `assets/images/brand-default.png` regenerated from `hublogo.png` (transparent RGBA, 2026-08-09); admin `brandType=image` still overrides with uploaded `/file/img/…`; CLI name (`gooseforum`) and Go module name intentionally kept for upstream merge |
 | Structural governance | `Partial` | Upstream giant controllers (payload.go 72KB etc.) not split; architecture decisions in note |
