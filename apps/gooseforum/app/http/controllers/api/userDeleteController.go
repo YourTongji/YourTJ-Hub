@@ -1,9 +1,11 @@
 package api
 
 import (
+	"log/slog"
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
@@ -18,6 +20,34 @@ type DeleteTopicByUserReq struct {
 func DeleteTopicByUser(req component.BetterRequest[DeleteTopicByUserReq]) component.Response {
 	if err := contentdeleteservice.DeleteTopicByUser(req.UserId, req.Params.TopicId); err != nil {
 		return component.FailResponseError(err)
+	}
+	return component.SuccessResponse(true)
+}
+
+// ContentEventReq 前端删除生命周期埋点上报（PRD R14）。
+// 仅接受前端点击/确认类事件；删除/恢复/永久删除/隐私删除等后端事件
+// 由 contentdeleteservice 在状态变更成功后自行记录。
+type ContentEventReq struct {
+	EventType   string `json:"eventType" validate:"required"`
+	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
+	ContentID   uint64 `json:"contentId" validate:"required"`
+}
+
+// ReportContentEvent 记录前端删除点击/确认埋点。
+func ReportContentEvent(req component.BetterRequest[ContentEventReq]) component.Response {
+	switch contentDeleteEvent.EventType(req.Params.EventType) {
+	case contentDeleteEvent.EventDeleteClicked, contentDeleteEvent.EventDeleteConfirmed:
+	default:
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	if err := contentDeleteEvent.Record(contentDeleteEvent.Entity{
+		EventType:   req.Params.EventType,
+		ContentType: req.Params.ContentType,
+		ContentID:   req.Params.ContentID,
+		ActorID:     req.UserId,
+	}); err != nil {
+		slog.Error("record content delete click event failed", "eventType", req.Params.EventType, "contentId", req.Params.ContentID, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	return component.SuccessResponse(true)
 }

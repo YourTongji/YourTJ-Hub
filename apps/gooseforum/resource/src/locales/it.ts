@@ -882,6 +882,7 @@ export default {
     replyUpdateFailed: 'Aggiornamento della risposta non riuscito',
     replyDeleteFailed: 'Eliminazione della risposta non riuscita',
     repliesLoadFailed: 'Caricamento delle risposte non riuscito',
+    operationFailed: 'Operazione non riuscita',
     notificationsLoadFailed: 'Caricamento delle notifiche non riuscito',
     likeFailed: 'Mi piace non riuscito',
     bookmarkFailed: 'Salvataggio non riuscito',

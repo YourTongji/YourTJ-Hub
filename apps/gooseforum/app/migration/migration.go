@@ -17,6 +17,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/badges"
 
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
@@ -146,6 +147,7 @@ func SchemaModels() []any {
 		&topicUserAction.Entity{},
 		&postUserAction.Entity{},
 		&topicUserStat.Entity{},
+		&contentDeleteEvent.Entity{},
 		&role.Entity{},
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},

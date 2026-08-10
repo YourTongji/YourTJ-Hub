@@ -907,6 +907,7 @@ export default {
     deletedContentLoadFailed: '最近删除加载失败',
     contentRestoreFailed: '恢复内容失败',
     contentPurgeFailed: '永久删除内容失败',
+    operationFailed: '操作失败',
     repliesLoadFailed: '回复加载失败',
     notificationsLoadFailed: '通知加载失败',
     likeFailed: '点赞失败',

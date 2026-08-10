@@ -197,6 +197,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, UpButterReq(api.RestoreContent))
 	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, UpButterReq(api.PurgeContent))
 	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, UpButterReq(api.PrivacyErase))
+	forumLoginApi.POST("user/content-event", middleware.CheckWritableAccount, UpButterReq(api.ReportContentEvent))
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))

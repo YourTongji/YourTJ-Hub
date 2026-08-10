@@ -907,6 +907,7 @@ export default {
     deletedContentLoadFailed: 'Failed to load recently deleted content',
     contentRestoreFailed: 'Failed to restore content',
     contentPurgeFailed: 'Failed to permanently delete content',
+    operationFailed: 'Operation failed',
     repliesLoadFailed: 'Failed to load replies',
     notificationsLoadFailed: 'Failed to load notifications',
     likeFailed: 'Failed to like',

@@ -17,6 +17,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
@@ -137,6 +138,7 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 		"title":  topic.Title,
 		"reason": reason,
 	})
+	recordEvent(contentDeleteEvent.EventDeleted, ContentTypeTopic, topic.Id, topic.Id, operatorID)
 	return nil
 }
 
@@ -199,6 +201,7 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 		DeletedBy:   userID,
 	})
 	moderationservice.PostDeleted(userID, postDeletionSnapshot(post), "", userID)
+	recordEvent(contentDeleteEvent.EventDeleted, ContentTypePost, postID, post.TopicId, userID)
 	return DeletePostResult{HasChildren: hasChildren}, nil
 }
 
@@ -233,6 +236,7 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 		DeleteReason: reason,
 	})
 	moderationservice.PostDeleted(moderatorID, postDeletionSnapshot(post), reason, moderatorID)
+	recordEvent(contentDeleteEvent.EventDeleted, ContentTypePost, postID, post.TopicId, moderatorID)
 	return nil
 }
 
@@ -260,6 +264,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 			TopicId:     topic.Id,
 		})
 		moderationservice.ContentRestored(userID, "topic", topic.Id, topic.Title)
+		recordEvent(contentDeleteEvent.EventRestored, ContentTypeTopic, topic.Id, topic.Id, userID)
 		return nil
 	case ContentTypePost:
 		post := posts.UnscopedGet(contentID)
@@ -288,6 +293,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		}
 		fileusageservice.RecoverTargetFiles(postsTarget(post.Id))
 		moderationservice.ContentRestored(userID, "post", post.Id, "")
+		recordEvent(contentDeleteEvent.EventRestored, ContentTypePost, post.Id, post.TopicId, userID)
 		return nil
 	default:
 		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
@@ -384,6 +390,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			DeleteReason: reason,
 		})
 		moderationservice.ContentPurged(userID, "topic", topic.Id, topic.Title, reason)
+		recordEvent(contentDeleteEvent.EventPermanentDelete, ContentTypeTopic, contentID, contentID, userID)
 		return nil
 	case ContentTypePost:
 		post := posts.UnscopedGet(contentID)
@@ -414,6 +421,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			DeleteReason: reason,
 		})
 		moderationservice.ContentPurged(userID, "post", post.Id, "", reason)
+		recordEvent(contentDeleteEvent.EventPermanentDelete, ContentTypePost, contentID, post.TopicId, userID)
 		return nil
 	default:
 		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
@@ -456,6 +464,7 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 		clearTopicCaches(contentID)
 		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypeTopic), TopicId: contentID, DeletedBy: userID, DeleteReason: reason})
 		moderationservice.ContentPurged(userID, "topic", contentID, topic.Title, reason)
+		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypeTopic, contentID, contentID, userID)
 		return nil
 	case ContentTypePost:
 		post := posts.UnscopedGet(contentID)
@@ -470,6 +479,7 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 		clearTopicCaches(post.TopicId)
 		eventbus.Publish(context.Background(), &eventhandlers.ContentDeletedEvent{ContentType: string(ContentTypePost), TopicId: post.TopicId, PostId: contentID, DeletedBy: userID, DeleteReason: reason})
 		moderationservice.ContentPurged(userID, "post", contentID, "", reason)
+		recordEvent(contentDeleteEvent.EventPrivacyDelete, ContentTypePost, contentID, post.TopicId, userID)
 		return nil
 	default:
 		return component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
@@ -544,4 +554,18 @@ func topicsTarget(topicID uint64) fileusageservice.TargetRef {
 
 func postsTarget(postID uint64) fileusageservice.TargetRef {
 	return fileusageservice.TargetRef{TargetType: "post", TargetID: postID}
+}
+
+// recordEvent 记录删除生命周期埋点事件（PRD R14）。
+// 事件在状态变更成功后记录，失败仅记日志，不影响删除主流程。
+func recordEvent(eventType contentDeleteEvent.EventType, contentType ContentType, contentID uint64, topicID uint64, actorID uint64) {
+	if err := contentDeleteEvent.Record(contentDeleteEvent.Entity{
+		EventType:   string(eventType),
+		ContentType: string(contentType),
+		ContentID:   contentID,
+		ActorID:     actorID,
+		TopicID:     topicID,
+	}); err != nil {
+		slog.Error("record content delete event failed", "eventType", eventType, "contentType", contentType, "contentId", contentID, "err", err)
+	}
 }

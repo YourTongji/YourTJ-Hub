@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, deleteTopic, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost } from '@/runtime/api'
+import { bookmarkTopic, deletePost, deleteTopic, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -1397,6 +1397,7 @@ function requestDeletePost(post: PostPayload) {
   if (savingEditPostId.value === post.id) return
   pendingDeletePost.value = post
   deleteErrorMessage.value = ''
+  void reportContentEvent('content_delete_clicked', 'post', post.id)
 }
 
 function closeDeleteDialog() {
@@ -1409,6 +1410,7 @@ function requestDeleteTopic() {
   if (deletingTopic.value || isTopicRemoved()) return
   pendingDeleteTopic.value = true
   deleteErrorMessage.value = ''
+  void reportContentEvent('content_delete_clicked', 'topic', page.props.topic.id)
 }
 
 function closeDeleteTopicDialog() {
@@ -1423,6 +1425,7 @@ async function removeTopic() {
   deletingTopic.value = true
   deleteErrorMessage.value = ''
   try {
+    void reportContentEvent('content_delete_confirmed', 'topic', page.props.topic.id)
     await deleteTopic(page.props.topic.id)
     pendingDeleteTopic.value = false
     pushFlash(t('topic.topicDeleted'), 'success')
@@ -1580,6 +1583,7 @@ async function removePost(postId: number) {
   deleteErrorMessage.value = ''
   try {
     const removedPost = posts.value.find((post) => post.id === postId)
+    void reportContentEvent('content_delete_confirmed', 'post', postId)
     const deleteResult = await deletePost(postId)
     if (deleteResult.hasChildren) {
       // 子回复仍依赖这个节点维持讨论树，因此保留楼层并切换为墓碑态。

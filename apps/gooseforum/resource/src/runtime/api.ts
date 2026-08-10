@@ -199,6 +199,22 @@ export async function purgeDeletedContent(contentType: DeletedContentType, conte
   return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
 }
 
+/** 删除生命周期埋点（PRD R14）：前端点击/确认类事件上报。 */
+export async function reportContentEvent(eventType: 'content_delete_clicked' | 'content_delete_confirmed', contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-event', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      eventType,
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
 export interface PostWindowInput {
   topicId: number
   anchorPostId?: number

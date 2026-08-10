@@ -7,6 +7,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -24,6 +25,7 @@ func setupContentDeleteTestDB(t *testing.T) *gorm.DB {
 		&posts.Entity{},
 		&optRecord.Entity{},
 		&moderationLog.Entity{},
+		&contentDeleteEvent.Entity{},
 	); err != nil {
 		t.Fatalf("migrate content delete tables: %v", err)
 	}
@@ -277,5 +279,56 @@ func TestRestoreTopicDoesNotRestoreIndependentlyDeletedReply(t *testing.T) {
 	firstPost := posts.UnscopedGet(940008 + 100)
 	if firstPost.VisibilityStatus != posts.VisibilityActive || firstPost.DeletedAt.Valid {
 		t.Fatalf("topic deletion tombstone was not restored: %#v", firstPost)
+	}
+}
+
+// R14：删除/恢复/永久删除/隐私删除等生命周期事件写入埋点表。
+func TestContentDeleteEventsRecorded(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, 940010, false)
+
+	countEvents := func(eventType string) int64 {
+		var count int64
+		conn.Model(&contentDeleteEvent.Entity{}).
+			Where("event_type = ? AND content_id = ?", eventType, 940010).
+			Count(&count)
+		return count
+	}
+
+	if err := DeleteTopicByUser(authorID, 940010); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if got := countEvents(string(contentDeleteEvent.EventDeleted)); got != 1 {
+		t.Fatalf("content_deleted events = %d, want 1", got)
+	}
+
+	if err := RestoreContent(authorID, ContentTypeTopic, 940010); err != nil {
+		t.Fatalf("RestoreContent: %v", err)
+	}
+	if got := countEvents(string(contentDeleteEvent.EventRestored)); got != 1 {
+		t.Fatalf("content_restored events = %d, want 1", got)
+	}
+
+	if err := DeleteTopicByUser(authorID, 940010); err != nil {
+		t.Fatalf("DeleteTopicByUser (2nd): %v", err)
+	}
+	if err := PurgeContent(authorID, ContentTypeTopic, 940010, "user_purge"); err != nil {
+		t.Fatalf("PurgeContent: %v", err)
+	}
+	if got := countEvents(string(contentDeleteEvent.EventPermanentDelete)); got != 1 {
+		t.Fatalf("content_permanent_delete events = %d, want 1", got)
+	}
+
+	// 隐私删除话题应记录 privacy_delete_requested。
+	privacyAuthorID, _ := seedTopicWithOptionalReply(t, conn, 940011, false)
+	if err := PrivacyEraseContent(privacyAuthorID, ContentTypeTopic, 940011); err != nil {
+		t.Fatalf("PrivacyEraseContent: %v", err)
+	}
+	var privacyCount int64
+	conn.Model(&contentDeleteEvent.Entity{}).
+		Where("event_type = ? AND content_id = ?", string(contentDeleteEvent.EventPrivacyDelete), 940011).
+		Count(&privacyCount)
+	if privacyCount != 1 {
+		t.Fatalf("privacy_delete_requested events = %d, want 1", privacyCount)
 	}
 }

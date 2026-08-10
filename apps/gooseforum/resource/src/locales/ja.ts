@@ -885,6 +885,7 @@ export default {
     deletedContentLoadFailed: '最近削除したコンテンツの読み込みに失敗しました',
     contentRestoreFailed: 'コンテンツの復元に失敗しました',
     contentPurgeFailed: 'コンテンツの完全削除に失敗しました',
+    operationFailed: '操作に失敗しました',
     repliesLoadFailed: '返信の読み込みに失敗しました',
     notificationsLoadFailed: '通知の読み込みに失敗しました',
     likeFailed: 'いいねに失敗しました',
