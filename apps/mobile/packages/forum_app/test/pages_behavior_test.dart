@@ -508,7 +508,7 @@ void main() {
       final TextField textField = tester.widget<TextField>(replyField);
       expect(textField.focusNode, isNotNull);
       expect(textField.focusNode!.hasFocus, isTrue);
-      expect(textField.controller!.text, '@alice ');
+      expect(textField.controller!.text, '@bob ');
 
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));

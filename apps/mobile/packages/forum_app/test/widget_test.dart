@@ -1,4 +1,5 @@
 import 'package:core/core.dart';
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -7,10 +8,13 @@ import 'package:go_router/go_router.dart';
 import 'package:forum_app/l10n/app_localizations_en.dart';
 import 'package:forum_app/l10n/app_localizations_zh.dart';
 import 'package:forum_app/src/app.dart';
+import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
 import 'package:ui_kit/ui_kit.dart' hide GfTab;
+
+import 'fixtures/page_fixtures.dart';
 
 /// 测试用内存 TokenStorage(生产为 SecureTokenStorage)。
 class MemoryTokenStorage implements TokenStorage {
@@ -56,6 +60,31 @@ class NoopOfflineCache implements OfflineTopicCache, OfflineChatCache {
   Future<void> close() async {}
 }
 
+class RouterPageRepository extends PageRepository {
+  RouterPageRepository(super.client);
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path == '/' || path.startsWith('/?sort=')) {
+      return parsePayload(homePayloadJson());
+    }
+    if (path.startsWith('/u/')) {
+      return parsePayload(userProfilePayloadJson());
+    }
+    if (path == '/drafts') {
+      return parsePayload(<String, dynamic>{
+        'component': 'drafts.index',
+        'props': <String, dynamic>{'drafts': <Object>[]},
+        'meta': <String, dynamic>{'title': '草稿箱'},
+        'layout': minimalLayoutJson(),
+        'url': '/drafts',
+        'version': '1.0',
+      });
+    }
+    throw UnimplementedError('unexpected page path: $path');
+  }
+}
+
 void main() {
   testWidgets('app builds with Gf theme and bottom shell', (tester) async {
     await tester.pumpWidget(
@@ -97,10 +126,23 @@ void main() {
   });
 
   testWidgets('设置/通知/草稿路由可达:router 注册且可导航', (tester) async {
+    appRouter.go('/');
+    final MemoryTokenStorage storage = MemoryTokenStorage();
+    final GfApiClient client = GfApiClient(
+      dio: Dio(),
+      tokenStorage: storage,
+      baseUrl: 'http://fake.local',
+    );
     await tester.pumpWidget(
       ProviderScope(
         overrides: [
-          tokenStorageProvider.overrideWithValue(MemoryTokenStorage()),
+          tokenStorageProvider.overrideWithValue(storage),
+          currentUserProvider.overrideWith(
+            (ref) async => const CurrentUser(id: 1, username: 'alice'),
+          ),
+          pageRepositoryProvider.overrideWithValue(
+            RouterPageRepository(client),
+          ),
           offlineTopicCacheProvider.overrideWithValue(NoopOfflineCache()),
           offlineChatCacheProvider.overrideWithValue(NoopOfflineCache()),
         ],
@@ -113,16 +155,21 @@ void main() {
     expect(find.byIcon(Icons.search), findsWidgets);
     expect(find.byIcon(Icons.dark_mode_outlined), findsOneWidget);
 
-    // 底部导航切到"我的"。
+    // 底部导航切到“我的”。
     await tester.tap(find.text('我的'));
     await tester.pumpAndSettle();
 
-    // 我的页三入口:设置/通知/草稿。
+    // 账户快捷入口位于个人信息与动态之后，CustomScrollView 会懒构建；
+    // 模拟真实移动端向下滚动后再验证入口，而不是假设其首屏可见。
+    await tester.drag(find.byType(CustomScrollView), const Offset(0, -560));
+    await tester.pumpAndSettle();
+
+    // 我的页三入口：设置/通知/草稿。
     expect(find.text('设置'), findsOneWidget);
     expect(find.text('通知'), findsOneWidget);
     expect(find.text('草稿箱'), findsOneWidget);
 
-    // 点击"草稿箱"导航到 /drafts。
+    // 点击“草稿箱”导航到 /drafts。
     await tester.tap(find.text('草稿箱'));
     await tester.pumpAndSettle();
     expect(find.text('草稿箱'), findsWidgets);
