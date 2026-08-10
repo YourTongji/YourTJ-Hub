@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-08
+> Last verified: 2026-08-09
 
 ## Contract status
 
@@ -14,8 +14,17 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
+- `GET /api/user/sessions`;
+- `POST /api/user/sessions/revoke`;
+- `POST /api/user/sessions/revoke-all`;
 - `POST /api/forum/topics/write`.
+
+Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
+`auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
+extending an existing one, so parallel contract PRs only meet in the `openapi.yaml` entry point and
+the generated TypeScript output.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
@@ -90,6 +99,7 @@ New page config types added with this admin backlog work (all persisted in `page
 | `storageSettings` | `pageConfig.StorageSettings` | provider local/s3, endpoint/bucket/region, bucket lookup (auto/dns/path), credentials, optional public URL prefix |
 | `termsOfService` | `pageConfig.TermsOfServiceConfig` | markdown ToS rendered at `/terms` |
 | `securitySettings` (extended) | `pageConfig.SecurityAndRegistration` | + reservedUsernames / bannedUsernames / sensitiveWords / sensitiveAction (block\|review) |
+| `postingSettings` (extended) | `pageConfig.PostingContent` | `llms.enabled`, `llms.fullText`, and `llms.files` gate the public AI-readable projections |
 
 Object storage addressing notes: Alibaba OSS and Tencent COS (buckets created after 2024-01-01)
 require virtual-hosted style — use `bucketLookup: dns` with an explicit region; MinIO/R2 accept
@@ -104,8 +114,15 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 | Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
 | Hot lists / feeds | derived queries | ✅ |
 | Notification read/unread | user pointer table | ✅ |
+| AI-readable exports (`llms.txt`, full text, per-topic Markdown) | published topics and normal, non-deleted posts in the DB | ✅ generated on demand; 10-second cache cleared by topic/reply/category events, direct clear on moderation/reply-edit/topic-category/unpublish paths, and relevant setting changes; full export capped at 5000 topics / 8 MiB / 30 s (truncated with marker) |
 
 Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
+
+The AI-readable exports are public text representations, not JSON API operations in the controlled
+OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
+and per-topic documents preserve the stored Markdown source.
 
 ## Contract change discipline
 

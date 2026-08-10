@@ -321,6 +321,36 @@ func TestAuthorizeRequiresPKCE(t *testing.T) {
 	}
 }
 
+func TestAuthorizeRejectsUnsupportedPromptWithoutPersisting(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, defaultClients())
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	var before int64
+	if err := conn.Model(&oidcAuthRequests.Entity{}).Count(&before).Error; err != nil {
+		t.Fatalf("count before authorize: %v", err)
+	}
+	verifier, _ := pkcePair(t)
+	target := authorizeURL(issuer, "web-client", "https://example.com/callback", "st", "no", verifier) + "&prompt=login"
+	rec := doGet(t, h, target)
+	if strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("unsupported prompt must not reach login bridge: %q", rec.Header().Get("Location"))
+	}
+	var after int64
+	if err := conn.Model(&oidcAuthRequests.Entity{}).Count(&after).Error; err != nil {
+		t.Fatalf("count after authorize: %v", err)
+	}
+	if after != before {
+		t.Fatalf("unsupported prompt persisted %d auth request rows", after-before)
+	}
+}
+
 func TestAuthorizeRequiresStateAndNonce(t *testing.T) {
 	issuer := "https://forum.example.com/api/oauth"
 	setupProviderConfig(t, issuer, defaultClients())
@@ -966,19 +996,33 @@ func TestConfigKeyChangesWithTTLAndSecret(t *testing.T) {
 	}
 }
 
-func TestLoadConfigDefaultsNonPositiveAuthRequestTTL(t *testing.T) {
+func TestLoadConfigDefaultsNonPositiveTTLs(t *testing.T) {
 	issuer := "https://forum.example.com/api/oauth"
 	setupProviderConfig(t, issuer, defaultClients())
-	originalTTL := preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))
-	preferences.Set("oidc.auth_request_ttl", 0)
-	t.Cleanup(func() { preferences.Set("oidc.auth_request_ttl", originalTTL) })
+	originalAccessTTL := preferences.GetInt64("oidc.access_token_ttl", int64(defaultAccessTokenTTL/time.Second))
+	originalAuthTTL := preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))
+	originalIDTTL := preferences.GetInt64("oidc.id_token_ttl", int64(defaultIDTokenTTL/time.Second))
+	preferences.Set("oidc.access_token_ttl", 0)
+	preferences.Set("oidc.auth_request_ttl", -1)
+	preferences.Set("oidc.id_token_ttl", 0)
+	t.Cleanup(func() {
+		preferences.Set("oidc.access_token_ttl", originalAccessTTL)
+		preferences.Set("oidc.auth_request_ttl", originalAuthTTL)
+		preferences.Set("oidc.id_token_ttl", originalIDTTL)
+	})
 
 	cfg, err := LoadConfig()
 	if err != nil {
 		t.Fatalf("LoadConfig() error = %v", err)
 	}
+	if cfg.AccessTokenTTL != defaultAccessTokenTTL {
+		t.Fatalf("AccessTokenTTL = %v, want %v", cfg.AccessTokenTTL, defaultAccessTokenTTL)
+	}
 	if cfg.AuthRequestTTL != defaultAuthRequestTTL {
 		t.Fatalf("AuthRequestTTL = %v, want %v", cfg.AuthRequestTTL, defaultAuthRequestTTL)
+	}
+	if cfg.IDTokenTTL != defaultIDTokenTTL {
+		t.Fatalf("IDTokenTTL = %v, want %v", cfg.IDTokenTTL, defaultIDTokenTTL)
 	}
 }
 

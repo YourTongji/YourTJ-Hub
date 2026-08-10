@@ -107,6 +107,9 @@ func TestDynamicRoutes(t *testing.T) {
 	if got := PostDetail(42); got != "/p/post/42" {
 		t.Fatalf("PostDetail = %q, want /p/post/42", got)
 	}
+	if got := PostMarkdown(42); got != "/p/posts/42.md" {
+		t.Fatalf("PostMarkdown = %q, want /p/posts/42.md", got)
+	}
 	if got := User("alice"); got != "/u/alice" {
 		t.Fatalf("User = %q, want /u/alice", got)
 	}

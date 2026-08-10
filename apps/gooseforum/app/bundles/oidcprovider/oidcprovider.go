@@ -49,12 +49,16 @@ func Load() (*KeyManager, error) {
 		return newManager(key), nil
 	}
 
-	if data, err := os.ReadFile(keyFile); err == nil {
+	data, err := os.ReadFile(keyFile)
+	if err == nil {
 		key, perr := parsePrivateKeyPEM(string(data))
 		if perr != nil {
 			return nil, fmt.Errorf("oidcprovider: parse key file %s: %w", keyFile, perr)
 		}
 		return newManager(key), nil
+	}
+	if !os.IsNotExist(err) {
+		return nil, fmt.Errorf("oidcprovider: read key file %s: %w", keyFile, err)
 	}
 
 	key, err := rsa.GenerateKey(rand.Reader, keyBits)

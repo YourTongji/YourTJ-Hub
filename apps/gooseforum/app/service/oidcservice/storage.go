@@ -168,8 +168,11 @@ func (s *storage) CreateAuthRequest(ctx context.Context, authReq *oidc.AuthReque
 	if slices.Contains(authReq.Scopes, oidc.ScopeOfflineAccess) {
 		return nil, oidc.ErrInvalidScope().WithDescription("offline_access not supported")
 	}
-	if slices.Contains(authReq.Prompt, oidc.PromptNone) {
-		return nil, oidc.ErrLoginRequired().WithDescription("prompt=none not supported")
+	if len(authReq.Prompt) > 0 {
+		if slices.Contains(authReq.Prompt, oidc.PromptNone) {
+			return nil, oidc.ErrLoginRequired().WithDescription("prompt=none not supported")
+		}
+		return nil, oidc.ErrInvalidRequest().WithDescription("prompt not supported")
 	}
 	if authReq.ResponseType != oidc.ResponseTypeCode {
 		return nil, oidc.ErrInvalidRequest().WithDescription("only response_type=code is supported")

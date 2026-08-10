@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	jose "github.com/go-jose/go-jose/v4"
@@ -80,6 +81,27 @@ func TestLoadRejectsGarbageInlinePEM(t *testing.T) {
 	preferences.Set("oidc.signing_key_file", filepath.Join(t.TempDir(), "k.pem"))
 	if _, err := Load(); err == nil {
 		t.Fatal("Load() error = nil, want parse failure")
+	}
+}
+
+func TestLoadReturnsNonMissingKeyFileReadError(t *testing.T) {
+	keyPath := t.TempDir()
+	preferences.Set("oidc.signing_key", "")
+	preferences.Set("oidc.signing_key_file", keyPath)
+
+	_, err := Load()
+	if err == nil {
+		t.Fatal("Load() error = nil, want key file read failure")
+	}
+	if !strings.Contains(err.Error(), "read key file") {
+		t.Fatalf("Load() error = %q, want original read failure", err)
+	}
+	info, err := os.Stat(keyPath)
+	if err != nil {
+		t.Fatalf("stat key path: %v", err)
+	}
+	if !info.IsDir() {
+		t.Fatal("key path was replaced instead of preserving the read error")
 	}
 }
 

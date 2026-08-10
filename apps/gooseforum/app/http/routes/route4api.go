@@ -115,6 +115,11 @@ func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
+	// LLMS 公开入口是派生文本投影：full 冷缓存全量重建、不同 {id}.md 会打穿 topic 级缓存，
+	// 需独立限流配额（index 宽松、full 严格、topic 中等），避免被脚本高频打满。
+	ginApp.GET("/llms.txt", middleware.RateLimit(middleware.RateLimitLLMSIndex), controllers.RenderLLMSIndex)
+	ginApp.GET("/llms-full.txt", middleware.RateLimit(middleware.RateLimitLLMSFull), controllers.RenderLLMSFull)
+	ginApp.GET("/p/posts/:document", middleware.RateLimit(middleware.RateLimitLLMSTopic), controllers.RenderLLMSTopic)
 }
 
 func apiRoute(ginApp *gin.Engine) {
@@ -132,14 +137,24 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
 
-	// 内建 OIDC Provider（/api/oauth/*）。未启用或配置错误时不注册路由，
-	// 但错误必须记录（生产误配 fail closed 时便于排查）。
+	// 内建 OIDC Provider（/api/oauth）。逐个静态挂载已实现端点，避免
+	// oauth/*path catch-all 与论坛自身的 oauth/bindings 路由发生 Gin 冲突。
+	// 未启用或配置错误时不注册路由，但错误必须记录（生产误配 fail closed
+	// 时便于排查）。authorize 与 token 使用独立配额，且在进入 Provider 前限流。
 	if oidcHandler, err := oidcservice.Router(); err != nil {
 		if !errors.Is(err, oidcservice.ErrOIDCDisabled) {
 			slog.Error("OIDC provider router init failed", "error", err)
 		}
 	} else if oidcHandler != nil {
-		baseApi.Any("oauth/*path", gin.WrapH(oidcHandler))
+		wrapped := gin.WrapH(oidcHandler)
+		baseApi.GET("oauth/.well-known/openid-configuration", wrapped)
+		baseApi.GET("oauth/authorize", middleware.RateLimit(middleware.RateLimitOIDCAuthorize), wrapped)
+		baseApi.GET("oauth/authorize/callback", wrapped)
+		baseApi.GET("oauth/token", middleware.RateLimit(middleware.RateLimitOIDCToken), wrapped)
+		baseApi.POST("oauth/token", middleware.RateLimit(middleware.RateLimitOIDCToken), wrapped)
+		baseApi.GET("oauth/userinfo", wrapped)
+		baseApi.POST("oauth/userinfo", wrapped)
+		baseApi.GET("oauth/keys", wrapped)
 	}
 
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)

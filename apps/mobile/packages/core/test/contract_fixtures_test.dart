@@ -1,3 +1,5 @@
+import 'dart:convert';
+
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -357,6 +359,36 @@ void main() {
       expect(props.total, 1);
       expect(props.totalPages, 1);
       expect(props.pagination.hasNext, isFalse);
+    });
+  });
+
+  group('会话 UserSessionPayload', () {
+    // 与 packages/api-contract/fixtures/sessions-list-success.json 对齐。
+    final sessions = (jsonDecode('''
+{
+  "result": [
+    {
+      "id": 42,
+      "ipMasked": "127.0.0.*",
+      "userAgent": "contract-test",
+      "createdAt": 1754496000000,
+      "expiresAt": 1757088000000,
+      "isCurrent": true
+    }
+  ],
+  "code": 0
+}
+''') as Map<String, dynamic>)['result'] as List<dynamic>;
+
+    test('解析会话列表条目', () {
+      final session =
+          UserSessionPayload.fromJson(sessions.single as Map<String, dynamic>);
+      expect(session.id, 42);
+      expect(session.ipMasked, '127.0.0.*');
+      expect(session.userAgent, 'contract-test');
+      expect(session.createdAt, 1754496000000);
+      expect(session.expiresAt, 1757088000000);
+      expect(session.isCurrent, isTrue);
     });
   });
 

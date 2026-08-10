@@ -57,8 +57,14 @@ func LoadConfig() (Config, error) {
 		AuthRequestTTL: time.Duration(preferences.GetInt64("oidc.auth_request_ttl", int64(defaultAuthRequestTTL/time.Second))) * time.Second,
 		IDTokenTTL:     time.Duration(preferences.GetInt64("oidc.id_token_ttl", int64(defaultIDTokenTTL/time.Second))) * time.Second,
 	}
+	if cfg.AccessTokenTTL <= 0 {
+		cfg.AccessTokenTTL = defaultAccessTokenTTL
+	}
 	if cfg.AuthRequestTTL <= 0 {
 		cfg.AuthRequestTTL = defaultAuthRequestTTL
+	}
+	if cfg.IDTokenTTL <= 0 {
+		cfg.IDTokenTTL = defaultIDTokenTTL
 	}
 	cfg.Issuer = strings.TrimSpace(preferences.GetString("oidc.issuer", ""))
 	if cfg.Issuer == "" {
