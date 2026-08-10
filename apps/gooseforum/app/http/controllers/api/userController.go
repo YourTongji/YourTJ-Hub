@@ -62,15 +62,24 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	return component.SuccessResponse(card)
 }
 
+// emailChangeCooldown 邮箱变更冷静期：变更后 24 小时内新邮箱不能用于密码重置。
+const emailChangeCooldown = 24 * time.Hour
+
 type EditUserEmailReq struct {
-	Email string `json:"email" validate:"required,email"`
+	Email    string `json:"email" validate:"required,email"`
+	Password string `json:"password" validate:"required"`
 }
 
 // EditUserEmail updates the current user's email and resets activation state.
+// 修改邮箱需要登录密码二次确认（与 ChangePassword 一致），校验失败在触碰数据库前拒绝。
 func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Response {
 	userEntity, err := req.GetUser()
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+
+	if err = algorithm.VerifyEncryptPassword(userEntity.Password, req.Params.Password); err != nil {
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
 	}
 
 	newEmail := req.GetParams().Email
@@ -82,17 +91,35 @@ func EditUserEmail(req component.BetterRequest[EditUserEmailReq]) component.Resp
 	if users.ExistEmail(newEmail) {
 		return component.FailResponseCode(component.MessageAuthEmailExists, nil)
 	}
+
+	// 保存新邮箱前记录旧邮箱，用于写库成功后向旧地址发送变更通知。
+	oldEmail := userEntity.Email
+	now := time.Now()
 	userEntity.Email = newEmail
 	userEntity.IsActivated = users.ActivationPending
 	userEntity.ActivatedAt = nil
+	userEntity.EmailChangedAt = &now
 
 	err = userservice.SaveUser(&userEntity)
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserUpdateFailed, nil)
 	}
 
+	// 新邮箱：激活邮件
 	if err = emailactivationservice.SendActivationEmail(&userEntity); err != nil {
 		slog.Info("验证邮件发送失败", "error", err)
+	}
+
+	// 旧邮箱：变更通知（失败只记日志，不阻断成功响应；
+	// 这是受害者得知邮箱被改的主要途径，失败需以 Error 级暴露以便告警/审计）。
+	if err = mailservice.AddToQueue(mailservice.EmailTask{
+		To:       oldEmail,
+		Username: userEntity.Username,
+		NewEmail: newEmail,
+		Type:     "email_changed",
+		Locale:   userEntity.Locale,
+	}); err != nil {
+		slog.Error("邮箱变更通知入队失败", "userId", userEntity.Id, "oldEmail", oldEmail, "error", err)
 	}
 
 	return component.SuccessResponseCode("更新成功", component.MessageUserUpdateSuccess, nil)
@@ -538,6 +565,13 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 	userEntity, err := users.GetByEmail(req.Params.Email)
 	if err != nil {
 		// 为了安全考虑，即使邮箱不存在也返回成功消息
+		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+	}
+
+	// 冷静期：邮箱变更后 24 小时内，新邮箱不能用于密码重置。
+	// 静默返回成功（与邮箱未注册完全一致，无枚举差异），但绝不入队重置邮件，
+	// 防止会话 token 被接管后立刻用新邮箱重置密码。
+	if userEntity.EmailChangedAt != nil && time.Since(*userEntity.EmailChangedAt) < emailChangeCooldown {
 		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 	}
 

@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: '用户名不能为空',
       emailRequired: '邮箱不能为空',
+      passwordRequired: '请输入当前密码',
     },
     emailVerification: {
       title: '邮箱尚未验证',

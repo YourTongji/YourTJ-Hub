@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: 'Il nome utente è obbligatorio',
       emailRequired: 'L’email è obbligatoria',
+      passwordRequired: 'La password attuale è obbligatoria',
     },
     emailVerification: {
       title: 'Email non verificata',

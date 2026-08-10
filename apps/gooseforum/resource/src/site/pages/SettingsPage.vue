@@ -179,6 +179,7 @@ const usernameForm = reactive({
 
 const emailForm = reactive({
   email: page.props.user.email,
+  password: '',
 })
 
 const passwordForm = reactive({
@@ -604,11 +605,13 @@ function cancelUsernameEdit() {
 async function saveEmail() {
   const email = emailForm.email.trim()
   if (!email) return showError(t('settings.validation.emailRequired'))
+  if (!emailForm.password) return showError(t('settings.validation.passwordRequired'))
 
   savingEmail.value = true
   try {
-    await saveUserEmail(email)
+    await saveUserEmail(email, emailForm.password)
     editingEmail.value = false
+    emailForm.password = ''
     showStatus(t('settings.status.emailSaved'))
   } catch (err) {
     showError(err instanceof Error ? err.message : t('api.emailSaveFailed'))
@@ -619,6 +622,7 @@ async function saveEmail() {
 
 function cancelEmailEdit() {
   emailForm.email = page.props.user.email
+  emailForm.password = ''
   editingEmail.value = false
 }
 
@@ -1415,12 +1419,15 @@ async function toggleBinding(provider: string) {
                       {{ t('common.edit') }}
                     </button>
                   </div>
-                  <div v-else class="mt-1 flex min-w-0 gap-2">
-                    <input v-model="emailForm.email" type="email" class="gf-input min-w-0 flex-1 border-primary/40 ring-4 ring-primary/20" />
-                    <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
-                      {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
-                    </button>
-                    <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
+                  <div v-else class="mt-1 flex min-w-0 flex-col gap-2">
+                    <input v-model="emailForm.email" type="email" class="gf-input min-w-0 border-primary/40 ring-4 ring-primary/20" />
+                    <div class="flex min-w-0 gap-2">
+                      <input v-model="emailForm.password" type="password" class="gf-input min-w-0 flex-1" :placeholder="t('settings.account.currentPassword')" autocomplete="current-password" />
+                      <button type="button" class="gf-button gf-button-lg gf-button-primary shrink-0" :disabled="savingEmail" @click="saveEmail">
+                        {{ savingEmail ? t('settings.savingShort') : t('common.save') }}
+                      </button>
+                      <button type="button" class="gf-button gf-button-lg gf-button-muted shrink-0 px-2.5 font-medium" @click="cancelEmailEdit">{{ t('common.cancel') }}</button>
+                    </div>
                   </div>
                   <div v-if="layout.viewer.requiresEmailVerification" class="mt-2 flex flex-col gap-2 border-l-2 border-warning bg-warning/10 px-3 py-2 sm:flex-row sm:items-center sm:justify-between">
                     <span class="min-w-0 text-sm text-warning">

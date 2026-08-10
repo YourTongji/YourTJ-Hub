@@ -588,13 +588,13 @@ export async function wearBadge(badgeCode: string): Promise<boolean> {
   return true
 }
 
-export async function saveUserEmail(email: string): Promise<boolean> {
+export async function saveUserEmail(email: string, password: string): Promise<boolean> {
   const response = await fetch('/api/set-user-email', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ email }),
+    body: JSON.stringify({ email, password }),
   })
   await readApiResponse<unknown>(response, t('api.emailSaveFailed'))
   return true

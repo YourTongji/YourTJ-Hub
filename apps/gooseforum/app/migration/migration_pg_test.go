@@ -53,6 +53,10 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 			t.Errorf("table %q missing after postgres migration", table)
 		}
 	}
+	// Issue #83：users.email_changed_at 列必须存在（邮箱变更冷静期依赖此列）。
+	if !db.Migrator().HasColumn("users", "email_changed_at") {
+		t.Error("users.email_changed_at column missing after postgres migration")
+	}
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：

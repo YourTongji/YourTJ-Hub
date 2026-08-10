@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: 'ユーザー名を入力してください',
       emailRequired: 'メールを入力してください',
+      passwordRequired: '現在のパスワードを入力してください',
     },
     emailVerification: {
       title: 'メール未認証',

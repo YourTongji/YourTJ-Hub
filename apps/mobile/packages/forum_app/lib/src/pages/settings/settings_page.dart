@@ -274,18 +274,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  /// 邮箱修改 → set-user-email。
+  /// 邮箱修改 → set-user-email(需登录密码 re-auth,校验通过才提交)。
   Future<void> _changeEmail() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final ctrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final pwdCtrl = TextEditingController();
     final ok = await showGfAlertDialog<bool>(
       context,
       builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsEmail),
-        content: GfInput(
-          controller: ctrl,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: l10n.settingsNewEmail),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GfInput(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(labelText: l10n.settingsNewEmail),
+            ),
+            const SizedBox(height: 8),
+            GfInput(
+              controller: pwdCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: l10n.settingsCurrentPassword,
+              ),
+            ),
+          ],
         ),
         actions: [
           GfButton(
@@ -301,13 +315,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
     if (ok != true) return;
-    final email = ctrl.text.trim();
-    if (email.isEmpty) {
+    final email = emailCtrl.text.trim();
+    final password = pwdCtrl.text.trim();
+    if (email.isEmpty || password.isEmpty) {
       _snack(l10n.settingsFillComplete);
       return;
     }
     try {
-      await ref.read(userRepositoryProvider).setUserEmail(email);
+      await ref.read(userRepositoryProvider).setUserEmail(email, password);
       if (mounted) {
         showGfToast(context, l10n.settingsEmailUpdated);
       }
