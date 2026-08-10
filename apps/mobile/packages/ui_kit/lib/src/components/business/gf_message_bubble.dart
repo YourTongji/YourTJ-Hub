@@ -35,6 +35,13 @@ class GfMessageBubble extends StatelessWidget {
       decoration: BoxDecoration(
         color: mine ? colors.primary : colors.base300,
         borderRadius: BorderRadius.circular(8),
+        boxShadow: <BoxShadow>[
+          BoxShadow(
+            color: colors.neutral.withValues(alpha: 0.05),
+            blurRadius: 4,
+            offset: const Offset(0, 1),
+          ),
+        ],
       ),
       child: Text(
         text,

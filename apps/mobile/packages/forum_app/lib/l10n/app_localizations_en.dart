@@ -328,7 +328,28 @@ class AppLocalizationsEn extends AppLocalizations {
   String get messagesTitle => 'Messages';
 
   @override
-  String get messagesEmpty => 'No conversations';
+  String get messagesEmpty => 'No conversations yet';
+
+  @override
+  String get messagesEmptyDescription =>
+      'Start a conversation with someone from the community.';
+
+  @override
+  String get messagesSearchConversations => 'Search conversations';
+
+  @override
+  String get messagesConversation => 'Private conversation';
+
+  @override
+  String get messagesStartChat => 'Start a conversation';
+
+  @override
+  String messagesFirstMessageTo(String user) {
+    return 'Send the first message to $user.';
+  }
+
+  @override
+  String get messagesNoMessagesYet => 'No messages yet';
 
   @override
   String get messagesEmptyDetail => 'No messages yet, say hi!';

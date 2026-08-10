@@ -44,7 +44,9 @@ class GfCard extends StatelessWidget {
     final Color dividerColor = colors.line.withValues(alpha: 0.7);
 
     final Widget content = Container(
-      decoration: emphasized ? BoxDecoration(boxShadow: shadows.card) : null,
+      decoration: emphasized
+          ? BoxDecoration(color: colors.base100, boxShadow: shadows.card)
+          : null,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.stretch,

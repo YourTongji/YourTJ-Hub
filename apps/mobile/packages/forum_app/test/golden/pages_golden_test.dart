@@ -10,6 +10,7 @@ import 'package:forum_app/src/pages/auth/login_page.dart';
 import 'package:forum_app/src/pages/home/home_page.dart';
 import 'package:forum_app/src/pages/messages/messages_page.dart';
 import 'package:forum_app/src/pages/notifications/notifications_page.dart';
+import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:core/core.dart';
@@ -103,7 +104,7 @@ void main() {
   }
 
   Future<void> settleBrandLogo(WidgetTester tester) async {
-    final BuildContext context = tester.element(find.byType(HomePage));
+    final BuildContext context = tester.element(find.byType(Scaffold).first);
     await tester.runAsync(() async {
       await precacheImage(
         const AssetImage('assets/images/brand-default.png'),
@@ -191,12 +192,52 @@ void main() {
     );
   });
 
+  testWidgets('messages new chat sheet golden', skip: skipGoldens, (
+    tester,
+  ) async {
+    final container = await makeContainer();
+    await pumpPageGolden(
+      tester,
+      UncontrolledProviderScope(
+        container: container,
+        child: const MessagesPage(),
+      ),
+    );
+    await tester.tap(find.byTooltip('新私信'));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(Overlay).first,
+      matchesGoldenFile('golden/pages/messages_new_chat.png'),
+    );
+  });
+
+  testWidgets('search page grouped results golden', skip: skipGoldens, (
+    tester,
+  ) async {
+    final container = await makeContainer();
+    await pumpPageGolden(
+      tester,
+      UncontrolledProviderScope(
+        container: container,
+        child: const SearchPage(),
+      ),
+    );
+    await tester.enterText(find.byType(TextField), '同济');
+    await tester.tap(find.byIcon(Icons.search));
+    await tester.pumpAndSettle();
+    await expectLater(
+      find.byType(Scaffold).first,
+      matchesGoldenFile('golden/pages/search_page.png'),
+    );
+  });
+
   testWidgets('login page golden', skip: skipGoldens, (tester) async {
     final container = await makeContainer();
     await pumpPageGolden(
       tester,
       UncontrolledProviderScope(container: container, child: const LoginPage()),
     );
+    await settleBrandLogo(tester);
     await expectLater(
       find.byType(Scaffold).first,
       matchesGoldenFile('golden/pages/login_page.png'),

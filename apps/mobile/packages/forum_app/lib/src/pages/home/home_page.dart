@@ -382,55 +382,46 @@ class _HomeToolbar extends ConsumerWidget {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
 
-    // Web keeps tabs + feed switch + new-topic in one row. Mobile uses two
-    // compact rows so all three controls retain comfortable touch targets.
+    // Mobile keeps the Web information hierarchy in one compact row: sort
+    // tabs on the left and the list/card view switch on the right. Publishing
+    // already has a persistent center entry in the bottom navigation.
     return Container(
       color: colors.base100,
-      padding: const EdgeInsets.fromLTRB(12, 8, 12, 10),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
+      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 7),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: <Widget>[
-          GfTabBar(
-            tabs: <GfTab>[
-              for (final tab in props.tabs)
-                GfTab(
-                  // 后端 tabs[].label 可能为空(web 端按 key fallback 到
-                  // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
-                  label: _sortTabLabel(context, tab.key, tab.label ?? ''),
-                  value: tab.key,
-                ),
-            ],
-            selected: effective,
-            onSelected: (Object value) => onSelected(value as String),
+          Expanded(
+            child: GfTabBar(
+              tabs: <GfTab>[
+                for (final tab in props.tabs)
+                  GfTab(
+                    // 后端 tabs[].label 可能为空(web 端按 key fallback 到
+                    // i18n),空 label 会让选中态深色底渲染成黑块,必须兜底。
+                    label: _sortTabLabel(context, tab.key, tab.label ?? ''),
+                    value: tab.key,
+                  ),
+              ],
+              selected: effective,
+              onSelected: (Object value) => onSelected(value as String),
+            ),
           ),
-          const SizedBox(height: 8),
-          Row(
-            children: <Widget>[
-              GfPillSwitch<GfTopicFeedMode>(
-                options: <GfPillOption<GfTopicFeedMode>>[
-                  GfPillOption<GfTopicFeedMode>(
-                    label: l10n.topicFeedModeList,
-                    value: GfTopicFeedMode.list,
-                    icon: Icons.view_list_outlined,
-                  ),
-                  GfPillOption<GfTopicFeedMode>(
-                    label: l10n.topicFeedModeCard,
-                    value: GfTopicFeedMode.card,
-                    icon: Icons.grid_view_outlined,
-                  ),
-                ],
-                selected: feedMode,
-                onSelected: onFeedModeSelected,
+          const SizedBox(width: 8),
+          GfPillSwitch<GfTopicFeedMode>(
+            options: <GfPillOption<GfTopicFeedMode>>[
+              GfPillOption<GfTopicFeedMode>(
+                label: l10n.topicFeedModeList,
+                value: GfTopicFeedMode.list,
+                icon: Icons.view_list_outlined,
               ),
-              const Spacer(),
-              GfButton(
-                label: l10n.topicNewTopic,
-                icon: const Icon(Icons.add, size: 16),
-                variant: GfButtonVariant.primary,
-                size: GfButtonSize.small,
-                onPressed: () => context.go('/publish'),
+              GfPillOption<GfTopicFeedMode>(
+                label: l10n.topicFeedModeCard,
+                value: GfTopicFeedMode.card,
+                icon: Icons.grid_view_outlined,
               ),
             ],
+            selected: feedMode,
+            onSelected: onFeedModeSelected,
           ),
         ],
       ),
