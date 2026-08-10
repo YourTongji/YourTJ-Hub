@@ -1,3 +1,4 @@
+import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -48,6 +49,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       authRepository: AuthRepository(ref.read(apiClientProvider)),
       apiClient: ref.read(apiClientProvider),
       tokenStorage: ref.read(tokenStorageProvider),
+    );
+    // 进入登录页即清空上一账号的离线缓存(话题/会话/私信),防止同一设备
+    // 换账号后读到上一账号的缓存数据;失败静默。
+    unawaited(
+      clearOfflineCacheQuietly(
+        ref.read(offlineTopicCacheProvider),
+        ref.read(offlineChatCacheProvider),
+      ),
     );
   }
 

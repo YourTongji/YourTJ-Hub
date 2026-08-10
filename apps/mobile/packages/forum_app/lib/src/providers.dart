@@ -1,3 +1,5 @@
+import 'dart:async';
+
 import 'package:auth/auth.dart';
 import 'package:core/core.dart';
 import 'package:dio/dio.dart';
@@ -45,6 +47,31 @@ final offlineChatCacheProvider = Provider<OfflineChatCache>((ref) {
   return DriftOfflineCache(ref.watch(offlineDatabaseProvider));
 });
 
+/// 清除全部离线缓存(话题 + 会话 + 消息)。
+///
+/// 登出、401 会话失效、重新登录(进入登录页)时必须清空,否则同一设备上
+/// 下一账号可读到上一账号缓存的私信/话题,造成跨账号数据泄漏。
+Future<void> clearOfflineCache(
+  OfflineTopicCache topicCache,
+  OfflineChatCache chatCache,
+) async {
+  await topicCache.clear();
+  await chatCache.clear();
+}
+
+/// 尽力清除离线缓存,失败静默(清理失败不阻塞登出/会话失效流程,
+/// 下次登出或进入登录页会重试)。
+Future<void> clearOfflineCacheQuietly(
+  OfflineTopicCache topicCache,
+  OfflineChatCache chatCache,
+) async {
+  try {
+    await clearOfflineCache(topicCache, chatCache);
+  } catch (_) {
+    // 缓存不可用时忽略。
+  }
+}
+
 final apiClientProvider = Provider<GfApiClient>((ref) {
   final storage = ref.watch(tokenStorageProvider);
   return GfApiClient(
@@ -58,10 +85,16 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
         : GfApiClient.defaultBaseUrl,
     // New-Token 滑动续期:写回 tokenStorage 持久化新令牌。
     onTokenRenewed: (newToken) => storage.write(newToken),
-    // 401 会话失效:清空令牌并通知 UI 跳转登录页。
+    // 401 会话失效:清空令牌、清离线缓存并通知 UI 跳转登录页。
     onUnauthorized: () {
       storage.clear();
       ref.read(unauthorizedEventsProvider.notifier).trigger();
+      unawaited(
+        clearOfflineCacheQuietly(
+          ref.read(offlineTopicCacheProvider),
+          ref.read(offlineChatCacheProvider),
+        ),
+      );
     },
   );
 });

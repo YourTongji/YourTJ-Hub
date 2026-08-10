@@ -3,6 +3,7 @@ import 'package:core/core.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 
+import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/app_config.dart';
 
@@ -58,7 +59,11 @@ void main() {
 
     test('onUnauthorized 清空 tokenStorage 并触发 unauthorizedEvents', () async {
       final container = ProviderContainer(
-        overrides: [tokenStorageProvider.overrideWithValue(_MemTokenStorage())],
+        overrides: [
+          tokenStorageProvider.overrideWithValue(_MemTokenStorage()),
+          offlineTopicCacheProvider.overrideWithValue(_MemOfflineCache()),
+          offlineChatCacheProvider.overrideWithValue(_MemOfflineCache()),
+        ],
       );
       addTearDown(container.dispose);
       final storage = container.read(tokenStorageProvider);
@@ -70,6 +75,46 @@ void main() {
 
       expect(await storage.read(), isNull);
       expect(container.read(unauthorizedEventsProvider), 1);
+      // 401 会话失效应清空离线缓存(防跨账号数据泄漏)。
+      await Future<void>.delayed(Duration.zero);
+      final topicCache = container.read(offlineTopicCacheProvider);
+      final chatCache = container.read(offlineChatCacheProvider);
+      expect((topicCache as _MemOfflineCache).clears, 1);
+      expect((chatCache as _MemOfflineCache).clears, 1);
     });
   });
+}
+
+/// 内存离线缓存,记录 clear 调用。
+class _MemOfflineCache implements OfflineTopicCache, OfflineChatCache {
+  int clears = 0;
+
+  @override
+  Future<void> put(int topicId, Map<String, dynamic> payload) async {}
+
+  @override
+  Future<PagePayload?> get(int topicId) async => null;
+
+  @override
+  Future<void> putConversation(ChatItemPayload conv) async {}
+
+  @override
+  Future<List<ChatItemPayload>> getConversations() async => const [];
+
+  @override
+  Future<void> putMessages(
+    int convId,
+    List<ChatMessagePayload> messages,
+  ) async {}
+
+  @override
+  Future<List<ChatMessagePayload>> getMessages(int convId) async => const [];
+
+  @override
+  Future<void> clear() async {
+    clears++;
+  }
+
+  @override
+  Future<void> close() async {}
 }

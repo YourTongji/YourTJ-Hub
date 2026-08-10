@@ -87,6 +87,40 @@ class RecordingChatCache extends NoopCache {
   }
 }
 
+/// 记录 clear 调用次数的离线缓存(登出/登录清缓存断言)。
+class RecordingCache implements OfflineTopicCache, OfflineChatCache {
+  int clears = 0;
+
+  @override
+  Future<void> put(int topicId, Map<String, dynamic> payload) async {}
+
+  @override
+  Future<PagePayload?> get(int topicId) async => null;
+
+  @override
+  Future<void> putConversation(ChatItemPayload conv) async {}
+
+  @override
+  Future<List<ChatItemPayload>> getConversations() async => const [];
+
+  @override
+  Future<void> putMessages(
+    int convId,
+    List<ChatMessagePayload> messages,
+  ) async {}
+
+  @override
+  Future<List<ChatMessagePayload>> getMessages(int convId) async => const [];
+
+  @override
+  Future<void> clear() async {
+    clears++;
+  }
+
+  @override
+  Future<void> close() async {}
+}
+
 class RecordingChatRepository extends ChatRepository {
   RecordingChatRepository(super.client);
 
@@ -949,6 +983,7 @@ void main() {
     LogoutAuthRepository? authRepo,
     ChatRepository? chatRepo,
     UserRepository? userRepo,
+    OfflineTopicCache? topicCache,
     OfflineChatCache? chatCache,
     int? currentUserId,
   }) async {
@@ -984,7 +1019,9 @@ void main() {
         userRepositoryProvider.overrideWithValue(
           userRepo ?? EmptySessionsUserRepository(client),
         ),
-        offlineTopicCacheProvider.overrideWithValue(NoopCache()),
+        offlineTopicCacheProvider.overrideWithValue(
+          topicCache ?? NoopCache(),
+        ),
         offlineChatCacheProvider.overrideWithValue(chatCache ?? NoopCache()),
       ],
     );
@@ -2002,6 +2039,8 @@ void main() {
         tokenStorage: storage,
         baseUrl: 'http://fake.local',
       );
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
       final container = ProviderContainer(
         overrides: [
           tokenStorageProvider.overrideWithValue(storage),
@@ -2013,8 +2052,8 @@ void main() {
             FilteringNotificationRepository(client),
           ),
           authRepositoryProvider.overrideWithValue(authRepo),
-          offlineTopicCacheProvider.overrideWithValue(NoopCache()),
-          offlineChatCacheProvider.overrideWithValue(NoopCache()),
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
       );
       addTearDown(container.dispose);
@@ -2062,6 +2101,11 @@ void main() {
 
       expect(authRepo.logoutCalls, 1, reason: '登出应调用 authRepository.logout');
       expect(await storage.read(), isNull, reason: '登出应清空本地 token');
+      expect(
+        topicCache.clears + chatCache.clears,
+        2,
+        reason: '登出应清空话题与私信离线缓存,防止跨账号数据泄漏',
+      );
       expect(router.state.uri.path, '/login', reason: '登出后应跳转登录页');
       expect(find.text('login-page'), findsOneWidget);
     });
@@ -2331,6 +2375,35 @@ void main() {
       await tester.pumpAndSettle();
       expect(find.byType(GfProfileSkeleton), findsNothing);
       expect(find.text('Alice'), findsOneWidget);
+    });
+  });
+
+  group('离线缓存清理(登出/换账号数据泄漏)', () {
+    testWidgets('进入登录页即清空上一账号的离线缓存(换账号场景)', (tester) async {
+      final pageRepo = CountingPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        topicCache: topicCache,
+        chatCache: chatCache,
+      );
+
+      // 模拟上一账号遗留的缓存:非空缓存应被清空。
+      await tester.pumpWidget(app(container, const LoginPage()));
+      await tester.pumpAndSettle();
+
+      expect(
+        topicCache.clears + chatCache.clears,
+        2,
+        reason: '进入登录页应清空话题与私信离线缓存,换账号后不能读到上一账号数据',
+      );
     });
   });
 }

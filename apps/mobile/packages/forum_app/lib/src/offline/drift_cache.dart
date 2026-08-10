@@ -19,6 +19,7 @@ abstract class OfflineChatCache {
   Future<List<ChatItemPayload>> getConversations();
   Future<void> putMessages(int convId, List<ChatMessagePayload> messages);
   Future<List<ChatMessagePayload>> getMessages(int convId);
+  Future<void> clear();
 }
 
 /// 已浏览话题/会话的 drift 离线缓存。
