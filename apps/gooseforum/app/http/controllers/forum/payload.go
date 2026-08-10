@@ -1404,7 +1404,8 @@ func categoryPayloads(ids []uint64) []TopicCategoryPayload {
 func userPayload(userID uint64, userMap map[uint64]*users.EntityComplete) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		// 用户不存在或已注销（软删）时回退为「已注销用户」（PRD R10）。
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return userPayloadWithWornBadge(userID, userMap, badgeservice.GetWornBadge(userID, user.WornBadgeCode))
 }
@@ -1422,7 +1423,7 @@ func selectedWornBadges(userMap map[uint64]*users.EntityComplete) map[uint64]str
 func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityComplete, wornBadge *badgeservice.UserBadge) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return TopicAuthorPayload{ID: userID, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
 }

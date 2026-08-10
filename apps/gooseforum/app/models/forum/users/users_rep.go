@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
@@ -89,6 +90,25 @@ func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 	return builder().
 		Where(queryopt.Eq(pid, userID)).
 		Update("worn_badge_code", badgeCode).Error
+}
+
+// CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
+// 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
+func CloseAccount(userID uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
+		"deleted_at":      time.Now(),
+		"worn_badge_code": "",
+	}).Error
+}
+
+// IsAccountClosed 判断账号是否已注销（软删）。
+func IsAccountClosed(userID uint64) bool {
+	var entity EntityComplete
+	err := builder().Unscoped().Where(queryopt.Eq(pid, userID)).First(&entity).Error
+	if err != nil || entity.Id == 0 {
+		return false
+	}
+	return entity.DeletedAt.Valid
 }
 
 func All() (entities []*EntityComplete) {

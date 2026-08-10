@@ -9,6 +9,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 )
 
@@ -198,6 +199,41 @@ func myContentCursorID(items []MyContentItem) uint64 {
 		return 0
 	}
 	return items[len(items)-1].ID
+}
+
+// AccountCloseReq 注销账号请求（PRD R10）。
+// mode=anonymize 保留内容但匿名化；mode=delete 先删除全部内容再注销。
+type AccountCloseReq struct {
+	Mode string `json:"mode" validate:"required,oneof=anonymize delete"`
+}
+
+// AccountClose 注销当前账号（R10）：
+//   - anonymize：软删账号，历史内容保留并以「已注销用户」展示；
+//   - delete：先按删除流程处理该账号全部话题/回复（他人回复不随删），再软删账号。
+//
+// 注销后 token_version 自增吊销全部会话。
+func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Response {
+	if req.UserId == 0 {
+		return component.FailResponseCode(component.MessageAuthRequired, nil)
+	}
+	if users.IsAccountClosed(req.UserId) {
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+
+	if req.Params.Mode == "delete" {
+		if err := contentdeleteservice.DeleteAllUserContent(req.UserId); err != nil {
+			slog.Error("delete all user content on account close failed", "userId", req.UserId, "err", err)
+			return component.FailResponseCode(component.MessageOperationFailed, nil)
+		}
+	}
+
+	if err := users.CloseAccount(req.UserId); err != nil {
+		slog.Error("close account failed", "userId", req.UserId, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	users.IncrementTokenVersion(req.UserId)
+	slog.Info("account closed", "userId", req.UserId, "mode", req.Params.Mode)
+	return component.SuccessResponse(true)
 }
 
 // DeletedContentListReq 最近删除列表请求。

@@ -149,3 +149,61 @@ func TestBatchDeleteContentRequiresConfirmOverThreshold(t *testing.T) {
 		}
 	}
 }
+
+// R10：注销账号 anonymize 模式保留内容但用户不可见。
+func TestAccountCloseAnonymizeKeepsContent(t *testing.T) {
+	conn := setupBatchDeleteTestDB(t)
+	userID := uint64(9_900_000_004)
+	if err := conn.Create(&users.EntityComplete{Id: userID, Username: "close_anonym", IsActivated: 1}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	ids := seedBatchTopics(t, conn, userID, 9_900_000_500, 2)
+
+	res := AccountClose(component.BetterRequest[AccountCloseReq]{
+		UserId: userID,
+		Params: AccountCloseReq{Mode: "anonymize"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("AccountClose anonymize failed: %#v", res)
+	}
+
+	// 用户应已软删（scoped Get 查不到）。
+	if _, err := users.Get(userID); err == nil {
+		t.Fatal("closed account should not be retrievable via scoped Get")
+	}
+	if !users.IsAccountClosed(userID) {
+		t.Fatal("expected IsAccountClosed to be true")
+	}
+	// 内容保留且仍公开（ACTIVE）。
+	for _, id := range ids {
+		if visible := topics.Get(id); visible.Id == 0 {
+			t.Fatalf("topic %d should be kept after anonymize close", id)
+		}
+	}
+}
+
+// R10：注销账号 delete 模式先删除全部内容再注销。
+func TestAccountCloseDeleteRemovesContent(t *testing.T) {
+	conn := setupBatchDeleteTestDB(t)
+	userID := uint64(9_900_000_005)
+	if err := conn.Create(&users.EntityComplete{Id: userID, Username: "close_delete", IsActivated: 1}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	ids := seedBatchTopics(t, conn, userID, 9_900_000_600, 2)
+
+	res := AccountClose(component.BetterRequest[AccountCloseReq]{
+		UserId: userID,
+		Params: AccountCloseReq{Mode: "delete"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("AccountClose delete failed: %#v", res)
+	}
+	for _, id := range ids {
+		if visible := topics.Get(id); visible.Id != 0 {
+			t.Fatalf("topic %d should be deleted after delete-mode close", id)
+		}
+	}
+	if !users.IsAccountClosed(userID) {
+		t.Fatal("expected account to be closed after delete-mode close")
+	}
+}

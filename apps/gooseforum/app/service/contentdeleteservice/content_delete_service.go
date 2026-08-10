@@ -556,6 +556,37 @@ func postsTarget(postID uint64) fileusageservice.TargetRef {
 	return fileusageservice.TargetRef{TargetType: "post", TargetID: postID}
 }
 
+// DeleteAllUserContent 注销账号时删除该用户全部话题与回复（PRD R10 mode=delete）。
+// 删除自己话题不会删除他人回复；删除回复只删自己的回复，他人内容不受影响。
+func DeleteAllUserContent(userID uint64) error {
+	const batchSize = 100
+	// 先删话题（级联删除该话题下所有回复，含他人回复——话题删除语义即整体移除讨论）。
+	for {
+		activeTopics := topics.GetActiveByUserPage(userID, 0, batchSize)
+		if len(activeTopics) == 0 {
+			break
+		}
+		for _, topic := range activeTopics {
+			if err := DeleteTopicByUser(userID, topic.Id); err != nil {
+				slog.Warn("delete user topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
+			}
+		}
+	}
+	// 再删剩余未删除的本人回复（他人话题下的回复）。
+	for {
+		activePosts := posts.GetActiveByUserPage(userID, 0, batchSize)
+		if len(activePosts) == 0 {
+			break
+		}
+		for _, post := range activePosts {
+			if _, err := DeletePostByUser(userID, post.Id); err != nil {
+				slog.Warn("delete user post on account close failed", "userId", userID, "postId", post.Id, "err", err)
+			}
+		}
+	}
+	return nil
+}
+
 // recordEvent 记录删除生命周期埋点事件（PRD R14）。
 // 事件在状态变更成功后记录，失败仅记日志，不影响删除主流程。
 func recordEvent(eventType contentDeleteEvent.EventType, contentType ContentType, contentID uint64, topicID uint64, actorID uint64) {

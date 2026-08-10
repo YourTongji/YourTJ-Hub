@@ -263,6 +263,22 @@ export async function batchDeleteContent(contentType: DeletedContentType, conten
   return readApiResponse<BatchDeleteContentResult>(response, t('api.topicDeleteFailed'))
 }
 
+/** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。 */
+export async function closeAccount(mode: 'anonymize' | 'delete'): Promise<boolean> {
+  const response = await fetch('/api/forum/user/account-close', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
+/** 退出登录并吊销当前会话。 */
+export async function logout(): Promise<boolean> {
+  const response = await fetch('/api/logout', { method: 'POST' })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
 export interface PostWindowInput {
   topicId: number
   anchorPostId?: number

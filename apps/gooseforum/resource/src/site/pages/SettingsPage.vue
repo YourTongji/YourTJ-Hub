@@ -39,6 +39,8 @@ import {
   restoreDeletedContent,
   getMyContent,
   batchDeleteContent,
+  closeAccount,
+  logout,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
@@ -136,6 +138,12 @@ const selectedMyContentIds = ref<number[]>([])
 const batchDeleting = ref(false)
 const batchDeleteConfirmOpen = ref(false)
 const batchDeleteError = ref('')
+// 注销账号（PRD R10）
+const accountCloseOpen = ref(false)
+const accountCloseMode = ref<'anonymize' | 'delete'>('anonymize')
+const accountCloseConfirmText = ref('')
+const accountCloseSubmitting = ref(false)
+const accountCloseError = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
 /** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
@@ -507,6 +515,38 @@ function confirmForceBatchDelete() {
 function cancelBatchDeleteConfirm() {
   if (batchDeleting.value) return
   batchDeleteConfirmOpen.value = false
+}
+
+// 注销账号（PRD R10）
+function openAccountCloseDialog() {
+  accountCloseOpen.value = true
+  accountCloseMode.value = 'anonymize'
+  accountCloseConfirmText.value = ''
+  accountCloseError.value = ''
+}
+
+function closeAccountCloseDialog() {
+  if (accountCloseSubmitting.value) return
+  accountCloseOpen.value = false
+}
+
+async function submitAccountClose() {
+  if (accountCloseSubmitting.value) return
+  if (accountCloseConfirmText.value.trim() !== '注销') {
+    accountCloseError.value = t('settings.account.closeConfirmMismatch')
+    return
+  }
+  accountCloseSubmitting.value = true
+  accountCloseError.value = ''
+  try {
+    await closeAccount(accountCloseMode.value)
+    await logout()
+    window.location.href = '/'
+  } catch (error) {
+    accountCloseError.value = error instanceof Error ? error.message : t('api.operationFailed')
+  } finally {
+    accountCloseSubmitting.value = false
+  }
 }
 
 async function restoreDeletedItem(item: DeletedContentItem) {
@@ -1735,7 +1775,68 @@ async function toggleBinding(provider: string) {
                 {{ t('settings.account.changePassword') }}
               </button>
             </form>
+
+            <div class="mx-4 mb-4 max-w-xl rounded-lg border border-error/20 bg-error/5 p-4">
+              <h3 class="text-sm font-semibold text-error">{{ t('settings.account.closeTitle') }}</h3>
+              <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+              <button type="button" class="gf-button gf-button-sm gf-button-danger mt-3" @click="openAccountCloseDialog">
+                <UserRound class="h-4 w-4" />
+                {{ t('settings.account.closeAction') }}
+              </button>
+            </div>
           </section>
+
+          <Teleport to="body">
+            <div v-if="accountCloseOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeAccountCloseDialog">
+              <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
+                <h3 class="text-base font-semibold text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+
+                <div class="mt-3 space-y-2">
+                  <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 transition hover:bg-base-200/60">
+                    <input
+                      v-model="accountCloseMode"
+                      type="radio"
+                      value="anonymize"
+                      class="mt-1 h-4 w-4 accent-primary"
+                    />
+                    <span>
+                      <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeAnonymize') }}</span>
+                      <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeAnonymizeDescription') }}</span>
+                    </span>
+                  </label>
+                  <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 transition hover:bg-base-200/60">
+                    <input
+                      v-model="accountCloseMode"
+                      type="radio"
+                      value="delete"
+                      class="mt-1 h-4 w-4 accent-primary"
+                    />
+                    <span>
+                      <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeDelete') }}</span>
+                      <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeDeleteDescription') }}</span>
+                    </span>
+                  </label>
+                </div>
+
+                <label class="mt-4 block">
+                  <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closeConfirmLabel') }}</span>
+                  <input v-model="accountCloseConfirmText" type="text" class="gf-input mt-1" placeholder="注销" />
+                </label>
+
+                <p v-if="accountCloseError" class="mt-2 text-sm text-error">{{ accountCloseError }}</p>
+
+                <div class="mt-4 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="accountCloseSubmitting" @click="submitAccountClose">
+                    <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.account.closeConfirmButton') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
 
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
