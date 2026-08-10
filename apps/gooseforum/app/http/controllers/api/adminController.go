@@ -532,6 +532,21 @@ type DeleteTopicReq struct {
 	Reason  string `json:"reason" validate:"required,min=1,max=500"`
 }
 
+// DeletePostAsModeratorReq 管理端删除单个回复的请求。
+type DeletePostAsModeratorReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Reason string `json:"reason" validate:"required,min=1,max=500"`
+}
+
+// DeletePostAsModerator 管理端治理删除单个回复：作者不可自行恢复，
+// 记录审计日志与删除原因，并同步清理搜索/缓存/通知/附件。
+func DeletePostAsModerator(req component.BetterRequest[DeletePostAsModeratorReq]) component.Response {
+	if err := contentdeleteservice.DeletePostAsModerator(req.UserId, req.Params.PostId, req.Params.Reason); err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
+}
+
 // EditTopic updates topic moderation status.
 func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 	topic := topics.Get(req.Params.TopicId)
@@ -573,13 +588,18 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
+	// 幂等：已处于管理端删除状态时直接成功，避免重复删除重置 deleted_at / 重复广播。
+	if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
+		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
+	}
 
 	reason := strings.TrimSpace(req.Params.Reason)
 	if reason == "" {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	// 管理端治理删除：双状态机 MODERATOR_REMOVED + ContentDeletedEvent；分类索引同步摘除。
-	topicCategoryIndex.DeleteByTopicId(topic.Id)
+	// 管理端治理删除：双状态机 MODERATOR_REMOVED + ContentDeletedEvent。
+	// 不硬删 topic_category_index：版主日志/举报的按分类作用域查询依赖该索引定位话题，
+	// 且公开列表已按 visibility_status=ACTIVE 过滤，删除话题不会因此出现在分类页。
 	if err := contentdeleteservice.DeleteTopicAs(topic, req.UserId, topics.VisibilityModeratorRemoved, reason); err != nil {
 		return component.FailResponseError(err)
 	}

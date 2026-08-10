@@ -40,6 +40,13 @@ func HasLiveReferences(fileName string) bool {
 	return fileUsage.HasLiveReferences(fileName)
 }
 
+// HasActiveReferences reports whether a tracked filename is referenced by
+// content that is currently public. RECOVERING/PURGED references must not
+// authorize public downloads.
+func HasActiveReferences(fileName string) bool {
+	return fileUsage.HasActiveReferences(fileName)
+}
+
 // PurgeTargetFiles 永久删除内容时清理附件：引用置 PURGED，无其他引用的文件本体删除。
 func PurgeTargetFiles(ref TargetRef) {
 	usages, err := fileUsage.ListByTarget(ref.TargetType, ref.TargetID)

@@ -83,8 +83,10 @@ func HasChildren(postId uint64) bool {
 	return count > 0
 }
 
-// GetUserDeletedPage 分页返回用户已删除的回复（含软删行与墓碑态行），按删除时间倒序。
-// 条件覆盖两类行：deleted_at 置位的隐藏删除，以及 visibility_status 标记的墓碑删除。
+// GetUserDeletedPage 分页返回用户已删除的回复（含软删行与墓碑态行）。
+// 使用纯 id 倒序 + id 游标，与 topics 版本保持一致：deleted_at/updated_at 排序
+// 在跨数据库时对 NULL 方向不一致（Postgres 默认 NULLS FIRST），且时间并列或
+// 墓碑行时间变化会导致按 id 游标翻页漏项。
 func GetUserDeletedPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
 	b := builder().Unscoped().
 		Where(queryopt.Eq("user_id", userId)).
@@ -93,9 +95,7 @@ func GetUserDeletedPage(userId uint64, cursorID uint64, limit int) (entities []E
 	if cursorID != 0 {
 		b = b.Where(queryopt.Lt("id", cursorID))
 	}
-	b.Order(queryopt.Desc("deleted_at")).
-		Order(queryopt.Desc("updated_at")).
-		Order(queryopt.Desc("id")).
+	b.Order(queryopt.Desc("id")).
 		Limit(pageutil.BoundPageSize(limit) + 1).
 		Find(&entities)
 	return
@@ -167,6 +167,28 @@ func SoftDeleteByTopicId(topicId uint64, deletedBy uint64, reason string, visibi
 	}
 	return builder().Unscoped().
 		Where(queryopt.Eq("topic_id", topicId)).
+		Where("deleted_at IS NULL").
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		}).RowsAffected
+}
+
+// SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
+// 只处理删除瞬间已经收集到的活跃回复，避免删除动作与并发新回复之间的
+// TOCTOU 竞态把"读取之后才写入"的回复一并软删并递减其统计。
+func SoftDeleteByIDs(ids []uint64, deletedBy uint64, reason string, visibility string) int64 {
+	if len(ids) == 0 {
+		return 0
+	}
+	if visibility == "" {
+		visibility = VisibilityUserDeleted
+	}
+	return builder().Unscoped().
+		Where(queryopt.In("id", ids)).
 		Where("deleted_at IS NULL").
 		Updates(map[string]any{
 			"deleted_at":        time.Now(),

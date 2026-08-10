@@ -247,8 +247,10 @@ func canViewDeletedTopic(entity *topics.Entity, userID uint64) bool {
 	if entity.RetentionStatus == topics.RetentionPurged {
 		return false
 	}
+	// 隐私擦除的内容对普通用户一律 404，但保留版主在作用域内的只读通道，
+	// 供举报取证/审计查阅；版主仍不能恢复或对外暴露该内容。
 	if entity.VisibilityStatus == topics.VisibilityAccountAnonymized {
-		return false
+		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
 	}
 	if entity.VisibilityStatus == topics.VisibilityModeratorRemoved {
 		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)

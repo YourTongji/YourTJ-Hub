@@ -81,6 +81,7 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	err = builder().
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -96,6 +97,7 @@ func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err err
 		Where(queryopt.Gt("id", afterID)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Asc("id")).
 		Limit(limit).
@@ -113,6 +115,7 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 		Where(queryopt.Lt("id", beforeID)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -125,6 +128,7 @@ func GetPublished(id uint64) (entity Entity, err error) {
 		Where(queryopt.Eq("id", id)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		First(&entity).Error
 	return
@@ -136,6 +140,7 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -148,7 +153,8 @@ func GetPublishedByUserBeforeId(userId uint64, beforeId uint64, limit int) ([]*E
 	query := builder().
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", 0))
+		Where(queryopt.Eq("process_status", 0)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive))
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
 	}
@@ -216,6 +222,10 @@ func Page(q PageQuery) struct {
 	if q.FilterStatus {
 		b.Where(queryopt.Eq("status", 1))
 		b.Where(queryopt.Eq("process_status", 0))
+		// 公开列表只展示可见性正常的主题；作者删除（USER_DELETED）与管理端
+		// 删除（MODERATOR_REMOVED）的话题一律不进首页/分类/Agent 列表，
+		// 避免删除后仍公开泄露标题与正文摘录。
+		b.Where(queryopt.Eq("visibility_status", VisibilityActive))
 	}
 	if q.CategoryId != 0 {
 		b.Where(

@@ -85,12 +85,20 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 
 	// 无回复时级联软删全部回复并递减统计；有回复时保留他人讨论。
 	if !hasReplies {
-		// 先收集仍活跃的回复，再级联软删，避免对历史已删行重复递减统计。
-		deletedCount := posts.SoftDeleteByTopicId(topic.Id, operatorID, cascadeReason, visibility)
+		// 按删除前收集到的回复 ID 精确级联，避免并发新回复在读取与写入之间
+		// 被 TOCTOU 竞态一并软删并重复递减统计。
+		activePostIDs := make([]uint64, 0, len(activePosts))
 		for _, post := range activePosts {
-			if post.UserId > 0 {
-				postservice.SyncTopicPostStats(topic, *post, true)
+			if post != nil {
+				activePostIDs = append(activePostIDs, post.Id)
 			}
+		}
+		deletedCount := posts.SoftDeleteByIDs(activePostIDs, operatorID, cascadeReason, visibility)
+		for _, post := range activePosts {
+			if post == nil || post.UserId == 0 {
+				continue
+			}
+			postservice.SyncTopicPostStats(topic, *post, true)
 			fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 		}
 		slog.Info("topic deleted without replies, cascade posts", "topicId", topic.Id, "posts", deletedCount)

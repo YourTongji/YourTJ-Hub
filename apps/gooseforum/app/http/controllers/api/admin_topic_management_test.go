@@ -175,11 +175,24 @@ func TestAdminDeleteTopicRequiresReasonAndMarksModeratorRemoved(t *testing.T) {
 		t.Fatalf("deletedBy = %d, want 77", topic.DeletedBy)
 	}
 
-	// 分类索引应被摘除。
+	// 分类索引应保留：版主日志/举报的按分类作用域查询依赖该索引定位话题，
+	// 删除话题的可见性由列表查询的 visibility_status=ACTIVE 过滤保证，不依赖硬删索引。
 	indexes := topicCategoryIndex.GetByTopicId(923001)
+	foundCategory := false
 	for _, item := range indexes {
 		if item.CategoryId == categoryID && item.Effective == 1 {
-			t.Fatalf("category index still effective: %#v", indexes)
+			foundCategory = true
+		}
+	}
+	if !foundCategory {
+		t.Fatalf("category index should remain effective for moderation scoping: %#v", indexes)
+	}
+
+	// 同时验证已删除话题不再进入公开分类列表。
+	pageData := topics.Page(topics.PageQuery{Page: 1, PageSize: 20, FilterStatus: true, CategoryId: categoryID})
+	for _, item := range pageData.Data {
+		if item.Id == 923001 {
+			t.Fatalf("deleted topic still appears in public category list: %#v", item)
 		}
 	}
 }
