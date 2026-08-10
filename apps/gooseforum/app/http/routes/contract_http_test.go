@@ -228,14 +228,7 @@ func encryptLoginPassword(t *testing.T, password string) string {
 }
 
 func serveJSON(router http.Handler, path string, body string, token string) *httptest.ResponseRecorder {
-	request := httptest.NewRequest(http.MethodPost, path, strings.NewReader(body))
-	request.Header.Set("Content-Type", "application/json")
-	if token != "" {
-		request.Header.Set("Authorization", "Bearer "+token)
-	}
-	recorder := httptest.NewRecorder()
-	router.ServeHTTP(recorder, request)
-	return recorder
+	return serveAuthSecurityJSON(router, http.MethodPost, path, body, token)
 }
 
 func decodeContractEnvelope(t *testing.T, recorder *httptest.ResponseRecorder) contractEnvelope {

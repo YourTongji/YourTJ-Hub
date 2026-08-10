@@ -110,7 +110,7 @@ LoginPublicKeyResult:
       type: integer
       format: int64
       minimum: 1
-      description: Current server time in Unix milliseconds.
+      description: Current server time in Unix milliseconds. Password-login clients must encrypt their password payload within ±3 minutes of this timestamp; a stale payload is rejected as `auth.login.invalidRequest`.
     algorithm:
       type: string
       const: RSA-OAEP-256
@@ -126,14 +126,16 @@ LoginPublicKeySuccess:
           $ref: '#/LoginPublicKeyResult'
 
 LoginPublicKeyResponse:
-  $ref: '#/LoginPublicKeySuccess'
+  oneOf:
+    - $ref: '#/LoginPublicKeySuccess'
+    - $ref: '#/ApiFailure'
 
 TotpVerifyRequest:
   type: object
   properties:
     code:
       type: string
-      description: Six-digit TOTP code. When non-empty, this field takes precedence over recoveryCode.
+      description: TOTP code or recovery code; any non-empty value is verified as a TOTP code first and then as a recovery code. When non-empty, this field takes precedence over recoveryCode.
     recoveryCode:
       type: string
       description: One-time recovery code used only when code is empty.

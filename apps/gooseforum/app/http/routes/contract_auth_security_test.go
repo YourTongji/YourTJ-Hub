@@ -56,6 +56,16 @@ func serveAuthSecurityJSON(router http.Handler, method, path, body, token string
 	router.ServeHTTP(recorder, request)
 	return recorder
 }
+func serveAuthSecurityJSONWithCookie(router http.Handler, method, path, body, cookieToken string) *httptest.ResponseRecorder {
+	request := httptest.NewRequest(method, path, strings.NewReader(body))
+	request.Header.Set("Content-Type", "application/json")
+	if cookieToken != "" {
+		request.AddCookie(&http.Cookie{Name: "access_token", Value: cookieToken})
+	}
+	recorder := httptest.NewRecorder()
+	router.ServeHTTP(recorder, request)
+	return recorder
+}
 
 func assertResultObjectKeysMatchFixture(
 	t *testing.T,
@@ -90,7 +100,7 @@ func assertResultObjectKeysMatchFixture(
 	}
 }
 
-func enableContractTotp(t *testing.T, userID uint64) string {
+func enableContractTotp(t *testing.T, userID uint64) (string, []string) {
 	t.Helper()
 	setup, err := totpservice.Setup(userID)
 	if err != nil {
@@ -100,10 +110,11 @@ func enableContractTotp(t *testing.T, userID uint64) string {
 	if err != nil {
 		t.Fatalf("generate current TOTP code: %v", err)
 	}
-	if _, err = totpservice.Enable(userID, code); err != nil {
+	recoveryCodes, err := totpservice.Enable(userID, code)
+	if err != nil {
 		t.Fatalf("enable TOTP: %v", err)
 	}
-	return code
+	return code, recoveryCodes
 }
 
 func contractTotpChallenge(t *testing.T, user *users.EntityComplete) string {
@@ -168,7 +179,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 	t.Run("success consumes the challenge and creates one session", func(t *testing.T) {
 		conn, router := setupAuthSecurityContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
-		code := enableContractTotp(t, user.Id)
+		code, _ := enableContractTotp(t, user.Id)
 		challenge := contractTotpChallenge(t, user)
 
 		body, err := json.Marshal(map[string]string{"code": code})
@@ -209,7 +220,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, replay),
-			contractFixture(t, "totp-verify-challenge-consumed.json"),
+			contractFixture(t, "totp-verify-unauthenticated.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after challenge replay = %d, want 1", count)
@@ -219,7 +230,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 	t.Run("a frozen account with an already-issued challenge follows current success behavior", func(t *testing.T) {
 		conn, router := setupAuthSecurityContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
-		code := enableContractTotp(t, user.Id)
+		code, _ := enableContractTotp(t, user.Id)
 		challenge := contractTotpChallenge(t, user)
 		if err := conn.Model(&users.EntityComplete{}).Where("id = ?", user.Id).
 			Update("is_frozen", users.StatusFrozen).Error; err != nil {
@@ -239,6 +250,179 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("frozen-account TOTP status = %d, want current behavior 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		if count := contractSessionCount(t, conn, user.Id); count != 1 {
+			t.Fatalf("session count after frozen-account TOTP verification = %d, want 1", count)
+		}
+	})
+
+	t.Run("recovery code consumes the challenge and creates one session", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		_, recoveryCodes := enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		body, err := json.Marshal(map[string]string{"recoveryCode": recoveryCodes[0]})
+		if err != nil {
+			t.Fatalf("marshal recovery-code verification request: %v", err)
+		}
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("recovery-code verification status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		if recorder.Header().Get("New-Token") == "" {
+			t.Fatal("recovery-code verification response missing New-Token header")
+		}
+		if count := contractSessionCount(t, conn, user.Id); count != 1 {
+			t.Fatalf("session count after recovery-code verification = %d, want 1", count)
+		}
+
+		// The challenge is consumed by the successful verification: replaying the
+		// same (now used) recovery code with the same challenge is rejected.
+		replay := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if replay.Code != http.StatusUnauthorized {
+			t.Fatalf("consumed-challenge replay status = %d, want 401", replay.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, replay),
+			contractFixture(t, "totp-verify-unauthenticated.json"),
+		)
+		if count := contractSessionCount(t, conn, user.Id); count != 1 {
+			t.Fatalf("session count after recovery-code replay = %d, want 1", count)
+		}
+	})
+
+	t.Run("code takes precedence over recovery code", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		code, recoveryCodes := enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		// A valid recovery code in `recoveryCode` is ignored while `code` is
+		// non-empty: the invalid `code` still fails.
+		invalidCodeBody, err := json.Marshal(map[string]string{
+			"code":         "not-a-valid-code",
+			"recoveryCode": recoveryCodes[0],
+		})
+		if err != nil {
+			t.Fatalf("marshal precedence request: %v", err)
+		}
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(invalidCodeBody),
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("invalid-code-with-recovery status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, recorder),
+			contractFixture(t, "totp-verify-invalid-code.json"),
+		)
+
+		// A valid code still succeeds when a valid recovery code is also present.
+		validBody, err := json.Marshal(map[string]string{
+			"code":         code,
+			"recoveryCode": recoveryCodes[0],
+		})
+		if err != nil {
+			t.Fatalf("marshal precedence success request: %v", err)
+		}
+		success := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(validBody),
+			challenge,
+		)
+		if success.Code != http.StatusOK {
+			t.Fatalf("valid-code-with-recovery status = %d, want 200: %s", success.Code, success.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+	})
+
+	t.Run("empty request with a valid challenge stays an HTTP 200 business failure", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			`{}`,
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("empty-request status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, recorder),
+			contractFixture(t, "totp-verify-invalid-code.json"),
+		)
+	})
+
+	t.Run("a normal session JWT is rejected by the challenge middleware", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		sessionToken := contractSessionToken(t, user)
+
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			`{"code":"123456"}`,
+			sessionToken,
+		)
+		if recorder.Code != http.StatusUnauthorized {
+			t.Fatalf("session-JWT status = %d, want 401", recorder.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, recorder),
+			contractFixture(t, "totp-verify-unauthenticated.json"),
+		)
+	})
+
+	t.Run("challenge token via the access_token cookie authenticates", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		code, _ := enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		body, err := json.Marshal(map[string]string{"code": code})
+		if err != nil {
+			t.Fatalf("marshal cookie-verification request: %v", err)
+		}
+		recorder := serveAuthSecurityJSONWithCookie(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("cookie-challenge status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
 	})

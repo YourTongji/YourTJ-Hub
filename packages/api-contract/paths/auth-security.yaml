@@ -35,9 +35,12 @@ verifyTotp:
       precedence over `recoveryCode`; an empty request is a legacy HTTP 200
       `totp.code.invalid` business failure. Invalid codes and the internal per-user TOTP attempt
       limit also remain HTTP 200 failures, and the internal limit does not emit `Retry-After`.
-      Successful verification atomically consumes the challenge before issuing a session, so the
-      same challenge cannot create a second session. The current route does not re-check frozen
-      account state after the challenge has been issued.
+      Successful verification atomically consumes the challenge before issuing a session, so a
+      sequentially replayed challenge cannot create a second session; a request that loses the
+      consume race is reported as a legacy HTTP 200 `totp.code.invalid` business failure.
+      The current route does not re-check frozen account state after the challenge has been
+      issued. The endpoint has no IP-level rate limiting: it relies only on the in-process
+      per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
     requestBody:
       required: true
       content:
@@ -46,7 +49,7 @@ verifyTotp:
             $ref: ../components/schemas.yaml#/TotpVerifyRequest
     responses:
       '200':
-        description: Login completed, or a legacy validation, verification, rate-limit, or session failure envelope.
+        description: Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) exists after challenge consumption only under a delete race and is intentionally not given its own example.
         headers:
           Set-Cookie:
             description: On success, replaces the challenge cookie with an HTTP-only session cookie.
@@ -70,13 +73,15 @@ verifyTotp:
               rateLimited:
                 externalValue: ../fixtures/totp-verify-rate-limited.json
       '401':
-        description: Missing, invalid, expired, wrong-purpose, stale, or already-consumed challenge token.
+        description: Missing, invalid, expired, wrong-purpose, stale, or already-consumed (sequentially replayed) challenge token.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
+              # The middleware reports every 401 path with the same `auth.required`
+              # envelope, so both examples intentionally share this fixture.
               unauthenticated:
                 externalValue: ../fixtures/totp-verify-unauthenticated.json
               challengeConsumed:
-                externalValue: ../fixtures/totp-verify-challenge-consumed.json
+                externalValue: ../fixtures/totp-verify-unauthenticated.json

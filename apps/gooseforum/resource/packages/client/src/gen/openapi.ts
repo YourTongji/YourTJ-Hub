@@ -86,9 +86,12 @@ export interface paths {
          *     precedence over `recoveryCode`; an empty request is a legacy HTTP 200
          *     `totp.code.invalid` business failure. Invalid codes and the internal per-user TOTP attempt
          *     limit also remain HTTP 200 failures, and the internal limit does not emit `Retry-After`.
-         *     Successful verification atomically consumes the challenge before issuing a session, so the
-         *     same challenge cannot create a second session. The current route does not re-check frozen
-         *     account state after the challenge has been issued.
+         *     Successful verification atomically consumes the challenge before issuing a session, so a
+         *     sequentially replayed challenge cannot create a second session; a request that loses the
+         *     consume race is reported as a legacy HTTP 200 `totp.code.invalid` business failure.
+         *     The current route does not re-check frozen account state after the challenge has been
+         *     issued. The endpoint has no IP-level rate limiting: it relies only on the in-process
+         *     per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
          */
         post: operations["verifyTotpLogin"];
         delete?: never;
@@ -252,13 +255,13 @@ export interface components {
         };
         LoginResponse: components["schemas"]["LoginSuccess"] | components["schemas"]["ApiFailure"];
         LoginResult: string | components["schemas"]["TotpChallengeResult"];
-        LoginPublicKeyResponse: components["schemas"]["LoginPublicKeySuccess"];
+        LoginPublicKeyResponse: components["schemas"]["LoginPublicKeySuccess"] | components["schemas"]["ApiFailure"];
         LoginPublicKeyResult: {
             /** @description PEM-encoded RSA public key. Private key material is never returned. */
             publicKey: string;
             /**
              * Format: int64
-             * @description Current server time in Unix milliseconds.
+             * @description Current server time in Unix milliseconds. Password-login clients must encrypt their password payload within ±3 minutes of this timestamp; a stale payload is rejected as `auth.login.invalidRequest`.
              */
             serverTs: number;
             /** @constant */
@@ -298,7 +301,7 @@ export interface components {
             message: string;
         };
         TotpVerifyRequest: {
-            /** @description Six-digit TOTP code. When non-empty, this field takes precedence over recoveryCode. */
+            /** @description TOTP code or recovery code; any non-empty value is verified as a TOTP code first and then as a recovery code. When non-empty, this field takes precedence over recoveryCode. */
             code?: string;
             /** @description One-time recovery code used only when code is empty. */
             recoveryCode?: string;
@@ -443,7 +446,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["LoginPublicKeySuccess"];
+                    "application/json": components["schemas"]["LoginPublicKeyResponse"];
                 };
             };
         };
@@ -483,7 +486,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. */
+            /** @description Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) exists after challenge consumption only under a delete race and is intentionally not given its own example. */
             200: {
                 headers: {
                     /** @description On success, replaces the challenge cookie with an HTTP-only session cookie. */
@@ -496,7 +499,7 @@ export interface operations {
                     "application/json": components["schemas"]["TotpVerifyResponse"];
                 };
             };
-            /** @description Missing, invalid, expired, wrong-purpose, stale, or already-consumed challenge token. */
+            /** @description Missing, invalid, expired, wrong-purpose, stale, or already-consumed (sequentially replayed) challenge token. */
             401: {
                 headers: {
                     [name: string]: unknown;
