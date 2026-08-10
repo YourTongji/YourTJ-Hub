@@ -15,6 +15,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/reports"
@@ -26,6 +27,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"gorm.io/gorm"
 )
 
 const moderationPageSize = 20
@@ -393,6 +395,120 @@ func ModerationLogList(req component.BetterRequest[ModerationLogListReq]) compon
 		NextCursor: nextCursor,
 		HasNext:    hasNext,
 	})
+}
+
+// ViewDeletedContentReq 查看已删除内容原文的请求（PRD R7）。
+// 查看必须提供理由，每次查看都会写入 moderation_log（EvidenceViewed）与埋点，
+// 满足"查看已删内容需理由 + 审计"的最小权限要求。
+type ViewDeletedContentReq struct {
+	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
+	ContentID   uint64 `json:"contentId" validate:"required"`
+	Reason      string `json:"reason" validate:"required,min=1,max=300"`
+}
+
+// ModerationDeletedContentView 已删除内容原文视图（仅版主查看，含删除元数据）。
+type ModerationDeletedContentView struct {
+	ContentType  string                 `json:"contentType"`
+	ContentID    uint64                 `json:"contentId"`
+	Title        string                 `json:"title"`
+	Content      string                 `json:"content"`
+	AuthorID     uint64                 `json:"authorId"`
+	AuthorName   string                 `json:"authorName"`
+	Categories   []TopicCategoryPayload `json:"categories"`
+	DeletedBy    uint64                 `json:"deletedBy"`
+	DeletedByWho string                 `json:"deletedByWho"`
+	DeletedAt    string                 `json:"deletedAt"`
+	DeleteReason string                 `json:"deleteReason"`
+	TargetURL    string                 `json:"targetUrl"`
+}
+
+// ViewDeletedContent 版主查看已删除内容原文：必须提供理由，写审计日志（R7）。
+// 全局版主/管理员可查看其作用域内的已删内容；分类版主仅可查看其分类内的内容。
+func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) component.Response {
+	if !moderationservice.CanAccessModeration(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	reason := strings.TrimSpace(req.Params.Reason)
+	if reason == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+
+	var view ModerationDeletedContentView
+	switch req.Params.ContentType {
+	case reports.TargetTopic:
+		topic := topics.UnscopedGet(req.Params.ContentID)
+		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive {
+			return component.FailResponseCode(component.MessageTopicNotFound, nil)
+		}
+		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
+		}
+		view = ModerationDeletedContentView{
+			ContentType:  reports.TargetTopic,
+			ContentID:    topic.Id,
+			Title:        topic.Title,
+			AuthorID:     topic.UserId,
+			DeletedBy:    topic.DeletedBy,
+			DeletedAt:    formatDeletedTime(topic.DeletedAt),
+			DeleteReason: topic.DeleteReason,
+			TargetURL:    urlconfig.PostDetail(topic.Id),
+			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+		firstPost := posts.UnscopedGet(topic.FirstPostId)
+		if firstPost.Id > 0 {
+			view.Content = firstPost.Content
+		}
+	case reports.TargetPost:
+		post := posts.UnscopedGet(req.Params.ContentID)
+		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive {
+			return component.FailResponseCode(component.MessagePostNotFound, nil)
+		}
+		topic := topics.UnscopedGet(post.TopicId)
+		if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
+		}
+		view = ModerationDeletedContentView{
+			ContentType:  reports.TargetPost,
+			ContentID:    post.Id,
+			Title:        fmt.Sprintf("回复 #%d", post.PostNo),
+			Content:      post.Content,
+			AuthorID:     post.UserId,
+			DeletedBy:    post.DeletedBy,
+			DeletedAt:    formatDeletedTime(post.DeletedAt),
+			DeleteReason: post.DeleteReason,
+			TargetURL:    fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id),
+			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+	default:
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+
+	if author, err := users.Get(view.AuthorID); err == nil && author.Id > 0 {
+		view.AuthorName = author.Username
+	}
+	if view.DeletedBy > 0 {
+		if operator, err := users.Get(view.DeletedBy); err == nil && operator.Id > 0 {
+			view.DeletedByWho = operator.Username
+		}
+	}
+
+	moderationservice.EvidenceViewed(req.UserId, view.ContentType, view.ContentID, view.Title, reason)
+	if err := contentDeleteEvent.Record(contentDeleteEvent.Entity{
+		EventType:   string(contentDeleteEvent.EventModerationViewed),
+		ContentType: view.ContentType,
+		ContentID:   view.ContentID,
+		ActorID:     req.UserId,
+	}); err != nil {
+		slog.Error("record moderation deleted content viewed failed", "contentType", view.ContentType, "contentId", view.ContentID, "err", err)
+	}
+	return component.SuccessResponse(view)
+}
+
+func formatDeletedTime(d gorm.DeletedAt) string {
+	if !d.Valid || d.Time.IsZero() {
+		return ""
+	}
+	return d.Time.Format(time.DateTime)
 }
 
 func moderationTargetStatus(actionType string) int8 {

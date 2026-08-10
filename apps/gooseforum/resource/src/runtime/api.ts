@@ -1,4 +1,4 @@
-import type { ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -390,6 +390,18 @@ export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<Mo
     body: JSON.stringify({ cursor, pageSize }),
   })
   return readApiResponse<ModerationLogListResponse>(response, t('api.moderationLogsFailed'))
+}
+
+/** 版主查看已删除内容原文（PRD R7）：必须提供理由，每次查看都会记审计日志。 */
+export async function viewDeletedContent(contentType: 'topic' | 'post', contentId: number, reason: string): Promise<ModerationDeletedContentView> {
+  const response = await fetch('/api/forum/moderation/view-deleted-content', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ contentType, contentId, reason }),
+  })
+  return readApiResponse<ModerationDeletedContentView>(response, t('api.moderationActionFailed'))
 }
 
 export async function markAllNotificationsRead(): Promise<boolean> {

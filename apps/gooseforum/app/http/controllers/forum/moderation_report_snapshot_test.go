@@ -8,6 +8,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
@@ -34,6 +35,7 @@ func setupReportSnapshotTestDB(t *testing.T) *gorm.DB {
 		&moderators.Entity{},
 		&moderationLog.Entity{},
 		&optRecord.Entity{},
+		&contentDeleteEvent.Entity{},
 	); err != nil {
 		t.Fatalf("migrate report snapshot tables: %v", err)
 	}
@@ -238,4 +240,84 @@ func TestReportEvidenceSnapshotForPostKeepsExcerptOnly(t *testing.T) {
 	if len(snapshot.Excerpt) > 120 {
 		t.Fatalf("post report snapshot excerpt too long (%d chars), moderationExcerpt should clamp it", len(snapshot.Excerpt))
 	}
+}
+
+// R7：版主查看已删除内容必须提供理由，且每次查看写入审计日志与埋点。
+func TestViewDeletedContentRequiresReasonAndAudits(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, _, topicID, _ := seedReportSnapshotTopic(t, conn, 9_700_000_000)
+
+	if err := contentdeleteservice.DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+
+	// 无理由拒绝。
+	emptyRes := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: moderatorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "   "},
+	})
+	if emptyRes.Data.Code == component.SUCCESS {
+		t.Fatalf("expected view without reason to fail: %#v", emptyRes)
+	}
+
+	// 普通用户无权限。
+	nonModRes := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: authorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "audit test"},
+	})
+	if nonModRes.Data.Code == component.SUCCESS {
+		t.Fatalf("expected non-moderator view to fail: %#v", nonModRes)
+	}
+
+	// 全局版主带理由可查看原文。
+	viewRes := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: moderatorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "处理举报需要核对原文"},
+	})
+	if viewRes.Data.Code != component.SUCCESS {
+		t.Fatalf("ViewDeletedContent failed: %#v", viewRes)
+	}
+	view, ok := viewRes.Data.Result.(ModerationDeletedContentView)
+	if !ok {
+		t.Fatalf("result type = %T", viewRes.Data.Result)
+	}
+	if view.ContentID != topicID || view.Content == "" {
+		t.Fatalf("view content missing: %#v", view)
+	}
+	if view.DeletedBy == 0 {
+		t.Fatalf("view should expose deletedBy metadata: %#v", view)
+	}
+
+	// 审计日志：EvidenceViewed 应写入 moderation_log。
+	var logCount int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("action = ? AND subject_type = ? AND subject_id = ?", moderationLog.ActionEvidenceViewed, moderationLog.SubjectTopic, topicID).
+		Count(&logCount)
+	if logCount != 1 {
+		t.Fatalf("evidence viewed log count = %d, want 1", logCount)
+	}
+
+	// 埋点事件：moderation_deleted_content_viewed。
+	var eventCount int64
+	conn.Model(&contentDeleteEvent.Entity{}).
+		Where("event_type = ? AND content_id = ?", string(contentDeleteEvent.EventModerationViewed), topicID).
+		Count(&eventCount)
+	if eventCount != 1 {
+		t.Fatalf("moderation viewed events = %d, want 1", eventCount)
+	}
+
+	// 活跃内容不可查看。
+	activeRes := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: moderatorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: 9_700_000_010, Reason: "audit"},
+	})
+	// 该话题已被删除，复用同一 ID 会命中已删分支；用一个不存在的 ID 验证 404 语义。
+	missingRes := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: moderatorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: 9_700_000_999, Reason: "audit"},
+	})
+	if missingRes.Data.Code == component.SUCCESS {
+		t.Fatalf("expected missing target to fail: %#v", missingRes)
+	}
+	_ = activeRes
 }

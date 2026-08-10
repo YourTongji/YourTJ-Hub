@@ -479,6 +479,21 @@ export interface ModerationReportListResponse {
   hasNext: boolean
 }
 
+export interface ModerationDeletedContentView {
+  contentType: 'topic' | 'post'
+  contentId: number
+  title: string
+  content: string
+  authorId: number
+  authorName: string
+  categories: Array<{ id: number; name: string; url: string; color: string }>
+  deletedBy: number
+  deletedByWho: string
+  deletedAt: string
+  deleteReason: string
+  targetUrl: string
+}
+
 export interface UserCardPayload {
   userId: number
   username: string
