@@ -88,6 +88,48 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	return
 }
 
+func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err error) {
+	if limit <= 0 {
+		return []*Entity{}, nil
+	}
+	err = builder().
+		Where(queryopt.Gt("id", afterID)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
+		Order(queryopt.Asc("id")).
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
+// GetPublishedBeforeID 按 id 倒序分页返回已发布主题（游标 id < beforeID）。
+// 用于需要"最新优先"的全量遍历（如 llms 导出，超限时保留最新内容而非最旧）。
+func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err error) {
+	if limit <= 0 {
+		return []*Entity{}, nil
+	}
+	err = builder().
+		Where(queryopt.Lt("id", beforeID)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
+		Order(queryopt.Desc("id")).
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
+func GetPublished(id uint64) (entity Entity, err error) {
+	err = builder().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
+		First(&entity).Error
+	return
+}
+
 func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 	var entities []*Entity
 	err := builder().

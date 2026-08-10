@@ -668,5 +668,13 @@ export default {
   "k00is": "Limite per utente",
   "k00it": "Richiedi captcha su registrazione/accesso/recupero password",
   "k00iu": "Quando attivo, registrazione, accesso e recupero password richiedono un captcha per resistere al traffico bot.",
+  "k00iv": "Contenuti leggibili dall'IA",
+  "k00iw": "Espone argomenti e risposte pubblici a modelli linguistici e strumenti automatici tramite llms.txt e Markdown.",
+  "k00ix": "Abilita llms.txt",
+  "k00iy": "Genera un indice con titoli, categorie, riepiloghi e link degli argomenti pubblici.",
+  "k00iz": "Abilita llms-full.txt",
+  "k00j3": "Genera il testo completo con il Markdown originale di ogni argomento e risposta pubblici.",
+  "k00j4": "Abilita Markdown per argomento",
+  "k00j5": "Pubblica ogni argomento pubblico e le relative risposte in /p/posts/{id}.md.",
 
 } as const

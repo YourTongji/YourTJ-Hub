@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -146,6 +146,11 @@ const postingForm = reactive<PostingSettings>({
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
+  },
+  llms: {
+    enabled: false,
+    fullText: false,
+    files: false,
   },
 })
 
@@ -315,6 +320,11 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
+    },
+    llms: {
+      enabled: toBool(settings.llms?.enabled, false),
+      fullText: toBool(settings.llms?.fullText, false),
+      files: toBool(settings.llms?.files, false),
     },
   } satisfies PostingSettings
 }
@@ -960,6 +970,24 @@ onMounted(load)
                   <Trash2 class="size-3.5" />
                 </AdminActionButton>
               </Badge>
+            </div>
+          </div>
+        </section>
+        <section class="space-y-5 lg:col-span-2">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Bot class="size-5 text-muted-foreground" />{{ adminText('k00iv') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00iw') }}</p>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00ix') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00iy') }}</p></div>
+              <Switch v-model="postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00iz') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j3') }}</p></div>
+              <Switch v-model="postingForm.llms.fullText" :disabled="!postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00j4') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j5') }}</p></div>
+              <Switch v-model="postingForm.llms.files" :disabled="!postingForm.llms.enabled" />
             </div>
           </div>
         </section>

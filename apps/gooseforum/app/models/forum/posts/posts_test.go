@@ -19,21 +19,24 @@ func TestPostRepositoryWindows(t *testing.T) {
 		{Id: 10, TopicId: 1, PostNo: 1, UserId: 1, Content: "first", CreatedAt: now},
 		{Id: 11, TopicId: 1, PostNo: 2, UserId: 2, Content: "second", CreatedAt: now.Add(time.Minute)},
 		{Id: 12, TopicId: 1, PostNo: 3, UserId: 3, Content: "third", CreatedAt: now.Add(2 * time.Minute)},
+		{Id: 13, TopicId: 1, PostNo: 4, UserId: 4, Content: "pending", ProcessStatus: ProcessStatusPending, CreatedAt: now.Add(3 * time.Minute)},
+		{Id: 14, TopicId: 1, PostNo: 5, UserId: 5, Content: "deleted", CreatedAt: now.Add(4 * time.Minute)},
 		{Id: 20, TopicId: 2, PostNo: 1, UserId: 4, Content: "other", CreatedAt: now},
 	})
+	conn.Delete(&Entity{Id: 14})
 
 	first := GetFirstPageByTopicId(1)
-	if len(first) != 3 || first[0].PostNo != 1 || first[2].PostNo != 3 {
+	if len(first) != 4 || first[0].PostNo != 1 || first[3].PostNo != 4 {
 		t.Fatalf("GetFirstPageByTopicId() = %#v", postNos(first))
 	}
 
 	desc := GetByTopicPostNoDesc(1, 2)
-	if len(desc) != 2 || desc[0].PostNo != 2 || desc[1].PostNo != 3 {
-		t.Fatalf("GetByTopicPostNoDesc() = %#v, want ascending returned window [2 3]", postNos(desc))
+	if len(desc) != 2 || desc[0].PostNo != 3 || desc[1].PostNo != 4 {
+		t.Fatalf("GetByTopicPostNoDesc() = %#v, want ascending returned window [3 4]", postNos(desc))
 	}
 
 	after := GetByTopicPostNoAfter(1, 1, 10)
-	if len(after) != 2 || after[0].PostNo != 2 || after[1].PostNo != 3 {
+	if len(after) != 3 || after[0].PostNo != 2 || after[2].PostNo != 4 {
 		t.Fatalf("GetByTopicPostNoAfter() = %#v", postNos(after))
 	}
 
@@ -42,8 +45,8 @@ func TestPostRepositoryWindows(t *testing.T) {
 		t.Fatalf("GetByTopicPostNoBefore() = %#v", postNos(before))
 	}
 
-	if got := GetMaxPostNoByTopicId(1); got != 3 {
-		t.Fatalf("GetMaxPostNoByTopicId()=%d, want 3", got)
+	if got := GetMaxPostNoByTopicId(1); got != 4 {
+		t.Fatalf("GetMaxPostNoByTopicId()=%d, want 4", got)
 	}
 
 	if err := UpdateProcessStatus(11, 1); err != nil {
@@ -51,6 +54,14 @@ func TestPostRepositoryWindows(t *testing.T) {
 	}
 	if got := Get(11); got.ProcessStatus != 1 {
 		t.Fatalf("post ProcessStatus=%d, want 1", got.ProcessStatus)
+	}
+
+	normal, err := GetNormalByTopicPostNoAfter(1, 0, 10)
+	if err != nil {
+		t.Fatalf("GetNormalByTopicPostNoAfter() err=%v", err)
+	}
+	if got := postNos(normal); len(got) != 2 || got[0] != 1 || got[1] != 3 {
+		t.Fatalf("GetNormalByTopicPostNoAfter() = %#v, want [1 3]", got)
 	}
 }
 
