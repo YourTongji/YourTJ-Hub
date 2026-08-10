@@ -931,3 +931,7 @@ export interface CourseDetailPageProps {
     }>
   }
 }
+
+export interface CourseReviewModerationPageProps {
+  // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}

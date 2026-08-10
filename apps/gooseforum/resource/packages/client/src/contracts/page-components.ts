@@ -2,6 +2,7 @@ import type {
   CategoryPageProps,
   CourseCatalogPageProps,
   CourseDetailPageProps,
+  CourseReviewModerationPageProps,
   DraftsPageProps,
   ErrorPageProps,
   HomeProps,
@@ -40,6 +41,7 @@ export const pageComponents = [
   'search.index',
   'course.index',
   'course.detail',
+  'course.reviewModeration',
   'auth.login',
   'auth.resetPassword',
   'error.index',
@@ -65,6 +67,7 @@ export interface PagePayloadMap {
   'search.index': SearchPageProps
   'course.index': CourseCatalogPageProps
   'course.detail': CourseDetailPageProps
+  'course.reviewModeration': CourseReviewModerationPageProps
   'auth.login': LoginPageProps
   'auth.resetPassword': ResetPasswordPageProps
   'error.index': ErrorPageProps

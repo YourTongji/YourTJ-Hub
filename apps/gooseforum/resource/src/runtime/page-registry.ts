@@ -19,6 +19,7 @@ export const pageLoaders = {
   'search.index': () => import('@/site/pages/SearchPage.vue'),
   'course.index': () => import('@/site/pages/CourseCatalogPage.vue'),
   'course.detail': () => import('@/site/pages/CourseDetailPage.vue'),
+  'course.reviewModeration': () => import('@/site/pages/CourseReviewModerationPage.vue'),
   'auth.login': () => import('@/site/pages/LoginPage.vue'),
   'auth.resetPassword': () => import('@/site/pages/ResetPasswordPage.vue'),
   'error.index': () => import('@/site/pages/ErrorPage.vue'),

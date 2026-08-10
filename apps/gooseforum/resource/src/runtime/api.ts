@@ -1012,3 +1012,167 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
   }
   return window.btoa(binary)
 }
+
+// ---- 课评（course review）----
+
+export interface ReviewAuthorPayload {
+  kind: 'anonymous' | 'member' | 'legacy'
+  label: string
+}
+
+export interface ReviewViewerPayload {
+  canEdit: boolean
+  canDelete: boolean
+  isHelpful: boolean
+}
+
+export interface ReviewPayload {
+  id: number
+  offeringId: number
+  rating: number | null
+  contentHtml: string
+  author: ReviewAuthorPayload
+  viewer: ReviewViewerPayload
+  helpfulCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCourseReviewInput {
+  offeringId: number
+  rating: number
+  content: string
+  isAnonymous: boolean
+}
+
+export interface UpdateCourseReviewInput {
+  rating?: number | null
+  content?: string
+  isAnonymous?: boolean
+}
+
+export interface ModerationCourseReviewReportItem {
+  id: number
+  reviewId: number
+  reason: string
+  note: string
+  status: string
+  resolution: string
+  excerpt: string
+  reporter: { id: number; username: string; avatarUrl: string }
+  handler: { id: number; username: string; avatarUrl: string }
+  createdAt: string
+  handledAt?: string
+  reportCount: number
+}
+
+export interface ModerationCourseReviewReportListResponse {
+  items: ModerationCourseReviewReportItem[]
+  nextCursor: number
+  hasNext: boolean
+}
+
+export interface CourseReviewAuthorRevealPayload {
+  reviewId: number
+  authorUserId?: number
+  username?: string
+  nickname?: string
+  isAnonymous: boolean
+  source: string
+}
+
+export async function listCourseReviews(courseId: number, offeringId = 0): Promise<ReviewPayload[]> {
+  const params = new URLSearchParams()
+  if (offeringId > 0) params.set('offeringId', String(offeringId))
+  const query = params.toString()
+  const response = await fetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<ReviewPayload[]>(response, t('api.reviewsLoadFailed'))
+}
+
+export async function createCourseReview(input: CreateCourseReviewInput): Promise<ReviewPayload> {
+  const response = await fetch('/api/forum/course-reviews', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.reviewCreateFailed'))
+}
+
+export async function updateCourseReview(reviewId: number, input: UpdateCourseReviewInput): Promise<ReviewPayload> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.reviewUpdateFailed'))
+}
+
+export async function deleteCourseReview(reviewId: number): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+    method: 'DELETE',
+  })
+  return readApiResponse<boolean>(response, t('api.reviewDeleteFailed'))
+}
+
+export async function setReviewHelpful(reviewId: number, helpful: boolean): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}/helpful`, {
+    method: helpful ? 'PUT' : 'DELETE',
+  })
+  return readApiResponse<boolean>(response, t('api.reviewHelpfulFailed'))
+}
+
+export async function reportCourseReview(reviewId: number, reason: string, note: string): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}/reports`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reason, note }),
+  })
+  return readApiResponse<boolean>(response, t('api.reviewReportFailed'))
+}
+
+export async function moderationCourseReviewStatus(reviewId: number, action: 'hide' | 'show'): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-review-status', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reviewId, action }),
+  })
+  return readApiResponse<boolean>(response, t('api.moderationActionFailed'))
+}
+
+export async function fetchModerationCourseReviewReports(
+  status: 'open' | 'resolved' | 'rejected',
+  cursor = 0,
+  pageSize = 20,
+): Promise<ModerationCourseReviewReportListResponse> {
+  const response = await fetch('/api/forum/moderation/course-review-reports', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status, cursor, pageSize }),
+  })
+  return readApiResponse<ModerationCourseReviewReportListResponse>(response, t('api.moderationCourseReviewReportsFailed'))
+}
+
+export async function revealCourseReviewAuthor(reviewId: number, reason: string): Promise<CourseReviewAuthorRevealPayload> {
+  const response = await fetch('/api/forum/moderation/course-review-reveal', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reviewId, reason }),
+  })
+  return readApiResponse<CourseReviewAuthorRevealPayload>(response, t('api.moderationCourseReviewRevealFailed'))
+}
