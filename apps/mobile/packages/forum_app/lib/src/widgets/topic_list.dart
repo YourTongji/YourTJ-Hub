@@ -16,12 +16,14 @@ class GfTopicList extends StatelessWidget {
     super.key,
     required this.loading,
     required this.topics,
+    this.controller,
     this.feedMode = GfTopicFeedMode.list,
     required this.hasMore,
     required this.onLoadMore,
   });
 
   final bool loading;
+  final ScrollController? controller;
   final List<TopicPayload> topics;
   final GfTopicFeedMode feedMode;
   final bool hasMore;
@@ -34,6 +36,8 @@ class GfTopicList extends StatelessWidget {
       return GfEmpty(message: AppLocalizations.of(context).topicEmpty);
     }
     return ListView.separated(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: feedMode == GfTopicFeedMode.card
           ? const EdgeInsets.all(12)
           : EdgeInsets.zero,
@@ -63,6 +67,7 @@ Widget _topicRow(
   TopicPayload topic, {
   required bool isLast,
 }) {
+  final AppLocalizations l10n = AppLocalizations.of(context);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       GfTopicCategory(name: cat.name, color: colorFromHex(cat.color)),
@@ -80,6 +85,7 @@ Widget _topicRow(
     participantAvatarUrls: participantAvatarUrls,
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
+      l10n: l10n,
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,
@@ -92,6 +98,7 @@ Widget _topicRow(
 }
 
 Widget _topicCard(BuildContext context, TopicPayload topic) {
+  final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
@@ -116,6 +123,7 @@ Widget _topicCard(BuildContext context, TopicPayload topic) {
     imageUrls: images,
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
+      l10n: l10n,
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,

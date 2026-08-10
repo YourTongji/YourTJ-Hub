@@ -24,6 +24,7 @@ export 'src/components/gf_image_viewer.dart';
 export 'src/components/gf_motion.dart';
 export 'src/components/surfaces/gf_empty.dart';
 export 'src/components/surfaces/gf_app_bar.dart';
+export 'src/components/surfaces/gf_scroll_to_top.dart';
 export 'src/components/surfaces/gf_alert_dialog.dart';
 export 'src/components/surfaces/gf_bottom_sheet.dart';
 export 'src/components/surfaces/gf_floating_surface.dart';

@@ -23,7 +23,7 @@ abstract class PublishTopicPayload with _$PublishTopicPayload {
   const factory PublishTopicPayload({
     required String title,
     required String content,
-    required List<int> categoryIds,
+    @Default(<int>[]) List<int> categoryIds,
     required int topicStatus,
   }) = _PublishTopicPayload;
 
@@ -108,5 +108,6 @@ abstract class HomeProps with _$HomeProps {
     required AnnouncementPayload announcement,
   }) = _HomeProps;
 
-  factory HomeProps.fromJson(Map<String, dynamic> json) => _$HomePropsFromJson(json);
+  factory HomeProps.fromJson(Map<String, dynamic> json) =>
+      _$HomePropsFromJson(json);
 }

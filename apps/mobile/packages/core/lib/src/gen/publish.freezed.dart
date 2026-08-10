@@ -357,7 +357,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   const _$PublishTopicPayloadImpl({
     required this.title,
     required this.content,
-    required final List<int> categoryIds,
+    final List<int> categoryIds = const <int>[],
     required this.topicStatus,
   }) : _categoryIds = categoryIds;
 
@@ -370,6 +370,7 @@ class _$PublishTopicPayloadImpl implements _PublishTopicPayload {
   final String content;
   final List<int> _categoryIds;
   @override
+  @JsonKey()
   List<int> get categoryIds {
     if (_categoryIds is EqualUnmodifiableListView) return _categoryIds;
     // ignore: implicit_dynamic_type
@@ -430,7 +431,7 @@ abstract class _PublishTopicPayload implements PublishTopicPayload {
   const factory _PublishTopicPayload({
     required final String title,
     required final String content,
-    required final List<int> categoryIds,
+    final List<int> categoryIds,
     required final int topicStatus,
   }) = _$PublishTopicPayloadImpl;
 

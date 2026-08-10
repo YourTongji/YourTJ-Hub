@@ -2,6 +2,7 @@ import 'dart:convert';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:auth/auth.dart';
@@ -35,6 +36,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   final TextEditingController _totp = TextEditingController();
 
   _AuthMode _mode = _AuthMode.login;
+  bool _oidcBusy = false;
+  String _oidcError = '';
 
   late final AuthController _authController;
 
@@ -72,7 +75,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await _authController.loadCaptcha();
     }
     if (mounted && _authController.phase == LoginPhase.authenticated) {
-      Navigator.of(context).pop(true);
+      _finishAuthentication();
     }
   }
 
@@ -113,16 +116,48 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   }
 
   Future<void> _loginOidc() async {
+    if (_oidcBusy) return;
+    setState(() {
+      _oidcBusy = true;
+      _oidcError = '';
+    });
     final controller = OidcController(
       authRepository: AuthRepository(ref.read(apiClientProvider)),
       tokenStorage: ref.read(tokenStorageProvider),
       issuer: AppConfig.oidcIssuer,
       clientId: AppConfig.oidcClientId,
     );
-    final ok = await controller.login();
-    if (mounted && ok) {
-      Navigator.of(context).pop(true);
+    try {
+      final bool ok = await controller.login();
+      if (!mounted) return;
+      if (!ok) {
+        setState(() => _oidcError = controller.error);
+        return;
+      }
+      _finishAuthentication();
+    } finally {
+      controller.dispose();
+      if (mounted) setState(() => _oidcBusy = false);
     }
+  }
+
+  void _finishAuthentication() {
+    if (!mounted) return;
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop(true);
+      return;
+    }
+    context.go('/');
+  }
+
+  void _leaveAuth() {
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go('/');
   }
 
   String _title(AppLocalizations l10n) => switch (_mode) {
@@ -139,7 +174,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   void _switchMode(_AuthMode mode) {
     _captcha.clear();
-    setState(() => _mode = mode);
+    setState(() {
+      _mode = mode;
+      _oidcError = '';
+    });
   }
 
   @override
@@ -157,6 +195,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           SafeArea(
             child: Stack(
               children: <Widget>[
+                Positioned(
+                  top: 4,
+                  left: 8,
+                  child: GfIconButton(
+                    icon: Icons.arrow_back,
+                    tooltip: l10n.commonBack,
+                    size: 44,
+                    onPressed: _leaveAuth,
+                  ),
+                ),
                 Positioned(
                   top: 4,
                   right: 8,
@@ -240,7 +288,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         if (_mode != _AuthMode.forgotPassword) ...<Widget>[
           GfInput(
             controller: _username,
-            hintText: _mode == _AuthMode.login
+            labelText: _mode == _AuthMode.login
                 ? l10n.authUsernameOrEmail
                 : l10n.authUsername,
             prefixIcon: const Icon(Icons.person_outline, size: 20),
@@ -251,7 +299,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           GfInput(
             controller: _email,
             keyboardType: TextInputType.emailAddress,
-            hintText: l10n.authEmail,
+            labelText: l10n.authEmail,
             prefixIcon: const Icon(Icons.mail_outline, size: 20),
           ),
           const SizedBox(height: 12),
@@ -260,7 +308,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           GfInput(
             controller: _password,
             obscureText: true,
-            hintText: l10n.authPassword,
+            labelText: l10n.authPassword,
             prefixIcon: const Icon(Icons.lock_outline, size: 20),
           ),
           if (_mode == _AuthMode.login) ...<Widget>[
@@ -301,7 +349,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
                 Expanded(
                   child: GfInput(
                     controller: _captcha,
-                    hintText: l10n.authCaptcha,
+                    labelText: l10n.authCaptcha,
                   ),
                 ),
               ],
@@ -318,18 +366,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           GfInput(
             controller: _totp,
             keyboardType: TextInputType.number,
-            hintText: l10n.authTwoFactorCode,
+            labelText: l10n.authTwoFactorCode,
             prefixIcon: const Icon(Icons.shield_outlined, size: 20),
-            onSubmitted: (_) => _authController.submitTotp(_totp.text.trim()),
+            onSubmitted: (_) => _submit(),
           ),
         ],
-        if (_authController.error.isNotEmpty) ...<Widget>[
+        if (_authController.error.isNotEmpty ||
+            _oidcError.isNotEmpty) ...<Widget>[
           const SizedBox(height: 12),
-          Text(
-            _authController.error,
-            style: GfTheme.typographyOf(
-              context,
-            ).small.copyWith(color: colors.error),
+          GfStatusMessage(
+            message: _oidcError.isNotEmpty ? _oidcError : _authController.error,
           ),
         ],
         const SizedBox(height: 20),
@@ -339,7 +385,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           size: GfButtonSize.extraLarge,
           expanded: true,
           loading: _authController.busy,
-          onPressed: _authController.busy ? null : _submit,
+          onPressed: _authController.busy || _oidcBusy ? null : _submit,
         ),
         if (_mode == _AuthMode.login) ...<Widget>[
           const SizedBox(height: 12),
@@ -348,8 +394,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             variant: GfButtonVariant.outline,
             size: GfButtonSize.extraLarge,
             expanded: true,
-            loading: _authController.busy,
-            onPressed: _authController.busy ? null : _loginOidc,
+            loading: _oidcBusy,
+            onPressed: _authController.busy || _oidcBusy ? null : _loginOidc,
           ),
         ],
         if (_mode == _AuthMode.forgotPassword) ...<Widget>[
@@ -374,11 +420,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     _AuthMode.forgotPassword => l10n.authSendResetEmail,
   };
 
-  Future<void> _submit() {
+  Future<void> _submit() async {
     if (_authController.phase == LoginPhase.needsTotp) {
-      return _authController.submitTotp(_totp.text.trim());
+      await _authController.submitTotp(_totp.text.trim());
+      if (mounted && _authController.phase == LoginPhase.authenticated) {
+        _finishAuthentication();
+      }
+      return;
     }
-    return switch (_mode) {
+    await switch (_mode) {
       _AuthMode.login => _login(),
       _AuthMode.register => _register(),
       _AuthMode.forgotPassword => _forgotPassword(),

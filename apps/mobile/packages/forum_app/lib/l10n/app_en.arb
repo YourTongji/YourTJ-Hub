@@ -18,6 +18,9 @@
   "commonCurrent": "Current",
   "commonEmpty": "Nothing here",
   "commonBack": "Back",
+  "commonBackToTop": "Back to top",
+  "commonUseLightTheme": "Use light theme",
+  "commonUseDarkTheme": "Use dark theme",
   "timeAgoJustNow": "just now",
   "timeAgoMinutes": "{count} min ago",
   "@timeAgoMinutes": {
@@ -123,6 +126,36 @@
       }
     }
   },
+  "composePreview": "Preview",
+  "composeEdit": "Edit",
+  "publishBodyField": "Body",
+  "publishCategoryRequired": "Select at least one category",
+  "publishPreviewEmpty": "Start writing to see the formatted preview here",
+  "publishLoadFailed": "Failed to load editor data: {error}",
+  "@publishLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishToolBold": "Bold",
+  "publishToolItalic": "Italic",
+  "publishToolStrike": "Strikethrough",
+  "publishToolQuote": "Quote",
+  "publishToolCode": "Inline code",
+  "publishToolBulletList": "Bulleted list",
+  "publishToolOrderedList": "Numbered list",
+  "publishToolImage": "Add image",
+  "publishRemoveImage": "Remove image",
+  "topicReplyTarget": "Replying to {name}",
+  "@topicReplyTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "topicTitle": "Topic",
   "topicReply": "Reply",
   "topicReplySuccess": "Reply posted",
@@ -148,6 +181,8 @@
       }
     }
   },
+  "topicWatch": "Watch topic replies",
+  "topicUnwatch": "Stop watching topic replies",
   "topicReplies": "{count} replies",
   "@topicReplies": {
     "placeholders": {

@@ -11,8 +11,10 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../providers.dart';
+import '../../navigation/tab_scroll_registry.dart';
 import '../../theme_mode.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/skeletons.dart';
 import '../../widgets/topic_list.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
@@ -32,12 +34,26 @@ class _HomePageState extends ConsumerState<HomePage> {
   final List<TopicPayload> _topics = <TopicPayload>[];
   bool _loadingMore = false;
   GfTopicFeedMode _feedMode = GfTopicFeedMode.card;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
+  late final GfTabScrollRegistry _tabScrollRegistry;
 
   @override
   void initState() {
     super.initState();
+    _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
+      ..register(GfShellDestination.home, _scrollToTopController);
     _restoreFeedMode();
     _load();
+  }
+
+  @override
+  void dispose() {
+    _tabScrollRegistry.unregister(
+      GfShellDestination.home,
+      _scrollToTopController,
+    );
+    super.dispose();
   }
 
   Future<void> _restoreFeedMode() async {
@@ -75,6 +91,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .home(sort: _sort);
+      if (!mounted) return;
       final HomeProps? props = parsePageProps<HomeProps>(payload);
       if (props == null) {
         setState(
@@ -92,6 +109,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         _topics.addAll(props.topics);
       });
     } catch (e, st) {
+      if (!mounted) return;
       setState(() => _page = AsyncValue.error(e, st));
     }
   }
@@ -107,6 +125,7 @@ class _HomePageState extends ConsumerState<HomePage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .fetch(nextUrl);
+      if (!mounted) return;
       final HomeProps? next = parsePageProps<HomeProps>(payload);
       if (next != null && next.topics.isNotEmpty) {
         setState(() {
@@ -117,7 +136,7 @@ class _HomePageState extends ConsumerState<HomePage> {
     } catch (_) {
       // 加载更多失败静默(用户可再次点击)。
     } finally {
-      setState(() => _loadingMore = false);
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -129,6 +148,7 @@ class _HomePageState extends ConsumerState<HomePage> {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     final Brightness brightness = Theme.of(context).brightness;
     final LayoutPayload? layout = _layout;
     final bool authenticated = layout?.viewer.isAuthenticated == true;
@@ -141,30 +161,40 @@ class _HomePageState extends ConsumerState<HomePage> {
         actions: <Widget>[
           GfIconButton(
             icon: Icons.search,
+            size: 44,
+            tooltip: l10n.commonSearch,
             onPressed: () => context.go('/search'),
           ),
           GfIconButton(
             icon: brightness == Brightness.dark
                 ? Icons.light_mode_outlined
                 : Icons.dark_mode_outlined,
+            size: 44,
+            tooltip: brightness == Brightness.dark
+                ? l10n.commonUseLightTheme
+                : l10n.commonUseDarkTheme,
             onPressed: () => ref
                 .read(themeModeProvider.notifier)
                 .toggleDark(brightness != Brightness.dark),
           ),
           Semantics(
             button: true,
-            label: authenticated ? 'Profile' : 'Login',
-            child: InkWell(
-              borderRadius: BorderRadius.circular(999),
-              onTap: () => context.go(authenticated ? '/profile' : '/login'),
-              child: Padding(
-                padding: const EdgeInsets.all(2),
-                child: GfAvatar(
-                  src: layout == null
-                      ? ''
-                      : resolveApiAssetUrl(layout.viewer.avatarUrl),
-                  size: 34,
-                  ring: true,
+            label: authenticated ? l10n.navProfile : l10n.loginModeLogin,
+            child: SizedBox.square(
+              dimension: 44,
+              child: InkWell(
+                borderRadius: BorderRadius.circular(999),
+                onTap: () => authenticated
+                    ? context.go('/profile')
+                    : context.push('/login'),
+                child: Center(
+                  child: GfAvatar(
+                    src: layout == null
+                        ? ''
+                        : resolveApiAssetUrl(layout.viewer.avatarUrl),
+                    size: 34,
+                    ring: true,
+                  ),
                 ),
               ),
             ),
@@ -172,7 +202,7 @@ class _HomePageState extends ConsumerState<HomePage> {
         ],
       ),
       body: _page.when(
-        loading: () => const GfLoading(),
+        loading: () => const GfTopicFeedSkeleton(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
         data: (props) {
           return Column(
@@ -186,14 +216,19 @@ class _HomePageState extends ConsumerState<HomePage> {
                 onFeedModeSelected: _setFeedMode,
               ),
               Expanded(
-                child: RefreshIndicator(
-                  onRefresh: () => _load(silent: true),
-                  child: GfTopicList(
-                    loading: _loadingMore,
-                    topics: _topics,
-                    feedMode: _feedMode,
-                    hasMore: props.pagination.hasNext,
-                    onLoadMore: _loadMore,
+                child: GfScrollToTop(
+                  semanticLabel: AppLocalizations.of(context).commonBackToTop,
+                  controller: _scrollToTopController,
+                  builder: (_, ScrollController controller) => RefreshIndicator(
+                    onRefresh: () => _load(silent: true),
+                    child: GfTopicList(
+                      controller: controller,
+                      loading: _loadingMore,
+                      topics: _topics,
+                      feedMode: _feedMode,
+                      hasMore: props.pagination.hasNext,
+                      onLoadMore: _loadMore,
+                    ),
                   ),
                 ),
               ),
