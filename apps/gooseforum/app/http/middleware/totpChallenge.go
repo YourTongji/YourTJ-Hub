@@ -45,6 +45,13 @@ func TOTPChallengeAuth(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		c.Abort()
 		return
+	} else if user.IsFrozen == users.StatusFrozen {
+		// 冻结用户不允许登录（与 Login 第一阶段的冻结检查一致）：challenge
+		// 签发后被冻结的账号在提交 TOTP 时在此被拒绝，不消费 challenge、
+		// 不创建会话。
+		c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageAuthAccountFrozen, nil))
+		c.Abort()
+		return
 	}
 	exp, err := claims.GetExpirationTime()
 	if err != nil || exp == nil || time.Now().After(exp.Time) {

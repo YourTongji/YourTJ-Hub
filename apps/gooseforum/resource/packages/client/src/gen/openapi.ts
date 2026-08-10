@@ -21,6 +21,29 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/login-public-key": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve the password-login encryption public key
+         * @description Returns the current RSA public key and server time used by password-login clients to build
+         *     an RSA-OAEP-256 encrypted password payload. The public key is intentionally public; private
+         *     key material never leaves the server. This route currently has no authentication middleware
+         *     and always returns an HTTP 200 success envelope.
+         */
+        get: operations["getLoginPublicKey"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/logout": {
         parameters: {
             query?: never;
@@ -40,6 +63,38 @@ export interface paths {
          *     `code: 1`) currently returns before the cookie is cleared (tracked in issue #79).
          */
         post: operations["logout"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/totp/verify": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Complete a password login with TOTP or a recovery code
+         * @description The supplied JWT must be a live, unconsumed, short-lived `totp_challenge` token issued by
+         *     password login; a normal session JWT is rejected. The middleware accepts that challenge via
+         *     Bearer authentication or the `access_token` cookie. When `code` is non-empty it takes
+         *     precedence over `recoveryCode`; an empty request is a legacy HTTP 200
+         *     `totp.code.invalid` business failure. Invalid codes and the internal per-user TOTP attempt
+         *     limit also remain HTTP 200 failures, and the internal limit does not emit `Retry-After`.
+         *     Successful verification atomically consumes the challenge before issuing a session, so a
+         *     sequentially replayed challenge cannot create a second session; a request that loses the
+         *     consume race is reported as a legacy HTTP 200 `totp.code.invalid` business failure.
+         *     The middleware rejects frozen accounts (`auth.account.frozen`, HTTP 403) without consuming
+         *     the challenge, matching the password-login stage; the challenge survives and can complete
+         *     after the account is unfrozen. The endpoint has no IP-level rate limiting: it relies only on
+         *     the in-process per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
+         */
+        post: operations["verifyTotpLogin"];
         delete?: never;
         options?: never;
         head?: never;
@@ -271,6 +326,21 @@ export interface components {
         };
         LoginResponse: components["schemas"]["LoginSuccess"] | components["schemas"]["ApiFailure"];
         LoginResult: string | components["schemas"]["TotpChallengeResult"];
+        LoginPublicKeyResponse: components["schemas"]["LoginPublicKeySuccess"] | components["schemas"]["ApiFailure"];
+        LoginPublicKeyResult: {
+            /** @description PEM-encoded RSA public key. Private key material is never returned. */
+            publicKey: string;
+            /**
+             * Format: int64
+             * @description Current server time in Unix milliseconds. Password-login clients must encrypt their password payload within ±3 minutes of this timestamp; a stale payload is rejected as `auth.login.invalidRequest`.
+             */
+            serverTs: number;
+            /** @constant */
+            algorithm: "RSA-OAEP-256";
+        };
+        LoginPublicKeySuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["LoginPublicKeyResult"];
+        };
         LogoutResponse: components["schemas"]["LogoutSuccess"] | components["schemas"]["ApiFailure"];
         LogoutSuccess: components["schemas"]["ApiSuccess"] & {
             /** @constant */
@@ -300,6 +370,19 @@ export interface components {
             /** @constant */
             twoFactorRequired: true;
             message: string;
+        };
+        TotpVerifyRequest: {
+            /** @description TOTP code or recovery code; any non-empty value is verified as a TOTP code first and then as a recovery code. When non-empty, this field takes precedence over recoveryCode. */
+            code?: string;
+            /** @description One-time recovery code used only when code is empty. */
+            recoveryCode?: string;
+        };
+        TotpVerifyResponse: components["schemas"]["TotpVerifySuccess"] | components["schemas"]["ApiFailure"];
+        TotpVerifySuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Human-readable successful-login message; messageCode is the stable identifier. */
+            result: string;
+            /** @constant */
+            messageCode: "auth.login.success";
         };
         WriteTopicRequest: {
             /**
@@ -531,6 +614,26 @@ export interface operations {
             };
         };
     };
+    getLoginPublicKey: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Public key and server clock required to encrypt a password-login request. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["LoginPublicKeyResponse"];
+                };
+            };
+        };
+    };
     logout: {
         parameters: {
             query?: never;
@@ -549,6 +652,52 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+        };
+    };
+    verifyTotpLogin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpVerifyRequest"];
+            };
+        };
+        responses: {
+            /** @description Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) can surface after a successful challenge when the user snapshot is missing or when the session token cannot be created or persisted (e.g. signing or database failures); see the `sessionIssuanceFailed` example. */
+            200: {
+                headers: {
+                    /** @description On success, replaces the challenge cookie with an HTTP-only session cookie. */
+                    "Set-Cookie"?: string;
+                    /** @description On success, contains the newly issued forum session JWT. */
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpVerifyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, wrong-purpose, stale, or already-consumed (sequentially replayed) challenge token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The challenge is valid but the account is frozen; the challenge is not consumed and the account can retry after it is unfrozen. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

@@ -3,9 +3,10 @@ info:
   title: yourtj-hub API
   version: 0.1.0
   description: |
-    The controlled HTTP contract for yourtj-hub. Current coverage includes password login, logout,
-    session management (list/revoke/revoke-all), mobile OIDC code exchange, topic writing, and the
-    Agent (bot persona) public API.
+    The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
+    login public-key retrieval, TOTP login verification, logout, session management
+    (list/revoke/revoke-all), mobile OIDC code exchange, topic writing, and the Agent
+    (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -20,8 +21,12 @@ tags:
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
+  /api/login-public-key:
+    $ref: ./paths/auth-security.yaml#/loginPublicKey
   /api/logout:
     $ref: ./paths/auth-sessions.yaml#/logout
+  /api/auth/totp/verify:
+    $ref: ./paths/auth-security.yaml#/verifyTotp
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
   /api/user/sessions:
@@ -76,6 +81,12 @@ components:
       $ref: ./components/schemas.yaml#/LoginResponse
     LoginResult:
       $ref: ./components/schemas.yaml#/LoginResult
+    LoginPublicKeyResponse:
+      $ref: ./components/schemas.yaml#/LoginPublicKeyResponse
+    LoginPublicKeyResult:
+      $ref: ./components/schemas.yaml#/LoginPublicKeyResult
+    LoginPublicKeySuccess:
+      $ref: ./components/schemas.yaml#/LoginPublicKeySuccess
     LogoutResponse:
       $ref: ./components/schemas.yaml#/LogoutResponse
     LogoutSuccess:
@@ -88,6 +99,12 @@ components:
       $ref: ./components/schemas.yaml#/OidcExchangeSuccess
     TotpChallengeResult:
       $ref: ./components/schemas.yaml#/TotpChallengeResult
+    TotpVerifyRequest:
+      $ref: ./components/schemas.yaml#/TotpVerifyRequest
+    TotpVerifyResponse:
+      $ref: ./components/schemas.yaml#/TotpVerifyResponse
+    TotpVerifySuccess:
+      $ref: ./components/schemas.yaml#/TotpVerifySuccess
     WriteTopicRequest:
       $ref: ./components/schemas.yaml#/WriteTopicRequest
     WriteTopicSuccess:

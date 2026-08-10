@@ -98,6 +98,67 @@ LoginResponse:
     - $ref: '#/LoginSuccess'
     - $ref: '#/ApiFailure'
 
+LoginPublicKeyResult:
+  type: object
+  required: [publicKey, serverTs, algorithm]
+  properties:
+    publicKey:
+      type: string
+      minLength: 1
+      description: PEM-encoded RSA public key. Private key material is never returned.
+    serverTs:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Current server time in Unix milliseconds. Password-login clients must encrypt their password payload within ±3 minutes of this timestamp; a stale payload is rejected as `auth.login.invalidRequest`.
+    algorithm:
+      type: string
+      const: RSA-OAEP-256
+  additionalProperties: false
+
+LoginPublicKeySuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/LoginPublicKeyResult'
+
+LoginPublicKeyResponse:
+  oneOf:
+    - $ref: '#/LoginPublicKeySuccess'
+    - $ref: '#/ApiFailure'
+
+TotpVerifyRequest:
+  type: object
+  properties:
+    code:
+      type: string
+      description: TOTP code or recovery code; any non-empty value is verified as a TOTP code first and then as a recovery code. When non-empty, this field takes precedence over recoveryCode.
+    recoveryCode:
+      type: string
+      description: One-time recovery code used only when code is empty.
+  additionalProperties: false
+
+TotpVerifySuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable successful-login message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: auth.login.success
+
+TotpVerifyResponse:
+  oneOf:
+    - $ref: '#/TotpVerifySuccess'
+    - $ref: '#/ApiFailure'
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
