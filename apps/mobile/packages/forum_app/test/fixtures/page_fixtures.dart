@@ -231,6 +231,27 @@ Map<String, dynamic> userProfilePayloadJson() => {
   'version': '1.0',
 };
 
+Map<String, dynamic> peerProfilePayloadJson() {
+  final Map<String, dynamic> payload = userProfilePayloadJson();
+  final Map<String, dynamic> props = payload['props'] as Map<String, dynamic>;
+  final Map<String, dynamic> user = props['user'] as Map<String, dynamic>;
+  user
+    ..['userId'] = 2
+    ..['username'] = 'bob'
+    ..['nickname'] = 'Bob'
+    ..['bio'] = '校园开发者'
+    ..['isSelf'] = false;
+  props
+    ..['isOwnProfile'] = false
+    ..['canMessage'] = true
+    ..['canFollow'] = true
+    ..['messageUrl'] = '/messages?userId=2&username=Bob&avatar=';
+  payload
+    ..['meta'] = <String, dynamic>{'title': 'Bob 的主页'}
+    ..['url'] = '/u/2';
+  return payload;
+}
+
 /// 从 JSON 解析 PagePayload(与 GfApiClient 相同路径)。
 PagePayload parsePayload(Map<String, dynamic> json) =>
     PagePayload.fromJson(json);
