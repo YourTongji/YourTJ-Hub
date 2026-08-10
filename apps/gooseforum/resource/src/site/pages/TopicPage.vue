@@ -2224,6 +2224,7 @@ async function removePost(postId: number) {
             </div>
 
             <p v-if="deleteErrorMessage" class="mt-3 text-sm text-error">{{ deleteErrorMessage }}</p>
+            <p class="mt-3 rounded bg-base-200/70 px-2.5 py-2 text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
 
             <div class="mt-4 flex justify-end gap-2">
               <button
@@ -2368,6 +2369,68 @@ async function removePost(postId: number) {
                 <Loader2 v-if="actingModeration" class="h-4 w-4 animate-spin" />
                 <component :is="pendingModerationAction === 'ban' ? Ban : RotateCcw" v-else class="h-4 w-4" />
                 {{ actingModeration ? t('common.loadingShort') : (pendingModerationAction === 'ban' ? t('topic.confirmModerationBan') : t('topic.confirmModerationUnban')) }}
+              </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="gf-modal">
+        <div
+          v-if="pendingDeleteTopic"
+          class="fixed inset-0 z-[110] flex items-center justify-center bg-neutral/45 px-4 py-6 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-topic-title"
+          @click.self="closeDeleteTopicDialog"
+        >
+          <div class="gf-menu-surface w-full max-w-sm p-4">
+            <div class="flex items-start gap-3">
+              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-error/10 text-error">
+                <AlertTriangle class="h-5 w-5" />
+              </div>
+              <div class="min-w-0 flex-1">
+                <h2 id="delete-topic-title" class="text-base font-bold text-base-content">{{ t('topic.deleteTopicTitle') }}</h2>
+                <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('topic.deleteTopicDescription') }}</p>
+              </div>
+              <button
+                type="button"
+                class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-50"
+                :disabled="deletingTopic"
+                @click="closeDeleteTopicDialog"
+              >
+                <X class="h-4 w-4" />
+              </button>
+            </div>
+
+            <div class="mt-4 border-l-2 border-error/35 pl-3">
+              <div class="text-xs font-semibold text-base-content/45">@{{ page.props.topic.author.username }}</div>
+              <p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-base-content/70">{{ page.props.topic.description }}</p>
+            </div>
+
+            <p v-if="deleteErrorMessage" class="mt-3 text-sm text-error">{{ deleteErrorMessage }}</p>
+            <p class="mt-3 rounded bg-base-200/70 px-2.5 py-2 text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
+
+            <div class="mt-4 flex justify-end gap-2">
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-muted"
+                :disabled="deletingTopic"
+                @click="closeDeleteTopicDialog"
+              >
+                {{ t('common.cancel') }}
+              </button>
+              <button
+                type="button"
+                class="gf-button gf-button-md gf-button-danger"
+                :disabled="deletingTopic"
+                @click="removeTopic"
+              >
+                <Loader2 v-if="deletingTopic" class="h-4 w-4 animate-spin" />
+                <Trash2 v-else class="h-4 w-4" />
+                {{ deletingTopic ? t('topic.deleting') : t('topic.confirmDelete') }}
               </button>
             </div>
           </div>
