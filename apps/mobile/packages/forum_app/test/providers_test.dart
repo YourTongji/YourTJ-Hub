@@ -75,6 +75,11 @@ void main() {
 
       expect(await storage.read(), isNull);
       expect(container.read(unauthorizedEventsProvider), 1);
+      expect(
+        container.read(offlineCacheEpochProvider),
+        1,
+        reason: '401 应自增缓存世代,使旧会话在途写入失效',
+      );
       // 401 会话失效应清空离线缓存(防跨账号数据泄漏)。
       await Future<void>.delayed(Duration.zero);
       final topicCache = container.read(offlineTopicCacheProvider);

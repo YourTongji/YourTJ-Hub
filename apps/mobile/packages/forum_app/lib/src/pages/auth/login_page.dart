@@ -1,4 +1,3 @@
-import 'dart:async';
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
@@ -23,8 +22,10 @@ enum _AuthMode { login, register, forgotPassword }
 /// 统一身份：论坛内建 OIDC Provider 经 AppAuth + 后端 exchange 兑换。
 /// 注册/找回密码:复用 AuthController 的 register/forgotPassword。
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key});
+  const LoginPage({super.key, this.authController});
 
+  /// 测试注入:默认 null 时页面内部构造 [AuthController]。
+  final AuthController? authController;
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
@@ -39,25 +40,56 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   _AuthMode _mode = _AuthMode.login;
   bool _oidcBusy = false;
   String _oidcError = '';
+  // 登录放行前缓存清理失败的错误(清理成功或重试成功后清空)。
+  String _cacheError = '';
 
   late final AuthController _authController;
+
+  // 进入登录页时启动的缓存清理;登录放行前必须成功。
+  Future<bool>? _cacheClearFuture;
 
   @override
   void initState() {
     super.initState();
-    _authController = AuthController(
-      authRepository: AuthRepository(ref.read(apiClientProvider)),
-      apiClient: ref.read(apiClientProvider),
-      tokenStorage: ref.read(tokenStorageProvider),
-    );
-    // 进入登录页即清空上一账号的离线缓存(话题/会话/私信),防止同一设备
-    // 换账号后读到上一账号的缓存数据;失败静默。
-    unawaited(
-      clearOfflineCacheQuietly(
+    _authController =
+        widget.authController ??
+        AuthController(
+          authRepository: AuthRepository(ref.read(apiClientProvider)),
+          apiClient: ref.read(apiClientProvider),
+          tokenStorage: ref.read(tokenStorageProvider),
+        );
+    // 进入登录页即进入新会话边界:先使旧会话在途写入失效,再清空缓存。
+    // 两者都延迟到首帧后执行(避免在 widget 构建期修改 provider),且
+    // 世代失效必须先于清库,保证不变量:
+    //   - 失效前提交的旧会话写入会被随后的清库清掉;
+    //   - 失效后提交的写入会被世代守卫拦截。
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      ref.read(offlineCacheEpochProvider.notifier).invalidate();
+      _cacheClearFuture = _clearOfflineCacheOnce();
+    });
+  }
+
+  /// 执行一次离线缓存清理;成功返回 true,失败返回 false(不抛出)。
+  Future<bool> _clearOfflineCacheOnce() async {
+    try {
+      await clearOfflineCache(
         ref.read(offlineTopicCacheProvider),
         ref.read(offlineChatCacheProvider),
-      ),
-    );
+      );
+      return true;
+    } catch (_) {
+      return false;
+    }
+  }
+
+  /// 登录放行前确保上一账号缓存已清空:首次清理失败(SQLite 慢/锁)时
+  /// 重试一次;仍失败返回 false,由调用方留在登录页提示重试。
+  Future<bool> _ensureCacheCleared() async {
+    Future<bool> attempt = _cacheClearFuture ??= _clearOfflineCacheOnce();
+    if (await attempt) return true;
+    attempt = _cacheClearFuture = _clearOfflineCacheOnce();
+    return attempt;
   }
 
   @override
@@ -84,7 +116,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       await _authController.loadCaptcha();
     }
     if (mounted && _authController.phase == LoginPhase.authenticated) {
-      _finishAuthentication();
+      await _finishAuthentication();
     }
   }
 
@@ -143,14 +175,24 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         setState(() => _oidcError = controller.error);
         return;
       }
-      _finishAuthentication();
+      await _finishAuthentication();
     } finally {
       controller.dispose();
       if (mounted) setState(() => _oidcBusy = false);
     }
   }
 
-  void _finishAuthentication() {
+  /// 认证成功后的收尾:确保旧账号缓存已清空再放行;清理失败则留在登录页
+  /// 提示重试,防止新账号读到上一账号的离线数据(跨账号数据泄漏)。
+  Future<void> _finishAuthentication() async {
+    if (!mounted) return;
+    if (!await _ensureCacheCleared()) {
+      if (!mounted) return;
+      setState(
+        () => _cacheError = AppLocalizations.of(context).authCacheClearFailed,
+      );
+      return;
+    }
     if (!mounted) return;
     final NavigatorState navigator = Navigator.of(context);
     if (navigator.canPop()) {
@@ -381,10 +423,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           ),
         ],
         if (_authController.error.isNotEmpty ||
-            _oidcError.isNotEmpty) ...<Widget>[
+            _oidcError.isNotEmpty ||
+            _cacheError.isNotEmpty) ...<Widget>[
           const SizedBox(height: 12),
           GfStatusMessage(
-            message: _oidcError.isNotEmpty ? _oidcError : _authController.error,
+            message: _cacheError.isNotEmpty
+                ? _cacheError
+                : _oidcError.isNotEmpty
+                ? _oidcError
+                : _authController.error,
           ),
         ],
         const SizedBox(height: 20),
@@ -433,7 +480,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (_authController.phase == LoginPhase.needsTotp) {
       await _authController.submitTotp(_totp.text.trim());
       if (mounted && _authController.phase == LoginPhase.authenticated) {
-        _finishAuthentication();
+        await _finishAuthentication();
       }
       return;
     }

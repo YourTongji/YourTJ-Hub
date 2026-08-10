@@ -183,6 +183,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authLoading => 'Processing…';
 
   @override
+  String get authCacheClearFailed =>
+      'Failed to clear the previous account\'s offline data. Please retry.';
+
+  @override
   String get loginWelcome => 'Welcome back to yourtj';
 
   @override

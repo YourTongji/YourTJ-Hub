@@ -9,6 +9,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import 'package:auth/auth.dart';
 import 'package:forum_app/l10n/app_localizations.dart';
 import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
@@ -119,6 +120,73 @@ class RecordingCache implements OfflineTopicCache, OfflineChatCache {
 
   @override
   Future<void> close() async {}
+}
+
+/// clear() 抛错的离线缓存替身(登录门禁失败路径)。
+class ThrowingCache implements OfflineTopicCache, OfflineChatCache {
+  @override
+  Future<void> put(int topicId, Map<String, dynamic> payload) async {}
+
+  @override
+  Future<PagePayload?> get(int topicId) async => null;
+
+  @override
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {}
+
+  @override
+  Future<List<ChatItemPayload>> getConversations() async => const [];
+
+  @override
+  Future<void> putMessages(
+    int convId,
+    List<ChatMessagePayload> messages,
+  ) async {}
+
+  @override
+  Future<List<ChatMessagePayload>> getMessages(int convId) async => const [];
+
+  @override
+  Future<void> clear() async => throw StateError('sqlite locked');
+
+  @override
+  Future<void> close() async {}
+}
+
+/// 记录 putConversations 调用次数的会话缓存(在途写回断言)。
+class RecordingConversationCache extends NoopCache {
+  int putConversationCalls = 0;
+
+  @override
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {
+    putConversationCalls++;
+  }
+}
+
+/// 登录即写入令牌并进入 authenticated 的 AuthController 替身(不触网)。
+class InstantLoginController extends AuthController {
+  // ignore: use_super_parameters — authRepository 依赖 apiClient,无法用 super 参数。
+  InstantLoginController({
+    required GfApiClient apiClient,
+    required TokenStorage tokenStorage,
+  }) : _storage = tokenStorage,
+       super(
+         authRepository: AuthRepository(apiClient),
+         apiClient: apiClient,
+         tokenStorage: tokenStorage,
+       );
+
+  final TokenStorage _storage;
+
+  @override
+  Future<void> login({
+    required String username,
+    required String password,
+    String? captchaId,
+    String? captchaCode,
+  }) async {
+    await _storage.write('session-token');
+    await init();
+  }
 }
 
 class RecordingChatRepository extends ChatRepository {
@@ -1019,9 +1087,7 @@ void main() {
         userRepositoryProvider.overrideWithValue(
           userRepo ?? EmptySessionsUserRepository(client),
         ),
-        offlineTopicCacheProvider.overrideWithValue(
-          topicCache ?? NoopCache(),
-        ),
+        offlineTopicCacheProvider.overrideWithValue(topicCache ?? NoopCache()),
         offlineChatCacheProvider.overrideWithValue(chatCache ?? NoopCache()),
       ],
     );
@@ -2404,6 +2470,156 @@ void main() {
         2,
         reason: '进入登录页应清空话题与私信离线缓存,换账号后不能读到上一账号数据',
       );
+      expect(
+        container.read(offlineCacheEpochProvider),
+        1,
+        reason: '进入登录页应使旧会话在途缓存写入失效',
+      );
+    });
+
+    testWidgets('缓存清理失败时登录被阻止并提示重试', (tester) async {
+      final topicCache = ThrowingCache();
+      final chatCache = ThrowingCache();
+      final storage = MemTokenStorage();
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final controller = InstantLoginController(
+        apiClient: client,
+        tokenStorage: storage,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/login',
+        routes: [
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(authController: controller),
+          ),
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('home-page'))),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(0), 'alice');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/login', reason: '上一账号缓存清理失败时不得放行登录');
+      expect(find.text('清除上一账号离线数据失败,请重试'), findsOneWidget);
+    });
+
+    testWidgets('缓存清理成功后登录放行并离开登录页', (tester) async {
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
+      final storage = MemTokenStorage();
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final controller = InstantLoginController(
+        apiClient: client,
+        tokenStorage: storage,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/login',
+        routes: [
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(authController: controller),
+          ),
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('home-page'))),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(0), 'alice');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pumpAndSettle();
+
+      expect(router.state.uri.path, '/', reason: '清理成功应放行登录');
+      expect(
+        topicCache.clears + chatCache.clears,
+        2,
+        reason: '登录页应清空话题与私信离线缓存',
+      );
+    });
+
+    testWidgets('会话失效后在途的会话列表响应不写回离线缓存', (tester) async {
+      final pageRepo = DelayedPageRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final chatCache = RecordingConversationCache();
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        chatCache: chatCache,
+      );
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pump();
+
+      // 列表请求仍在途时触发 401 会话失效(缓存世代自增)。
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      pageRepo.response.complete(parsePayload(messagesPayloadJson()));
+      // 只推进一帧处理响应 continuation,不推进 15s 轮询 timer。
+      await tester.pump();
+
+      expect(
+        chatCache.putConversationCalls,
+        0,
+        reason: '失效后的在途响应不得把上一账号数据写回离线缓存',
+      );
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
     });
   });
 }

@@ -27,6 +27,23 @@ final unauthorizedEventsProvider = NotifierProvider<UnauthorizedNotifier, int>(
   UnauthorizedNotifier.new,
 );
 
+/// 离线缓存写入世代。
+///
+/// 会话边界(401 会话失效、登出、进入登录页)自增一次;页面在网络响应返回后
+/// 校验世代,不一致说明会话已切换,必须丢弃 setState 与缓存写入,防止旧会话
+/// 在途响应把上一账号数据写回刚清空的离线库(跨账号数据泄漏)。
+class OfflineCacheEpoch extends Notifier<int> {
+  @override
+  int build() => 0;
+
+  /// 使所有在途缓存写入失效(自增世代)。
+  void invalidate() => state++;
+}
+
+final offlineCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
+  OfflineCacheEpoch.new,
+);
+
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => Dio());
 
@@ -85,10 +102,13 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
         : GfApiClient.defaultBaseUrl,
     // New-Token 滑动续期:写回 tokenStorage 持久化新令牌。
     onTokenRenewed: (newToken) => storage.write(newToken),
-    // 401 会话失效:清空令牌、清离线缓存并通知 UI 跳转登录页。
+    // 401 会话失效:清空令牌、使旧会话在途写入失效、清离线缓存并通知 UI 跳转登录页。
     onUnauthorized: () {
       storage.clear();
       ref.read(unauthorizedEventsProvider.notifier).trigger();
+      // 先自增世代,让已发出的旧会话请求在返回后丢弃 setState 与缓存写入;
+      // 再异步清库(清库入队晚于已在途写入的提交,不产生交错)。
+      ref.read(offlineCacheEpochProvider.notifier).invalidate();
       unawaited(
         clearOfflineCacheQuietly(
           ref.read(offlineTopicCacheProvider),

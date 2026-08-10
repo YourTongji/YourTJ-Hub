@@ -1027,6 +1027,8 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       // 服务端失效失败不阻塞本地登出(会话已不可信)。
     }
     await ref.read(tokenStorageProvider).clear();
+    // 登出即进入新会话边界:先使旧会话在途写入失效,再清空缓存。
+    ref.read(offlineCacheEpochProvider.notifier).invalidate();
     // 清空话题/会话/私信离线缓存;失败静默(下次登出/登录会重试)。
     await clearOfflineCacheQuietly(
       ref.read(offlineTopicCacheProvider),

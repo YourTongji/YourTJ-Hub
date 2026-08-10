@@ -107,13 +107,15 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
+    final int epoch = ref.read(offlineCacheEpochProvider);
     try {
       final props = await ref.read(pageRepositoryProvider).fetch('/messages');
       final MessagesPageProps? parsed = parsePageProps<MessagesPageProps>(
         props,
       );
       final List<ChatItemPayload> items = parsed?.conversations ?? [];
-      if (mounted) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           _conversations = AsyncValue.data(items);
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
@@ -121,25 +123,29 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           _targetConversation = _targetConversationFor(items);
         });
       }
-      // 会话列表在单事务中批量写入离线缓存(断网可读)。
-      await ref.read(offlineChatCacheProvider).putConversations(items);
+      // 会话列表在单事务中批量写入离线缓存(断网可读);仅当前世代允许写入,
+      // 避免 401/登出后旧会话在途响应把上一账号数据写回刚清空的缓存。
+      if (epoch == ref.read(offlineCacheEpochProvider)) {
+        await ref.read(offlineChatCacheProvider).putConversations(items);
+      }
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
-      if (mounted) {
-        try {
-          final cached = await ref
-              .read(offlineChatCacheProvider)
-              .getConversations();
-          if (cached.isNotEmpty) {
-            setState(() {
-              _conversations = AsyncValue.data(cached);
-              _targetConversation = _targetConversationFor(cached);
-            });
-            return;
-          }
-        } catch (_) {
-          // 缓存不可用时继续走错误态。
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      try {
+        final cached = await ref
+            .read(offlineChatCacheProvider)
+            .getConversations();
+        // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
+        if (epoch != ref.read(offlineCacheEpochProvider)) return;
+        if (cached.isNotEmpty) {
+          setState(() {
+            _conversations = AsyncValue.data(cached);
+            _targetConversation = _targetConversationFor(cached);
+          });
+          return;
         }
+      } catch (_) {
+        // 缓存不可用时继续走错误态。
       }
       if (!silent && mounted) {
         setState(() => _conversations = AsyncValue.error(e, st));
@@ -406,6 +412,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       if (mounted) setState(() => _loading = false);
       return;
     }
+    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
+    final int epoch = ref.read(offlineCacheEpochProvider);
     try {
       final bool initial = _latestId == 0;
       final bool pinnedToBottom =
@@ -422,7 +430,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       final List<ChatMessagePayload> newMessages = resp.list
           .where((ChatMessagePayload message) => seenIds.add(message.id))
           .toList();
-      if (mounted) {
+      if (mounted && epoch == ref.read(offlineCacheEpochProvider)) {
         setState(() {
           if (newMessages.isNotEmpty) {
             _messages.addAll(newMessages);
@@ -435,7 +443,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
         });
         if (initial || pinnedToBottom) _scrollToBottom();
       }
-      if (newMessages.isNotEmpty) {
+      if (newMessages.isNotEmpty &&
+          epoch == ref.read(offlineCacheEpochProvider)) {
         // 只持久化真正新增的消息，避免轮询重复写缓存和重复上报已读。
         await ref
             .read(offlineChatCacheProvider)
@@ -444,23 +453,24 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       }
     } catch (_) {
       // 网络失败:回退离线缓存消息。
-      if (mounted) {
-        try {
-          final cached = await ref
-              .read(offlineChatCacheProvider)
-              .getMessages(_convId);
-          if (cached.isNotEmpty) {
-            setState(() {
-              _messages
-                ..clear()
-                ..addAll(cached);
-              _loading = false;
-            });
-            return;
-          }
-        } catch (_) {
-          // 缓存不可用。
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      try {
+        final cached = await ref
+            .read(offlineChatCacheProvider)
+            .getMessages(_convId);
+        // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
+        if (epoch != ref.read(offlineCacheEpochProvider)) return;
+        if (cached.isNotEmpty) {
+          setState(() {
+            _messages
+              ..clear()
+              ..addAll(cached);
+            _loading = false;
+          });
+          return;
         }
+      } catch (_) {
+        // 缓存不可用。
       }
       if (mounted && !silent) setState(() => _loading = false);
     }
@@ -468,6 +478,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
   Future<void> _loadOlder() async {
     if (_loadingOlder || !_hasMoreBefore || _nextBeforeId <= 0) return;
+    final int epoch = ref.read(offlineCacheEpochProvider);
     setState(() => _loadingOlder = true);
     final double previousExtent = _scrollController.hasClients
         ? _scrollController.position.maxScrollExtent
@@ -476,7 +487,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(convId: _convId, beforeId: _nextBeforeId);
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       setState(() {
         final Set<int> existing = _messages.map((m) => m.id).toSet();
         _messages.addAll(resp.list.where((m) => !existing.contains(m.id)));

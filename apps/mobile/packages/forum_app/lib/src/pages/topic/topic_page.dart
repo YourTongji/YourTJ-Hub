@@ -67,12 +67,14 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   }
 
   Future<void> _load({bool silent = false}) async {
+    // 记录发起时的缓存世代;401/登出/换账号后世代自增,返回时丢弃旧会话数据。
+    final int epoch = ref.read(offlineCacheEpochProvider);
     if (!silent) setState(() => _page = const AsyncValue.loading());
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .topicDetail(widget.topicId);
-      if (!mounted) return;
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       final props = parsePageProps<TopicDetailProps>(payload);
       if (props == null) {
         setState(
@@ -84,8 +86,12 @@ class _TopicPageState extends ConsumerState<TopicPage> {
         return;
       }
       // 写入 drift 离线缓存(供断网时回读);缓存失败静默降级。
-      await _cachePut(widget.topicId, payload.toJson());
-      if (!mounted) return;
+      // 仅当前世代允许写入,避免旧会话在途响应写回上一账号数据。
+      if (epoch == ref.read(offlineCacheEpochProvider)) {
+        await _cachePut(widget.topicId, payload.toJson());
+      }
+      // 写入期间会话可能已切换,再次校验世代再更新 UI。
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       setState(() {
         _page = AsyncValue.data(props);
         _posts.clear();
@@ -99,8 +105,10 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       });
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       final PagePayload? cached = await _cacheGet(widget.topicId);
-      if (!mounted) return;
+      // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
+      if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
       final props = cached == null
           ? null
           : parsePageProps<TopicDetailProps>(cached);

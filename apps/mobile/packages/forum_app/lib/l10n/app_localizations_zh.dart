@@ -180,6 +180,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authLoading => '处理中…';
 
   @override
+  String get authCacheClearFailed => '清除上一账号离线数据失败,请重试';
+
+  @override
   String get loginWelcome => '欢迎回到 yourtj';
 
   @override
