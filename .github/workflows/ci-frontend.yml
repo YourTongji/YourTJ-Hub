@@ -31,7 +31,7 @@ jobs:
         with:
           # On dev/main pushes, compare with the commit before this push.
           # This input is ignored for pull_request, which uses its base branch.
-          base: ${{ github.ref_name }}
+          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
           filters: |
             frontend:
               - 'apps/gooseforum/resource/**'
