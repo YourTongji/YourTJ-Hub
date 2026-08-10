@@ -9,6 +9,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 )
 
 // withUser 在进入被测中间件前注入 userId（模拟已登录请求）。
@@ -91,9 +92,21 @@ func TestRateLimitUnknownActionBypass(t *testing.T) {
 }
 
 func TestRateLimitLLMSFullReturns429(t *testing.T) {
+	// 清空计数与配置缓存：保证读取默认 ratelimit.json（llms.full 生效），
+	// 并防御同包其他测试（如 rateLimit_hotreload_test）残留的自定义 RateLimitSettings 行。
 	ratelimit.Default().ResetAll()
-	// llms.full 默认 limitPerIp=10（300s 窗口），第 11 次应 429。
-	for i := 0; i < 10; i++ {
+	hotdataserve.ClearRateLimitConfigCache()
+	t.Cleanup(func() {
+		ratelimit.Default().ResetAll()
+		hotdataserve.ClearRateLimitConfigCache()
+	})
+
+	// 从配置读取配额，避免硬编码 10 与默认配置脱节。
+	limit := rateLimitQuotaFor(RateLimitLLMSFull)
+	if limit <= 0 {
+		t.Fatalf("llms.full limitPerIp = %d, want > 0", limit)
+	}
+	for i := 0; i < limit; i++ {
 		recorder := rateLimitRecorder(RateLimit(RateLimitLLMSFull))
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("attempt %d status = %d, want 200", i+1, recorder.Code)
@@ -106,4 +119,14 @@ func TestRateLimitLLMSFullReturns429(t *testing.T) {
 	if retry := recorder.Header().Get("Retry-After"); retry == "" {
 		t.Fatal("Retry-After header missing on 429")
 	}
+}
+
+func rateLimitQuotaFor(action string) int {
+	cfg := hotdataserve.GetRateLimitConfigCache()
+	for _, rule := range cfg.Actions {
+		if rule.Action == action {
+			return rule.LimitPerIp
+		}
+	}
+	return 0
 }

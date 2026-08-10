@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"math"
 	"net/url"
 	"strings"
 	"time"
@@ -84,7 +85,7 @@ func BuildTopic(host string, topicID uint64) (string, error) {
 		var builder strings.Builder
 		if err := appendTopicDocument(&builder, baseURL, &topic, 1, fullMaxBytes); err != nil {
 			if errors.Is(err, errOutputLimit) {
-				writeTruncationNote(&builder, 1, fullMaxBytes)
+				builder.WriteString("\n\n<!-- topic markdown truncated: output size limit reached. -->\n")
 				return builder.String(), nil
 			}
 			return "", err
@@ -179,13 +180,18 @@ func buildFullWithLimits(baseURL string, maxTopics int, maxBytes int64, budget t
 		}
 	}
 	if truncatedReason != "" {
-		writeTruncationNote(&builder, maxTopics, maxBytes)
+		writeTruncationNote(&builder, "llms-full.txt", maxTopics, maxBytes, truncatedReason)
 	}
 	return builder.String(), nil
 }
 
-func writeTruncationNote(builder *strings.Builder, maxTopics int, maxBytes int64) {
-	fmt.Fprintf(builder, "\n\n<!-- llms-full.txt truncated: export limited to %d topics and %d bytes. -->\n", maxTopics, maxBytes)
+func writeTruncationNote(builder *strings.Builder, document string, maxTopics int, maxBytes int64, reason string) {
+	note := fmt.Sprintf("\n\n<!-- %s truncated: export limited to %d topics and %d bytes", document, maxTopics, maxBytes)
+	if reason != "" {
+		note += "; " + reason
+	}
+	note += ". -->\n"
+	builder.WriteString(note)
 }
 
 // appendTopicDocument 把单个主题及其正常回复写入 builder。maxBytes<=0 表示不设字节上限。
@@ -229,9 +235,14 @@ func appendTopicDocument(builder *strings.Builder, baseURL string, topic *topics
 				}
 				builder.WriteString(fmt.Sprintf("%s Reply %d\n\n", replyHeading, post.PostNo))
 			}
-			builder.WriteString("```markdown\n")
+			// 围栏长度按正文中最长连续反引号动态加长，避免正文中的 ``` 提前闭合外层围栏。
+			fence := "```"
+			if run := maxBacktickRun(post.Content); run >= 3 {
+				fence = strings.Repeat("`", run+1)
+			}
+			builder.WriteString(fence + "markdown\n")
 			builder.WriteString(strings.TrimSpace(post.Content))
-			builder.WriteString("\n```\n\n")
+			builder.WriteString("\n" + fence + "\n\n")
 			afterPostNo = post.PostNo
 		}
 		if len(postsBatch) < postBatchSize {
@@ -246,11 +257,14 @@ func appendTopicDocument(builder *strings.Builder, baseURL string, topic *topics
 	return nil
 }
 
+// forEachPublishedTopic 按 id 倒序（最新优先）遍历已发布主题。limit>0 时最多访问 limit 个，
+// 超限返回 errTopicLimit（调用方截断并保留最新内容，避免新主题从导出中消失）。
 func forEachPublishedTopic(limit int, visit func(*topics.Entity) error) error {
-	afterID := uint64(0)
+	// 初始游标用 int64 最大值（sqlite 不支持高 bit 的 uint64）。
+	beforeID := uint64(math.MaxInt64)
 	visited := 0
 	for {
-		batch, err := topics.GetPublishedAfterID(afterID, topicBatchSize)
+		batch, err := topics.GetPublishedBeforeID(beforeID, topicBatchSize)
 		if err != nil {
 			return err
 		}
@@ -265,7 +279,7 @@ func forEachPublishedTopic(limit int, visit func(*topics.Entity) error) error {
 			if err := visit(topic); err != nil {
 				return err
 			}
-			afterID = topic.Id
+			beforeID = topic.Id
 		}
 		if len(batch) < topicBatchSize {
 			return nil
@@ -319,6 +333,23 @@ func normalizeBaseURL(raw string) string {
 
 func singleLine(value string) string {
 	return strings.Join(strings.Fields(value), " ")
+}
+
+// maxBacktickRun 返回 value 中最长连续反引号的长度，用于确定 markdown 围栏需要加长到几层。
+func maxBacktickRun(value string) int {
+	maxRun := 0
+	run := 0
+	for _, r := range value {
+		if r == '`' {
+			run++
+			if run > maxRun {
+				maxRun = run
+			}
+		} else {
+			run = 0
+		}
+	}
+	return maxRun
 }
 
 func escapeLinkLabel(value string) string {

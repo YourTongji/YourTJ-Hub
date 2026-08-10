@@ -312,13 +312,14 @@ func TestBuildFullTruncatesByLimits(t *testing.T) {
 	assertContains(t, baseline, "Cap topic B")
 	assertNotContains(t, baseline, "truncated")
 
+	// 按 id 倒序（最新优先）：maxTopics=1 保留 id 最大的 Cap topic B，丢弃更旧的。
 	capped, err := buildFullWithLimits(host, 1, 0, time.Minute)
 	if err != nil {
 		t.Fatalf("buildFullWithLimits capped err=%v", err)
 	}
-	assertContains(t, capped, "Public topic")
+	assertContains(t, capped, "Cap topic B")
 	assertNotContains(t, capped, "Cap topic A")
-	assertNotContains(t, capped, "Cap topic B")
+	assertNotContains(t, capped, "Public topic")
 	assertContains(t, capped, "truncated")
 	if len(capped) >= len(baseline) {
 		t.Fatalf("capped output not smaller than baseline")
@@ -333,23 +334,39 @@ func TestBuildFullTruncatesByLimits(t *testing.T) {
 		t.Fatalf("byte-capped output not smaller than baseline")
 	}
 
-	timedOut, err := buildFullWithLimits(host, fullMaxTopics, 0, time.Nanosecond)
+	// deadline 已过（负预算），首个主题即触发超时截断。
+	timedOut, err := buildFullWithLimits(host, fullMaxTopics, 0, -time.Nanosecond)
 	if err != nil {
 		t.Fatalf("buildFullWithLimits timedOut err=%v", err)
 	}
 	assertContains(t, timedOut, "truncated")
+	assertNotContains(t, timedOut, "Cap topic B")
 }
 
-// 单篇超大主题也受字节上限约束，且以成功+注释截断（可缓存），而不是 500。
+// 单篇超大主题也受字节上限约束：以成功+注释截断（可缓存），而不是 500。
+// 追加一条超过 8 MiB 上限的回复，真实触发 BuildTopic 的 errOutputLimit 分支。
 func TestBuildTopicTruncatesByBytes(t *testing.T) {
 	fixture := setupLLMSProjectionFixture(t)
 	host := "https://cap.example.test"
 	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true, Files: true})
 
+	bigPostID := fixture.publicTopicID + 9_000_000
+	t.Cleanup(func() {
+		fixture.conn.Unscoped().Where("id = ?", bigPostID).Delete(&posts.Entity{})
+		ClearCache()
+	})
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	if err := fixture.conn.Create(&posts.Entity{Id: bigPostID, TopicId: fixture.publicTopicID, PostNo: 6, Content: strings.Repeat("x", 9<<20), ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now}).Error; err != nil {
+		t.Fatalf("create oversized reply: %v", err)
+	}
+
 	topic, err := BuildTopic(host, fixture.publicTopicID)
 	if err != nil {
-		t.Fatalf("BuildTopic() err=%v", err)
+		t.Fatalf("BuildTopic() err=%v, want truncate-as-success", err)
 	}
 	assertContains(t, topic, "Public topic")
-	assertContains(t, topic, "```markdown")
+	assertContains(t, topic, "truncated")
+	if len(topic) >= 9<<20 {
+		t.Fatalf("truncated topic output not bounded")
+	}
 }
