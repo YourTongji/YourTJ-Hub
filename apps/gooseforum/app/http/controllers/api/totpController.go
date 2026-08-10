@@ -137,10 +137,10 @@ func TotpDisable(req component.BetterRequest[TotpDisableReq]) component.Response
 func TotpVerify(c *gin.Context) {
 	// 受控契约声明 TotpVerifyRequest 为 additionalProperties: false，
 	// 这里用严格解码拒绝未知字段，与契约保持一致。
-	var req TotpVerifyReq
+	var req *TotpVerifyReq
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
-	if err := decoder.Decode(&req); err != nil {
+	if err := decoder.Decode(&req); err != nil || req == nil {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
 		return
 	}
