@@ -1,5 +1,7 @@
 import type {
   CategoryPageProps,
+  CourseCatalogPageProps,
+  CourseDetailPageProps,
   DraftsPageProps,
   ErrorPageProps,
   HomeProps,
@@ -36,6 +38,8 @@ export const pageComponents = [
   'theme.preview',
   'publish.index',
   'search.index',
+  'course.index',
+  'course.detail',
   'auth.login',
   'auth.resetPassword',
   'error.index',
@@ -59,6 +63,8 @@ export interface PagePayloadMap {
   'theme.preview': ThemePreviewProps
   'publish.index': PublishPageProps
   'search.index': SearchPageProps
+  'course.index': CourseCatalogPageProps
+  'course.detail': CourseDetailPageProps
   'auth.login': LoginPageProps
   'auth.resetPassword': ResetPasswordPageProps
   'error.index': ErrorPageProps

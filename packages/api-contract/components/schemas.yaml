@@ -602,3 +602,116 @@ LogoutResponse:
   oneOf:
     - $ref: '#/LogoutSuccess'
     - $ref: '#/ApiFailure'
+
+CourseSummary:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    recentTerms:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+CourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/CourseSummary'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+CourseListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseListResult'
+
+OfferingSummary:
+  type: object
+  required: [id, termCode]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    termCode:
+      type: string
+    termName:
+      type: string
+    campus:
+      type: string
+    faculty:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+CourseDetail:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+    aliases:
+      type: array
+      items:
+        type: string
+    offerings:
+      type: array
+      items:
+        $ref: '#/OfferingSummary'
+  additionalProperties: false
+
+CourseDetailResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseDetail'

@@ -18,6 +18,8 @@ const (
 	PageComponentThemePreview  PageComponent = "theme.preview"
 	PageComponentPublish       PageComponent = "publish.index"
 	PageComponentSearch        PageComponent = "search.index"
+	PageComponentCourse        PageComponent = "course.index"
+	PageComponentCourseDetail  PageComponent = "course.detail"
 	PageComponentLogin         PageComponent = "auth.login"
 	PageComponentResetPassword PageComponent = "auth.resetPassword"
 	PageComponentError         PageComponent = "error.index"

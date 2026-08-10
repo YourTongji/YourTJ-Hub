@@ -88,6 +88,8 @@
   "meta.communityDesc": "Partecipa alla discussione della community su {site}.",
   "meta.userDesc": "Scopri argomenti, attività e connessioni di {username} su {site}.",
   "meta.categoryDesc": "Sfoglia gli argomenti nella categoria {category}.",
+  "course": "Corsi",
+  "meta.courseDesc": "Sfoglia il catalogo dei corsi e le recensioni su {site}.",
   "terms": "Termini di servizio",
   "meta.termsDesc": "Leggi i Termini di servizio di {site}.",
   "common.rateLimited": "Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.",

@@ -176,3 +176,141 @@ Map<String, dynamic> _$$TermsPagePropsImplToJson(
   'enabled': instance.enabled,
   'contentHtml': instance.contentHtml,
 };
+
+_$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseSummaryPayloadImpl(
+  id: (json['id'] as num).toInt(),
+  primaryCode: json['primaryCode'] as String,
+  name: json['name'] as String,
+  department: json['department'] as String,
+  creditX10: (json['creditX10'] as num).toInt(),
+  aliases: (json['aliases'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  instructors: (json['instructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  recentTerms: (json['recentTerms'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+);
+
+Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
+  _$CourseSummaryPayloadImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'primaryCode': instance.primaryCode,
+  'name': instance.name,
+  'department': instance.department,
+  'creditX10': instance.creditX10,
+  'aliases': instance.aliases,
+  'instructors': instance.instructors,
+  'recentTerms': instance.recentTerms,
+};
+
+_$CourseCatalogPagePropsImpl _$$CourseCatalogPagePropsImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseCatalogPagePropsImpl(
+  query: CourseCatalogQueryPayload.fromJson(
+    json['query'] as Map<String, dynamic>,
+  ),
+  courses: (json['courses'] as List<dynamic>)
+      .map((e) => CourseSummaryPayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  pagination: PaginationPayload.fromJson(
+    json['pagination'] as Map<String, dynamic>,
+  ),
+);
+
+Map<String, dynamic> _$$CourseCatalogPagePropsImplToJson(
+  _$CourseCatalogPagePropsImpl instance,
+) => <String, dynamic>{
+  'query': instance.query,
+  'courses': instance.courses,
+  'pagination': instance.pagination,
+};
+
+_$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseCatalogQueryPayloadImpl(
+  keyword: json['keyword'] as String?,
+  department: json['department'] as String?,
+  term: json['term'] as String?,
+  campus: json['campus'] as String?,
+  page: (json['page'] as num).toInt(),
+  size: (json['size'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$CourseCatalogQueryPayloadImplToJson(
+  _$CourseCatalogQueryPayloadImpl instance,
+) => <String, dynamic>{
+  'keyword': instance.keyword,
+  'department': instance.department,
+  'term': instance.term,
+  'campus': instance.campus,
+  'page': instance.page,
+  'size': instance.size,
+};
+
+_$CourseOfferingPayloadImpl _$$CourseOfferingPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseOfferingPayloadImpl(
+  id: (json['id'] as num).toInt(),
+  termCode: json['termCode'] as String,
+  termName: json['termName'] as String?,
+  campus: json['campus'] as String?,
+  faculty: json['faculty'] as String?,
+  instructors: (json['instructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+);
+
+Map<String, dynamic> _$$CourseOfferingPayloadImplToJson(
+  _$CourseOfferingPayloadImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'termCode': instance.termCode,
+  'termName': instance.termName,
+  'campus': instance.campus,
+  'faculty': instance.faculty,
+  'instructors': instance.instructors,
+};
+
+_$CourseDetailPagePropsImpl _$$CourseDetailPagePropsImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseDetailPagePropsImpl(
+  course: CourseDetailPayload.fromJson(json['course'] as Map<String, dynamic>),
+);
+
+Map<String, dynamic> _$$CourseDetailPagePropsImplToJson(
+  _$CourseDetailPagePropsImpl instance,
+) => <String, dynamic>{'course': instance.course};
+
+_$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseDetailPayloadImpl(
+  id: (json['id'] as num).toInt(),
+  primaryCode: json['primaryCode'] as String,
+  name: json['name'] as String,
+  department: json['department'] as String,
+  creditX10: (json['creditX10'] as num).toInt(),
+  aliases: (json['aliases'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  offerings: (json['offerings'] as List<dynamic>?)
+      ?.map((e) => CourseOfferingPayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+);
+
+Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
+  _$CourseDetailPayloadImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'primaryCode': instance.primaryCode,
+  'name': instance.name,
+  'department': instance.department,
+  'creditX10': instance.creditX10,
+  'aliases': instance.aliases,
+  'offerings': instance.offerings,
+};

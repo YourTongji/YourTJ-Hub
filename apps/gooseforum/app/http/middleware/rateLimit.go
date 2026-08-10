@@ -34,6 +34,7 @@ const (
 	RateLimitLLMSFull       = "llms.full"
 	RateLimitLLMSTopic      = "llms.topic"
 	RateLimitMCPAuth        = "mcp.auth"
+	RateLimitCourseCatalog  = "course.catalog"
 )
 
 // RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。

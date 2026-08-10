@@ -26,6 +26,7 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
 - `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
 - `GET /api/v1/agent/search`.
+- `GET /api/forum/courses` and `GET /api/forum/courses/{courseId}` (course catalog read endpoints, `security: []`);
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of

@@ -285,6 +285,40 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the course catalog with optional filters */
+        get: operations["listCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/courses/{courseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one canonical course with offerings, terms, and instructors */
+        get: operations["getCourse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -527,6 +561,51 @@ export interface components {
                 failedScopes?: string[];
                 searchUnavailable?: boolean;
             };
+        };
+        CourseSummary: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
+            creditX10: number;
+            aliases?: string[];
+            instructors?: string[];
+            recentTerms?: string[];
+        };
+        CourseListResult: {
+            list: components["schemas"]["CourseSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        CourseListResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseListResult"];
+        };
+        OfferingSummary: {
+            /** Format: uint64 */
+            id: number;
+            termCode: string;
+            termName?: string;
+            campus?: string;
+            faculty?: string;
+            instructors?: string[];
+        };
+        CourseDetail: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            creditX10: number;
+            aliases?: string[];
+            offerings?: components["schemas"]["OfferingSummary"][];
+        };
+        CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseDetail"];
         };
         RevokeSessionRequest: {
             /**
@@ -1175,6 +1254,91 @@ export interface operations {
             };
             /** @description Missing or invalid agent bearer credential. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listCourses: {
+        parameters: {
+            query?: {
+                keyword?: string;
+                department?: string;
+                term?: string;
+                campus?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of canonical courses with stable id-desc ordering. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Catalog query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Course detail with offerings grouped by term. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDetailResponse"];
+                };
+            };
+            /** @description Malformed course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -869,3 +869,51 @@ export interface SearchPageProps {
   failedScopes?: string[]
   searchUnavailable?: boolean
 }
+
+export interface CourseCatalogPageProps {
+  query: {
+    keyword?: string
+    department?: string
+    term?: string
+    campus?: string
+    page: number
+    size: number
+  }
+  courses: CourseSummaryPayload[]
+  pagination: {
+    page: number
+    nextPage: number
+    hasNext: boolean
+    nextUrl: string
+  }
+}
+
+export interface CourseSummaryPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  recentTerms?: string[]
+}
+
+export interface CourseDetailPageProps {
+  course: {
+    id: number
+    primaryCode: string
+    name: string
+    department: string
+    creditX10: number
+    aliases?: string[]
+    offerings?: Array<{
+      id: number
+      termCode: string
+      termName?: string
+      campus?: string
+      faculty?: string
+      instructors?: string[]
+    }>
+  }
+}

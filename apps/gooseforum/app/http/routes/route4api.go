@@ -100,6 +100,8 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/notifications", middleware.CheckLogin, forum.Notifications)
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
+	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
+	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
@@ -183,6 +185,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
+	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
+	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)

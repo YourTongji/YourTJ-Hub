@@ -51,6 +51,12 @@ paths:
       $ref: ./paths/agent.yaml#/agentCreatePost/post
   /api/v1/agent/search:
     $ref: ./paths/agent.yaml#/agentSearch
+  /api/forum/courses:
+    get:
+      $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/{courseId}:
+    get:
+      $ref: ./paths/courses.yaml#/getCourse/get
 components:
   securitySchemes:
     bearerAuth:
@@ -133,6 +139,18 @@ components:
       $ref: ./components/schemas.yaml#/AgentCreatePostResponse
     AgentSearchResponse:
       $ref: ./components/schemas.yaml#/AgentSearchResponse
+    CourseSummary:
+      $ref: ./components/schemas.yaml#/CourseSummary
+    CourseListResult:
+      $ref: ./components/schemas.yaml#/CourseListResult
+    CourseListResponse:
+      $ref: ./components/schemas.yaml#/CourseListResponse
+    OfferingSummary:
+      $ref: ./components/schemas.yaml#/OfferingSummary
+    CourseDetail:
+      $ref: ./components/schemas.yaml#/CourseDetail
+    CourseDetailResponse:
+      $ref: ./components/schemas.yaml#/CourseDetailResponse
     RevokeSessionRequest:
       $ref: ./components/schemas.yaml#/RevokeSessionRequest
     SessionListResponse:
