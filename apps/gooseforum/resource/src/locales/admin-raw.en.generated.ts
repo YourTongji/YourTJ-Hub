@@ -708,7 +708,7 @@ export default {
   "k00kw": "Copy token",
   "k00kx": "Confirm rotation",
   "k00ky": "Disable agent \"",
-  "k00kz": "\"? Its token will stop working.",
+  "k00kz": "\"? Disabling revokes its token; a new one must be rotated before re-enabling.",
   "k00l0": "No agents",
   "k00l1": "Token rotated",
   "k00l2": "Copy failed, please copy manually",

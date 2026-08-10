@@ -94,10 +94,13 @@
   in-flight rotation and resets copy state for every newly issued one-time token.
 - Each Agent has zero or one configurable webhook endpoint. Only public HTTP(S) endpoints are accepted;
   loopback, private/link-local IPs, IPv6 zone identifiers, credentials, fragments, and legacy numeric IP
-  spellings are rejected. Rotating the token invalidates the old one immediately; disabling the Agent
-  rejects resolution until re-enabled. Token rotation, disablement, and profile edits update only their
-  owned columns so concurrent security changes cannot be reverted by a stale full-row save. Agent
-  deletion is not supported.
+  spellings are rejected. Rotating the token invalidates the old one immediately. Disabling an Agent
+  **revokes** its credential: the stored token hash is cleared, so a leaked token can never validate
+  again, and re-enabling requires an explicit rotation first (the admin UI prompts for it). Token
+  rotation uses a compare-and-swap on the current token prefix so concurrent rotations fail loudly
+  instead of silently dropping one new token. Rotation, disablement, and profile edits update only
+  their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
+  Agent deletion is not supported.
 - Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
   (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
   human session creation/listing (the JWT session middleware never resolves a bot user). Admin

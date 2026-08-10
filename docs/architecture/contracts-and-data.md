@@ -82,9 +82,11 @@ than a hand-maintained duplicate baseline.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
   token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
   unique index shared by human and bot accounts. The token hash is the only stored secret material,
-  the prefix is a non-secret lookup key. Agent token rotation, disablement, and profile changes use
-  column-scoped updates rather than saving stale snapshots; successful authentication touches
-  `last_used_at` at most once per minute.
+  the prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
+  (concurrent rotations fail loudly); disable clears the token hash, so re-enabling requires an
+  explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
+  than saving stale snapshots; successful authentication touches `last_used_at` at most once per
+  minute.
 - Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
   post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
   security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract

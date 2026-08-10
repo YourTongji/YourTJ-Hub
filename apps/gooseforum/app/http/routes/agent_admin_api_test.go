@@ -266,6 +266,11 @@ func TestAgentUpdateProfileWebhookAndEnable(t *testing.T) {
 	if decodeAgentResult(t, resp)["enabled"].(float64) != 0 {
 		t.Fatal("enabled should be 0 after disable")
 	}
+	// Re-enabling a disabled (revoked) agent requires rotation first.
+	_, resp = postAgent(t, router, "/api/admin/agent-update", `{"agentId":`+strconv.Itoa(agentID)+`,"enabled":1}`)
+	if resp["code"].(float64) == 0 || resp["messageCode"] != "admin.agent.needsRotate" {
+		t.Fatalf("re-enable after disable should require rotation: %s", mustJSON(resp))
+	}
 }
 
 func TestAgentRotateTokenReturnsNewTokenAndInvalidatesOld(t *testing.T) {
@@ -314,6 +319,9 @@ func TestAgentDisableEndpoint(t *testing.T) {
 	stored := agents.GetByUserID(uint64(agentID))
 	if stored == nil || stored.Enabled != agents.StatusDisabled {
 		t.Fatalf("agent enabled = %v, want disabled", stored.Enabled)
+	}
+	if stored.TokenHash != "" {
+		t.Fatal("disable must revoke the stored token hash")
 	}
 }
 

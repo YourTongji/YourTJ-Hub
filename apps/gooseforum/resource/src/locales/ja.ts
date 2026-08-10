@@ -1336,6 +1336,8 @@ export default {
     'admin.agent.rotateFailed': 'Agent トークンのローテーションに失敗しました。',
     'admin.agent.disableFailed': 'Agent の無効化に失敗しました。',
     'admin.agent.roleNotAllowed': 'ボットアカウントにロールやモデレーター権限を付与することはできません。',
+    'admin.agent.needsRotate': 'Agent のトークンは失効しています。有効化する前にトークンを再発行してください。',
+    'admin.agent.rotateConflict': 'トークンのローテーション競合が発生しました。もう一度お試しください。',
     'report.targetInvalid': '通報対象が存在しないか、通報できません。',
     'report.ownContent': '自分のコンテンツは通報できません。',
     'report.duplicate': 'すでに通報済みで、処理待ちです。',

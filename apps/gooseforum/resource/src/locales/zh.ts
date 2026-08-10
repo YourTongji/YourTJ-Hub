@@ -1337,6 +1337,8 @@ export default {
     'admin.agent.rotateFailed': '轮换 Agent 令牌失败。',
     'admin.agent.disableFailed': '禁用 Agent 失败。',
     'admin.agent.roleNotAllowed': '机器人账号不能被授予角色或版主权限。',
+    'admin.agent.needsRotate': '该 Agent 的令牌已被吊销，请先轮换令牌后再启用。',
+    'admin.agent.rotateConflict': '令牌轮换冲突，请重试。',
     'report.targetInvalid': '举报对象不存在或不可举报。',
     'report.ownContent': '不能举报自己的内容。',
     'report.duplicate': '已举报，等待处理。',

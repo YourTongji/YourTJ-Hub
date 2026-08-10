@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"testing"
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
@@ -22,9 +23,10 @@ func TestVerifyRejectsBotAccount(t *testing.T) {
 	if err := Create(bot); err != nil {
 		t.Fatalf("create bot: %v", err)
 	}
-	// Even with the right password the bot must never verify.
-	if _, err := Verify("bot-login-test", "correct-password-123"); err == nil {
-		t.Fatal("bot account must not pass password login")
+	// Even with the right password the bot must never verify, and the error
+	// is the same generic credentials error used for wrong passwords.
+	if _, err := Verify("bot-login-test", "correct-password-123"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("bot login error = %v, want ErrInvalidCredentials", err)
 	}
 }
 

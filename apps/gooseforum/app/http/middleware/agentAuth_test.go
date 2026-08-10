@@ -206,12 +206,13 @@ func TestAgentAuthIgnoresCookiesAndFallbackCredentials(t *testing.T) {
 		t.Fatalf("cookie-only status = %d, want 401", rec.Code)
 	}
 
-	// Lowercase scheme is not the canonical Bearer form and must be rejected.
+	// Lowercase scheme is accepted per RFC 9110 (auth scheme is
+	// case-insensitive).
 	req = httptest.NewRequest(http.MethodGet, "/", nil)
 	req.Header.Set("Authorization", "bearer "+result.Token)
 	rec = httptest.NewRecorder()
 	agentAuthRouter().ServeHTTP(rec, req)
-	if rec.Code != http.StatusUnauthorized {
-		t.Fatalf("lowercase bearer status = %d, want 401", rec.Code)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("lowercase bearer status = %d, want 200", rec.Code)
 	}
 }

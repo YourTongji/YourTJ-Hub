@@ -708,7 +708,7 @@ export default {
   "k00kw": "Copia token",
   "k00kx": "Conferma rotazione",
   "k00ky": "Disattivare l'agent \"",
-  "k00kz": "\"? Il suo token smetterà di funzionare.",
+  "k00kz": "\"? La disattivazione revoca il token; prima di riabilitare è necessario ruotarne uno nuovo.",
   "k00l0": "Nessun agent",
   "k00l1": "Token ruotato",
   "k00l2": "Copia non riuscita, copia manualmente",

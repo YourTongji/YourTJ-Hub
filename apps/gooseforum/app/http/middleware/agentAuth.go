@@ -32,15 +32,20 @@ func AgentAuth(c *gin.Context) {
 }
 
 // bearerToken extracts the opaque agent token from the Authorization header.
-// Only the exact "Bearer <token>" form is honored; cookie and other header
-// sources are ignored so a human session can never authenticate an Agent.
+// The auth scheme is compared case-insensitively per RFC 9110 ("Bearer",
+// "bearer", "BEARER" all match) and the credential is trimmed of surrounding
+// whitespace; cookie and other header sources are ignored so a human session
+// can never authenticate an Agent.
 func bearerToken(c *gin.Context) string {
 	header := c.GetHeader("Authorization")
-	const prefix = "Bearer "
-	if !strings.HasPrefix(header, prefix) {
+	scheme, rest, found := strings.Cut(header, " ")
+	if !found {
 		return ""
 	}
-	return strings.TrimSpace(header[len(prefix):])
+	if !strings.EqualFold(scheme, "Bearer") {
+		return ""
+	}
+	return strings.TrimSpace(rest)
 }
 
 func unauthorizedAgent(c *gin.Context) {

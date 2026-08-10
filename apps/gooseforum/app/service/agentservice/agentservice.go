@@ -51,6 +51,8 @@ var (
 	ErrAgentNicknameInvalid = errors.New("agentservice: nickname invalid")
 	ErrAgentWebhookInvalid  = errors.New("agentservice: webhook endpoint invalid")
 	ErrAgentEnabledInvalid  = errors.New("agentservice: enabled status invalid")
+	ErrAgentNeedsRotate     = errors.New("agentservice: agent needs token rotation")
+	ErrAgentRotateConflict  = errors.New("agentservice: agent token rotate conflict")
 )
 
 // TokenPair carries the plaintext token plus the derived stored fields.
@@ -102,6 +104,9 @@ func ResolveByToken(token string) (*agents.Entity, *users.EntityComplete, error)
 	}
 	if agent.Enabled != agents.StatusEnabled {
 		return nil, nil, ErrAgentDisabled
+	}
+	if agent.TokenHash == "" || agent.TokenPrefix == "" {
+		return nil, nil, ErrAgentTokenInvalid
 	}
 	storedHash, err := hex.DecodeString(agent.TokenHash)
 	if err != nil {
@@ -268,10 +273,19 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 		agentUpdates["webhook_endpoint"] = normalized
 	}
 	if p.Enabled != nil {
-		if *p.Enabled != agents.StatusDisabled && *p.Enabled != agents.StatusEnabled {
+		switch *p.Enabled {
+		case agents.StatusEnabled:
+			agentUpdates["enabled"] = agents.StatusEnabled
+		case agents.StatusDisabled:
+			// Disabling also revokes the stored credential: clearing the
+			// token hash guarantees a leaked token can never validate again,
+			// even if the agent is later re-enabled. The non-secret token
+			// prefix is retained as the unique index and rotation CAS anchor.
+			agentUpdates["enabled"] = agents.StatusDisabled
+			agentUpdates["token_hash"] = ""
+		default:
 			return nil, ErrAgentEnabledInvalid
 		}
-		agentUpdates["enabled"] = *p.Enabled
 	}
 
 	var nickname *string
@@ -284,6 +298,18 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 	}
 
 	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if p.Enabled != nil && *p.Enabled == agents.StatusEnabled {
+			// Re-enabling an Agent whose credential was revoked by a prior
+			// disable must not resurrect a leaked token: require an explicit
+			// rotation first.
+			var current agents.Entity
+			if err := tx.Table("agents").Where("user_id = ?", userID).First(&current).Error; err != nil {
+				return gorm.ErrRecordNotFound
+			}
+			if current.TokenHash == "" {
+				return ErrAgentNeedsRotate
+			}
+		}
 		if len(agentUpdates) > 0 {
 			if err := agents.UpdateColumns(tx, userID, agentUpdates); err != nil {
 				return err
@@ -330,24 +356,38 @@ func Update(userID uint64, p UpdateParams) (*AgentView, error) {
 
 // RotateToken replaces the agent token. The old token stops resolving
 // immediately because the stored prefix and hash are replaced atomically in
-// one update. The new plaintext token is returned exactly once.
+// one update. The new plaintext token is returned exactly once. The update is
+// a compare-and-swap on the current token prefix so two concurrent rotations
+// cannot silently drop each other's new credential: the second writer fails
+// with ErrAgentRotateConflict instead of overwriting the first. Rotation is
+// also the recovery path after Disable revoked the credential: it succeeds
+// and the agent can then be re-enabled.
 func RotateToken(userID uint64) (string, error) {
+	current := agents.GetByUserID(userID)
+	if current == nil {
+		return "", ErrAgentNotFound
+	}
 	tokenPair, err := GenerateToken()
 	if err != nil {
 		return "", err
 	}
-	if err := agents.UpdateToken(userID, tokenPair.Prefix, tokenPair.Hash); err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", ErrAgentNotFound
-		}
+	affected, err := agents.UpdateTokenCAS(userID, current.TokenPrefix, tokenPair.Prefix, tokenPair.Hash)
+	if err != nil {
 		return "", err
+	}
+	if affected == 0 {
+		return "", ErrAgentRotateConflict
 	}
 	return tokenPair.Token, nil
 }
 
-// Disable turns the agent off. Resolution is rejected while disabled.
+// Disable turns the agent off and revokes its credential: resolution is
+// rejected while disabled, and the stored token hash is cleared so a leaked
+// token can never be validated again, even if the agent is re-enabled.
+// Re-enabling requires an explicit rotation (ErrAgentNeedsRotate); the
+// non-secret token prefix is retained as the unique index and CAS anchor.
 func Disable(userID uint64) error {
-	if err := agents.UpdateEnabled(userID, agents.StatusDisabled); err != nil {
+	if err := agents.RevokeCredential(userID); err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return ErrAgentNotFound
 		}

@@ -1336,6 +1336,8 @@ export default {
     'admin.agent.rotateFailed': 'Rotazione del token dell’agent non riuscita.',
     'admin.agent.disableFailed': 'Disattivazione dell’agent non riuscita.',
     'admin.agent.roleNotAllowed': 'Gli account bot non possono ricevere ruoli o permessi da moderatore.',
+    'admin.agent.needsRotate': 'Il token dell’agent è stato revocato. Ruota un nuovo token prima di abilitarlo.',
+    'admin.agent.rotateConflict': 'Conflitto di rotazione del token. Riprova.',
     'report.targetInvalid': 'Il contenuto segnalato non esiste o non può essere segnalato.',
     'report.ownContent': 'Non puoi segnalare i tuoi contenuti.',
     'report.duplicate': 'Già segnalato e in attesa di revisione.',

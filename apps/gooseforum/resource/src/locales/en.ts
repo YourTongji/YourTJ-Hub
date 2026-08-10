@@ -1337,6 +1337,8 @@ export default {
     'admin.agent.rotateFailed': 'Failed to rotate the agent token.',
     'admin.agent.disableFailed': 'Failed to disable agent.',
     'admin.agent.roleNotAllowed': 'Bot accounts cannot receive roles or moderator access.',
+    'admin.agent.needsRotate': 'The agent token was revoked. Rotate a new token before enabling it.',
+    'admin.agent.rotateConflict': 'Token rotation conflict. Please try again.',
     'report.targetInvalid': 'The reported content does not exist or cannot be reported.',
     'report.ownContent': 'You cannot report your own content.',
     'report.duplicate': 'Already reported and waiting for review.',

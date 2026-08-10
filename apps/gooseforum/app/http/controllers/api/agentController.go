@@ -133,6 +133,8 @@ func AgentUpdate(req component.BetterRequest[AgentUpdateReq]) component.Response
 			return component.FailResponseCode(component.MessageAdminAgentWebhookInvalid, nil)
 		case errors.Is(err, agentservice.ErrAgentEnabledInvalid):
 			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		case errors.Is(err, agentservice.ErrAgentNeedsRotate):
+			return component.FailResponseCode(component.MessageAdminAgentNeedsRotate, nil)
 		default:
 			slog.Error("agent update failed", "agentId", params.AgentId, "error", err)
 			return component.FailResponseCode(component.MessageAdminAgentUpdateFailed, nil)
@@ -153,11 +155,15 @@ type AgentRotateTokenResponse struct {
 func AgentRotateToken(req component.BetterRequest[AgentIdReq]) component.Response {
 	token, err := agentservice.RotateToken(req.Params.AgentId)
 	if err != nil {
-		if errors.Is(err, agentservice.ErrAgentNotFound) {
+		switch {
+		case errors.Is(err, agentservice.ErrAgentNotFound):
 			return component.FailResponseCode(component.MessageAdminAgentNotFound, nil)
+		case errors.Is(err, agentservice.ErrAgentRotateConflict):
+			return component.FailResponseCode(component.MessageAdminAgentRotateConflict, nil)
+		default:
+			slog.Error("agent rotate token failed", "agentId", req.Params.AgentId, "error", err)
+			return component.FailResponseCode(component.MessageAdminAgentRotateFailed, nil)
 		}
-		slog.Error("agent rotate token failed", "agentId", req.Params.AgentId, "error", err)
-		return component.FailResponseCode(component.MessageAdminAgentRotateFailed, nil)
 	}
 	optlogger.UserOptCode(req.UserId, optlogger.EditUser, req.Params.AgentId, "admin.opt.agent.tokenRotated", optlogger.MessageParams{
 		"agentId": req.Params.AgentId,

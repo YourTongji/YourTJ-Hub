@@ -268,6 +268,34 @@ func TestRotateTokenInvalidatesOldToken(t *testing.T) {
 	}
 }
 
+func TestRotateTokenCASConflict(t *testing.T) {
+	setupAgentTestDB(t)
+	result, err := Create(CreateParams{Username: "rotate-cas-agent"})
+	if err != nil {
+		t.Fatalf("Create() error = %v", err)
+	}
+	// A stale prefix must not overwrite a concurrent rotation.
+	other, err := GenerateToken()
+	if err != nil {
+		t.Fatalf("GenerateToken() error = %v", err)
+	}
+	affected, err := agents.UpdateTokenCAS(result.Agent.UserId, "stale-prefix", other.Prefix, other.Hash)
+	if err != nil {
+		t.Fatalf("UpdateTokenCAS(stale) error = %v", err)
+	}
+	if affected != 0 {
+		t.Fatalf("CAS with stale prefix affected = %d, want 0", affected)
+	}
+	// The real rotation still works against the current prefix.
+	newToken, err := RotateToken(result.Agent.UserId)
+	if err != nil {
+		t.Fatalf("RotateToken() error = %v", err)
+	}
+	if _, _, err := ResolveByToken(newToken); err != nil {
+		t.Fatalf("new token resolve error = %v", err)
+	}
+}
+
 func TestDisableInvalidatesAccess(t *testing.T) {
 	setupAgentTestDB(t)
 	result, err := Create(CreateParams{Username: "disable-agent"})
@@ -280,12 +308,27 @@ func TestDisableInvalidatesAccess(t *testing.T) {
 	if _, _, err := ResolveByToken(result.Token); !errors.Is(err, ErrAgentDisabled) {
 		t.Fatalf("resolve after disable error = %v, want ErrAgentDisabled", err)
 	}
-	// Re-enable restores access.
-	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); err != nil {
-		t.Fatalf("Update(enabled) error = %v", err)
+	stored := agents.GetByUserID(result.Agent.UserId)
+	if stored == nil || stored.TokenHash != "" {
+		t.Fatal("disable must revoke the stored token hash")
 	}
-	if _, _, err := ResolveByToken(result.Token); err != nil {
-		t.Fatalf("resolve after re-enable error = %v", err)
+	// Re-enabling without an explicit rotation is rejected.
+	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); !errors.Is(err, ErrAgentNeedsRotate) {
+		t.Fatalf("re-enable after disable error = %v, want ErrAgentNeedsRotate", err)
+	}
+	// Rotation is the recovery path: the new token resolves after re-enable.
+	newToken, err := RotateToken(result.Agent.UserId)
+	if err != nil {
+		t.Fatalf("RotateToken() error = %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); err != nil {
+		t.Fatalf("re-enable after rotation error = %v", err)
+	}
+	if _, _, err := ResolveByToken(newToken); err != nil {
+		t.Fatalf("resolve new token after re-enable error = %v", err)
+	}
+	if _, _, err := ResolveByToken(result.Token); !errors.Is(err, ErrAgentTokenInvalid) {
+		t.Fatalf("old revoked token error = %v, want invalid", err)
 	}
 }
 
@@ -318,8 +361,11 @@ func TestAgentSecurityUpdatesPreserveUnownedColumns(t *testing.T) {
 	if stored.Enabled != agents.StatusDisabled {
 		t.Fatalf("enabled = %d, want disabled", stored.Enabled)
 	}
-	if stored.TokenPrefix != rotated.TokenPrefix || stored.TokenHash != rotated.TokenHash {
-		t.Fatal("disable/profile update reverted rotated token")
+	if stored.TokenHash != "" {
+		t.Fatal("disable must revoke the token hash")
+	}
+	if stored.TokenPrefix != rotated.TokenPrefix {
+		t.Fatal("disable must retain the non-secret token prefix")
 	}
 	if stored.WebhookEndpoint != "https://after.example.com/hook" {
 		t.Fatalf("webhook = %q", stored.WebhookEndpoint)
@@ -327,11 +373,23 @@ func TestAgentSecurityUpdatesPreserveUnownedColumns(t *testing.T) {
 	if _, _, err := ResolveByToken(result.Token); !errors.Is(err, ErrAgentDisabled) && !errors.Is(err, ErrAgentTokenInvalid) {
 		t.Fatalf("old token error = %v, want disabled or invalid", err)
 	}
-	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); err != nil {
-		t.Fatalf("re-enable error = %v", err)
+	// Re-enabling without rotation is rejected.
+	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); !errors.Is(err, ErrAgentNeedsRotate) {
+		t.Fatalf("re-enable after disable error = %v, want ErrAgentNeedsRotate", err)
 	}
-	if _, _, err := ResolveByToken(newToken); err != nil {
+	// Rotate then re-enable restores access with the new token only.
+	rotatedToken, err := RotateToken(result.Agent.UserId)
+	if err != nil {
+		t.Fatalf("RotateToken() after disable error = %v", err)
+	}
+	if _, err := Update(result.Agent.UserId, UpdateParams{Enabled: ptr(int8(agents.StatusEnabled))}); err != nil {
+		t.Fatalf("re-enable after rotation error = %v", err)
+	}
+	if _, _, err := ResolveByToken(rotatedToken); err != nil {
 		t.Fatalf("rotated token after re-enable error = %v", err)
+	}
+	if _, _, err := ResolveByToken(newToken); !errors.Is(err, ErrAgentTokenInvalid) {
+		t.Fatalf("pre-disable token error = %v, want invalid", err)
 	}
 }
 

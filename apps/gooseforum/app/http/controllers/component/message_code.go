@@ -232,5 +232,7 @@ const (
 	MessageAdminAgentNotFound        MessageCode = "admin.agent.notFound"        // Agent 不存在。
 	MessageAdminAgentRotateFailed    MessageCode = "admin.agent.rotateFailed"    // 轮换令牌失败，params.error 可带原始错误。
 	MessageAdminAgentDisableFailed   MessageCode = "admin.agent.disableFailed"   // 禁用 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentNeedsRotate     MessageCode = "admin.agent.needsRotate"     // 该 Agent 的令牌已被吊销，重新启用前必须先轮换。
 	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
+	MessageAdminAgentRotateConflict  MessageCode = "admin.agent.rotateConflict"  // 并发轮换冲突，请重试。
 )
