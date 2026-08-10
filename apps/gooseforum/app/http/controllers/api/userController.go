@@ -494,6 +494,10 @@ func ChangePassword(req component.BetterRequest[ChangePasswordReq]) component.Re
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
+	// 机器人（Agent）账号没有可用密码，也不允许通过改密接口变更。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthOldPasswordInvalid, nil)
+	}
 	if err = component.ValidatePassword(req.Params.NewPassword, 6); err != nil {
 		return component.FailResponseError(err)
 	}
@@ -536,11 +540,10 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 	}
 
 	userEntity, err := users.GetByEmail(req.Params.Email)
-	if err != nil {
-		// 为了安全考虑，即使邮箱不存在也返回成功消息
+	if err != nil || userEntity.IsBot() {
+		// 为了安全考虑，即使邮箱不存在（或命中机器人账号）也返回成功消息
 		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 	}
-
 	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
@@ -577,6 +580,10 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 	userEntity, err := users.Get(claims.UserId)
 	if err != nil {
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
+	}
+	// 机器人（Agent）账号不参与密码重置流程。
+	if userEntity.IsBot() {
+		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
 	}
 
 	if userEntity.Email != claims.Email {

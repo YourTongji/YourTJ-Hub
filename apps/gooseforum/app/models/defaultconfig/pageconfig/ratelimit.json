@@ -4,6 +4,8 @@
   "actions": [
     { "action": "register", "windowSeconds": 3600, "limitPerIp": 20, "limitPerUser": 0 },
     { "action": "login", "windowSeconds": 900, "limitPerIp": 60, "limitPerUser": 0 },
+    { "action": "oidc.authorize", "windowSeconds": 900, "limitPerIp": 120, "limitPerUser": 0 },
+    { "action": "oidc.token", "windowSeconds": 900, "limitPerIp": 120, "limitPerUser": 0 },
     { "action": "forgot-password", "windowSeconds": 3600, "limitPerIp": 10, "limitPerUser": 0 },
     { "action": "topic.write", "windowSeconds": 60, "limitPerIp": 5, "limitPerUser": 1 },
     { "action": "post.create", "windowSeconds": 60, "limitPerIp": 20, "limitPerUser": 10 },

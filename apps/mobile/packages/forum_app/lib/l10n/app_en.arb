@@ -91,7 +91,7 @@
   "authTwoFactorCode": "TOTP code",
   "authVerify": "Verify",
   "authGetCode": "Get code",
-  "authCasdoorLogin": "Sign in with Casdoor",
+  "authOidcLogin": "Sign in with yourtj",
   "authRegisterSuccess": "Registered successfully, please sign in",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
@@ -317,8 +317,8 @@
       }
     }
   },
-  "settingsOAuth": "Casdoor unified identity",
-  "settingsOAuthSub": "OIDC login bindings",
+  "settingsOAuth": "External account connections",
+  "settingsOAuthSub": "GitHub and Google login connections",
   "settingsOAuthManage": "Manage OAuth bindings",
   "settingsOAuthBindings": "OAuth bindings",
   "settingsBound": "Bound",

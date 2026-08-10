@@ -171,7 +171,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authGetCode => 'Get code';
 
   @override
-  String get authCasdoorLogin => 'Sign in with Casdoor';
+  String get authOidcLogin => 'Sign in with yourtj';
 
   @override
   String get authRegisterSuccess => 'Registered successfully, please sign in';
@@ -585,10 +585,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsOAuth => 'Casdoor unified identity';
+  String get settingsOAuth => 'External account connections';
 
   @override
-  String get settingsOAuthSub => 'OIDC login bindings';
+  String get settingsOAuthSub => 'GitHub and Google login connections';
 
   @override
   String get settingsOAuthManage => 'Manage OAuth bindings';

@@ -2,33 +2,64 @@ name: ci-frontend
 
 on:
   push:
+    branches: [dev, main]
     paths:
       - "apps/gooseforum/resource/**"
+      - "apps/gooseforum/testdata/markdown-compat/**"
+      - ".github/workflows/ci-frontend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在
   pull_request:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+  pull-requests: read
 
 jobs:
   ci-frontend:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: dorny/paths-filter@v4
+        id: filter
+        with:
+          # On dev/main pushes, compare with the commit before this push.
+          # This input is ignored for pull_request, which uses its base branch.
+          base: ${{ github.event_name == 'push' && github.ref_name || '' }}
+          filters: |
+            frontend:
+              - 'apps/gooseforum/resource/**'
+              - 'apps/gooseforum/testdata/markdown-compat/**'
+              - '.github/workflows/ci-frontend.yml'
+
       - uses: pnpm/action-setup@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           version: 11
       - uses: actions/setup-node@v4
+        if: steps.filter.outputs.frontend == 'true'
         with:
           node-version: 24
           cache: pnpm
           cache-dependency-path: apps/gooseforum/resource/pnpm-lock.yaml
       - name: Install
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm install --frozen-lockfile
       - name: Typecheck
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm typecheck
       - name: Test
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm test
       - name: Build
+        if: steps.filter.outputs.frontend == 'true'
         working-directory: apps/gooseforum/resource
         run: pnpm build

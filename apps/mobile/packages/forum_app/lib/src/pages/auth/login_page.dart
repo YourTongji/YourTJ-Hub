@@ -19,7 +19,7 @@ enum _AuthMode { login, register, forgotPassword }
 /// 登录/注册/找回密码页(web auth.login 的移动端形态)。
 ///
 /// 密码登录:公钥 → RSA-OAEP 加密 → 登录 → (验证码/TOTP 挑战)。
-/// 统一身份:OIDC(Casdoor)经 AppAuth + 后端 exchange 兑换。
+/// 统一身份：论坛内建 OIDC Provider 经 AppAuth + 后端 exchange 兑换。
 /// 注册/找回密码:复用 AuthController 的 register/forgotPassword。
 class LoginPage extends ConsumerStatefulWidget {
   const LoginPage({super.key});
@@ -390,7 +390,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
         if (_mode == _AuthMode.login) ...<Widget>[
           const SizedBox(height: 12),
           GfButton(
-            label: l10n.authCasdoorLogin,
+            label: l10n.authOidcLogin,
             variant: GfButtonVariant.outline,
             size: GfButtonSize.extraLarge,
             expanded: true,

@@ -7,10 +7,10 @@ import 'package:core/core.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter_appauth/flutter_appauth.dart';
 
-/// OIDC(Casdoor)登录控制器:AppAuth PKCE 授权码流程 + 后端 exchange 兑换。
+/// OIDC 登录控制器:AppAuth PKCE 授权码流程 + 后端 exchange 兑换。
 ///
 /// 流程(对齐后端 `POST /api/auth/oidc/exchange`,已核实契约):
-/// 1. 通过 Casdoor `/.well-known/openid-configuration` 发现端点;
+/// 1. 通过论坛内建 OIDC Provider `/.well-known/openid-configuration` 发现端点;
 /// 2. AppAuth `authorize()` 发起授权(redirectUri = yourtj://callback)。
 ///    AppAuth 自动生成 PKCE S256 challenge/verifier 与 state;
 ///    响应 [AuthorizationResponse] 含 authorizationCode + codeVerifier;

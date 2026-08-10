@@ -35,7 +35,7 @@ type GormLoggerConfig struct {
 // 如果 config 为 nil，将使用默认配置
 func NewGormLogger(config *GormLoggerConfig) *GormLogger {
 	if config == nil {
-		config = &GormLoggerConfig{}
+		config = &GormLoggerConfig{ParameterizedQueries: true}
 	}
 
 	// 设置默认值
@@ -65,6 +65,16 @@ func NewGormLogger(config *GormLoggerConfig) *GormLogger {
 		},
 		slowThreshold: config.SlowThreshold,
 	}
+}
+
+// ParamsFilter keeps query parameters out of GORM's rendered SQL when
+// ParameterizedQueries is enabled. GORM checks this optional interface before
+// invoking Dialector.Explain; without it, the config flag is inert.
+func (l *GormLogger) ParamsFilter(_ context.Context, sql string, params ...interface{}) (string, []interface{}) {
+	if l.config.ParameterizedQueries {
+		return sql, nil
+	}
+	return sql, params
 }
 
 // NewGormLoggerWithDefault 使用默认配置创建 GormLogger

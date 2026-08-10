@@ -44,6 +44,10 @@ func TotpSetup(req component.BetterRequest[TotpSetupReq]) component.Response {
 		slog.Error("TOTP setup: user not found", "userId", req.UserId, "error", err)
 		return component.FailResponseCode(component.MessageTotpSetupFailed, nil)
 	}
+	// 机器人（Agent）账号不参与人类两步验证流程。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
+	}
 	if err := algorithm.VerifyEncryptPassword(user.Password, req.Params.Password); err != nil {
 		return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
 	}

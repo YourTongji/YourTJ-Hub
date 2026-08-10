@@ -26,7 +26,7 @@
                 <action android:name="android.intent.action.MAIN"/>
                 <category android:name="android.intent.category.LAUNCHER"/>
             </intent-filter>
-            <!-- OIDC(Casdoor)授权回跳:yourtj://callback(custom scheme)。 -->
+            <!-- 论坛内建 OIDC Provider 授权回跳：yourtj://callback（custom scheme）。 -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW"/>
                 <category android:name="android.intent.category.DEFAULT"/>

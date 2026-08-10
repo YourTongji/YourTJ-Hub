@@ -1,60 +1,92 @@
-@layer components {
-  .gf-prose :where(.hljs-comment, .hljs-quote) {
-    color: color-mix(in oklch, var(--gf-color-base-content) 52%, transparent);
-    font-style: italic;
-  }
+/*
+ * 论坛代码块的自定义 token 配色。
+ *
+ * 必须保持 unlayered：Vditor 编辑器在 TopicPage 上挂载后，syncHighlightTheme()
+ * 会把 highlight.js 的 github.css / github-dark.css 以全局 <link> 注入
+ * document.head，这些主题样式是 unlayered 的。若本项目配色留在 @layer
+ * components 内，无论特异性高低都会被 unlayered 主题覆盖（CSS cascade
+ * layers 中 unlayered 作者样式优先于任何层内样式）。因此这里与 prose.css
+ * 中的 KaTeX 覆盖同理：保持 unlayered，并用 .gf-prose .hljs-* 让特异性
+ * (0,2,0) 高于 github.css 的 .hljs-* (0,1,0)，保证运行时注入的主题不会
+ * 改写论坛代码块的 token 颜色。
+ */
+.gf-prose .hljs-comment,
+.gf-prose .hljs-quote {
+  color: color-mix(in oklch, var(--gf-color-base-content) 52%, transparent);
+  font-style: italic;
+}
 
-  .gf-prose :where(.hljs-keyword, .hljs-selector-tag, .hljs-meta .hljs-keyword) {
-    color: color-mix(in oklch, var(--gf-color-primary) 82%, var(--gf-color-base-content));
-    font-weight: 600;
-  }
+.gf-prose .hljs-keyword,
+.gf-prose .hljs-selector-tag,
+.gf-prose .hljs-meta .hljs-keyword {
+  color: color-mix(in oklch, var(--gf-color-primary) 82%, var(--gf-color-base-content));
+  font-weight: 600;
+}
 
-  .gf-prose :where(.hljs-title, .hljs-section, .hljs-selector-id, .hljs-selector-class) {
-    color: color-mix(in oklch, var(--gf-color-secondary-content) 78%, var(--gf-color-base-content));
-    font-weight: 600;
-  }
+.gf-prose .hljs-title,
+.gf-prose .hljs-section,
+.gf-prose .hljs-selector-id,
+.gf-prose .hljs-selector-class {
+  color: color-mix(in oklch, var(--gf-color-secondary-content) 78%, var(--gf-color-base-content));
+  font-weight: 600;
+}
 
-  .gf-prose :where(.hljs-string, .hljs-doctag, .hljs-regexp, .hljs-link) {
-    color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
-  }
+.gf-prose .hljs-string,
+.gf-prose .hljs-doctag,
+.gf-prose .hljs-regexp,
+.gf-prose .hljs-link {
+  color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
+}
 
-  .gf-prose :where(.hljs-number, .hljs-literal, .hljs-symbol, .hljs-bullet) {
-    color: color-mix(in oklch, var(--gf-color-warning) 74%, var(--gf-color-base-content));
-  }
+.gf-prose .hljs-number,
+.gf-prose .hljs-literal,
+.gf-prose .hljs-symbol,
+.gf-prose .hljs-bullet {
+  color: color-mix(in oklch, var(--gf-color-warning) 74%, var(--gf-color-base-content));
+}
 
-  .gf-prose :where(.hljs-variable, .hljs-template-variable, .hljs-params, .hljs-attr, .hljs-attribute) {
-    color: color-mix(in oklch, var(--gf-color-info) 76%, var(--gf-color-base-content));
-  }
+.gf-prose .hljs-variable,
+.gf-prose .hljs-template-variable,
+.gf-prose .hljs-params,
+.gf-prose .hljs-attr,
+.gf-prose .hljs-attribute {
+  color: color-mix(in oklch, var(--gf-color-info) 76%, var(--gf-color-base-content));
+}
 
-  .gf-prose :where(.hljs-type, .hljs-class .hljs-title, .hljs-built_in, .hljs-builtin-name) {
-    color: color-mix(in oklch, var(--gf-color-accent) 76%, var(--gf-color-base-content));
-  }
+.gf-prose .hljs-type,
+.gf-prose .hljs-class .hljs-title,
+.gf-prose .hljs-built_in,
+.gf-prose .hljs-builtin-name {
+  color: color-mix(in oklch, var(--gf-color-accent) 76%, var(--gf-color-base-content));
+}
 
-  .gf-prose :where(.hljs-tag, .hljs-name, .hljs-meta, .hljs-operator) {
-    color: color-mix(in oklch, var(--gf-color-error) 72%, var(--gf-color-base-content));
-  }
+.gf-prose .hljs-tag,
+.gf-prose .hljs-name,
+.gf-prose .hljs-meta,
+.gf-prose .hljs-operator {
+  color: color-mix(in oklch, var(--gf-color-error) 72%, var(--gf-color-base-content));
+}
 
-  .gf-prose .hljs-subst {
-    color: var(--gf-color-base-content);
-  }
+.gf-prose .hljs-subst {
+  color: var(--gf-color-base-content);
+}
 
-  .gf-prose .hljs-addition {
-    color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
-    background: color-mix(in oklch, var(--gf-color-success) 12%, transparent);
-  }
+.gf-prose .hljs-addition {
+  color: color-mix(in oklch, var(--gf-color-success) 72%, var(--gf-color-base-content));
+  background: color-mix(in oklch, var(--gf-color-success) 12%, transparent);
+}
 
-  .gf-prose .hljs-deletion {
-    color: color-mix(in oklch, var(--gf-color-error) 76%, var(--gf-color-base-content));
-    background: color-mix(in oklch, var(--gf-color-error) 12%, transparent);
-  }
+.gf-prose .hljs-deletion {
+  color: color-mix(in oklch, var(--gf-color-error) 76%, var(--gf-color-base-content));
+  background: color-mix(in oklch, var(--gf-color-error) 12%, transparent);
+}
 
-  .gf-prose .hljs-emphasis {
-    font-style: italic;
-  }
+.gf-prose .hljs-emphasis {
+  font-style: italic;
+}
 
-  .gf-prose .hljs-strong {
-    font-weight: 700;
-  }
+.gf-prose .hljs-strong {
+  font-weight: 700;
 }
 
 html[data-gf-font-code] pre,
