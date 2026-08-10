@@ -283,54 +283,60 @@ type TopicDetailProps struct {
 }
 
 type TopicDetailPayload struct {
-	ID            uint64                 `json:"id"`
-	Title         string                 `json:"title"`
-	Description   string                 `json:"description"`
-	FirstImageURL string                 `json:"firstImageUrl,omitempty"`
-	URL           string                 `json:"url"`
-	TopicStatus   int8                   `json:"topicStatus"`
-	ProcessStatus int8                   `json:"processStatus"`
-	Author        TopicAuthorPayload     `json:"author"`
-	Participants  []TopicAuthorPayload   `json:"participants"`
-	Categories    []TopicCategoryPayload `json:"categories"`
-	ReplyCount    uint64                 `json:"replyCount"`
-	MaxPostNo     uint64                 `json:"maxPostNo"`
-	ViewCount     uint64                 `json:"viewCount"`
-	LikeCount     uint64                 `json:"likeCount"`
-	IsLiked       bool                   `json:"isLiked"`
-	IsBookmarked  bool                   `json:"isBookmarked"`
-	IsWatched     bool                   `json:"isWatched"`
-	CreatedAt     string                 `json:"createdAt"`
-	UpdatedAt     string                 `json:"updatedAt"`
+	ID               uint64                 `json:"id"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	FirstImageURL    string                 `json:"firstImageUrl,omitempty"`
+	URL              string                 `json:"url"`
+	TopicStatus      int8                   `json:"topicStatus"`
+	ProcessStatus    int8                   `json:"processStatus"`
+	AuthorDeleted    bool                   `json:"authorDeleted"`
+	ModeratorRemoved bool                   `json:"moderatorRemoved"`
+	Author           TopicAuthorPayload     `json:"author"`
+	Participants     []TopicAuthorPayload   `json:"participants"`
+	Categories       []TopicCategoryPayload `json:"categories"`
+	ReplyCount       uint64                 `json:"replyCount"`
+	MaxPostNo        uint64                 `json:"maxPostNo"`
+	ViewCount        uint64                 `json:"viewCount"`
+	LikeCount        uint64                 `json:"likeCount"`
+	IsLiked          bool                   `json:"isLiked"`
+	IsBookmarked     bool                   `json:"isBookmarked"`
+	IsWatched        bool                   `json:"isWatched"`
+	CreatedAt        string                 `json:"createdAt"`
+	UpdatedAt        string                 `json:"updatedAt"`
 }
 
 type PostPayload struct {
-	ID              uint64             `json:"id"`
-	TopicID         uint64             `json:"topicId"`
-	PostNo          uint64             `json:"postNo"`
-	Content         string             `json:"content"`
-	RenderedContent string             `json:"renderedContent"`
-	ProcessStatus   int8               `json:"processStatus"`
-	IsHidden        bool               `json:"isHidden"`
-	CanModerate     bool               `json:"canModerate"`
-	Author          TopicAuthorPayload `json:"author"`
-	CreatedAt       string             `json:"createdAt"`
-	ReplyToPostID   uint64             `json:"replyToPostId,omitempty"`
-	ReplyToUserID   uint64             `json:"replyToUserId,omitempty"`
-	ReplyToUsername string             `json:"replyToUsername,omitempty"`
-	IsOwnPost       bool               `json:"isOwnPost"`
-	UpdatedAt       string             `json:"updatedAt"`
-	LikeCount       uint64             `json:"likeCount"`
-	IsLiked         bool               `json:"isLiked"`
-	IsBookmarked    bool               `json:"isBookmarked"`
+	ID                 uint64             `json:"id"`
+	TopicID            uint64             `json:"topicId"`
+	PostNo             uint64             `json:"postNo"`
+	Content            string             `json:"content"`
+	RenderedContent    string             `json:"renderedContent"`
+	ProcessStatus      int8               `json:"processStatus"`
+	IsHidden           bool               `json:"isHidden"`
+	IsAuthorDeleted    bool               `json:"isAuthorDeleted"`
+	IsModeratorRemoved bool               `json:"isModeratorRemoved"`
+	CanModerate        bool               `json:"canModerate"`
+	Author             TopicAuthorPayload `json:"author"`
+	CreatedAt          string             `json:"createdAt"`
+	ReplyToPostID      uint64             `json:"replyToPostId,omitempty"`
+	ReplyToUserID      uint64             `json:"replyToUserId,omitempty"`
+	ReplyToUsername    string             `json:"replyToUsername,omitempty"`
+	IsOwnPost          bool               `json:"isOwnPost"`
+	UpdatedAt          string             `json:"updatedAt"`
+	LikeCount          uint64             `json:"likeCount"`
+	IsLiked            bool               `json:"isLiked"`
+	IsBookmarked       bool               `json:"isBookmarked"`
 }
 
 type ReplyTargetPayload struct {
-	ID              uint64             `json:"id"`
-	PostNo          uint64             `json:"postNo,omitempty"`
-	Author          TopicAuthorPayload `json:"author"`
-	RenderedContent string             `json:"renderedContent,omitempty"`
-	Unavailable     bool               `json:"unavailable,omitempty"`
+	ID                 uint64             `json:"id"`
+	PostNo             uint64             `json:"postNo,omitempty"`
+	Author             TopicAuthorPayload `json:"author"`
+	RenderedContent    string             `json:"renderedContent,omitempty"`
+	IsAuthorDeleted    bool               `json:"isAuthorDeleted,omitempty"`
+	IsModeratorRemoved bool               `json:"isModeratorRemoved,omitempty"`
+	Unavailable        bool               `json:"unavailable,omitempty"`
 }
 
 type PostWindowPayload struct {
@@ -1042,6 +1048,18 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
 		postEntities = append(postEntities, firstPost)
 	}
+	if anchorPostNo <= 1 && firstPost != nil && firstPost.Id != 0 && topic.VisibilityStatus != topics.VisibilityActive {
+		firstPostLoaded := false
+		for _, item := range postEntities {
+			if item != nil && item.Id == firstPost.Id {
+				firstPostLoaded = true
+				break
+			}
+		}
+		if !firstPostLoaded {
+			postEntities = append([]*posts.Entity{firstPost}, postEntities...)
+		}
+	}
 	userIDs := make([]uint64, 0, len(postEntities)+1)
 	seenUserIDs := make(map[uint64]struct{}, len(postEntities)+1)
 	if topic.UserId > 0 {
@@ -1202,26 +1220,34 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		content := item.Content
 		renderedContent := item.RenderedHTML
 		isHidden := item.ProcessStatus != 0
+		isAuthorDeleted := isAuthorDeletedVisibility(item.VisibilityStatus)
+		isModeratorRemoved := isModeratorRemovedVisibility(item.VisibilityStatus)
 		if isHidden && !canModerate {
 			content = ""
 			renderedContent = ""
 		}
+		if isAuthorDeleted || isModeratorRemoved {
+			content = ""
+			renderedContent = ""
+		}
 		res = append(res, PostPayload{
-			ID:              item.Id,
-			TopicID:         item.TopicId,
-			PostNo:          item.PostNo,
-			Content:         content,
-			RenderedContent: renderedContent,
-			ProcessStatus:   item.ProcessStatus,
-			IsHidden:        isHidden,
-			CanModerate:     canModerate,
-			Author:          author,
-			CreatedAt:       item.CreatedAt.Format(time.DateTime),
-			ReplyToPostID:   item.ReplyToPostId,
-			ReplyToUserID:   replyToUserID,
-			ReplyToUsername: replyToName,
-			IsOwnPost:       currentUserID == item.UserId,
-			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
+			ID:                 item.Id,
+			TopicID:            item.TopicId,
+			PostNo:             item.PostNo,
+			Content:            content,
+			RenderedContent:    renderedContent,
+			ProcessStatus:      item.ProcessStatus,
+			IsHidden:           isHidden,
+			IsAuthorDeleted:    isAuthorDeleted,
+			IsModeratorRemoved: isModeratorRemoved,
+			CanModerate:        canModerate,
+			Author:             author,
+			CreatedAt:          item.CreatedAt.Format(time.DateTime),
+			ReplyToPostID:      item.ReplyToPostId,
+			ReplyToUserID:      replyToUserID,
+			ReplyToUsername:    replyToName,
+			IsOwnPost:          currentUserID == item.UserId,
+			UpdatedAt:          item.UpdatedAt.Format(time.DateTime),
 		})
 	}
 
@@ -1250,12 +1276,19 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	if !ok || parent == nil || parent.TopicId != topicID {
 		return target
 	}
+	if parent.RetentionStatus == posts.RetentionPurged {
+		return target
+	}
 	if parent.ProcessStatus != 0 && !canModerate {
 		return target
 	}
 	target.PostNo = parent.PostNo
 	target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
-	target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	target.IsAuthorDeleted = isAuthorDeletedVisibility(parent.VisibilityStatus)
+	target.IsModeratorRemoved = isModeratorRemovedVisibility(parent.VisibilityStatus)
+	if !target.IsAuthorDeleted && !target.IsModeratorRemoved {
+		target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	}
 	target.Unavailable = false
 	return target
 }
@@ -1316,26 +1349,38 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 	}
 
 	return TopicDetailPayload{
-		ID:            topic.Id,
-		Title:         topic.Title,
-		Description:   topic.Excerpt,
-		FirstImageURL: topic.FirstImageURL,
-		URL:           urlconfig.PostDetail(topic.Id),
-		TopicStatus:   topic.Status,
-		ProcessStatus: topic.ProcessStatus,
-		Author:        authorPayload(topic.UserId),
-		Participants:  participants,
-		Categories:    categoryPayloads(topic.CategoryIds),
-		ReplyCount:    topic.ReplyCount,
-		MaxPostNo:     topic.PostSeq,
-		ViewCount:     topic.ViewCount,
-		LikeCount:     topic.LikeCount,
-		IsLiked:       isLiked,
-		IsBookmarked:  isBookmarked,
-		IsWatched:     isWatched,
-		CreatedAt:     createdAt.Format(time.DateTime),
-		UpdatedAt:     updatedAt.Format(time.DateTime),
+		ID:               topic.Id,
+		Title:            topic.Title,
+		Description:      topic.Excerpt,
+		FirstImageURL:    topic.FirstImageURL,
+		URL:              urlconfig.PostDetail(topic.Id),
+		TopicStatus:      topic.Status,
+		ProcessStatus:    topic.ProcessStatus,
+		AuthorDeleted:    isAuthorDeletedVisibility(topic.VisibilityStatus),
+		ModeratorRemoved: isModeratorRemovedVisibility(topic.VisibilityStatus),
+		Author:           authorPayload(topic.UserId),
+		Participants:     participants,
+		Categories:       categoryPayloads(topic.CategoryIds),
+		ReplyCount:       topic.ReplyCount,
+		MaxPostNo:        topic.PostSeq,
+		ViewCount:        topic.ViewCount,
+		LikeCount:        topic.LikeCount,
+		IsLiked:          isLiked,
+		IsBookmarked:     isBookmarked,
+		IsWatched:        isWatched,
+		CreatedAt:        createdAt.Format(time.DateTime),
+		UpdatedAt:        updatedAt.Format(time.DateTime),
 	}
+}
+
+// isAuthorDeletedVisibility 判断内容是否由作者删除或因账号匿名化而进入用户删除态。
+func isAuthorDeletedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityUserDeleted || visibility == posts.VisibilityAccountAnonymized
+}
+
+// isModeratorRemovedVisibility 判断内容是否由管理端治理删除。
+func isModeratorRemovedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityModeratorRemoved
 }
 
 func categoryPayloads(ids []uint64) []TopicCategoryPayload {
@@ -2491,6 +2536,7 @@ func settingsTabs() []TabPayload {
 		{Key: "privacy", URL: "/settings?tab=privacy"},
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}
 }

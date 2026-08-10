@@ -3,6 +3,7 @@ package postservice
 import (
 	"log/slog"
 	"sync"
+	"time"
 
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
@@ -67,4 +68,50 @@ func SyncTopicPostStats(topicEntity topics.Entity, postEntity posts.Entity, isDe
 			slog.Error("failed to increment topic post count", "topicId", topicEntity.Id, "err", err)
 		}
 	}
+}
+
+// RebuildTopicPostStats recalculates derived topic and participant counters
+// from the current active post set. It is intentionally absolute rather than
+// incremental so restoring a topic cannot double-count existing replies.
+func RebuildTopicPostStats(topicEntity topics.Entity, activePosts []*posts.Entity) error {
+	if err := topicUserStat.DeleteByTopicID(topicEntity.Id); err != nil {
+		return err
+	}
+
+	var lastPost *posts.Entity
+	postCount := uint64(0)
+	replyCount := uint64(0)
+	for _, post := range activePosts {
+		if post == nil || post.VisibilityStatus != posts.VisibilityActive {
+			continue
+		}
+		postCount++
+		if post.PostNo > 1 {
+			replyCount++
+			if err := topicUserStat.IncrementUserPost(topicEntity.Id, post.UserId); err != nil {
+				return err
+			}
+		}
+		if lastPost == nil || lastPost.CreatedAt.Before(post.CreatedAt) ||
+			(lastPost.CreatedAt.Equal(post.CreatedAt) && lastPost.Id < post.Id) {
+			lastPost = post
+		}
+	}
+
+	lastPostID := uint64(0)
+	lastPostedAt := time.Time{}
+	if lastPost != nil {
+		lastPostID = lastPost.Id
+		lastPostedAt = lastPost.CreatedAt
+	}
+
+	activePosterIDs := topicUserStat.SyncTopicPosters(topicEntity.Id)
+	posterIDs := make([]topics.Poster, 0, len(activePosterIDs)+1)
+	posterIDs = append(posterIDs, topics.Poster{UserID: topicEntity.UserId})
+	for _, userID := range activePosterIDs {
+		if userID != topicEntity.UserId {
+			posterIDs = append(posterIDs, topics.Poster{UserID: userID})
+		}
+	}
+	return topics.ReplacePostStats(topicEntity.Id, postCount, replyCount, posterIDs, lastPostID, lastPostedAt)
 }

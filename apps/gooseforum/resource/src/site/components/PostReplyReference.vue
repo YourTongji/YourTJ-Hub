@@ -68,6 +68,14 @@ onBeforeUnmount(() => resizeObserver?.disconnect())
     <div v-if="!target || target.unavailable" class="px-3 pt-2 text-sm text-base-content/45">
       {{ t('topic.replyTargetUnavailable') }}
     </div>
+    <div v-else-if="target.isAuthorDeleted" class="px-3 pt-2 text-sm text-base-content/55">
+      <div class="font-semibold text-base-content/70">{{ t('topic.authorDeletedTitle') }}</div>
+      <div class="mt-1 leading-6">{{ t('topic.authorDeletedPlaceholder') }}</div>
+    </div>
+    <div v-else-if="target.isModeratorRemoved" class="px-3 pt-2 text-sm text-base-content/55">
+      <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
+      <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
+    </div>
     <template v-else>
       <div class="px-3 pt-2">
         <div

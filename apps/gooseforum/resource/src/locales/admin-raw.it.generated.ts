@@ -446,7 +446,7 @@ export default {
   "k00cd": "Eliminazione del post non riuscita",
   "k00ce": "Post eliminato",
   "k00cf": "Eliminare il post?",
-  "k00cg": "Confermi l'eliminazione di \"{title}\"? Non sarà più accessibile pubblicamente.",
+  "k00cg": "Confermi l’eliminazione di \"{title}\"? Non sarà più accessibile pubblicamente e serve un motivo di moderazione.",
   "k00ch": "Caricamento delle impostazioni delle notifiche HTTP non riuscito",
   "k00ci": "Salvataggio delle impostazioni delle notifiche HTTP non riuscito",
   "k00cj": "Notifiche HTTP",
@@ -719,5 +719,8 @@ export default {
   "k00l7": "Soprannome",
   "k00l8": "es. my-agent",
   "k00l9": "Modifica il profilo della persona bot e la configurazione webhook.",
-
+  "k00la": "Motivo della rimozione",
+  "k00lb": "Inserisci un motivo di rimozione",
+  "k00lc": "es. violazione delle regole, contenuto inappropriato…",
+  "k00ld": "Il motivo viene registrato nel log di moderazione; l’autore non può ripristinare il contenuto.",
 } as const

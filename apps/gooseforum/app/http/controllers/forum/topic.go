@@ -31,6 +31,9 @@ func TopicDetail(c *gin.Context) {
 
 	topic := topics.Get(id)
 	if topic.Id == 0 {
+		topic = topics.UnscopedGet(id)
+	}
+	if topic.Id == 0 {
 		renderNotFound(c)
 		return
 	}
@@ -45,6 +48,9 @@ func TopicDetail(c *gin.Context) {
 	}
 
 	firstPost := posts.Get(topic.FirstPostId)
+	if firstPost.Id == 0 && topic.VisibilityStatus != topics.VisibilityActive {
+		firstPost = posts.UnscopedGet(topic.FirstPostId)
+	}
 	if firstPost.Id == 0 {
 		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 	}
@@ -85,6 +91,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	}
 
 	topicEntity := topics.GetSimple(topicID)
+	if topicEntity.Id == 0 {
+		topicEntity = topics.UnscopedGet(topicID)
+	}
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
@@ -127,6 +136,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		postEntities = append(postEntities, afterPosts...)
 	case req.Params.AnchorPostID > 0:
 		anchor := posts.Get(req.Params.AnchorPostID)
+		if anchor.Id == 0 {
+			anchor = posts.UnscopedGet(req.Params.AnchorPostID)
+		}
 		if anchor.Id == 0 || anchor.TopicId != topicID || anchor.PostNo < 1 {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
@@ -206,6 +218,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 }
 
 func canViewTopic(entity *topics.Entity, userID uint64) bool {
+	if entity.VisibilityStatus != topics.VisibilityActive {
+		return canViewDeletedTopic(entity, userID)
+	}
 	if entity.Status != 1 {
 		return userID != 0 && userID == entity.UserId
 	}
@@ -216,6 +231,9 @@ func canViewTopic(entity *topics.Entity, userID uint64) bool {
 }
 
 func canViewTopicSimple(entity *topics.Entity, userID uint64) bool {
+	if entity.VisibilityStatus != topics.VisibilityActive {
+		return canViewDeletedTopic(entity, userID)
+	}
 	if entity.Status != 1 {
 		return userID != 0 && userID == entity.UserId
 	}
@@ -223,6 +241,26 @@ func canViewTopicSimple(entity *topics.Entity, userID uint64) bool {
 		return false
 	}
 	return true
+}
+
+func canViewDeletedTopic(entity *topics.Entity, userID uint64) bool {
+	if entity.RetentionStatus == topics.RetentionPurged {
+		return false
+	}
+	if entity.VisibilityStatus == topics.VisibilityAccountAnonymized {
+		return false
+	}
+	if entity.VisibilityStatus == topics.VisibilityModeratorRemoved {
+		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
+	}
+	if userID > 0 && userID == entity.UserId {
+		return true
+	}
+	if moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
+		return true
+	}
+	// 话题作者删除首帖后，仍有正常回复时保留讨论上下文；没有回复的内容只在作者的最近删除中可见。
+	return len(posts.GetByTopicPostNoAfter(entity.Id, 1, 1)) > 0
 }
 
 func currentUserCanViewProcessedTopic(userID uint64) bool {
@@ -234,7 +272,7 @@ func currentUserCanViewProcessedTopic(userID uint64) bool {
 }
 
 func shouldCountTopicView(entity *topics.Entity) bool {
-	return entity.Status == 1 && entity.ProcessStatus == 0
+	return entity.Status == 1 && entity.ProcessStatus == 0 && entity.VisibilityStatus == topics.VisibilityActive
 }
 
 func renderNotFound(c *gin.Context) {

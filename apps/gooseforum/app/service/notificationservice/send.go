@@ -1,6 +1,8 @@
 package notificationservice
 
 import (
+	"log/slog"
+
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
 	"github.com/leancodebox/GooseForum/app/service/unreadservice"
 	"github.com/spf13/cast"
@@ -170,4 +172,14 @@ func SendFollowNotification(userId uint64, followerId uint64, followerName strin
 		unreadservice.Invalidate(userId)
 	}
 	return err
+}
+
+// NullifyContentPreviews 内容删除后把相关通知的正文预览置空，避免泄露已删原文。
+func NullifyContentPreviews(topicId uint64, postId uint64) {
+	if topicId == 0 && postId == 0 {
+		return
+	}
+	if err := eventNotification.ClearPreviewsByTopic(topicId, postId); err != nil {
+		slog.Error("clear notification previews failed", "topicId", topicId, "postId", postId, "err", err)
+	}
 }

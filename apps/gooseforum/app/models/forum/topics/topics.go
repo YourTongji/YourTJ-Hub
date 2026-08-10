@@ -31,6 +31,12 @@ type Entity struct {
 	CreatedAt     time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_topics_list_new,priority:3,sort:desc;" json:"createdAt"`
 	UpdatedAt     time.Time      `gorm:"column:updated_at;autoUpdateTime;index:idx_topics_list_default,priority:4,sort:desc;index:idx_topics_admin_list,priority:2,sort:desc;index:idx_topics_admin_user_list,priority:3,sort:desc;" json:"updatedAt"`
 	DeletedAt     gorm.DeletedAt `json:"-"`
+
+	// 删除生命周期状态（visibility_status × retention_status）
+	VisibilityStatus string `gorm:"column:visibility_status;type:varchar(32);not null;default:'ACTIVE';index:idx_topics_visibility_retention,priority:1;" json:"-"`
+	RetentionStatus  string `gorm:"column:retention_status;type:varchar(32);not null;default:'NORMAL';index:idx_topics_visibility_retention,priority:2;" json:"-"`
+	DeletedBy        uint64 `gorm:"column:deleted_by;not null;default:0;" json:"-"`
+	DeleteReason     string `gorm:"column:delete_reason;type:varchar(512);not null;default:'';" json:"-"`
 }
 
 // 管理处理状态
@@ -38,6 +44,24 @@ const (
 	ProcessStatusNormal  int8 = 0 // 正常
 	ProcessStatusBlocked int8 = 1 // 封禁
 	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
+)
+
+// 可见性状态（visibility_status）：与 process_status（封禁/待审）正交。
+// 封禁=内容仍在库但不可见（可逆）；删除=内容进入删除生命周期。
+const (
+	VisibilityActive           = "ACTIVE"
+	VisibilityUserDeleted      = "USER_DELETED"      // 作者本人删除，进入 30 天恢复窗口
+	VisibilityModeratorRemoved = "MODERATOR_REMOVED" // 管理员/版主治理删除
+	VisibilityAccountAnonymized = "ACCOUNT_ANONYMIZED" // 账号注销联动匿名化
+)
+
+// 保留状态（retention_status）：决定数据在删除后保留多久、由谁访问。
+const (
+	RetentionNormal         = "NORMAL"         // 正常生命周期
+	RetentionRecoverable    = "RECOVERABLE"    // 恢复窗口期（默认 30 天），仅作者本人可恢复
+	RetentionEvidenceHold   = "EVIDENCE_HOLD"  // 存在举报/审核证据，保留证据副本
+	RetentionLegalHold      = "LEGAL_HOLD"     // 法律保存要求，覆盖普通 TTL
+	RetentionPurged         = "PURGED"         // 已永久删除，仅审计可查
 )
 
 type Poster struct {

@@ -18,6 +18,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/llmsservice"
@@ -537,22 +538,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
-	postEntity := posts.Get(req.Params.PostId)
-	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
-		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
+	if err != nil {
+		return component.FailResponseError(err)
 	}
-	if postEntity.UserId != req.UserId {
-		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
-	}
-	posts.DeleteEntity(&postEntity)
-	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-		hotdataserve.ClearTopicListCache()
-		// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
-		llmsservice.ClearCache()
-	}
-	return component.SuccessResponse(true)
+	return component.SuccessResponse(result)
 }
 
 type LikeTopicReq struct {

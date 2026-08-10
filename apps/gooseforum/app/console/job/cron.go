@@ -11,7 +11,9 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/logging"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
+	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/robfig/cron/v3"
@@ -62,6 +64,14 @@ func Run() {
 		oidcservice.CleanupExpired()
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "6 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("7 3 * * *", upCmd(func() {
+		// 删除恢复窗口结束的用户内容，并同步清理其附件引用。
+		if err := contentdeleteservice.ExpireRecoverableBatch(200); err != nil {
+			slog.Error("expire recoverable content failed", "err", err)
+		}
+		fileusageservice.ExpireRecoveringFiles(200)
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "7 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

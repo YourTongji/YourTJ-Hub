@@ -38,6 +38,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/badgeservice"
+	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
@@ -528,6 +529,7 @@ type EditTopicCategoriesReq struct {
 
 type DeleteTopicReq struct {
 	TopicId uint64 `json:"topicId" validate:"required"`
+	Reason  string `json:"reason" validate:"required,min=1,max=500"`
 }
 
 // EditTopic updates topic moderation status.
@@ -572,16 +574,15 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
-	topic.ProcessStatus = 1
-	topicCategoryIndex.DeleteByTopicId(topic.Id)
-	if rows := topics.Delete(&topic); rows == 0 {
-		return component.FailResponseCode(component.MessageAdminTopicDeleteFailed, nil)
+	reason := strings.TrimSpace(req.Params.Reason)
+	if reason == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	eventbus.Publish(context.Background(), &eventhandlers.TopicDeletedEvent{Topic: &topic})
-	hotdataserve.ClearTopicListCache()
-	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.deleted", optlogger.MessageParams{
-		"title": topic.Title,
-	})
+	// 管理端治理删除：双状态机 MODERATOR_REMOVED + ContentDeletedEvent；分类索引同步摘除。
+	topicCategoryIndex.DeleteByTopicId(topic.Id)
+	if err := contentdeleteservice.DeleteTopicAs(topic, req.UserId, topics.VisibilityModeratorRemoved, reason); err != nil {
+		return component.FailResponseError(err)
+	}
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 

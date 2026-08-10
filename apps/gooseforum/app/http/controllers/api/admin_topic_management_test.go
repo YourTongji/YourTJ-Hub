@@ -133,3 +133,53 @@ func TestAdminEditTopicMutatesTopic(t *testing.T) {
 		t.Fatalf("category index active map = %#v", active)
 	}
 }
+
+func TestAdminDeleteTopicRequiresReasonAndMarksModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, categoryID := seedAdminTopic(t, conn, 923001)
+
+	// reason 为空应拒绝。
+	emptyRes := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 1,
+		Params: DeleteTopicReq{TopicId: 923001, Reason: "   "},
+	})
+	if emptyRes.Data.Code == component.SUCCESS {
+		t.Fatalf("expected failure for empty reason, got %#v", emptyRes)
+	}
+	if emptyRes.Data.MessageCode != component.MessageRequestInvalidParams {
+		t.Fatalf("empty reason messageCode = %s", emptyRes.Data.MessageCode)
+	}
+
+	res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923001, Reason: "policy violation"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("DeleteTopic failed: %#v", res)
+	}
+
+	if visible := topics.Get(923001); visible.Id != 0 {
+		t.Fatalf("topic still visible via scoped Get: %#v", visible)
+	}
+	topic := topics.UnscopedGet(923001)
+	if topic.VisibilityStatus != topics.VisibilityModeratorRemoved {
+		t.Fatalf("visibility = %s, want MODERATOR_REMOVED", topic.VisibilityStatus)
+	}
+	if topic.RetentionStatus != topics.RetentionRecoverable {
+		t.Fatalf("retention = %s, want RECOVERABLE", topic.RetentionStatus)
+	}
+	if topic.DeleteReason != "policy violation" {
+		t.Fatalf("reason = %q", topic.DeleteReason)
+	}
+	if topic.DeletedBy != 77 {
+		t.Fatalf("deletedBy = %d, want 77", topic.DeletedBy)
+	}
+
+	// 分类索引应被摘除。
+	indexes := topicCategoryIndex.GetByTopicId(923001)
+	for _, item := range indexes {
+		if item.CategoryId == categoryID && item.Effective == 1 {
+			t.Fatalf("category index still effective: %#v", indexes)
+		}
+	}
+}

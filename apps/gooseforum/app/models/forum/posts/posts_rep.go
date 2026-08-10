@@ -2,6 +2,7 @@ package posts
 
 import (
 	"errors"
+	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
@@ -64,6 +65,210 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 
 func DeleteEntity(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
+}
+
+// UnscopedGet 返回含已删除（软删）在内的回复，供恢复/清理/审计使用。
+func UnscopedGet(id uint64) (entity Entity) {
+	builder().Unscoped().First(&entity, id)
+	return
+}
+
+// HasChildren 判断回复是否存在未被删除的子回复（reply_to_post_id 指向它）。
+func HasChildren(postId uint64) bool {
+	var count int64
+	builder().
+		Where(queryopt.Eq("reply_to_post_id", postId)).
+		Where(queryopt.Eq("deleted_at", nil)).
+		Count(&count)
+	return count > 0
+}
+
+// GetUserDeletedPage 分页返回用户已删除的回复（含软删行与墓碑态行），按删除时间倒序。
+// 条件覆盖两类行：deleted_at 置位的隐藏删除，以及 visibility_status 标记的墓碑删除。
+func GetUserDeletedPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().Unscoped().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("visibility_status", VisibilityUserDeleted)).
+		Where(queryopt.Ne("retention_status", RetentionPurged))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("deleted_at")).
+		Order(queryopt.Desc("updated_at")).
+		Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
+// ExpireRecoverable 返回超过恢复窗口仍为 RECOVERABLE 的回复（含软删行与墓碑态行）。
+// 墓碑态行无 deleted_at，使用 updated_at 作为删除时刻的近似。
+func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
+	builder().Unscoped().
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where("COALESCE(deleted_at, updated_at) < ?", before).
+		Limit(limit).
+		Find(&entities)
+	return
+}
+
+// MarkUserDeleted 将回复标记为用户删除，进入 30 天恢复窗口。
+func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityUserDeleted,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// MarkUserDeletedKeepVisible 标记回复为用户删除但保留行可见（墓碑态）：
+// 用于"存在子回复"的场景，讨论树需要保留该行以维持结构，正文由前端渲染为占位。
+func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"visibility_status": VisibilityUserDeleted,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// MarkDeletedKeepVisible 标记回复为删除但保留行可见（墓碑态），visibility 区分用户/管理员来源。
+func MarkDeletedKeepVisible(id uint64, visibility string, deletedBy uint64, reason string) error {
+	if visibility == "" {
+		visibility = VisibilityUserDeleted
+	}
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"visibility_status": visibility,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// MarkModeratorRemoved 将回复标记为管理员删除，作者不可自行恢复。
+func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityModeratorRemoved,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// SoftDeleteByTopicId 将某话题下的所有回复软删（级联删除），返回受影响行数。
+// visibility 为空时默认 USER_DELETED；管理端级联应传 MODERATOR_REMOVED。
+func SoftDeleteByTopicId(topicId uint64, deletedBy uint64, reason string, visibility string) int64 {
+	if visibility == "" {
+		visibility = VisibilityUserDeleted
+	}
+	return builder().Unscoped().
+		Where(queryopt.Eq("topic_id", topicId)).
+		Where("deleted_at IS NULL").
+		Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": visibility,
+			"retention_status":  RetentionRecoverable,
+			"deleted_by":        deletedBy,
+			"delete_reason":     reason,
+		}).RowsAffected
+}
+
+// Restore 恢复回复：清除软删标记并回到正常生命周期。
+func Restore(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        gorm.Expr("NULL"),
+		"visibility_status": VisibilityActive,
+		"retention_status":  RetentionNormal,
+		"deleted_by":        0,
+		"delete_reason":     "",
+	}).Error
+}
+
+// MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
+func MarkPurged(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":       time.Now(),
+		"retention_status": RetentionPurged,
+	}).Error
+}
+
+// MarkPrivacyErased immediately hides and blanks a user's reply.
+func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityAccountAnonymized,
+		"retention_status":  RetentionPurged,
+		"deleted_by":        erasedBy,
+		"delete_reason":     reason,
+		"content":           "",
+		"rendered_html":     "",
+	}).Error
+}
+
+// MarkPurgedByTopicID 将某话题下所有回复置为已永久删除（话题永久删除级联）。
+func MarkPurgedByTopicID(topicID uint64) int64 {
+	return builder().Unscoped().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+		}).RowsAffected
+}
+
+// ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
+func ListUnscopedByTopicID(topicID uint64, list *[]*Entity) error {
+	return builder().Unscoped().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Order(queryopt.Asc("post_no")).
+		Order(queryopt.Asc("id")).
+		Find(list).Error
+}
+
+// ListByTopicID 返回某话题下未删除的回复。
+func ListByTopicID(topicID uint64, list *[]*Entity) error {
+	return builder().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Order(queryopt.Asc("post_no")).
+		Order(queryopt.Asc("id")).
+		Find(list).Error
+}
+
+// RestoreDeletedByTopicID 恢复某话题下所有被级联软删的回复。
+func RestoreDeletedByTopicID(topicID uint64) int64 {
+	return builder().Unscoped().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Where("deleted_at IS NOT NULL").
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": VisibilityActive,
+			"retention_status":  RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
+		}).RowsAffected
+}
+
+// RestoreCascadeDeletedByTopicID restores only user-deleted rows changed by
+// the current topic deletion operation. Moderator removals and independently
+// deleted replies remain untouched.
+func RestoreCascadeDeletedByTopicID(topicID uint64, deletedBy uint64, deleteReason string) int64 {
+	return builder().Unscoped().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Where("deleted_at IS NOT NULL").
+		Where(queryopt.Eq("visibility_status", VisibilityUserDeleted)).
+		Where(queryopt.Eq("deleted_by", deletedBy)).
+		Where(queryopt.Eq("delete_reason", deleteReason)).
+		Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": VisibilityActive,
+			"retention_status":  RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
+		}).RowsAffected
 }
 
 func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {

@@ -390,6 +390,19 @@ func DecrementPostFast(topicId uint64, posters []Poster, lastPostID uint64, last
 	}).Error
 }
 
+// ReplacePostStats writes the exact derived post counters for a topic.
+// Recovery must use this instead of increment/decrement helpers because those
+// helpers intentionally model a single state transition, not a full rebuild.
+func ReplacePostStats(topicID uint64, postCount uint64, replyCount uint64, posters []Poster, lastPostID uint64, lastPostedAt time.Time) error {
+	return builder().Where("id = ?", topicID).Updates(map[string]any{
+		"post_count":     postCount,
+		"reply_count":    replyCount,
+		"posters":        jsonopt.Encode(posters),
+		"last_post_id":   lastPostID,
+		"last_posted_at": lastPostedAt,
+	}).Error
+}
+
 func ReservePostSequence(topicId uint64) (uint64, error) {
 	result := builder().
 		Where("id = ?", topicId).
@@ -420,4 +433,103 @@ func applyPageSort(b *gorm.DB, sort string) {
 	default:
 		b.Order(queryopt.Desc("pin_weight")).Order(queryopt.Desc("updated_at")).Order(queryopt.Desc("id"))
 	}
+}
+
+// UnscopedGet 返回含已删除（软删）在内的主题，供恢复/清理/审计使用。
+func UnscopedGet(id uint64) (entity Entity) {
+	builder().Unscoped().First(&entity, id)
+	return
+}
+
+// GetUserDeletedPage 分页返回用户自己删除的话题。
+// 使用 id 倒序与 cursorID 对齐，保证游标分页不会因 deleted_at/updated_at 并列或墓碑行时间变化而漏项。
+func GetUserDeletedPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().Unscoped().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("visibility_status", VisibilityUserDeleted)).
+		Where(queryopt.Ne("retention_status", RetentionPurged))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
+// ExpireRecoverable 返回超过恢复窗口仍为 RECOVERABLE 的主题（含软删行），
+// 供 retention scheduler 将其置为 PURGED 并执行清理。
+func ExpireRecoverable(before time.Time, limit int) (entities []Entity) {
+	builder().Unscoped().
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where("COALESCE(deleted_at, updated_at) < ?", before).
+		Limit(limit).
+		Find(&entities)
+	return
+}
+
+// MarkDeleted 将主题标记为用户删除，进入 30 天恢复窗口。
+func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityUserDeleted,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// MarkModeratorRemoved 将主题标记为管理员删除，作者不可自行恢复。
+func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityModeratorRemoved,
+		"retention_status":  RetentionRecoverable,
+		"deleted_by":        deletedBy,
+		"delete_reason":     reason,
+	}).Error
+}
+
+// Restore 恢复主题：清除软删标记并回到正常生命周期。
+func Restore(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        gorm.Expr("NULL"),
+		"visibility_status": VisibilityActive,
+		"retention_status":  RetentionNormal,
+		"deleted_by":        0,
+		"delete_reason":     "",
+	}).Error
+}
+
+// MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
+func MarkPurged(id uint64) error {
+	result := builder().Unscoped().
+		Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// MarkPrivacyErased immediately hides a user's content and makes it unrecoverable.
+// The visibility state remains distinct from moderator removal so governance
+// records can distinguish privacy erasure from moderation action.
+func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": VisibilityAccountAnonymized,
+		"retention_status":  RetentionPurged,
+		"deleted_by":        erasedBy,
+		"delete_reason":     reason,
+	}).Error
 }

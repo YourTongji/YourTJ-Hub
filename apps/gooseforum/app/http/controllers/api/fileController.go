@@ -27,6 +27,13 @@ func GetFileByFileName(c *gin.Context) {
 		return
 	}
 	filename = strings.TrimPrefix(filename, "/")
+	if fileusageservice.HasAnyReferences(filename) && !fileusageservice.HasLiveReferences(filename) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":       "File not found",
+			"messageCode": component.MessagePageNotFound,
+		})
+		return
+	}
 
 	entity, err := filedata.GetFileByName(filename)
 	if err != nil {

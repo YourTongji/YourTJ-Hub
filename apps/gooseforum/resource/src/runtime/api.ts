@@ -102,7 +102,11 @@ export async function updatePost(postId: number, content: string): Promise<Updat
   return readApiResponse<UpdatePostResult>(response, t('api.replyUpdateFailed'))
 }
 
-export async function deletePost(postId: number): Promise<boolean> {
+export interface DeletePostResult {
+  hasChildren: boolean
+}
+
+export async function deletePost(postId: number): Promise<DeletePostResult> {
   const response = await fetch('/api/forum/posts/delete', {
     method: 'POST',
     headers: {
@@ -112,7 +116,87 @@ export async function deletePost(postId: number): Promise<boolean> {
       postId,
     }),
   })
-  return readApiResponse<boolean>(response, t('api.replyDeleteFailed'))
+  return readApiResponse<DeletePostResult>(response, t('api.replyDeleteFailed'))
+}
+
+export async function deleteTopic(topicId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/topics/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topicId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.topicDeleteFailed'))
+}
+
+export type DeletedContentType = 'topic' | 'post'
+
+export interface DeletedContentItem {
+  id: number
+  contentType: DeletedContentType
+  title?: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  visibility: string
+  retention: string
+  deletedAt: string
+  canRestore: boolean
+  canPermanent: boolean
+  hasReplies?: boolean
+}
+
+export interface DeletedContentListResult {
+  items: DeletedContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+export async function getDeletedContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<DeletedContentListResult> {
+  const params = new URLSearchParams({
+    contentType,
+    limit: String(limit),
+  })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+
+  const response = await fetch(`/api/forum/user/deleted-content?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<DeletedContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export async function restoreDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-restore', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentRestoreFailed'))
+}
+
+export async function purgeDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-purge', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+      reason: 'user_purge',
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
 }
 
 export interface PostWindowInput {

@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
+  Archive,
   ArrowLeft,
   Ban,
   CalendarDays,
@@ -13,9 +14,11 @@ import {
   Mail,
   Pencil,
   Feather,
+  RotateCcw,
   Settings2,
   Shield,
   Sparkles,
+  Trash2,
   UserRound,
   X,
 } from '@lucide/vue'
@@ -30,6 +33,9 @@ import {
   resendActivationEmail,
   revokeAllSessions,
   revokeSession,
+  getDeletedContent,
+  purgeDeletedContent,
+  restoreDeletedContent,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
@@ -38,6 +44,9 @@ import {
   unbindOAuth,
   wearBadge,
   type OAuthBindingsPayload,
+  type DeletedContentItem,
+  type DeletedContentListResult,
+  type DeletedContentType,
   type TotpEnablePayload,
   type TotpSetupPayload,
   type UserSessionPayload,
@@ -76,7 +85,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -103,6 +112,15 @@ const totpSetupCode = ref('')
 const totpRecoveryCodes = ref<string[]>([])
 const totpDisableCode = ref('')
 const totpQrUrl = ref('')
+const deletedTopics = ref<DeletedContentItem[]>([])
+const deletedPosts = ref<DeletedContentItem[]>([])
+const loadingDeletedContent = ref(false)
+const deletedContentLoaded = ref(false)
+const deletedContentAction = ref('')
+const deletedTopicCursor = ref(0)
+const deletedPostCursor = ref(0)
+const hasMoreDeletedTopics = ref(false)
+const hasMoreDeletedPosts = ref(false)
 const editingUsername = ref(false)
 const editingEmail = ref(false)
 /** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
@@ -291,6 +309,10 @@ onMounted(() => {
   void loadTotpStatus()
 })
 
+watch(activeTab, (tab) => {
+  if (tab === 'deleted' && !deletedContentLoaded.value) void loadDeletedContent()
+})
+
 function buildExternalInfo() {
   const info: Record<string, { link?: string }> = {}
   for (const key of socialKeys) {
@@ -313,8 +335,100 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'deleted') return t('settings.tabs.deleted')
   if (key === 'general') return t('settings.tabs.general')
   return fallback || key
+}
+
+const deletedContentItems = computed(() => [
+  ...deletedTopics.value,
+  ...deletedPosts.value,
+].sort((left, right) => right.id - left.id))
+
+function deletedContentLabel(item: DeletedContentItem) {
+  return item.contentType === 'topic'
+    ? t('settings.deleted.topicLabel')
+    : t('settings.deleted.replyLabel', { no: item.postNo || item.id })
+}
+
+function deletedContentTitle(item: DeletedContentItem) {
+  return item.title || item.excerpt || t('settings.deleted.untitled')
+}
+
+function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge') {
+  return `${action}:${item.contentType}:${item.id}`
+}
+
+async function loadDeletedContent(reset = true) {
+  if (loadingDeletedContent.value) return
+  if (!reset && !hasMoreDeletedTopics.value && !hasMoreDeletedPosts.value) return
+  loadingDeletedContent.value = true
+  try {
+    if (reset) {
+      deletedTopicCursor.value = 0
+      deletedPostCursor.value = 0
+      hasMoreDeletedTopics.value = false
+      hasMoreDeletedPosts.value = false
+    }
+    const emptyResult = (nextCursorId: number): DeletedContentListResult => ({
+      items: [],
+      hasMore: false,
+      nextCursorId,
+    })
+    const [topicResult, postResult] = await Promise.all([
+      reset || hasMoreDeletedTopics.value
+        ? getDeletedContent('topic', deletedTopicCursor.value)
+        : Promise.resolve(emptyResult(deletedTopicCursor.value)),
+      reset || hasMoreDeletedPosts.value
+        ? getDeletedContent('post', deletedPostCursor.value)
+        : Promise.resolve(emptyResult(deletedPostCursor.value)),
+    ])
+    deletedTopics.value = reset ? topicResult.items : [...deletedTopics.value, ...topicResult.items]
+    deletedPosts.value = reset ? postResult.items : [...deletedPosts.value, ...postResult.items]
+    deletedTopicCursor.value = topicResult.nextCursorId
+    deletedPostCursor.value = postResult.nextCursorId
+    hasMoreDeletedTopics.value = topicResult.items.length > 0 && topicResult.nextCursorId > 0
+    hasMoreDeletedPosts.value = postResult.items.length > 0 && postResult.nextCursorId > 0
+    deletedContentLoaded.value = true
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.deletedContentLoadFailed'))
+  } finally {
+    loadingDeletedContent.value = false
+  }
+}
+
+async function loadMoreDeletedContent() {
+  await loadDeletedContent(false)
+}
+
+async function restoreDeletedItem(item: DeletedContentItem) {
+  if (!item.canRestore || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.restoreConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'restore')
+  try {
+    await restoreDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.restoreSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentRestoreFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
+}
+
+async function purgeDeletedItem(item: DeletedContentItem) {
+  if (!item.canPermanent || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.purgeConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'purge')
+  try {
+    await purgeDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.purgeSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
 }
 
 function triggerAvatarFlash() {
@@ -1757,6 +1871,89 @@ async function toggleBinding(provider: string) {
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
               </div>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'deleted'">
+            <SectionHeader :icon="Archive" :title="t('settings.deleted.title')" :description="t('settings.deleted.description')">
+              <template #actions>
+                <button
+                  type="button"
+                  class="text-xs font-medium text-primary hover:text-primary disabled:cursor-wait disabled:opacity-60"
+                  :disabled="loadingDeletedContent"
+                  @click="() => loadDeletedContent(true)"
+                >
+                  {{ t('settings.deleted.refresh') }}
+                </button>
+              </template>
+            </SectionHeader>
+
+            <div v-if="loadingDeletedContent" class="p-4 py-10 text-center text-sm text-base-content/55">
+              <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+              {{ t('settings.deleted.loading') }}
+            </div>
+            <div v-else-if="deletedContentItems.length === 0" class="p-6 text-center">
+              <Archive class="mx-auto h-8 w-8 text-base-content/30" />
+              <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.deleted.emptyTitle') }}</h3>
+              <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.deleted.emptyDescription') }}</p>
+            </div>
+            <div v-else class="space-y-3 p-4">
+              <article
+                v-for="item in deletedContentItems"
+                :key="`${item.contentType}:${item.id}`"
+                class="rounded-lg border border-line bg-base-100 p-4"
+              >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-base-content/50">
+                      <span class="gf-badge gf-badge-info rounded">{{ deletedContentLabel(item) }}</span>
+                      <span>{{ t('settings.deleted.deletedAt', { time: formatDate(item.deletedAt) }) }}</span>
+                    </div>
+                    <h3 class="mt-2 break-words text-sm font-semibold text-base-content">{{ deletedContentTitle(item) }}</h3>
+                    <p v-if="item.contentType === 'topic'" class="mt-1 text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.topicFallback') }}
+                    </p>
+                    <p v-else class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.replyFallback') }}
+                    </p>
+                    <p class="mt-2 text-xs text-base-content/45">{{ t('settings.deleted.retentionHint') }}</p>
+                  </div>
+                  <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    <button
+                      v-if="item.canRestore"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-primary"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="restoreDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'restore')" class="h-3.5 w-3.5 animate-spin" />
+                      <RotateCcw v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.restore') }}
+                    </button>
+                    <button
+                      v-if="item.canPermanent"
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-danger"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="purgeDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'purge')" class="h-3.5 w-3.5 animate-spin" />
+                      <Trash2 v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.purge') }}
+                    </button>
+                  </div>
+                </div>
+              </article>
+              <button
+                v-if="hasMoreDeletedTopics || hasMoreDeletedPosts"
+                type="button"
+                class="gf-button gf-button-sm gf-button-secondary mx-auto"
+                :disabled="loadingDeletedContent"
+                @click="loadMoreDeletedContent"
+              >
+                <Loader2 v-if="loadingDeletedContent" class="h-3.5 w-3.5 animate-spin" />
+                {{ t('common.loadMore') }}
+              </button>
             </div>
           </section>
 

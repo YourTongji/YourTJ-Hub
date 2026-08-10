@@ -302,6 +302,8 @@ export interface TopicDetailPayload {
   url: string
   topicStatus: number
   processStatus: number
+  authorDeleted: boolean
+  moderatorRemoved: boolean
   author: {
     id: number
     username: string
@@ -330,6 +332,8 @@ export interface PostPayload {
   renderedContent: string
   processStatus: number
   isHidden: boolean
+  isAuthorDeleted: boolean
+  isModeratorRemoved: boolean
   canModerate: boolean
   author: {
     id: number
@@ -360,6 +364,8 @@ export interface ReplyTargetPayload {
     wornBadge?: UserBadgePayload | null
   }
   renderedContent?: string
+  isAuthorDeleted?: boolean
+  isModeratorRemoved?: boolean
   unavailable?: boolean
 }
 

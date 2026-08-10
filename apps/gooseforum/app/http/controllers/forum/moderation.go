@@ -320,9 +320,17 @@ func ModerationLogList(req component.BetterRequest[ModerationLogListReq]) compon
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	pageSize := component.BoundPageSizeWithRange(req.Params.PageSize, 10, 50)
+	global, categoryIDs := moderationservice.ScopeForUser(req.UserId)
+	if !global && len(categoryIDs) == 0 {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	if global {
+		categoryIDs = nil
+	}
 	records := moderationLog.CursorPage(moderationLog.CursorPageQuery{
-		Cursor:   req.Params.Cursor,
-		PageSize: uint64(pageSize + 1),
+		Cursor:           req.Params.Cursor,
+		PageSize:         uint64(pageSize + 1),
+		ScopeCategoryIDs: categoryIDs,
 	})
 	hasNext := len(records) > pageSize
 	if hasNext {
