@@ -25,7 +25,6 @@ mixin _$LoginPageProps {
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
-  String? get casdoorUrl => throw _privateConstructorUsedError;
 
   /// Serializes this LoginPageProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -49,7 +48,6 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     String redirectUrl,
     String githubUrl,
     bool googleReady,
-    String? casdoorUrl,
   });
 }
 
@@ -72,7 +70,6 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
-    Object? casdoorUrl = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -92,10 +89,6 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
                       as bool,
-            casdoorUrl: freezed == casdoorUrl
-                ? _value.casdoorUrl
-                : casdoorUrl // ignore: cast_nullable_to_non_nullable
-                      as String?,
           )
           as $Val,
     );
@@ -116,7 +109,6 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     String redirectUrl,
     String githubUrl,
     bool googleReady,
-    String? casdoorUrl,
   });
 }
 
@@ -138,7 +130,6 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
-    Object? casdoorUrl = freezed,
   }) {
     return _then(
       _$LoginPagePropsImpl(
@@ -158,10 +149,6 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
                   as bool,
-        casdoorUrl: freezed == casdoorUrl
-            ? _value.casdoorUrl
-            : casdoorUrl // ignore: cast_nullable_to_non_nullable
-                  as String?,
       ),
     );
   }
@@ -175,7 +162,6 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     required this.redirectUrl,
     required this.githubUrl,
     required this.googleReady,
-    this.casdoorUrl,
   });
 
   factory _$LoginPagePropsImpl.fromJson(Map<String, dynamic> json) =>
@@ -189,12 +175,10 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String githubUrl;
   @override
   final bool googleReady;
-  @override
-  final String? casdoorUrl;
 
   @override
   String toString() {
-    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, casdoorUrl: $casdoorUrl)';
+    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady)';
   }
 
   @override
@@ -209,9 +193,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
             (identical(other.githubUrl, githubUrl) ||
                 other.githubUrl == githubUrl) &&
             (identical(other.googleReady, googleReady) ||
-                other.googleReady == googleReady) &&
-            (identical(other.casdoorUrl, casdoorUrl) ||
-                other.casdoorUrl == casdoorUrl));
+                other.googleReady == googleReady));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -222,7 +204,6 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     redirectUrl,
     githubUrl,
     googleReady,
-    casdoorUrl,
   );
 
   /// Create a copy of LoginPageProps
@@ -248,7 +229,6 @@ abstract class _LoginPageProps implements LoginPageProps {
     required final String redirectUrl,
     required final String githubUrl,
     required final bool googleReady,
-    final String? casdoorUrl,
   }) = _$LoginPagePropsImpl;
 
   factory _LoginPageProps.fromJson(Map<String, dynamic> json) =
@@ -262,8 +242,6 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get githubUrl;
   @override
   bool get googleReady;
-  @override
-  String? get casdoorUrl;
 
   /// Create a copy of LoginPageProps
   /// with the given fields replaced by the non-null parameter values.

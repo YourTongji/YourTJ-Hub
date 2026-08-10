@@ -41,6 +41,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
@@ -554,6 +555,8 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
 	}
 	hotdataserve.ClearTopicListCache()
+	// 封禁/解封不发布 Topic*Event，需同步清理 LLMS 公开投影缓存，避免封禁内容在 10s 窗口内继续导出。
+	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
@@ -636,6 +639,8 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
 	}
 	hotdataserve.ClearTopicListCache()
+	// 分类变更不发布事件，同步清理 LLMS 投影缓存（投影内嵌 Categories 列表）。
+	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
@@ -1184,7 +1189,10 @@ type SaveSiteSettingsReq struct {
 
 // SaveSiteSettings 保存站点设置
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, hotdataserve.ClearSiteSettingsConfigCache)
+	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+		hotdataserve.ClearSiteSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 func GetSiteChrome(req component.BetterRequest[component.Null]) component.Response {
@@ -1352,7 +1360,10 @@ type SavePostingSettingsReq struct {
 
 // SavePostingSettings 保存发布内容设置
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, hotdataserve.ClearPostingSettingsConfigCache)
+	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, func() {
+		hotdataserve.ClearPostingSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 // GetRateLimitSettings 获取滥用防护（限流）设置

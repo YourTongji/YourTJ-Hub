@@ -88,7 +88,7 @@
   "authTwoFactorCode": "TOTP 验证码",
   "authVerify": "验证",
   "authGetCode": "获取验证码",
-  "authCasdoorLogin": "统一身份登录(Casdoor)",
+  "authOidcLogin": "使用 yourtj 统一登录",
   "authRegisterSuccess": "注册成功,请登录",
   "authResetEmailSent": "重置邮件已发送,请查收",
   "authLoading": "处理中…",
@@ -274,8 +274,8 @@
       }
     }
   },
-  "settingsOAuth": "Casdoor 统一身份",
-  "settingsOAuthSub": "OIDC 登录绑定",
+  "settingsOAuth": "外部账号关联",
+  "settingsOAuthSub": "GitHub 与 Google 登录关联",
   "settingsOAuthManage": "OAuth 绑定管理",
   "settingsOAuthBindings": "OAuth 绑定管理",
   "settingsBound": "已绑定",

@@ -48,7 +48,6 @@ export interface LoginPageProps {
   redirectUrl: string
   githubUrl: string
   googleReady: boolean
-  casdoorUrl?: string
 }
 
 export interface ResetPasswordPageProps {

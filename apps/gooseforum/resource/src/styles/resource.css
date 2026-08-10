@@ -5,6 +5,7 @@
 @import "./motion.css";
 @import "./prose.css";
 @import "./code-highlighting.css";
+@import "./code-copy.css";
 @import "./components.css";
 @import "./patterns.css";
 @import "./utilities.css";

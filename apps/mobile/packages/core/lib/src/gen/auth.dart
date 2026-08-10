@@ -10,7 +10,6 @@ abstract class LoginPageProps with _$LoginPageProps {
     required String redirectUrl,
     required String githubUrl,
     required bool googleReady,
-    String? casdoorUrl,
   }) = _LoginPageProps;
 
   factory LoginPageProps.fromJson(Map<String, dynamic> json) =>
