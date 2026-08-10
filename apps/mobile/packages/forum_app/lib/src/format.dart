@@ -89,7 +89,7 @@ String formatDateTime(String value) {
 ///
 /// 日期字段直接取自输入字符串(不依赖进程时区);"今天/同年"按输入
 /// 字符串的日期与设备本地日期比较。
-String formatChatTime(String value, {AppLocalizations? l10n}) {
+String formatChatTime(String value, {AppLocalizations? l10n, DateTime? now}) {
   final AppLocalizations loc = l10n ?? _fallbackL10n;
   final String? date = _dateField(value);
   final String? time = _timeField(value);
@@ -97,10 +97,11 @@ String formatChatTime(String value, {AppLocalizations? l10n}) {
   final int year = int.parse(date.substring(0, 4));
   final int month = int.parse(date.substring(5, 7));
   final int day = int.parse(date.substring(8, 10));
-  final DateTime now = DateTime.now();
-  final bool sameDay = year == now.year && month == now.month && day == now.day;
+  final DateTime current = now ?? DateTime.now();
+  final bool sameDay =
+      year == current.year && month == current.month && day == current.day;
   if (sameDay) return time;
-  if (year == now.year) return loc.dateMonthDayTime(month, day, time);
+  if (year == current.year) return loc.dateMonthDayTime(month, day, time);
   return loc.dateYearMonthDayTime(year, month, day, time);
 }
 
