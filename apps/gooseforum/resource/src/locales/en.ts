@@ -108,6 +108,7 @@ export default {
     notFound: {
       title: 'Page not found',
     },
+    contentGone: 'Content has been permanently deleted',
   },
   auth: {
     loginTitle: 'Log in to your account',

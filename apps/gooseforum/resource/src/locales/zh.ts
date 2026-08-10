@@ -108,6 +108,7 @@ export default {
     notFound: {
       title: '页面不存在',
     },
+    contentGone: '内容已永久删除',
   },
   auth: {
     loginTitle: '登录账号',

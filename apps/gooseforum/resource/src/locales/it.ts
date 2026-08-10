@@ -108,6 +108,7 @@ export default {
     notFound: {
       title: 'Pagina non trovata',
     },
+    contentGone: 'Il contenuto è stato eliminato definitivamente',
   },
   auth: {
     loginTitle: 'Accedi al tuo account',

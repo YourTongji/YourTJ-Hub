@@ -37,6 +37,11 @@ func TopicDetail(c *gin.Context) {
 		renderNotFound(c)
 		return
 	}
+	// 彻底删除（PURGED）的内容对 SEO 返回 410 Gone（PRD R12）。
+	if topic.RetentionStatus == topics.RetentionPurged {
+		renderGone(c)
+		return
+	}
 	loginUser := component.GetLoginUser(c)
 	if !canViewTopic(&topic, loginUser.UserId) {
 		renderNotFound(c)
@@ -279,6 +284,24 @@ func shouldCountTopicView(entity *topics.Entity) bool {
 
 func renderNotFound(c *gin.Context) {
 	renderNotFoundWithMessage(c, component.MessagePageNotFound)
+}
+
+// renderGone 内容已被永久删除（PURGED），对 SEO 返回 410 Gone（PRD R12）。
+func renderGone(c *gin.Context) {
+	payload := PagePayload{
+		Component: PageComponentError,
+		Props: ErrorPageProps{
+			Code:  "410",
+			Title: i18n.T(requestLang(c), "meta.contentGone"),
+		},
+		Meta: PageMeta{
+			Title: pageTitle(i18n.T(requestLang(c), "meta.contentGone")),
+		},
+		Layout:  buildLayout(c, "topics"),
+		URL:     buildPageURL(c),
+		Version: payloadVersion,
+	}
+	renderPageWithStatus(c, http.StatusGone, "error.gohtml", payload)
 }
 
 func renderNotFoundWithMessage(c *gin.Context, messageCode component.MessageCode) {

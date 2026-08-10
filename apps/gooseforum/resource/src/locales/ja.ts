@@ -108,6 +108,7 @@ export default {
     notFound: {
       title: 'ページが見つかりません',
     },
+    contentGone: 'コンテンツは完全に削除されました',
   },
   auth: {
     loginTitle: 'アカウントにログイン',
