@@ -11,6 +11,7 @@ import { installBaTouchEffect } from '@/runtime/ba-touch-effect'
 import PayloadRouteView from '@/site/components/PayloadRouteView.vue'
 import { codeHighlightDirective } from '@/runtime/code-highlight-directive'
 import { mathRenderDirective } from '@/runtime/math-render-directive'
+import { codeCopyDirective } from '@/runtime/code-copy-directive'
 
 const initialPayload = readInitialPayload()
 const initialPage = await preparePayload(initialPayload)
@@ -48,6 +49,7 @@ app.use(i18n)
 app.use(router)
 app.directive('code-highlight', codeHighlightDirective)
 app.directive('math-render', mathRenderDirective)
+app.directive('code-copy', codeCopyDirective)
 await router.isReady()
 app.mount('#goose-app')
 

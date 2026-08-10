@@ -20,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
@@ -214,6 +215,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		hotdataserve.ClearTopicListCache()
+		// 编辑分支：下架（TopicStatus=0）或转入待审不发 TopicUpdatedEvent，
+		// 需同步清理 LLMS 投影缓存，避免下架内容在 10s 窗口内继续导出。
+		llmsservice.ClearCache()
 		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
@@ -294,6 +298,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
+	// 无条件清理：下架（1→0）不发事件，此处同步失效 LLMS 投影缓存；0→1 复发的
+	// TopicPublishedEvent 也会清一次，幂等无害。
+	llmsservice.ClearCache()
 	if topic.Status == 1 {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
@@ -517,6 +524,8 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
+	// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
+	llmsservice.ClearCache()
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
@@ -540,6 +549,8 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, postEntity, true)
 		hotdataserve.ClearTopicListCache()
+		// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
+		llmsservice.ClearCache()
 	}
 	return component.SuccessResponse(true)
 }

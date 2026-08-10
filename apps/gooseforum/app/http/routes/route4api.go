@@ -113,6 +113,11 @@ func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
+	// LLMS 公开入口是派生文本投影：full 冷缓存全量重建、不同 {id}.md 会打穿 topic 级缓存，
+	// 需独立限流配额（index 宽松、full 严格、topic 中等），避免被脚本高频打满。
+	ginApp.GET("/llms.txt", middleware.RateLimit(middleware.RateLimitLLMSIndex), controllers.RenderLLMSIndex)
+	ginApp.GET("/llms-full.txt", middleware.RateLimit(middleware.RateLimitLLMSFull), controllers.RenderLLMSFull)
+	ginApp.GET("/p/posts/:document", middleware.RateLimit(middleware.RateLimitLLMSTopic), controllers.RenderLLMSTopic)
 }
 
 func apiRoute(ginApp *gin.Engine) {

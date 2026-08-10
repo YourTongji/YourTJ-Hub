@@ -92,7 +92,12 @@ const mobileHeaderTitleVisible = ref(false)
 const effectiveShowHeaderTitle = computed(() => showHeaderTitle.value && (!isMobileHeaderViewport.value || mobileHeaderTitleVisible.value))
 const composerOpen = ref(false)
 const composerMode = computed(() => editingPostId.value ? 'edit' : 'create')
-const composerMounted = computed(() => composerOpen.value)
+// PostComposer 首次打开后保持挂载：若随开合销毁重建，内层 <Transition> 首次挂载不播 enter、
+// leave 也会被整体销毁绕过，弹簧上弹/收回动画将失效。此值只在首次打开时置 true，永不重置。
+const composerMounted = ref(false)
+watch(composerOpen, (open) => {
+  if (open) composerMounted.value = true
+}, { immediate: true })
 const mobilePostRailOpen = ref(false)
 const activePostNo = ref(firstPostNo(initialPosts) || 1)
 const postRailProgressCurrent = ref(0)
@@ -1758,7 +1763,7 @@ async function removePost(postId: number) {
                 <div v-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
                   {{ t('topic.hiddenReplyPlaceholder') }}
                 </div>
-                <div v-else v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
+                <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
                 <div v-if="group.root.isHidden && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                   {{ t('topic.hiddenReplyBadge') }}
                 </div>
@@ -1852,7 +1857,7 @@ async function removePost(postId: number) {
                     <div v-if="reply.isHidden && !reply.canModerate" class="mt-2 rounded border border-line bg-base-100 px-3 py-2 text-sm text-base-content/45">
                       {{ t('topic.hiddenReplyPlaceholder') }}
                     </div>
-                    <div v-else v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
+                    <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
                     <div v-if="reply.isHidden && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                       {{ t('topic.hiddenReplyBadge') }}
                     </div>

@@ -115,6 +115,11 @@ func PostDetail(id any) string {
 	return fmt.Sprintf("%s/%v", PathPost, id)
 }
 
+// PostMarkdown returns the public Markdown projection path for a topic.
+func PostMarkdown(id any) string {
+	return fmt.Sprintf("/p/posts/%v.md", id)
+}
+
 // Category returns the public category path for slug and id.
 func Category(slug string, id any) string {
 	return fmt.Sprintf("/c/%s/%v", url.PathEscape(slug), id)

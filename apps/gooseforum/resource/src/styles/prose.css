@@ -208,6 +208,43 @@
   }
 }
 
+/*
+ * KaTeX display-math containment must live OUTSIDE @layer components.
+ *
+ * katex.min.css is imported from math-rendering.ts and bundled unlayered into
+ * the lazy math-rendering chunk. CSS cascade layers give unlayered author
+ * styles priority over layered ones regardless of specificity or source order,
+ * so any override kept inside @layer components (e.g. the mobile text-align:
+ * start and the display: inline-block below) would be silently defeated by
+ * KaTeX's own .katex-display / .katex rules. Keeping them unlayered lets the
+ * higher-specificity .gf-prose .katex-display selectors win as intended.
+ */
+.gf-prose .katex-display {
+  box-sizing: border-box;
+  display: block;
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
+  overflow-x: auto;
+  overflow-y: hidden;
+  overscroll-behavior-x: contain;
+  -webkit-overflow-scrolling: touch;
+}
+
+.gf-prose .katex-display > .katex {
+  display: inline-block;
+  max-width: none;
+  white-space: nowrap;
+}
+
+@media (max-width: 639px) {
+  .gf-prose .katex-display {
+    padding-bottom: 0.4rem;
+    scrollbar-width: thin;
+    text-align: start;
+  }
+}
+
 html[data-gf-font-body] .gf-prose {
   font-size: var(--gf-font-size-body, 1rem);
   font-family: var(--gf-font-family-body, inherit);

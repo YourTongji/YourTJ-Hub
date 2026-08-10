@@ -13,7 +13,7 @@ const page = defineProps<{
   props: HomeProps
   pageUrl: string
 }>()
-const { t } = useI18n()
+const { t, locale } = useI18n()
 const announcementReadStorageKey = 'goose:announcement:last-read-published-at'
 const announcementReminderWindow = 7 * 24 * 60 * 60 * 1000
 
@@ -51,7 +51,56 @@ function setFeedMode(mode: 'table' | 'card') {
   } catch {
     // Storage may be unavailable in private or restricted browsing contexts.
   }
+  void nextTick(updateFeedModePill)
 }
+
+// 列表/卡片切换：绝对定位的「药丸」滑到激活按钮下方。
+// 位置按按钮实际渲染尺寸测量（绝对值定位相对于容器的 padding box）；
+// 字体加载、窗口缩放、i18n 文案宽度变化均由 ResizeObserver 兜底
+// （同时观察按钮本身，容器尺寸不变但按钮宽度变化时也能及时重测）。
+const feedModeGroup = ref<HTMLElement | null>(null)
+const feedModeTableBtn = ref<HTMLElement | null>(null)
+const feedModeCardBtn = ref<HTMLElement | null>(null)
+const feedModePillLeft = ref(0)
+const feedModePillWidth = ref(0)
+const feedModePillReady = ref(false)
+const reducedMotion = ref(false)
+let feedModeResizeObserver: ResizeObserver | undefined
+let feedModeMotionQuery: MediaQueryList | undefined
+
+function updateFeedModePill() {
+  const group = feedModeGroup.value
+  const activeBtn = feedMode.value === 'table' ? feedModeTableBtn.value : feedModeCardBtn.value
+  if (!group || !activeBtn) return
+  const groupRect = group.getBoundingClientRect()
+  if (groupRect.width === 0 || groupRect.height === 0) return // keep-alive 隐藏期间跳过测量
+  const activeRect = activeBtn.getBoundingClientRect()
+  const borderLeft = parseFloat(getComputedStyle(group).borderLeftWidth) || 0
+  feedModePillLeft.value = activeRect.left - groupRect.left - borderLeft
+  feedModePillWidth.value = activeRect.width
+  feedModePillReady.value = true
+}
+
+// 激活按钮文字在白药丸到达时（delay 与药丸滑动时长一致，均由 --gf-feed-slide-ms 决定）翻白；
+// 非激活按钮文字立即变灰（随药丸离去淡出）。reduced-motion 下全部瞬时切换。
+function feedModeButtonClass(active: boolean): string[] {
+  const base = active ? 'text-primary-content' : 'text-base-content/55 hover:text-base-content'
+  if (reducedMotion.value) return [base]
+  return active
+    ? [base, 'transition-colors', 'delay-[var(--gf-feed-slide-ms)]', 'duration-100']
+    : [base, 'transition-colors', 'duration-200']
+}
+
+function handleFeedModeMotionChange(event: MediaQueryListEvent) {
+  reducedMotion.value = event.matches
+}
+
+// 切换语言后重新测量：ResizeObserver 只能捕获宽度变化的场景，
+// 对「两个按钮总宽不变但各自宽度互换」的极端情况仍需要显式兜底。
+watch(
+  () => locale.value,
+  () => void nextTick(updateFeedModePill),
+)
 
 const announcementItems = computed(() => page.props.announcement.items || [])
 const hasMultipleAnnouncements = computed(() => announcementItems.value.length > 1)
@@ -211,10 +260,20 @@ onMounted(() => {
   observeSentinel()
   window.addEventListener('storage', syncAnnouncementRead)
   startAnnouncementRotation()
+  feedModeMotionQuery = window.matchMedia('(prefers-reduced-motion: reduce)')
+  reducedMotion.value = feedModeMotionQuery.matches
+  feedModeMotionQuery.addEventListener('change', handleFeedModeMotionChange)
+  void nextTick(updateFeedModePill)
+  feedModeResizeObserver = new ResizeObserver(() => updateFeedModePill())
+  if (feedModeGroup.value) feedModeResizeObserver.observe(feedModeGroup.value)
+  // 额外观察两个按钮：某些布局变化（如换行、padding 调整）可能只改变按钮宽度而容器不变
+  if (feedModeTableBtn.value) feedModeResizeObserver.observe(feedModeTableBtn.value)
+  if (feedModeCardBtn.value) feedModeResizeObserver.observe(feedModeCardBtn.value)
 })
 onActivated(() => {
   void nextTick(observeSentinel)
   startAnnouncementRotation()
+  void nextTick(updateFeedModePill)
 })
 onDeactivated(() => {
   observer?.disconnect()
@@ -225,6 +284,8 @@ onBeforeUnmount(() => {
   observer?.disconnect()
   window.removeEventListener('storage', syncAnnouncementRead)
   stopAnnouncementRotation()
+  feedModeResizeObserver?.disconnect()
+  feedModeMotionQuery?.removeEventListener('change', handleFeedModeMotionChange)
 })
 
 </script>
@@ -311,7 +372,10 @@ onBeforeUnmount(() => {
       </aside>
 
       <section :class="feedMode === 'card' ? '' : 'gf-card overflow-hidden'">
-        <div class="gf-home-topic-toolbar">
+        <div
+          class="gf-home-topic-toolbar"
+          :class="feedMode === 'card' ? 'gf-home-topic-toolbar-card' : ''"
+        >
           <div class="gf-home-topic-tools">
             <div class="gf-home-topic-tabs">
               <a
@@ -325,14 +389,22 @@ onBeforeUnmount(() => {
               </a>
             </div>
             <div
-              class="flex items-center gap-0.5 rounded-full border border-line bg-base-100 p-0.5"
+              ref="feedModeGroup"
+              class="relative flex items-center gap-0.5 rounded-full border border-line bg-base-100 p-0.5"
               role="group"
               :aria-label="t('topicList.feedMode')"
             >
+              <span
+                aria-hidden="true"
+                class="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-primary"
+                :class="feedModePillReady && !reducedMotion ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out' : ''"
+                :style="{ left: `${feedModePillLeft}px`, width: `${feedModePillWidth}px` }"
+              />
               <button
+                ref="feedModeTableBtn"
                 type="button"
-                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors"
-                :class="feedMode === 'table' ? 'bg-primary text-primary-content' : 'text-base-content/55 hover:text-base-content'"
+                class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+                :class="feedModeButtonClass(feedMode === 'table')"
                 :aria-pressed="feedMode === 'table'"
                 @click="setFeedMode('table')"
               >
@@ -340,9 +412,10 @@ onBeforeUnmount(() => {
                 {{ t('topicList.feedModeTable') }}
               </button>
               <button
+                ref="feedModeCardBtn"
                 type="button"
-                class="inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold transition-colors"
-                :class="feedMode === 'card' ? 'bg-primary text-primary-content' : 'text-base-content/55 hover:text-base-content'"
+                class="relative z-10 inline-flex h-7 items-center gap-1 rounded-full px-2.5 text-xs font-semibold"
+                :class="feedModeButtonClass(feedMode === 'card')"
                 :aria-pressed="feedMode === 'card'"
                 @click="setFeedMode('card')"
               >
@@ -397,6 +470,31 @@ onBeforeUnmount(() => {
   }
   20% { transform: rotate(-10deg) scale(1.05); }
   25% { transform: rotate(5deg) scale(1.02); }
+}
+
+/* 信息流切换：药丸滑动时长；激活按钮文字翻白的 delay 与之共享（见 feedModeButtonClass），
+   调整滑动速度时只改这一处。 */
+.gf-home-topic-tools {
+  --gf-feed-slide-ms: 300ms;
+}
+
+/* 卡片模式：工具栏自身成为独立的圆角卡片（四角圆角 + 边框 + 阴影），
+   下方帖子卡片悬浮在页面背景上，与工具栏相互独立。 */
+.gf-home-topic-toolbar-card {
+  border: var(--gf-border) solid var(--gf-color-line);
+  border-radius: var(--gf-radius-box);
+  box-shadow: 0 2px 12px rgb(0 0 0 / calc(var(--gf-depth) * 0.04));
+}
+
+/* 移动端保持通栏风格：还原为仅底部一条分隔线的扁平工具栏 */
+@media (max-width: 639.98px) {
+  .gf-home-topic-toolbar-card {
+    border-top: 0;
+    border-left: 0;
+    border-right: 0;
+    border-radius: 0;
+    box-shadow: none;
+  }
 }
 
 @media (prefers-reduced-motion: reduce) {

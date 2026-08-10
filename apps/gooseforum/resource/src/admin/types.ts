@@ -327,6 +327,11 @@ export interface PostingSettings {
     maxDailyUploadsPerUser: number
     newUserUploadCooldownMinutes: number
   }
+  llms: {
+    enabled: boolean
+    fullText: boolean
+    files: boolean
+  }
 }
 
 export interface HttpNotifyEndpoint {
