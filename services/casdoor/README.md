@@ -1,4 +1,9 @@
-# Casdoor unified auth deployment config (local dev is already in the root docker-compose.yml)
+# Casdoor unified auth deployment config — ARCHIVED / NOT ENABLED
+#
+# Casdoor is no longer used: the forum built-in OIDC Provider (/api/oauth, authorization code +
+# PKCE S256, RS256 id_token, opaque access tokens, sub = numeric users.id) replaces it.
+# This file is kept for historical reference only; do not deploy Casdoor.
+#
 # Init checklist (based on the verified setup):
 # 0. 修改内置 admin 默认口令（admin/123）并禁用内置 organization 的公开注册。
 #    生产按文档建议放到反代后面，等于对公网开放默认凭证，必须先改。
@@ -8,37 +13,31 @@
 #    - signupItems: ID rule=Incremental (self-registered users get numeric IDs)
 #    - enablePassword=1, enableSignUp=1
 #    - grantTypes: authorization_code, password, refresh_token, token, id_token
-# 3. Admin-created accounts must pass an explicit numeric id (API-created users need
-#    passwordType=bcrypt fixed)
+# 3. Copy the app's client_id / client_secret.
 # 4. 将 client_id / client_secret 写入论坛 config.toml 的 [casdoor] 段
-#    （或运行 init-server.sh 前 export CASDOOR_CLIENT_ID/CASDOOR_CLIENT_SECRET 环境变量）。
-#    注意：写入 deploy/.env 不会生效——论坛从 config.toml 读取，init-server.sh 读的是
-#    shell 环境变量；照旧文档第 4 步操作会发现凭证不生效。
-#    存量实例升级：init-server.sh 只在 config.toml 不存在时生成，已有 config.toml 的实例
-#    需手工补 [casdoor] 段，否则 OIDC 静默降级（IsConfigured 检查，仅日志 Warn）。
+# 5. Set the callback URL to <forum>/api/auth/oidc/callback (web) and
+#    yourtj://callback (mobile).
+# 6. 论坛启动时校验配置，缺失时 OIDC 登录静默降级（仅日志 Warn）。
 #
-# Note: the user id defaults to UUID; credit's GetID() requires numeric uint64 —
-#       the numeric-ID config above is mandatory, otherwise all users parse to 0 and collide.
-#
-# Forum-side integration (implemented):
-# - GET /api/auth/oidc/login — PKCE + state + nonce, redirects to Casdoor
-# - GET /api/auth/oidc/callback — exchanges code, verifies iss/aud/nonce/exp, enforces
-#   numeric sub (ParseUint), then binds (signed-in) or signs in (creates local user)
-# - POST /api/auth/oidc/exchange — mobile (Flutter) login: client-held PKCE verifier
-#   + custom-scheme redirect, returns the forum JWT in the response body. The
-#   redirect URI must be in the configured allowlist (config key
-#   casdoor.mobile_redirect_uri, default yourtj://callback) and must be added to
+# Runtime behavior:
+# - Login flow: GET /api/auth/oidc/login — PKCE + state + nonce, redirects to Casdoor;
+#   callback exchanges the code, verifies id_token (iss/aud/nonce/exp), enforces a positive
+#   numeric `sub`, then binds or signs in and issues a forum JWT.
+# - Mobile exchange: POST /api/auth/oidc/exchange with {code, codeVerifier, nonce, redirectUri};
+#   the redirect URI must exactly match the configured mobile allowlist
+#   (casdoor.mobile_redirect_uri, default yourtj://callback) and must be added to
 #   the Casdoor application's Redirect URLs alongside the web callback.
 # - config keys: casdoor.endpoint / casdoor.client_id / casdoor.client_secret /
 #   casdoor.mobile_redirect_uri (optional, default yourtj://callback)
 #
 # Mobile client: register yourtj://callback in the Casdoor application's
-# Redirect URLs allowlist (custom schemes are supported — the official Android/iOS
+# Redirect URLs (Flutter AppAuth requires a custom scheme; the AppAuth
 # SDKs use casdoor://callback by default). The Flutter client uses AppAuth with
-# PKCE S256 and exchanges the authorization code at POST /api/auth/oidc/exchange.
+# PKCE S256 + nonce and exchanges the code at the forum backend.
 #
 # MFA / Passkey (Casdoor-side, recommended for OAuth/Casdoor logins):
 # - TOTP/MFA and Passkey (WebAuthn) are enabled inside Casdoor's app settings; the
-#   forum does not re-implement them for OIDC logins (forum TOTP covers password login only)
+#   forum has no WebAuthn code.
 # - Passkey: enable the WebAuthn provider / passkey sign-in in the Casdoor application,
 #   then users can register passkeys from Casdoor's account pages
+#   (forum settings page shows no passkey UI).

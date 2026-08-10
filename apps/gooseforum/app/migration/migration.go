@@ -23,6 +23,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/migrationMapping"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
+	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
+	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
@@ -149,6 +151,8 @@ func SchemaModels() []any {
 		&taskQueue.Entity{},
 		&userFollow.Entity{},
 		&userBadges.Entity{},
+		&oidcAuthRequests.Entity{},
+		&oidcAccessTokens.Entity{},
 		&userOAuth.Entity{},
 		&userPoints.Entity{},
 		&userSessions.Entity{},

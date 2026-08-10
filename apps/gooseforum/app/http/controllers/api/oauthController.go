@@ -133,7 +133,7 @@ func GetOAuthBindings(req component.BetterRequest[component.Null]) component.Res
 	}
 
 	// 添加未绑定的提供商
-	allProviders := []string{"github", "google", "casdoor"}
+	allProviders := []string{"github", "google"}
 	for _, provider := range allProviders {
 		if _, exists := result[provider]; !exists {
 			result[provider] = map[string]any{

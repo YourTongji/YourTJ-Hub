@@ -154,11 +154,8 @@ const (
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"             // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed"    // OAuth 用户激活状态更新失败。
 	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"               // OAuth 登录 token 生成失败。
-	MessageOAuthNumericSubRequired     MessageCode = "oauth.numericSubRequired"         // OAuth 账号标识必须为数字ID。
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"                // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"             // OIDC 登录回调失败。
-	MessageOidcBindFailed              MessageCode = "oidc.bind.failed"                 // OIDC 账号绑定失败。
-	MessageOidcBindConflict            MessageCode = "oidc.bind.conflict"               // 该 OIDC 账号已被其他用户绑定。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"                 // 私信发送失败，params.error 可带原始错误。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"             // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"             // 标记私信已读失败。

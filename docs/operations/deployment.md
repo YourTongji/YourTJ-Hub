@@ -13,7 +13,7 @@
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
 - Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; Casdoor planned.
+  database `[db.file]` stays SQLite); optional Meilisearch; optional built-in OIDC Provider ([oidc] in config.toml).
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -260,6 +260,6 @@ instance:
 
 ## Runbooks to write
 
-- Casdoor production config (domain, certs, client registration)
+- Built-in OIDC Provider production config ([oidc] in config.toml: enabled, issuer, signing key, clients)
 - Meilisearch index rebuild, backup
 - Logging & monitoring (config [log] slow SQL, rolling logs; health probes)

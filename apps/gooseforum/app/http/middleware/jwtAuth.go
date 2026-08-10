@@ -3,16 +3,16 @@ package middleware
 import (
 	"context"
 	"net/http"
+	"net/url"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/authsessionservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 const SkipUpdateUserActivity = "SkipUpdateUserActivity"
@@ -50,48 +50,23 @@ func JWTAuth(c *gin.Context) {
 
 func JWTAuthGetUserId(c *gin.Context) uint64 {
 	token := jwt.GetGinAccessToken(c)
-	if token == "" {
-		return 0
-	}
-	claims, newToken, err := jwt.VerifyTokenWithFreshClaims(token)
-	if err != nil {
-		return 0
-	}
-	user, ok := userservice.GetUserInfo(claims.UserId)
-	if !ok || user.TokenVersion != claims.TokenVersion {
-		return 0
-	}
-	// 机器人（Agent）账号不参与人类会话：bot 行无法通过 JWT 会话中间件，
-	// 也就无法创建/列出人类会话或访问任何登录态接口。
-	if user.ActorType == users.ActorTypeBot {
-		return 0
-	}
-	// Every accepted token must map to a live session record. Challenge
-	// tokens (e.g. TOTP second factor) never create a session row, so they
-	// are rejected here and can only be used by their dedicated middleware.
-	if !sessionValid(claims.Jti, claims.UserId) {
+	userID, jti, newToken, ok := authsessionservice.ValidateToken(token)
+	if !ok {
 		return 0
 	}
 	if token != newToken {
 		jwt.TokenSetting(c, newToken)
 		// Keep the session record expiry aligned with the refreshed token.
-		if claims.Jti != "" {
-			if exp, err := claims.GetExpirationTime(); err == nil {
-				sessionservice.TouchExpiry(claims.Jti, exp.Time)
+		if jti != "" {
+			if claims, _, err := jwt.VerifyTokenWithFreshClaims(newToken); err == nil {
+				if exp, err := claims.GetExpirationTime(); err == nil {
+					sessionservice.TouchExpiry(jti, exp.Time)
+				}
 			}
 		}
 	}
-	c.Set("currentJti", claims.Jti)
-	return claims.UserId
-}
-
-// sessionValid reports whether jti maps to a non-expired session owned by userID.
-func sessionValid(jti string, userID uint64) bool {
-	if jti == "" {
-		return false
-	}
-	entity := sessionservice.GetValidByJti(jti)
-	return entity != nil && entity.UserId == userID
+	c.Set("currentJti", jti)
+	return userID
 }
 
 func NoUpdateUserActivity(c *gin.Context) {
@@ -102,9 +77,10 @@ func NoUpdateUserActivity(c *gin.Context) {
 func CheckLogin(c *gin.Context) {
 	userId := c.GetUint64("userId")
 	if userId == 0 {
-		// 获取当前请求的完整URL作为重定向参数
+		// 获取当前请求的完整URL作为重定向参数，并用 QueryEscape 正确编码，
+		// 避免 redirect 值中的 & / ? 等字符破坏 login 页面的查询串。
 		redirectURL := c.Request.URL.String()
-		c.Redirect(http.StatusFound, "/login?redirect="+redirectURL)
+		c.Redirect(http.StatusFound, "/login?redirect="+url.QueryEscape(redirectURL))
 		c.Abort()
 		return
 	}
