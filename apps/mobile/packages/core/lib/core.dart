@@ -12,6 +12,7 @@ export 'src/api/repositories/post_repository.dart';
 export 'src/api/repositories/topic_repository.dart';
 export 'src/api/repositories/user_repository.dart';
 
+export 'src/gen/agent.dart';
 export 'src/gen/auth.dart';
 export 'src/gen/chat.dart';
 export 'src/gen/common.dart';

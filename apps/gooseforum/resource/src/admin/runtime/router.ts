@@ -26,6 +26,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/UsersManagementPage.vue'),
     },
     {
+      path: '/admin/agents',
+      component: () => import('@/admin/pages/management/AgentsManagementPage.vue'),
+    },
+    {
       path: '/admin/roles',
       component: () => import('@/admin/pages/management/RolesManagementPage.vue'),
     },

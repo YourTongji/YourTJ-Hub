@@ -34,7 +34,14 @@ func TOTPChallengeAuth(c *gin.Context) {
 		return
 	}
 	// 改密或退出所有设备（TokenVersion++）后，旧 challenge token 立即失效。
-	if user, ok := userservice.GetUserInfo(claims.UserId); !ok || user.TokenVersion != claims.TokenVersion {
+	user, ok := userservice.GetUserInfo(claims.UserId)
+	if !ok || user.TokenVersion != claims.TokenVersion {
+		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
+		c.Abort()
+		return
+	}
+	// 机器人（Agent）账号不参与人类两步验证流程。
+	if user.ActorType == users.ActorTypeBot {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		c.Abort()
 		return

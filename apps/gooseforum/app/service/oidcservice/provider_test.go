@@ -880,6 +880,32 @@ func TestCompleteLoginValidatesRequest(t *testing.T) {
 	}
 }
 
+func TestIssueForumSessionTokenRejectsBot(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &userSessions.Entity{}); err != nil {
+		t.Fatalf("migrate bot session tables: %v", err)
+	}
+	bot := users.EntityComplete{
+		Username:    "oidc-bot-" + strconv.FormatInt(time.Now().UnixNano(), 10),
+		ActorType:   users.ActorTypeBot,
+		IsActivated: users.ActivationSuccess,
+	}
+	if err := conn.Create(&bot).Error; err != nil {
+		t.Fatalf("create bot: %v", err)
+	}
+
+	if _, err := IssueForumSessionToken(bot.Id, "test-agent", "127.0.0.1"); err == nil {
+		t.Fatal("IssueForumSessionToken() must reject bot users")
+	}
+	var sessionCount int64
+	if err := conn.Model(&userSessions.Entity{}).Where("user_id = ?", bot.Id).Count(&sessionCount).Error; err != nil {
+		t.Fatalf("count bot sessions: %v", err)
+	}
+	if sessionCount != 0 {
+		t.Fatalf("bot session count = %d, want 0", sessionCount)
+	}
+}
+
 // TestExchangeCodeFullSuccess 覆盖 mobile 完整路径：
 // mobile client authorize（public client + PKCE）→ 登录桥完成 →
 // ExchangeCode 兑换，验证 nonce/client/redirect/PKCE 与 auth request 删除。

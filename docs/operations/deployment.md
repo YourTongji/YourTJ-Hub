@@ -148,6 +148,27 @@ SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, prov
 
 If duplicates exist, keep the row with the earliest `created_at` (or the one owned by the active
 account) and delete the rest before the upgrade; the index creation will then succeed.
+
+### Unique username migration preflight
+
+The `users.username` unique index is shared by human and bot accounts. Before `AutoMigrate` creates
+that index, startup checks an existing `users` table for blank or duplicate usernames. The binary
+does not rewrite identity data automatically: if dirty rows exist, startup exits non-zero with the
+blank-row count, up to ten duplicate usernames, and an instruction to assign non-empty globally
+unique usernames before restarting. Because dev receives a production snapshot, resolve the report
+on the authoritative main dataset, resync dev, and rehearse the migration there before releasing to
+main.
+
+Operator checks for all supported databases:
+
+```sql
+SELECT COUNT(*) FROM users WHERE username = '';
+SELECT username, COUNT(*) FROM users
+WHERE username <> ''
+GROUP BY username
+HAVING COUNT(*) > 1;
+```
+
 ## PostgreSQL support
 
 Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the

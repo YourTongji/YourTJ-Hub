@@ -2,6 +2,7 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
   Award,
+  Bot,
   Database,
   FileText,
   Files,
@@ -74,6 +75,7 @@ const navGroups = computed<NavGroup[]>(() => {
     items: [
       { title: adminText('k004c'), url: '/admin', icon: Monitor, permission: AdminPermission.Admin },
       { title: adminText('k006i'), url: '/admin/users', icon: UserCog, permission: AdminPermission.UserManager },
+      { title: adminText('k00k7'), url: '/admin/agents', icon: Bot, permission: AdminPermission.Admin },
       { title: adminText('k007f'), url: '/admin/roles', icon: ShieldCheck, permission: AdminPermission.RoleManager },
       { title: adminText('k005l'), url: '/admin/categories', icon: Tags, permission: AdminPermission.TopicsManager },
       { title: adminText('k005u'), url: '/admin/posts', icon: FileText, permission: AdminPermission.TopicsManager },

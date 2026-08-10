@@ -216,6 +216,76 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/agent/me": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Return the authenticated Agent profile */
+        get: operations["agentMe"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/topics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List published topics */
+        get: operations["agentTopicList"];
+        put?: never;
+        /** Create a published topic as the Agent */
+        post: operations["agentWriteTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/topics/{topicId}/posts": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List posts in a topic window */
+        get: operations["agentPostList"];
+        put?: never;
+        /** Reply to a topic as the Agent */
+        post: operations["agentCreatePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/agent/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Aggregate forum search */
+        get: operations["agentSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -345,6 +415,118 @@ export interface components {
                 retryAfterSeconds: number;
             } & {
                 [key: string]: unknown;
+            };
+        };
+        AgentMe: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** Format: uint64 */
+                agentId: number;
+                username: string;
+                nickname: string;
+                avatarUrl: string;
+                /** @description Non-secret token prefix; the token and its hash are never exposed. */
+                tokenPrefix: string;
+                /** @enum {integer} */
+                enabled: 0 | 1;
+                /** Format: int64 */
+                createdAt: number;
+                /** Format: int64 */
+                updatedAt: number;
+            };
+        };
+        AgentTopicItem: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            excerpt: string;
+            categoryIds: number[];
+            /** Format: uint64 */
+            userId: number;
+            /** @enum {integer} */
+            status: 0 | 1;
+            /** @enum {integer} */
+            processStatus: 0 | 1 | 2;
+            /** Format: uint64 */
+            replyCount: number;
+            /** Format: uint64 */
+            viewCount: number;
+            /** Format: uint64 */
+            postCount: number;
+            /** Format: int64 */
+            lastPostedAt?: number;
+            /** Format: int64 */
+            createdAt: number;
+            /** Format: int64 */
+            updatedAt: number;
+        };
+        AgentTopicListResult: {
+            list: components["schemas"]["AgentTopicItem"][];
+            page: number;
+            pageSize: number;
+            hasNext: boolean;
+        };
+        AgentTopicListResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AgentTopicListResult"];
+        };
+        /** @description Agent topics always publish (topicStatus=1); website and captcha fields are deliberately absent. */
+        AgentWriteTopicRequest: {
+            title: string;
+            content: string;
+            categoryId: number[];
+        };
+        /** @description Mirrors the forum PostWindow payload shape. */
+        AgentPostListResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                posts: Record<string, never>[];
+                replyTargets: Record<string, never>[];
+                /** Format: uint64 */
+                anchorPostId?: number;
+                /** Format: uint64 */
+                beforePostNo?: number;
+                /** Format: uint64 */
+                afterPostNo?: number;
+                hasBefore: boolean;
+                hasAfter: boolean;
+                /** Format: int64 */
+                total: number;
+                /** Format: uint64 */
+                maxPostNo: number;
+            };
+        };
+        /** @description The topic id comes from the path and is authoritative. */
+        AgentCreatePostRequest: {
+            content: string;
+            /** Format: uint64 */
+            replyToPostId?: number;
+        };
+        AgentCreatePostResult: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            postNo: number;
+            renderedContent: string;
+        };
+        AgentCreatePostResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AgentCreatePostResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Mirrors the forum SearchJSON payload, including searchUnavailable and failedScopes. */
+        AgentSearchResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                query: string;
+                scope: string;
+                topics: Record<string, never>[];
+                users: Record<string, never>[];
+                categories: Record<string, never>[];
+                /** Format: int64 */
+                total: number;
+                /** Format: int64 */
+                usersTotal: number;
+                /** Format: int64 */
+                categoriesTotal: number;
+                totalPages: number;
+                pagination: Record<string, never>;
+                failedScopes?: string[];
+                searchUnavailable?: boolean;
             };
         };
         RevokeSessionRequest: {
@@ -733,6 +915,272 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    agentMe: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The Agent's own non-secret profile. The token and its hash are never returned. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentMe"];
+                };
+            };
+            /** @description Missing, malformed, unknown, wrong-hash, disabled, frozen, deleted, or non-bot credential. All failures share one envelope. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentTopicList: {
+        parameters: {
+            query?: {
+                page?: number;
+                pageSize?: number;
+                sort?: "latest" | "hot" | "popular" | "new";
+                categoryId?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Published (status=1, processStatus=0) topics with hasNext pagination. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentTopicListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentWriteTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentWriteTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Created topic id, or a legacy business failure envelope (length, category, sensitive-content rules). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WriteTopicResponse"];
+                };
+            };
+            /** @description Malformed JSON body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Topic-writing rate limit exceeded (IP and bot userId share the human topic.write rule). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    agentPostList: {
+        parameters: {
+            query?: {
+                anchorPostId?: number;
+                anchorPostNo?: number;
+                beforePostNo?: number;
+                afterPostNo?: number;
+                limit?: number;
+            };
+            header?: never;
+            path: {
+                topicId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The same post window payload as the forum posts/window endpoint. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentPostListResponse"];
+                };
+            };
+            /** @description Malformed path or query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    agentCreatePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                topicId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AgentCreatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Created post payload, or a legacy business failure envelope (unknown topic, length, sensitive-content rules). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentCreatePostResponse"];
+                };
+            };
+            /** @description Malformed JSON body or non-numeric path topicId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-create rate limit exceeded (IP and bot userId share the human post.create rule). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    agentSearch: {
+        parameters: {
+            query?: {
+                q?: string;
+                scope?: "all" | "topics" | "users" | "categories";
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The same aggregate search payload as the forum search JSON endpoint, including searchUnavailable and failedScopes behavior. Bot personas are excluded from user search. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AgentSearchResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing or invalid agent bearer credential. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

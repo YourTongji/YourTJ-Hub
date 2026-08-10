@@ -43,7 +43,7 @@ func ProviderCallback(c *gin.Context) {
 	currentUserId := currentUserInfo.UserId
 
 	if currentUserId > 0 {
-		if user, ok := userservice.GetUserInfo(currentUserId); !ok || user.IsFrozen == users.StatusFrozen {
+		if user, ok := userservice.GetUserInfo(currentUserId); !ok || user.IsFrozen == users.StatusFrozen || user.ActorType == users.ActorTypeBot {
 			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessagePermissionUserFrozen)
 			return
 		}

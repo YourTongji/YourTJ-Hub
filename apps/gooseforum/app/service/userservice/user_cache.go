@@ -34,6 +34,7 @@ type UserInfo struct {
 	IsFrozen            int8
 	IsActivated         int8
 	ActivatedAt         *time.Time
+	ActorType           int8
 	Nickname            string
 	RoleId              uint64
 	Prestige            int64
@@ -200,6 +201,7 @@ func userInfoFromEntity(user users.EntityComplete) UserInfo {
 		IsFrozen:            user.IsFrozen,
 		IsActivated:         user.IsActivated,
 		ActivatedAt:         user.ActivatedAt,
+		ActorType:           user.ActorType,
 		Nickname:            user.Nickname,
 		RoleId:              user.RoleId,
 		Prestige:            user.Prestige,
@@ -246,6 +248,7 @@ func (user UserInfo) toEntity() users.EntityComplete {
 		IsFrozen:            user.IsFrozen,
 		IsActivated:         user.IsActivated,
 		ActivatedAt:         user.ActivatedAt,
+		ActorType:           user.ActorType,
 		Nickname:            user.Nickname,
 		RoleId:              user.RoleId,
 		Prestige:            user.Prestige,
