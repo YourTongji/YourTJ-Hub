@@ -555,6 +555,53 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		}
 	})
 
+	t.Run("null code is rejected without consuming the challenge", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		code, _ := enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			`{"code":null}`,
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("null-code status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, recorder),
+			contractFixture(t, "totp-verify-invalid-format.json"),
+		)
+		if count := contractSessionCount(t, conn, user.Id); count != 0 {
+			t.Fatalf("session count after null-code request = %d, want 0", count)
+		}
+
+		// The challenge is not consumed: the same token completes login with a
+		// well-formed non-null body.
+		body, err := json.Marshal(map[string]string{"code": code})
+		if err != nil {
+			t.Fatalf("marshal null-retry request: %v", err)
+		}
+		success := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if success.Code != http.StatusOK {
+			t.Fatalf("null-retry status = %d, want 200: %s", success.Code, success.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+		if count := contractSessionCount(t, conn, user.Id); count != 1 {
+			t.Fatalf("session count after null-retry = %d, want 1", count)
+		}
+	})
+
 	t.Run("invalid code remains an HTTP 200 business failure", func(t *testing.T) {
 		conn, router := setupAuthSecurityContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())

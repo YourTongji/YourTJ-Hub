@@ -33,9 +33,26 @@ type TotpDisableReq struct {
 }
 
 // TotpVerifyReq 完成两步验证登录，code 与 recoveryCode 二选一。
+// 字段用 json.RawMessage 保留原始值，以便严格解码时区分"字段缺失"与"显式 null"：
+// 受控契约声明两字段均为非 null 的 string，显式 null 属于非法输入。
 type TotpVerifyReq struct {
-	Code         string `json:"code"`
-	RecoveryCode string `json:"recoveryCode"`
+	Code         json.RawMessage `json:"code"`
+	RecoveryCode json.RawMessage `json:"recoveryCode"`
+}
+
+// totpVerifyString 解析单个请求字段：缺失 → 空串；null 或非字符串 → 错误。
+func totpVerifyString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	var value *string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", err
+	}
+	if value == nil {
+		return "", errors.New("totp verify field must not be null")
+	}
+	return *value, nil
 }
 
 // TotpSetup 获取两步验证密钥与 otpauth 链接。
@@ -134,9 +151,18 @@ func TotpVerify(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		return
 	}
-	code := req.Code
+	code, err := totpVerifyString(req.Code)
+	if err != nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
+	recoveryCode, err := totpVerifyString(req.RecoveryCode)
+	if err != nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
 	if code == "" {
-		code = req.RecoveryCode
+		code = recoveryCode
 	}
 	if code == "" {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))
