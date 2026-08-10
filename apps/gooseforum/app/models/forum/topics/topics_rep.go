@@ -77,6 +77,21 @@ func GetPointerMapByIds(ids []uint64) map[uint64]*Entity {
 	return result
 }
 
+// GetMapByIdsUnscoped 返回含已删除（软删）在内的主题 map。
+// 举报审核需要基于快照继续处理已被作者删除的目标，不能因软删过滤而丢失。
+func GetMapByIdsUnscoped(ids []uint64) map[uint64]Entity {
+	var list []Entity
+	if len(ids) == 0 {
+		return map[uint64]Entity{}
+	}
+	builder().Unscoped().Where("id in ?", ids).Find(&list)
+	result := make(map[uint64]Entity, len(list))
+	for _, item := range list {
+		result[item.Id] = item
+	}
+	return result
+}
+
 func GetLatestPublished(limit int) (entities []*Entity, err error) {
 	err = builder().
 		Where(queryopt.Eq("status", 1)).

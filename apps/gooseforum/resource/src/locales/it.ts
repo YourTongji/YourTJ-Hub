@@ -1229,6 +1229,7 @@ export default {
       reporterLabel: 'Segnalante',
       handlerLabel: 'Gestore',
       noExcerpt: 'Nessun estratto',
+      targetDeleted: 'Contenuto eliminato',
       targetTypes: {
         topic: 'Topic',
         post: 'Post',

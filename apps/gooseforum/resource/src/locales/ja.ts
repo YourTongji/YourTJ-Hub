@@ -1233,6 +1233,7 @@ export default {
       reporterLabel: '通報者',
       handlerLabel: '処理者',
       noExcerpt: '抜粋はありません',
+      targetDeleted: '削除済みのコンテンツ',
       targetTypes: {
         topic: 'トピック',
         post: '投稿',

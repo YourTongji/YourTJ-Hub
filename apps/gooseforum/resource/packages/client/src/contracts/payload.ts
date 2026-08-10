@@ -470,6 +470,7 @@ export interface ModerationReportItem {
   categories: Array<{ id: number; name: string; url: string; color: string }>
   createdAt: string
   handledAt?: string
+  targetDeleted?: boolean
 }
 
 export interface ModerationReportListResponse {

@@ -1255,6 +1255,7 @@ export default {
       reporterLabel: '提交人',
       handlerLabel: '处理人',
       noExcerpt: '暂无摘要',
+      targetDeleted: '内容已删除',
       targetTypes: {
         topic: '话题',
         post: '帖子',

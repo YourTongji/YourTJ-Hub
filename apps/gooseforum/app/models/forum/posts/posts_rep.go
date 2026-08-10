@@ -59,6 +59,23 @@ func GetMapByIds(ids []uint64) map[uint64]*Entity {
 	return result
 }
 
+// GetMapByIdsUnscoped 返回含已删除（软删）在内的回复 map。
+// 举报审核需要基于快照继续处理已被作者删除的目标，不能因软删过滤而丢失。
+func GetMapByIdsUnscoped(ids []uint64) map[uint64]*Entity {
+	var list []*Entity
+	if len(ids) == 0 {
+		return map[uint64]*Entity{}
+	}
+	builder().Unscoped().Where("id in ?", ids).Find(&list)
+	result := make(map[uint64]*Entity, len(list))
+	for _, item := range list {
+		if item != nil {
+			result[item.Id] = item
+		}
+	}
+	return result
+}
+
 func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
 }

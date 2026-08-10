@@ -1255,6 +1255,7 @@ export default {
       reporterLabel: 'Reporter',
       handlerLabel: 'Handler',
       noExcerpt: 'No excerpt',
+      targetDeleted: 'Content deleted',
       targetTypes: {
         topic: 'Topic',
         post: 'Post',

@@ -287,7 +287,11 @@ function reportResolutionLabel(item: ModerationReportItem) {
             <div class="min-w-0">
               <div class="flex min-w-0 items-center gap-1.5 text-[15px] leading-5 text-base-content/80">
                 <span class="shrink-0 text-base-content/45">{{ t(`moderation.reports.targetTypes.${item.targetType}`) }}</span>
-                <a :href="item.targetUrl" class="min-w-0 max-w-full truncate font-medium text-primary/90 hover:text-primary">{{ item.title }}</a>
+                <a v-if="!item.targetDeleted" :href="item.targetUrl" class="min-w-0 max-w-full truncate font-medium text-primary/90 hover:text-primary">{{ item.title }}</a>
+                <span v-else class="truncate font-medium text-base-content/45">{{ item.title }}</span>
+                <span v-if="item.targetDeleted" class="shrink-0 rounded bg-warning/15 px-1.5 py-0.5 text-xs font-medium text-warning">
+                  {{ t('moderation.reports.targetDeleted') }}
+                </span>
                 <span v-for="category in item.categories" :key="category.id" class="hidden shrink-0 items-center gap-1 text-xs text-base-content/45 lg:inline-flex">
                   <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
                   {{ category.name }}
