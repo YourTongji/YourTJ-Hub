@@ -54,3 +54,37 @@ export interface AgentCreatePostResult {
 }
 
 export type AgentSearchResult = SearchPageProps
+
+export interface AgentInboxItem {
+  id: number
+  topicId: number
+  postId: number
+  eventType: string
+  actorId: number
+  contentPreview: string
+  status: 0 | 1
+  deliveryStatus: 0 | 1 | 2 | 3
+  attempts: number
+  lastError: string
+  readAt?: number
+  createdAt: number
+  updatedAt: number
+}
+
+export interface AgentInboxListResult {
+  list: AgentInboxItem[]
+  page: number
+  pageSize: number
+  hasNext: boolean
+}
+
+export type AgentInboxListQuery = {
+  status?: 'all' | 'unread'
+  page?: number
+  pageSize?: number
+}
+
+export type AgentInboxSuccessResult = {
+  result: 'success'
+  messageCode: 'common.operation.success'
+}

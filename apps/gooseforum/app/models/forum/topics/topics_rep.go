@@ -21,12 +21,20 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Create(entity).Error
+}
+
 func Delete(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
 }
 
 func Save(entity *Entity) error {
 	return builder().Save(entity).Error
+}
+
+func SaveTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Save(entity).Error
 }
 
 func SaveNoUpdate(entity *Entity) error {
@@ -295,6 +303,10 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }
 
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Model(&Entity{}).Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
+}
+
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
@@ -361,6 +373,24 @@ func ReservePostSequence(topicId uint64) (uint64, error) {
 
 	var postSeq uint64
 	err := builder().
+		Select("post_seq").
+		Where("id = ?", topicId).
+		Scan(&postSeq).Error
+	return postSeq, err
+}
+
+func ReservePostSequenceTx(tx *gorm.DB, topicId uint64) (uint64, error) {
+	result := tx.Model(&Entity{}).
+		Where("id = ?", topicId).
+		Update("post_seq", gorm.Expr("post_seq + 1"))
+	if result.Error != nil {
+		return 0, result.Error
+	}
+	if result.RowsAffected == 0 {
+		return 0, gorm.ErrRecordNotFound
+	}
+	var postSeq uint64
+	err := tx.Model(&Entity{}).
 		Select("post_seq").
 		Where("id = ?", topicId).
 		Scan(&postSeq).Error

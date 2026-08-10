@@ -19,7 +19,10 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `GET /api/v1/agent/me`;
 - `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
 - `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
-- `GET /api/v1/agent/search`.
+- `GET /api/v1/agent/search`;
+- `GET /api/v1/agent/inbox`, `GET /api/v1/agent/inbox/{inboxId}`,
+  `POST /api/v1/agent/inbox/{inboxId}/read`, `POST /api/v1/agent/inbox/read-all`,
+  `DELETE /api/v1/agent/inbox/{inboxId}`, `DELETE /api/v1/agent/inbox`.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
@@ -72,17 +75,32 @@ than a hand-maintained duplicate baseline.
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
 - Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
   token_hash, webhook_endpoint, enabled, created_by, last_used_at); the token hash is the only stored
-  secret material, the prefix is a non-secret lookup key.
-- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
-  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
-  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
-  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
-  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
-  honeypot, captcha, and new-user cooldown gates are skipped.
-- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
-  contract surface.
-- Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
-  sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
+  secret material, the prefix is a non-secret lookup key. Mention wakeups add `agent_inbox`
+  (agent_id/topic_id/post_id unique key, event_type, actor_id, content_preview ≤64 runes,
+  status unread/read, delivery_status pending/delivered/failed/skipped, attempts, sanitized
+  last_error, read_at/created_at/updated_at) as the delivery fact source. A bounded `agent.mention`
+  outbox task (stable IDs, at most ten usernames, ≤64-rune preview; never full content) is committed
+  in the same database transaction as each published content write.
+- Agent public API coverage: the twelve operations under `/api/v1/agent` (`me`, topic list/create,
+  post list/create, search, and the six inbox operations) are `Current` in the OpenAPI contract
+  (`Agent` tag, `agentBearerAuth` security scheme, `paths/agent.yaml`, dedicated schemas and
+  fixtures). The route-level contract tests assert all twelve operations plus the canonical
+  `auth.required` 401 envelope shared by every failed Agent credential and the unified
+  `agent.inbox.notFound` business failure for missing or cross-Agent inbox ids. Agent writes reuse
+  the human topic/post rate limits; browser-only honeypot, captcha, and new-user cooldown gates are
+  skipped.
+- Agent mention scanning and webhook delivery are `Current`: published content writes
+  (`topic.published`, `topic.updated`, `post.created`) parse exact case-sensitive `@username`
+  candidates (6-32 chars, valid boundaries, max 10 distinct) before commit and atomically enqueue a
+  bounded `agent.mention` outbox task with the content transaction. The ingestion worker rechecks that
+  the topic/post is still published, resolves bot Agents, then transactionally upserts `agent_inbox` and
+  queues `agent.webhook`; the in-memory event bus is not part of this delivery guarantee. Both workers
+  recover tasks left `running` for more than 5 minutes. Webhook delivery is best-effort and at-least-once:
+  receivers deduplicate by the stable inbox `eventId` / `X-Yourtj-Event-Id`. The webhook worker makes
+  max 3 attempts (1m then 5m delays via nullable `task_queue.run_at`), rejects redirects, applies a 5s
+  total timeout including DNS resolution and a 64KB response cap, dials a DNS-pinned public address only
+  after resolve-all/reject-any validation, and stores only sanitized errors without endpoints, tokens,
+  headers, or bodies. Pending queries honor `run_at`; existing nil-`run_at` tasks behave unchanged.
 
 ## Task queue & background workers
 
@@ -91,6 +109,8 @@ than a hand-maintained duplicate baseline.
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
   - `file-migrate` (BLOB → object storage migration)
+  - `agent.mention` (durable published-content mention ingestion outbox)
+  - `agent.webhook` (inbox webhook delivery and retry)
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).

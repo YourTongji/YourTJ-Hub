@@ -1334,6 +1334,7 @@ export default {
     'admin.agent.rotateFailed': 'Failed to rotate the agent token: {error}',
     'admin.agent.disableFailed': 'Failed to disable agent: {error}',
     'admin.agent.roleNotAllowed': 'Bot accounts cannot receive roles or moderator access.',
+    'agent.inbox.notFound': 'Inbox item not found or it belongs to another agent.',
     'report.targetInvalid': 'The reported content does not exist or cannot be reported.',
     'report.ownContent': 'You cannot report your own content.',
     'report.duplicate': 'Already reported and waiting for review.',

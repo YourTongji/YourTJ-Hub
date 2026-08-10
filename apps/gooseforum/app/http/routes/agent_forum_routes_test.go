@@ -2,7 +2,6 @@ package routes
 
 import (
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -12,6 +11,7 @@ import (
 	"github.com/gin-gonic/gin"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
+	"github.com/leancodebox/GooseForum/app/models/forum/agentInbox"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
@@ -19,6 +19,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
@@ -29,6 +30,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/agentinboxservice"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"gorm.io/gorm"
 )
@@ -41,6 +43,8 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&agents.Entity{},
+		&agentInbox.Entity{},
+		&taskQueue.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
@@ -73,6 +77,8 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 // cleanAgentForumTables removes rows created by other tests in this package:
 // all route tests share one in-memory SQLite connection.
 func cleanAgentForumTables(conn *gorm.DB) {
+	conn.Where("1 = 1").Delete(&agentInbox.Entity{})
+	conn.Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Where("1 = 1").Delete(&posts.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&topicUserAction.Entity{})
@@ -159,6 +165,12 @@ func TestAgentRoutesRegistered(t *testing.T) {
 		http.MethodGet + " /api/v1/agent/topics/:topicId/posts",
 		http.MethodPost + " /api/v1/agent/topics/:topicId/posts",
 		http.MethodGet + " /api/v1/agent/search",
+		http.MethodGet + " /api/v1/agent/inbox",
+		http.MethodGet + " /api/v1/agent/inbox/:inboxId",
+		http.MethodPost + " /api/v1/agent/inbox/:inboxId/read",
+		http.MethodPost + " /api/v1/agent/inbox/read-all",
+		http.MethodDelete + " /api/v1/agent/inbox/:inboxId",
+		http.MethodDelete + " /api/v1/agent/inbox",
 	}
 	for _, path := range want {
 		if !registered[path] {
@@ -249,9 +261,10 @@ func TestAgentTopicListShowsPublishedOnly(t *testing.T) {
 func TestAgentWriteTopicCreatesPublishedTopicAndFirstPost(t *testing.T) {
 	conn := setupAgentForumTestDB(t)
 	agentID, token := createAgentForumAgent(t, conn, "writer-agent")
+	targetID, _ := createAgentForumAgent(t, conn, "topic-target-bot")
 	createAgentForumCategory(t, conn, 5002, "announce")
 
-	body := fmt.Sprintf(`{"title":"Agent topic","content":"Agent topic content is long enough for default posting rules.","categoryId":[5002]}`)
+	body := `{"title":"Agent topic @topic-target-bot","content":"Agent topic content is long enough for default posting rules.","categoryId":[5002]}`
 	rec, envelope := agentRequest(t, agentForumRouter(), http.MethodPost, "/api/v1/agent/topics", body, token)
 	if rec.Code != http.StatusOK || envelope.Code != 0 {
 		t.Fatalf("write topic failed: status=%d body=%s", rec.Code, rec.Body.String())
@@ -268,11 +281,26 @@ func TestAgentWriteTopicCreatesPublishedTopicAndFirstPost(t *testing.T) {
 	if firstPost.Id == 0 || firstPost.UserId != agentID || firstPost.PostNo != 1 {
 		t.Fatalf("first post = %#v", firstPost)
 	}
+	var mentionTask taskQueue.Entity
+	if err := conn.Where("type = ?", agentinboxservice.TaskTypeAgentMention).First(&mentionTask).Error; err != nil {
+		t.Fatalf("find durable mention task: %v", err)
+	}
+	var mentionPayload agentinboxservice.TaskPayload
+	if err := json.Unmarshal([]byte(mentionTask.TaskJson), &mentionPayload); err != nil {
+		t.Fatalf("decode mention task %q: %v", mentionTask.TaskJson, err)
+	}
+	if mentionTask.Status != taskQueue.StatusPending || mentionPayload.TopicId != topicID || mentionPayload.PostId != firstPost.Id || mentionPayload.ActorId != agentID {
+		t.Fatalf("mention task = %#v payload=%#v", mentionTask, mentionPayload)
+	}
+	if len(mentionPayload.Names) != 1 || mentionPayload.Names[0] != "topic-target-bot" || targetID == agentID {
+		t.Fatalf("mention names = %#v, target=%d writer=%d", mentionPayload.Names, targetID, agentID)
+	}
 }
 
 func TestAgentCreatePostOwnershipAndPostNo(t *testing.T) {
 	conn := setupAgentForumTestDB(t)
 	agentID, token := createAgentForumAgent(t, conn, "reply-agent")
+	createAgentForumAgent(t, conn, "reply-target-bot")
 	createAgentForumCategory(t, conn, 5003, "meta")
 
 	now := time.Now().Add(-time.Hour)
@@ -288,7 +316,7 @@ func TestAgentCreatePostOwnershipAndPostNo(t *testing.T) {
 		t.Fatalf("set first post: %v", err)
 	}
 
-	body := `{"topicId":9999,"content":"A reply with enough content for the posting rules.","replyToPostId":7101}`
+	body := `{"topicId":9999,"content":"A reply with enough content for @reply-target-bot and the posting rules.","replyToPostId":7101}`
 	rec, envelope := agentRequest(t, agentForumRouter(), http.MethodPost, "/api/v1/agent/topics/7001/posts", body, token)
 	if rec.Code != http.StatusOK || envelope.Code != 0 {
 		t.Fatalf("create post failed: status=%d body=%s", rec.Code, rec.Body.String())
@@ -311,8 +339,72 @@ func TestAgentCreatePostOwnershipAndPostNo(t *testing.T) {
 	if topic.PostCount != 2 || topic.ReplyCount != 1 || topic.PostSeq != 2 {
 		t.Fatalf("topic stats = %#v", topic)
 	}
+	var mentionTask taskQueue.Entity
+	if err := conn.Where("type = ?", agentinboxservice.TaskTypeAgentMention).First(&mentionTask).Error; err != nil {
+		t.Fatalf("find durable reply mention task: %v", err)
+	}
+	var mentionPayload agentinboxservice.TaskPayload
+	if err := json.Unmarshal([]byte(mentionTask.TaskJson), &mentionPayload); err != nil {
+		t.Fatalf("decode reply mention task %q: %v", mentionTask.TaskJson, err)
+	}
+	if mentionTask.Status != taskQueue.StatusPending || mentionPayload.EventType != agentInbox.EventTypePostCreated || mentionPayload.TopicId != topic.Id || mentionPayload.PostId != created.Id || mentionPayload.ActorId != agentID {
+		t.Fatalf("reply mention task = %#v payload=%#v", mentionTask, mentionPayload)
+	}
+	if len(mentionPayload.Names) != 1 || mentionPayload.Names[0] != "reply-target-bot" {
+		t.Fatalf("reply mention names = %#v", mentionPayload.Names)
+	}
 }
 
+func TestAgentCreatePostOnDraftTopicDoesNotEnqueueMention(t *testing.T) {
+	conn := setupAgentForumTestDB(t)
+	agentID, token := createAgentForumAgent(t, conn, "draft-reply-agent")
+	createAgentForumAgent(t, conn, "draft-target-bot")
+
+	now := time.Now().Add(-time.Hour)
+	topic := topics.Entity{
+		Id:            7002,
+		Title:         "Draft reply target",
+		UserId:        agentID,
+		Status:        0,
+		ProcessStatus: topics.ProcessStatusNormal,
+		PostCount:     1,
+		PostSeq:       1,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create draft topic: %v", err)
+	}
+	firstPost := posts.Entity{
+		Id:            7102,
+		TopicId:       topic.Id,
+		PostNo:        1,
+		UserId:        agentID,
+		Content:       "draft first post",
+		ProcessStatus: posts.ProcessStatusNormal,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create draft first post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("first_post_id", firstPost.Id).Error; err != nil {
+		t.Fatalf("set draft first post: %v", err)
+	}
+
+	body := `{"content":"A pre-publication reply mentioning @draft-target-bot with enough content."}`
+	rec, envelope := agentRequest(t, agentForumRouter(), http.MethodPost, "/api/v1/agent/topics/7002/posts", body, token)
+	if rec.Code != http.StatusOK || envelope.Code != 0 {
+		t.Fatalf("create draft reply failed: status=%d body=%s", rec.Code, rec.Body.String())
+	}
+	var taskCount int64
+	if err := conn.Model(&taskQueue.Entity{}).Where("type = ?", agentinboxservice.TaskTypeAgentMention).Count(&taskCount).Error; err != nil {
+		t.Fatalf("count draft mention tasks: %v", err)
+	}
+	if taskCount != 0 {
+		t.Fatalf("draft reply created %d mention tasks", taskCount)
+	}
+}
 func TestAgentCreatePostUnknownTopicBusinessError(t *testing.T) {
 	conn := setupAgentForumTestDB(t)
 	_, token := createAgentForumAgent(t, conn, "missing-agent")

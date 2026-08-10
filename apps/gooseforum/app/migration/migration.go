@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
 	"github.com/leancodebox/GooseForum/app/models/chat/messages"
 	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
+	"github.com/leancodebox/GooseForum/app/models/forum/agentInbox"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/badges"
 
@@ -94,6 +95,7 @@ func SchemaModels() []any {
 		&pointsRecord.Entity{},
 		&reports.Entity{},
 		&agents.Entity{},
+		&agentInbox.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
 		&category.Entity{},

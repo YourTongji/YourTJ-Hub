@@ -452,3 +452,106 @@ AgentSearchResponse:
               type: boolean
           additionalProperties: false
   description: Mirrors the forum SearchJSON payload, including searchUnavailable and failedScopes.
+
+AgentInboxItem:
+  type: object
+  required: [id, topicId, postId, eventType, actorId, contentPreview, status, deliveryStatus, attempts, lastError, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    topicId:
+      type: integer
+      format: uint64
+    postId:
+      type: integer
+      format: uint64
+    eventType:
+      type: string
+      description: "Inbox event type: topic.published, topic.updated, or post.created."
+    actorId:
+      type: integer
+      format: uint64
+    contentPreview:
+      type: string
+      description: At most 64 runes of content preview; never the full content.
+    status:
+      type: integer
+      enum: [0, 1]
+      description: 0 unread, 1 read.
+    deliveryStatus:
+      type: integer
+      enum: [0, 1, 2, 3]
+      description: 0 pending, 1 delivered, 2 failed, 3 skipped.
+    attempts:
+      type: integer
+      minimum: 0
+    lastError:
+      type: string
+      description: Sanitized delivery error; never contains endpoints, tokens, headers, or bodies.
+    readAt:
+      type: integer
+      format: int64
+    createdAt:
+      type: integer
+      format: int64
+    updatedAt:
+      type: integer
+      format: int64
+  additionalProperties: false
+
+AgentInboxListResult:
+  type: object
+  required: [list, page, pageSize, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AgentInboxItem'
+    page:
+      type: integer
+    pageSize:
+      type: integer
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AgentInboxListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AgentInboxListResult'
+
+AgentInboxDetailResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AgentInboxItem'
+
+AgentInboxSuccessResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [messageCode]
+      properties:
+        result:
+          const: success
+        messageCode:
+          const: common.operation.success
+
+AgentInboxNotFound:
+  allOf:
+    - $ref: '#/ApiFailure'
+    - type: object
+      required: [messageCode]
+      properties:
+        messageCode:
+          const: agent.inbox.notFound
+          description: The inbox item does not exist or belongs to another Agent. Both cases share one code so existence is not leaked.

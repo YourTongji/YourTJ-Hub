@@ -1609,3 +1609,848 @@ abstract class _AgentCreatePostResult implements AgentCreatePostResult {
   _$$AgentCreatePostResultImplCopyWith<_$AgentCreatePostResultImpl>
   get copyWith => throw _privateConstructorUsedError;
 }
+
+AgentInboxItem _$AgentInboxItemFromJson(Map<String, dynamic> json) {
+  return _AgentInboxItem.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AgentInboxItem {
+  int get id => throw _privateConstructorUsedError;
+  int get topicId => throw _privateConstructorUsedError;
+  int get postId => throw _privateConstructorUsedError;
+  String get eventType => throw _privateConstructorUsedError;
+  int get actorId => throw _privateConstructorUsedError;
+  String get contentPreview => throw _privateConstructorUsedError;
+  int get status => throw _privateConstructorUsedError;
+  int get deliveryStatus => throw _privateConstructorUsedError;
+  int get attempts => throw _privateConstructorUsedError;
+  String get lastError => throw _privateConstructorUsedError;
+  int? get readAt => throw _privateConstructorUsedError;
+  int get createdAt => throw _privateConstructorUsedError;
+  int get updatedAt => throw _privateConstructorUsedError;
+
+  /// Serializes this AgentInboxItem to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of AgentInboxItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $AgentInboxItemCopyWith<AgentInboxItem> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AgentInboxItemCopyWith<$Res> {
+  factory $AgentInboxItemCopyWith(
+    AgentInboxItem value,
+    $Res Function(AgentInboxItem) then,
+  ) = _$AgentInboxItemCopyWithImpl<$Res, AgentInboxItem>;
+  @useResult
+  $Res call({
+    int id,
+    int topicId,
+    int postId,
+    String eventType,
+    int actorId,
+    String contentPreview,
+    int status,
+    int deliveryStatus,
+    int attempts,
+    String lastError,
+    int? readAt,
+    int createdAt,
+    int updatedAt,
+  });
+}
+
+/// @nodoc
+class _$AgentInboxItemCopyWithImpl<$Res, $Val extends AgentInboxItem>
+    implements $AgentInboxItemCopyWith<$Res> {
+  _$AgentInboxItemCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of AgentInboxItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? topicId = null,
+    Object? postId = null,
+    Object? eventType = null,
+    Object? actorId = null,
+    Object? contentPreview = null,
+    Object? status = null,
+    Object? deliveryStatus = null,
+    Object? attempts = null,
+    Object? lastError = null,
+    Object? readAt = freezed,
+    Object? createdAt = null,
+    Object? updatedAt = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            topicId: null == topicId
+                ? _value.topicId
+                : topicId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            postId: null == postId
+                ? _value.postId
+                : postId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            eventType: null == eventType
+                ? _value.eventType
+                : eventType // ignore: cast_nullable_to_non_nullable
+                      as String,
+            actorId: null == actorId
+                ? _value.actorId
+                : actorId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            contentPreview: null == contentPreview
+                ? _value.contentPreview
+                : contentPreview // ignore: cast_nullable_to_non_nullable
+                      as String,
+            status: null == status
+                ? _value.status
+                : status // ignore: cast_nullable_to_non_nullable
+                      as int,
+            deliveryStatus: null == deliveryStatus
+                ? _value.deliveryStatus
+                : deliveryStatus // ignore: cast_nullable_to_non_nullable
+                      as int,
+            attempts: null == attempts
+                ? _value.attempts
+                : attempts // ignore: cast_nullable_to_non_nullable
+                      as int,
+            lastError: null == lastError
+                ? _value.lastError
+                : lastError // ignore: cast_nullable_to_non_nullable
+                      as String,
+            readAt: freezed == readAt
+                ? _value.readAt
+                : readAt // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            createdAt: null == createdAt
+                ? _value.createdAt
+                : createdAt // ignore: cast_nullable_to_non_nullable
+                      as int,
+            updatedAt: null == updatedAt
+                ? _value.updatedAt
+                : updatedAt // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$AgentInboxItemImplCopyWith<$Res>
+    implements $AgentInboxItemCopyWith<$Res> {
+  factory _$$AgentInboxItemImplCopyWith(
+    _$AgentInboxItemImpl value,
+    $Res Function(_$AgentInboxItemImpl) then,
+  ) = __$$AgentInboxItemImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    int topicId,
+    int postId,
+    String eventType,
+    int actorId,
+    String contentPreview,
+    int status,
+    int deliveryStatus,
+    int attempts,
+    String lastError,
+    int? readAt,
+    int createdAt,
+    int updatedAt,
+  });
+}
+
+/// @nodoc
+class __$$AgentInboxItemImplCopyWithImpl<$Res>
+    extends _$AgentInboxItemCopyWithImpl<$Res, _$AgentInboxItemImpl>
+    implements _$$AgentInboxItemImplCopyWith<$Res> {
+  __$$AgentInboxItemImplCopyWithImpl(
+    _$AgentInboxItemImpl _value,
+    $Res Function(_$AgentInboxItemImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of AgentInboxItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? topicId = null,
+    Object? postId = null,
+    Object? eventType = null,
+    Object? actorId = null,
+    Object? contentPreview = null,
+    Object? status = null,
+    Object? deliveryStatus = null,
+    Object? attempts = null,
+    Object? lastError = null,
+    Object? readAt = freezed,
+    Object? createdAt = null,
+    Object? updatedAt = null,
+  }) {
+    return _then(
+      _$AgentInboxItemImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        topicId: null == topicId
+            ? _value.topicId
+            : topicId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        postId: null == postId
+            ? _value.postId
+            : postId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        eventType: null == eventType
+            ? _value.eventType
+            : eventType // ignore: cast_nullable_to_non_nullable
+                  as String,
+        actorId: null == actorId
+            ? _value.actorId
+            : actorId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        contentPreview: null == contentPreview
+            ? _value.contentPreview
+            : contentPreview // ignore: cast_nullable_to_non_nullable
+                  as String,
+        status: null == status
+            ? _value.status
+            : status // ignore: cast_nullable_to_non_nullable
+                  as int,
+        deliveryStatus: null == deliveryStatus
+            ? _value.deliveryStatus
+            : deliveryStatus // ignore: cast_nullable_to_non_nullable
+                  as int,
+        attempts: null == attempts
+            ? _value.attempts
+            : attempts // ignore: cast_nullable_to_non_nullable
+                  as int,
+        lastError: null == lastError
+            ? _value.lastError
+            : lastError // ignore: cast_nullable_to_non_nullable
+                  as String,
+        readAt: freezed == readAt
+            ? _value.readAt
+            : readAt // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        createdAt: null == createdAt
+            ? _value.createdAt
+            : createdAt // ignore: cast_nullable_to_non_nullable
+                  as int,
+        updatedAt: null == updatedAt
+            ? _value.updatedAt
+            : updatedAt // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AgentInboxItemImpl implements _AgentInboxItem {
+  const _$AgentInboxItemImpl({
+    required this.id,
+    required this.topicId,
+    required this.postId,
+    required this.eventType,
+    required this.actorId,
+    required this.contentPreview,
+    required this.status,
+    required this.deliveryStatus,
+    required this.attempts,
+    required this.lastError,
+    this.readAt,
+    required this.createdAt,
+    required this.updatedAt,
+  });
+
+  factory _$AgentInboxItemImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AgentInboxItemImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final int topicId;
+  @override
+  final int postId;
+  @override
+  final String eventType;
+  @override
+  final int actorId;
+  @override
+  final String contentPreview;
+  @override
+  final int status;
+  @override
+  final int deliveryStatus;
+  @override
+  final int attempts;
+  @override
+  final String lastError;
+  @override
+  final int? readAt;
+  @override
+  final int createdAt;
+  @override
+  final int updatedAt;
+
+  @override
+  String toString() {
+    return 'AgentInboxItem(id: $id, topicId: $topicId, postId: $postId, eventType: $eventType, actorId: $actorId, contentPreview: $contentPreview, status: $status, deliveryStatus: $deliveryStatus, attempts: $attempts, lastError: $lastError, readAt: $readAt, createdAt: $createdAt, updatedAt: $updatedAt)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AgentInboxItemImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.topicId, topicId) || other.topicId == topicId) &&
+            (identical(other.postId, postId) || other.postId == postId) &&
+            (identical(other.eventType, eventType) ||
+                other.eventType == eventType) &&
+            (identical(other.actorId, actorId) || other.actorId == actorId) &&
+            (identical(other.contentPreview, contentPreview) ||
+                other.contentPreview == contentPreview) &&
+            (identical(other.status, status) || other.status == status) &&
+            (identical(other.deliveryStatus, deliveryStatus) ||
+                other.deliveryStatus == deliveryStatus) &&
+            (identical(other.attempts, attempts) ||
+                other.attempts == attempts) &&
+            (identical(other.lastError, lastError) ||
+                other.lastError == lastError) &&
+            (identical(other.readAt, readAt) || other.readAt == readAt) &&
+            (identical(other.createdAt, createdAt) ||
+                other.createdAt == createdAt) &&
+            (identical(other.updatedAt, updatedAt) ||
+                other.updatedAt == updatedAt));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    topicId,
+    postId,
+    eventType,
+    actorId,
+    contentPreview,
+    status,
+    deliveryStatus,
+    attempts,
+    lastError,
+    readAt,
+    createdAt,
+    updatedAt,
+  );
+
+  /// Create a copy of AgentInboxItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AgentInboxItemImplCopyWith<_$AgentInboxItemImpl> get copyWith =>
+      __$$AgentInboxItemImplCopyWithImpl<_$AgentInboxItemImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AgentInboxItemImplToJson(this);
+  }
+}
+
+abstract class _AgentInboxItem implements AgentInboxItem {
+  const factory _AgentInboxItem({
+    required final int id,
+    required final int topicId,
+    required final int postId,
+    required final String eventType,
+    required final int actorId,
+    required final String contentPreview,
+    required final int status,
+    required final int deliveryStatus,
+    required final int attempts,
+    required final String lastError,
+    final int? readAt,
+    required final int createdAt,
+    required final int updatedAt,
+  }) = _$AgentInboxItemImpl;
+
+  factory _AgentInboxItem.fromJson(Map<String, dynamic> json) =
+      _$AgentInboxItemImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  int get topicId;
+  @override
+  int get postId;
+  @override
+  String get eventType;
+  @override
+  int get actorId;
+  @override
+  String get contentPreview;
+  @override
+  int get status;
+  @override
+  int get deliveryStatus;
+  @override
+  int get attempts;
+  @override
+  String get lastError;
+  @override
+  int? get readAt;
+  @override
+  int get createdAt;
+  @override
+  int get updatedAt;
+
+  /// Create a copy of AgentInboxItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$AgentInboxItemImplCopyWith<_$AgentInboxItemImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+AgentInboxListResult _$AgentInboxListResultFromJson(Map<String, dynamic> json) {
+  return _AgentInboxListResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AgentInboxListResult {
+  List<AgentInboxItem> get list => throw _privateConstructorUsedError;
+  int get page => throw _privateConstructorUsedError;
+  int get pageSize => throw _privateConstructorUsedError;
+  bool get hasNext => throw _privateConstructorUsedError;
+
+  /// Serializes this AgentInboxListResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of AgentInboxListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $AgentInboxListResultCopyWith<AgentInboxListResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AgentInboxListResultCopyWith<$Res> {
+  factory $AgentInboxListResultCopyWith(
+    AgentInboxListResult value,
+    $Res Function(AgentInboxListResult) then,
+  ) = _$AgentInboxListResultCopyWithImpl<$Res, AgentInboxListResult>;
+  @useResult
+  $Res call({List<AgentInboxItem> list, int page, int pageSize, bool hasNext});
+}
+
+/// @nodoc
+class _$AgentInboxListResultCopyWithImpl<
+  $Res,
+  $Val extends AgentInboxListResult
+>
+    implements $AgentInboxListResultCopyWith<$Res> {
+  _$AgentInboxListResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of AgentInboxListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? list = null,
+    Object? page = null,
+    Object? pageSize = null,
+    Object? hasNext = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            list: null == list
+                ? _value.list
+                : list // ignore: cast_nullable_to_non_nullable
+                      as List<AgentInboxItem>,
+            page: null == page
+                ? _value.page
+                : page // ignore: cast_nullable_to_non_nullable
+                      as int,
+            pageSize: null == pageSize
+                ? _value.pageSize
+                : pageSize // ignore: cast_nullable_to_non_nullable
+                      as int,
+            hasNext: null == hasNext
+                ? _value.hasNext
+                : hasNext // ignore: cast_nullable_to_non_nullable
+                      as bool,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$AgentInboxListResultImplCopyWith<$Res>
+    implements $AgentInboxListResultCopyWith<$Res> {
+  factory _$$AgentInboxListResultImplCopyWith(
+    _$AgentInboxListResultImpl value,
+    $Res Function(_$AgentInboxListResultImpl) then,
+  ) = __$$AgentInboxListResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<AgentInboxItem> list, int page, int pageSize, bool hasNext});
+}
+
+/// @nodoc
+class __$$AgentInboxListResultImplCopyWithImpl<$Res>
+    extends _$AgentInboxListResultCopyWithImpl<$Res, _$AgentInboxListResultImpl>
+    implements _$$AgentInboxListResultImplCopyWith<$Res> {
+  __$$AgentInboxListResultImplCopyWithImpl(
+    _$AgentInboxListResultImpl _value,
+    $Res Function(_$AgentInboxListResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of AgentInboxListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? list = null,
+    Object? page = null,
+    Object? pageSize = null,
+    Object? hasNext = null,
+  }) {
+    return _then(
+      _$AgentInboxListResultImpl(
+        list: null == list
+            ? _value._list
+            : list // ignore: cast_nullable_to_non_nullable
+                  as List<AgentInboxItem>,
+        page: null == page
+            ? _value.page
+            : page // ignore: cast_nullable_to_non_nullable
+                  as int,
+        pageSize: null == pageSize
+            ? _value.pageSize
+            : pageSize // ignore: cast_nullable_to_non_nullable
+                  as int,
+        hasNext: null == hasNext
+            ? _value.hasNext
+            : hasNext // ignore: cast_nullable_to_non_nullable
+                  as bool,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AgentInboxListResultImpl implements _AgentInboxListResult {
+  const _$AgentInboxListResultImpl({
+    required final List<AgentInboxItem> list,
+    required this.page,
+    required this.pageSize,
+    required this.hasNext,
+  }) : _list = list;
+
+  factory _$AgentInboxListResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AgentInboxListResultImplFromJson(json);
+
+  final List<AgentInboxItem> _list;
+  @override
+  List<AgentInboxItem> get list {
+    if (_list is EqualUnmodifiableListView) return _list;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_list);
+  }
+
+  @override
+  final int page;
+  @override
+  final int pageSize;
+  @override
+  final bool hasNext;
+
+  @override
+  String toString() {
+    return 'AgentInboxListResult(list: $list, page: $page, pageSize: $pageSize, hasNext: $hasNext)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AgentInboxListResultImpl &&
+            const DeepCollectionEquality().equals(other._list, _list) &&
+            (identical(other.page, page) || other.page == page) &&
+            (identical(other.pageSize, pageSize) ||
+                other.pageSize == pageSize) &&
+            (identical(other.hasNext, hasNext) || other.hasNext == hasNext));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_list),
+    page,
+    pageSize,
+    hasNext,
+  );
+
+  /// Create a copy of AgentInboxListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AgentInboxListResultImplCopyWith<_$AgentInboxListResultImpl>
+  get copyWith =>
+      __$$AgentInboxListResultImplCopyWithImpl<_$AgentInboxListResultImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AgentInboxListResultImplToJson(this);
+  }
+}
+
+abstract class _AgentInboxListResult implements AgentInboxListResult {
+  const factory _AgentInboxListResult({
+    required final List<AgentInboxItem> list,
+    required final int page,
+    required final int pageSize,
+    required final bool hasNext,
+  }) = _$AgentInboxListResultImpl;
+
+  factory _AgentInboxListResult.fromJson(Map<String, dynamic> json) =
+      _$AgentInboxListResultImpl.fromJson;
+
+  @override
+  List<AgentInboxItem> get list;
+  @override
+  int get page;
+  @override
+  int get pageSize;
+  @override
+  bool get hasNext;
+
+  /// Create a copy of AgentInboxListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$AgentInboxListResultImplCopyWith<_$AgentInboxListResultImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+AgentInboxSuccessResult _$AgentInboxSuccessResultFromJson(
+  Map<String, dynamic> json,
+) {
+  return _AgentInboxSuccessResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$AgentInboxSuccessResult {
+  String get result => throw _privateConstructorUsedError;
+  String get messageCode => throw _privateConstructorUsedError;
+
+  /// Serializes this AgentInboxSuccessResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of AgentInboxSuccessResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $AgentInboxSuccessResultCopyWith<AgentInboxSuccessResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $AgentInboxSuccessResultCopyWith<$Res> {
+  factory $AgentInboxSuccessResultCopyWith(
+    AgentInboxSuccessResult value,
+    $Res Function(AgentInboxSuccessResult) then,
+  ) = _$AgentInboxSuccessResultCopyWithImpl<$Res, AgentInboxSuccessResult>;
+  @useResult
+  $Res call({String result, String messageCode});
+}
+
+/// @nodoc
+class _$AgentInboxSuccessResultCopyWithImpl<
+  $Res,
+  $Val extends AgentInboxSuccessResult
+>
+    implements $AgentInboxSuccessResultCopyWith<$Res> {
+  _$AgentInboxSuccessResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of AgentInboxSuccessResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? result = null, Object? messageCode = null}) {
+    return _then(
+      _value.copyWith(
+            result: null == result
+                ? _value.result
+                : result // ignore: cast_nullable_to_non_nullable
+                      as String,
+            messageCode: null == messageCode
+                ? _value.messageCode
+                : messageCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$AgentInboxSuccessResultImplCopyWith<$Res>
+    implements $AgentInboxSuccessResultCopyWith<$Res> {
+  factory _$$AgentInboxSuccessResultImplCopyWith(
+    _$AgentInboxSuccessResultImpl value,
+    $Res Function(_$AgentInboxSuccessResultImpl) then,
+  ) = __$$AgentInboxSuccessResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({String result, String messageCode});
+}
+
+/// @nodoc
+class __$$AgentInboxSuccessResultImplCopyWithImpl<$Res>
+    extends
+        _$AgentInboxSuccessResultCopyWithImpl<
+          $Res,
+          _$AgentInboxSuccessResultImpl
+        >
+    implements _$$AgentInboxSuccessResultImplCopyWith<$Res> {
+  __$$AgentInboxSuccessResultImplCopyWithImpl(
+    _$AgentInboxSuccessResultImpl _value,
+    $Res Function(_$AgentInboxSuccessResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of AgentInboxSuccessResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? result = null, Object? messageCode = null}) {
+    return _then(
+      _$AgentInboxSuccessResultImpl(
+        result: null == result
+            ? _value.result
+            : result // ignore: cast_nullable_to_non_nullable
+                  as String,
+        messageCode: null == messageCode
+            ? _value.messageCode
+            : messageCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$AgentInboxSuccessResultImpl implements _AgentInboxSuccessResult {
+  const _$AgentInboxSuccessResultImpl({
+    required this.result,
+    required this.messageCode,
+  });
+
+  factory _$AgentInboxSuccessResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$AgentInboxSuccessResultImplFromJson(json);
+
+  @override
+  final String result;
+  @override
+  final String messageCode;
+
+  @override
+  String toString() {
+    return 'AgentInboxSuccessResult(result: $result, messageCode: $messageCode)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$AgentInboxSuccessResultImpl &&
+            (identical(other.result, result) || other.result == result) &&
+            (identical(other.messageCode, messageCode) ||
+                other.messageCode == messageCode));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, result, messageCode);
+
+  /// Create a copy of AgentInboxSuccessResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$AgentInboxSuccessResultImplCopyWith<_$AgentInboxSuccessResultImpl>
+  get copyWith =>
+      __$$AgentInboxSuccessResultImplCopyWithImpl<
+        _$AgentInboxSuccessResultImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$AgentInboxSuccessResultImplToJson(this);
+  }
+}
+
+abstract class _AgentInboxSuccessResult implements AgentInboxSuccessResult {
+  const factory _AgentInboxSuccessResult({
+    required final String result,
+    required final String messageCode,
+  }) = _$AgentInboxSuccessResultImpl;
+
+  factory _AgentInboxSuccessResult.fromJson(Map<String, dynamic> json) =
+      _$AgentInboxSuccessResultImpl.fromJson;
+
+  @override
+  String get result;
+  @override
+  String get messageCode;
+
+  /// Create a copy of AgentInboxSuccessResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$AgentInboxSuccessResultImplCopyWith<_$AgentInboxSuccessResultImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}

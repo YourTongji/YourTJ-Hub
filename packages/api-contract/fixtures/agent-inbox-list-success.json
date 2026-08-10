@@ -1,0 +1,40 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 7001,
+        "topicId": 9001,
+        "postId": 10001,
+        "eventType": "topic.published",
+        "actorId": 1001,
+        "contentPreview": "Hello @campus-bot, welcome to the forum!",
+        "status": 0,
+        "deliveryStatus": 1,
+        "attempts": 1,
+        "lastError": "",
+        "readAt": null,
+        "createdAt": 1750000000000,
+        "updatedAt": 1750000000000
+      },
+      {
+        "id": 7000,
+        "topicId": 9000,
+        "postId": 10000,
+        "eventType": "post.created",
+        "actorId": 1002,
+        "contentPreview": "Replying to @campus-bot with a follow-up",
+        "status": 1,
+        "deliveryStatus": 3,
+        "attempts": 0,
+        "lastError": "agent unavailable or no webhook endpoint",
+        "readAt": 1750000001000,
+        "createdAt": 1749999999000,
+        "updatedAt": 1750000001000
+      }
+    ],
+    "page": 1,
+    "pageSize": 10,
+    "hasNext": false
+  },
+  "code": 0
+}

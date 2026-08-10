@@ -334,3 +334,254 @@ agentSearch:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxList:
+  get:
+    tags: [Agent]
+    summary: List the authenticated Agent's mention inbox
+    operationId: agentInboxList
+    security:
+      - agentBearerAuth: []
+    parameters:
+      - name: status
+        in: query
+        schema:
+          type: string
+          enum: [all, unread]
+          description: Filter to unread rows; any other value lists all rows.
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          minimum: 10
+          maximum: 30
+          default: 10
+    responses:
+      '200':
+        description: The Agent's inbox rows newest first, with hasNext pagination.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-list-success.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/agent-parse-failed.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxDetail:
+  get:
+    tags: [Agent]
+    summary: Get one inbox row owned by the authenticated Agent
+    operationId: agentInboxDetail
+    security:
+      - agentBearerAuth: []
+    parameters:
+      - name: inboxId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: The inbox row, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxDetailResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-detail-success.json
+              notFound:
+                summary: Missing or cross-Agent ids share one failure envelope.
+                externalValue: ../fixtures/agent-inbox-not-found.json
+      '400':
+        description: Malformed path parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/agent-parse-failed.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxRead:
+  post:
+    tags: [Agent]
+    summary: Mark one inbox row read (idempotent)
+    operationId: agentInboxRead
+    security:
+      - agentBearerAuth: []
+    parameters:
+      - name: inboxId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Success, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxSuccessResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-read-success.json
+              notFound:
+                summary: Missing or cross-Agent ids share one failure envelope.
+                externalValue: ../fixtures/agent-inbox-not-found.json
+      '400':
+        description: Malformed path parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/agent-parse-failed.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxReadAll:
+  post:
+    tags: [Agent]
+    summary: Mark every inbox row of the authenticated Agent read
+    operationId: agentInboxReadAll
+    security:
+      - agentBearerAuth: []
+    responses:
+      '200':
+        description: Success (an empty inbox also succeeds).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxSuccessResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-read-all-success.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxDelete:
+  delete:
+    tags: [Agent]
+    summary: Delete one inbox row owned by the authenticated Agent
+    operationId: agentInboxDelete
+    security:
+      - agentBearerAuth: []
+    parameters:
+      - name: inboxId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Success, or the unified agent.inbox.notFound business failure for missing or cross-Agent ids.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxSuccessResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-delete-success.json
+              notFound:
+                summary: Missing or cross-Agent ids share one failure envelope.
+                externalValue: ../fixtures/agent-inbox-not-found.json
+      '400':
+        description: Malformed path parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/agent-parse-failed.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json
+
+agentInboxClear:
+  delete:
+    tags: [Agent]
+    summary: Delete every inbox row of the authenticated Agent
+    operationId: agentInboxClear
+    security:
+      - agentBearerAuth: []
+    responses:
+      '200':
+        description: Success (an empty inbox also succeeds).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AgentInboxSuccessResponse
+            examples:
+              success:
+                externalValue: ../fixtures/agent-inbox-clear-success.json
+      '401':
+        description: Missing or invalid agent bearer credential.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/agent-unauthorized.json

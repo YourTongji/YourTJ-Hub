@@ -24,8 +24,16 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Create(entity).Error
+}
+
 func Save(entity *Entity) error {
 	return builder().Save(entity).Error
+}
+
+func SaveTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Save(entity).Error
 }
 
 func Get(id uint64) (entity Entity) {
@@ -60,6 +68,10 @@ func GetMapByIds(ids []uint64) map[uint64]*Entity {
 
 func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
+}
+
+func UpdateProcessStatusTx(tx *gorm.DB, id uint64, processStatus int8) error {
+	return tx.Model(&Entity{}).Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
 }
 
 func DeleteEntity(entity *Entity) int64 {

@@ -4,31 +4,44 @@ import (
 	"log/slog"
 	"sync"
 
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 const topicSequenceLockShards = 256
 
 var topicSequenceLocks [topicSequenceLockShards]sync.Mutex
 
-func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
+// CreateTopicPostWithTx atomically reserves the topic sequence, creates the
+// post, and runs an optional caller-owned transactional side effect (such as
+// durable mention-outbox enqueue). Aggregate stats remain best-effort after
+// commit, preserving their existing behavior.
+func CreateTopicPostWithTx(entity *posts.Entity, topicEntity topics.Entity, withinTx func(tx *gorm.DB) error) error {
 	lock := &topicSequenceLocks[entity.TopicId%topicSequenceLockShards]
 	lock.Lock()
 	defer lock.Unlock()
 
-	postNo, err := topics.ReservePostSequence(entity.TopicId)
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		postNo, err := topics.ReservePostSequenceTx(tx, entity.TopicId)
+		if err != nil {
+			return err
+		}
+		entity.PostNo = postNo
+		if err := posts.CreateTx(tx, entity); err != nil {
+			return err
+		}
+		if withinTx != nil {
+			return withinTx(tx)
+		}
+		return nil
+	})
 	if err != nil {
 		return err
 	}
-
-	entity.PostNo = postNo
-	if err := posts.Create(entity); err != nil {
-		return err
-	}
-
 	SyncTopicPostStats(topicEntity, *entity, false)
 	return nil
 }
