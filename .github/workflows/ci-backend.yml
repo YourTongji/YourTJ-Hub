@@ -28,10 +28,10 @@ jobs:
       backend: ${{ steps.filter.outputs.backend }}
       backend_pg: ${{ steps.filter.outputs.backend_pg }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v5
         with:
           fetch-depth: 0
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: filter
         with:
           # On dev/main pushes, compare with the commit before this push.
