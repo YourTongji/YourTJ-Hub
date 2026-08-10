@@ -328,7 +328,10 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
               transition: 'grid-template-rows 0.3s ease, margin-bottom 0.3s ease',
             }"
           >
-            <div class="min-h-0 overflow-hidden">
+            <div
+              class="min-h-0"
+              :class="headerCollapsed ? 'overflow-hidden' : 'overflow-visible'"
+            >
               <div ref="headerSection" :class="headerCollapsed ? 'invisible' : ''" class="flex flex-col gap-4 sm:flex-row sm:items-start sm:gap-4">
                 <label class="block min-w-0 flex-1">
                   <span class="text-sm font-semibold text-base-content/75">{{ t('publish.fields.title') }}</span>
