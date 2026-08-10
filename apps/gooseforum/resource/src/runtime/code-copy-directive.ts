@@ -1,5 +1,5 @@
 import type { ObjectDirective } from 'vue'
-import { h, render } from 'vue'
+import { h, render, watch } from 'vue'
 import { Check, Copy } from '@lucide/vue'
 import { i18n } from './i18n'
 
@@ -64,6 +64,29 @@ async function writeToClipboard(text: string): Promise<boolean> {
     }
   }
 }
+
+/** 用当前 locale 刷新单个按钮的默认文案（label/title/aria），复制成功后的临时状态一并还原 */
+function refreshButtonLabels(button: HTMLElement) {
+  const label = button.querySelector('.gf-code-copy__label')
+  if (label) label.textContent = copyLabel()
+  button.classList.remove('gf-code-copy--copied', 'gf-code-copy--failed')
+  button.title = copyLabel()
+  button.setAttribute('aria-label', copyLabel())
+}
+
+/** 遍历已渲染的复制按钮刷新文案；运行期切换语言后由下方 watch 触发 */
+function refreshAllButtonLabels() {
+  if (typeof document === 'undefined') return
+  for (const button of Array.from(document.querySelectorAll<HTMLElement>('.gf-code-copy'))) {
+    refreshButtonLabels(button)
+  }
+}
+
+// 运行期切换 locale 后，已挂载按钮的文案（label/title/aria）需要同步刷新。
+watch(
+  () => i18n.global.locale.value,
+  () => refreshAllButtonLabels(),
+)
 
 function createCopyButton(): HTMLButtonElement {
   const button = document.createElement('button')

@@ -4,6 +4,19 @@
   position: relative;
 }
 
+/*
+ * code-copy-directive 把 <pre> 包进 .gf-code-block，原本命中
+ * .gf-prose-post > :first-child / :last-child 的 margin 归零规则现在落到
+ * 无 margin 的 wrapper 上，导致代码块在帖首/帖尾多出 6px 间距，这里补偿。
+ */
+.gf-prose-post > .gf-code-block:first-child > pre {
+  margin-top: 0;
+}
+
+.gf-prose-post > .gf-code-block:last-child > pre {
+  margin-bottom: 0;
+}
+
 .gf-code-copy {
   position: absolute;
   top: 0.375rem;
@@ -89,6 +102,20 @@
 @media (hover: none) {
   .gf-code-copy {
     opacity: 0.85;
+  }
+
+  /*
+   * 移动端按钮常显且盖在代码块右上角，会遮挡第一行代码的右端。
+   * 这里隐藏文字 label、缩成纯图标按钮，并去掉自身 padding，把遮挡面积
+   * 降到约一个 20px 图标，而不是一整条带文字的按钮。
+   */
+  .gf-code-copy__label {
+    display: none;
+  }
+
+  .gf-code-copy {
+    padding: 0.375rem;
+    gap: 0;
   }
 }
 

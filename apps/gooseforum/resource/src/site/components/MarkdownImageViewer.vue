@@ -14,6 +14,8 @@ const images = ref<MarkdownPreviewImage[]>([])
 const currentIndex = ref(0)
 const actualSize = ref(false)
 const actualImageWidth = ref<number | null>(null)
+/** 当前渲染的图片元素，用于读取 naturalWidth */
+const activeImageElement = ref<HTMLImageElement | null>(null)
 const viewerOpen = computed(() => images.value.length > 0)
 const currentImage = computed(() => images.value[currentIndex.value])
 const hasMultipleImages = computed(() => images.value.length > 1)
@@ -27,12 +29,42 @@ const slideDirection = ref<'next' | 'prev'>('next')
 
 /** 触摸滑动手势状态（仅移动端生效） */
 const SWIPE_LOCK_MS = 200
+const SWALLOW_CLICK_WINDOW_MS = 350
 let touchStartX = 0
 let touchStartY = 0
 let touchTracking = false
 let lastSwipeAt = 0
-/** 滑动后抑制紧随其后的 click，避免把滑动手势误判为"点击空白关闭" */
-let suppressNextClick = false
+
+/**
+ * 滑动结束后浏览器会在手势结束点合成一个 click。它可能落在图片、stage 留白，
+ * 或 z-10 叠加在 stage 上方的关闭/缩放/翻页按钮上（各按钮是 stage 的兄弟节点，
+ * 不冒泡到 stage 的 touch 处理器），因此用 document 捕获阶段的一次性监听拦截，
+ * 覆盖所有目标元素，并在超时后自动解除以免吞掉后续正常点击。
+ */
+let swallowSyntheticClick: ((event: MouseEvent) => void) | null = null
+let swallowClickTimer: number | null = null
+
+function armSyntheticClickSwallow() {
+  disarmSyntheticClickSwallow()
+  swallowSyntheticClick = (event) => {
+    event.preventDefault()
+    event.stopPropagation()
+    disarmSyntheticClickSwallow()
+  }
+  document.addEventListener('click', swallowSyntheticClick, true)
+  swallowClickTimer = window.setTimeout(disarmSyntheticClickSwallow, SWALLOW_CLICK_WINDOW_MS)
+}
+
+function disarmSyntheticClickSwallow() {
+  if (swallowSyntheticClick) {
+    document.removeEventListener('click', swallowSyntheticClick, true)
+    swallowSyntheticClick = null
+  }
+  if (swallowClickTimer !== null) {
+    window.clearTimeout(swallowClickTimer)
+    swallowClickTimer = null
+  }
+}
 
 function open(nextImages: MarkdownPreviewImage[], index: number) {
   const normalizedImages = nextImages.filter((image) => image.src)
@@ -54,6 +86,7 @@ function close() {
   currentIndex.value = 0
   actualSize.value = false
   actualImageWidth.value = null
+  disarmSyntheticClickSwallow()
   window.removeEventListener('keydown', handleKeydown)
   unlockBodyScroll()
 }
@@ -76,7 +109,13 @@ function showNext() {
 
 function toggleActualSize() {
   if (!actualSize.value) {
-    updateActualImageWidth()
+    // 优先用当前渲染的 img 元素读取原图尺寸；@load 尚未触发时 naturalWidth 可能
+    // 为空，此时保持 actualImageWidth 为 null，等 @load 后由 handleImageLoad 补齐，
+    // 避免出现"放大态无宽度"的空切换。
+    const image = activeImageElement.value
+    if (image && image.complete && image.naturalWidth > 0) {
+      updateActualImageWidth(image)
+    }
   }
   actualSize.value = !actualSize.value
 }
@@ -121,7 +160,7 @@ function handleTouchStart(event: TouchEvent) {
   touchStartX = touch.clientX
   touchStartY = touch.clientY
   touchTracking = true
-  suppressNextClick = false
+  disarmSyntheticClickSwallow()
 }
 
 function handleTouchEnd(event: TouchEvent) {
@@ -134,8 +173,8 @@ function handleTouchEnd(event: TouchEvent) {
   touchTracking = false
   if (swipeDecision.direction === 'none') return
 
-  // 即使短时间内被节流，也要吞掉浏览器可能合成的 click。
-  suppressNextClick = true
+  // 即使短时间内被节流，也要吞掉浏览器随后合成的 click。
+  armSyntheticClickSwallow()
   const now = Date.now()
   if (now - lastSwipeAt < SWIPE_LOCK_MS) return
   lastSwipeAt = now
@@ -148,15 +187,11 @@ function handleTouchCancel() {
   touchStartX = 0
   touchStartY = 0
   touchTracking = false
-  suppressNextClick = false
+  disarmSyntheticClickSwallow()
 }
 
-/** 点击 stage 留白（图片之外的空白）时关闭；滑动后忽略紧随的 click */
+/** 点击 stage 留白（图片之外的空白）时关闭；滑动后的合成 click 已在捕获阶段被吞掉 */
 function handleStageClick() {
-  if (suppressNextClick) {
-    suppressNextClick = false
-    return
-  }
   close()
 }
 
@@ -178,6 +213,7 @@ function unlockBodyScroll() {
 
 onBeforeUnmount(() => {
   window.removeEventListener('keydown', handleKeydown)
+  disarmSyntheticClickSwallow()
   unlockBodyScroll()
 })
 
@@ -251,6 +287,7 @@ defineExpose({
         >
           <Transition :name="slideDirection === 'next' ? 'gf-image-slide-next' : 'gf-image-slide-prev'" mode="out-in">
             <img
+              ref="activeImageElement"
               :key="currentImage.src"
               :src="currentImage.src"
               :alt="currentImage.alt"
