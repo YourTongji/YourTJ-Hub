@@ -519,4 +519,33 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 			t.Fatalf("Retry-After = %q, want absent for internal TOTP limit", retryAfter)
 		}
 	})
+
+	t.Run("session issuance failure after a valid code reports auth.login.failed", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		code, _ := enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+
+		// Drop the session table so sessionservice.Create cannot persist the
+		// freshly issued session; the challenge is already consumed by then.
+		if err := conn.Migrator().DropTable(&userSessions.Entity{}); err != nil {
+			t.Fatalf("drop user_sessions for issuance-failure test: %v", err)
+		}
+
+		body, err := json.Marshal(map[string]string{"code": code})
+		if err != nil {
+			t.Fatalf("marshal issuance-failure request: %v", err)
+		}
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("issuance-failure status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-login-failed.json"))
+	})
 }

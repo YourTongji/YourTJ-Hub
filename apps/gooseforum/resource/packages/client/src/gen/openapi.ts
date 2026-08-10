@@ -486,7 +486,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) exists after challenge consumption only under a delete race and is intentionally not given its own example. */
+            /** @description Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) can surface after a successful challenge when the user snapshot is missing or when the session token cannot be created or persisted (e.g. signing or database failures); see the `sessionIssuanceFailed` example. */
             200: {
                 headers: {
                     /** @description On success, replaces the challenge cookie with an HTTP-only session cookie. */

@@ -49,7 +49,11 @@ void main() {
           case '/api/login-public-key':
             return ResponseData(200, {
               'code': 0,
-              'result': {'publicKey': 'fake-pem', 'serverTs': 1754524800000},
+              'result': {
+                'publicKey': 'fake-pem',
+                'serverTs': 1754524800000,
+                'algorithm': 'RSA-OAEP-256',
+              },
             });
           case '/api/login':
             return ResponseData(
@@ -272,6 +276,7 @@ class FakeAuthRepository implements AuthRepository {
     return LoginPublicKeyPayload(
       publicKey: 'fake-pem',
       serverTs: 1754524800000,
+      algorithm: 'RSA-OAEP-256',
     );
   }
 

@@ -621,7 +621,7 @@ LoginPublicKeyPayload _$LoginPublicKeyPayloadFromJson(
 mixin _$LoginPublicKeyPayload {
   String get publicKey => throw _privateConstructorUsedError;
   int get serverTs => throw _privateConstructorUsedError;
-  String? get algorithm => throw _privateConstructorUsedError;
+  String get algorithm => throw _privateConstructorUsedError;
 
   /// Serializes this LoginPublicKeyPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -640,7 +640,7 @@ abstract class $LoginPublicKeyPayloadCopyWith<$Res> {
     $Res Function(LoginPublicKeyPayload) then,
   ) = _$LoginPublicKeyPayloadCopyWithImpl<$Res, LoginPublicKeyPayload>;
   @useResult
-  $Res call({String publicKey, int serverTs, String? algorithm});
+  $Res call({String publicKey, int serverTs, String algorithm});
 }
 
 /// @nodoc
@@ -663,7 +663,7 @@ class _$LoginPublicKeyPayloadCopyWithImpl<
   $Res call({
     Object? publicKey = null,
     Object? serverTs = null,
-    Object? algorithm = freezed,
+    Object? algorithm = null,
   }) {
     return _then(
       _value.copyWith(
@@ -675,10 +675,10 @@ class _$LoginPublicKeyPayloadCopyWithImpl<
                 ? _value.serverTs
                 : serverTs // ignore: cast_nullable_to_non_nullable
                       as int,
-            algorithm: freezed == algorithm
+            algorithm: null == algorithm
                 ? _value.algorithm
                 : algorithm // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as String,
           )
           as $Val,
     );
@@ -694,7 +694,7 @@ abstract class _$$LoginPublicKeyPayloadImplCopyWith<$Res>
   ) = __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String publicKey, int serverTs, String? algorithm});
+  $Res call({String publicKey, int serverTs, String algorithm});
 }
 
 /// @nodoc
@@ -714,7 +714,7 @@ class __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? publicKey = null,
     Object? serverTs = null,
-    Object? algorithm = freezed,
+    Object? algorithm = null,
   }) {
     return _then(
       _$LoginPublicKeyPayloadImpl(
@@ -726,10 +726,10 @@ class __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>
             ? _value.serverTs
             : serverTs // ignore: cast_nullable_to_non_nullable
                   as int,
-        algorithm: freezed == algorithm
+        algorithm: null == algorithm
             ? _value.algorithm
             : algorithm // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as String,
       ),
     );
   }
@@ -741,7 +741,7 @@ class _$LoginPublicKeyPayloadImpl implements _LoginPublicKeyPayload {
   const _$LoginPublicKeyPayloadImpl({
     required this.publicKey,
     required this.serverTs,
-    this.algorithm,
+    required this.algorithm,
   });
 
   factory _$LoginPublicKeyPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -752,7 +752,7 @@ class _$LoginPublicKeyPayloadImpl implements _LoginPublicKeyPayload {
   @override
   final int serverTs;
   @override
-  final String? algorithm;
+  final String algorithm;
 
   @override
   String toString() {
@@ -798,7 +798,7 @@ abstract class _LoginPublicKeyPayload implements LoginPublicKeyPayload {
   const factory _LoginPublicKeyPayload({
     required final String publicKey,
     required final int serverTs,
-    final String? algorithm,
+    required final String algorithm,
   }) = _$LoginPublicKeyPayloadImpl;
 
   factory _LoginPublicKeyPayload.fromJson(Map<String, dynamic> json) =
@@ -809,7 +809,7 @@ abstract class _LoginPublicKeyPayload implements LoginPublicKeyPayload {
   @override
   int get serverTs;
   @override
-  String? get algorithm;
+  String get algorithm;
 
   /// Create a copy of LoginPublicKeyPayload
   /// with the given fields replaced by the non-null parameter values.

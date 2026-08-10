@@ -204,6 +204,11 @@ func contractSessionToken(t *testing.T, user *users.EntityComplete) string {
 
 func encryptLoginPassword(t *testing.T, password string) string {
 	t.Helper()
+	return encryptLoginPasswordAt(t, password, time.Now().UnixMilli())
+}
+
+func encryptLoginPasswordAt(t *testing.T, password string, ts int64) string {
+	t.Helper()
 	block, _ := pem.Decode([]byte(logincrypto.PublicKeyPEM()))
 	if block == nil {
 		t.Fatal("decode login public key PEM")
@@ -216,7 +221,7 @@ func encryptLoginPassword(t *testing.T, password string) string {
 	if !ok {
 		t.Fatal("login public key is not RSA")
 	}
-	payload, err := json.Marshal(logincrypto.PasswordPayload{Password: password, Ts: time.Now().UnixMilli()})
+	payload, err := json.Marshal(logincrypto.PasswordPayload{Password: password, Ts: ts})
 	if err != nil {
 		t.Fatalf("marshal encrypted password payload: %v", err)
 	}
@@ -359,6 +364,22 @@ func TestLoginHTTPContractBusinessFailureAndRateLimit(t *testing.T) {
 			t.Fatalf("business failure status = %d, want 200", recorder.Code)
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-failure.json"))
+	})
+
+	t.Run("stale encrypted password payload stays an invalid-request business failure", func(t *testing.T) {
+		_, router := setupHTTPContractTest(t)
+		body, err := json.Marshal(map[string]string{
+			"username":          "missing-contract-user",
+			"encryptedPassword": encryptLoginPasswordAt(t, "secret123", time.Now().Add(-10*time.Minute).UnixMilli()),
+		})
+		if err != nil {
+			t.Fatalf("marshal stale-payload login request: %v", err)
+		}
+		recorder := serveJSON(router, "/api/login", string(body), "")
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("stale-payload status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-invalid-request.json"))
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
