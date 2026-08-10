@@ -215,6 +215,54 @@ export async function reportContentEvent(eventType: 'content_delete_clicked' | '
   return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
 
+export interface MyContentItem {
+  id: number
+  contentType: DeletedContentType
+  title: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  createdAt: string
+}
+
+export interface MyContentListResult {
+  items: MyContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
+  const params = new URLSearchParams({ contentType, limit: String(limit) })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+  const response = await fetch(`/api/forum/user/my-content?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<MyContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export interface BatchDeleteResultItem {
+  contentId: number
+  success: boolean
+  message?: string
+}
+
+export interface BatchDeleteContentResult {
+  succeeded: number
+  failed: number
+  results: BatchDeleteResultItem[]
+}
+
+/** 批量删除本人内容（PRD R9）：超过频率阈值时后端要求二次确认。 */
+export async function batchDeleteContent(contentType: DeletedContentType, contentIds: number[], force = false): Promise<BatchDeleteContentResult> {
+  const response = await fetch('/api/forum/user/content-batch-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType, contentIds, force }),
+  })
+  return readApiResponse<BatchDeleteContentResult>(response, t('api.topicDeleteFailed'))
+}
+
 export interface PostWindowInput {
   topicId: number
   anchorPostId?: number

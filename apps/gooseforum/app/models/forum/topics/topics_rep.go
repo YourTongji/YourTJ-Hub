@@ -189,6 +189,21 @@ func GetDraftsByUserId(userId uint64, limit int) ([]*Entity, error) {
 	return entities, err
 }
 
+// GetActiveByUserPage 分页返回本人仍公开（status=1 且 ACTIVE）的话题（PRD R9）。
+func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
 func CantWriteNew(userId uint64, maxCount int64) bool {
 	var count int64
 	builder().Where(queryopt.Eq("user_id", userId)).Where(queryopt.Gt("created_at", time.Now().Format("2006-01-02"))).Count(&count)

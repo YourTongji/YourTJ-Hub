@@ -7,6 +7,7 @@ import {
   CalendarDays,
   Camera,
   Check,
+  FileText,
   ImagePlus,
   KeyRound,
   Link as LinkIcon,
@@ -36,6 +37,8 @@ import {
   getDeletedContent,
   purgeDeletedContent,
   restoreDeletedContent,
+  getMyContent,
+  batchDeleteContent,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
@@ -47,12 +50,14 @@ import {
   type DeletedContentItem,
   type DeletedContentListResult,
   type DeletedContentType,
+  type MyContentItem,
   type TotpEnablePayload,
   type TotpSetupPayload,
   type UserSessionPayload,
 } from '@/runtime/api'
 import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
+import { ApiResponseError } from '@/runtime/api'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
@@ -85,7 +90,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'deleted', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -121,6 +126,16 @@ const deletedTopicCursor = ref(0)
 const deletedPostCursor = ref(0)
 const hasMoreDeletedTopics = ref(false)
 const hasMoreDeletedPosts = ref(false)
+// 内容管理（PRD R9）：本人公开话题/回复，勾选批量删除 + 频率二次确认
+const myTopics = ref<MyContentItem[]>([])
+const myPosts = ref<MyContentItem[]>([])
+const loadingMyContent = ref(false)
+const myContentLoaded = ref(false)
+const myContentType = ref<DeletedContentType>('topic')
+const selectedMyContentIds = ref<number[]>([])
+const batchDeleting = ref(false)
+const batchDeleteConfirmOpen = ref(false)
+const batchDeleteError = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
 /** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
@@ -311,6 +326,7 @@ onMounted(() => {
 
 watch(activeTab, (tab) => {
   if (tab === 'deleted' && !deletedContentLoaded.value) void loadDeletedContent()
+  if (tab === 'content' && !myContentLoaded.value) void loadMyContent()
 })
 
 function buildExternalInfo() {
@@ -335,6 +351,7 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'content') return t('settings.tabs.content')
   if (key === 'deleted') return t('settings.tabs.deleted')
   if (key === 'general') return t('settings.tabs.general')
   return fallback || key
@@ -399,6 +416,97 @@ async function loadDeletedContent(reset = true) {
 
 async function loadMoreDeletedContent() {
   await loadDeletedContent(false)
+}
+
+// 内容管理（PRD R9）：加载本人公开内容，支持批量删除
+const myContentItems = computed(() => myContentType.value === 'topic' ? myTopics.value : myPosts.value)
+
+function myContentItemKey(item: MyContentItem) {
+  return `${item.contentType}:${item.id}`
+}
+
+function isMyContentSelected(item: MyContentItem) {
+  return selectedMyContentIds.value.includes(item.id)
+}
+
+function toggleMyContent(item: MyContentItem) {
+  if (isMyContentSelected(item)) {
+    selectedMyContentIds.value = selectedMyContentIds.value.filter(id => id !== item.id)
+  } else {
+    selectedMyContentIds.value = [...selectedMyContentIds.value, item.id]
+  }
+}
+
+async function loadMyContent() {
+  if (loadingMyContent.value) return
+  loadingMyContent.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await getMyContent(myContentType.value)
+    if (myContentType.value === 'topic') {
+      myTopics.value = result.items
+    } else {
+      myPosts.value = result.items
+    }
+    myContentLoaded.value = true
+  } catch (error) {
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.deletedContentLoadFailed')
+  } finally {
+    loadingMyContent.value = false
+  }
+}
+
+function switchMyContentType(type: DeletedContentType) {
+  if (myContentType.value === type) return
+  myContentType.value = type
+  selectedMyContentIds.value = []
+  if (type === 'topic' && myTopics.value.length === 0 && myContentLoaded.value) void loadMyContent()
+  if (type === 'post' && myPosts.value.length === 0 && myContentLoaded.value) void loadMyContent()
+}
+
+async function runBatchDelete(force: boolean) {
+  if (batchDeleting.value || selectedMyContentIds.value.length === 0) return
+  batchDeleting.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await batchDeleteContent(myContentType.value, selectedMyContentIds.value, force)
+    if (myContentType.value === 'topic') {
+      myTopics.value = myTopics.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    } else {
+      myPosts.value = myPosts.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    }
+    selectedMyContentIds.value = []
+    batchDeleteConfirmOpen.value = false
+    pushFlash(
+      result.failed > 0
+        ? t('settings.content.batchDeletePartial', { succeeded: result.succeeded, failed: result.failed })
+        : t('settings.content.batchDeleteSuccess', { count: result.succeeded }),
+      result.failed > 0 ? 'warning' : 'success',
+    )
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'content.batchDelete.confirmRequired') {
+      batchDeleteConfirmOpen.value = true
+      return
+    }
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+async function requestBatchDelete() {
+  if (selectedMyContentIds.value.length === 0 || batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
+  await runBatchDelete(false)
+}
+
+function confirmForceBatchDelete() {
+  void runBatchDelete(true)
+}
+
+function cancelBatchDeleteConfirm() {
+  if (batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
 }
 
 async function restoreDeletedItem(item: DeletedContentItem) {
@@ -1873,6 +1981,96 @@ async function toggleBinding(provider: string) {
               </div>
             </div>
           </section>
+
+          <section v-show="activeTab === 'content'">
+            <SectionHeader :icon="Settings2" :title="t('settings.content.title')" :description="t('settings.content.description')" />
+
+            <div class="gf-card overflow-hidden">
+              <div class="flex items-center gap-1 border-b border-line bg-base-200/60 p-2">
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'topic' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('topic')"
+                >
+                  {{ t('settings.content.topicTab') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'post' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('post')"
+                >
+                  {{ t('settings.content.replyTab') }}
+                </button>
+                <div class="ml-auto flex items-center gap-2">
+                  <span v-if="selectedMyContentIds.length" class="text-xs text-base-content/55">
+                    {{ t('settings.content.selectedCount', { count: selectedMyContentIds.length }) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm gf-button-danger"
+                    :disabled="selectedMyContentIds.length === 0 || batchDeleting"
+                    @click="requestBatchDelete"
+                  >
+                    <Loader2 v-if="batchDeleting" class="h-3.5 w-3.5 animate-spin" />
+                    <Trash2 v-else class="h-3.5 w-3.5" />
+                    {{ t('settings.content.batchDelete') }}
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="batchDeleteError" class="border-b border-line bg-error/10 px-3 py-2 text-sm text-error">{{ batchDeleteError }}</p>
+
+              <div v-if="loadingMyContent && myContentItems.length === 0" class="p-4 py-10 text-center text-sm text-base-content/55">
+                <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+                {{ t('settings.deleted.loading') }}
+              </div>
+              <div v-else-if="myContentItems.length === 0" class="p-6 text-center">
+                <FileText class="mx-auto h-8 w-8 text-base-content/30" />
+                <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.content.emptyTitle') }}</h3>
+                <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.content.emptyDescription') }}</p>
+              </div>
+              <div v-else class="divide-y divide-line">
+                <label
+                  v-for="item in myContentItems"
+                  :key="myContentItemKey(item)"
+                  class="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-base-200/60"
+                >
+                  <input
+                    type="checkbox"
+                    class="mt-1 h-4 w-4 shrink-0 rounded border-line accent-primary"
+                    :checked="isMyContentSelected(item)"
+                    @change="toggleMyContent(item)"
+                  />
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-base-content">{{ item.title }}</span>
+                    <span v-if="item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
+                    <span class="mt-0.5 block text-xs text-base-content/45">{{ formatDate(item.createdAt) }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- 批量删除频率二次确认（PRD R9） -->
+          <Teleport to="body">
+            <div v-if="batchDeleteConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="cancelBatchDeleteConfirm">
+              <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
+                <h3 class="text-base font-semibold text-base-content">{{ t('settings.content.batchConfirmTitle') }}</h3>
+                <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.content.batchConfirmDescription', { count: selectedMyContentIds.length }) }}</p>
+                <div class="mt-4 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="batchDeleting" @click="cancelBatchDeleteConfirm">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="batchDeleting" @click="confirmForceBatchDelete">
+                    <Loader2 v-if="batchDeleting" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.content.batchConfirmContinue') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
 
           <section v-show="activeTab === 'deleted'">
             <SectionHeader :icon="Archive" :title="t('settings.deleted.title')" :description="t('settings.deleted.description')">

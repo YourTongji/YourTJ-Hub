@@ -194,6 +194,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, UpButterReq(api.UpdateTopicStatus))
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, UpButterReq(api.DeleteTopicByUser))
 	forumLoginApi.GET("user/deleted-content", middleware.NoUpdateUserActivity, UpQueryReq(api.DeletedContentList))
+	forumLoginApi.GET("user/my-content", middleware.NoUpdateUserActivity, UpQueryReq(api.MyContentList))
+	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, UpButterReq(api.BatchDeleteContent))
 	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, UpButterReq(api.RestoreContent))
 	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, UpButterReq(api.PurgeContent))
 	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, UpButterReq(api.PrivacyErase))

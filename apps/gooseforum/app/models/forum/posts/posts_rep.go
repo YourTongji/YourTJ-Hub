@@ -276,6 +276,21 @@ func ListByTopicID(topicID uint64, list *[]*Entity) error {
 		Find(list).Error
 }
 
+// GetActiveByUserPage 分页返回本人仍公开（ACTIVE、post_no>1）的回复（PRD R9）。
+func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Gt("post_no", 1)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
 // RestoreDeletedByTopicID 恢复某话题下所有被级联软删的回复。
 func RestoreDeletedByTopicID(topicID uint64) int64 {
 	return builder().Unscoped().

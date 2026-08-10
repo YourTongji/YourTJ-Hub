@@ -1,6 +1,7 @@
 package api
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -50,6 +51,153 @@ func ReportContentEvent(req component.BetterRequest[ContentEventReq]) component.
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
 	return component.SuccessResponse(true)
+}
+
+// MyContentItem 本人仍公开的话题/回复条目（PRD R9 批量管理）。
+type MyContentItem struct {
+	ID          uint64 `json:"id"`
+	ContentType string `json:"contentType"`
+	Title       string `json:"title"`
+	Excerpt     string `json:"excerpt,omitempty"`
+	TopicID     uint64 `json:"topicId,omitempty"`
+	PostNo      uint64 `json:"postNo,omitempty"`
+	CreatedAt   string `json:"createdAt"`
+}
+
+// MyContentListReq 我的内容列表请求。
+type MyContentListReq struct {
+	ContentType string `form:"contentType" validate:"required,oneof=topic post"`
+	CursorID    uint64 `form:"cursorId"`
+	Limit       int    `form:"limit"`
+}
+
+// MyContentList 分页返回本人公开（ACTIVE）的话题/回复，供批量删除（R9）。
+func MyContentList(req component.BetterRequest[MyContentListReq]) component.Response {
+	limit := req.Params.Limit
+	if limit <= 0 || limit > 30 {
+		limit = 20
+	}
+	switch contentdeleteservice.ContentType(req.Params.ContentType) {
+	case contentdeleteservice.ContentTypeTopic:
+		entities := topics.GetActiveByUserPage(req.UserId, req.Params.CursorID, limit)
+		hasMore := len(entities) > limit
+		if hasMore {
+			entities = entities[:limit]
+		}
+		items := make([]MyContentItem, 0, len(entities))
+		for _, topic := range entities {
+			items = append(items, MyContentItem{
+				ID:          topic.Id,
+				ContentType: "topic",
+				Title:       topic.Title,
+				Excerpt:     topic.Excerpt,
+				CreatedAt:   topic.CreatedAt.Format(time.DateTime),
+			})
+		}
+		return component.SuccessResponse(map[string]any{
+			"items":        items,
+			"hasMore":      hasMore,
+			"nextCursorId": myContentCursorID(items),
+		})
+	case contentdeleteservice.ContentTypePost:
+		entities := posts.GetActiveByUserPage(req.UserId, req.Params.CursorID, limit)
+		hasMore := len(entities) > limit
+		if hasMore {
+			entities = entities[:limit]
+		}
+		items := make([]MyContentItem, 0, len(entities))
+		for _, post := range entities {
+			items = append(items, MyContentItem{
+				ID:          post.Id,
+				ContentType: "post",
+				Title:       fmt.Sprintf("回复 #%d", post.PostNo),
+				Excerpt:     excerptOf(post.Content),
+				TopicID:     post.TopicId,
+				PostNo:      post.PostNo,
+				CreatedAt:   post.CreatedAt.Format(time.DateTime),
+			})
+		}
+		return component.SuccessResponse(map[string]any{
+			"items":        items,
+			"hasMore":      hasMore,
+			"nextCursorId": myContentCursorID(items),
+		})
+	default:
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+}
+
+// BatchDeleteContentReq 批量删除请求（PRD R9）。
+type BatchDeleteContentReq struct {
+	ContentType string   `json:"contentType" validate:"required,oneof=topic post"`
+	ContentIDs  []uint64 `json:"contentIds" validate:"required,min=1,max=50"`
+	Force       bool     `json:"force"` // 频率超限时的二次确认标记
+}
+
+// BatchDeleteResultItem 批量删除逐条结果。
+type BatchDeleteResultItem struct {
+	ContentID uint64 `json:"contentId"`
+	Success   bool   `json:"success"`
+	Message   string `json:"message,omitempty"`
+}
+
+// batchDeleteWindow 与 batchDeleteLimit 定义批量删除频率控制（PRD R9：20 条/10 分钟）。
+const (
+	batchDeleteWindow = 10 * time.Minute
+	batchDeleteLimit  = int64(20)
+)
+
+// BatchDeleteContent 批量删除本人内容（R9）。
+// 10 分钟内删除超过 20 条时要求二次确认（force=true），防止脚本误操作/账号被盗清空。
+func BatchDeleteContent(req component.BetterRequest[BatchDeleteContentReq]) component.Response {
+	if len(req.Params.ContentIDs) == 0 {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	recent, err := contentDeleteEvent.CountRecentByActor(req.UserId, string(contentDeleteEvent.EventDeleted), time.Now().Add(-batchDeleteWindow))
+	if err != nil {
+		slog.Error("count recent content deletes failed", "userId", req.UserId, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	if recent+int64(len(req.Params.ContentIDs)) > batchDeleteLimit && !req.Params.Force {
+		return component.FailResponseCode(component.MessageContentBatchConfirmRequired,
+			component.MessageParams{"count": recent + int64(len(req.Params.ContentIDs))})
+	}
+
+	results := make([]BatchDeleteResultItem, 0, len(req.Params.ContentIDs))
+	for _, contentID := range req.Params.ContentIDs {
+		var deleteErr error
+		switch contentdeleteservice.ContentType(req.Params.ContentType) {
+		case contentdeleteservice.ContentTypeTopic:
+			deleteErr = contentdeleteservice.DeleteTopicByUser(req.UserId, contentID)
+		case contentdeleteservice.ContentTypePost:
+			_, deleteErr = contentdeleteservice.DeletePostByUser(req.UserId, contentID)
+		default:
+			deleteErr = component.NewMessageError(component.MessageRequestInvalidParams, "无效的内容类型", nil)
+		}
+		item := BatchDeleteResultItem{ContentID: contentID, Success: deleteErr == nil}
+		if deleteErr != nil {
+			item.Message = deleteErr.Error()
+		}
+		results = append(results, item)
+	}
+	succeeded := 0
+	for _, result := range results {
+		if result.Success {
+			succeeded++
+		}
+	}
+	return component.SuccessResponse(map[string]any{
+		"succeeded": succeeded,
+		"failed":    len(results) - succeeded,
+		"results":   results,
+	})
+}
+
+func myContentCursorID(items []MyContentItem) uint64 {
+	if len(items) == 0 {
+		return 0
+	}
+	return items[len(items)-1].ID
 }
 
 // DeletedContentListReq 最近删除列表请求。
