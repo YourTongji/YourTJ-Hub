@@ -3,6 +3,7 @@ package api
 import (
 	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -119,6 +120,12 @@ func TotpVerify(c *gin.Context) {
 	decoder := json.NewDecoder(c.Request.Body)
 	decoder.DisallowUnknownFields()
 	if err := decoder.Decode(&req); err != nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
+	// application/json requestBody 必须恰好是单个 JSON 文档：拒绝尾随的
+	// 第二个 JSON value（例如 `{"code":"..."} {}`）。
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
 		return
 	}
