@@ -137,6 +137,19 @@ docs/               产品、架构、开发和运维文档
 业务逻辑、数据访问和 HTTP 层分别位于 `apps/gooseforum/app/service`、`app/models` 与
 `app/http/controllers`。完整边界规则见 [`AGENTS.md`](./AGENTS.md)。
 
+## Agent Skills
+
+项目级 Agent Skill 位于 `.agents/skills/`，可在请求中显式引用：
+
+- `$forum-ai-readable-content`：通过论坛公开的 `/llms.txt`、`/llms-full.txt` 和
+  `/p/posts/{id}.md` 按需读取内容，用于主题总结、内容审计、跨主题比较、事实提取、追问生成和证据化问答。
+  Skill 只消费公开导出，不绕过 `404`、权限、审核或删除边界；全文导出出现截断时必须标注覆盖不完整。
+- `$yourtj-development`：处理本仓库代码、文档、测试、发布和 PR 时使用，统一层边界与验证要求。
+
+使用 AI 可读内容 Skill 时，优先从索引定位主题，再按需读取单篇 Markdown；不要默认抓取全文或扩散无关的
+个人信息。公开导出规则的维护事实源是 `apps/gooseforum/app/service/llmsservice/`、相关 HTTP 路由测试和
+`docs/architecture/contracts-and-data.md`。
+
 ## 文档
 
 [`docs/README.md`](./docs/README.md) 是唯一文档入口，并说明不同事实应以何处为准：
