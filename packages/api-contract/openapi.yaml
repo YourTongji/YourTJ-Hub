@@ -3,8 +3,8 @@ info:
   title: yourtj-hub API
   version: 0.1.0
   description: |
-    The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
-    mobile OIDC code exchange, and topic writing.
+    The controlled HTTP contract for yourtj-hub. Current coverage includes password login, logout,
+    session management (list/revoke/revoke-all), mobile OIDC code exchange, and topic writing.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -17,8 +17,16 @@ tags:
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
+  /api/logout:
+    $ref: ./paths/auth-sessions.yaml#/logout
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
+  /api/user/sessions:
+    $ref: ./paths/auth-sessions.yaml#/listSessions
+  /api/user/sessions/revoke:
+    $ref: ./paths/auth-sessions.yaml#/revokeSession
+  /api/user/sessions/revoke-all:
+    $ref: ./paths/auth-sessions.yaml#/revokeAllSessions
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
 components:
@@ -46,6 +54,10 @@ components:
       $ref: ./components/schemas.yaml#/LoginResponse
     LoginResult:
       $ref: ./components/schemas.yaml#/LoginResult
+    LogoutResponse:
+      $ref: ./components/schemas.yaml#/LogoutResponse
+    LogoutSuccess:
+      $ref: ./components/schemas.yaml#/LogoutSuccess
     OidcExchangeRequest:
       $ref: ./components/schemas.yaml#/OidcExchangeRequest
     OidcExchangeResult:
@@ -62,3 +74,15 @@ components:
       $ref: ./components/schemas.yaml#/WriteTopicResponse
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
+    RevokeSessionRequest:
+      $ref: ./components/schemas.yaml#/RevokeSessionRequest
+    SessionListResponse:
+      $ref: ./components/schemas.yaml#/SessionListResponse
+    SessionListSuccess:
+      $ref: ./components/schemas.yaml#/SessionListSuccess
+    SessionMessageResponse:
+      $ref: ./components/schemas.yaml#/SessionMessageResponse
+    SessionMessageSuccess:
+      $ref: ./components/schemas.yaml#/SessionMessageSuccess
+    UserSession:
+      $ref: ./components/schemas.yaml#/UserSession

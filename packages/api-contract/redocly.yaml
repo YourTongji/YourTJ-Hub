@@ -3,3 +3,6 @@ extends:
 rules:
   info-license: off
   no-server-example.com: off
+# Note: `logout` intentionally keeps one `operation-4xx-response` lint warning — the route has no
+# auth middleware and is contractually always-200 (see paths/auth-sessions.yaml). Do not "fix" the
+# warning by inventing a 4XX response; keep the rule enabled so future coverage keeps the safety net.

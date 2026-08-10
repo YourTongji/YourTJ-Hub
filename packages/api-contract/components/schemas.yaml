@@ -198,3 +198,92 @@ WriteTopicResponse:
   oneOf:
     - $ref: '#/WriteTopicSuccess'
     - $ref: '#/ApiFailure'
+
+UserSession:
+  type: object
+  required: [id, ipMasked, userAgent, createdAt, expiresAt, isCurrent]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    ipMasked:
+      type: string
+      description: Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in issue #79).
+    userAgent:
+      type: string
+      description: Truncated raw user agent; clients render a parsed device label.
+    createdAt:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Session creation time in Unix milliseconds.
+    expiresAt:
+      type: integer
+      format: int64
+      minimum: 1
+      description: Session expiry time in Unix milliseconds.
+    isCurrent:
+      type: boolean
+      description: True for the session that carries the current token.
+  additionalProperties: false
+
+SessionListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/UserSession'
+
+SessionListResponse:
+  oneOf:
+    - $ref: '#/SessionListSuccess'
+    - $ref: '#/ApiFailure'
+
+RevokeSessionRequest:
+  type: object
+  required: [id]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Session ID from the session list. Must belong to the caller.
+  additionalProperties: false
+
+SessionMessageSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable confirmation message; `messageCode` pins the stable identifier.
+        messageCode:
+          type: string
+          enum: [session.revoke.success, session.revokeAll.success]
+
+SessionMessageResponse:
+  oneOf:
+    - $ref: '#/SessionMessageSuccess'
+    - $ref: '#/ApiFailure'
+
+LogoutSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: string
+          const: logout
+
+LogoutResponse:
+  oneOf:
+    - $ref: '#/LogoutSuccess'
+    - $ref: '#/ApiFailure'

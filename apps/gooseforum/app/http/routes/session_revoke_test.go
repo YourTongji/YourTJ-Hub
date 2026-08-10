@@ -41,7 +41,7 @@ func serveSessionRevokeJSON(router http.Handler, method, path, body, token strin
 	return recorder
 }
 
-func sessionIDsByCurrency(t *testing.T, router http.Handler, token string) (current uint64, others []uint64) {
+func sessionIDsByCurrent(t *testing.T, router http.Handler, token string) (current uint64, others []uint64) {
 	t.Helper()
 	recorder := serveSessionRevokeJSON(router, http.MethodGet, "/api/user/sessions", "", token)
 	if recorder.Code != http.StatusOK {
@@ -123,7 +123,7 @@ func TestRevokeSessionBehaviorPreserved(t *testing.T) {
 		conn, router := setupSessionRevokeTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		token := contractSessionToken(t, user)
-		current, _ := sessionIDsByCurrency(t, router, token)
+		current, _ := sessionIDsByCurrent(t, router, token)
 		body, err := json.Marshal(map[string]uint64{"id": current})
 		if err != nil {
 			t.Fatalf("marshal revoke request: %v", err)
@@ -137,7 +137,7 @@ func TestRevokeSessionBehaviorPreserved(t *testing.T) {
 		user := createHTTPContractUser(t, conn, contractTestID())
 		token := contractSessionToken(t, user)
 		otherToken := contractSessionToken(t, user)
-		_, others := sessionIDsByCurrency(t, router, token)
+		_, others := sessionIDsByCurrent(t, router, token)
 		if len(others) != 1 {
 			t.Fatalf("non-current session count = %d, want 1", len(others))
 		}
