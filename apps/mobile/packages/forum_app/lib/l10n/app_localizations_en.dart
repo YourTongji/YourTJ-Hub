@@ -328,6 +328,12 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get topicWatch => 'Watch topic replies';
+
+  @override
+  String get topicUnwatch => 'Stop watching topic replies';
+
+  @override
   String topicReplies(int count) {
     return '$count replies';
   }

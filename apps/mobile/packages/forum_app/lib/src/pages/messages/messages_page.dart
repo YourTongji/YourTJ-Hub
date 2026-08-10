@@ -22,7 +22,16 @@ const InputDecoration _compactSearchDecoration = InputDecoration(
 /// 私信(IM)页(web messages.index 的移动端形态):
 /// 会话列表 + 消息游标分页 + 15s 轮询 + 已读回执 + 离线缓存 + 发起新会话。
 class MessagesPage extends ConsumerStatefulWidget {
-  const MessagesPage({super.key});
+  const MessagesPage({
+    super.key,
+    this.targetUserId,
+    this.targetUsername = '',
+    this.targetAvatarUrl = '',
+  });
+
+  final int? targetUserId;
+  final String targetUsername;
+  final String targetAvatarUrl;
 
   @override
   ConsumerState<MessagesPage> createState() => _MessagesPageState();
@@ -34,6 +43,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   String _viewerAvatar = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
+  ChatItemPayload? _targetConversation;
 
   @override
   void initState() {
@@ -44,6 +54,22 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       const Duration(seconds: 15),
       (_) => _load(silent: true),
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant MessagesPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.targetUserId == widget.targetUserId &&
+        oldWidget.targetUsername == widget.targetUsername &&
+        oldWidget.targetAvatarUrl == widget.targetAvatarUrl) {
+      return;
+    }
+    final List<ChatItemPayload>? items = _conversations.valueOrNull;
+    setState(() {
+      _targetConversation = items == null
+          ? null
+          : _targetConversationFor(items);
+    });
   }
 
   @override
@@ -65,6 +91,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           _conversations = AsyncValue.data(items);
           _suggestedUsers = parsed?.suggestedUsers ?? const [];
           _viewerAvatar = resolveApiAssetUrl(props.layout.viewer.avatarUrl);
+          _targetConversation = _targetConversationFor(items);
         });
       }
       // 会话列表写入离线缓存(断网可读)。
@@ -80,7 +107,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
               .read(offlineChatCacheProvider)
               .getConversations();
           if (cached.isNotEmpty) {
-            setState(() => _conversations = AsyncValue.data(cached));
+            setState(() {
+              _conversations = AsyncValue.data(cached);
+              _targetConversation = _targetConversationFor(cached);
+            });
             return;
           }
         } catch (_) {
@@ -91,6 +121,29 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
         setState(() => _conversations = AsyncValue.error(e, st));
       }
     }
+  }
+
+  ChatItemPayload? _targetConversationFor(List<ChatItemPayload> items) {
+    final int? targetUserId = widget.targetUserId;
+    if (targetUserId == null || targetUserId <= 0) return null;
+
+    for (final ChatItemPayload item in items) {
+      if (item.peerId == targetUserId) return item;
+    }
+
+    final String targetUsername = widget.targetUsername.trim();
+    if (targetUsername.isEmpty) return null;
+    return ChatItemPayload(
+      id: 0,
+      peerId: targetUserId,
+      peerUsername: targetUsername,
+      peerAvatar: resolveApiAssetUrl(widget.targetAvatarUrl),
+      lastMsg: '',
+      lastMsgTime: '',
+      unreadCount: 0,
+      convId: 0,
+      peerUrl: '/u/$targetUserId',
+    );
   }
 
   Future<void> _openConversation(ChatItemPayload conv) async {
@@ -160,6 +213,14 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   Widget build(BuildContext context) {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final GfColors colors = GfTheme.colorsOf(context);
+    final ChatItemPayload? targetConversation = _targetConversation;
+    if (targetConversation != null) {
+      return _ConversationPage(
+        key: ValueKey<int>(targetConversation.peerId),
+        conv: targetConversation,
+        viewerAvatar: _viewerAvatar,
+      );
+    }
     return Scaffold(
       backgroundColor: colors.base100,
       appBar: GfAppBar(
@@ -216,7 +277,11 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
 
 /// 单会话聊天页。
 class _ConversationPage extends ConsumerStatefulWidget {
-  const _ConversationPage({required this.conv, required this.viewerAvatar});
+  const _ConversationPage({
+    super.key,
+    required this.conv,
+    required this.viewerAvatar,
+  });
 
   final ChatItemPayload conv;
   final String viewerAvatar;
@@ -249,6 +314,18 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
       const Duration(seconds: 15),
       (_) => _load(silent: true),
     );
+  }
+
+  @override
+  void didUpdateWidget(covariant _ConversationPage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    final int nextConvId = widget.conv.convId;
+    if (_convId > 0 || nextConvId <= 0) return;
+
+    _convId = nextConvId;
+    _loading = true;
+    unawaited(_load(silent: true));
+    unawaited(_markRead());
   }
 
   @override
