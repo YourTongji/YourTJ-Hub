@@ -14,6 +14,8 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `GET /api/login-public-key`;
+- `POST /api/auth/totp/verify`;
 - `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`;
@@ -64,7 +66,8 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
   assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
-  this repository yet.
+  this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
+  exercise their runtime deserialization where the mobile client consumes a controlled operation.
 
 Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
 stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
