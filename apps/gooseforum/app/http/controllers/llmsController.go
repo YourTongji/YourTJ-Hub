@@ -44,5 +44,8 @@ func renderLLMS(c *gin.Context, contentType string, content string, err error) {
 		return
 	}
 	c.Header("Cache-Control", llmsCacheControl)
+	// 输出内嵌 Host 相关绝对链接：Vary 保证 CDN/反向代理按 Host 分开缓存，防止恶意 Host 投毒。
+	c.Header("Vary", "Host")
+	c.Header("X-Content-Type-Options", "nosniff")
 	c.Data(http.StatusOK, contentType, []byte(content))
 }

@@ -77,6 +77,12 @@ func TestLLMSRoutesRespectFeatureGatesAndContentTypes(t *testing.T) {
 		if got := response.Header().Get("Cache-Control"); got != "public, max-age=10" {
 			t.Fatalf("GET %s cache-control=%q", testCase.path, got)
 		}
+		if got := response.Header().Get("Vary"); got != "Host" {
+			t.Fatalf("GET %s vary=%q, want Host", testCase.path, got)
+		}
+		if got := response.Header().Get("X-Content-Type-Options"); got != "nosniff" {
+			t.Fatalf("GET %s x-content-type-options=%q, want nosniff", testCase.path, got)
+		}
 		if !strings.Contains(response.Body.String(), testCase.body) {
 			t.Fatalf("GET %s body=%q, want fragment %q", testCase.path, response.Body.String(), testCase.body)
 		}

@@ -229,3 +229,127 @@ func assertNotContains(t *testing.T, value string, fragment string) {
 		t.Fatalf("output unexpectedly contains %q:\n%s", fragment, value)
 	}
 }
+
+// 单个首帖异常的主题不应拖垮整份 llms-full.txt：buildFull 应跳过它并继续。
+func TestBuildFullSkipsTopicWithBrokenFirstPost(t *testing.T) {
+	fixture := setupLLMSProjectionFixture(t)
+	host := "https://cap.example.test"
+	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true, FullText: true, Files: true})
+
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 9_200_000_000
+	brokenTopicID := base + 1
+	brokenPostID := base + 2
+	t.Cleanup(func() {
+		fixture.conn.Unscoped().Where("id = ?", brokenPostID).Delete(&posts.Entity{})
+		fixture.conn.Unscoped().Where("id = ?", brokenTopicID).Delete(&topics.Entity{})
+		ClearCache()
+	})
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	// 首帖 PostNo=2：GetPublishedAfterID 的 EXISTS 通过（normal 且未删），
+	// 但 appendTopicDocument 因 postsBatch[0].PostNo != 1 返回 ErrTopicMissing。
+	if err := fixture.conn.Create(&posts.Entity{Id: brokenPostID, TopicId: brokenTopicID, PostNo: 2, Content: "broken first-post body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now}).Error; err != nil {
+		t.Fatalf("create broken first post: %v", err)
+	}
+	if err := fixture.conn.Create(&topics.Entity{Id: brokenTopicID, Title: "Broken topic", FirstPostId: brokenPostID, Status: 1, ProcessStatus: topics.ProcessStatusNormal, Excerpt: "broken excerpt", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create broken topic: %v", err)
+	}
+
+	full, err := BuildFull(host)
+	if err != nil {
+		t.Fatalf("BuildFull() with broken topic err=%v, want skip-not-fail", err)
+	}
+	assertContains(t, full, "Public topic")
+	assertContains(t, full, "public body")
+	assertNotContains(t, full, "Broken topic")
+	assertNotContains(t, full, "broken first-post body")
+	// 正文应被 markdown 围栏包裹，降低结构劫持。
+	assertContains(t, full, "```markdown")
+}
+
+func TestBuildFullTruncatesByLimits(t *testing.T) {
+	fixture := setupLLMSProjectionFixture(t)
+	host := "https://cap.example.test"
+	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true, FullText: true})
+
+	// 额外创建两个可见健康主题，保证能触发主题数上限。
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 9_300_000_000
+	topicA, postA := base+1, base+11
+	topicB, postB := base+2, base+12
+	t.Cleanup(func() {
+		for _, id := range []uint64{postA, postB} {
+			fixture.conn.Unscoped().Where("id = ?", id).Delete(&posts.Entity{})
+		}
+		for _, id := range []uint64{topicA, topicB} {
+			fixture.conn.Unscoped().Where("id = ?", id).Delete(&topics.Entity{})
+		}
+		ClearCache()
+	})
+	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
+	postRows := []posts.Entity{
+		{Id: postA, TopicId: topicA, PostNo: 1, Content: "topic A body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: postB, TopicId: topicB, PostNo: 1, Content: "topic B body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+	}
+	for i := range postRows {
+		if err := fixture.conn.Create(&postRows[i]).Error; err != nil {
+			t.Fatalf("create cap post: %v", err)
+		}
+	}
+	topicRows := []topics.Entity{
+		{Id: topicA, Title: "Cap topic A", FirstPostId: postA, Status: 1, ProcessStatus: topics.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+		{Id: topicB, Title: "Cap topic B", FirstPostId: postB, Status: 1, ProcessStatus: topics.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now},
+	}
+	for i := range topicRows {
+		if err := fixture.conn.Create(&topicRows[i]).Error; err != nil {
+			t.Fatalf("create cap topic: %v", err)
+		}
+	}
+
+	baseline, err := buildFullWithLimits(host, fullMaxTopics, 0, time.Minute)
+	if err != nil {
+		t.Fatalf("buildFullWithLimits unlimited err=%v", err)
+	}
+	assertContains(t, baseline, "Cap topic A")
+	assertContains(t, baseline, "Cap topic B")
+	assertNotContains(t, baseline, "truncated")
+
+	capped, err := buildFullWithLimits(host, 1, 0, time.Minute)
+	if err != nil {
+		t.Fatalf("buildFullWithLimits capped err=%v", err)
+	}
+	assertContains(t, capped, "Public topic")
+	assertNotContains(t, capped, "Cap topic A")
+	assertNotContains(t, capped, "Cap topic B")
+	assertContains(t, capped, "truncated")
+	if len(capped) >= len(baseline) {
+		t.Fatalf("capped output not smaller than baseline")
+	}
+
+	byteCapped, err := buildFullWithLimits(host, fullMaxTopics, 200, time.Minute)
+	if err != nil {
+		t.Fatalf("buildFullWithLimits byteCapped err=%v", err)
+	}
+	assertContains(t, byteCapped, "truncated")
+	if len(byteCapped) >= len(baseline) {
+		t.Fatalf("byte-capped output not smaller than baseline")
+	}
+
+	timedOut, err := buildFullWithLimits(host, fullMaxTopics, 0, time.Nanosecond)
+	if err != nil {
+		t.Fatalf("buildFullWithLimits timedOut err=%v", err)
+	}
+	assertContains(t, timedOut, "truncated")
+}
+
+// 单篇超大主题也受字节上限约束，且以成功+注释截断（可缓存），而不是 500。
+func TestBuildTopicTruncatesByBytes(t *testing.T) {
+	fixture := setupLLMSProjectionFixture(t)
+	host := "https://cap.example.test"
+	setLLMSSettings(t, fixture.conn, pageConfig.LLMSConfig{Enabled: true, Files: true})
+
+	topic, err := BuildTopic(host, fixture.publicTopicID)
+	if err != nil {
+		t.Fatalf("BuildTopic() err=%v", err)
+	}
+	assertContains(t, topic, "Public topic")
+	assertContains(t, topic, "```markdown")
+}
