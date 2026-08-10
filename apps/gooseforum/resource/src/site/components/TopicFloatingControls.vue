@@ -44,7 +44,7 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const showFloatingControls = computed(() => props.hasRail || props.authenticated)
+const showFloatingControls = computed(() => true)
 
 function toggleMobileRail() {
   emit('update:mobileRailOpen', !props.mobileRailOpen)
@@ -124,7 +124,7 @@ function closeMobileRail() {
                 </button>
               </template>
               <button
-                v-if="authenticated && canPost"
+                v-if="authenticated ? canPost : true"
                 type="button"
                 class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary"
                 :title="t('topic.joinDiscussion')"

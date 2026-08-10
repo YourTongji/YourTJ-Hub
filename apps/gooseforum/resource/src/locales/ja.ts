@@ -402,6 +402,8 @@ export default {
     markdownSoon: 'Markdown 対応は後日追加予定です',
     publishReply: '返信を投稿',
     loginToReply: 'ログインするとこのトピックに返信できます。',
+    loginRequiredToComment: 'ログインユーザーのみコメントできます',
+    loginToComment: 'ログイン',
     fullEditor: 'フルエディター',
     overview: 'トピック概要',
     createdAt: '作成',

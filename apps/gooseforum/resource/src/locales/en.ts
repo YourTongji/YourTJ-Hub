@@ -402,6 +402,8 @@ export default {
     markdownSoon: 'Markdown support is coming later',
     publishReply: 'Post reply',
     loginToReply: 'Log in to reply to this topic.',
+    loginRequiredToComment: 'Only logged-in users can comment',
+    loginToComment: 'Log in',
     fullEditor: 'Full editor',
     overview: 'Topic overview',
     createdAt: 'Created',

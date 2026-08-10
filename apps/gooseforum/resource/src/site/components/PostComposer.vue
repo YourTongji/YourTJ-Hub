@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, watch } from 'vue'
-import { Check, Loader2, Send, X } from '@lucide/vue'
+import { Check, Loader2, Lock, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
@@ -192,7 +192,7 @@ function submit() {
         <!-- appear：覆盖首次打开时组件刚挂载、Transition 与其子元素同帧出现的场景 -->
         <Transition name="composer-rise" appear>
           <div
-            v-if="open && authenticated"
+            v-if="open"
             class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
             :style="{
               height: isMobileComposer() ? undefined : `${composerHeight}px`,
@@ -222,6 +222,7 @@ function submit() {
                 <X class="h-4 w-4" />
               </button>
             </div>
+            <template v-if="authenticated">
             <div v-if="target && !editing" class="mb-2 flex min-w-0 items-center justify-between gap-3 rounded-md border border-primary/20 bg-info/10 px-3 py-2">
               <div class="min-w-0 text-sm font-medium text-base-content/75">
                 {{ t('topic.replyTo', { user: `@${target.author.username}` }) }}
@@ -285,6 +286,12 @@ function submit() {
                 <Send v-else class="h-4 w-4" />
                 {{ submitText }}
               </button>
+            </div>
+            </template>
+            <div v-else class="grid min-h-40 flex-1 place-items-center px-6 py-10 text-center">
+              <Lock class="h-8 w-8 text-base-content/35" />
+              <p class="mt-3 text-sm font-semibold text-base-content/70">{{ t('topic.loginRequiredToComment') }}</p>
+              <a href="/login" class="gf-button gf-button-md gf-button-primary mt-4">{{ t('topic.loginToComment') }}</a>
             </div>
           </div>
         </Transition>

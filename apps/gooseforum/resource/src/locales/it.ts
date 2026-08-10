@@ -402,6 +402,8 @@ export default {
     markdownSoon: 'Il supporto Markdown arriverà più avanti',
     publishReply: 'Pubblica risposta',
     loginToReply: 'Accedi per rispondere a questo argomento.',
+    loginRequiredToComment: 'Solo gli utenti autenticati possono commentare',
+    loginToComment: 'Accedi',
     fullEditor: 'Editor completo',
     overview: 'Panoramica argomento',
     createdAt: 'Creato',
