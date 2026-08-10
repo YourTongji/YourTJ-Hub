@@ -68,6 +68,7 @@
   "permission.pageManager": "Gestione pagine",
   "permission.roleManager": "Gestione ruoli",
   "permission.siteManager": "Gestione sito",
+  "permission.courseManager": "Gestione recensioni corsi",
   "meta.notifications": "Notifiche",
   "meta.messages": "Messaggi",
   "meta.drafts": "Bozze",
@@ -94,5 +95,7 @@
   "terms": "Termini di servizio",
   "meta.termsDesc": "Leggi i Termini di servizio di {site}.",
   "common.rateLimited": "Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.",
-  "common.captchaRequired": "Completa il captcha prima di inviare."
+  "common.captchaRequired": "Completa il captcha prima di inviare.",
+  "meta.courseReviewModeration": "Moderazione recensioni corsi",
+  "meta.courseReviewModerationDesc": "Gestisci le segnalazioni delle recensioni e nascondi/ripristina le recensioni."
 }

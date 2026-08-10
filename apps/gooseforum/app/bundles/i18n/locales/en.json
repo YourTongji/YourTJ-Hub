@@ -68,6 +68,7 @@
   "permission.pageManager": "Page management",
   "permission.roleManager": "Role management",
   "permission.siteManager": "Site management",
+  "permission.courseManager": "Course review management",
   "meta.notifications": "Notifications",
   "meta.messages": "Messages",
   "meta.drafts": "Drafts",
@@ -94,5 +95,7 @@
   "terms": "Terms of Service",
   "meta.termsDesc": "Read the Terms of Service of {site}.",
   "common.rateLimited": "Too many attempts. Please try again in {retryAfterSeconds} seconds.",
-  "common.captchaRequired": "Please complete the captcha before submitting."
+  "common.captchaRequired": "Please complete the captcha before submitting.",
+  "meta.courseReviewModeration": "Course review moderation",
+  "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews."
 }

@@ -68,6 +68,7 @@
   "permission.pageManager": "页面管理",
   "permission.roleManager": "角色管理",
   "permission.siteManager": "站点管理",
+  "permission.courseManager": "课评管理",
   "meta.notifications": "通知",
   "meta.messages": "私信",
   "meta.drafts": "草稿箱",
@@ -94,5 +95,7 @@
   "terms": "服务条款",
   "meta.termsDesc": "阅读 {site} 的服务条款。",
   "common.rateLimited": "操作过于频繁，请 {retryAfterSeconds} 秒后再试。",
-  "common.captchaRequired": "请先完成验证码后再提交。"
+  "common.captchaRequired": "请先完成验证码后再提交。",
+  "meta.courseReviewModeration": "课评审核",
+  "meta.courseReviewModerationDesc": "处理课程评价的举报与隐藏/恢复。"
 }

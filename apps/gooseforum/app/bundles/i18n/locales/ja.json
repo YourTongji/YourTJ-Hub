@@ -68,6 +68,7 @@
   "permission.pageManager": "ページ管理",
   "permission.roleManager": "ロール管理",
   "permission.siteManager": "サイト管理",
+  "permission.courseManager": "コースレビュー管理",
   "meta.notifications": "通知",
   "meta.messages": "メッセージ",
   "meta.drafts": "下書き",
@@ -94,5 +95,7 @@
   "terms": "利用規約",
   "meta.termsDesc": "{site} の利用規約を読む。",
   "common.rateLimited": "操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。",
-  "common.captchaRequired": "送信前にキャプチャを完了してください。"
+  "common.captchaRequired": "送信前にキャプチャを完了してください。",
+  "meta.courseReviewModeration": "コース評価モデレーション",
+  "meta.courseReviewModerationDesc": "コース評価の通報と非表示/復元を処理します。"
 }

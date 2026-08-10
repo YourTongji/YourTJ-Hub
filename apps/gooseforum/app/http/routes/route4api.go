@@ -102,6 +102,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/search", forum.Search)
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
 	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
+	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
@@ -187,6 +188,8 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
 	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
 	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))
+	// 课程评价列表：公开可读，可选 JWT 仅用于 viewer 状态，不要求登录。
+	forumApi.GET("courses/:courseId/reviews", middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
@@ -206,6 +209,17 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
 	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.FollowUser))
 	forumLoginApi.POST("report", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(forum.CreateReport))
+	// 课评写接口：登录 + 可写账号 + 独立限流。
+	forumLoginApi.POST("course-reviews", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpJsonReq(forum.CreateCourseReview))
+	forumLoginApi.PATCH("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriJsonReq(forum.UpdateCourseReview))
+	forumLoginApi.DELETE("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriReq(forum.DeleteCourseReview))
+	forumLoginApi.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
+	forumLoginApi.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
+	forumLoginApi.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
+	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
+	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewStatus))
+	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationCourseReviewReportList))
+	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewReveal))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))

@@ -165,6 +165,12 @@ func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
 
 // ---- Offering ----
 
+// GetOffering 按 ID 读取开课实例（含软删除过滤）。
+func GetOffering(id uint64) (entity OfferingEntity, err error) {
+	err = offeringBuilder().Where("id = ?", id).First(&entity).Error
+	return
+}
+
 // ListOfferingsByCourse 单课程的可见开课实例，按学期时间序（starts_on，回退 code）倒序。
 func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err error) {
 	err = offeringBuilder().

@@ -32,4 +32,5 @@ const (
 	EntityTypeInstructor string = "instructor"
 	EntityTypeOffering   string = "offering"
 	EntityTypeTerm       string = "term"
+	EntityTypeReview     string = "review"
 )

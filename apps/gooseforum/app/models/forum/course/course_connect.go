@@ -29,6 +29,26 @@ func offeringInstructorBuilder() *gorm.DB {
 	return db.Connect().Table(offeringInstructorTableName)
 }
 
+func reviewBuilder() *gorm.DB {
+	return db.Connect().Table(reviewTableName)
+}
+
+func helpfulBuilder() *gorm.DB {
+	return db.Connect().Table(helpfulTableName)
+}
+
+func courseStatsBuilder() *gorm.DB {
+	return db.Connect().Table(courseStatsTableName)
+}
+
+func offeringStatsBuilder() *gorm.DB {
+	return db.Connect().Table(offeringStatsTableName)
+}
+
+func searchProjectionBuilder() *gorm.DB {
+	return db.Connect().Table(searchProjectionTableName)
+}
+
 func importRunBuilder() *gorm.DB {
 	return db.Connect().Table(importRunTableName)
 }

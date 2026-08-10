@@ -15,6 +15,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
+	"github.com/leancodebox/GooseForum/app/models/forum/course"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/reports"
@@ -370,6 +371,12 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 			return reportTargetInfoData{}, false
 		}
 		return reportTargetInfoData{UserID: post.UserId, ArticleID: topic.Id, TopicID: topic.Id}, true
+	case reports.TargetCourseReview:
+		review, err := course.GetReview(targetID)
+		if err != nil || review.Id == 0 || review.Status != course.ReviewStatusVisible {
+			return reportTargetInfoData{}, false
+		}
+		return reportTargetInfoData{UserID: review.AuthorUserId}, true
 	default:
 		return reportTargetInfoData{}, false
 	}
@@ -435,11 +442,21 @@ func buildReportLogSnapshot(record reports.Entity, resolution string) moderation
 			snapshot.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id)
 			snapshot.Excerpt = moderationExcerpt(post.Content)
 		}
+	case reports.TargetCourseReview:
+		review, err := course.GetReview(record.TargetId)
+		if err == nil && review.Id > 0 {
+			snapshot.TargetURL = fmt.Sprintf("/courses/reviews/%d", review.Id)
+			snapshot.Excerpt = moderationExcerpt(review.Content)
+		}
 	}
 	return snapshot
 }
 
 func canModerateReportTarget(userID uint64, targetType string, targetID uint64) bool {
+	// 课评举报由独立 CourseManager 权限处理，不走 forum category scope。
+	if targetType == reports.TargetCourseReview {
+		return canModerateCourseReviews(userID)
+	}
 	categoryIDs, ok := reportTargetCategories(targetType, targetID)
 	return ok && moderationservice.CanModerateAnyCategory(userID, categoryIDs)
 }
