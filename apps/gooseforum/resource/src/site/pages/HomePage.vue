@@ -3,6 +3,7 @@ import { computed, nextTick, onActivated, onBeforeUnmount, onDeactivated, onMoun
 import { useI18n } from 'vue-i18n'
 import { Bell, LayoutGrid, List, Mail, Plus, UsersRound } from '@lucide/vue'
 import { fetchPage } from '@/runtime/router'
+import { useHomeFeedMode } from '@/runtime/home-feed-mode'
 import EmptyState from '@/site/components/EmptyState.vue'
 import TopicListFooter from '@/site/components/TopicListFooter.vue'
 import TopicList from '@/site/components/TopicList.vue'
@@ -28,31 +29,8 @@ let observer: IntersectionObserver | undefined
 const hasTopics = computed(() => topics.value.length > 0)
 const showPinnedLabels = computed(() => page.props.sort === '' || page.props.sort === 'latest')
 
-// 信息流样式：列表（表格）↔ 卡片，桌面与移动端均可切换，选择记忆在本地；
-// 列表模式下桌面端保留 hover 弹层预览。
-const feedStorageKey = 'goose:home-feed-mode'
-const feedMode = ref<'table' | 'card'>(readFeedMode())
-
-function readFeedMode(): 'table' | 'card' {
-  try {
-    const stored = window.localStorage.getItem(feedStorageKey)
-    if (stored === 'card' || stored === 'table') return stored
-  } catch {
-    // Storage may be unavailable in private or restricted browsing contexts.
-  }
-  // 未手动选择时按设备默认：移动端卡片、桌面端列表（与 Tailwind lg 断点一致）
-  return window.matchMedia('(min-width: 1024px)').matches ? 'table' : 'card'
-}
-
-function setFeedMode(mode: 'table' | 'card') {
-  feedMode.value = mode
-  try {
-    window.localStorage.setItem(feedStorageKey, mode)
-  } catch {
-    // Storage may be unavailable in private or restricted browsing contexts.
-  }
-  void nextTick(updateFeedModePill)
-}
+// 信息流样式由所有首页分页共享；列表模式下桌面端保留 hover 弹层预览。
+const { feedMode, setFeedMode: setSharedFeedMode } = useHomeFeedMode()
 
 // 列表/卡片切换：绝对定位的「药丸」滑到激活按钮下方。
 // 位置按按钮实际渲染尺寸测量（绝对值定位相对于容器的 padding box）；
@@ -64,6 +42,7 @@ const feedModeCardBtn = ref<HTMLElement | null>(null)
 const feedModePillLeft = ref(0)
 const feedModePillWidth = ref(0)
 const feedModePillReady = ref(false)
+const feedModePillShouldAnimate = ref(false)
 const reducedMotion = ref(false)
 let feedModeResizeObserver: ResizeObserver | undefined
 let feedModeMotionQuery: MediaQueryList | undefined
@@ -81,11 +60,22 @@ function updateFeedModePill() {
   feedModePillReady.value = true
 }
 
+function setFeedMode(mode: 'table' | 'card') {
+  // 只有当前可见分页中的主动点击才应播放药丸动画；其他 KeepAlive
+  // 实例在激活时只同步到最终位置，不重复播放同一段过渡。
+  feedModePillShouldAnimate.value = mode !== feedMode.value
+  setSharedFeedMode(mode)
+}
+
+// 最新、热门、流行页面各自是 KeepAlive 实例；任一实例切换模式时，
+// 当前可见实例负责播放动画，其他实例只更新自己的最终位置。
+watch(feedMode, () => void nextTick(updateFeedModePill))
+
 // 激活按钮文字在白药丸到达时（delay 与药丸滑动时长一致，均由 --gf-feed-slide-ms 决定）翻白；
 // 非激活按钮文字立即变灰（随药丸离去淡出）。reduced-motion 下全部瞬时切换。
 function feedModeButtonClass(active: boolean): string[] {
   const base = active ? 'text-primary-content' : 'text-base-content/55 hover:text-base-content'
-  if (reducedMotion.value) return [base]
+  if (reducedMotion.value || !feedModePillShouldAnimate.value) return [base]
   return active
     ? [base, 'transition-colors', 'delay-[var(--gf-feed-slide-ms)]', 'duration-100']
     : [base, 'transition-colors', 'duration-200']
@@ -271,6 +261,9 @@ onMounted(() => {
   if (feedModeCardBtn.value) feedModeResizeObserver.observe(feedModeCardBtn.value)
 })
 onActivated(() => {
+  // KeepAlive 页面重新显示时，药丸已经应该处于共享状态的最终位置，
+  // 不把这次同步误认为用户主动切换。
+  feedModePillShouldAnimate.value = false
   void nextTick(observeSentinel)
   startAnnouncementRotation()
   void nextTick(updateFeedModePill)
@@ -397,7 +390,9 @@ onBeforeUnmount(() => {
               <span
                 aria-hidden="true"
                 class="pointer-events-none absolute bottom-0.5 top-0.5 rounded-full bg-primary"
-                :class="feedModePillReady && !reducedMotion ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out' : ''"
+                :class="feedModePillReady && feedModePillShouldAnimate && !reducedMotion
+                  ? 'transition-[left,width] duration-[var(--gf-feed-slide-ms)] ease-out'
+                  : ''"
                 :style="{ left: `${feedModePillLeft}px`, width: `${feedModePillWidth}px` }"
               />
               <button
