@@ -67,36 +67,6 @@ services:
       timeout: 5s
       retries: 10
 
-  # 可选: Casdoor 统一认证(与根目录 docker-compose.yml 的本地 dev 实例对齐)
-  # 生产建议独立部署, 并仅对反代暴露; 初始化步骤见 services/casdoor/README.md
-  casdoor:
-    image: casbin/casdoor:latest
-    container_name: yourtj-casdoor
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${CASDOOR_PORT:-8001}:8000"
-    environment:
-      driverName: mysql
-      dataSourceName: "root:${CASDOOR_DB_PASSWORD:?must be set}@tcp(mariadb:3306)/"
-      dbName: casdoor
-    depends_on:
-      mariadb:
-        condition: service_healthy
-
-  mariadb:
-    image: mariadb:11
-    container_name: yourtj-mariadb
-    restart: unless-stopped
-    environment:
-      MARIADB_ROOT_PASSWORD: ${CASDOOR_DB_PASSWORD:?must be set}
-    volumes:
-      - ./mariadbdata:/var/lib/mysql
-    healthcheck:
-      test: ["CMD-SHELL", "healthcheck.sh --connect --innodb_initialized"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-      start_period: 10s
 
 volumes:
   pgdata:

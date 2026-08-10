@@ -58,9 +58,9 @@ export interface paths {
         /**
          * Exchange a mobile OIDC authorization code for a forum session
          * @description The mobile client sends the authorization code together with its PKCE verifier, nonce, and
-         *     redirect URI. The server requires `redirectUri` to exactly match its configured mobile
-         *     allowlist, exchanges the code with Casdoor, verifies the ID token signature, issuer, audience,
-         *     expiry and nonce, enforces a positive numeric `sub`, then issues a forum JWT session.
+         *     redirect URI. The server requires `redirectUri` to exactly match the registered mobile client
+         *     redirect URI of the forum built-in OIDC provider, redeems the code atomically (single-use,
+         *     PKCE S256), verifies the bound nonce and numeric `sub`, then issues a forum JWT session.
          */
         post: operations["exchangeMobileOidcCode"];
         delete?: never;
@@ -406,7 +406,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Casdoor rejected the code, token verification failed, or the ID token nonce did not match. */
+            /** @description The authorization code is invalid, already used, or the PKCE verifier / nonce did not match. */
             401: {
                 headers: {
                     [name: string]: unknown;
@@ -415,7 +415,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The redirect URI is not allowlisted, OIDC is unavailable, numeric sub is invalid, signup is disabled, or the matched account is frozen. */
+            /** @description The redirect URI is not allowlisted, OIDC is unavailable, or the matched account is frozen. */
             403: {
                 headers: {
                     [name: string]: unknown;

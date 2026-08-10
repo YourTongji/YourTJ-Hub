@@ -87,7 +87,14 @@ func Publish(c *gin.Context) {
 
 func Login(c *gin.Context) {
 	if component.LoginUserId(c) > 0 {
-		c.Redirect(http.StatusFound, "/")
+		// 已登录用户访问登录页：redirect 参数经 isSafeRedirect 校验后
+		// 直接跳转（OIDC 登录桥依赖该行为回到 /api/oauth/authorize/callback）；
+		// 无/不安全 redirect 回落首页。
+		redirectURL := c.Query("redirect")
+		if !isSafeRedirect(redirectURL) {
+			redirectURL = "/"
+		}
+		c.Redirect(http.StatusFound, redirectURL)
 		return
 	}
 

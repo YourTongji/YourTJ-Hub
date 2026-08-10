@@ -9,7 +9,7 @@
 > Last verified: 2026-08-07
 
 yourtj is a community platform for Tongji campus members. The forum is the core public discussion space;
-unified auth (Casdoor), search (Meilisearch), and points (credit, phase 2) are shared identity,
+unified auth (built-in OIDC Provider), search (Meilisearch), and points (credit, phase 2) are shared identity,
 infrastructure, and settlement subdomains. The product goal is to accumulate campus information, build
 trusted discussion, and let users share one identity and one points system between the forum and future
 services (course selection, course reviews, etc.).
@@ -31,8 +31,7 @@ services (course selection, course reviews, etc.).
 - `Current`: monorepo skeleton; the forum runs (three-mode rendering + JSON API, single binary).
 - `Current`: database selection (PostgreSQL main-db support landed, issue #11; SQLite default retained);
   search shape via Meilisearch (optional, event-synced index).
-- `Current`: unified auth integration (Casdoor OIDC, issue #8; Casdoor-side MFA/Passkey deployment
-  config pending).
+- `Current`: unified auth integration (built-in OIDC Provider; forum users are the identity source).
 - Points (credit) are explicitly **phase 2**; not claimed usable in UI or marketing now.
 
 ### Explicitly out of scope
@@ -47,7 +46,7 @@ services (course selection, course reviews, etc.).
 
 ## Product principles
 
-1. Auth's only source is Casdoor (once integrated); the forum JWT is a session credential, not identity truth.
+1. The forum `users` table is the identity source; the built-in OIDC Provider authenticates first-party clients against it; the forum JWT is a session credential, not identity truth.
 2. User IDs must be numeric (uint64) — credit's `GetID()` only accepts numeric sub; UUID collapses all
    users to 0.
 3. The chosen DB is the business fact source; search, cache, counters, and feeds are rebuildable projections.
@@ -80,7 +79,7 @@ services (course selection, course reviews, etc.).
 | Database | PostgreSQL 15+ (support landed, issue #11; SQLite stays default until the production default call) | Migration, queries, deployment |
 | Search shape | Meilisearch standalone (landed: aggregate search + event sync, issue #22) | Topology, Chinese tokenization |
 | Anonymous visibility | Board-declared visibility | Search index, SEO, privacy settings |
-| Login method | Casdoor unified login (OIDC), numeric ID (integrated, issue #8) | credit & mobile exchange integration |
+| Login method | Built-in OIDC Provider (numeric ID = users.id) | credit & mobile exchange integration |
 | Points source | credit merchant distribution (forum event-driven) | Settlement model, anti-abuse, audit |
 
 Undecided items may be researched but must not be irreversibly decided by a local UI or migration.

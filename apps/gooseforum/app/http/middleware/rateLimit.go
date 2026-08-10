@@ -20,6 +20,8 @@ import (
 const (
 	RateLimitRegister       = "register"
 	RateLimitLogin          = "login"
+	RateLimitOIDCAuthorize  = "oidc.authorize"
+	RateLimitOIDCToken      = "oidc.token"
 	RateLimitForgotPassword = "forgot-password"
 	RateLimitTopicWrite     = "topic.write"
 	RateLimitPostCreate     = "post.create"

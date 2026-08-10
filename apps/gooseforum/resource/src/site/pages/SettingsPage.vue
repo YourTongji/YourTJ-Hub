@@ -234,7 +234,6 @@ const socialItems = computed(() => socialKeys.map((key) => ({
 })))
 const providers = computed(() => [
   { key: 'github', label: 'GitHub', supported: true },
-  { key: 'casdoor', label: 'Casdoor', supported: true },
   { key: 'google', label: 'Google', supported: false },
 ])
 const localeOptions = computed(() => supportedLocales.map(item => ({
@@ -917,10 +916,8 @@ function providerActionLabel(provider: { key: string; supported: boolean }) {
 async function toggleBinding(provider: string) {
   const item = providers.value.find((entry) => entry.key === provider)
   if (!item?.supported) return
-
   if (!isBound(provider)) {
-    // Casdoor 走独立 OIDC 链路（PKCE），goth 的 /api/auth/:provider 不适用。
-    window.location.href = provider === 'casdoor' ? '/api/auth/oidc/login' : `/api/auth/${provider}`
+    window.location.href = `/api/auth/${provider}`
     return
   }
 

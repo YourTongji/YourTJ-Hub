@@ -12,7 +12,7 @@
 
 Points (credit, linux-do) is a **cross-platform settlement center**, not a forum side feature. The forum,
 Web, mobile, and future campus services (course selection, reviews, etc.) are all **merchants/consumers**
-of the points system, sharing the Casdoor identity.
+of the points system, sharing the forum identity (numeric users.id).
 
 - Ledger's only source = credit (PostgreSQL): balances, transactions, transfers, red packets, orders,
   and merchant settlement all live in credit.
@@ -29,12 +29,12 @@ of the points system, sharing the Casdoor identity.
   → The numeric-ID constraint comes from here (see identity-and-access.md).
 - credit deployment: PostgreSQL 18+ / Redis 6+ / Go 1.26, `api`+`scheduler`+`worker` processes +
   Next.js frontend; it upserts a copy of users into its own DB (by IdP ID) — it is not a read-only proxy.
-- Ban semantics: credit checks `active` at login; the forum server syncs Casdoor state.
+- Ban semantics: credit checks `active` at login; the forum server propagates its frozen/ban state.
 
 ## Integration shape (phase-2 draft)
 
 ```
-Casdoor (OIDC, numeric sub)
+Forum built-in OIDC Provider (numeric sub = users.id)
    ├── apps/gooseforum (forum)──┐
    ├── apps/mobile ─────────────┼──→ credit (points ledger)
    └── future campus services ──┘        ↑

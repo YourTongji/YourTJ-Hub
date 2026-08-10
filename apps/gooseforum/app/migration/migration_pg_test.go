@@ -45,6 +45,8 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"user_totp_recovery_codes",
 		"user_totp_challenges",
 		"user_o_auth",
+		"oidc_auth_requests",
+		"oidc_access_tokens",
 		"users",
 	} {
 		if !db.Migrator().HasTable(table) {
@@ -89,6 +91,8 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"user_totp_recovery_codes",
 		"user_totp_challenges",
 		"user_o_auth",
+		"oidc_auth_requests",
+		"oidc_access_tokens",
 		"users",
 		"topics",
 	} {

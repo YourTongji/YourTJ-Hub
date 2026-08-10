@@ -105,6 +105,7 @@ func ginServe() {
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	sessionservice.CleanupExpired()
+	oidcservice.CleanupExpired()
 	job.Run()
 
 	port := preferences.GetString("server.port", 8080)

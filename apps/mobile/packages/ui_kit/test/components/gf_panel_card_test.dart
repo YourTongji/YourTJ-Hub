@@ -120,6 +120,20 @@ void main() {
       expect(material.shape, isA<RoundedRectangleBorder>());
     });
 
+    testWidgets('without onTap has no interactive ink layer', (tester) async {
+      await tester.pumpWidget(
+        gfApp(GfCard(emphasized: true, child: const Text('static'))),
+      );
+
+      expect(
+        find.descendant(
+          of: find.byType(GfCard),
+          matching: find.byType(InkWell),
+        ),
+        findsNothing,
+      );
+    });
+
     testWidgets('onTap fires', (tester) async {
       int taps = 0;
       await tester.pumpWidget(
