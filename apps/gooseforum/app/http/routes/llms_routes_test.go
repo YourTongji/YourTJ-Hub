@@ -12,6 +12,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -23,6 +24,14 @@ import (
 
 func TestLLMSRoutesRespectFeatureGatesAndContentTypes(t *testing.T) {
 	gin.SetMode(gin.TestMode)
+	// 清空限流计数与配置缓存，确保本测试使用默认 ratelimit.json（llms.* 配额宽松），
+	// 不受其他测试持久化 RateLimitSettings 的影响，也避免共享 IP 窗口残留计数误触发 429。
+	ratelimit.Default().ResetAll()
+	hotdataserve.ClearRateLimitConfigCache()
+	t.Cleanup(func() {
+		ratelimit.Default().ResetAll()
+		hotdataserve.ClearRateLimitConfigCache()
+	})
 	conn := dbconnect.Connect()
 	if err := conn.AutoMigrate(&pageConfig.Entity{}, &topics.Entity{}, &posts.Entity{}); err != nil {
 		t.Fatalf("migrate llms route tables: %v", err)

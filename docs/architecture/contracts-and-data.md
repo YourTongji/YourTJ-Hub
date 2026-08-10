@@ -105,7 +105,7 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 | Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
 | Hot lists / feeds | derived queries | ✅ |
 | Notification read/unread | user pointer table | ✅ |
-| AI-readable exports (`llms.txt`, full text, per-topic Markdown) | published topics and normal, non-deleted posts in the DB | ✅ generated on demand; 10-second cache cleared by topic/reply/category events and relevant setting changes |
+| AI-readable exports (`llms.txt`, full text, per-topic Markdown) | published topics and normal, non-deleted posts in the DB | ✅ generated on demand; 10-second cache cleared by topic/reply/category events, direct clear on moderation/reply-edit/topic-category/unpublish paths, and relevant setting changes; full export capped at 5000 topics / 8 MiB / 30 s (truncated with marker) |
 
 Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
 

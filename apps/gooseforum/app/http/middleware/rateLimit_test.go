@@ -89,3 +89,21 @@ func TestRateLimitUnknownActionBypass(t *testing.T) {
 		t.Fatalf("status = %d, want 200 for unknown action", recorder.Code)
 	}
 }
+
+func TestRateLimitLLMSFullReturns429(t *testing.T) {
+	ratelimit.Default().ResetAll()
+	// llms.full 默认 limitPerIp=10（300s 窗口），第 11 次应 429。
+	for i := 0; i < 10; i++ {
+		recorder := rateLimitRecorder(RateLimit(RateLimitLLMSFull))
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("attempt %d status = %d, want 200", i+1, recorder.Code)
+		}
+	}
+	recorder := rateLimitRecorder(RateLimit(RateLimitLLMSFull))
+	if recorder.Code != http.StatusTooManyRequests {
+		t.Fatalf("status = %d, want 429", recorder.Code)
+	}
+	if retry := recorder.Header().Get("Retry-After"); retry == "" {
+		t.Fatal("Retry-After header missing on 429")
+	}
+}
