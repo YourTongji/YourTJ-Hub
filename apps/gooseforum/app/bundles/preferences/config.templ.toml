@@ -106,4 +106,12 @@ redirect_uris = ["yourtj://callback"]
 # secret = "请替换为强随机密钥"
 # redirect_uris = ["https://course.example.com/callback"]
 
+# 内置 MCP server（可选；将 /api/v1/agent/* 六操作暴露为标准 MCP 工具）
+# 认证复用 Agent Bearer token（agt_*），读操作默认可用
+[mcp]
+enabled = true
+# 写操作（create_topic / create_post）默认不注册；设为 true 后显式开启，
+# 并复用现有 topic.write / post.create 限流配额（与 REST 写路径共享）
+writes = false
+
 # end #

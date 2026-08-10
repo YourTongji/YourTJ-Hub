@@ -19,6 +19,8 @@ func RegisterByGin(ginApp *gin.Engine) {
 	siteInfoRoute(ginApp)
 	// 接口
 	apiRoute(ginApp)
+	// MCP（streamable HTTP，读默认可用、写 opt-in）
+	mcpRoute(ginApp)
 	// 文件
 	fileServer(ginApp)
 	// view
