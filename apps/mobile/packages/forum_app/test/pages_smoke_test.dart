@@ -123,7 +123,7 @@ class NoopOfflineCache implements OfflineTopicCache, OfflineChatCache {
   Future<PagePayload?> get(int topicId) async => null;
 
   @override
-  Future<void> putConversation(ChatItemPayload conv) async {}
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {}
 
   @override
   Future<List<ChatItemPayload>> getConversations() async => const [];

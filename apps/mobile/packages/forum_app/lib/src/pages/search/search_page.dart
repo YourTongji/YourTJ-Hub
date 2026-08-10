@@ -549,6 +549,7 @@ class _TopicRows extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
     return Column(
       children: <Widget>[
         for (int index = 0; index < topics.length; index++)
@@ -568,7 +569,7 @@ class _TopicRows extends StatelessWidget {
                   in topics[index].participants)
                 resolveApiAssetUrl(participant.avatarUrl),
             ],
-            activityText: timeAgo(topics[index].activityText),
+            activityText: timeAgo(topics[index].activityText, l10n: l10n),
             replyCount: topics[index].replyCount,
             viewCount: topics[index].viewCount,
             hot: topics[index].viewCount > 500,
