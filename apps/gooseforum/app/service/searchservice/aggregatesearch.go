@@ -7,6 +7,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/course"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
@@ -18,15 +19,16 @@ const (
 	ScopeTopics     = "topics"
 	ScopeUsers      = "users"
 	ScopeCategories = "categories"
+	ScopeCourses    = "courses"
 )
 
 // MaxAggregateLimit caps per-scope result counts.
 const MaxAggregateLimit = 30
 
-// AggregateSearchRequest is an aggregate search across topics, users and categories.
+// AggregateSearchRequest is an aggregate search across topics, users, categories and courses.
 type AggregateSearchRequest struct {
 	Query  string
-	Scope  string // all / topics / users / categories
+	Scope  string // all / topics / users / categories / courses
 	Limit  int
 	Offset int
 }
@@ -50,21 +52,36 @@ type CategorySearchResult struct {
 	Desc  string `json:"desc"`
 }
 
+// CourseSearchResult 课程搜索结果（展示数据由 PG 重构填充）
+type CourseSearchResult struct {
+	ID          uint64   `json:"id"`
+	PrimaryCode string   `json:"primaryCode"`
+	Name        string   `json:"name"`
+	Department  string   `json:"department"`
+	CreditX10   int      `json:"creditX10"`
+	Aliases     []string `json:"aliases"`
+	Instructors []string `json:"instructors"`
+	Terms       []string `json:"terms"`
+	Campus      []string `json:"campus"`
+}
+
 // AggregateSearchResponse 分组聚合搜索结果。
 type AggregateSearchResponse struct {
 	Topics          []SearchResult         `json:"topics"`
 	Users           []UserSearchResult     `json:"users"`
 	Categories      []CategorySearchResult `json:"categories"`
+	Courses         []CourseSearchResult   `json:"courses"`
 	Total           int64                  `json:"total"`
 	UsersTotal      int64                  `json:"usersTotal"`
 	CategoriesTotal int64                  `json:"categoriesTotal"`
+	CoursesTotal    int64                  `json:"coursesTotal"`
 	FailedScopes    []string               `json:"failedScopes"`
 }
 
 // NormalizeScope 归一整合法 scope，非法值回退 all。
 func NormalizeScope(raw string) string {
 	switch raw {
-	case ScopeTopics, ScopeUsers, ScopeCategories:
+	case ScopeTopics, ScopeUsers, ScopeCategories, ScopeCourses:
 		return raw
 	default:
 		return ScopeAll
@@ -73,7 +90,7 @@ func NormalizeScope(raw string) string {
 
 // scopeQueries 按 scope 构建 multi-search 的 query 切片。
 func scopeQueries(req AggregateSearchRequest) []*meilisearch.SearchRequest {
-	queries := make([]*meilisearch.SearchRequest, 0, 3)
+	queries := make([]*meilisearch.SearchRequest, 0, 4)
 	limit := req.Limit
 	if limit <= 0 || limit > MaxAggregateLimit {
 		limit = MaxAggregateLimit
@@ -103,6 +120,14 @@ func scopeQueries(req AggregateSearchRequest) []*meilisearch.SearchRequest {
 			AttributesToRetrieve: []string{"id", "name", "slug"},
 		})
 	}
+	if req.Scope == ScopeAll || req.Scope == ScopeCourses {
+		queries = append(queries, &meilisearch.SearchRequest{
+			IndexUID:             CourseIndex,
+			Query:                req.Query,
+			Limit:                int64(limit),
+			AttributesToRetrieve: []string{"id", "primaryCode", "name", "department", "creditX10", "aliases", "instructors", "terms", "campus"},
+		})
+	}
 	return queries
 }
 
@@ -126,6 +151,7 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 			Topics:     []SearchResult{},
 			Users:      []UserSearchResult{},
 			Categories: []CategorySearchResult{},
+			Courses:    []CourseSearchResult{},
 		}, nil
 	}
 	if len([]rune(req.Query)) > 100 {
@@ -137,10 +163,12 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 	req.Scope = NormalizeScope(req.Scope)
 
 	queries := scopeQueries(req)
+
 	resp := &AggregateSearchResponse{
 		Topics:     []SearchResult{},
 		Users:      []UserSearchResult{},
 		Categories: []CategorySearchResult{},
+		Courses:    []CourseSearchResult{},
 	}
 
 	multiResp, err := meiliconnect.GetClient().MultiSearch(&meilisearch.MultiSearchRequest{
@@ -250,5 +278,32 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 			}, true
 		})
 		resp.CategoriesTotal = searchResp.EstimatedTotalHits
+	case CourseIndex:
+		type courseHit struct {
+			ID uint64 `json:"id"`
+		}
+		ids := lo.FilterMap(searchResp.Hits, func(hit meilisearch.Hit, _ int) (uint64, bool) {
+			item := courseHit{}
+			if err := hit.Decode(&item); err != nil {
+				slog.Error("failed to decode course search hit", "err", err)
+				return 0, false
+			}
+			return item.ID, item.ID > 0
+		})
+		courseMap := course.GetMapByIds(ids)
+		resp.Courses = lo.FilterMap(ids, func(id uint64, _ int) (CourseSearchResult, bool) {
+			c, ok := courseMap[id]
+			if !ok || c == nil || c.Status != course.StatusVisible {
+				return CourseSearchResult{}, false
+			}
+			return CourseSearchResult{
+				ID:          c.Id,
+				PrimaryCode: c.PrimaryCode,
+				Name:        c.Name,
+				Department:  c.Department,
+				CreditX10:   c.CreditX10,
+			}, true
+		})
+		resp.CoursesTotal = searchResp.EstimatedTotalHits
 	}
 }

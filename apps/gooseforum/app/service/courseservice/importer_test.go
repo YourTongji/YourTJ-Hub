@@ -11,6 +11,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
+	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 )
 
 // writeManifestFixture 在临时目录写入 JSONL 数据文件并生成带 sha256 的 manifest。
@@ -91,6 +92,7 @@ func TestImportCatalogIdempotentAndNoDuplicateOfferings(t *testing.T) {
 		&course.OfferingInstructorEntity{},
 		&course.ImportRunEntity{},
 		&course.SourceRefEntity{},
+		&taskQueue.Entity{},
 	}
 	if err := conn.AutoMigrate(models...); err != nil {
 		t.Fatalf("migrate course tables: %v", err)

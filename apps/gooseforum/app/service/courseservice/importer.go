@@ -538,6 +538,10 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 	if err := reconcile.Delete(&course.AliasEntity{}).Error; err != nil {
 		return fmt.Errorf("reconcile aliases for course %s: %w", code, err)
 	}
+	// 导入写入后同事务入队搜索同步（transaction-bound outbox）
+	if err := searchservice.EnqueueCourseSearchTask(tx, entity.Id); err != nil {
+		return fmt.Errorf("enqueue course search task %d: %w", entity.Id, err)
+	}
 	return touchSourceRef(tx, runID, row.ID, entity.Id, course.EntityTypeCourse, checksum)
 }
 

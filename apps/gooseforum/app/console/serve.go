@@ -26,6 +26,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/oauthservice"
 	"github.com/leancodebox/GooseForum/app/service/oidcservice"
+	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/spf13/cast"
 
@@ -104,6 +105,8 @@ func ginServe() {
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
+	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
+	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

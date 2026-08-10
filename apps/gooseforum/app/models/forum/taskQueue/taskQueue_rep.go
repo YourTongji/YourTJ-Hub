@@ -11,6 +11,12 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+// CreateTx 在业务事务内入队（transaction-bound outbox）：
+// 任务行与业务写入同事务提交，崩溃前不提交 ⇒ 不产生任务；提交后 ⇒ worker 可消费。
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Create(entity).Error
+}
+
 // GetPendingTasks 获取待处理的任务
 func GetPendingTasks(limit int) (tasks []*Entity) {
 	builder().Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).

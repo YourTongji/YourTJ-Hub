@@ -856,9 +856,11 @@ export interface SearchPageProps {
   topics: TopicPayload[]
   users: UserSearchPayload[]
   categories: CategorySearchPayload[]
+  courses: CourseSearchPayload[]
   total: number
   usersTotal: number
   categoriesTotal: number
+  coursesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -868,6 +870,18 @@ export interface SearchPageProps {
   }
   failedScopes?: string[]
   searchUnavailable?: boolean
+}
+
+export interface CourseSearchPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  terms?: string[]
+  campus?: string[]
 }
 
 export interface CourseCatalogPageProps {

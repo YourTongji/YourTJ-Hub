@@ -83,6 +83,31 @@ OR EXISTS (
 	return
 }
 
+// ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。
+func ListAllCourses(limit, offset int) (entities []Entity, err error) {
+	if limit <= 0 {
+		return []Entity{}, nil
+	}
+	err = courseBuilder().Order("id ASC").Offset(offset).Limit(limit).Find(&entities).Error
+	return
+}
+
+// GetMapByIds 批量按 ID 查询课程，返回 id -> entity 映射（搜索 hydration 用）。
+func GetMapByIds(ids []uint64) map[uint64]*Entity {
+	result := make(map[uint64]*Entity, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+	var entities []Entity
+	if err := courseBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error; err != nil {
+		return result
+	}
+	for i := range entities {
+		result[entities[i].Id] = &entities[i]
+	}
+	return result
+}
+
 // ---- Alias ----
 
 // GetAliasByNormalizedValue 按 (kind, normalized_value) 查找别名（跨课程冲突检测）。
