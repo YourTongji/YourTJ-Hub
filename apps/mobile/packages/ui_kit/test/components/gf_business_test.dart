@@ -169,7 +169,7 @@ void main() {
       expect(find.text('草稿描述'), findsOneWidget);
     });
 
-    testWidgets('renders four-column user stats at mobile width', (
+    testWidgets('renders five-column user stats at mobile width', (
       tester,
     ) async {
       tester.view.devicePixelRatio = 1;
@@ -188,8 +188,9 @@ void main() {
               stats: const <(String, String)>[
                 ('话题', '12'),
                 ('回复', '34'),
-                ('关注', '56'),
+                ('获赞', '56'),
                 ('粉丝', '78'),
+                ('关注', '90'),
               ],
             ),
           ),
@@ -199,6 +200,7 @@ void main() {
       expect(find.text('Tongji'), findsOneWidget);
       expect(find.text('@tongji'), findsOneWidget);
       expect(find.text('12'), findsOneWidget);
+      expect(find.text('90'), findsOneWidget);
       expect(tester.takeException(), isNull);
     });
 

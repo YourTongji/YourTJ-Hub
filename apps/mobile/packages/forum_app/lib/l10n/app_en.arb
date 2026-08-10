@@ -181,6 +181,8 @@
       }
     }
   },
+  "topicWatch": "Watch topic replies",
+  "topicUnwatch": "Stop watching topic replies",
   "topicReplies": "{count} replies",
   "@topicReplies": {
     "placeholders": {
