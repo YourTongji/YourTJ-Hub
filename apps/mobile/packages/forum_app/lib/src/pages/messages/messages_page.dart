@@ -10,6 +10,7 @@ import '../../asset_url.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
 import '../../widgets/status_views.dart';
 
@@ -43,13 +44,35 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   String _viewerAvatar = '';
   final TextEditingController _conversationSearch = TextEditingController();
   Timer? _pollTimer;
+  final GfScrollToTopController _scrollToTopController =
+      GfScrollToTopController();
+  late final GfTabScrollRegistry _tabScrollRegistry;
+  bool _pollingConfigured = false;
   ChatItemPayload? _targetConversation;
 
   @override
   void initState() {
     super.initState();
+    _tabScrollRegistry = ref.read(tabScrollRegistryProvider)
+      ..register(GfShellDestination.messages, _scrollToTopController);
     _load();
-    // 前台 15s 轮询(与后端无 WebSocket 的现状一致)。
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPolling(TickerMode.valuesOf(context).enabled);
+  }
+
+  void _syncPolling(bool shouldPoll) {
+    final bool wasConfigured = _pollingConfigured;
+    _pollingConfigured = true;
+    if (shouldPoll == (_pollTimer != null)) return;
+
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (!shouldPoll) return;
+    if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
@@ -76,6 +99,10 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
   void dispose() {
     _pollTimer?.cancel();
     _conversationSearch.dispose();
+    _tabScrollRegistry.unregister(
+      GfShellDestination.messages,
+      _scrollToTopController,
+    );
     super.dispose();
   }
 
@@ -94,11 +121,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           _targetConversation = _targetConversationFor(items);
         });
       }
-      // 会话列表写入离线缓存(断网可读)。
-      final cache = ref.read(offlineChatCacheProvider);
-      for (final c in items) {
-        await cache.putConversation(c);
-      }
+      // 会话列表在单事务中批量写入离线缓存(断网可读)。
+      await ref.read(offlineChatCacheProvider).putConversations(items);
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
       if (mounted) {
@@ -232,6 +256,7 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
           GfIconButton(
             icon: Icons.add_comment_outlined,
             tooltip: l10n.messagesNew,
+            size: 44,
             onPressed: _startNewChat,
           ),
         ],
@@ -240,34 +265,39 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
         loading: () => const GfLoading(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
         data: (items) {
-          return Column(
-            children: <Widget>[
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: colors.base100,
-                  border: Border(bottom: BorderSide(color: colors.line)),
+          return GfScrollToTop(
+            semanticLabel: l10n.commonBackToTop,
+            controller: _scrollToTopController,
+            builder: (_, ScrollController controller) => Column(
+              children: <Widget>[
+                Container(
+                  padding: const EdgeInsets.all(12),
+                  decoration: BoxDecoration(
+                    color: colors.base100,
+                    border: Border(bottom: BorderSide(color: colors.line)),
+                  ),
+                  child: GfInput(
+                    controller: _conversationSearch,
+                    hintText: l10n.messagesSearchConversations,
+                    prefixIcon: const Icon(Icons.search, size: 18),
+                    decoration: _compactSearchDecoration,
+                    onChanged: (_) => setState(() {}),
+                  ),
                 ),
-                child: GfInput(
-                  controller: _conversationSearch,
-                  hintText: l10n.messagesSearchConversations,
-                  prefixIcon: const Icon(Icons.search, size: 18),
-                  decoration: _compactSearchDecoration,
-                  onChanged: (_) => setState(() {}),
+                Expanded(
+                  child: _ConversationList(
+                    controller: controller,
+                    items: items,
+                    query: _conversationSearch.text,
+                    emptyMessage: l10n.messagesEmpty,
+                    emptyDescription: l10n.messagesEmptyDescription,
+                    actionLabel: l10n.messagesNew,
+                    onStart: _startNewChat,
+                    onOpen: _openConversation,
+                  ),
                 ),
-              ),
-              Expanded(
-                child: _ConversationList(
-                  items: items,
-                  query: _conversationSearch.text,
-                  emptyMessage: l10n.messagesEmpty,
-                  emptyDescription: l10n.messagesEmptyDescription,
-                  actionLabel: l10n.messagesNew,
-                  onStart: _startNewChat,
-                  onOpen: _openConversation,
-                ),
-              ),
-            ],
+              ],
+            ),
           );
         },
       ),
@@ -301,6 +331,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
   late int _convId;
   int _latestId = 0;
   int _nextBeforeId = 0;
+  bool _pollingConfigured = false;
 
   @override
   void initState() {
@@ -310,6 +341,23 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     _scrollController.addListener(_onScroll);
     // 打开会话即上报已读回执(清服务端未读数)。
     _markRead();
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _syncPolling(TickerMode.valuesOf(context).enabled);
+  }
+
+  void _syncPolling(bool shouldPoll) {
+    final bool wasConfigured = _pollingConfigured;
+    _pollingConfigured = true;
+    if (shouldPoll == (_pollTimer != null)) return;
+
+    _pollTimer?.cancel();
+    _pollTimer = null;
+    if (!shouldPoll) return;
+    if (wasConfigured) _load(silent: true);
     _pollTimer = Timer.periodic(
       const Duration(seconds: 15),
       (_) => _load(silent: true),
@@ -365,28 +413,33 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           _scrollController.position.maxScrollExtent -
                   _scrollController.position.pixels <
               80;
-      final resp = await ref
+      final ChatMessagesResponse resp = await ref
           .read(chatRepositoryProvider)
           .getMessages(convId: _convId, afterId: _latestId);
+      final Set<int> seenIds = _messages
+          .map((ChatMessagePayload message) => message.id)
+          .toSet();
+      final List<ChatMessagePayload> newMessages = resp.list
+          .where((ChatMessagePayload message) => seenIds.add(message.id))
+          .toList();
       if (mounted) {
         setState(() {
-          if (resp.list.isNotEmpty) {
-            final Set<int> existing = _messages.map((m) => m.id).toSet();
-            _messages.addAll(resp.list.where((m) => !existing.contains(m.id)));
+          if (newMessages.isNotEmpty) {
+            _messages.addAll(newMessages);
             _messages.sort((a, b) => a.id.compareTo(b.id));
-            _latestId = resp.latestId;
           }
+          if (resp.list.isNotEmpty) _latestId = resp.latestId;
           _hasMoreBefore = resp.hasMoreBefore;
           _nextBeforeId = resp.nextBeforeId;
           _loading = false;
         });
         if (initial || pinnedToBottom) _scrollToBottom();
       }
-      // 新消息写入离线缓存。
-      final cache = ref.read(offlineChatCacheProvider);
-      await cache.putMessages(_convId, resp.list);
-      // 收到新消息后再次上报已读回执(消息已展示即已读)。
-      if (resp.list.isNotEmpty) {
+      if (newMessages.isNotEmpty) {
+        // 只持久化真正新增的消息，避免轮询重复写缓存和重复上报已读。
+        await ref
+            .read(offlineChatCacheProvider)
+            .putMessages(_convId, newMessages);
         await _markRead();
       }
     } catch (_) {
@@ -439,6 +492,8 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
           addedExtent.clamp(0, _scrollController.position.maxScrollExtent),
         );
       });
+    } catch (_) {
+      // 历史消息加载失败保持当前列表，允许下一次滚动重试。
     } finally {
       if (mounted) setState(() => _loadingOlder = false);
     }
@@ -510,13 +565,6 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
             ),
           ],
         ),
-        actions: <Widget>[
-          GfIconButton(
-            icon: Icons.more_horiz,
-            tooltip: widget.conv.peerUsername,
-            onPressed: () {},
-          ),
-        ],
       ),
       body: Column(
         children: <Widget>[
@@ -583,6 +631,7 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
 
 class _ConversationList extends StatelessWidget {
   const _ConversationList({
+    required this.controller,
     required this.items,
     required this.query,
     required this.emptyMessage,
@@ -592,6 +641,7 @@ class _ConversationList extends StatelessWidget {
     required this.onOpen,
   });
 
+  final ScrollController controller;
   final List<ChatItemPayload> items;
   final String query;
   final String emptyMessage;
@@ -618,6 +668,7 @@ class _ConversationList extends StatelessWidget {
     }
     final AppLocalizations l10n = AppLocalizations.of(context);
     return ListView.separated(
+      controller: controller,
       itemCount: filtered.length,
       separatorBuilder: (_, _) => const GfDivider(),
       itemBuilder: (BuildContext context, int index) {
@@ -1017,7 +1068,10 @@ class _MessageRow extends StatelessWidget {
             child: GfMessageBubble(
               text: message.content,
               mine: message.isSelf,
-              time: formatChatTime(message.createdAt),
+              time: formatChatTime(
+                message.createdAt,
+                l10n: AppLocalizations.of(context),
+              ),
               maxWidthFactor: 0.74,
             ),
           ),

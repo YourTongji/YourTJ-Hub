@@ -67,6 +67,7 @@ Widget _topicRow(
   TopicPayload topic, {
   required bool isLast,
 }) {
+  final AppLocalizations l10n = AppLocalizations.of(context);
   final List<GfTopicCategory> categories = <GfTopicCategory>[
     for (final CategoryBriefPayload cat in topic.categories)
       GfTopicCategory(name: cat.name, color: colorFromHex(cat.color)),
@@ -84,6 +85,7 @@ Widget _topicRow(
     participantAvatarUrls: participantAvatarUrls,
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
+      l10n: l10n,
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,
@@ -96,6 +98,7 @@ Widget _topicRow(
 }
 
 Widget _topicCard(BuildContext context, TopicPayload topic) {
+  final AppLocalizations l10n = AppLocalizations.of(context);
   final String nickname = topic.author.nickname?.trim() ?? '';
   final List<String> images = <String>[
     for (final String image in topic.images ?? const <String>[])
@@ -120,6 +123,7 @@ Widget _topicCard(BuildContext context, TopicPayload topic) {
     imageUrls: images,
     activityText: timeAgo(
       topic.activityText.isNotEmpty ? topic.activityText : topic.lastUpdateTime,
+      l10n: l10n,
     ),
     replyCount: topic.replyCount,
     viewCount: topic.viewCount,

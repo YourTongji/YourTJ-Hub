@@ -32,12 +32,13 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     _load();
   }
 
-  Future<void> _load() async {
-    setState(() => _list = const AsyncValue.loading());
+  Future<void> _load({bool silent = false}) async {
+    if (!silent) setState(() => _list = const AsyncValue.loading());
     try {
       final resp = await ref
           .read(notificationRepositoryProvider)
           .fetchNotifications(filter: _filter, cursor: 0);
+      if (!mounted) return;
       setState(() {
         _list = AsyncValue.data(resp);
         _items.clear();
@@ -45,7 +46,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
         _cursor = resp.nextCursor;
       });
     } catch (e, st) {
-      setState(() => _list = AsyncValue.error(e, st));
+      if (mounted) setState(() => _list = AsyncValue.error(e, st));
     }
   }
 
@@ -57,6 +58,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       final next = await ref
           .read(notificationRepositoryProvider)
           .fetchNotifications(filter: _filter, cursor: _cursor);
+      if (!mounted) return;
       setState(() {
         _items.addAll(next.items);
         _cursor = next.nextCursor;
@@ -65,14 +67,14 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     } catch (_) {
       // 静默。
     } finally {
-      setState(() => _loadingMore = false);
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
   Future<void> _markAllRead() async {
     try {
       await ref.read(notificationRepositoryProvider).markAllNotificationsRead();
-      _load();
+      await _load(silent: true);
     } catch (_) {
       // 静默。
     }
@@ -84,6 +86,7 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
       await ref
           .read(notificationRepositoryProvider)
           .markNotificationRead(notificationId: n.id);
+      if (!mounted) return;
       setState(() {
         for (int i = 0; i < _items.length; i++) {
           if (_items[i].id == n.id) {
@@ -123,11 +126,11 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
     return Scaffold(
       appBar: GfAppBar(
         title: Text(l10n.notificationsTitle),
-        actions: [
-          GfButton(
-            label: l10n.notificationsMarkAllRead,
-            variant: GfButtonVariant.ghost,
-            size: GfButtonSize.small,
+        actions: <Widget>[
+          GfIconButton(
+            icon: Icons.done_all_rounded,
+            size: 44,
+            tooltip: l10n.notificationsMarkAllRead,
             onPressed: _markAllRead,
           ),
         ],
@@ -157,50 +160,74 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
             child: _list.when(
               loading: () => const GfLoading(),
               error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
-              data: (resp) {
-                if (_items.isEmpty) {
-                  return GfEmpty(message: l10n.notificationsEmpty);
-                }
-                return ListView.separated(
-                  itemCount: _items.length + 1,
-                  separatorBuilder: (_, _) => const GfDivider(),
-                  itemBuilder: (context, i) {
-                    if (i == _items.length) {
-                      return GfListFooter(
-                        loading: _loadingMore,
-                        hasMore: resp.hasNext,
-                        onLoadMore: _loadMore,
-                      );
-                    }
-                    final NotificationPayload n = _items[i];
-                    // 按 eventType 映射图标与 tone(web notificationTone 语义)。
-                    final (
-                      IconData icon,
-                      GfNotificationTone tone,
-                    ) = switch (n.eventType) {
-                      'follow' => (
-                        Icons.person_add,
-                        GfNotificationTone.success,
-                      ),
-                      'badge' => (
-                        Icons.workspace_premium,
-                        GfNotificationTone.warning,
-                      ),
-                      'system' => (Icons.info_outline, GfNotificationTone.info),
-                      _ => (Icons.message, GfNotificationTone.primary),
-                    };
-                    return GfNotificationRow(
-                      icon: icon,
-                      tone: tone,
-                      title: n.title,
-                      subtitle: n.content,
-                      time: timeAgo(n.createdAt),
-                      unread: !n.isRead,
-                      onTap: () => _openNotification(n),
-                    );
-                  },
-                );
-              },
+              data: (resp) => GfScrollToTop(
+                semanticLabel: l10n.commonBackToTop,
+                threshold: 360,
+                builder: (BuildContext context, ScrollController controller) {
+                  return RefreshIndicator(
+                    onRefresh: () => _load(silent: true),
+                    child: _items.isEmpty
+                        ? CustomScrollView(
+                            controller: controller,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            slivers: <Widget>[
+                              SliverFillRemaining(
+                                hasScrollBody: false,
+                                child: GfEmpty(
+                                  message: l10n.notificationsEmpty,
+                                ),
+                              ),
+                            ],
+                          )
+                        : ListView.separated(
+                            controller: controller,
+                            physics: const AlwaysScrollableScrollPhysics(),
+                            itemCount: _items.length + 1,
+                            separatorBuilder: (_, _) => const GfDivider(),
+                            itemBuilder: (context, i) {
+                              if (i == _items.length) {
+                                return GfListFooter(
+                                  loading: _loadingMore,
+                                  hasMore: resp.hasNext,
+                                  onLoadMore: _loadMore,
+                                );
+                              }
+                              final NotificationPayload n = _items[i];
+                              final (
+                                IconData icon,
+                                GfNotificationTone tone,
+                              ) = switch (n.eventType) {
+                                'follow' => (
+                                  Icons.person_add,
+                                  GfNotificationTone.success,
+                                ),
+                                'badge' => (
+                                  Icons.workspace_premium,
+                                  GfNotificationTone.warning,
+                                ),
+                                'system' => (
+                                  Icons.info_outline,
+                                  GfNotificationTone.info,
+                                ),
+                                _ => (
+                                  Icons.message,
+                                  GfNotificationTone.primary,
+                                ),
+                              };
+                              return GfNotificationRow(
+                                icon: icon,
+                                tone: tone,
+                                title: n.title,
+                                subtitle: n.content,
+                                time: timeAgo(n.createdAt, l10n: l10n),
+                                unread: !n.isRead,
+                                onTap: () => _openNotification(n),
+                              );
+                            },
+                          ),
+                  );
+                },
+              ),
             ),
           ),
         ],

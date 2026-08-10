@@ -12,7 +12,8 @@ import 'package:forum_app/src/current_user.dart';
 import 'package:forum_app/src/offline/drift_cache.dart';
 import 'package:forum_app/src/providers.dart';
 import 'package:forum_app/src/router.dart';
-import 'package:ui_kit/ui_kit.dart' hide GfTab;
+
+import 'package:ui_kit/ui_kit.dart';
 
 import 'fixtures/page_fixtures.dart';
 
@@ -39,7 +40,7 @@ class NoopOfflineCache implements OfflineTopicCache, OfflineChatCache {
   Future<PagePayload?> get(int topicId) async => null;
 
   @override
-  Future<void> putConversation(ChatItemPayload conv) async {}
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {}
 
   @override
   Future<List<ChatItemPayload>> getConversations() async => const [];
@@ -99,7 +100,7 @@ void main() {
     );
     await tester.pumpAndSettle();
 
-    // 四个持久目的地与独立发布动作均可见。
+    // 四个持久导航目的地与中央发布动作均可见。
     expect(find.text('首页'), findsOneWidget);
     expect(find.text('搜索'), findsOneWidget);
     expect(find.text('发布'), findsOneWidget);
@@ -179,12 +180,13 @@ void main() {
     final GoRouter router = appRouter;
     final List<RouteBase> routes = router.configuration.routes;
 
-    // 顶层包含持久 StatefulShell 与全局发布/详情等页面。
-    expect(routes.length, greaterThanOrEqualTo(5));
+    // 顶层路由包含持久 shell 与全局页面。
+    expect(routes.length, greaterThanOrEqualTo(9));
 
     final RouteBase shell = routes.first;
     expect(shell, isA<StatefulShellRoute>());
     final StatefulShellRoute shellRoute = shell as StatefulShellRoute;
+    expect(shellRoute.branches, hasLength(4));
     final List<String> shellPaths = <String>[
       for (final StatefulShellBranch branch in shellRoute.branches)
         for (final RouteBase route in branch.routes)
@@ -195,10 +197,12 @@ void main() {
       containsAll(<String>['/', '/search', '/messages', '/profile']),
     );
     expect(shellPaths, isNot(contains('/publish')));
-    expect(
-      routes.whereType<GoRoute>().map((GoRoute route) => route.path),
-      contains('/publish'),
-    );
+
+    final List<String> topLevelPaths = <String>[
+      for (final RouteBase route in routes)
+        if (route is GoRoute) route.path,
+    ];
+    expect(topLevelPaths, contains('/publish'));
   });
   test('AppLocalizations zh/en 均可用', () {
     expect(AppLocalizationsZh().navHome, '首页');

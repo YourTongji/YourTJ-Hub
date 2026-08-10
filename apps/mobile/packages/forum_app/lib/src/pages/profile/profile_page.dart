@@ -516,6 +516,7 @@ class _ProfileBody extends StatelessWidget {
         topic.activityText.isNotEmpty
             ? topic.activityText
             : topic.lastUpdateTime,
+        l10n: AppLocalizations.of(context),
       ),
       replyCount: topic.replyCount,
       viewCount: topic.viewCount,
