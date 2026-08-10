@@ -89,9 +89,10 @@ export interface paths {
          *     Successful verification atomically consumes the challenge before issuing a session, so a
          *     sequentially replayed challenge cannot create a second session; a request that loses the
          *     consume race is reported as a legacy HTTP 200 `totp.code.invalid` business failure.
-         *     The current route does not re-check frozen account state after the challenge has been
-         *     issued. The endpoint has no IP-level rate limiting: it relies only on the in-process
-         *     per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
+         *     The middleware rejects frozen accounts (`auth.account.frozen`, HTTP 403) without consuming
+         *     the challenge, matching the password-login stage; the challenge survives and can complete
+         *     after the account is unfrozen. The endpoint has no IP-level rate limiting: it relies only on
+         *     the in-process per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
          */
         post: operations["verifyTotpLogin"];
         delete?: never;
@@ -501,6 +502,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, wrong-purpose, stale, or already-consumed (sequentially replayed) challenge token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The challenge is valid but the account is frozen; the challenge is not consumed and the account can retry after it is unfrozen. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

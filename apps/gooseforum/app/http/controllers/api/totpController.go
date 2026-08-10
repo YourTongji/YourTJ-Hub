@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
 	"log/slog"
 	"net/http"
@@ -112,8 +113,12 @@ func TotpDisable(req component.BetterRequest[TotpDisableReq]) component.Response
 // TotpVerify 校验两步验证码/恢复码并签发正式会话 token。
 // 该端点挂在 TOTPChallengeAuth 中间件之后，userId 取自 challenge token。
 func TotpVerify(c *gin.Context) {
+	// 受控契约声明 TotpVerifyRequest 为 additionalProperties: false，
+	// 这里用严格解码拒绝未知字段，与契约保持一致。
 	var req TotpVerifyReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
 		return
 	}

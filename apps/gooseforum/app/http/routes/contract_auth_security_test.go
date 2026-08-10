@@ -21,6 +21,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/totpservice"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
 	otptotp "github.com/pquerna/otp/totp"
 	"gorm.io/gorm"
 )
@@ -227,13 +228,17 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		}
 	})
 
-	t.Run("a frozen account with an already-issued challenge follows current success behavior", func(t *testing.T) {
+	t.Run("a frozen account is rejected by the challenge middleware without consuming the challenge", func(t *testing.T) {
 		conn, router := setupAuthSecurityContractTest(t)
 		user := createHTTPContractUser(t, conn, contractTestID())
 		code, _ := enableContractTotp(t, user.Id)
 		challenge := contractTotpChallenge(t, user)
-		if err := conn.Model(&users.EntityComplete{}).Where("id = ?", user.Id).
-			Update("is_frozen", users.StatusFrozen).Error; err != nil {
+		entity, err := users.Get(user.Id)
+		if err != nil {
+			t.Fatalf("load contract user for freeze: %v", err)
+		}
+		entity.IsFrozen = users.StatusFrozen
+		if err := userservice.SaveUser(&entity); err != nil {
 			t.Fatalf("freeze contract user: %v", err)
 		}
 
@@ -248,12 +253,37 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 			string(body),
 			challenge,
 		)
-		if recorder.Code != http.StatusOK {
-			t.Fatalf("frozen-account TOTP status = %d, want current behavior 200: %s", recorder.Code, recorder.Body.String())
+		if recorder.Code != http.StatusForbidden {
+			t.Fatalf("frozen-account TOTP status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-account-frozen.json"))
+		if count := contractSessionCount(t, conn, user.Id); count != 0 {
+			t.Fatalf("session count after frozen-account TOTP verification = %d, want 0", count)
+		}
+
+		// The challenge stays unconsumed: unfreezing the account lets the same
+		// challenge token complete the login.
+		entity, err = users.Get(user.Id)
+		if err != nil {
+			t.Fatalf("load contract user for unfreeze: %v", err)
+		}
+		entity.IsFrozen = users.StatusNormal
+		if err := userservice.SaveUser(&entity); err != nil {
+			t.Fatalf("unfreeze contract user: %v", err)
+		}
+		retry := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			string(body),
+			challenge,
+		)
+		if retry.Code != http.StatusOK {
+			t.Fatalf("unfrozen retry status = %d, want 200: %s", retry.Code, retry.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, retry), contractFixture(t, "totp-verify-success.json"))
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
-			t.Fatalf("session count after frozen-account TOTP verification = %d, want 1", count)
+			t.Fatalf("session count after unfrozen retry = %d, want 1", count)
 		}
 	})
 
@@ -448,6 +478,28 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/auth/totp/verify", "{", challenge)
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("malformed TOTP request status = %d, want 200", recorder.Code)
+		}
+		assertFixtureEnvelope(
+			t,
+			decodeContractEnvelope(t, recorder),
+			contractFixture(t, "totp-verify-invalid-format.json"),
+		)
+	})
+
+	t.Run("unknown request fields are rejected by strict decoding", func(t *testing.T) {
+		conn, router := setupAuthSecurityContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		enableContractTotp(t, user.Id)
+		challenge := contractTotpChallenge(t, user)
+		recorder := serveAuthSecurityJSON(
+			router,
+			http.MethodPost,
+			"/api/auth/totp/verify",
+			`{"code":"123456","extra":"not-in-contract"}`,
+			challenge,
+		)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("unknown-field status = %d, want 200", recorder.Code)
 		}
 		assertFixtureEnvelope(
 			t,
