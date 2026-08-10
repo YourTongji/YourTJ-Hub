@@ -141,14 +141,19 @@ docs/               产品、架构、开发和运维文档
 
 项目级 Agent Skill 位于 `.agents/skills/`，可在请求中显式引用：
 
-- `$forum-ai-readable-content`：通过论坛公开的 `/llms.txt`、`/llms-full.txt` 和
-  `/p/posts/{id}.md` 按需读取内容，用于主题总结、内容审计、跨主题比较、事实提取、追问生成和证据化问答。
-  Skill 只消费公开导出，不绕过 `404`、权限、审核或删除边界；全文导出出现截断时必须标注覆盖不完整。
+- `$forum-ai-readable-content`：按需使用论坛公开的 `/llms.txt`、`/llms-full.txt`、`/p/posts/{id}.md`
+  和经用户明确授权的 `/api/v1/agent` Agent Bot API，用于主题总结、内容审计、跨主题比较、事实提取、追问生成、
+  证据化问答以及受控的 Agent 读写操作。Skill 不绕过 `404`、权限、审核、删除或限流边界；Agent token 只能通过
+  宿主的安全凭据机制使用，不能写入普通回答；全文导出出现截断时必须标注覆盖不完整。可复制命令见
+  `.agents/skills/forum-ai-readable-content/examples.md`；其中的 `scripts/` 仅使用 Python 标准库，默认只读，
+  不接受命令行 token，也不实现 Webhook 发送或权限绕过。
 - `$yourtj-development`：处理本仓库代码、文档、测试、发布和 PR 时使用，统一层边界与验证要求。
 
-使用 AI 可读内容 Skill 时，优先从索引定位主题，再按需读取单篇 Markdown；不要默认抓取全文或扩散无关的
-个人信息。公开导出规则的维护事实源是 `apps/gooseforum/app/service/llmsservice/`、相关 HTTP 路由测试和
-`docs/architecture/contracts-and-data.md`。
+使用 AI 可读内容 Skill 时，匿名请求优先从索引定位主题，再按需读取单篇 Markdown；不要默认抓取全文或扩散无关的
+个人信息。需要 Agent API 时，必须同时核对 Bearer Token、响应 envelope、写入限流和 Webhook 当前未实现边界。
+公开导出规则的维护事实源是 `apps/gooseforum/app/service/llmsservice/`、相关 HTTP 路由测试和
+`docs/architecture/contracts-and-data.md`；Agent Bot 规则的维护事实源是 `agentservice`、Agent 路由/契约测试、
+`packages/api-contract/paths/agent.yaml` 和 `docs/product/identity-and-access.md`。
 
 ## 文档
 
