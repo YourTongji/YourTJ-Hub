@@ -3,6 +3,7 @@ package llmsservice
 import (
 	"errors"
 	"fmt"
+	"log/slog"
 	"net/url"
 	"strings"
 	"time"
@@ -155,6 +156,7 @@ func buildFullWithLimits(baseURL string, maxTopics int, maxBytes int64, budget t
 		err := appendTopicDocument(&builder, baseURL, topic, 2, maxBytes)
 		if errors.Is(err, ErrTopicMissing) {
 			// 单个首帖异常的主题只影响自身：跳过并继续，而不是让整份 llms-full.txt 失败。
+			slog.Warn("llms_full_skip_topic", "topicId", topic.Id, "reason", err)
 			return nil
 		}
 		if errors.Is(err, errOutputLimit) {
