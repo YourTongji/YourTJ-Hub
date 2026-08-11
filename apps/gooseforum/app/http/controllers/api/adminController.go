@@ -1822,6 +1822,12 @@ func GetTermsOfService(req component.BetterRequest[component.Null]) component.Re
 	return component.SuccessResponse(config)
 }
 
+// GetPrivacyPolicy 获取隐私政策配置
+func GetPrivacyPolicy(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, defaultconfig.GetDefaultPrivacyPolicyConfig())
+	return component.SuccessResponse(config)
+}
+
 type SaveTermsOfServiceReq struct {
 	Settings pageConfig.TermsOfServiceConfig `json:"settings" validate:"required"`
 }
@@ -1830,4 +1836,14 @@ type SaveTermsOfServiceReq struct {
 func SaveTermsOfService(req component.BetterRequest[SaveTermsOfServiceReq]) component.Response {
 	req.Params.Settings.HtmlContent = ""
 	return savePageConfig(pageConfig.TermsOfService, req.Params.Settings, hotdataserve.ClearTermsOfServiceConfigCache)
+}
+
+type SavePrivacyPolicyReq struct {
+	Settings pageConfig.PrivacyPolicyConfig `json:"settings" validate:"required"`
+}
+
+// SavePrivacyPolicy 保存隐私政策配置
+func SavePrivacyPolicy(req component.BetterRequest[SavePrivacyPolicyReq]) component.Response {
+	req.Params.Settings.HtmlContent = ""
+	return savePageConfig(pageConfig.PrivacyPolicy, req.Params.Settings, hotdataserve.ClearPrivacyPolicyConfigCache)
 }

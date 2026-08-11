@@ -5,6 +5,7 @@ import (
 	"log/slog"
 	"time"
 
+	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -259,7 +260,10 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("close account failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	users.IncrementTokenVersion(req.UserId)
+	if err := users.IncrementTokenVersionWithDB(dbconnect.Connect(), req.UserId); err != nil {
+		slog.Error("increment token version on account close failed", "userId", req.UserId, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
 	slog.Info("account closed", "userId", req.UserId, "mode", req.Params.Mode)
 	return component.SuccessResponse(true)
 }

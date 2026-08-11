@@ -130,6 +130,7 @@ export default {
     forgotPassword: '忘记密码？',
     agreeTerms: '我已阅读并同意服务条款和隐私政策',
     termsLink: '《服务条款》',
+    privacyLink: '《隐私政策》',
     createAccount: '创建账号',
     sendResetEmail: '发送重置邮件',
     backToLogin: '返回登录',
@@ -326,6 +327,11 @@ export default {
     title: '服务条款',
     subtitle: '使用本社区前请阅读并同意以下条款。',
     unavailable: '服务条款暂未发布。',
+  },
+  privacyPage: {
+    title: '隐私政策',
+    subtitle: '了解我们如何处理你的内容与访问数据。',
+    unavailable: '隐私政策暂未发布。',
   },
   sponsors: {
     defaultMessage: '感谢支持 YourTJHub。',
@@ -871,6 +877,9 @@ export default {
       restoreSuccess: '内容已恢复。',
       purgeSuccess: '内容已永久删除。',
       privacyEraseSuccess: '内容已按隐私请求彻底删除。',
+      restoreHint: '恢复这条内容到原位置（删除后 30 天内可操作）',
+      purgeHint: '立即永久删除，无法撤销',
+      privacyEraseHint: '跳过 30 天恢复窗口，立即从全渠道彻底删除，不可恢复',
     },
   },
   avatarCrop: {

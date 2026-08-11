@@ -105,6 +105,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
 	viewRouteApp.GET("/terms", forum.Terms)
+	viewRouteApp.GET("/privacy", forum.Privacy)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -317,6 +318,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
+		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).
+		POST("save-privacy-policy", UpButterReq(api.SavePrivacyPolicy)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
 		POST("img-upload", api.SaveAdminImgByGinContext).
 		POST("data/export", UpButterReq(api.CreateExportTask)).

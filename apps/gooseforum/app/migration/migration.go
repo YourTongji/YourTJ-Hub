@@ -20,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
+	"github.com/leancodebox/GooseForum/app/models/forum/networkAccessLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
 	"github.com/leancodebox/GooseForum/app/models/forum/migrationMapping"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
@@ -149,6 +150,7 @@ func SchemaModels() []any {
 		&topicUserStat.Entity{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},
+		&networkAccessLog.Entity{},
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
 		&userFollow.Entity{},

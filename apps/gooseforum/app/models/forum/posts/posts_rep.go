@@ -102,7 +102,7 @@ func HasChildren(postId uint64) bool {
 	var count int64
 	builder().
 		Where(queryopt.Eq("reply_to_post_id", postId)).
-		Where(queryopt.Eq("deleted_at", nil)).
+		Where("deleted_at IS NULL").
 		Count(&count)
 	return count > 0
 }

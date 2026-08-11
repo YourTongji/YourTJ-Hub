@@ -90,6 +90,10 @@
   "meta.categoryDesc": "{category} カテゴリーのトピックを閲覧する。",
   "terms": "利用規約",
   "meta.termsDesc": "{site} の利用規約を読む。",
+  "privacy": "プライバシーポリシー",
+  "meta.privacyDesc": "{site} のプライバシーポリシーを読む。",
+  "privacyPage.title": "プライバシーポリシー",
+  "privacyPage.unavailable": "プライバシーポリシーはまだ公開されていません。",
   "common.rateLimited": "操作が多すぎます。{retryAfterSeconds} 秒後に再度お試しください。",
   "common.captchaRequired": "送信前にキャプチャを完了してください。"
 }

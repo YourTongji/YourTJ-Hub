@@ -2291,7 +2291,8 @@ async function toggleBinding(provider: string) {
                     <button
                       v-if="item.canRestore"
                       type="button"
-                      class="gf-button gf-button-sm gf-button-primary"
+                      class="gf-tip gf-button gf-button-sm gf-button-primary"
+                      :data-tip="t('settings.deleted.restoreHint')"
                       :disabled="Boolean(deletedContentAction)"
                       @click="restoreDeletedItem(item)"
                     >
@@ -2302,7 +2303,8 @@ async function toggleBinding(provider: string) {
                     <button
                       v-if="item.canPermanent"
                       type="button"
-                      class="gf-button gf-button-sm gf-button-danger"
+                      class="gf-tip gf-button gf-button-sm gf-button-danger"
+                      :data-tip="t('settings.deleted.purgeHint')"
                       :disabled="Boolean(deletedContentAction)"
                       @click="purgeDeletedItem(item)"
                     >
@@ -2312,7 +2314,8 @@ async function toggleBinding(provider: string) {
                     </button>
                     <button
                       type="button"
-                      class="gf-button gf-button-sm gf-button-secondary"
+                      class="gf-tip gf-button gf-button-sm gf-button-secondary"
+                      :data-tip="t('settings.deleted.privacyEraseHint')"
                       :disabled="Boolean(deletedContentAction)"
                       @click="privacyEraseDeletedItem(item)"
                     >

@@ -90,6 +90,10 @@
   "meta.categoryDesc": "Sfoglia gli argomenti nella categoria {category}.",
   "terms": "Termini di servizio",
   "meta.termsDesc": "Leggi i Termini di servizio di {site}.",
+  "privacy": "Informativa sulla privacy",
+  "meta.privacyDesc": "Leggi l'informativa sulla privacy di {site}.",
+  "privacyPage.title": "Informativa sulla privacy",
+  "privacyPage.unavailable": "L'informativa sulla privacy non è ancora stata pubblicata.",
   "common.rateLimited": "Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.",
   "common.captchaRequired": "Completa il captcha prima di inviare."
 }

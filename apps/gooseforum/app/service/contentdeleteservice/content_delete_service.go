@@ -18,6 +18,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
+	"github.com/leancodebox/GooseForum/app/models/forum/reports"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
@@ -35,6 +36,10 @@ import (
 
 // RecoveryWindow 是"最近删除"的默认恢复窗口。
 const RecoveryWindow = 30 * 24 * time.Hour
+
+// EvidenceSnapshotRetention 已结案举报证据快照的默认保留期（Issue #94 合规）。
+// Legal/Evidence Hold 目标在清理时被跳过，可覆盖本 TTL。
+const EvidenceSnapshotRetention = 180 * 24 * time.Hour
 
 // ContentType 表示删除目标类型。
 type ContentType string
@@ -624,6 +629,20 @@ func ExpireRecoverableBatch(limit int) error {
 		notificationservice.NullifyContentPreviews(post.TopicId, post.Id)
 		slog.Info("retention: post purged after recovery window", "postId", post.Id)
 	}
+	return nil
+}
+
+// ExpireEvidenceSnapshotsBatch 清理超过保留期的已结案举报证据快照。
+// LEGAL_HOLD / EVIDENCE_HOLD 话题上的举报由 ClearExpiredEvidenceSnapshots 自行跳过。
+func ExpireEvidenceSnapshotsBatch(limit int) error {
+	if limit <= 0 {
+		limit = 200
+	}
+	cleared, err := reports.ClearExpiredEvidenceSnapshots(time.Now().Add(-EvidenceSnapshotRetention), limit)
+	if err != nil {
+		return err
+	}
+	slog.Info("retention: expired evidence snapshots cleared", "count", cleared)
 	return nil
 }
 

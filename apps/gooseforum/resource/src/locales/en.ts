@@ -130,6 +130,7 @@ export default {
     forgotPassword: 'Forgot password?',
     agreeTerms: 'I have read and agree to the terms and privacy policy',
     termsLink: 'Terms of Service',
+    privacyLink: 'Privacy Policy',
     createAccount: 'Create account',
     sendResetEmail: 'Send reset email',
     backToLogin: 'Back to login',
@@ -326,6 +327,11 @@ export default {
     title: 'Terms of Service',
     subtitle: 'Please read and agree to the following terms before using this community.',
     unavailable: 'Terms of service are not published yet.',
+  },
+  privacyPage: {
+    title: 'Privacy Policy',
+    subtitle: 'Learn how we handle your content and access data.',
+    unavailable: 'Privacy policy is not published yet.',
   },
   sponsors: {
     defaultMessage: 'Thanks for supporting YourTJHub.',
@@ -871,6 +877,9 @@ export default {
       restoreSuccess: 'Content restored.',
       purgeSuccess: 'Content deleted permanently.',
       privacyEraseSuccess: 'Content removed per your privacy request.',
+      restoreHint: 'Restore this item to its original place (available for 30 days after deletion)',
+      purgeHint: 'Permanently delete now; this cannot be undone',
+      privacyEraseHint: 'Skips the 30-day recovery window and erases it from all channels immediately; cannot be recovered',
     },
   },
   avatarCrop: {

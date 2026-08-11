@@ -83,3 +83,63 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 		"handled_at": &now,
 	}).Error
 }
+
+// ClearExpiredEvidenceSnapshots clears evidence_snapshot on closed reports older than before.
+// Skips rows whose topic has LEGAL_HOLD or EVIDENCE_HOLD retention (hold overrides TTL).
+// Open reports are never cleared. Returns number of rows updated.
+func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+
+	var candidates []Entity
+	err := builder().
+		Where("status IN ?", []string{StatusResolved, StatusRejected}).
+		Where("handled_at IS NOT NULL").
+		Where("handled_at < ?", before).
+		Where("evidence_snapshot IS NOT NULL").
+		Where("evidence_snapshot != ''").
+		Where("evidence_snapshot != '{}'").
+		Where(`NOT EXISTS (
+			SELECT 1 FROM topics
+			WHERE topics.id = reports.topic_id
+			  AND topics.retention_status IN (?, ?)
+		)`, "LEGAL_HOLD", "EVIDENCE_HOLD").
+		Order("handled_at ASC").
+		Limit(limit).
+		Find(&candidates).Error
+	if err != nil {
+		return 0, err
+	}
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+
+	ids := make([]uint64, 0, len(candidates))
+	for _, candidate := range candidates {
+		if evidenceSnapshotIsEmpty(candidate.EvidenceSnapshot) {
+			continue
+		}
+		ids = append(ids, candidate.Id)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	// Clear to empty JSON object. Raw "{}" matches the zero-value snapshot shape
+	// without relying on GORM's struct serializer in map-style updates.
+	result := builder().Where("id IN ?", ids).Update("evidence_snapshot", "{}")
+	return int(result.RowsAffected), result.Error
+}
+
+func evidenceSnapshotIsEmpty(snapshot EvidenceSnapshotData) bool {
+	return snapshot.TargetType == "" &&
+		snapshot.TargetID == 0 &&
+		snapshot.TopicID == 0 &&
+		snapshot.Title == "" &&
+		snapshot.Excerpt == "" &&
+		snapshot.AuthorID == 0 &&
+		snapshot.AuthorName == "" &&
+		len(snapshot.CategoryIDs) == 0 &&
+		snapshot.TargetURL == ""
+}

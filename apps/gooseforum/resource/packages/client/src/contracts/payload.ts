@@ -659,6 +659,11 @@ export interface TermsPageProps {
   contentHtml: string
 }
 
+export interface PrivacyPageProps {
+  enabled: boolean
+  contentHtml: string
+}
+
 export interface SponsorSectionPayload {
   key: string
   label: string
