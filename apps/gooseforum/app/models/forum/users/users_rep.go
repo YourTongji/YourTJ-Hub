@@ -15,10 +15,17 @@ import (
 
 // dummyHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
 // equalize password-verification timing when no usable credential row is
-// present (unknown username/email, or a bot account at the human login
-// endpoint). It runs the same 10000-iteration cost as real hashes so
-// username enumeration via response time is not possible.
-const dummyHashForTiming = "kQZbUFLHdF2p4QRUQ7kVsv6r0LqRFiYBoK9V0MaRTzc=:eW91cnRqLWJvdC10aW1pbmctc2FsdC0wMTIzNDU2Nzg5YWJjZGVm"
+// present (unknown username/email, bot account, or an empty/malformed
+// stored hash such as imported users without a password). It runs the same
+// 10000-iteration cost as real hashes so username enumeration via response
+// time is not possible.
+const dummyHashForTiming = "cvSnM8ciGWPMBCT/2aqq7QC6kxNmvCbn51nily0JhOc=:eW91cnRqLXRpbWluZy1kdW1teS1zYWx0LTAxMjM0NTY3ODk="
+
+// verifyEncryptPassword is the password verification entry point, held in a
+// package-level variable so tests can spy on which stored hash each Verify
+// path verifies against (the timing equalization calls return discarded
+// errors and are otherwise unobservable).
+var verifyEncryptPassword = algorithm.VerifyEncryptPassword
 
 // ErrInvalidCredentials is the single error returned for every failed
 // password verification (unknown user, bot account, or wrong password), so
@@ -42,19 +49,20 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			// 账号不存在时也执行与真实校验等量的 PBKDF2，抹平响应时间差，
 			// 避免通过登录响应时间枚举已注册账号（CWE-208）。
-			_ = algorithm.VerifyEncryptPassword(dummyHashForTiming, password)
+			_ = verifyEncryptPassword(dummyHashForTiming, password)
 			return &EntityComplete{}, ErrInvalidCredentials
 		}
 		return &user, err
 	}
-	// 机器人（Agent）账号不参与密码登录。先执行与真实校验等量的 PBKDF2
-	// 以抹平响应时间，再返回与错误密码完全相同的错误，避免枚举 bot 账号，
-	// 也与“bot 邮箱为空、密码不可用”的约束一致。
-	if user.IsBot() {
-		_ = algorithm.VerifyEncryptPassword(dummyHashForTiming, password)
+	// 两类无法完成真实校验的账号同样先执行等量 PBKDF2 再返回统一错误：
+	// bot 账号不参与密码登录（也无可用密码）；存储哈希为空或畸形的账号
+	// （如数据导入未设密码）不可能校验通过。否则快速响应会确定性地区分
+	// “账号不存在”与“账号已存在但无有效密码”，重开枚举侧信道。
+	if user.IsBot() || !strings.Contains(user.Password, ":") {
+		_ = verifyEncryptPassword(dummyHashForTiming, password)
 		return &EntityComplete{}, ErrInvalidCredentials
 	}
-	err = algorithm.VerifyEncryptPassword(user.Password, password)
+	err = verifyEncryptPassword(user.Password, password)
 	if err != nil {
 		return &EntityComplete{}, ErrInvalidCredentials
 	}
