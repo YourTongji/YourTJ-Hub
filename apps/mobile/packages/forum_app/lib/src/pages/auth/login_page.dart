@@ -42,6 +42,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   String _oidcError = '';
   // 登录放行前缓存清理失败的错误(清理成功或重试成功后清空)。
   String _cacheError = '';
+  // 缓存清理失败后禁止返回旧 shell(其内存态可能含上一账号数据)。
+  bool _authBlocked = false;
 
   late final AuthController _authController;
 
@@ -182,27 +184,34 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  /// 认证成功后的收尾:确保旧账号缓存已清空再放行;清理失败则留在登录页
-  /// 提示重试,防止新账号读到上一账号的离线数据(跨账号数据泄漏)。
+  /// 认证成功后的收尾:确保旧账号缓存已清空再放行;清理失败则丢弃新会话
+  /// 并留在登录页提示重试,防止新账号读到上一账号的离线/内存数据。
   Future<void> _finishAuthentication() async {
     if (!mounted) return;
     if (!await _ensureCacheCleared()) {
+      // 新 token 已在登录流程中持久化,这里必须丢弃,否则用户可带着
+      // 新会话返回 401 保留的旧 shell(内存态含上一账号数据)。
+      // 直接清本地令牌即可:登录刚完成,服务端会话尚无使用价值,
+      // 失败后重试登录会重新认证。
+      await ref.read(tokenStorageProvider).clear();
       if (!mounted) return;
-      setState(
-        () => _cacheError = AppLocalizations.of(context).authCacheClearFailed,
-      );
+      setState(() {
+        _authBlocked = true;
+        _cacheError = AppLocalizations.of(context).authCacheClearFailed;
+      });
       return;
     }
     if (!mounted) return;
-    final NavigatorState navigator = Navigator.of(context);
-    if (navigator.canPop()) {
-      navigator.pop(true);
-      return;
-    }
+    _authBlocked = false;
+    // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
+    // 避免新账号返回后看到上一账号的会话/消息数据。
     context.go('/');
   }
 
   void _leaveAuth() {
+    // 缓存清理失败后会话已丢弃:禁止返回旧 shell(内存态可能含上一账号
+    // 数据),只能重试登录。
+    if (_authBlocked) return;
     final NavigatorState navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
@@ -237,59 +246,63 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final Brightness brightness = Theme.of(context).brightness;
 
-    return Scaffold(
-      backgroundColor: colors.base200,
-      body: Stack(
-        fit: StackFit.expand,
-        children: <Widget>[
-          const GfDotGridBackground(),
-          SafeArea(
-            child: Stack(
-              children: <Widget>[
-                Positioned(
-                  top: 4,
-                  left: 8,
-                  child: GfIconButton(
-                    icon: Icons.arrow_back,
-                    tooltip: l10n.commonBack,
-                    size: 44,
-                    onPressed: _leaveAuth,
+    // 缓存清理失败后禁止任何返回(含系统返回手势),只能重试登录。
+    return PopScope(
+      canPop: !_authBlocked,
+      child: Scaffold(
+        backgroundColor: colors.base200,
+        body: Stack(
+          fit: StackFit.expand,
+          children: <Widget>[
+            const GfDotGridBackground(),
+            SafeArea(
+              child: Stack(
+                children: <Widget>[
+                  Positioned(
+                    top: 4,
+                    left: 8,
+                    child: GfIconButton(
+                      icon: Icons.arrow_back,
+                      tooltip: l10n.commonBack,
+                      size: 44,
+                      onPressed: _leaveAuth,
+                    ),
                   ),
-                ),
-                Positioned(
-                  top: 4,
-                  right: 8,
-                  child: GfIconButton(
-                    icon: brightness == Brightness.dark
-                        ? Icons.light_mode_outlined
-                        : Icons.dark_mode_outlined,
-                    onPressed: () => ref
-                        .read(themeModeProvider.notifier)
-                        .toggleDark(brightness != Brightness.dark),
+                  Positioned(
+                    top: 4,
+                    right: 8,
+                    child: GfIconButton(
+                      icon: brightness == Brightness.dark
+                          ? Icons.light_mode_outlined
+                          : Icons.dark_mode_outlined,
+                      onPressed: () => ref
+                          .read(themeModeProvider.notifier)
+                          .toggleDark(brightness != Brightness.dark),
+                    ),
                   ),
-                ),
-                Center(
-                  child: SingleChildScrollView(
-                    padding: const EdgeInsets.fromLTRB(20, 64, 20, 32),
-                    child: ConstrainedBox(
-                      constraints: const BoxConstraints(maxWidth: 520),
-                      child: GfCard(
-                        emphasized: true,
-                        padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
-                        child: ListenableBuilder(
-                          listenable: _authController,
-                          builder: (BuildContext context, Widget? child) {
-                            return _buildCardContent(context, l10n, colors);
-                          },
+                  Center(
+                    child: SingleChildScrollView(
+                      padding: const EdgeInsets.fromLTRB(20, 64, 20, 32),
+                      child: ConstrainedBox(
+                        constraints: const BoxConstraints(maxWidth: 520),
+                        child: GfCard(
+                          emphasized: true,
+                          padding: const EdgeInsets.fromLTRB(24, 28, 24, 24),
+                          child: ListenableBuilder(
+                            listenable: _authController,
+                            builder: (BuildContext context, Widget? child) {
+                              return _buildCardContent(context, l10n, colors);
+                            },
+                          ),
                         ),
                       ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-        ],
+          ],
+        ),
       ),
     );
   }

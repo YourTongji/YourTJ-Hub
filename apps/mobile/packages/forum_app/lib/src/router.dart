@@ -118,8 +118,11 @@ class _GfShellState extends ConsumerState<GfShell> {
     ref.listen(unauthorizedEventsProvider, (int? previous, int next) {
       if (next > (previous ?? 0) &&
           mounted &&
-          appRouter.state.uri.path != '/login') {
-        context.push('/login');
+          GoRouter.of(context).state.uri.path != '/login') {
+        // 401 即会话边界:用 go 替换导航栈,销毁保留旧账号内存态
+        // (会话/消息列表)的 shell;重新登录后 go('/') 得到全新 shell,
+        // 旧账号数据不会残留在屏幕上。
+        context.go('/login');
       }
     });
 

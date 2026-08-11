@@ -23,7 +23,9 @@ import 'package:forum_app/src/pages/search/search_page.dart';
 import 'package:forum_app/src/pages/settings/settings_page.dart';
 import 'package:forum_app/src/pages/topic/topic_page.dart';
 import 'package:forum_app/src/providers.dart';
+import 'package:forum_app/src/router.dart';
 import 'package:forum_app/src/widgets/topic_list.dart';
+import 'package:forum_app/src/widgets/status_views.dart';
 import 'package:forum_app/src/widgets/skeletons.dart';
 
 import 'fixtures/page_fixtures.dart';
@@ -362,6 +364,23 @@ class CountingMessagesPageRepository extends PageRepository {
     }
     fetchCalls++;
     return parsePayload(messagesPayloadJson());
+  }
+}
+
+/// 首次 /messages 成功,之后失败(模拟 B 登录后刷新失败)。
+class FailAfterFirstMessagesRepository extends CountingPageRepository {
+  FailAfterFirstMessagesRepository(super.client);
+
+  int messagesCalls = 0;
+
+  @override
+  Future<PagePayload> fetch(String path) async {
+    if (path == '/messages') {
+      messagesCalls++;
+      if (messagesCalls > 1) throw StateError('network down');
+      return parsePayload(messagesPayloadJson());
+    }
+    return super.fetch(path);
   }
 }
 
@@ -2492,6 +2511,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -2530,6 +2550,11 @@ void main() {
 
       expect(router.state.uri.path, '/login', reason: '上一账号缓存清理失败时不得放行登录');
       expect(find.text('清除上一账号离线数据失败,请重试'), findsOneWidget);
+      expect(await storage.read(), isNull, reason: '缓存清理失败应丢弃已持久化的新令牌');
+      // 返回按钮被拦截,无法回到 401 保留的旧 shell。
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/login', reason: '失败后禁止返回旧 shell');
     });
 
     testWidgets('缓存清理成功后登录放行并离开登录页', (tester) async {
@@ -2547,6 +2572,7 @@ void main() {
       );
       final container = ProviderContainer(
         overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -2620,6 +2646,106 @@ void main() {
       );
       await tester.pumpWidget(const SizedBox.shrink());
       await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('A 加载消息→401→B 登录→B 刷新失败:不可见 A 数据', (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = FailAfterFirstMessagesRepository(client);
+      final storage = MemTokenStorage()..write('a-token');
+      final controller = InstantLoginController(
+        apiClient: client,
+        tokenStorage: storage,
+      );
+      final container = await makeContainer(
+        pageRepo: pageRepo,
+        chatCache: RecordingCache(),
+        topicCache: RecordingCache(),
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: <RouteBase>[
+          StatefulShellRoute.indexedStack(
+            builder:
+                (
+                  BuildContext context,
+                  GoRouterState state,
+                  StatefulNavigationShell navigationShell,
+                ) {
+                  return GfShell(navigationShell: navigationShell);
+                },
+            branches: <StatefulShellBranch>[
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(path: '/', builder: (_, _) => const HomePage()),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/search',
+                    builder: (_, _) => const SearchPage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/messages',
+                    builder: (_, _) => const MessagesPage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/profile',
+                    builder: (_, _) => const ProfilePage(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(authController: controller),
+          ),
+        ],
+      );
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      // A 打开消息 tab,看到自己的会话(peerUsername 小写 bob)。
+      router.go('/messages');
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/messages');
+      expect(find.text('bob'), findsOneWidget, reason: 'A 的会话应可见');
+
+      // 401:替换导航栈到登录页,销毁保留 A 内存态的旧 shell。
+      container.read(unauthorizedEventsProvider.notifier).trigger();
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/login');
+      expect(router.canPop(), isFalse, reason: '401 应替换而非压栈登录页');
+      expect(find.text('bob'), findsNothing, reason: '旧 shell 已被销毁');
+
+      // B 登录(缓存清理成功)。
+      await tester.enterText(find.byType(TextField).at(0), 'bob');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/', reason: 'B 登录后进入全新 shell');
+
+      // B 打开消息 tab:网络失败 → 错误态,无 A 数据。
+      router.go('/messages');
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/messages');
+      expect(find.text('bob'), findsNothing, reason: 'B 看不到 A 的会话');
+      expect(find.byType(GfErrorRetry), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
     });
   });
 }
