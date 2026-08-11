@@ -606,7 +606,7 @@ func TestUserinfoRespectsTokenVersionAndFrozen(t *testing.T) {
 	}
 
 	// 改密/吊销全部设备 → TokenVersion 递增 → userinfo 拒绝
-	users.IncrementTokenVersion(user.Id)
+	users.IncrementTokenVersionWithDB(db.Connect(), user.Id)
 	if code := userinfo(); code == http.StatusOK {
 		t.Fatalf("userinfo must reject token after TokenVersion bump")
 	}

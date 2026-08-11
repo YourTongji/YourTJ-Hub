@@ -25,6 +25,7 @@ import {
 import { useI18n } from 'vue-i18n'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
+import { queueFlashMessage } from '@/runtime/flash-message'
 import { useSiteTheme } from '@/runtime/site-theme'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
@@ -201,7 +202,15 @@ function closeDrawer() {
 }
 
 async function logout() {
-  await fetch('/api/logout', { method: 'POST' })
+  const res = await fetch('/api/logout', { method: 'POST' })
+  if (res.ok) {
+    const data = await res.json().catch(() => null)
+    if (data && typeof data.code === 'number' && data.code !== 0) {
+      // 服务端撤销失败（session.revoke.failed）：cookie 已清除但会话行可能仍在，
+      // 跨刷新提示用户登录态可能依然有效。
+      queueFlashMessage(t('shell.logoutFailed'), 'error')
+    }
+  }
   window.location.reload()
 }
 

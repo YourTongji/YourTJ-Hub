@@ -69,14 +69,14 @@ func RevokeByID(userID uint64, id uint64) error {
 	return userSessions.DeleteByID(userID, id)
 }
 
-// RevokeAll deletes every session of the user.
-func RevokeAll(userID uint64) error {
-	return userSessions.DeleteAllByUserID(userID)
-}
-
 // RevokeAllAndInvalidate atomically deletes every session and invalidates every
 // previously issued token for the user. The user-info cache is cleared only
 // after the database transaction commits.
+//
+// The transaction runs on the process-wide db.Connect() handle: concurrent
+// callers on the same user serialize on the DB, and the cache invalidation
+// after commit is race-free with respect to in-flight cache loads thanks to
+// the epoch-based localcache invalidation.
 func RevokeAllAndInvalidate(userID uint64) error {
 	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := userSessions.DeleteAllByUserIDWithDB(tx, userID); err != nil {

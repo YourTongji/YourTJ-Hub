@@ -43,11 +43,6 @@ func DeleteExpired() error {
 	return builder().Where(fieldExpiresAt+" < ?", time.Now()).Delete(&Entity{}).Error
 }
 
-// DeleteAllByUserID 删除用户全部会话
-func DeleteAllByUserID(userID uint64) error {
-	return DeleteAllByUserIDWithDB(builder(), userID)
-}
-
 // DeleteAllByUserIDWithDB deletes every session of the user through the supplied database handle.
 func DeleteAllByUserIDWithDB(conn *gorm.DB, userID uint64) error {
 	return conn.Where(fieldUserId, userID).Delete(&Entity{}).Error

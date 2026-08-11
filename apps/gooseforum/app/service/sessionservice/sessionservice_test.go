@@ -42,20 +42,32 @@ func TestCreateAndGetValidByJti(t *testing.T) {
 	}
 }
 
+// TestRevokeByIDAndRevokeAll exercises single-session and all-session
+// revocation. RevokeAllAndInvalidate additionally bumps token_version and
+// clears the user-info cache; the transaction path is covered by the
+// rollback test below.
 func TestRevokeByIDAndRevokeAll(t *testing.T) {
 	setupTestDB(t)
 
-	_ = Create(100, "jti-1", "ua", "1.1.1.1")
-	_ = Create(100, "jti-2", "ua", "2.2.2.2")
-	_ = Create(200, "jti-3", "ua", "3.3.3.3")
+	user := users.MakeUser("session-revoke-both", "password", "session-revoke-both@example.com")
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	other := users.MakeUser("session-revoke-other", "password", "session-revoke-other@example.com")
+	if err := users.Create(other); err != nil {
+		t.Fatalf("create other user: %v", err)
+	}
+	_ = Create(user.Id, "jti-1", "ua", "1.1.1.1")
+	_ = Create(user.Id, "jti-2", "ua", "2.2.2.2")
+	_ = Create(other.Id, "jti-3", "ua", "3.3.3.3")
 
-	list, err := List(100)
+	list, err := List(user.Id)
 	if err != nil || len(list) != 2 {
 		t.Fatalf("list = %d sessions, err = %v", len(list), err)
 	}
 
-	// Revoke one session of user 100.
-	if err := RevokeByID(100, list[0].Id); err != nil {
+	// Revoke one session of the first user.
+	if err := RevokeByID(user.Id, list[0].Id); err != nil {
 		t.Fatal(err)
 	}
 	if GetValidByJti(list[0].Jti) != nil {
@@ -66,8 +78,8 @@ func TestRevokeByIDAndRevokeAll(t *testing.T) {
 		t.Fatal("other user session should remain")
 	}
 
-	// Revoke all for user 100.
-	if err := RevokeAll(100); err != nil {
+	// Revoke all for the first user.
+	if err := RevokeAllAndInvalidate(user.Id); err != nil {
 		t.Fatal(err)
 	}
 	if GetValidByJti("jti-2") != nil {
@@ -97,6 +109,10 @@ func TestListExcludesExpiredSessions(t *testing.T) {
 	}
 }
 
+// The two trigger-based tests below create and drop SQLite triggers on the
+// shared :memory: test database. They must not run in parallel with any other
+// test in this package, because a trigger applies to every statement on the
+// shared connection.
 func TestRevokeAllAndInvalidateInvalidatesCacheAfterCommit(t *testing.T) {
 	setupTestDB(t)
 

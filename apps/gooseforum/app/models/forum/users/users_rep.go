@@ -177,13 +177,6 @@ func IncrementPrestige(addNumber int64, userId uint64) int64 {
 	return result.RowsAffected
 }
 
-// IncrementTokenVersion bumps the user's token version, invalidating every
-// previously issued access token (used by "revoke all devices"). Callers that
-// need error propagation or transactional composition should use IncrementTokenVersionWithDB.
-func IncrementTokenVersion(userId uint64) {
-	_ = IncrementTokenVersionWithDB(builder(), userId)
-}
-
 // IncrementTokenVersionWithDB increments token_version through the supplied database handle.
 // A missing user is an error so callers can roll back any coupled changes.
 func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {

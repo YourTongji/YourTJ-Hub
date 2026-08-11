@@ -76,6 +76,7 @@ export default {
     themePreview: '主题预览',
     admin: '管理后台',
     logout: '退出登录',
+    logoutFailed: '退出登录失败：会话未能撤销，本设备的登录状态可能仍然有效。',
     login: '登录',
     register: '注册',
     resources: '资源',
