@@ -216,11 +216,12 @@
     width: max-content;
     max-width: 15rem;
     padding: 0.375rem 0.625rem;
-    border: var(--gf-border) solid var(--gf-color-line);
+    border: var(--gf-border) solid var(--gf-color-tooltip-bg);
     border-radius: var(--gf-radius-field);
-    background: var(--gf-color-base-100);
+    background: var(--gf-color-tooltip-bg);
     box-shadow: 0 12px 32px -16px rgb(15 23 42 / calc(var(--gf-depth) * 0.5));
-    @apply whitespace-normal text-center text-xs font-normal leading-relaxed text-base-content/90;
+    @apply whitespace-normal text-center text-xs font-normal leading-relaxed;
+    color: var(--gf-color-tooltip-content);
     opacity: 0;
     pointer-events: none;
     transform: translateX(-50%) translateY(4px) scale(0.98);
@@ -239,7 +240,7 @@
     height: 0;
     border-left: 4px solid transparent;
     border-right: 4px solid transparent;
-    border-top: 4px solid var(--gf-color-base-100);
+    border-top: 4px solid var(--gf-color-tooltip-bg);
     opacity: 0;
     pointer-events: none;
     transform: translateX(-50%);

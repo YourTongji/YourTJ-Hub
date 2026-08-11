@@ -1238,9 +1238,14 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
-      <section class="gf-card" :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden'">
+      <section class="gf-card overflow-visible">
         <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
-        <div class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="coverCropOpen ? undefined : profileCoverStyle">
+        <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->
+        <div
+          class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60"
+          :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden rounded-t-[calc(var(--gf-radius-box)-1px)]'"
+          :style="coverCropOpen ? undefined : profileCoverStyle"
+        >
           <button
             v-if="!coverCropOpen"
             type="button"
