@@ -267,6 +267,7 @@
   "settingsEmail": "邮箱",
   "settingsEmailEdit": "修改绑定邮箱",
   "settingsEmailUpdated": "邮箱已更新,请验证",
+  "settingsEmailOAuthReauthRequired": "此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。",
   "settingsEmailFailed": "邮箱修改失败:{error}",
   "@settingsEmailFailed": {
     "placeholders": {

@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: 'ユーザー名を入力してください',
       emailRequired: 'メールを入力してください',
+      passwordRequired: '現在のパスワードを入力してください',
     },
     emailVerification: {
       title: 'メール未認証',
@@ -962,6 +963,7 @@ export default {
         needsLetterNumber: 'パスワードには英字と数字の両方を含めてください',
         invalidFormat: 'パスワード形式が正しくありません',
         oldInvalid: '現在のパスワードが正しくありません',
+        oauthRequired: 'この OAuth 専用アカウントは、メールアドレスを設定する前に OAuth で再認証する必要があります。必要に応じて管理者に連絡してください。',
         updateFailed: 'パスワードの更新に失敗しました',
         updateSuccess: 'パスワードを変更しました',
       },

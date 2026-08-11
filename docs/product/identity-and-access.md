@@ -77,6 +77,11 @@
   opaque access tokens at the userinfo endpoint). Ordinary logout deletes the current session row as
   well, and fails loudly when the revoke errors (no silently surviving token).
 - Password change: `TokenVersion` bumps, invalidating old tokens and OIDC access tokens.
+- Email change: `Current` for password accounts; the current password is verified before any write,
+  the old address receives a notification, and password reset is suppressed for 24 hours after the
+  change. OAuth-only self-service email change is `Partial`: the API and Web/Mobile clients return a
+  dedicated re-authentication-required message, but the OAuth re-authentication channel is not yet
+  implemented; administrators retain the console command for recovery.
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,

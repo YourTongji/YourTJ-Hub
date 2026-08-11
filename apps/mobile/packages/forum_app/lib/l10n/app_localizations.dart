@@ -1076,6 +1076,12 @@ abstract class AppLocalizations {
   /// **'Email updated, please verify'**
   String get settingsEmailUpdated;
 
+  /// No description provided for @settingsEmailOAuthReauthRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.'**
+  String get settingsEmailOAuthReauthRequired;
+
   /// No description provided for @settingsEmailFailed.
   ///
   /// In en, this message translates to:

@@ -65,6 +65,7 @@ const (
 	MessageAuthEmailUnverified           MessageCode = "auth.email.unverified"           // 邮箱未验证。
 	MessageAuthLoginFailed               MessageCode = "auth.login.failed"               // 登录异常。
 	MessageAuthOldPasswordInvalid        MessageCode = "auth.password.oldInvalid"        // 原密码错误。
+	MessageAuthPasswordOAuthRequired     MessageCode = "auth.password.oauthRequired"     // 无邮箱的 OAuth 账号密码校验失败，需通过 OAuth 恢复。
 	MessageAuthPasswordUpdateFailed      MessageCode = "auth.password.updateFailed"      // 修改密码失败。
 	MessageAuthPasswordUpdateSuccess     MessageCode = "auth.password.updateSuccess"     // 修改密码成功。
 	MessageAuthResetMailQueued           MessageCode = "auth.passwordReset.mailQueued"   // 如邮箱存在，将收到密码重置邮件。

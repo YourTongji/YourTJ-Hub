@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: 'Username is required',
       emailRequired: 'Email is required',
+      passwordRequired: 'Current password is required',
     },
     emailVerification: {
       title: 'Email not verified',
@@ -963,6 +964,7 @@ export default {
         needsLetterNumber: 'Password must contain both letters and numbers',
         invalidFormat: 'Invalid password format',
         oldInvalid: 'Current password is incorrect',
+        oauthRequired: 'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.',
         updateFailed: 'Failed to update password',
         updateSuccess: 'Password changed successfully',
       },

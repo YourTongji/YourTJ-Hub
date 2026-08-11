@@ -535,6 +535,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsEmailUpdated => 'Email updated, please verify';
 
   @override
+  String get settingsEmailOAuthReauthRequired =>
+      'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.';
+
+  @override
   String settingsEmailFailed(String error) {
     return 'Email update failed: $error';
   }

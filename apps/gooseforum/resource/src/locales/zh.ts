@@ -665,6 +665,7 @@ export default {
     validation: {
       usernameRequired: '用户名不能为空',
       emailRequired: '邮箱不能为空',
+      passwordRequired: '请输入当前密码',
     },
     emailVerification: {
       title: '邮箱尚未验证',
@@ -963,6 +964,7 @@ export default {
         needsLetterNumber: '密码必须包含字母和数字',
         invalidFormat: '密码格式错误',
         oldInvalid: '原密码错误',
+        oauthRequired: '此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。',
         updateFailed: '更新密码失败',
         updateSuccess: '密码修改成功',
       },

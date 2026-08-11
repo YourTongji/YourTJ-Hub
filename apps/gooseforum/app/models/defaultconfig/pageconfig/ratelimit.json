@@ -7,6 +7,8 @@
     { "action": "oidc.authorize", "windowSeconds": 900, "limitPerIp": 120, "limitPerUser": 0 },
     { "action": "oidc.token", "windowSeconds": 900, "limitPerIp": 120, "limitPerUser": 0 },
     { "action": "forgot-password", "windowSeconds": 3600, "limitPerIp": 10, "limitPerUser": 0 },
+    { "action": "email.change", "windowSeconds": 3600, "limitPerIp": 10, "limitPerUser": 5 },
+    { "action": "password.change", "windowSeconds": 3600, "limitPerIp": 10, "limitPerUser": 5 },
     { "action": "topic.write", "windowSeconds": 60, "limitPerIp": 5, "limitPerUser": 1 },
     { "action": "post.create", "windowSeconds": 60, "limitPerIp": 20, "limitPerUser": 10 },
     { "action": "message.send", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 10 },

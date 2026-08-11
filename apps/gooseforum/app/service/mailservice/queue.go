@@ -22,6 +22,7 @@ type EmailTask struct {
 	To       string `json:"to"`
 	Username string `json:"username"`
 	Token    string `json:"token"`
+	NewEmail string `json:"newEmail,omitempty"`
 	Type     string `json:"type"`
 	Locale   string `json:"locale,omitempty"`
 }
@@ -179,6 +180,8 @@ func processEmailTask(task EmailTask) error {
 		return SendActivationEmail(task.To, task.Username, task.Token, task.Locale)
 	case "reset_password":
 		return SendPasswordResetEmail(task.To, task.Username, task.Token, task.Locale)
+	case "email_changed":
+		return SendEmailChangedEmail(task.To, task.Username, task.NewEmail, task.Locale)
 	default:
 		return fmt.Errorf("未知的邮件类型: %s", task.Type)
 	}

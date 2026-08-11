@@ -327,6 +327,11 @@ func GetUserOAuthBindings(userID uint64) map[string]*userOAuth.Entity {
 	})
 }
 
+// HasOAuthBinding reports whether the user can authenticate through an external provider.
+func HasOAuthBinding(userID uint64) bool {
+	return len(GetUserOAuthBindings(userID)) > 0
+}
+
 // downloadAndSaveAvatar stores an external OAuth avatar locally.
 func downloadAndSaveAvatar(userID uint64, avatarURL string) (string, error) {
 	if avatarURL == "" {

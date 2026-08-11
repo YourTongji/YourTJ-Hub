@@ -275,6 +275,7 @@
   "settingsEmail": "Email",
   "settingsEmailEdit": "Change bound email",
   "settingsEmailUpdated": "Email updated, please verify",
+  "settingsEmailOAuthReauthRequired": "The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.",
   "settingsEmailFailed": "Email update failed: {error}",
   "@settingsEmailFailed": {
     "placeholders": {
