@@ -21,19 +21,22 @@ IMAGE="yourtj-hub"
 log() { echo "[deploy:$INSTANCE] $*"; }
 
 # 清理旧镜像与构建缓存, 防止磁盘无限膨胀:
-#   - 仅保留当前 tag、prev 回滚 tag、以及该实例前缀(dev-*/main-*)最近 IMAGE_KEEP_N 个 tag
+#   - 保留该实例前缀(dev-*/main-*)最近 IMAGE_KEEP_N 个 tag(含当前) + prev 回滚 tag
 #   - 清理 dangling images 与构建缓存
 prune_old_images() {
-  local instance_prefix keep_n removed=0
-  local line tag created keep_count=0
+  local instance_prefix keep_n removed=0 keep_count=0
+  local dangling_before=0 dangling_after=0
   instance_prefix="$([ "$INSTANCE" = "main" ] && echo "main-" || echo "dev-")"
   keep_n="${IMAGE_KEEP_N:-5}"
+  if ! [[ "$keep_n" =~ ^[0-9]+$ ]] || [ "$keep_n" -lt 1 ]; then
+    log "WARNING: invalid IMAGE_KEEP_N='$keep_n', falling back to default 5"
+    keep_n=5
+  fi
 
-  log "pruning old images (keep newest $keep_n ${instance_prefix}* + prev)"
-  # 按创建时间倒序列出该实例前缀的 tag, 跳过当前/prev, 超出 keep_n 的删除
-  while IFS='|' read -r tag created; do
+  log "pruning old images (keep newest $keep_n ${instance_prefix}* incl. current + prev)"
+  # 按创建时间倒序列出该实例前缀的 tag, 保留前 keep_n 个(含当前), 超出删除; prev 始终保留
+  while IFS='|' read -r tag _; do
     [ -z "$tag" ] && continue
-    [ "$tag" = "$IMAGE_TAG" ] && continue
     [ "$tag" = "prev" ] && continue
     keep_count=$((keep_count + 1))
     if [ "$keep_count" -le "$keep_n" ]; then
@@ -48,7 +51,6 @@ prune_old_images() {
       | sort -t'|' -k2 -r)
 
   # 清理 dangling 镜像(构建残留)与不再使用的构建缓存, 失败不影响部署结果
-  local dangling_before=0 dangling_after=0
   dangling_before="$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ' || true)"
   docker image prune -f >/dev/null 2>&1 || true
   docker builder prune -f --filter "until=72h" >/dev/null 2>&1 || true
