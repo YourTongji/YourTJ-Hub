@@ -10,6 +10,7 @@ export enum AdminPermission {
 const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin': AdminPermission.Admin,
   '/admin/users': AdminPermission.UserManager,
+  '/admin/agents': AdminPermission.Admin,
   '/admin/roles': AdminPermission.RoleManager,
   '/admin/categories': AdminPermission.TopicsManager,
   '/admin/posts': AdminPermission.TopicsManager,
@@ -35,6 +36,7 @@ const adminPathPermissions: Record<string, AdminPermission> = {
 const adminEntryPaths = [
   '/admin',
   '/admin/users',
+  '/admin/agents',
   '/admin/posts',
   '/admin/categories',
   '/admin/roles',

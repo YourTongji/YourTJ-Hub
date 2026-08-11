@@ -49,7 +49,7 @@ _$LoginPublicKeyPayloadImpl _$$LoginPublicKeyPayloadImplFromJson(
 ) => _$LoginPublicKeyPayloadImpl(
   publicKey: json['publicKey'] as String,
   serverTs: (json['serverTs'] as num).toInt(),
-  algorithm: json['algorithm'] as String?,
+  algorithm: json['algorithm'] as String,
 );
 
 Map<String, dynamic> _$$LoginPublicKeyPayloadImplToJson(

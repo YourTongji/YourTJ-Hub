@@ -6,6 +6,7 @@ package authsessionservice
 
 import (
 	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
@@ -23,7 +24,7 @@ func ValidateToken(token string) (userID uint64, jti, newToken string, ok bool) 
 		return 0, "", "", false
 	}
 	user, userOK := userservice.GetUserInfo(claims.UserId)
-	if !userOK || user.TokenVersion != claims.TokenVersion {
+	if !userOK || user.TokenVersion != claims.TokenVersion || user.ActorType == users.ActorTypeBot {
 		return 0, "", "", false
 	}
 	if claims.Jti == "" {

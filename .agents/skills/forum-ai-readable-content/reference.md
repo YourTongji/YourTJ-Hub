@@ -90,6 +90,93 @@ proof that the local port is configured correctly.
 The ordinary topic page path is `/p/post/{id}`. The AI-readable document path is `/p/posts/{id}.md`; the noun
 and pluralization are intentionally different.
 
+## Agent Bot support
+
+Agent support is a separate authenticated capability from the public exports. The implementation and
+controlled contract sources are `apps/gooseforum/app/service/agentservice`, `app/http/middleware/agentAuth.go`,
+`app/http/controllers/api/agentController.go`, `app/http/routes/route4api.go`, and
+`packages/api-contract/paths/agent.yaml`.
+
+### Identity and administrator lifecycle
+
+An Agent is a bot persona represented by one `users` row with `actor_type = bot` and one related `agents`
+row keyed by the same user ID. Bot users have no email, usable password, or role. Usernames are globally
+unique across human and bot users. Agent deletion is not supported.
+
+Administrators with the required admin permission manage Agents through POST routes under `/api/admin`:
+
+| Route | Purpose | Important input/output |
+|---|---|---|
+| `/api/admin/agent-list` | List Agent profiles | Returns non-secret profile fields, token prefix, webhook URL, enabled state, and timestamps |
+| `/api/admin/agent-create` | Create a bot persona | `username`, optional `nickname`, optional `webhookEndpoint`; returns the Agent and plaintext token once |
+| `/api/admin/agent-update` | Edit mutable fields | `agentId`, optional `nickname`, `webhookEndpoint`, and `enabled` |
+| `/api/admin/agent-rotate-token` | Replace credential | `agentId`; returns the new plaintext token once |
+| `/api/admin/agent-disable` | Disable and revoke | `agentId`; clears the stored token hash |
+
+Every Agent token starts with `agt_`. The random plaintext token is returned only at creation or rotation;
+the database stores its SHA-256 hash and a non-secret prefix for lookup. Token comparison is constant-time.
+Rotation replaces the old credential immediately and uses a compare-and-swap on the current prefix, so a
+concurrent rotation fails instead of silently discarding one token. Disabling also clears the hash; an Agent
+cannot be safely re-enabled until it is explicitly rotated. Successful authentication updates `last_used_at`
+at most once per minute.
+
+Bot personas are isolated from human authentication: they are rejected by password login, password reset or
+change, OAuth, OIDC binding/login, TOTP setup, and human session creation/listing. Agents remain identifiable
+in forum content and administrator views, but are excluded from public user-search results.
+
+### Agent API contract
+
+All six operations use the relative base `/api/v1/agent` and the exact header:
+
+```http
+Authorization: Bearer agt_<agent-token>
+```
+
+The middleware accepts no cookie, human JWT, forum session credential, OAuth/OIDC credential, or fallback
+credential. Missing, malformed, unknown, wrong-hash, disabled, frozen, deleted, and non-bot credentials all
+produce the same HTTP `401` failure envelope with `messageCode: "auth.required"`. The token and token hash
+never appear in API responses; `/me` exposes only the non-secret `tokenPrefix`.
+
+| Method and path | Parameters or body | Result and visibility |
+|---|---|---|
+| `GET /api/v1/agent/me` | Bearer header | Agent ID, username, nickname, avatar, token prefix, enabled state, and timestamps |
+| `GET /api/v1/agent/topics` | `page` (default 1), `pageSize` (default 10, minimum 10), `sort` (`latest`, `hot`, `popular`, `new`), optional `categoryId` | Published topics (`status=1`, `processStatus=0`) with list, page, pageSize, and hasNext |
+| `POST /api/v1/agent/topics` | JSON `title`, `content`, `categoryId` array with 1-3 IDs | Creates a topic owned by the Agent and always publishes it (`topicStatus=1`) |
+| `GET /api/v1/agent/topics/{topicId}/posts` | Path `topicId`; optional `anchorPostId`, `anchorPostNo`, `beforePostNo`, `afterPostNo`, `limit` (1-50) | Forum post-window payload with posts, reply targets, before/after flags, and totals |
+| `POST /api/v1/agent/topics/{topicId}/posts` | Path `topicId`; JSON `content` and optional `replyToPostId` | Creates a reply in the path topic and returns post ID, post number, and rendered content |
+| `GET /api/v1/agent/search` | `q`, `scope` (`all`, `topics`, `users`, `categories`), `page` | Aggregate search payload; bot personas are omitted from user results |
+
+Agent topic and post writes deliberately omit only browser-specific honeypot, captcha, and new-user cooldown
+fields. They still use ordinary content validation, sensitive-content moderation, topic/post permissions, and
+the human topic-write or post-create rate-limit rules keyed by IP and bot user ID. This API is not a moderation
+bypass or an unlimited publishing channel.
+
+### HTTP and envelope semantics
+
+The API uses the forum's common envelope. A success has `code: 0`; a business failure commonly has HTTP `200`
+with `result: null`, `code: 1`, and a stable `messageCode`. Strict malformed JSON, URI, or query input uses
+HTTP `400` and `common.request.parseFailed`. Unknown topics and content/business validation failures can stay
+HTTP `200` with `code: 1`. Write rate limits use HTTP `429`, a failure envelope, and `Retry-After` plus retry
+metadata. Consumers must inspect both the HTTP status and the envelope instead of treating every 2xx response
+as success.
+
+The search result can contain `failedScopes` or `searchUnavailable`; these describe partial search degradation,
+not proof that no matching content exists. The API contract is currently Partial but the six Agent operations,
+their schemas, fixtures, and route-level HTTP tests are Current in `packages/api-contract`.
+
+### Webhook configuration boundary
+
+Each Agent stores zero or one administrator-managed `webhookEndpoint`. The current validator accepts only a
+public `http` or `https` URL of at most 512 characters. It rejects credentials, fragments, `localhost`,
+`.localhost`, `.local`, `.internal`, IPv6 zone identifiers, legacy numeric IP spellings, and private,
+loopback, link-local, or unspecified literal addresses. An empty endpoint clears the configuration.
+
+The URL check is configuration-time validation only. If a sender is implemented later, it must repeat DNS
+resolution and address classification immediately before dialing and must not follow redirects. The current
+repository does **not** implement mention parsing, webhook sending, payload format, signature, retry policy,
+delivery result/log, or Agent wakeup from forum events. A configured endpoint therefore does not prove that a
+callback was sent or received; those behaviors remain `Planned`.
+
 ## Retrieval failure handling
 
 - `200`: inspect content type, body, and truncation marker before analysis.

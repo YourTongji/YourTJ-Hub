@@ -1,7 +1,9 @@
 package api
 
 import (
+	"encoding/json"
 	"errors"
+	"io"
 	"log/slog"
 	"net/http"
 
@@ -31,9 +33,26 @@ type TotpDisableReq struct {
 }
 
 // TotpVerifyReq 完成两步验证登录，code 与 recoveryCode 二选一。
+// 字段用 json.RawMessage 保留原始值，以便严格解码时区分"字段缺失"与"显式 null"：
+// 受控契约声明两字段均为非 null 的 string，显式 null 属于非法输入。
 type TotpVerifyReq struct {
-	Code         string `json:"code"`
-	RecoveryCode string `json:"recoveryCode"`
+	Code         json.RawMessage `json:"code"`
+	RecoveryCode json.RawMessage `json:"recoveryCode"`
+}
+
+// totpVerifyString 解析单个请求字段：缺失 → 空串；null 或非字符串 → 错误。
+func totpVerifyString(raw json.RawMessage) (string, error) {
+	if len(raw) == 0 {
+		return "", nil
+	}
+	var value *string
+	if err := json.Unmarshal(raw, &value); err != nil {
+		return "", err
+	}
+	if value == nil {
+		return "", errors.New("totp verify field must not be null")
+	}
+	return *value, nil
 }
 
 // TotpSetup 获取两步验证密钥与 otpauth 链接。
@@ -43,6 +62,10 @@ func TotpSetup(req component.BetterRequest[TotpSetupReq]) component.Response {
 	if err != nil {
 		slog.Error("TOTP setup: user not found", "userId", req.UserId, "error", err)
 		return component.FailResponseCode(component.MessageTotpSetupFailed, nil)
+	}
+	// 机器人（Agent）账号不参与人类两步验证流程。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
 	}
 	if err := algorithm.VerifyEncryptPassword(user.Password, req.Params.Password); err != nil {
 		return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
@@ -112,8 +135,18 @@ func TotpDisable(req component.BetterRequest[TotpDisableReq]) component.Response
 // TotpVerify 校验两步验证码/恢复码并签发正式会话 token。
 // 该端点挂在 TOTPChallengeAuth 中间件之后，userId 取自 challenge token。
 func TotpVerify(c *gin.Context) {
-	var req TotpVerifyReq
-	if err := c.ShouldBindJSON(&req); err != nil {
+	// 受控契约声明 TotpVerifyRequest 为 additionalProperties: false，
+	// 这里用严格解码拒绝未知字段，与契约保持一致。
+	var req *TotpVerifyReq
+	decoder := json.NewDecoder(c.Request.Body)
+	decoder.DisallowUnknownFields()
+	if err := decoder.Decode(&req); err != nil || req == nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
+	// application/json requestBody 必须恰好是单个 JSON 文档：拒绝尾随的
+	// 第二个 JSON value（例如 `{"code":"..."} {}`）。
+	if err := decoder.Decode(&struct{}{}); err != io.EOF {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
 		return
 	}
@@ -122,9 +155,18 @@ func TotpVerify(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageAuthRequired, nil))
 		return
 	}
-	code := req.Code
+	code, err := totpVerifyString(req.Code)
+	if err != nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
+	recoveryCode, err := totpVerifyString(req.RecoveryCode)
+	if err != nil {
+		c.JSON(http.StatusOK, component.FailDataCode(component.MessageRequestInvalidFormat, nil))
+		return
+	}
 	if code == "" {
-		code = req.RecoveryCode
+		code = recoveryCode
 	}
 	if code == "" {
 		c.JSON(http.StatusOK, component.FailDataCode(component.MessageTotpCodeInvalid, nil))

@@ -72,30 +72,23 @@ void main() {
 
   group('formatChatTime', () {
     test('今天 → 仅 HH:mm', () {
-      final now = DateTime.now();
-      final iso = now.subtract(const Duration(minutes: 5)).toIso8601String();
-      final result = formatChatTime(iso, l10n: zh);
-      expect(
-        RegExp(r'^\d{2}:\d{2}$').hasMatch(result),
-        isTrue,
-        reason: '今天应只显示 HH:mm,实际: $result',
-      );
+      final now = DateTime(2026, 8, 9, 23, 58);
+      final iso = DateTime(2026, 8, 9, 23, 53).toIso8601String();
+      expect(formatChatTime(iso, l10n: zh, now: now), '23:53');
     });
 
     test('同年 → M月D日 HH:mm(zh dateMonthDayTime)', () {
-      final now = DateTime.now();
-      final sameYear = DateTime(now.year, 1, 15, 9, 30);
+      final now = DateTime(2026, 8, 9, 23, 58);
+      final sameYear = DateTime(2026, 1, 15, 9, 30);
       final iso = sameYear.toIso8601String();
-      final result = formatChatTime(iso, l10n: zh);
-      expect(result, '1月15日 09:30');
+      expect(formatChatTime(iso, l10n: zh, now: now), '1月15日 09:30');
     });
 
     test('跨年 → YYYY年M月D日 HH:mm(zh dateYearMonthDayTime)', () {
-      final now = DateTime.now();
-      final crossYear = DateTime(now.year - 1, 12, 31, 23, 59);
+      final now = DateTime(2026, 8, 9, 23, 58);
+      final crossYear = DateTime(2025, 12, 31, 23, 59);
       final iso = crossYear.toIso8601String();
-      final result = formatChatTime(iso, l10n: zh);
-      expect(result, '${now.year - 1}年12月31日 23:59');
+      expect(formatChatTime(iso, l10n: zh, now: now), '2025年12月31日 23:59');
     });
 
     test('无效输入返回原值', () {

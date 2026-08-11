@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import 'package:core/core.dart';
 import 'package:ui_kit/ui_kit.dart';
@@ -8,11 +9,13 @@ import '../../asset_url.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
+import '../../images/image_upload.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
+import '../../widgets/skeletons.dart';
 
 /// 话题详情页(web TopicPage.vue 的移动端形态):
-/// 话题信息 + 帖子流(分页)+ markdown 渲染 + 图片查看器 + 互动(点赞/收藏/评论)。
+/// 话题信息 + 帖子流(分页)+ markdown 渲染 + 图片查看器 + 互动(点赞/收藏/关注/评论)。
 class TopicPage extends ConsumerStatefulWidget {
   const TopicPage({super.key, required this.topicId});
 
@@ -26,6 +29,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   AsyncValue<TopicDetailProps> _page = const AsyncValue.loading();
   bool _loadingMore = false;
   final List<PostPayload> _posts = [];
+  int? _afterPostNo;
+  bool _hasMorePosts = false;
 
   // 互动状态(乐观更新)。
   bool _liked = false;
@@ -33,12 +38,15 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   bool _watched = false;
   int _likeCount = 0;
 
-  // 评论输入。
+  // 轻量 Markdown 回复输入。
   final TextEditingController _replyController = TextEditingController();
-  bool _replying = false;
-  int _replyToPostId = 0;
-
   final FocusNode _replyFocus = FocusNode();
+  bool _replying = false;
+  bool _uploadingReplyImage = false;
+  int _replyToPostId = 0;
+  String? _replyImageUrl;
+  String? _replyTargetName;
+  String? _replyMentionPrefix;
 
   // 浮动层状态(web TopicFloatingControls / PostComposer 语义)。
   bool _composerOpen = false;
@@ -64,6 +72,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
           .topicDetail(widget.topicId);
+      if (!mounted) return;
       final props = parsePageProps<TopicDetailProps>(payload);
       if (props == null) {
         setState(
@@ -76,10 +85,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       }
       // 写入 drift 离线缓存(供断网时回读);缓存失败静默降级。
       await _cachePut(widget.topicId, payload.toJson());
+      if (!mounted) return;
       setState(() {
         _page = AsyncValue.data(props);
         _posts.clear();
         _posts.addAll(props.postStream.posts);
+        _afterPostNo = props.postStream.afterPostNo;
+        _hasMorePosts = props.postStream.hasAfter;
         _liked = props.topic.isLiked;
         _bookmarked = props.topic.isBookmarked;
         _watched = props.topic.isWatched;
@@ -88,6 +100,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
       final PagePayload? cached = await _cacheGet(widget.topicId);
+      if (!mounted) return;
       final props = cached == null
           ? null
           : parsePageProps<TopicDetailProps>(cached);
@@ -96,6 +109,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
           _page = AsyncValue.data(props);
           _posts.clear();
           _posts.addAll(props.postStream.posts);
+          _afterPostNo = props.postStream.afterPostNo;
+          _hasMorePosts = props.postStream.hasAfter;
           _liked = props.topic.isLiked;
           _bookmarked = props.topic.isBookmarked;
           _watched = props.topic.isWatched;
@@ -126,23 +141,34 @@ class _TopicPageState extends ConsumerState<TopicPage> {
   }
 
   Future<void> _loadMore() async {
-    final props = _page.value;
-    if (props == null || !props.postStream.hasAfter || _loadingMore) return;
+    if (!_hasMorePosts || _loadingMore) return;
     setState(() => _loadingMore = true);
     try {
-      final window = await ref
+      final int? previousAfterPostNo = _afterPostNo;
+      final PostWindowPayload window = await ref
           .read(topicRepositoryProvider)
-          .getPostWindow(
-            topicId: widget.topicId,
-            afterPostNo: props.postStream.afterPostNo,
-          );
-      if (window.posts.isNotEmpty) {
-        setState(() => _posts.addAll(window.posts));
-      }
+          .getPostWindow(topicId: widget.topicId, afterPostNo: _afterPostNo);
+      if (!mounted) return;
+      final Set<int> existingIds = _posts
+          .map((PostPayload post) => post.id)
+          .toSet();
+      setState(() {
+        _posts.addAll(
+          window.posts.where((PostPayload post) => existingIds.add(post.id)),
+        );
+        final int? nextAfterPostNo = window.afterPostNo ?? previousAfterPostNo;
+        _afterPostNo = nextAfterPostNo;
+        _hasMorePosts =
+            window.posts.isNotEmpty &&
+            window.hasAfter &&
+            nextAfterPostNo != null &&
+            (previousAfterPostNo == null ||
+                nextAfterPostNo > previousAfterPostNo);
+      });
     } catch (_) {
       // 加载更多失败静默。
     } finally {
-      setState(() => _loadingMore = false);
+      if (mounted) setState(() => _loadingMore = false);
     }
   }
 
@@ -158,6 +184,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       await ref
           .read(topicRepositoryProvider)
           .likeTopic(topicId: topic.id, action: target ? 1 : 2);
+      if (!mounted) return;
     } catch (_) {
       // 回滚。
       setState(() {
@@ -176,6 +203,7 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       await ref
           .read(topicRepositoryProvider)
           .bookmarkTopic(topicId: topic.id, action: target ? 1 : 2);
+      if (!mounted) return;
     } catch (_) {
       setState(() => _bookmarked = !target);
     }
@@ -195,6 +223,123 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
+  void _openComposer({PostPayload? replyTo}) {
+    if (replyTo != null) {
+      final String mention = '@${replyTo.author.username} ';
+      _replyToPostId = replyTo.id;
+      _replyMentionPrefix = mention;
+      _replyController.text = mention;
+      _replyTargetName = replyTo.author.nickname ?? replyTo.author.username;
+      _replyController.selection = TextSelection.collapsed(
+        offset: _replyController.text.length,
+      );
+    } else if (_replyController.text.trim().isEmpty) {
+      _replyController.clear();
+    }
+    setState(() {
+      _composerOpen = true;
+      _railOpen = false;
+    });
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _replyFocus.requestFocus();
+    });
+  }
+
+  void _removeGeneratedMention() {
+    final String? mention = _replyMentionPrefix;
+    if (mention == null || !_replyController.text.startsWith(mention)) return;
+
+    final String updated = _replyController.text.substring(mention.length);
+    _replyController.value = TextEditingValue(
+      text: updated,
+      selection: TextSelection.collapsed(offset: updated.length),
+    );
+  }
+
+  void _clearReplyTarget() {
+    _removeGeneratedMention();
+    _replyToPostId = 0;
+    _replyTargetName = null;
+    _replyMentionPrefix = null;
+  }
+
+  void _closeComposer() {
+    _replyFocus.unfocus();
+    _clearReplyTarget();
+    setState(() => _composerOpen = false);
+  }
+
+  void _insertReplyImage(String url) {
+    final String oldToken = _replyImageUrl == null
+        ? ''
+        : '![image]($_replyImageUrl)';
+    if (oldToken.isNotEmpty && _replyController.text.contains(oldToken)) {
+      _replyController.text = _replyController.text.replaceFirst(oldToken, '');
+    }
+
+    final String text = _replyController.text;
+    final int rawOffset = _replyController.selection.baseOffset;
+    final int offset = rawOffset.clamp(0, text.length);
+    final String before = text.substring(0, offset);
+    final String after = text.substring(offset);
+    final String prefix = before.isEmpty || before.endsWith('\n') ? '' : '\n';
+    final String suffix = after.isEmpty || after.startsWith('\n') ? '' : '\n';
+    final String insertion = '$prefix![image]($url)$suffix';
+    _replyController.value = _replyController.value.copyWith(
+      text: '$before$insertion$after',
+      selection: TextSelection.collapsed(offset: offset + insertion.length),
+      composing: TextRange.empty,
+    );
+    setState(() => _replyImageUrl = url);
+  }
+
+  void _removeReplyImage() {
+    final String? url = _replyImageUrl;
+    if (url == null) return;
+    final String token = '![image]($url)';
+    final TextEditingValue value = _replyController.value;
+    final int start = value.text.indexOf(token);
+    if (start < 0) return;
+    final int end = start + token.length;
+
+    int adjustOffset(int offset) {
+      if (offset < 0 || offset <= start) return offset;
+      if (offset <= end) return start;
+      return offset - token.length;
+    }
+
+    _replyController.value = value.copyWith(
+      text: value.text.replaceRange(start, end, ''),
+      selection: TextSelection(
+        baseOffset: adjustOffset(value.selection.baseOffset),
+        extentOffset: adjustOffset(value.selection.extentOffset),
+        affinity: value.selection.affinity,
+        isDirectional: value.selection.isDirectional,
+      ),
+      composing: TextRange.empty,
+    );
+    setState(() => _replyImageUrl = null);
+  }
+
+  Future<void> _pickReplyImage() async {
+    if (_uploadingReplyImage) return;
+    setState(() => _uploadingReplyImage = true);
+    try {
+      final String? url = await pickAndUploadImage(ref: ref);
+      if (url != null && mounted) _insertReplyImage(url);
+    } catch (e) {
+      if (mounted) {
+        showGfToast(
+          context,
+          AppLocalizations.of(context).publishImageFailed('$e'),
+          error: true,
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _uploadingReplyImage = false);
+    }
+  }
+
   Future<void> _submitReply() async {
     final String content = _replyController.text.trim();
     if (content.isEmpty) return;
@@ -207,8 +352,13 @@ class _TopicPageState extends ConsumerState<TopicPage> {
             content: content,
             replyToPostId: _replyToPostId,
           );
+      if (!mounted) return;
+      _clearReplyTarget();
       _replyController.clear();
-      _replyToPostId = 0;
+      setState(() {
+        _replyImageUrl = null;
+        _composerOpen = false;
+      });
       if (mounted) {
         showGfToast(context, AppLocalizations.of(context).topicReplySuccess);
       }
@@ -232,13 +382,6 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     } finally {
       if (mounted) setState(() => _replying = false);
     }
-  }
-
-  void _focusReplyComposerAfterLayout() {
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted || !_composerOpen) return;
-      _replyFocus.requestFocus();
-    });
   }
 
   Future<void> _reportPost(PostPayload post) async {
@@ -310,7 +453,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
   }
 
-  List<_PostGroup> _postGroups() {
+  List<_PostGroup> _postGroups({PostPayload? mainPost}) {
+    final int? mainPostId = mainPost?.id;
     final Map<int, PostPayload> byId = <int, PostPayload>{
       for (final PostPayload post in _posts) post.id: post,
     };
@@ -322,6 +466,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       final Set<int> visited = <int>{};
       PostPayload cursor = post;
       while (cursor.replyToPostId != null && cursor.replyToPostId! > 0) {
+        // 直接回复主帖的帖子本身就是根,不再向上追溯。
+        if (cursor.replyToPostId == mainPostId) break;
         if (!visited.add(cursor.id)) break;
         final PostPayload? parent = byId[cursor.replyToPostId!];
         if (parent == null) break;
@@ -331,10 +477,12 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     }
 
     for (final PostPayload post in _posts) {
+      // 主帖由 _TopicHeader 单独渲染,不进入回复分组。
+      if (post.id == mainPostId) continue;
       final PostPayload? parent = post.replyToPostId == null
           ? null
           : byId[post.replyToPostId!];
-      if (parent == null) {
+      if (parent == null || parent.id == mainPostId) {
         roots.add(post);
         continue;
       }
@@ -352,108 +500,181 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     ];
   }
 
+  void _goBack() {
+    if (context.canPop()) {
+      context.pop();
+      return;
+    }
+    context.go('/');
+  }
+
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
 
+    final String appBarTitle = _page.value?.topic.title ?? l10n.topicTitle;
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.topicTitle)),
+      appBar: GfAppBar(
+        leading: GfIconButton(
+          icon: Icons.arrow_back,
+          tooltip: l10n.commonBack,
+          size: 44,
+          onPressed: _goBack,
+        ),
+        title: Text(appBarTitle, maxLines: 1, overflow: TextOverflow.ellipsis),
+      ),
       body: _page.when(
-        loading: () => const GfLoading(),
+        loading: () => const GfTopicDetailSkeleton(),
         error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
         data: (props) {
-          final List<_PostGroup> groups = _postGroups();
+          final PostPayload? mainPost = _mainPost(_posts);
+          final List<_PostGroup> groups = _postGroups(mainPost: mainPost);
+
           return Stack(
-            children: [
+            children: <Widget>[
               Positioned.fill(
-                child: RefreshIndicator(
-                  onRefresh: () => _load(silent: true),
-                  child: ListView(
-                    padding: const EdgeInsets.only(bottom: 104),
-                    children: <Widget>[
-                      _TopicHeader(topic: props.topic, likeCount: _likeCount),
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 0),
-                        child: GfCard(
-                          emphasized: true,
-                          child: Column(
-                            children: <Widget>[
-                              for (
-                                int index = 0;
-                                index < groups.length;
-                                index++
-                              ) ...<Widget>[
-                                if (index > 0) const GfDivider(),
-                                _PostGroupView(
-                                  group: groups[index],
-                                  expanded: _expandedReplyGroups.contains(
-                                    groups[index].root.id,
-                                  ),
-                                  liked: _liked,
-                                  bookmarked: _bookmarked,
-                                  watched: _watched,
-                                  likeCount: _likeCount,
-                                  onToggleLike: _toggleLike,
-                                  onToggleBookmark: _toggleBookmark,
-                                  onToggleWatch: _toggleWatch,
-                                  canReportTopic: !props.permissions.isOwnTopic,
-                                  onReportTopic: () =>
-                                      _reportTopic(props.topic),
-                                  onToggleReplies: () => setState(() {
-                                    final int id = groups[index].root.id;
-                                    if (!_expandedReplyGroups.add(id)) {
-                                      _expandedReplyGroups.remove(id);
-                                    }
-                                  }),
-                                  onReply: _replyTo,
-                                  onReport: _reportPost,
-                                ),
-                              ],
-                            ],
+                child: GfScrollToTop(
+                  semanticLabel: l10n.commonBackToTop,
+                  showButton: !_composerOpen,
+                  threshold: 360,
+                  bottomInset: 84,
+                  builder: (context, scrollController) {
+                    return RefreshIndicator(
+                      onRefresh: () => _load(silent: true),
+                      child: CustomScrollView(
+                        controller: scrollController,
+                        physics: const AlwaysScrollableScrollPhysics(),
+                        slivers: <Widget>[
+                          SliverToBoxAdapter(
+                            child: _TopicHeader(
+                              topic: props.topic,
+                              mainPost: mainPost,
+                              liked: _liked,
+                              bookmarked: _bookmarked,
+                              watched: _watched,
+                              likeCount: _likeCount,
+                              canReportTopic: !props.permissions.isOwnTopic,
+                              onLike: _toggleLike,
+                              onBookmark: _toggleBookmark,
+                              onWatch: _toggleWatch,
+                              onReportTopic: () => _reportTopic(props.topic),
+                            ),
                           ),
-                        ),
+                          const SliverToBoxAdapter(child: GfDivider()),
+                          SliverToBoxAdapter(
+                            child: _ReplySectionHeader(
+                              count: props.topic.replyCount,
+                            ),
+                          ),
+                          if (groups.isEmpty)
+                            SliverToBoxAdapter(
+                              child: GfEmpty(
+                                icon: Icons.forum_outlined,
+                                message: l10n.topicReplies(0),
+                                description: l10n.topicReplyHint,
+                              ),
+                            )
+                          else
+                            SliverList.builder(
+                              itemCount: groups.length,
+                              itemBuilder: (BuildContext context, int index) {
+                                final _PostGroup group = groups[index];
+                                return RepaintBoundary(
+                                  child: Column(
+                                    children: <Widget>[
+                                      _PostGroupView(
+                                        group: group,
+                                        expanded: _expandedReplyGroups.contains(
+                                          group.root.id,
+                                        ),
+                                        onToggleReplies: () => setState(() {
+                                          final int id = group.root.id;
+                                          if (!_expandedReplyGroups.add(id)) {
+                                            _expandedReplyGroups.remove(id);
+                                          }
+                                        }),
+                                        onReply: (PostPayload post) =>
+                                            _openComposer(replyTo: post),
+                                        onReport: _reportPost,
+                                      ),
+                                      if (index < groups.length - 1)
+                                        const GfDivider(),
+                                    ],
+                                  ),
+                                );
+                              },
+                            ),
+                          SliverToBoxAdapter(
+                            child: GfListFooter(
+                              loading: _loadingMore,
+                              hasMore: _hasMorePosts,
+                              onLoadMore: _loadMore,
+                            ),
+                          ),
+                          const SliverToBoxAdapter(
+                            child: SizedBox(height: 104),
+                          ),
+                        ],
                       ),
-                      if (_loadingMore || props.postStream.hasAfter)
-                        GfListFooter(
-                          loading: _loadingMore,
-                          hasMore: props.postStream.hasAfter,
-                          onLoadMore: _loadMore,
-                        ),
-                    ],
-                  ),
+                    );
+                  },
                 ),
               ),
-              // 底部浮动操作条 + 浮动回复编辑器(web TopicFloatingControls +
-              // PostComposer 移动端形态)。
               Positioned(
-                left: 0,
-                right: 0,
-                bottom: 16,
+                left: 12,
+                right: 12,
+                bottom: 12,
                 child: SafeArea(
                   top: false,
                   child: Center(
                     child: _composerOpen
                         ? ConstrainedBox(
                             constraints: const BoxConstraints(maxWidth: 560),
-                            child: GfPostComposer(
-                              controller: _replyController,
-                              focusNode: _replyFocus,
-                              targetName: _replyToPostId != 0
-                                  ? l10n.topicReplying
-                                  : null,
-                              onCloseTarget: () {
-                                _replyController.clear();
-                                setState(() => _replyToPostId = 0);
+                            child: ValueListenableBuilder<TextEditingValue>(
+                              valueListenable: _replyController,
+                              builder: (context, value, _) {
+                                return GfPostComposer(
+                                  controller: _replyController,
+                                  focusNode: _replyFocus,
+                                  targetName: _replyTargetName,
+                                  targetLabel: _replyTargetName == null
+                                      ? null
+                                      : l10n.topicReplyTarget(
+                                          _replyTargetName!,
+                                        ),
+                                  onCloseTarget: () {
+                                    _clearReplyTarget();
+                                    setState(() {});
+                                  },
+                                  onPickImage: _pickReplyImage,
+                                  imageTooltip: l10n.publishToolImage,
+                                  imageUrl: _replyImageUrl == null
+                                      ? null
+                                      : resolveApiAssetUrl(_replyImageUrl!),
+                                  onRemoveImage: _removeReplyImage,
+                                  removeImageTooltip: l10n.publishRemoveImage,
+                                  uploading: _uploadingReplyImage,
+                                  publishing: _replying,
+                                  canPublish: value.text.trim().isNotEmpty,
+                                  publishLabel: l10n.commonSend,
+                                  hintText: l10n.topicReplyHint,
+                                  onPublish: _submitReply,
+                                  toolbar: Align(
+                                    alignment: Alignment.centerRight,
+                                    child: GfIconButton(
+                                      icon: Icons.keyboard_arrow_down_rounded,
+                                      tooltip: l10n.commonCancel,
+                                      size: 44,
+                                      onPressed: _closeComposer,
+                                    ),
+                                  ),
+                                );
                               },
-                              publishing: _replying,
-                              publishLabel: l10n.commonSend,
-                              onPublish: _submitReply,
-                              toolbar: null,
                             ),
                           )
                         : GfFloatingControls(
-                            actions: [
+                            actions: <GfTopicAction>[
                               GfTopicAction(
                                 icon: Icons.favorite_border,
                                 active: _liked,
@@ -466,17 +687,17 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                                 activeColor: colors.primary,
                                 onTap: _toggleBookmark,
                               ),
+                              GfTopicAction(
+                                icon: _watched
+                                    ? Icons.notifications
+                                    : Icons.notifications_none,
+                                active: _watched,
+                                activeColor: colors.success,
+                                onTap: _toggleWatch,
+                              ),
                             ],
-                            onOpenReply: () {
-                              if (_replyToPostId == 0) {
-                                _replyController.clear();
-                              }
-                              setState(() => _composerOpen = true);
-                              _focusReplyComposerAfterLayout();
-                            },
-                            currentNo: props.postStream.posts.isEmpty
-                                ? 1
-                                : props.postStream.posts.first.postNo,
+                            onOpenReply: () => _openComposer(),
+                            currentNo: mainPost?.postNo ?? 1,
                             maxNo: props.postStream.maxPostNo,
                             onFloorTap: () =>
                                 setState(() => _railOpen = !_railOpen),
@@ -484,7 +705,6 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                   ),
                 ),
               ),
-              // 楼层滑轨浮动面板(web PostPositionRail 移动端形态)。
               if (_railOpen && !_composerOpen)
                 Positioned(
                   left: 16,
@@ -495,16 +715,14 @@ class _TopicPageState extends ConsumerState<TopicPage> {
                     child: GfFloatingSurface(
                       padding: const EdgeInsets.all(8),
                       child: GfPostPositionRail(
-                        current: props.postStream.posts.isEmpty
-                            ? 1
-                            : props.postStream.posts.first.postNo,
+                        current: mainPost?.postNo ?? 1,
                         max: props.postStream.maxPostNo,
                         onSelect: (floor) {
                           setState(() => _railOpen = false);
                           showGfToast(context, l10n.topicFloorSelected(floor));
                         },
                         onEarliest: () => _load(silent: true),
-                        onLatest: () => _loadMore(),
+                        onLatest: _loadMore,
                       ),
                     ),
                   ),
@@ -516,109 +734,187 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     );
   }
 
-  void _replyTo(PostPayload post) {
-    setState(() {
-      _replyToPostId = post.id;
-      _replyController.text = '@${post.author.username} ';
-      _replyController.selection = TextSelection.collapsed(
-        offset: _replyController.text.length,
-      );
-      _composerOpen = true;
-    });
-    _focusReplyComposerAfterLayout();
+  PostPayload? _mainPost(List<PostPayload> posts) {
+    for (final PostPayload post in posts) {
+      if (post.postNo == 1) return post;
+    }
+    return null;
   }
 }
 
 class _TopicHeader extends StatelessWidget {
-  const _TopicHeader({required this.topic, required this.likeCount});
+  const _TopicHeader({
+    required this.topic,
+    required this.mainPost,
+    required this.liked,
+    required this.bookmarked,
+    required this.watched,
+    required this.likeCount,
+    required this.canReportTopic,
+    required this.onLike,
+    required this.onBookmark,
+    required this.onWatch,
+    required this.onReportTopic,
+  });
 
   final TopicDetailPayload topic;
+  final PostPayload? mainPost;
+  final bool liked;
+  final bool bookmarked;
+  final bool watched;
   final int likeCount;
+  final bool canReportTopic;
+  final VoidCallback onLike;
+  final VoidCallback onBookmark;
+  final VoidCallback onWatch;
+  final VoidCallback onReportTopic;
 
   @override
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
-    final TextStyle metaStyle = TextStyle(
-      color: colors.baseContent.withValues(alpha: 0.55),
-      fontSize: 13,
-      height: 1.3,
-    );
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final String authorName = topic.author.nickname ?? topic.author.username;
 
-    return Container(
-      padding: const EdgeInsets.fromLTRB(16, 16, 16, 15),
-      decoration: BoxDecoration(
-        border: Border(
-          bottom: BorderSide(color: colors.line.withValues(alpha: 0.7)),
-        ),
-      ),
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 16, 16, 20),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: <Widget>[
-          Text(
-            topic.title,
-            style: TextStyle(
-              color: colors.baseContent,
-              fontSize: 24,
-              height: 1.22,
-              fontWeight: FontWeight.w700,
-            ),
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 16,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: <Widget>[
-              Row(
-                mainAxisSize: MainAxisSize.min,
-                children: <Widget>[
-                  GfAvatar(
-                    src: resolveApiAssetUrl(topic.author.avatarUrl),
-                    size: 20,
-                  ),
-                  const SizedBox(width: 7),
-                  Text(
-                    topic.author.nickname ?? topic.author.username,
-                    style: metaStyle.copyWith(
-                      color: colors.baseContent.withValues(alpha: 0.75),
-                      fontWeight: FontWeight.w600,
-                    ),
-                  ),
-                ],
+              GfAvatar(
+                src: resolveApiAssetUrl(topic.author.avatarUrl),
+                size: 40,
               ),
-              _MetaItem(
-                icon: Icons.schedule,
-                value: formatDateTime(topic.createdAt),
-              ),
-              for (final CategoryBriefPayload category in topic.categories)
-                Row(
-                  mainAxisSize: MainAxisSize.min,
+              const SizedBox(width: 10),
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
                   children: <Widget>[
-                    Container(
-                      width: 8,
-                      height: 8,
-                      decoration: BoxDecoration(
-                        color: colorFromHex(category.color),
-                        borderRadius: BorderRadius.circular(3),
-                      ),
+                    Text(
+                      authorName,
+                      style: GfTheme.typographyOf(context).bodyStrong,
                     ),
-                    const SizedBox(width: 6),
-                    Text(category.name, style: metaStyle),
+                    const SizedBox(height: 2),
+                    Text(
+                      '@${topic.author.username} · ${timeAgo(topic.createdAt, l10n: l10n)}',
+                      style: GfTheme.typographyOf(
+                        context,
+                      ).caption.copyWith(color: colors.iconMuted),
+                    ),
                   ],
                 ),
-              _MetaItem(
-                icon: Icons.chat_bubble_outline,
-                value: formatNumber(topic.replyCount),
               ),
-              _MetaItem(
-                icon: Icons.visibility_outlined,
-                value: formatNumber(topic.viewCount),
+              GfIconButton(
+                icon: watched ? Icons.notifications : Icons.notifications_none,
+                size: 44,
+                iconSize: 20,
+                tooltip: watched ? l10n.topicUnwatch : l10n.topicWatch,
+                onPressed: onWatch,
               ),
-              _MetaItem(
-                icon: Icons.favorite_border,
-                value: formatNumber(likeCount),
-              ),
+              if (canReportTopic) ...<Widget>[
+                const SizedBox(width: 4),
+                GfIconButton(
+                  icon: Icons.flag_outlined,
+                  size: 44,
+                  iconSize: 20,
+                  tooltip: l10n.topicReport,
+                  onPressed: onReportTopic,
+                ),
+              ],
             ],
+          ),
+          if (topic.categories.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Wrap(
+              spacing: 6,
+              runSpacing: 6,
+              children: <Widget>[
+                for (final CategoryBriefPayload category in topic.categories)
+                  GfChip(
+                    label: category.name,
+                    color: colorFromHex(category.color),
+                  ),
+              ],
+            ),
+          ],
+          const SizedBox(height: 14),
+          Text(topic.title, style: GfTheme.typographyOf(context).title1),
+          if (mainPost != null) ...<Widget>[
+            const SizedBox(height: 16),
+            GfMarkdownView(data: mainPost!.content),
+          ] else if (topic.description.isNotEmpty) ...<Widget>[
+            const SizedBox(height: 12),
+            Text(topic.description, style: GfTheme.typographyOf(context).body),
+          ],
+          const SizedBox(height: 18),
+          Container(
+            padding: const EdgeInsets.symmetric(horizontal: 4, vertical: 2),
+            decoration: BoxDecoration(
+              color: colors.base200,
+              borderRadius: BorderRadius.circular(8),
+              border: Border.all(color: colors.line),
+            ),
+            child: Row(
+              children: <Widget>[
+                Expanded(
+                  child: _MetaItem(
+                    icon: Icons.visibility_outlined,
+                    value: formatNumber(topic.viewCount),
+                  ),
+                ),
+                Expanded(
+                  child: _MetaItem(
+                    icon: Icons.chat_bubble_outline,
+                    value: formatNumber(topic.replyCount),
+                  ),
+                ),
+                Expanded(
+                  child: _MetaItem(
+                    icon: liked ? Icons.favorite : Icons.favorite_border,
+                    value: formatNumber(likeCount),
+                    color: liked ? colors.error : null,
+                    onTap: onLike,
+                  ),
+                ),
+                Expanded(
+                  child: _MetaItem(
+                    icon: bookmarked ? Icons.bookmark : Icons.bookmark_border,
+                    value: '',
+                    color: bookmarked ? colors.primary : null,
+                    onTap: onBookmark,
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _ReplySectionHeader extends StatelessWidget {
+  const _ReplySectionHeader({required this.count});
+
+  final int count;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(16, 18, 16, 10),
+      child: Row(
+        children: <Widget>[
+          Text(
+            AppLocalizations.of(context).topicReplies(count),
+            style: GfTheme.typographyOf(context).title3,
+          ),
+          const Spacer(),
+          Icon(
+            Icons.forum_outlined,
+            size: 18,
+            color: GfTheme.colorsOf(context).iconMuted,
           ),
         ],
       ),
@@ -627,25 +923,51 @@ class _TopicHeader extends StatelessWidget {
 }
 
 class _MetaItem extends StatelessWidget {
-  const _MetaItem({required this.icon, required this.value});
+  const _MetaItem({
+    required this.icon,
+    required this.value,
+    this.color,
+    this.onTap,
+  });
 
   final IconData icon;
   final String value;
+  final Color? color;
+  final VoidCallback? onTap;
 
   @override
   Widget build(BuildContext context) {
-    return Row(
+    final Color foreground = color ?? GfTheme.colorsOf(context).iconMuted;
+    final Widget content = Row(
+      mainAxisAlignment: MainAxisAlignment.center,
       mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 15, color: GfTheme.colorsOf(context).iconMuted),
-        const SizedBox(width: 4),
-        Text(
-          value,
-          style: GfTheme.typographyOf(
-            context,
-          ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
-        ),
+      children: <Widget>[
+        Icon(icon, size: 17, color: foreground),
+        if (value.isNotEmpty) ...<Widget>[
+          const SizedBox(width: 4),
+          Text(
+            value,
+            style: GfTheme.typographyOf(
+              context,
+            ).caption.copyWith(color: foreground),
+          ),
+        ],
       ],
+    );
+
+    if (onTap == null) {
+      return ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Center(child: content),
+      );
+    }
+    return InkWell(
+      onTap: onTap,
+      borderRadius: BorderRadius.circular(8),
+      child: ConstrainedBox(
+        constraints: const BoxConstraints(minHeight: 44),
+        child: Center(child: content),
+      ),
     );
   }
 }
@@ -661,15 +983,6 @@ class _PostGroupView extends StatelessWidget {
   const _PostGroupView({
     required this.group,
     required this.expanded,
-    required this.liked,
-    required this.bookmarked,
-    required this.watched,
-    required this.likeCount,
-    required this.onToggleLike,
-    required this.onToggleBookmark,
-    required this.onToggleWatch,
-    required this.canReportTopic,
-    required this.onReportTopic,
     required this.onToggleReplies,
     required this.onReply,
     required this.onReport,
@@ -679,15 +992,6 @@ class _PostGroupView extends StatelessWidget {
 
   final _PostGroup group;
   final bool expanded;
-  final bool liked;
-  final bool bookmarked;
-  final bool watched;
-  final int likeCount;
-  final VoidCallback onToggleLike;
-  final VoidCallback onToggleBookmark;
-  final VoidCallback onToggleWatch;
-  final bool canReportTopic;
-  final VoidCallback onReportTopic;
   final VoidCallback onToggleReplies;
   final ValueChanged<PostPayload> onReply;
   final ValueChanged<PostPayload> onReport;
@@ -704,16 +1008,6 @@ class _PostGroupView extends StatelessWidget {
         children: <Widget>[
           _PostCard(
             post: group.root,
-            isOriginalPost: group.root.postNo == 1,
-            liked: liked,
-            bookmarked: bookmarked,
-            watched: watched,
-            topicLikeCount: likeCount,
-            onTopicLike: onToggleLike,
-            onTopicBookmark: onToggleBookmark,
-            onTopicWatch: onToggleWatch,
-            canReportTopic: canReportTopic,
-            onTopicReport: onReportTopic,
             onReply: () => onReply(group.root),
             onReport: () => onReport(group.root),
           ),
@@ -770,126 +1064,11 @@ class _PostGroupView extends StatelessWidget {
 class _PostCard extends StatelessWidget {
   const _PostCard({
     required this.post,
-    required this.isOriginalPost,
-    required this.liked,
-    required this.bookmarked,
-    required this.watched,
-    required this.topicLikeCount,
-    required this.onTopicLike,
-    required this.onTopicBookmark,
-    required this.onTopicWatch,
-    required this.canReportTopic,
-    required this.onTopicReport,
     required this.onReply,
     required this.onReport,
   });
 
   final PostPayload post;
-  final bool isOriginalPost;
-  final bool liked;
-  final bool bookmarked;
-  final bool watched;
-  final int topicLikeCount;
-  final VoidCallback onTopicLike;
-  final VoidCallback onTopicBookmark;
-  final VoidCallback onTopicWatch;
-  final bool canReportTopic;
-  final VoidCallback onTopicReport;
-  final VoidCallback onReply;
-  final VoidCallback onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Padding(
-          padding: const EdgeInsets.only(top: 2),
-          child: GfAvatar(
-            src: resolveApiAssetUrl(post.author.avatarUrl),
-            size: 38,
-            ring: true,
-          ),
-        ),
-        const SizedBox(width: 10),
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: <Widget>[
-              _PostHeading(
-                post: post,
-                original: isOriginalPost,
-                onReply: onReply,
-                onReport: onReport,
-              ),
-              if (post.replyToUsername != null) ...<Widget>[
-                const SizedBox(height: 7),
-                _ReplyReference(username: post.replyToUsername!),
-              ],
-              const SizedBox(height: 10),
-              GfMarkdownView(data: post.content),
-              if (isOriginalPost) ...<Widget>[
-                const SizedBox(height: 14),
-                Divider(height: 1, color: colors.line),
-                const SizedBox(height: 10),
-                Wrap(
-                  spacing: 8,
-                  runSpacing: 6,
-                  children: <Widget>[
-                    _TopicActionButton(
-                      icon: liked ? Icons.favorite : Icons.favorite_border,
-                      label: formatNumber(topicLikeCount),
-                      active: liked,
-                      activeColor: colors.error,
-                      onTap: onTopicLike,
-                    ),
-                    _TopicActionButton(
-                      icon: bookmarked ? Icons.bookmark : Icons.bookmark_border,
-                      label: '',
-                      active: bookmarked,
-                      activeColor: colors.primary,
-                      onTap: onTopicBookmark,
-                    ),
-                    _TopicActionButton(
-                      icon: watched
-                          ? Icons.notifications
-                          : Icons.notifications_none,
-                      label: '',
-                      active: watched,
-                      activeColor: colors.success,
-                      onTap: onTopicWatch,
-                    ),
-                    if (canReportTopic)
-                      _TopicActionButton(
-                        icon: Icons.flag_outlined,
-                        label: '',
-                        active: false,
-                        activeColor: colors.warning,
-                        onTap: onTopicReport,
-                      ),
-                  ],
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _PostHeading extends StatelessWidget {
-  const _PostHeading({
-    required this.post,
-    required this.original,
-    required this.onReply,
-    required this.onReport,
-  });
-
-  final PostPayload post;
-  final bool original;
   final VoidCallback onReply;
   final VoidCallback onReport;
 
@@ -897,81 +1076,185 @@ class _PostHeading extends StatelessWidget {
   Widget build(BuildContext context) {
     final GfColors colors = GfTheme.colorsOf(context);
     final AppLocalizations l10n = AppLocalizations.of(context);
-    return Row(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: <Widget>[
-        Expanded(
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
+
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          Row(
             children: <Widget>[
-              Text(
-                post.author.nickname ?? post.author.username,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-                style: const TextStyle(
-                  fontSize: 14,
-                  fontWeight: FontWeight.w700,
+              GfAvatar(
+                src: resolveApiAssetUrl(post.author.avatarUrl),
+                size: 24,
+              ),
+              const SizedBox(width: 8),
+              Expanded(
+                child: Text(
+                  post.author.nickname ?? post.author.username,
+                  style: GfTheme.typographyOf(context).bodyStrong,
                 ),
               ),
-              const SizedBox(height: 2),
-              Row(
-                children: <Widget>[
-                  if (post.postNo > 0) ...<Widget>[
-                    Text(
-                      '#${post.postNo}',
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                        fontSize: 12,
-                        fontWeight: FontWeight.w600,
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                  ],
-                  Flexible(
-                    child: Text(
-                      formatDateTime(post.createdAt),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                      style: TextStyle(
-                        color: colors.baseContent.withValues(alpha: 0.55),
-                        fontSize: 12,
-                      ),
-                    ),
+              if (post.postNo > 0)
+                Text(
+                  '#${post.postNo}',
+                  style: GfTheme.typographyOf(context).caption.copyWith(
+                    color: GfTheme.colorsOf(context).iconMuted,
                   ),
-                ],
+                ),
+            ],
+          ),
+          if (post.replyToUsername != null) ...[
+            const SizedBox(height: 6),
+            Text(
+              '${l10n.topicReply} @${post.replyToUsername}',
+              style: GfTheme.typographyOf(
+                context,
+              ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+            ),
+          ],
+          const SizedBox(height: 10),
+          GfMarkdownView(data: post.content),
+          const SizedBox(height: 10),
+          Row(
+            children: <Widget>[
+              Text(
+                timeAgo(post.createdAt, l10n: l10n),
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              ),
+              const Spacer(),
+              Icon(
+                post.isLiked ? Icons.favorite : Icons.favorite_border,
+                size: 16,
+                color: post.isLiked
+                    ? colors.error
+                    : GfTheme.colorsOf(context).iconMuted,
+              ),
+              const SizedBox(width: 4),
+              Text(
+                '${post.likeCount}',
+                style: GfTheme.typographyOf(
+                  context,
+                ).caption.copyWith(color: GfTheme.colorsOf(context).iconMuted),
+              ),
+              GfIconButton(
+                icon: Icons.reply_outlined,
+                size: 44,
+                iconSize: 18,
+                tooltip: l10n.topicReply,
+                onPressed: onReply,
+              ),
+              const SizedBox(width: 4),
+              GfIconButton(
+                icon: Icons.flag_outlined,
+                size: 44,
+                iconSize: 18,
+                tooltip: l10n.topicReport,
+                onPressed: onReport,
               ),
             ],
           ),
-        ),
-        if (original)
-          Container(
-            margin: const EdgeInsets.only(top: 2, right: 2),
-            padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-            decoration: BoxDecoration(
-              color: colors.base200,
-              borderRadius: BorderRadius.circular(4),
-            ),
-            child: Text(
-              l10n.topicTitle,
-              style: TextStyle(
-                color: colors.baseContent.withValues(alpha: 0.55),
-                fontSize: 11,
-                fontWeight: FontWeight.w600,
-              ),
+        ],
+      ),
+    );
+  }
+}
+
+class _NestedPostCard extends StatelessWidget {
+  const _NestedPostCard({
+    required this.post,
+    required this.onReply,
+    required this.onReport,
+  });
+
+  final PostPayload post;
+  final VoidCallback onReply;
+  final VoidCallback onReport;
+
+  @override
+  Widget build(BuildContext context) {
+    final AppLocalizations l10n = AppLocalizations.of(context);
+    final GfColors colors = GfTheme.colorsOf(context);
+
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: 11),
+      child: Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: <Widget>[
+          GfAvatar(
+            src: resolveApiAssetUrl(post.author.avatarUrl),
+            size: 28,
+            ring: true,
+          ),
+          const SizedBox(width: 9),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: <Widget>[
+                Row(
+                  children: <Widget>[
+                    Expanded(
+                      child: Text(
+                        post.author.nickname ?? post.author.username,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                        style: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ),
+                    if (post.postNo > 0)
+                      Text(
+                        '#${post.postNo}',
+                        style: TextStyle(
+                          color: colors.baseContent.withValues(alpha: 0.55),
+                          fontSize: 12,
+                          fontWeight: FontWeight.w600,
+                        ),
+                      ),
+                  ],
+                ),
+                if (post.replyToUsername != null) ...<Widget>[
+                  const SizedBox(height: 6),
+                  _ReplyReference(username: post.replyToUsername!),
+                ],
+                const SizedBox(height: 8),
+                GfMarkdownView(data: post.content),
+                const SizedBox(height: 8),
+                Row(
+                  children: <Widget>[
+                    Text(
+                      timeAgo(post.createdAt, l10n: l10n),
+                      style: GfTheme.typographyOf(
+                        context,
+                      ).caption.copyWith(color: colors.iconMuted),
+                    ),
+                    const Spacer(),
+                    GfIconButton(
+                      icon: Icons.reply_outlined,
+                      size: 44,
+                      iconSize: 18,
+                      tooltip: l10n.topicReply,
+                      onPressed: onReply,
+                    ),
+                    const SizedBox(width: 4),
+                    GfIconButton(
+                      icon: Icons.flag_outlined,
+                      size: 44,
+                      iconSize: 18,
+                      tooltip: l10n.topicReport,
+                      onPressed: onReport,
+                    ),
+                  ],
+                ),
+              ],
             ),
           ),
-        GfIconButton(
-          icon: Icons.reply_outlined,
-          tooltip: l10n.topicReply,
-          onPressed: onReply,
-        ),
-        if (!original)
-          GfIconButton(
-            icon: Icons.flag_outlined,
-            tooltip: l10n.topicReport,
-            onPressed: onReport,
-          ),
-      ],
+        ],
+      ),
     );
   }
 }
@@ -997,107 +1280,6 @@ class _ReplyReference extends StatelessWidget {
         style: TextStyle(
           color: colors.baseContent.withValues(alpha: 0.55),
           fontSize: 12,
-        ),
-      ),
-    );
-  }
-}
-
-class _NestedPostCard extends StatelessWidget {
-  const _NestedPostCard({
-    required this.post,
-    required this.onReply,
-    required this.onReport,
-  });
-
-  final PostPayload post;
-  final VoidCallback onReply;
-  final VoidCallback onReport;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: 11),
-      child: Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: <Widget>[
-          GfAvatar(
-            src: resolveApiAssetUrl(post.author.avatarUrl),
-            size: 28,
-            ring: true,
-          ),
-          const SizedBox(width: 9),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: <Widget>[
-                _PostHeading(
-                  post: post,
-                  original: false,
-                  onReply: onReply,
-                  onReport: onReport,
-                ),
-                if (post.replyToUsername != null) ...<Widget>[
-                  const SizedBox(height: 6),
-                  _ReplyReference(username: post.replyToUsername!),
-                ],
-                const SizedBox(height: 8),
-                GfMarkdownView(data: post.content),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _TopicActionButton extends StatelessWidget {
-  const _TopicActionButton({
-    required this.icon,
-    required this.label,
-    required this.active,
-    required this.activeColor,
-    required this.onTap,
-  });
-
-  final IconData icon;
-  final String label;
-  final bool active;
-  final Color activeColor;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final GfColors colors = GfTheme.colorsOf(context);
-    final Color foreground = active
-        ? activeColor
-        : colors.baseContent.withValues(alpha: 0.55);
-    return Material(
-      color: active ? activeColor.withValues(alpha: 0.1) : Colors.transparent,
-      borderRadius: BorderRadius.circular(6),
-      child: InkWell(
-        borderRadius: BorderRadius.circular(6),
-        onTap: onTap,
-        child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 7),
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            children: <Widget>[
-              Icon(icon, size: 17, color: foreground),
-              if (label.isNotEmpty) ...<Widget>[
-                const SizedBox(width: 5),
-                Text(
-                  label,
-                  style: TextStyle(
-                    color: foreground,
-                    fontSize: 12,
-                    fontWeight: FontWeight.w600,
-                  ),
-                ),
-              ],
-            ],
-          ),
         ),
       ),
     );

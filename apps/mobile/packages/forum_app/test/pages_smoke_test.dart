@@ -123,7 +123,7 @@ class NoopOfflineCache implements OfflineTopicCache, OfflineChatCache {
   Future<PagePayload?> get(int topicId) async => null;
 
   @override
-  Future<void> putConversation(ChatItemPayload conv) async {}
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {}
 
   @override
   Future<List<ChatItemPayload>> getConversations() async => const [];
@@ -204,7 +204,7 @@ void main() {
     expect(find.text('独立回复'), findsOneWidget);
     expect(find.text('嵌套回复'), findsOneWidget);
     expect(find.text('回复 @bob'), findsOneWidget);
-    expect(find.text('移动端测试话题'), findsOneWidget);
+    expect(find.text('移动端测试话题'), findsWidgets);
 
     // markdown_widget 的 VisibilityDetector 会创建 500ms 延迟 Timer,
     // 需推进时钟让其过期,避免 "Timer is still pending"。

@@ -61,7 +61,7 @@ func OidcExchange(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, component.FailDataCode(component.MessageOAuthProcessFailed, nil))
 		return
 	}
-	if user.IsFrozen == users.StatusFrozen {
+	if user.IsFrozen == users.StatusFrozen || user.IsBot() {
 		c.JSON(http.StatusForbidden, component.FailDataCode(component.MessageOAuthAccountFrozen, nil))
 		return
 	}

@@ -4,10 +4,18 @@ import '../../theme/gf_theme.dart';
 import '../atoms/gf_avatar.dart';
 import '../atoms/gf_badge.dart';
 
+@immutable
+class GfUserBadge {
+  const GfUserBadge({required this.label, this.color});
+
+  final String label;
+  final Color? color;
+}
+
 /// User profile header card mirroring web UserPage.vue mobile layout:
 /// a cover (h-20 = 80px), a 96px avatar overlapping it by 36px, name +
 /// badges, `@username`, bio, signature (`border-l-2`), action row and a
-/// 4-column stats grid (`grid-cols-4`).
+/// compact stats row.
 class GfUserCard extends StatelessWidget {
   const GfUserCard({
     super.key,
@@ -18,6 +26,7 @@ class GfUserCard extends StatelessWidget {
     this.signature,
     this.coverUrl,
     this.badges = const <String>[],
+    this.coloredBadges = const <GfUserBadge>[],
     this.stats = const <(String, String)>[],
     this.actions,
   });
@@ -32,7 +41,10 @@ class GfUserCard extends StatelessWidget {
   /// Badge labels shown next to the name (e.g. Admin, online).
   final List<String> badges;
 
-  /// (label, value) pairs rendered in the 4-column stats grid.
+  /// Badges that preserve a source-defined color.
+  final List<GfUserBadge> coloredBadges;
+
+  /// (label, value) pairs rendered in a compact, equal-width stats row.
   final List<(String, String)> stats;
 
   /// Optional action buttons row (e.g. follow / message / edit).
@@ -89,6 +101,8 @@ class GfUserCard extends StatelessWidget {
                         ),
                         for (final String badge in badges)
                           GfBadge(label: badge, variant: GfBadgeVariant.info),
+                        for (final GfUserBadge badge in coloredBadges)
+                          GfBadge(label: badge.label, color: badge.color),
                       ],
                     ),
                     const SizedBox(height: 2),
@@ -133,35 +147,39 @@ class GfUserCard extends StatelessWidget {
                     ],
                     if (stats.isNotEmpty) ...<Widget>[
                       const SizedBox(height: 16),
-                      GridView.count(
-                        crossAxisCount: 4,
-                        shrinkWrap: true,
-                        physics: const NeverScrollableScrollPhysics(),
-                        childAspectRatio: 2.2,
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
                         children: <Widget>[
                           for (final (String label, String value) in stats)
-                            Column(
-                              mainAxisAlignment: MainAxisAlignment.center,
-                              children: <Widget>[
-                                Text(
-                                  value,
-                                  style: TextStyle(
-                                    fontSize: 16,
-                                    fontWeight: FontWeight.w700,
-                                    color: colors.baseContent,
-                                  ),
-                                ),
-                                const SizedBox(height: 2),
-                                Text(
-                                  label,
-                                  style: TextStyle(
-                                    fontSize: 12,
-                                    color: colors.baseContent.withValues(
-                                      alpha: 0.55,
+                            Expanded(
+                              child: Column(
+                                mainAxisSize: MainAxisSize.min,
+                                children: <Widget>[
+                                  Text(
+                                    value,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    style: TextStyle(
+                                      fontSize: 16,
+                                      fontWeight: FontWeight.w700,
+                                      color: colors.baseContent,
                                     ),
                                   ),
-                                ),
-                              ],
+                                  const SizedBox(height: 2),
+                                  Text(
+                                    label,
+                                    maxLines: 1,
+                                    overflow: TextOverflow.ellipsis,
+                                    textAlign: TextAlign.center,
+                                    style: TextStyle(
+                                      fontSize: 12,
+                                      color: colors.baseContent.withValues(
+                                        alpha: 0.55,
+                                      ),
+                                    ),
+                                  ),
+                                ],
+                              ),
                             ),
                         ],
                       ),

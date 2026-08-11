@@ -14,12 +14,18 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `GET /api/login-public-key`;
+- `POST /api/auth/totp/verify`;
 - `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
+- `POST /api/forum/topics/write`;
 - `GET /api/user/sessions`;
 - `POST /api/user/sessions/revoke`;
 - `POST /api/user/sessions/revoke-all`;
-- `POST /api/forum/topics/write`.
+- `GET /api/v1/agent/me`;
+- `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
+- `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
+- `GET /api/v1/agent/search`.
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
@@ -60,7 +66,8 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
   assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
-  this repository yet.
+  this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
+  exercise their runtime deserialization where the mobile client consumes a controlled operation.
 
 Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
 stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
@@ -75,6 +82,25 @@ than a hand-maintained duplicate baseline.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
+- Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
+  token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
+  unique index shared by human and bot accounts. The token hash is the only stored secret material,
+  the prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
+  (concurrent rotations fail loudly); disable clears the token hash, so re-enabling requires an
+  explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
+  than saving stale snapshots; successful authentication touches `last_used_at` at most once per
+  minute.
+- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
+  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
+  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
+  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
+  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
+  honeypot, captcha, and new-user cooldown gates are skipped.
+- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
+  contract surface.
+- SQL connections enable GORM error translation so uniqueness races map to stable domain errors. The
+  structured GORM logger implements `ParamsFilter`; parameterized logging therefore keeps bind values
+  out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 

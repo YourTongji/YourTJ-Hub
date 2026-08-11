@@ -77,10 +77,48 @@
   opaque access tokens at the userinfo endpoint). Ordinary logout deletes the current session row as
   well, and fails loudly when the revoke errors (no silently surviving token).
 - Password change: `TokenVersion` bumps, invalidating old tokens and OIDC access tokens.
+- Email change: `Current` for password accounts; the current password is verified before any write,
+  the old address receives a notification, and password reset is suppressed for 24 hours after the
+  change. OAuth-only self-service email change is `Partial`: the API and Web/Mobile clients return a
+  dedicated re-authentication-required message, but the OAuth re-authentication channel is not yet
+  implemented; administrators retain the console command for recovery.
 - Ban/freeze: the forum `users.is_frozen` flag is authoritative; the OIDC userinfo endpoint and
   exchange path reject frozen accounts.
 - Deletion/export: `Planned` (per product principle 12: answer purpose, visibility, retention, export,
   deletion before persisting).
+
+## Bot personas (Agents)
+
+- An Agent is exactly one bot persona: a `users` row with `actor_type = bot` plus one `agents` row
+  keyed by the same user id. Bot rows are created by admins; they have no email, no usable password,
+  and no role. Usernames are globally unique across human and bot accounts at the database layer; the
+  admin flow maps uniqueness conflicts to the same username-exists response used by its pre-check.
+- Authentication for Agents is a unique bearer token (`agt_…`) issued at create/rotate time and
+  shown exactly once. The database stores only a SHA-256 hash plus a non-secret 8-char prefix used
+  for efficient lookup; the plaintext token is never logged or stored. The admin UI cannot dismiss an
+  in-flight rotation and resets copy state for every newly issued one-time token.
+- Each Agent has zero or one configurable webhook endpoint. Only public HTTP(S) endpoints are accepted;
+  loopback, private/link-local IPs, IPv6 zone identifiers, credentials, fragments, and legacy numeric IP
+  spellings are rejected. Rotating the token invalidates the old one immediately. Disabling an Agent
+  **revokes** its credential: the stored token hash is cleared, so a leaked token can never validate
+  again, and re-enabling requires an explicit rotation first (the admin UI prompts for it). Token
+  rotation uses a compare-and-swap on the current token prefix so concurrent rotations fail loudly
+  instead of silently dropping one new token. Rotation, disablement, and profile edits update only
+  their owned columns so concurrent security changes cannot be reverted by a stale full-row save.
+  Agent deletion is not supported.
+- Human-auth isolation: bot rows are rejected by password login, forgot/reset password, OAuth
+  (goth) login/binding, Casdoor OIDC login/binding, password change, TOTP setup/enable/disable, and
+  human session creation/listing (the JWT session middleware never resolves a bot user). Admin
+  surfaces cannot grant bot rows roles or moderator grants. Bot personas are excluded from the
+  public user search index; they remain identifiable in forum content and admin surfaces.
+- Agent public API: the six read/write operations (`/api/v1/agent/me`, topic list/create,
+  post list/create, search) are `Current` and covered by the OpenAPI contract; they authenticate
+  only through the opaque `agt_…` bearer token — cookies, human JWTs, session credentials, OAuth,
+  and fallback credentials are never accepted, and every failed credential resolves to the same
+  `auth.required` 401 envelope. Agent writes reuse the human topic/post rate limits (IP + bot
+  userId) and skip only browser-specific honeypot, captcha, and new-user cooldown gates. Topic
+  creation always publishes (`topicStatus=1`).
+- Mention parsing, webhook sending, OAuth/session/scopes for Agents remain `Planned`.
 
 ## Security notes
 

@@ -34,11 +34,14 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`).Error; err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
+	if err := validateUniqueUsernames(db); err != nil {
+		t.Fatalf("username preflight on fresh postgres failed: %v", err)
+	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("AutoMigrate on postgres failed: %v", err)
 	}
 
-	// 关键新表必须存在（issue #8 回归点）
+	// 关键新表必须存在（issue #8 回归点；agents 为本仓库 Agent 模型新增表）
 	for _, table := range []string{
 		"user_sessions",
 		"user_totp",
@@ -48,14 +51,18 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"oidc_auth_requests",
 		"oidc_access_tokens",
 		"users",
+		"agents",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
 		}
 	}
 	// Issue #83：users.email_changed_at 列必须存在（邮箱变更冷静期依赖此列）。
-	if !db.Migrator().HasColumn("users", "email_changed_at") {
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
 		t.Error("users.email_changed_at column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
+		t.Error("users.actor_type column missing after postgres migration")
 	}
 }
 
@@ -81,11 +88,36 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.AutoMigrate(legacy...); err != nil {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
 	}
+	// The current model includes actor_type, but a true legacy users table did
+	// not. Remove it before the upgrade so this test exercises column addition.
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "actor_type"); err != nil {
+		t.Fatalf("drop legacy-missing users.actor_type: %v", err)
+	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "email_changed_at"); err != nil {
+		t.Fatalf("drop legacy-missing users.email_changed_at: %v", err)
+	}
+	// The current model also includes the username unique index. Remove it so
+	// the upgrade phase proves AutoMigrate creates the constraint for legacy DBs.
+	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
+		t.Fatalf("drop legacy-missing username index: %v", err)
+	}
+	if db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
+		t.Fatal("precondition failed: legacy users table should not have actor_type")
+	}
+	if db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
+		t.Fatal("precondition failed: legacy users table should not have email_changed_at")
+	}
+	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
+		t.Fatal("precondition failed: legacy users table should not have username unique index")
+	}
 	if db.Migrator().HasTable("user_sessions") {
 		t.Fatal("precondition failed: legacy schema should not have user_sessions")
 	}
 
 	// 部署新二进制：全量 AutoMigrate 应补齐新表且不破坏旧表
+	if err := validateUniqueUsernames(db); err != nil {
+		t.Fatalf("username preflight on postgres upgrade failed: %v", err)
+	}
 	if err := db.AutoMigrate(SchemaModels()...); err != nil {
 		t.Fatalf("upgrade AutoMigrate on postgres failed: %v", err)
 	}
@@ -99,9 +131,19 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"oidc_access_tokens",
 		"users",
 		"topics",
+		"agents",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
 		}
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
+		t.Error("users.actor_type column missing after upgrade migration")
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
+		t.Error("users.email_changed_at column missing after upgrade migration")
+	}
+	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
+		t.Error("users username unique index missing after upgrade migration")
 	}
 }

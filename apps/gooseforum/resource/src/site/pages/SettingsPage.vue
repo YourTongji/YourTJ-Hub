@@ -610,6 +610,7 @@ async function saveEmail() {
   savingEmail.value = true
   try {
     await saveUserEmail(email, emailForm.password)
+    emailForm.email = email
     editingEmail.value = false
     emailForm.password = ''
     showStatus(t('settings.status.emailSaved'))

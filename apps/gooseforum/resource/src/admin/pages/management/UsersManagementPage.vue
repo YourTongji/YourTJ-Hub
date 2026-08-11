@@ -2,7 +2,7 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 
 import { computed, onMounted, reactive, ref } from 'vue'
-import { Award, ChevronLeft, ChevronRight, CheckCircle2, Loader2, RefreshCw, Search, ShieldOff, UserCog } from '@lucide/vue'
+import { Award, Bot, ChevronLeft, ChevronRight, CheckCircle2, Loader2, RefreshCw, Search, ShieldOff, UserCog } from '@lucide/vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
 import { BasicPage } from '@/admin/components/global-layout'
@@ -277,7 +277,12 @@ onMounted(() => {
                 </a>
                 <div class="min-w-0 flex-1">
                   <div class="flex min-w-0 items-center justify-between gap-2">
-                    <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="truncate font-semibold hover:text-primary hover:underline">{{ user.username }}</a>
+                    <div class="flex min-w-0 items-center gap-1.5">
+                      <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="truncate font-semibold hover:text-primary hover:underline">{{ user.username }}</a>
+                      <span v-if="user.actorType === 1" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                        <Bot class="size-3" />{{ adminText('k00l6') }}
+                      </span>
+                    </div>
                     <Button variant="ghost" size="icon-sm" type="button" :title="adminText('k005j')" @click="openEdit(user)">
                       <UserCog class="size-4" />
                     </Button>
@@ -335,7 +340,12 @@ onMounted(() => {
                       <span v-else class="flex size-9 items-center justify-center rounded-full bg-muted text-xs font-semibold">{{ avatarText(user) }}</span>
                     </a>
                     <div class="min-w-0">
-                      <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="block truncate font-semibold leading-5 hover:text-primary hover:underline">{{ user.username }}</a>
+                      <div class="flex min-w-0 items-center gap-1.5">
+                        <a :href="`/u/${user.userId}`" target="_blank" rel="noreferrer" class="block truncate font-semibold leading-5 hover:text-primary hover:underline">{{ user.username }}</a>
+                        <span v-if="user.actorType === 1" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                          <Bot class="size-3" />{{ adminText('k00l6') }}
+                        </span>
+                      </div>
                       <div class="mt-0.5 flex min-w-0 items-center gap-2 text-xs text-muted-foreground">
                         <span class="truncate">{{ user.email || '-' }}</span>
                         <span class="inline-flex shrink-0 items-center gap-1" :class="user.validate === 1 ? 'text-emerald-700' : ''">
@@ -380,7 +390,12 @@ onMounted(() => {
               <img v-if="editingUser.avatarUrl" :src="editingUser.avatarUrl" class="size-10 rounded-full object-cover ring-1 ring-border" alt="" />
               <span v-else class="flex size-10 items-center justify-center rounded-full bg-muted text-sm font-semibold">{{ avatarText(editingUser) }}</span>
               <div class="min-w-0">
-                <h2 class="truncate text-base font-semibold">{{ adminText('k00bq') }}</h2>
+                <div class="flex min-w-0 items-center gap-1.5">
+                  <h2 class="truncate text-base font-semibold">{{ adminText('k00bq') }}</h2>
+                  <span v-if="editingUser.actorType === 1" class="inline-flex shrink-0 items-center gap-1 rounded-md bg-primary/10 px-1.5 py-0.5 text-[11px] font-medium text-primary">
+                    <Bot class="size-3" />{{ adminText('k00l6') }}
+                  </span>
+                </div>
                 <p class="truncate text-xs text-muted-foreground">{{ editingUser.username }} · {{ editingUser.email || adminText('k006p') }}</p>
               </div>
             </div>
@@ -408,7 +423,7 @@ onMounted(() => {
                     </label>
                     <div class="grid gap-1.5 py-2.5 text-sm font-medium">
                       {{ adminText('k00bt') }}
-                      <Select :model-value="String(form.roleId)" @update:model-value="updateRoleId">
+                      <Select :model-value="String(form.roleId)" :disabled="editingUser.actorType === 1" @update:model-value="updateRoleId">
                         <SelectTrigger class="h-9 w-full">
                           <SelectValue />
                         </SelectTrigger>

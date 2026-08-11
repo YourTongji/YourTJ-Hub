@@ -18,21 +18,24 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/tokenservice"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 // setupEmailChangeTestDB migrates the tables the email-change handler touches.
 func setupEmailChangeTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&users.EntityComplete{}, &taskQueue.Entity{}, &pageConfig.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &userOAuth.Entity{}, &taskQueue.Entity{}, &pageConfig.Entity{}); err != nil {
 		t.Fatalf("migrate email change tables: %v", err)
 	}
-	conn.Where("1 = 1").Delete(&taskQueue.Entity{})
-	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&userOAuth.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
 }
 
 func createEmailChangeUser(t *testing.T, id uint64, username, password string) {
@@ -290,6 +293,50 @@ func TestEditUserEmailRejectsWrongPassword(t *testing.T) {
 	}
 }
 
+func TestEditUserEmailExplainsOAuthReauthRequirement(t *testing.T) {
+	setupEmailChangeTestDB(t)
+	const userID = uint64(9107)
+	createEmailChangeUser(t, userID, "oauth-only", "unavailable-local-password")
+	user, err := users.Get(userID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	user.Email = ""
+	if err := userservice.SaveUser(&user); err != nil {
+		t.Fatalf("clear OAuth-only email: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{UserId: userID, Provider: "github", ProviderUid: "oauth-only-uid"}); err != nil {
+		t.Fatalf("create OAuth binding: %v", err)
+	}
+
+	resp := postEmailChange(t, emailChangeRouter(userID), `{"email":"oauth-only@example.com","password":"wrong-password"}`)
+	if resp.Code == component.SUCCESS || resp.MessageCode != component.MessageAuthPasswordOAuthRequired {
+		t.Fatalf("response = %#v, want OAuth re-authentication error", resp)
+	}
+}
+
+func TestEditUserEmailAllowsOAuthLinkedAccountWithCorrectPassword(t *testing.T) {
+	setupEmailChangeTestDB(t)
+	const userID = uint64(9109)
+	createEmailChangeUser(t, userID, "oauth-with-password", "known-local-password")
+	user, err := users.Get(userID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	user.Email = ""
+	if err := userservice.SaveUser(&user); err != nil {
+		t.Fatalf("clear OAuth-linked email: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{UserId: userID, Provider: "github", ProviderUid: "oauth-with-password-uid"}); err != nil {
+		t.Fatalf("create OAuth binding: %v", err)
+	}
+
+	resp := postEmailChange(t, emailChangeRouter(userID), `{"email":"oauth-with-password@example.com","password":"known-local-password"}`)
+	if resp.Code != component.SUCCESS {
+		t.Fatalf("response = %#v, want success for a valid local password", resp)
+	}
+}
+
 func TestEditUserEmailSuccessQueuesTwoEmails(t *testing.T) {
 	setupEmailChangeTestDB(t)
 	const userID = uint64(9103)
@@ -343,6 +390,25 @@ func TestEditUserEmailSuccessQueuesTwoEmails(t *testing.T) {
 	}
 	if changed.NewEmail != "new-9103@example.com" {
 		t.Fatalf("email_changed task NewEmail = %q, want new-9103@example.com", changed.NewEmail)
+	}
+}
+
+func TestEditUserEmailNormalizesBeforeSave(t *testing.T) {
+	setupEmailChangeTestDB(t)
+	const userID = uint64(9108)
+	createEmailChangeUser(t, userID, "email-normalized", "correct-password-123")
+
+	resp := postEmailChange(t, emailChangeRouter(userID), `{"email":"Normalized.Email@Example.COM","password":"correct-password-123"}`)
+	if resp.Code != component.SUCCESS {
+		t.Fatalf("response = %#v, want success", resp)
+	}
+
+	user, err := users.Get(userID)
+	if err != nil {
+		t.Fatalf("get user: %v", err)
+	}
+	if user.Email != "normalized.email@example.com" {
+		t.Fatalf("email = %q, want normalized.email@example.com", user.Email)
 	}
 }
 

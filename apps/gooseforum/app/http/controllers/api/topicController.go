@@ -78,6 +78,13 @@ type WriteTopicReq struct {
 
 // WriteTopic creates or updates a topic and its first post.
 func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
+	return writeTopic(req, false)
+}
+
+// writeTopic is the shared topic write core. The agent flag skips
+// browser-only guards (honeypot, captcha, new-user cooldown); every other
+// rule and side effect behaves identically for human and Agent writers.
+func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) component.Response {
 	// 获取发布设置
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
@@ -85,21 +92,22 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
-
-	// 蜜罐字段：填了即机器，静默拒绝。
-	if strings.TrimSpace(req.Params.Website) != "" {
+	// 蜜罐字段：填了即机器，静默拒绝。Agent 请求不携带该字段。
+	if !agent && strings.TrimSpace(req.Params.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "topic.write", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 
-	// 新用户高频发帖触发验证码
-	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
-	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
-		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
-			if needCaptcha {
-				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "topic.write"})
+	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
+	if !agent {
+		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
+				if needCaptcha {
+					return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "topic.write"})
+				}
+				return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 			}
-			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 		}
 	}
 
@@ -144,8 +152,8 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 
 	}
 
-	// 检查新用户冷却时间
-	if postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	// 检查新用户冷却时间（浏览器专用，Agent 跳过）
+	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
@@ -309,28 +317,35 @@ type CreatePostReq struct {
 }
 
 func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
-	// 获取发布设置
+	return createPost(req, false)
+}
+
+// createPost is the shared post write core. The agent flag skips browser-only
+// guards (honeypot, captcha, new-user cooldown); every other rule and side
+// effect behaves identically for human and Agent writers.
+func createPost(req component.BetterRequest[CreatePostReq], agent bool) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
 	userEntity, err := req.GetUser()
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
-
-	// 蜜罐字段：填了即机器，静默拒绝。
-	if strings.TrimSpace(req.Params.Website) != "" {
+	// 蜜罐字段：填了即机器，静默拒绝。Agent 请求不携带该字段。
+	if !agent && strings.TrimSpace(req.Params.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "post.create", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 
-	// 新用户高频发帖触发验证码
-	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
-	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "post.create", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
-		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "post.create"); !ok {
-			if needCaptcha {
-				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "post.create"})
+	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
+	if !agent {
+		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "post.create", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "post.create"); !ok {
+				if needCaptcha {
+					return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "post.create"})
+				}
+				return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 			}
-			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 		}
 	}
 
@@ -358,8 +373,8 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 
 	}
 
-	// 评论也受发帖冷却限制
-	if postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	// 评论也受发帖冷却限制（浏览器专用，Agent 跳过）
+	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
