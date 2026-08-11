@@ -63,9 +63,11 @@ type CreateReviewInput struct {
 }
 
 // UpdateReviewInput 编辑评价请求。
+// Content 为指针以区分"缺省（nil，保留原正文）"与"显式空串（清空正文）"，
+// 与 OpenAPI 契约的 PATCH 部分更新语义一致。
 type UpdateReviewInput struct {
 	Rating      *int   `json:"rating"`
-	Content     string `json:"content"`
+	Content     *string `json:"content"`
 	IsAnonymous *bool  `json:"isAnonymous"`
 }
 
@@ -159,7 +161,10 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 			newRating = *input.Rating
 			entity.Rating = input.Rating
 		}
-		entity.Content = input.Content
+		// PATCH 部分更新：content 缺省（nil）时保留原正文；显式空串才清空。
+		if input.Content != nil {
+			entity.Content = *input.Content
+		}
 		if input.IsAnonymous != nil {
 			entity.IsAnonymous = *input.IsAnonymous
 		}
@@ -395,6 +400,8 @@ func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 }
 
 // buildReviewPayload 构造公开 DTO：匿名评价不泄漏任何身份信息。
+// helpfulCount 为原生 helpful 计数；历史导入的 legacy_helpful_count 一并计入总数，
+// 保证 legacy 评价展示的 helpful 数与源数据一致。
 func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCount int64) ReviewPayload {
 	author := ReviewAuthorPayload{Kind: "member", Label: "同学"}
 	if entity.IsAnonymous || entity.AuthorUserId == 0 {
@@ -416,7 +423,7 @@ func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCoun
 		ContentHtml:  markdown2html.PostMarkdownToHTML(entity.Content),
 		Author:       author,
 		Viewer:       viewer,
-		HelpfulCount: helpfulCount,
+		HelpfulCount: helpfulCount + int64(entity.LegacyHelpfulCount),
 		CreatedAt:    entity.CreatedAt.Format(time.RFC3339),
 		UpdatedAt:    entity.UpdatedAt.Format(time.RFC3339),
 	}

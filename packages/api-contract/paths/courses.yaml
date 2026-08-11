@@ -29,6 +29,7 @@ listCourses:
           type: integer
           minimum: 1
           default: 1
+          description: 1-based page number. Out-of-range values are clamped to 1 rather than rejected.
       - name: size
         in: query
         schema:
@@ -36,6 +37,7 @@ listCourses:
           minimum: 1
           maximum: 50
           default: 20
+          description: Page size. Out-of-range values are clamped to 1..50 rather than rejected.
     responses:
       '200':
         description: One page of canonical courses with stable id-desc ordering.

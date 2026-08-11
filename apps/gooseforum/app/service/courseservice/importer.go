@@ -21,9 +21,6 @@ import (
 	"gorm.io/gorm"
 )
 
-// ImportSource 目录导入的来源标识，写入 course_source_ref.source。
-const ImportSource = "course-import"
-
 // ImportManifest 目录导入包的 manifest（YAML）。
 // rights_approval_ref 在 reviews 导入时强制要求；目录导入仅记录，不强制。
 type ImportManifest struct {
@@ -158,7 +155,7 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 			return nil, fmt.Errorf("get import run: %w", err)
 		}
 
-		if err := applyRows(ctx, run.Id, rows, report); err != nil {
+		if err := applyRows(ctx, run.Id, manifest.Source, rows, report); err != nil {
 			run.Status = course.ImportStatusFailed
 			run.ErrorCount = len(report.Errors)
 			finished := time.Now()
@@ -350,7 +347,8 @@ func validateRows(rows importRows, report *CatalogImportReport) map[string]bool 
 }
 
 // applyRows 实际写入：先做行间校验（与 dry-run 一致），每批 500 行一个事务。
-func applyRows(ctx context.Context, runID uint64, rows importRows, report *CatalogImportReport) error {
+// source 为 manifest 来源标识，贯穿所有 source_ref 读写，保证多来源隔离。
+func applyRows(ctx context.Context, runID uint64, source string, rows importRows, report *CatalogImportReport) error {
 	quarantined := validateRows(rows, report)
 	var ops []func(*gorm.DB) error
 
@@ -360,7 +358,7 @@ func applyRows(ctx context.Context, runID uint64, rows importRows, report *Catal
 			continue
 		}
 		ops = append(ops, func(tx *gorm.DB) error {
-			return applyCourseRow(tx, runID, row, report)
+			return applyCourseRow(tx, runID, source, row, report)
 		})
 	}
 	for _, row := range rows.instructors {
@@ -369,7 +367,7 @@ func applyRows(ctx context.Context, runID uint64, rows importRows, report *Catal
 			continue
 		}
 		ops = append(ops, func(tx *gorm.DB) error {
-			return applyInstructorRow(tx, runID, row, report)
+			return applyInstructorRow(tx, runID, source, row, report)
 		})
 	}
 	for _, row := range rows.offerings {
@@ -378,7 +376,7 @@ func applyRows(ctx context.Context, runID uint64, rows importRows, report *Catal
 			continue
 		}
 		ops = append(ops, func(tx *gorm.DB) error {
-			return applyOfferingRow(tx, runID, row, report)
+			return applyOfferingRow(tx, runID, source, row, report)
 		})
 	}
 
@@ -425,7 +423,7 @@ func mapKeys[K comparable, V any](m map[K]V) []K {
 	return keys
 }
 
-func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *CatalogImportReport) error {
+func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRow, report *CatalogImportReport) error {
 	code := strings.TrimSpace(row.Code)
 	name := strings.TrimSpace(row.Name)
 	if code == "" || name == "" {
@@ -433,7 +431,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 		return nil
 	}
 	checksum := rowChecksum(row)
-	ref, refErr := sourceRefByExternal(tx, row.ID, course.EntityTypeCourse)
+	ref, refErr := sourceRefByExternal(tx, source, row.ID, course.EntityTypeCourse)
 	if refErr == nil && ref.Checksum == checksum {
 		report.Skipped++ // 行内容未变化
 		return nil
@@ -542,17 +540,17 @@ func applyCourseRow(tx *gorm.DB, runID uint64, row importCourseRow, report *Cata
 	if err := searchservice.EnqueueCourseSearchTask(tx, entity.Id); err != nil {
 		return fmt.Errorf("enqueue course search task %d: %w", entity.Id, err)
 	}
-	return touchSourceRef(tx, runID, row.ID, entity.Id, course.EntityTypeCourse, checksum)
+	return touchSourceRef(tx, runID, source, row.ID, entity.Id, course.EntityTypeCourse, checksum)
 }
 
-func applyInstructorRow(tx *gorm.DB, runID uint64, row importInstructorRow, report *CatalogImportReport) error {
+func applyInstructorRow(tx *gorm.DB, runID uint64, source string, row importInstructorRow, report *CatalogImportReport) error {
 	name := strings.TrimSpace(row.Name)
 	if name == "" {
 		report.Quarantined++
 		return nil
 	}
 	checksum := rowChecksum(row)
-	if ref, err := sourceRefByExternal(tx, row.ID, course.EntityTypeInstructor); err == nil && ref.Checksum == checksum {
+	if ref, err := sourceRefByExternal(tx, source, row.ID, course.EntityTypeInstructor); err == nil && ref.Checksum == checksum {
 		report.Skipped++
 		return nil
 	}
@@ -574,7 +572,7 @@ func applyInstructorRow(tx *gorm.DB, runID uint64, row importInstructorRow, repo
 			return fmt.Errorf("update instructor %s: %w", name, err)
 		}
 		report.Updated++
-		return touchSourceRef(tx, runID, row.ID, existing.Id, course.EntityTypeInstructor, checksum)
+		return touchSourceRef(tx, runID, source, row.ID, existing.Id, course.EntityTypeInstructor, checksum)
 	}
 	if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("lookup instructor %s: %w", name, err)
@@ -592,11 +590,11 @@ func applyInstructorRow(tx *gorm.DB, runID uint64, row importInstructorRow, repo
 		return fmt.Errorf("create instructor %s: %w", name, err)
 	}
 	report.Inserted++
-	return touchSourceRef(tx, runID, row.ID, entity.Id, course.EntityTypeInstructor, checksum)
+	return touchSourceRef(tx, runID, source, row.ID, entity.Id, course.EntityTypeInstructor, checksum)
 }
 
-func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *CatalogImportReport) error {
-	courseLocalID, err := sourceRefLocalID(tx, row.CourseID, course.EntityTypeCourse)
+func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferingRow, report *CatalogImportReport) error {
+	courseLocalID, err := sourceRefLocalID(tx, source, row.CourseID, course.EntityTypeCourse)
 	if err != nil {
 		report.Quarantined++
 		return nil
@@ -609,7 +607,7 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 	// 任一教师引用不可解析则整个 offering 隔离，不部分写入。
 	instructorLocalIDs := make([]uint64, 0, len(row.InstructorIDs))
 	for _, insID := range row.InstructorIDs {
-		ins, err := sourceRefLocalID(tx, insID, course.EntityTypeInstructor)
+		ins, err := sourceRefLocalID(tx, source, insID, course.EntityTypeInstructor)
 		if err != nil {
 			report.Quarantined++
 			return nil
@@ -617,7 +615,7 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 		instructorLocalIDs = append(instructorLocalIDs, ins)
 	}
 
-	existingRef, refErr := sourceRefByExternal(tx, row.ID, course.EntityTypeOffering)
+	existingRef, refErr := sourceRefByExternal(tx, source, row.ID, course.EntityTypeOffering)
 	if refErr == nil {
 		if existingRef.Checksum == checksum {
 			report.Skipped++ // 内容未变化
@@ -643,7 +641,7 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 			return err
 		}
 		report.Updated++
-		return touchSourceRef(tx, runID, row.ID, offering.Id, course.EntityTypeOffering, checksum)
+		return touchSourceRef(tx, runID, source, row.ID, offering.Id, course.EntityTypeOffering, checksum)
 	}
 	if !errors.Is(refErr, gorm.ErrRecordNotFound) {
 		return fmt.Errorf("lookup offering source ref: %w", refErr)
@@ -663,7 +661,7 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, row importOfferingRow, report *
 		return err
 	}
 	report.Inserted++
-	return touchSourceRef(tx, runID, row.ID, offeringEntity.Id, course.EntityTypeOffering, checksum)
+	return touchSourceRef(tx, runID, source, row.ID, offeringEntity.Id, course.EntityTypeOffering, checksum)
 }
 
 // getOrCreateTermTx 事务内按 code 查找学期，不存在则创建（事务内可见，避免同批次重复建）。
@@ -702,8 +700,10 @@ func replaceOfferingInstructorsTx(tx *gorm.DB, offeringId uint64, instructorIDs 
 }
 
 // sourceRefLocalID 通过 source mapping 反查本地 ID（事务内）。
-func sourceRefLocalID(tx *gorm.DB, externalID, entityType string) (uint64, error) {
-	ref, err := sourceRefByExternal(tx, externalID, entityType)
+// source 为当前 manifest 的来源标识：来源映射以 (source, entity_type, external_id) 为键，
+// 不同来源对同一 external id 互不干扰（幂等/重试各自独立）。
+func sourceRefLocalID(tx *gorm.DB, source, externalID, entityType string) (uint64, error) {
+	ref, err := sourceRefByExternal(tx, source, externalID, entityType)
 	if err != nil {
 		return 0, err
 	}
@@ -711,19 +711,19 @@ func sourceRefLocalID(tx *gorm.DB, externalID, entityType string) (uint64, error
 }
 
 // sourceRefByExternal 按 (source, entity_type, external_id) 查找来源映射（事务内）。
-func sourceRefByExternal(tx *gorm.DB, externalID, entityType string) (course.SourceRefEntity, error) {
+func sourceRefByExternal(tx *gorm.DB, source, externalID, entityType string) (course.SourceRefEntity, error) {
 	var ref course.SourceRefEntity
 	err := tx.Model(&course.SourceRefEntity{}).
-		Where("source = ? AND entity_type = ? AND external_id = ?", ImportSource, entityType, externalID).
+		Where("source = ? AND entity_type = ? AND external_id = ?", source, entityType, externalID).
 		First(&ref).Error
 	return ref, err
 }
 
 // touchSourceRef upsert 来源映射并记录行 checksum（事务内）。
-func touchSourceRef(tx *gorm.DB, runID uint64, externalID string, localID uint64, entityType, checksum string) error {
+func touchSourceRef(tx *gorm.DB, runID uint64, source, externalID string, localID uint64, entityType, checksum string) error {
 	var existing course.SourceRefEntity
 	err := tx.Model(&course.SourceRefEntity{}).
-		Where("source = ? AND entity_type = ? AND external_id = ?", ImportSource, entityType, externalID).
+		Where("source = ? AND entity_type = ? AND external_id = ?", source, entityType, externalID).
 		First(&existing).Error
 	if err == nil {
 		return tx.Model(&course.SourceRefEntity{}).Where("id = ?", existing.Id).Updates(map[string]any{
@@ -736,7 +736,7 @@ func touchSourceRef(tx *gorm.DB, runID uint64, externalID string, localID uint64
 	}
 	entity := course.SourceRefEntity{
 		ImportRunId: runID,
-		Source:      ImportSource,
+		Source:      source,
 		EntityType:  entityType,
 		ExternalId:  externalID,
 		LocalId:     localID,

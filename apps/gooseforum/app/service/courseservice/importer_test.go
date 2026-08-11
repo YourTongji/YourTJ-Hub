@@ -14,8 +14,14 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
 )
 
-// writeManifestFixture 在临时目录写入 JSONL 数据文件并生成带 sha256 的 manifest。
+// writeManifestFixture 在临时目录写入 JSONL 数据文件并生成带 sha256 的 manifest（source 固定 test-fixture）。
 func writeManifestFixture(t *testing.T, files map[string]string) string {
+	return writeManifestFixtureWithSource(t, "test-fixture", files)
+}
+
+// writeManifestFixtureWithSource 同 writeManifestFixture，但指定 manifest.source，
+// 用于多来源隔离测试。
+func writeManifestFixtureWithSource(t *testing.T, source string, files map[string]string) string {
 	t.Helper()
 	dir := t.TempDir()
 	manifestFiles := make(map[string]string, len(files))
@@ -27,7 +33,7 @@ func writeManifestFixture(t *testing.T, files map[string]string) string {
 		sum := sha256.Sum256([]byte(content))
 		manifestFiles[name] = hex.EncodeToString(sum[:])
 	}
-	manifest := fmt.Sprintf("schema_version: 1\nsource: test-fixture\nfiles:\n")
+	manifest := fmt.Sprintf("schema_version: 1\nsource: %s\nfiles:\n", source)
 	for name, sum := range manifestFiles {
 		manifest += fmt.Sprintf("  %s: %s\n", name, sum)
 	}
@@ -141,5 +147,75 @@ func TestImportCatalogIdempotentAndNoDuplicateOfferings(t *testing.T) {
 	}
 	if courseCount != 1 {
 		t.Fatalf("expected exactly 1 course, got %d", courseCount)
+	}
+}
+
+// TestImportCatalogIsolatesSources 同一 external id 从两个不同来源导入互不覆盖 source_ref：
+// 每个来源保留独立映射与 checksum，来源 A 的课程内容不被来源 B 覆盖。
+func TestImportCatalogIsolatesSources(t *testing.T) {
+	conn := dbconnect.Connect()
+	models := []any{
+		&course.Entity{},
+		&course.AliasEntity{},
+		&course.TermEntity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.ImportRunEntity{},
+		&course.SourceRefEntity{},
+		&taskQueue.Entity{},
+	}
+	if err := conn.AutoMigrate(models...); err != nil {
+		t.Fatalf("migrate course tables: %v", err)
+	}
+	for _, model := range models {
+		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
+			t.Fatalf("clean course table: %v", err)
+		}
+	}
+	manifestA := writeManifestFixtureWithSource(t, "source-a", map[string]string{
+		"courses.jsonl": `{"id":"c1","code":"100001","name":"高等数学(A)上"}` + "\n",
+	})
+	if _, err := ImportCatalog(context.Background(), manifestA, false); err != nil {
+		t.Fatalf("import source-a: %v", err)
+	}
+	// 来源 B 用同一 external id 但不同主课号：应创建独立课程，而非覆盖来源 A 的映射。
+	manifestB := writeManifestFixtureWithSource(t, "source-b", map[string]string{
+		"courses.jsonl": `{"id":"c1","code":"200002","name":"线性代数"}` + "\n",
+	})
+	if _, err := ImportCatalog(context.Background(), manifestB, false); err != nil {
+		t.Fatalf("import source-b: %v", err)
+	}
+	var courseCount int64
+	if err := conn.Model(&course.Entity{}).Count(&courseCount).Error; err != nil {
+		t.Fatalf("count courses: %v", err)
+	}
+	if courseCount != 2 {
+		t.Fatalf("expected 2 isolated courses, got %d", courseCount)
+	}
+	var refCount int64
+	if err := conn.Model(&course.SourceRefEntity{}).Count(&refCount).Error; err != nil {
+		t.Fatalf("count source refs: %v", err)
+	}
+	if refCount != 2 {
+		t.Fatalf("expected 2 source refs (one per source), got %d", refCount)
+	}
+	// 两个来源的映射指向不同课程，来源字段各自正确。
+	var refA, refB course.SourceRefEntity
+	if err := conn.Model(&course.SourceRefEntity{}).
+		Where("source = ? AND entity_type = ? AND external_id = ?", "source-a", course.EntityTypeCourse, "c1").
+		First(&refA).Error; err != nil {
+		t.Fatalf("load source-a ref: %v", err)
+	}
+	if err := conn.Model(&course.SourceRefEntity{}).
+		Where("source = ? AND entity_type = ? AND external_id = ?", "source-b", course.EntityTypeCourse, "c1").
+		First(&refB).Error; err != nil {
+		t.Fatalf("load source-b ref: %v", err)
+	}
+	if refA.Source != "source-a" || refB.Source != "source-b" {
+		t.Fatalf("source refs not isolated by source: A=%+v B=%+v", refA, refB)
+	}
+	if refA.LocalId == refB.LocalId {
+		t.Fatalf("two sources must map to distinct courses, both local_id=%d", refA.LocalId)
 	}
 }

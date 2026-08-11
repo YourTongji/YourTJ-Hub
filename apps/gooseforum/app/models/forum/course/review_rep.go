@@ -1,12 +1,12 @@
 package course
 
 import (
-	"errors"
 	"time"
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // ---- Review ----
@@ -200,36 +200,44 @@ func GetOfferingStats(offeringId uint64) (entity OfferingStatsEntity, err error)
 	return
 }
 
-// UpsertCourseStatsTx 事务内课程级统计累加（read-modify-write，跨方言）。
+// UpsertCourseStatsTx 事务内课程级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
+// 用 SQL 表达式做原子增量，而非事务内 read-modify-write：两笔并发事务同时读到同一行再
+// 各自 Save 会互相覆盖、丢一次更新，使 review 计数/评分合计低于实际。重建命令可对账，
+// 但写路径必须本身不丢更新。跨方言（SQLite/PostgreSQL 均支持 ON CONFLICT）。
 func UpsertCourseStatsTx(tx *gorm.DB, courseId uint64, deltaRatingCount, deltaRatingSum, deltaReviewCount int) error {
-	var stats CourseStatsEntity
-	err := tx.Table(courseStatsTableName).Where("course_id = ?", courseId).First(&stats).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		stats = CourseStatsEntity{CourseId: courseId}
-	} else if err != nil {
-		return err
-	}
-	stats.RatingCount += deltaRatingCount
-	stats.RatingSum += deltaRatingSum
-	stats.ReviewCount += deltaReviewCount
-	stats.UpdatedAt = time.Now()
-	return tx.Table(courseStatsTableName).Save(&stats).Error
+	return tx.Table(courseStatsTableName).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "course_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"rating_count": gorm.Expr("rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr("rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr("review_count + ?", deltaReviewCount),
+			"updated_at":   time.Now(),
+		}),
+	}).Create(&CourseStatsEntity{
+		CourseId:    courseId,
+		RatingCount: deltaRatingCount,
+		RatingSum:   deltaRatingSum,
+		ReviewCount: deltaReviewCount,
+	}).Error
 }
 
-// UpsertOfferingStatsTx 事务内 offering 级统计累加（read-modify-write，跨方言）。
+// UpsertOfferingStatsTx 事务内 offering 级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
+// 与 UpsertCourseStatsTx 同理：原子增量避免并发事务互相覆盖导致丢更新。
 func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, deltaRatingSum, deltaReviewCount int) error {
-	var stats OfferingStatsEntity
-	err := tx.Table(offeringStatsTableName).Where("offering_id = ?", offeringId).First(&stats).Error
-	if errors.Is(err, gorm.ErrRecordNotFound) {
-		stats = OfferingStatsEntity{OfferingId: offeringId}
-	} else if err != nil {
-		return err
-	}
-	stats.RatingCount += deltaRatingCount
-	stats.RatingSum += deltaRatingSum
-	stats.ReviewCount += deltaReviewCount
-	stats.UpdatedAt = time.Now()
-	return tx.Table(offeringStatsTableName).Save(&stats).Error
+	return tx.Table(offeringStatsTableName).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "offering_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"rating_count": gorm.Expr("rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr("rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr("review_count + ?", deltaReviewCount),
+			"updated_at":   time.Now(),
+		}),
+	}).Create(&OfferingStatsEntity{
+		OfferingId:  offeringId,
+		RatingCount: deltaRatingCount,
+		RatingSum:   deltaRatingSum,
+		ReviewCount: deltaReviewCount,
+	}).Error
 }
 
 // RebuildAllCourseStats 全量重建课程/offering 统计投影（rebuild-course-stats 命令）。

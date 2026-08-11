@@ -399,3 +399,95 @@ func TestReviewUniqueOfferingAuthor(t *testing.T) {
 		t.Fatal("expected duplicate key error for same offering+user")
 	}
 }
+
+// TestUpsertCourseStatsAtomicAccumulates 原子 upsert（INSERT ... ON CONFLICT DO UPDATE + delta）
+// 跨多次调用正确累加，首次插入、后续冲突增量不丢。
+func TestUpsertCourseStatsAtomicAccumulates(t *testing.T) {
+	setupReviewTest(t) // 迁移并清空 course/offering stats 表
+	conn := dbconnect.Connect()
+	if err := course.UpsertCourseStatsTx(conn, 42, 1, 5, 1); err != nil {
+		t.Fatalf("first course upsert: %v", err)
+	}
+	if err := course.UpsertCourseStatsTx(conn, 42, 1, 3, 1); err != nil {
+		t.Fatalf("second course upsert: %v", err)
+	}
+	if err := course.UpsertOfferingStatsTx(conn, 7, 1, 5, 1); err != nil {
+		t.Fatalf("first offering upsert: %v", err)
+	}
+	courseStats, err := course.GetCourseStats(42)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.RatingCount != 2 || courseStats.RatingSum != 8 || courseStats.ReviewCount != 2 {
+		t.Fatalf("course stats after two upserts = %+v, want rating_count=2 sum=8 review_count=2", courseStats)
+	}
+	offeringStats, err := course.GetOfferingStats(7)
+	if err != nil {
+		t.Fatalf("get offering stats: %v", err)
+	}
+	if offeringStats.RatingCount != 1 || offeringStats.RatingSum != 5 || offeringStats.ReviewCount != 1 {
+		t.Fatalf("offering stats = %+v, want 1/5/1", offeringStats)
+	}
+}
+
+// TestUpdateReviewContentPresence PATCH 部分更新语义：content 缺省（nil）保留原正文，
+// 显式空串才清空；单改 rating/anonymous 不得把正文冲成空。
+func TestUpdateReviewContentPresence(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "原始正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	conn := dbconnect.Connect()
+	// 仅改 rating，不传 content → 正文保留。
+	rating := 5
+	if _, err := UpdateReview(1001, payload.Id, UpdateReviewInput{Rating: &rating}); err != nil {
+		t.Fatalf("update without content: %v", err)
+	}
+	var ent course.ReviewEntity
+	if err := conn.Where("id = ?", payload.Id).First(&ent).Error; err != nil {
+		t.Fatalf("load review after rating-only update: %v", err)
+	}
+	if ent.Content != "原始正文" {
+		t.Fatalf("omitted content must preserve stored body, got %q", ent.Content)
+	}
+	// 显式空串 → 清空正文（契约：空串清除 body 而保留评价）。
+	empty := ""
+	if _, err := UpdateReview(1001, payload.Id, UpdateReviewInput{Content: &empty}); err != nil {
+		t.Fatalf("update with explicit empty content: %v", err)
+	}
+	if err := conn.Where("id = ?", payload.Id).First(&ent).Error; err != nil {
+		t.Fatalf("load review after empty-content update: %v", err)
+	}
+	if ent.Content != "" {
+		t.Fatalf("explicit empty content must clear stored body, got %q", ent.Content)
+	}
+}
+
+// TestLegacyReviewExposesLegacyHelpfulCount 历史导入的 legacy_helpful_count 计入公开 helpfulCount。
+func TestLegacyReviewExposesLegacyHelpfulCount(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	conn := dbconnect.Connect()
+	legacy := course.ReviewEntity{
+		OfferingId:         offeringId,
+		AuthorUserId:       0,
+		Content:            "历史评价",
+		IsAnonymous:        true,
+		Status:             course.ReviewStatusVisible,
+		Source:             course.ReviewSourceLegacyImport,
+		LegacyHelpfulCount: 7,
+	}
+	if err := conn.Create(&legacy).Error; err != nil {
+		t.Fatalf("create legacy review: %v", err)
+	}
+	list, err := ListReviewsByOffering(offeringId, 0)
+	if err != nil {
+		t.Fatalf("list legacy: %v", err)
+	}
+	if len(list) != 1 {
+		t.Fatalf("expected 1 legacy review, got %d", len(list))
+	}
+	if list[0].HelpfulCount != 7 {
+		t.Fatalf("expected helpfulCount=7 (native 0 + legacy 7), got %d", list[0].HelpfulCount)
+	}
+}

@@ -66,7 +66,8 @@ type CourseListReq struct {
 }
 
 // CourseListJSON 课程目录 JSON API（公开只读，供前端异步加载与后续移动端使用）。
-// page/size 越界值按 service 归一化处理（page>=1、1<=size<=50），与 OpenAPI 描述一致。
+// page/size 越界值按 service 归一化处理（page>=1、1<=size<=50），
+// OpenAPI 契约（listCourses page/size description）已声明该 clamp 行为。
 func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Response {
 	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
 		Keyword:    strings.TrimSpace(req.Params.Keyword),
@@ -143,7 +144,7 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 			Page:     pageData.Page,
 			NextPage: nextPage,
 			HasNext:  pageData.HasNext,
-			NextURL:  buildCourseListURL(c, nextPage),
+			NextURL:  buildCourseListURL(c, nextPage, pageData.Size),
 		},
 	}
 }
@@ -152,15 +153,15 @@ func buildCourseDetailProps(detail courseservice.CourseDetail) CourseDetailProps
 	return CourseDetailProps{Course: detail}
 }
 
-func buildCourseListURL(c *gin.Context, page int) string {
+func buildCourseListURL(c *gin.Context, page, size int) string {
 	if page <= 0 {
 		return ""
 	}
 	params := url.Values{}
 	params.Set("page", strconv.Itoa(page))
-	if v := strings.TrimSpace(c.Query("size")); v != "" {
-		params.Set("size", v)
-	}
+	// 用 service 归一化后的 size 生成链接，避免越界值（如 size=100）被原样回显，
+	// 导致下一页请求落到未归一化的分页参数上（重复条目/后续页不可达）。
+	params.Set("size", strconv.Itoa(size))
 	if v := strings.TrimSpace(c.Query("keyword")); v != "" {
 		params.Set("keyword", v)
 	}

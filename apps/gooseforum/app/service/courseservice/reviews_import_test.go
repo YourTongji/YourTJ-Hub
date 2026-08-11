@@ -46,8 +46,10 @@ func setupReviewsImportTest(t *testing.T) (courseId, offeringId uint64) {
 			t.Fatalf("clean import table: %v", err)
 		}
 	}
+	// source 必须与测试 manifest 的 source 一致（writeReviewsManifestFixture 用 test-fixture），
+	// 来源映射以 (source, entity_type, external_id) 为键，跨来源隔离。
 	ref := course.SourceRefEntity{
-		Source:     ImportSource,
+		Source:     "test-fixture",
 		EntityType: course.EntityTypeOffering,
 		ExternalId: "o1",
 		LocalId:    offeringId,

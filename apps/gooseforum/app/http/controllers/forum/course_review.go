@@ -45,11 +45,12 @@ func CreateCourseReview(req component.BetterRequest[CreateCourseReviewReq]) comp
 }
 
 // UpdateCourseReviewReq 更新评价请求体（URI reviewId + 可选字段）。
+// Content 为指针以区分"缺省（保留正文）"与"显式空串（清空正文）"，匹配 PATCH 部分更新语义。
 type UpdateCourseReviewReq struct {
-	ReviewId    uint64 `uri:"reviewId" validate:"required"`
-	Rating      *int   `json:"rating"`
-	Content     string `json:"content"`
-	IsAnonymous *bool  `json:"isAnonymous"`
+	ReviewId    uint64  `uri:"reviewId" validate:"required"`
+	Rating      *int    `json:"rating"`
+	Content     *string `json:"content"`
+	IsAnonymous *bool   `json:"isAnonymous"`
 }
 
 // UpdateCourseReview 作者更新自己的评价。

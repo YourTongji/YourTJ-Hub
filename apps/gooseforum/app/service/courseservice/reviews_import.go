@@ -85,7 +85,7 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 	report.TotalLines = len(rows)
 
 	if dryRun {
-		report.Quarantined, report.Errors = validateReviewRows(rows)
+		report.Quarantined, report.Errors = validateReviewRows(rows, manifest.Source)
 		return report, nil
 	}
 
@@ -122,7 +122,7 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 		return nil, fmt.Errorf("get import run: %w", err)
 	}
 
-	if err := applyReviewRows(run.Id, rows, report); err != nil {
+	if err := applyReviewRows(run.Id, manifest.Source, rows, report); err != nil {
 		run.Status = course.ImportStatusFailed
 		run.ErrorCount = len(report.Errors)
 		finished := time.Now()
@@ -183,10 +183,11 @@ func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReview
 
 // validateReviewRows 统计隔离行（dry-run 与真实导入共用同一判定，保证报告一致）。
 // 只读访问数据库（offering 解析），不写库。
-func validateReviewRows(rows []importReviewRow) (quarantined int, errs []ImportError) {
+// source 为 reviews manifest 来源标识，offering 解析限定在该来源下（与目录导入同源）。
+func validateReviewRows(rows []importReviewRow, source string) (quarantined int, errs []ImportError) {
 	db := dbconnect.Connect()
 	for _, row := range rows {
-		if reason := reviewRowQuarantined(db, row); reason != "" {
+		if reason := reviewRowQuarantined(db, source, row); reason != "" {
 			quarantined++
 			errs = append(errs, ImportError{Entity: "review", Reason: reason})
 		}
@@ -197,7 +198,7 @@ func validateReviewRows(rows []importReviewRow) (quarantined int, errs []ImportE
 // reviewRowQuarantined 返回该行隔离原因；空串表示可导入。
 // 字段非法（rating 越界/helpful 为负/created_at 非 RFC3339）或
 // offering_external_id 无法解析为已导入 offering 时隔离，不中断整个 run。
-func reviewRowQuarantined(db *gorm.DB, row importReviewRow) string {
+func reviewRowQuarantined(db *gorm.DB, source string, row importReviewRow) string {
 	if strings.TrimSpace(row.OfferingExternalID) == "" {
 		return "missing offering_external_id"
 	}
@@ -210,14 +211,14 @@ func reviewRowQuarantined(db *gorm.DB, row importReviewRow) string {
 	if _, err := time.Parse(time.RFC3339, row.CreatedAt); err != nil {
 		return fmt.Sprintf("invalid created_at %q (want RFC3339)", row.CreatedAt)
 	}
-	if _, err := sourceRefLocalID(db, row.OfferingExternalID, course.EntityTypeOffering); err != nil {
+	if _, err := sourceRefLocalID(db, source, row.OfferingExternalID, course.EntityTypeOffering); err != nil {
 		return fmt.Sprintf("unmatched offering_external_id %q", row.OfferingExternalID)
 	}
 	return ""
 }
 
 // applyReviewRows 实际写入：先做行级校验（与 dry-run 一致），每批 500 行一个事务。
-func applyReviewRows(runID uint64, rows []importReviewRow, report *ReviewsImportReport) error {
+func applyReviewRows(runID uint64, source string, rows []importReviewRow, report *ReviewsImportReport) error {
 	const batchSize = 500
 	db := dbconnect.Connect()
 	for i := 0; i < len(rows); i += batchSize {
@@ -230,7 +231,7 @@ func applyReviewRows(runID uint64, rows []importReviewRow, report *ReviewsImport
 		snapshot := *report
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			for _, row := range batch {
-				if err := applyReviewRow(tx, runID, row, report); err != nil {
+				if err := applyReviewRow(tx, runID, source, row, report); err != nil {
 					return err
 				}
 			}
@@ -245,13 +246,13 @@ func applyReviewRows(runID uint64, rows []importReviewRow, report *ReviewsImport
 
 // applyReviewRow 事务内写入/更新一条 legacy 评价，并 touch 行级 source_ref checksum。
 // 内容未变化（checksum 相同）时跳过，不入队搜索任务。
-func applyReviewRow(tx *gorm.DB, runID uint64, row importReviewRow, report *ReviewsImportReport) error {
-	if reason := reviewRowQuarantined(tx, row); reason != "" {
+func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRow, report *ReviewsImportReport) error {
+	if reason := reviewRowQuarantined(tx, source, row); reason != "" {
 		report.Quarantined++
 		report.Errors = append(report.Errors, ImportError{Entity: "review", Reason: reason})
 		return nil
 	}
-	offeringLocalID, err := sourceRefLocalID(tx, row.OfferingExternalID, course.EntityTypeOffering)
+	offeringLocalID, err := sourceRefLocalID(tx, source, row.OfferingExternalID, course.EntityTypeOffering)
 	if err != nil {
 		return fmt.Errorf("lookup offering source ref %s: %w", row.OfferingExternalID, err)
 	}
@@ -261,7 +262,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, row importReviewRow, report *Revi
 	}
 	rating, createdAt, helpful, content := parseReviewRow(row)
 	checksum := rowChecksum(row)
-	ref, refErr := sourceRefByExternal(tx, row.OfferingExternalID, course.EntityTypeReview)
+	ref, refErr := sourceRefByExternal(tx, source, row.OfferingExternalID, course.EntityTypeReview)
 	if refErr == nil && ref.Checksum == checksum {
 		report.Skipped++ // 行内容未变化
 		return nil
@@ -304,7 +305,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, row importReviewRow, report *Revi
 		return fmt.Errorf("lookup legacy review for offering %s: %w", row.OfferingExternalID, findErr)
 	}
 
-	if err := touchSourceRef(tx, runID, row.OfferingExternalID, reviewID, course.EntityTypeReview, checksum); err != nil {
+	if err := touchSourceRef(tx, runID, source, row.OfferingExternalID, reviewID, course.EntityTypeReview, checksum); err != nil {
 		return err
 	}
 	// 该 offering 所属课程需要重建搜索文档（transaction-bound outbox）。

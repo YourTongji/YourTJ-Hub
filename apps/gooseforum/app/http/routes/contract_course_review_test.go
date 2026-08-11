@@ -376,6 +376,31 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-rating-invalid.json"))
 	})
 
+	t.Run("PATCH omitting content preserves the existing body", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
+		// 上一条 subtest 已把正文改为"更新后的评价"；本次只改 rating，正文必须保留。
+		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/300", `{"rating":3}`, aliceToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("rating-only PATCH status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		assertReviewWriteShape(t, decodeContractEnvelope(t, rec), 3, "<p>更新后的评价</p>\n")
+	})
+
+	t.Run("PATCH with explicit empty content clears the body", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
+		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/300", `{"content":""}`, aliceToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("empty-content PATCH status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		var item map[string]any
+		if err := json.Unmarshal(decodeContractEnvelope(t, rec).Result, &item); err != nil {
+			t.Fatalf("decode empty-content result %q: %v", decodeContractEnvelope(t, rec).Result, err)
+		}
+		if item["contentHtml"] != "" {
+			t.Fatalf("explicit empty content must clear body, got contentHtml=%#v", item["contentHtml"])
+		}
+	})
+
 	t.Run("unknown review returns 404", func(t *testing.T) {
 		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/99999", `{"rating":4}`, aliceToken)
@@ -699,4 +724,37 @@ func TestCourseReviewModerationReportListHTTPContract(t *testing.T) {
 		}
 		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-permission-denied.json"))
 	})
+}
+
+// TestCourseReviewLegacyHelpfulCountHTTPContract 历史导入评价的 legacy_helpful_count 计入公开
+// helpfulCount（原生 helpful 为 0 时直接展示源数据计数）。
+func TestCourseReviewLegacyHelpfulCountHTTPContract(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 902)
+	if err := conn.Create(&course.ReviewEntity{
+		Id:                 500,
+		OfferingId:         902,
+		AuthorUserId:       0,
+		Content:            "历史评价",
+		IsAnonymous:        true,
+		Status:             course.ReviewStatusVisible,
+		Source:             course.ReviewSourceLegacyImport,
+		LegacyHelpfulCount: 7,
+	}).Error; err != nil {
+		t.Fatalf("create legacy review: %v", err)
+	}
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("list status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(decodeContractEnvelope(t, rec).Result, &items); err != nil {
+		t.Fatalf("decode list result: %v", err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("expected 1 review, got %d", len(items))
+	}
+	if items[0]["helpfulCount"] != float64(7) {
+		t.Fatalf("helpfulCount = %#v, want 7 (legacy count exposed)", items[0]["helpfulCount"])
+	}
 }
