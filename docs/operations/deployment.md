@@ -54,12 +54,17 @@
   1. Build single binary (frontend + go build) on GitHub Actions.
   2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
      or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
+  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback;
+     after a successful deploy the script prunes old images (keeps the newest
+     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
+     rollback tag) and build cache older than 72h.
+     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
-     auto-rollback to previous image tag on failure.
+     auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
+     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -68,6 +73,9 @@
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Deploy workflows checkout the repo and upload `deploy/scripts/deploy.sh` to
+  `/opt/yourtj/scripts/deploy.sh` before running it, so script fixes reach the server without a
+  manual `init-server.sh` re-run.
 
 ## GitHub Actions secrets
 
