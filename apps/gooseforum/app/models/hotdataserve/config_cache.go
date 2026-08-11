@@ -146,6 +146,18 @@ func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 	}, configRareCacheTTL)
 }
 
+var mcpSettingsConfigCache = &localcache.Cache[pageConfig.MCPSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetMCPSettingsConfigCache() pageConfig.MCPSettingsConfig {
+	return mcpSettingsConfigCache.GetOrLoad("", func() (pageConfig.MCPSettingsConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.MCPSettings, defaultconfig.GetDefaultMCPSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearMCPSettingsConfigCache() {
+	mcpSettingsConfigCache.Clear()
+}
+
 func ClearSecuritySettingsConfigCache() {
 	securitySettingsConfigCache.Clear()
 }

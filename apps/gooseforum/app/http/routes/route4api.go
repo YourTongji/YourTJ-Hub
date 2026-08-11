@@ -311,6 +311,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).
+		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
+		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

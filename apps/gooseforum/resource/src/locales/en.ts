@@ -76,6 +76,7 @@ export default {
     themePreview: 'Theme preview',
     admin: 'Admin',
     logout: 'Log out',
+    logoutFailed: 'Logout failed: the session could not be revoked. Your login may still be active on this device.',
     login: 'Log in',
     register: 'Sign up',
     resources: 'Resources',

@@ -25,6 +25,7 @@ import type {
   MailSettings,
   PageResult,
   PostingSettings,
+  MCPSettings,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -327,6 +328,14 @@ export function getRateLimitSettings() {
 
 export function saveRateLimitSettings(settings: RateLimitSettings) {
   return postJson<unknown>('/api/admin/save-rate-limit-settings', { settings }, adminText('k00ii'))
+}
+
+export function getMCPSettings() {
+  return getJson<MCPSettings>('/api/admin/mcp-settings', adminText('k00mh'))
+}
+
+export function saveMCPSettings(settings: MCPSettings) {
+  return postJson<unknown>('/api/admin/save-mcp-settings', { settings }, adminText('k00mi'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

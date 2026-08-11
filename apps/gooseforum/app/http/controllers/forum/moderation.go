@@ -532,7 +532,7 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 	switch targetType {
 	case reports.TargetTopic:
 		topic := topics.GetSimple(targetID)
-		if topic.Id == 0 || !canViewTopicSimple(&topic, userID) {
+		if topic.Id == 0 || !CanViewTopicSimple(&topic, userID) {
 			return reportTargetInfoData{}, false
 		}
 		return reportTargetInfoData{UserID: topic.UserId, ArticleID: topic.Id, TopicID: topic.Id}, true
@@ -542,7 +542,7 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 			return reportTargetInfoData{}, false
 		}
 		topic := topics.GetSimple(post.TopicId)
-		if topic.Id == 0 || !canViewTopicSimple(&topic, userID) {
+		if topic.Id == 0 || !CanViewTopicSimple(&topic, userID) {
 			return reportTargetInfoData{}, false
 		}
 		return reportTargetInfoData{UserID: post.UserId, ArticleID: topic.Id, TopicID: topic.Id}, true

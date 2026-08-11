@@ -8,6 +8,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -389,7 +390,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	topicEntity := topics.GetSimple(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -485,6 +486,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止在读路径不可见（隐藏/封禁）的话题中编辑回复
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 
 	content := strings.TrimSpace(req.Params.Content)
 	if len(content) < postingConfig.TextControl.MinPostLength {
@@ -538,6 +544,19 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostId)
+	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if postEntity.UserId != req.UserId {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
+	// 回复删除沿用读路径可见性守卫，避免隐藏或封禁话题中的回复继续被写操作探测。
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
 	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
 	if err != nil {
 		return component.FailResponseError(err)
@@ -556,6 +575,11 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的
+	// 既有点赞，避免 like_count 与 user_action 行被永久卡住（无状态者仍按不可见拒绝）。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -602,8 +626,12 @@ func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Resp
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)
@@ -637,8 +665,12 @@ func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）退订对已隐藏/封禁话题的关注。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+
 	targetWatched := req.Params.Action == 1
 	if state.Id == 0 && !targetWatched {
 		return component.SuccessResponse(true)
@@ -662,8 +694,16 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有点赞。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -678,7 +718,6 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 			userStatistics.GivenLike(req.UserId)
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
 			userStatistics.LikeTopic(postEntity.UserId)
-			topicEntity := topics.Get(postEntity.TopicId)
 			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
@@ -707,8 +746,16 @@ func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Respon
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)

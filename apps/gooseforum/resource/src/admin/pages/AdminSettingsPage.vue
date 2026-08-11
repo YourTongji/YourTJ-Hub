@@ -27,8 +27,9 @@ import {
 import {
   createStorageMigrateTask,
   getAnnouncement,
-  getHttpNotifySettings,
+  getMCPSettings,
   getMailSettings,
+  getHttpNotifySettings,
   getPostingSettings,
   getRateLimitSettings,
   getSecuritySettings,
@@ -40,6 +41,7 @@ import {
   saveHttpNotifySettings,
   saveMailSettings,
   savePostingSettings,
+  saveMCPSettings,
   saveRateLimitSettings,
   saveSecuritySettings,
   saveSiteSettings,
@@ -53,12 +55,13 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
-  ManageHomeProps,
+  MCPSettings,
   PostingSettings,
   RateLimitSettings,
   SecuritySettings,
@@ -67,7 +70,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -130,6 +133,11 @@ const rateLimitForm = reactive<RateLimitSettings>({
   newUserCaptchaAfterPosts: 3,
   newUserCaptchaDays: 7,
   minSubmitSeconds: 1,
+})
+
+const mcpForm = reactive<MCPSettings>({
+  enabled: false,
+  writes: false,
 })
 
 const postingForm = reactive<PostingSettings>({
@@ -207,6 +215,7 @@ const pageMeta = computed(() => {
     security: { title: adminText('k0005'), description: adminText('k0006') },
     posting: { title: adminText('k0007'), description: adminText('k0008') },
     'rate-limit': { title: adminText('k00ig'), description: adminText('k00ij') },
+    mcp: { title: adminText('k00mj'), description: adminText('k00mk') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -301,6 +310,13 @@ function normalizeRateLimit(settings: Partial<RateLimitSettings> = {}) {
     newUserCaptchaDays: Math.max(Number(settings.newUserCaptchaDays ?? 7), 0),
     minSubmitSeconds: Math.max(Number(settings.minSubmitSeconds ?? 1), 0),
   } satisfies RateLimitSettings
+}
+
+function normalizeMCP(settings: Partial<MCPSettings> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    writes: toBool(settings.writes, false),
+  } satisfies MCPSettings
 }
 
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
@@ -521,6 +537,7 @@ async function load() {
     else if (props.kind === 'security') Object.assign(securityForm, normalizeSecurity(await getSecuritySettings()))
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
+    else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
@@ -546,6 +563,7 @@ async function save() {
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
+    else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -933,6 +951,17 @@ onMounted(load)
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00in') }}<Input v-model.number="rateLimitForm.newUserCaptchaDays" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
           <label class="grid gap-2 text-sm font-medium">{{ adminText('k00io') }}<Input v-model.number="rateLimitForm.minSubmitSeconds" :disabled="!rateLimitForm.enabled" type="number" min="0" /></label>
         </section>
+      </form>
+
+      <form v-else-if="kind === 'mcp'" class="max-w-4xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Bot class="size-4" />{{ adminText('k00ml') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mm') }}</p></div>
+          <Switch v-model="mcpForm.enabled" />
+        </div>
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="text-base font-medium">{{ adminText('k00mn') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mo') }}</p></div>
+          <Switch v-model="mcpForm.writes" :disabled="!mcpForm.enabled" />
+        </div>
       </form>
 
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">

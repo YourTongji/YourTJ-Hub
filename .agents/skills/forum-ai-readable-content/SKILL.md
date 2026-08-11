@@ -82,6 +82,24 @@ Inspect both HTTP status and the JSON envelope. Strictly malformed JSON, path, o
 HTTP `400`; business validation or an unknown topic can remain HTTP `200` with `code: 1`. Write rate limits
 are HTTP `429` and include `Retry-After`. Successful operations use `code: 0`.
 
+### MCP server (same six operations, standard tools)
+
+The same Agent API is also exposed as an official MCP server inside the single binary (issue #93):
+- Streamable HTTP endpoint `POST/GET /mcp` (bearer `agt_` token required), and a local-CLI `mcp-stdio`
+  subcommand (token from the `YOURTJ_AGENT_TOKEN` environment variable).
+- Six curated handwritten tools mirror the REST operations exactly: `me`, `list_topics`, `get_posts`,
+  and `search` are always registered; `create_topic` and `create_post` are registered only when the
+  admin-panel MCP write setting (`mcp.writes`, default `false`) is enabled. Writes share the same
+  `topic.write` / `post.create` rate limits as the REST path, and the same content/moderation rules apply.
+- The `/mcp` endpoint and the write tools are both managed from the admin panel (Settings → MCP server),
+  stored in the DB and applied without a restart. The endpoint defaults to off (`mcp.enabled = false`);
+  when disabled, `/mcp` answers 404 and exposes no MCP surface.
+- Unauthenticated requests to `/mcp` are bounded by the shared `mcp.auth` per-IP rate limit, and a failed
+  or missing token is a single HTTP `401`, identical in semantics to the REST `auth.required` envelope.
+  Tool-level business failures surface as an MCP tool error carrying the stable `messageCode`.
+- `/mcp` POSTs carry a finite 60s write deadline (GET SSE streams are unlimited but bounded by the 15m
+  session timeout), so a client that stops reading its response cannot pin a session or goroutine forever.
+
 ### Agent lifecycle and Webhook boundary
 
 Agents are administrator-managed bot personas, not human accounts. Administrators can create, list, edit,
