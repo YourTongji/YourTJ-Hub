@@ -24,6 +24,7 @@ type pageConfigDefaults struct {
 	Storage      pageConfig.StorageSettings
 	Terms        pageConfig.TermsOfServiceConfig
 	RateLimit    pageConfig.RateLimitConfig
+	MCP          pageConfig.MCPSettingsConfig
 }
 
 var (
@@ -75,6 +76,10 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
+		errPageConfigDefaults = loadJSON("mcp.json", &pageConfigDefaultsValue.MCP)
+		if errPageConfigDefaults != nil {
+			return
+		}
 	})
 	return pageConfigDefaultsValue, errPageConfigDefaults
 }
@@ -141,6 +146,10 @@ func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 	config := mustPageConfigDefaults().RateLimit
 	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
 	return config
+}
+
+func GetDefaultMCPSettingsConfig() pageConfig.MCPSettingsConfig {
+	return mustPageConfigDefaults().MCP
 }
 
 func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {

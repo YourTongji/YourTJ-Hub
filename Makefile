@@ -1,6 +1,6 @@
 .PHONY: dev down server web build test gen contract-lint contract-generate-ts contract-check
 
-dev: ## Start local dependencies (postgres + meilisearch + mariadb + casdoor)
+dev: ## Start local dependencies (postgres + meilisearch)
 	docker compose up -d
 
 down: ## Stop local dependencies

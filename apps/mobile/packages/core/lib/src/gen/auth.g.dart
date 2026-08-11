@@ -12,7 +12,6 @@ _$LoginPagePropsImpl _$$LoginPagePropsImplFromJson(Map<String, dynamic> json) =>
       redirectUrl: json['redirectUrl'] as String,
       githubUrl: json['githubUrl'] as String,
       googleReady: json['googleReady'] as bool,
-      casdoorUrl: json['casdoorUrl'] as String?,
     );
 
 Map<String, dynamic> _$$LoginPagePropsImplToJson(
@@ -22,7 +21,6 @@ Map<String, dynamic> _$$LoginPagePropsImplToJson(
   'redirectUrl': instance.redirectUrl,
   'githubUrl': instance.githubUrl,
   'googleReady': instance.googleReady,
-  'casdoorUrl': instance.casdoorUrl,
 };
 
 _$ResetPasswordPagePropsImpl _$$ResetPasswordPagePropsImplFromJson(
@@ -51,7 +49,7 @@ _$LoginPublicKeyPayloadImpl _$$LoginPublicKeyPayloadImplFromJson(
 ) => _$LoginPublicKeyPayloadImpl(
   publicKey: json['publicKey'] as String,
   serverTs: (json['serverTs'] as num).toInt(),
-  algorithm: json['algorithm'] as String?,
+  algorithm: json['algorithm'] as String,
 );
 
 Map<String, dynamic> _$$LoginPublicKeyPayloadImplToJson(

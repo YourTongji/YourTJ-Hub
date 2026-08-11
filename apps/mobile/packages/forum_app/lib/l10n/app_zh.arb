@@ -18,6 +18,9 @@
   "commonCurrent": "当前",
   "commonEmpty": "暂无内容",
   "commonBack": "返回",
+  "commonBackToTop": "返回顶部",
+  "commonUseLightTheme": "切换浅色模式",
+  "commonUseDarkTheme": "切换深色模式",
   "timeAgoJustNow": "刚刚",
   "timeAgoMinutes": "{count} 分钟前",
   "@timeAgoMinutes": {
@@ -88,10 +91,12 @@
   "authTwoFactorCode": "TOTP 验证码",
   "authVerify": "验证",
   "authGetCode": "获取验证码",
-  "authCasdoorLogin": "统一身份登录(Casdoor)",
+  "authOidcLogin": "使用 yourtj 统一登录",
   "authRegisterSuccess": "注册成功,请登录",
   "authResetEmailSent": "重置邮件已发送,请查收",
   "authLoading": "处理中…",
+  "authCacheClearFailed": "清除上一账号离线数据失败,请重试",
+  "authSessionSaveFailed": "安全保存新会话失败,请重试",
   "loginWelcome": "欢迎回到 yourtj",
   "loginModeLogin": "登录",
   "loginModeRegister": "注册",
@@ -123,6 +128,36 @@
       }
     }
   },
+  "composePreview": "预览",
+  "composeEdit": "编辑",
+  "publishBodyField": "正文",
+  "publishCategoryRequired": "请至少选择一个分类",
+  "publishPreviewEmpty": "开始输入后，这里会实时显示排版效果",
+  "publishLoadFailed": "编辑器数据加载失败:{error}",
+  "@publishLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishToolBold": "粗体",
+  "publishToolItalic": "斜体",
+  "publishToolStrike": "删除线",
+  "publishToolQuote": "引用",
+  "publishToolCode": "行内代码",
+  "publishToolBulletList": "无序列表",
+  "publishToolOrderedList": "有序列表",
+  "publishToolImage": "添加图片",
+  "publishRemoveImage": "移除图片",
+  "topicReplyTarget": "回复 {name}",
+  "@topicReplyTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "topicTitle": "话题",
   "topicReply": "回复",
   "topicReplySuccess": "回复成功",
@@ -148,6 +183,8 @@
       }
     }
   },
+  "topicWatch": "关注话题回复",
+  "topicUnwatch": "取消关注话题回复",
   "topicReplies": "{count} 回复",
   "@topicReplies": {
     "placeholders": {
@@ -232,6 +269,7 @@
   "settingsEmail": "邮箱",
   "settingsEmailEdit": "修改绑定邮箱",
   "settingsEmailUpdated": "邮箱已更新,请验证",
+  "settingsEmailOAuthReauthRequired": "此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。",
   "settingsEmailFailed": "邮箱修改失败:{error}",
   "@settingsEmailFailed": {
     "placeholders": {
@@ -274,8 +312,8 @@
       }
     }
   },
-  "settingsOAuth": "Casdoor 统一身份",
-  "settingsOAuthSub": "OIDC 登录绑定",
+  "settingsOAuth": "外部账号关联",
+  "settingsOAuthSub": "GitHub 与 Google 登录关联",
   "settingsOAuthManage": "OAuth 绑定管理",
   "settingsOAuthBindings": "OAuth 绑定管理",
   "settingsBound": "已绑定",

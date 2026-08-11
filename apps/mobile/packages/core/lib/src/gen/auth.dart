@@ -10,7 +10,6 @@ abstract class LoginPageProps with _$LoginPageProps {
     required String redirectUrl,
     required String githubUrl,
     required bool googleReady,
-    String? casdoorUrl,
   }) = _LoginPageProps;
 
   factory LoginPageProps.fromJson(Map<String, dynamic> json) =>
@@ -42,7 +41,7 @@ abstract class LoginPublicKeyPayload with _$LoginPublicKeyPayload {
   const factory LoginPublicKeyPayload({
     required String publicKey,
     required int serverTs,
-    String? algorithm,
+    required String algorithm,
   }) = _LoginPublicKeyPayload;
 
   factory LoginPublicKeyPayload.fromJson(Map<String, dynamic> json) =>

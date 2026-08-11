@@ -25,7 +25,6 @@ mixin _$LoginPageProps {
   String get redirectUrl => throw _privateConstructorUsedError;
   String get githubUrl => throw _privateConstructorUsedError;
   bool get googleReady => throw _privateConstructorUsedError;
-  String? get casdoorUrl => throw _privateConstructorUsedError;
 
   /// Serializes this LoginPageProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -49,7 +48,6 @@ abstract class $LoginPagePropsCopyWith<$Res> {
     String redirectUrl,
     String githubUrl,
     bool googleReady,
-    String? casdoorUrl,
   });
 }
 
@@ -72,7 +70,6 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
-    Object? casdoorUrl = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -92,10 +89,6 @@ class _$LoginPagePropsCopyWithImpl<$Res, $Val extends LoginPageProps>
                 ? _value.googleReady
                 : googleReady // ignore: cast_nullable_to_non_nullable
                       as bool,
-            casdoorUrl: freezed == casdoorUrl
-                ? _value.casdoorUrl
-                : casdoorUrl // ignore: cast_nullable_to_non_nullable
-                      as String?,
           )
           as $Val,
     );
@@ -116,7 +109,6 @@ abstract class _$$LoginPagePropsImplCopyWith<$Res>
     String redirectUrl,
     String githubUrl,
     bool googleReady,
-    String? casdoorUrl,
   });
 }
 
@@ -138,7 +130,6 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
     Object? redirectUrl = null,
     Object? githubUrl = null,
     Object? googleReady = null,
-    Object? casdoorUrl = freezed,
   }) {
     return _then(
       _$LoginPagePropsImpl(
@@ -158,10 +149,6 @@ class __$$LoginPagePropsImplCopyWithImpl<$Res>
             ? _value.googleReady
             : googleReady // ignore: cast_nullable_to_non_nullable
                   as bool,
-        casdoorUrl: freezed == casdoorUrl
-            ? _value.casdoorUrl
-            : casdoorUrl // ignore: cast_nullable_to_non_nullable
-                  as String?,
       ),
     );
   }
@@ -175,7 +162,6 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     required this.redirectUrl,
     required this.githubUrl,
     required this.googleReady,
-    this.casdoorUrl,
   });
 
   factory _$LoginPagePropsImpl.fromJson(Map<String, dynamic> json) =>
@@ -189,12 +175,10 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
   final String githubUrl;
   @override
   final bool googleReady;
-  @override
-  final String? casdoorUrl;
 
   @override
   String toString() {
-    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady, casdoorUrl: $casdoorUrl)';
+    return 'LoginPageProps(initialMode: $initialMode, redirectUrl: $redirectUrl, githubUrl: $githubUrl, googleReady: $googleReady)';
   }
 
   @override
@@ -209,9 +193,7 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
             (identical(other.githubUrl, githubUrl) ||
                 other.githubUrl == githubUrl) &&
             (identical(other.googleReady, googleReady) ||
-                other.googleReady == googleReady) &&
-            (identical(other.casdoorUrl, casdoorUrl) ||
-                other.casdoorUrl == casdoorUrl));
+                other.googleReady == googleReady));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -222,7 +204,6 @@ class _$LoginPagePropsImpl implements _LoginPageProps {
     redirectUrl,
     githubUrl,
     googleReady,
-    casdoorUrl,
   );
 
   /// Create a copy of LoginPageProps
@@ -248,7 +229,6 @@ abstract class _LoginPageProps implements LoginPageProps {
     required final String redirectUrl,
     required final String githubUrl,
     required final bool googleReady,
-    final String? casdoorUrl,
   }) = _$LoginPagePropsImpl;
 
   factory _LoginPageProps.fromJson(Map<String, dynamic> json) =
@@ -262,8 +242,6 @@ abstract class _LoginPageProps implements LoginPageProps {
   String get githubUrl;
   @override
   bool get googleReady;
-  @override
-  String? get casdoorUrl;
 
   /// Create a copy of LoginPageProps
   /// with the given fields replaced by the non-null parameter values.
@@ -621,7 +599,7 @@ LoginPublicKeyPayload _$LoginPublicKeyPayloadFromJson(
 mixin _$LoginPublicKeyPayload {
   String get publicKey => throw _privateConstructorUsedError;
   int get serverTs => throw _privateConstructorUsedError;
-  String? get algorithm => throw _privateConstructorUsedError;
+  String get algorithm => throw _privateConstructorUsedError;
 
   /// Serializes this LoginPublicKeyPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -640,7 +618,7 @@ abstract class $LoginPublicKeyPayloadCopyWith<$Res> {
     $Res Function(LoginPublicKeyPayload) then,
   ) = _$LoginPublicKeyPayloadCopyWithImpl<$Res, LoginPublicKeyPayload>;
   @useResult
-  $Res call({String publicKey, int serverTs, String? algorithm});
+  $Res call({String publicKey, int serverTs, String algorithm});
 }
 
 /// @nodoc
@@ -663,7 +641,7 @@ class _$LoginPublicKeyPayloadCopyWithImpl<
   $Res call({
     Object? publicKey = null,
     Object? serverTs = null,
-    Object? algorithm = freezed,
+    Object? algorithm = null,
   }) {
     return _then(
       _value.copyWith(
@@ -675,10 +653,10 @@ class _$LoginPublicKeyPayloadCopyWithImpl<
                 ? _value.serverTs
                 : serverTs // ignore: cast_nullable_to_non_nullable
                       as int,
-            algorithm: freezed == algorithm
+            algorithm: null == algorithm
                 ? _value.algorithm
                 : algorithm // ignore: cast_nullable_to_non_nullable
-                      as String?,
+                      as String,
           )
           as $Val,
     );
@@ -694,7 +672,7 @@ abstract class _$$LoginPublicKeyPayloadImplCopyWith<$Res>
   ) = __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>;
   @override
   @useResult
-  $Res call({String publicKey, int serverTs, String? algorithm});
+  $Res call({String publicKey, int serverTs, String algorithm});
 }
 
 /// @nodoc
@@ -714,7 +692,7 @@ class __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>
   $Res call({
     Object? publicKey = null,
     Object? serverTs = null,
-    Object? algorithm = freezed,
+    Object? algorithm = null,
   }) {
     return _then(
       _$LoginPublicKeyPayloadImpl(
@@ -726,10 +704,10 @@ class __$$LoginPublicKeyPayloadImplCopyWithImpl<$Res>
             ? _value.serverTs
             : serverTs // ignore: cast_nullable_to_non_nullable
                   as int,
-        algorithm: freezed == algorithm
+        algorithm: null == algorithm
             ? _value.algorithm
             : algorithm // ignore: cast_nullable_to_non_nullable
-                  as String?,
+                  as String,
       ),
     );
   }
@@ -741,7 +719,7 @@ class _$LoginPublicKeyPayloadImpl implements _LoginPublicKeyPayload {
   const _$LoginPublicKeyPayloadImpl({
     required this.publicKey,
     required this.serverTs,
-    this.algorithm,
+    required this.algorithm,
   });
 
   factory _$LoginPublicKeyPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -752,7 +730,7 @@ class _$LoginPublicKeyPayloadImpl implements _LoginPublicKeyPayload {
   @override
   final int serverTs;
   @override
-  final String? algorithm;
+  final String algorithm;
 
   @override
   String toString() {
@@ -798,7 +776,7 @@ abstract class _LoginPublicKeyPayload implements LoginPublicKeyPayload {
   const factory _LoginPublicKeyPayload({
     required final String publicKey,
     required final int serverTs,
-    final String? algorithm,
+    required final String algorithm,
   }) = _$LoginPublicKeyPayloadImpl;
 
   factory _LoginPublicKeyPayload.fromJson(Map<String, dynamic> json) =
@@ -809,7 +787,7 @@ abstract class _LoginPublicKeyPayload implements LoginPublicKeyPayload {
   @override
   int get serverTs;
   @override
-  String? get algorithm;
+  String get algorithm;
 
   /// Create a copy of LoginPublicKeyPayload
   /// with the given fields replaced by the non-null parameter values.

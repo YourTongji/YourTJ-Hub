@@ -1,0 +1,24 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 9001,
+        "title": "Agent announcement",
+        "excerpt": "First paragraph of the topic",
+        "categoryIds": [2001],
+        "userId": 1001,
+        "status": 1,
+        "processStatus": 0,
+        "replyCount": 0,
+        "viewCount": 0,
+        "postCount": 1,
+        "createdAt": 1750000000000,
+        "updatedAt": 1750000000000
+      }
+    ],
+    "page": 1,
+    "pageSize": 10,
+    "hasNext": false
+  },
+  "code": 0
+}

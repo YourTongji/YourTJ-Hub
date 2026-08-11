@@ -11,8 +11,11 @@ import 'package:core/core.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
+import '../../format.dart';
 import '../../theme_mode.dart';
 import '../../widgets/status_views.dart';
+import '../../current_user.dart';
+import '../../widgets/skeletons.dart';
 
 enum _SettingsTab {
   profile,
@@ -55,8 +58,11 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   /// 加载设置页账户数据(settings.index 数据通道 → 徽章等)。
-  Future<void> _loadUser() async {
-    setState(() => _user = const AsyncValue.loading());
+  Future<void> _loadUser({bool silent = false}) async {
+    final SettingsUserPayload? previous = _user.value;
+    if (!silent || previous == null) {
+      setState(() => _user = const AsyncValue.loading());
+    }
     try {
       final PagePayload payload = await ref
           .read(pageRepositoryProvider)
@@ -64,19 +70,39 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       final SettingsPageProps? props = parsePageProps<SettingsPageProps>(
         payload,
       );
-      if (mounted) {
-        setState(() {
-          _user = props == null
-              ? AsyncValue.error(
-                  AppLocalizations.of(context).commonParseFailed,
-                  StackTrace.empty,
-                )
-              : AsyncValue.data(props.user);
-        });
-      }
+      if (!mounted) return;
+      setState(() {
+        _user = props == null
+            ? AsyncValue.error(
+                AppLocalizations.of(context).commonParseFailed,
+                StackTrace.empty,
+              )
+            : AsyncValue.data(props.user);
+      });
     } catch (e, st) {
-      if (mounted) setState(() => _user = AsyncValue.error(e, st));
+      if (!mounted) return;
+      if (silent && previous != null) {
+        showGfToast(context, '$e', error: true);
+        return;
+      }
+      setState(() => _user = AsyncValue.error(e, st));
     }
+  }
+
+  Future<void> _refresh() async {
+    await Future.wait<void>(<Future<void>>[
+      _loadUser(silent: true),
+      if (_tab == _SettingsTab.security) _loadSessions(silent: true),
+    ]);
+  }
+
+  void _leaveSettings() {
+    final NavigatorState navigator = Navigator.of(context);
+    if (navigator.canPop()) {
+      navigator.pop();
+      return;
+    }
+    context.go('/profile');
   }
 
   /// 徽章佩戴选择:底部弹出可佩戴徽章列表,点选调 wear-badge。
@@ -108,7 +134,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                   b.iconType == 'image'
                       ? Icons.image_outlined
                       : Icons.workspace_premium_outlined,
-                  color: _hexColor(b.color),
+                  color: colorFromHex(
+                    b.color,
+                    fallback: GfTheme.colorsOf(context).warning,
+                  ),
                 ),
                 title: b.name,
                 subtitleWidget: Text(
@@ -134,19 +163,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         showGfToast(context, l10n.settingsBadgeUpdated);
       }
-      _loadUser();
+      _loadUser(silent: true);
     } catch (e) {
       if (mounted) {
         showGfToast(context, l10n.settingsBadgeFailed('$e'), error: true);
       }
     }
-  }
-
-  Color _hexColor(String hex) {
-    final value = int.tryParse(hex.replaceFirst('#', ''), radix: 16);
-    return value == null
-        ? GfTheme.colorsOf(context).warning
-        : Color(0xFF000000 | value);
   }
 
   /// 修改密码:对话框输入旧/新密码,调 change-password。
@@ -266,7 +288,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       if (mounted) {
         showGfToast(context, l10n.settingsInfoSaved);
       }
-      _loadUser();
+      _loadUser(silent: true);
     } catch (e) {
       if (mounted) {
         showGfToast(context, l10n.settingsInfoFailed('$e'), error: true);
@@ -274,18 +296,32 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  /// 邮箱修改 → set-user-email。
+  /// 邮箱修改 → set-user-email(需登录密码 re-auth,校验通过才提交)。
   Future<void> _changeEmail() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
-    final ctrl = TextEditingController();
+    final emailCtrl = TextEditingController();
+    final pwdCtrl = TextEditingController();
     final ok = await showGfAlertDialog<bool>(
       context,
       builder: (ctx) => GfAlertDialog(
         title: Text(l10n.settingsEmail),
-        content: GfInput(
-          controller: ctrl,
-          keyboardType: TextInputType.emailAddress,
-          decoration: InputDecoration(labelText: l10n.settingsNewEmail),
+        content: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            GfInput(
+              controller: emailCtrl,
+              keyboardType: TextInputType.emailAddress,
+              decoration: InputDecoration(labelText: l10n.settingsNewEmail),
+            ),
+            const SizedBox(height: 8),
+            GfInput(
+              controller: pwdCtrl,
+              obscureText: true,
+              decoration: InputDecoration(
+                labelText: l10n.settingsCurrentPassword,
+              ),
+            ),
+          ],
         ),
         actions: [
           GfButton(
@@ -301,15 +337,26 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ),
     );
     if (ok != true) return;
-    final email = ctrl.text.trim();
-    if (email.isEmpty) {
+    final email = emailCtrl.text.trim();
+    final password = pwdCtrl.text.trim();
+    if (email.isEmpty || password.isEmpty) {
       _snack(l10n.settingsFillComplete);
       return;
     }
     try {
-      await ref.read(userRepositoryProvider).setUserEmail(email);
+      await ref.read(userRepositoryProvider).setUserEmail(email, password);
       if (mounted) {
         showGfToast(context, l10n.settingsEmailUpdated);
+      }
+    } on ApiException catch (e) {
+      if (mounted && e.messageCode == 'auth.password.oauthRequired') {
+        showGfToast(
+          context,
+          l10n.settingsEmailOAuthReauthRequired,
+          error: true,
+        );
+      } else if (mounted) {
+        showGfToast(context, l10n.settingsEmailFailed('$e'), error: true);
       }
     } catch (e) {
       if (mounted) {
@@ -523,17 +570,23 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
-  Future<void> _loadSessions() async {
-    setState(() => _sessions = const AsyncValue.loading());
+  Future<void> _loadSessions({bool silent = false}) async {
+    final List<UserSessionPayload>? previous = _sessions.value;
+    if (!silent || previous == null) {
+      setState(() => _sessions = const AsyncValue.loading());
+    }
     try {
       final sessions = await ref.read(userRepositoryProvider).listSessions();
       if (mounted) {
         setState(() => _sessions = AsyncValue.data(sessions));
       }
     } catch (e, st) {
-      if (mounted) {
-        setState(() => _sessions = AsyncValue.error(e, st));
+      if (!mounted) return;
+      if (silent && previous != null) {
+        showGfToast(context, '$e', error: true);
+        return;
       }
+      setState(() => _sessions = AsyncValue.error(e, st));
     }
   }
 
@@ -541,7 +594,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     try {
       await ref.read(userRepositoryProvider).revokeSession(id);
-      _loadSessions();
+      _loadSessions(silent: true);
       if (mounted) {
         showGfToast(context, l10n.settingsRevoked);
       }
@@ -556,7 +609,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final AppLocalizations l10n = AppLocalizations.of(context);
     try {
       await ref.read(userRepositoryProvider).revokeAllSessions();
-      _loadSessions();
+      _loadSessions(silent: true);
       if (mounted) {
         showGfToast(context, l10n.settingsRevokeAllDone);
       }
@@ -615,7 +668,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     final bool isDark = Theme.of(context).brightness == Brightness.dark;
 
     return Scaffold(
-      appBar: GfAppBar(title: Text(l10n.settingsTitle)),
+      appBar: GfAppBar(
+        leading: GfIconButton(
+          icon: Icons.arrow_back,
+          tooltip: l10n.commonBack,
+          size: 44,
+          onPressed: _leaveSettings,
+        ),
+        title: Text(l10n.settingsTitle),
+      ),
       body: Column(
         children: [
           // Tab 栏(对齐 web settingsTabLabel: profile/account/privacy/binding/security)。
@@ -634,25 +695,49 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
             ),
           ),
           const GfDivider(),
-          Expanded(
-            child: switch (_tab) {
-              _SettingsTab.profile => _buildProfileTab(l10n),
-              _SettingsTab.account => _buildAccountTab(l10n),
-              _SettingsTab.privacy => _buildPrivacyTab(l10n),
-              _SettingsTab.binding => _buildBindingTab(l10n),
-              _SettingsTab.security => _buildSecurityTab(l10n, isDark: isDark),
-            },
-          ),
+          Expanded(child: _buildTabBody(l10n, isDark: isDark)),
         ],
       ),
     );
   }
 
+  Widget _buildTabBody(AppLocalizations l10n, {required bool isDark}) {
+    final bool needsUser =
+        _tab == _SettingsTab.profile || _tab == _SettingsTab.account;
+    if (needsUser && _user.isLoading && !_user.hasValue) {
+      return const GfSettingsSkeleton();
+    }
+    if (needsUser && _user.hasError && !_user.hasValue) {
+      return GfErrorRetry(message: '${_user.error}', onRetry: _loadUser);
+    }
+
+    return GfScrollToTop(
+      semanticLabel: l10n.commonBackToTop,
+      key: ValueKey<_SettingsTab>(_tab),
+      builder: (_, ScrollController controller) => RefreshIndicator(
+        onRefresh: _refresh,
+        child: switch (_tab) {
+          _SettingsTab.profile => _buildProfileTab(l10n, controller),
+          _SettingsTab.account => _buildAccountTab(l10n, controller),
+          _SettingsTab.privacy => _buildPrivacyTab(l10n, controller),
+          _SettingsTab.binding => _buildBindingTab(l10n, controller),
+          _SettingsTab.security => _buildSecurityTab(
+            l10n,
+            controller,
+            isDark: isDark,
+          ),
+        },
+      ),
+    );
+  }
+
   /// 资料:昵称/简介/头像(web profile tab)。
-  Widget _buildProfileTab(AppLocalizations l10n) {
+  Widget _buildProfileTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _settingsSection(
           context,
           title: l10n.settingsSectionProfile,
@@ -705,10 +790,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   /// 账户:邮箱/密码/徽章(web account tab)。
-  Widget _buildAccountTab(AppLocalizations l10n) {
+  Widget _buildAccountTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _settingsSection(
           context,
           title: l10n.settingsTabAccount,
@@ -762,10 +849,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   /// 隐私:隐私设置(web privacy tab)。
-  Widget _buildPrivacyTab(AppLocalizations l10n) {
+  Widget _buildPrivacyTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _settingsSection(
           context,
           title: l10n.settingsTabPrivacy,
@@ -790,10 +879,12 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   /// 绑定:OAuth 绑定(web binding tab)。
-  Widget _buildBindingTab(AppLocalizations l10n) {
+  Widget _buildBindingTab(AppLocalizations l10n, ScrollController controller) {
     return ListView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _settingsSection(
           context,
           title: l10n.settingsTabBinding,
@@ -814,10 +905,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
   }
 
   /// 安全:外观 + TOTP + 会话管理 + 关于(web security tab)。
-  Widget _buildSecurityTab(AppLocalizations l10n, {required bool isDark}) {
+  Widget _buildSecurityTab(
+    AppLocalizations l10n,
+    ScrollController controller, {
+    required bool isDark,
+  }) {
     return ListView(
+      controller: controller,
+      physics: const AlwaysScrollableScrollPhysics(),
       padding: const EdgeInsets.all(16),
-      children: [
+      children: <Widget>[
         _settingsSection(
           context,
           title: l10n.settingsAppearance,
@@ -847,8 +944,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           context,
           title: l10n.settingsSessions,
           child: _sessions.when(
-            loading: () =>
-                const Padding(padding: EdgeInsets.all(24), child: GfLoading()),
+            loading: () => const _SettingsSessionsSkeleton(),
             error: (e, _) =>
                 GfErrorRetry(message: '$e', onRetry: _loadSessions),
             data: (sessions) {
@@ -926,7 +1022,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  /// 登出:确认 → 服务端失效 → 清 token → 跳登录页。
+  /// 登出:确认 → 服务端失效 → 清 token → 清离线缓存 → 跳登录页。
+  ///
+  /// 离线缓存(drift)保存私信与已浏览话题,登出必须清空,否则同一设备
+  /// 换账号后仍可读到上一账号的缓存数据(跨账号数据泄漏)。
   Future<void> _logout() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool? ok = await showGfAlertDialog<bool>(
@@ -954,6 +1053,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       // 服务端失效失败不阻塞本地登出(会话已不可信)。
     }
     await ref.read(tokenStorageProvider).clear();
+    // 登出即进入新会话边界:先使旧会话在途写入失效、当前用户身份失效,
+    // 再清空缓存。
+    ref.read(offlineCacheEpochProvider.notifier).invalidate();
+    ref.invalidate(currentUserProvider);
+    // 清空话题/会话/私信离线缓存;失败静默(下次登出/登录会重试)。
+    await clearOfflineCacheQuietly(
+      ref.read(offlineTopicCacheProvider),
+      ref.read(offlineChatCacheProvider),
+    );
     if (mounted) context.go('/login');
   }
 
@@ -966,6 +1074,58 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       tsSeconds * 1000,
     ).toLocal();
     return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
+  }
+}
+
+class _SettingsSessionsSkeleton extends StatelessWidget {
+  const _SettingsSessionsSkeleton();
+
+  @override
+  Widget build(BuildContext context) {
+    return const ExcludeSemantics(
+      child: Padding(
+        padding: EdgeInsets.all(16),
+        child: Column(
+          children: <Widget>[
+            Row(
+              children: <Widget>[
+                GfSkeleton(width: 36, height: 36, radius: 8),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      GfSkeleton(width: 176, height: 14, radius: 5),
+                      SizedBox(height: 8),
+                      GfSkeleton(width: 124, height: 12, radius: 5),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+            SizedBox(height: 16),
+            GfDivider(),
+            SizedBox(height: 16),
+            Row(
+              children: <Widget>[
+                GfSkeleton(width: 36, height: 36, radius: 8),
+                SizedBox(width: 12),
+                Expanded(
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      GfSkeleton(width: 148, height: 14, radius: 5),
+                      SizedBox(height: 8),
+                      GfSkeleton(width: 108, height: 12, radius: 5),
+                    ],
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -1,3 +1,6 @@
+import 'dart:convert';
+import 'dart:io';
+
 import 'package:core/core.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -9,7 +12,12 @@ void main() {
         'sort': 'hot',
         'tabs': [
           {'key': 'hot', 'label': '热门', 'url': '/?sort=hot', 'active': true},
-          {'key': 'latest', 'label': '最新', 'url': '/?sort=latest', 'active': false},
+          {
+            'key': 'latest',
+            'label': '最新',
+            'url': '/?sort=latest',
+            'active': false,
+          },
         ],
         'topics': [
           {
@@ -95,7 +103,11 @@ void main() {
           'url': '/p/post/1',
           'topicStatus': 0,
           'processStatus': 0,
-          'author': {'id': 10, 'username': 'alice', 'avatarUrl': '/static/1.webp'},
+          'author': {
+            'id': 10,
+            'username': 'alice',
+            'avatarUrl': '/static/1.webp',
+          },
           'participants': [],
           'categories': [
             {'id': 3, 'name': '闲聊', 'url': '/c/chat/3', 'color': '#f00'},
@@ -121,7 +133,11 @@ void main() {
               'processStatus': 0,
               'isHidden': false,
               'canModerate': false,
-              'author': {'id': 10, 'username': 'alice', 'avatarUrl': '/static/1.webp'},
+              'author': {
+                'id': 10,
+                'username': 'alice',
+                'avatarUrl': '/static/1.webp',
+              },
               'createdAt': '2026-08-01T00:00:00+08:00',
               'isOwnPost': true,
               'likeCount': 3,
@@ -176,7 +192,9 @@ void main() {
       'websiteName': '',
       'website': '',
       'prestige': 3,
-      'externalInformation': {'github': {'link': 'https://github.com/alice'}},
+      'externalInformation': {
+        'github': {'link': 'https://github.com/alice'},
+      },
       'isAdmin': false,
       'topicCount': 5,
       'replyCount': 20,
@@ -218,7 +236,10 @@ void main() {
       expect(card.username, 'alice');
       expect(card.nickname, '爱丽丝');
       expect(card.prestige, 3);
-      expect(card.externalInformation['github']?.link, 'https://github.com/alice');
+      expect(
+        card.externalInformation['github']?.link,
+        'https://github.com/alice',
+      );
       expect(card.isSelf, isTrue);
       expect(card.badges, hasLength(1));
       expect(card.badges.first.code, 'early');
@@ -316,7 +337,11 @@ void main() {
           'title': 'Flutter 讨论',
           'description': '',
           'url': '/p/post/2',
-          'author': {'id': 12, 'username': 'carol', 'avatarUrl': '/static/3.webp'},
+          'author': {
+            'id': 12,
+            'username': 'carol',
+            'avatarUrl': '/static/3.webp',
+          },
           'participants': [],
           'categories': [],
           'replyCount': 0,
@@ -337,7 +362,14 @@ void main() {
         },
       ],
       'categories': [
-        {'id': 5, 'name': '技术', 'slug': 'tech', 'icon': 'code', 'color': '#00f', 'desc': '技术讨论'},
+        {
+          'id': 5,
+          'name': '技术',
+          'slug': 'tech',
+          'icon': 'code',
+          'color': '#00f',
+          'desc': '技术讨论',
+        },
       ],
       'total': 1,
       'usersTotal': 1,
@@ -360,31 +392,104 @@ void main() {
     });
   });
 
+  group('会话 UserSessionPayload', () {
+    // 与 packages/api-contract/fixtures/sessions-list-success.json 对齐。
+    final response = _contractFixture('sessions-list-success.json');
+    final sessions = (response['result'] as List<dynamic>);
+
+    test('解析会话列表条目', () {
+      final session = UserSessionPayload.fromJson(
+        sessions.single as Map<String, dynamic>,
+      );
+      expect(session.id, 42);
+      expect(session.ipMasked, '127.0.0.*');
+      expect(session.userAgent, 'contract-test');
+      expect(session.createdAt, 1754496000000);
+      expect(session.expiresAt, 1757088000000);
+      expect(session.isCurrent, isTrue);
+    });
+  });
+
+  group('登录安全受控契约', () {
+    test('解析登录公钥 fixture', () {
+      final response = GfResponse<LoginPublicKeyPayload>.fromJson(
+        _contractFixture('login-public-key-success.json'),
+        (json) => LoginPublicKeyPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      // The fixture redacts the PEM body and pins a fixed timestamp; assert
+      // types and the stable algorithm constant instead of those placeholders.
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.publicKey, isA<String>());
+      expect(response.result?.publicKey, isNotEmpty);
+      expect(response.result?.serverTs, isA<int>());
+      expect(response.result?.algorithm, 'RSA-OAEP-256');
+    });
+
+    test('解析 TOTP 登录验证成功 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('totp-verify-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '登录成功');
+      expect(response.messageCode, 'auth.login.success');
+    });
+
+    test('解析 TOTP 失败信封（result 为 null）不抛 TypeError', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('totp-verify-rate-limited.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'totp.rateLimited');
+      expect(response.result, isNull);
+    });
+  });
+
   group('GfResponse 响应包装', () {
     test('code == 0 成功', () {
-      final response = GfResponse<int>.fromJson(
-        {'code': 0, 'result': 42},
-        (json) => json as int,
-      );
+      final response = GfResponse<int>.fromJson({
+        'code': 0,
+        'result': 42,
+      }, (json) => json as int);
       expect(response.isSuccess, isTrue);
       expect(response.result, 42);
     });
 
     test('code != 0 业务失败保留 messageCode 与 params', () {
-      final response = GfResponse<int>.fromJson(
-        {
-          'code': 1,
-          'messageCode': 'auth.login.invalidCredentials',
-          'params': {'retryAfterSeconds': 60},
-        },
-        (json) => json as int,
-      );
+      final response = GfResponse<int>.fromJson({
+        'code': 1,
+        'messageCode': 'auth.login.invalidCredentials',
+        'params': {'retryAfterSeconds': 60},
+      }, (json) => json as int);
       expect(response.isSuccess, isFalse);
       expect(response.messageCode, 'auth.login.invalidCredentials');
       expect(response.params?['retryAfterSeconds'], 60);
       expect(response.result, isNull);
     });
   });
+}
+
+Map<String, dynamic> _contractFixture(String filename) {
+  // Resolve relative to this test file instead of the process CWD so the
+  // loader keeps working regardless of where `flutter test` is invoked from.
+  final script = Platform.script.toFilePath();
+  final separator = Platform.pathSeparator;
+  final repoRoot = script
+      .split(separator)
+      .takeWhile((part) => part != 'apps')
+      .join(separator);
+  final candidate = File(
+    '$repoRoot${separator}packages${separator}api-contract'
+    '${separator}fixtures$separator$filename',
+  );
+  if (!candidate.existsSync()) {
+    throw StateError('找不到 OpenAPI fixture: ${candidate.path}');
+  }
+  return jsonDecode(candidate.readAsStringSync()) as Map<String, dynamic>;
 }
 
 Map<String, dynamic> _layout() {
@@ -421,14 +526,7 @@ Map<String, dynamic> _layout() {
       ],
       'primary': ['yourtj'],
     },
-    'unread': {
-      'notifications': true,
-      'messages': false,
-    },
-    'theme': {
-      'enabled': true,
-      'current': 'gf-light',
-      'themeColor': '#4f46e5',
-    },
+    'unread': {'notifications': true, 'messages': false},
+    'theme': {'enabled': true, 'current': 'gf-light', 'themeColor': '#4f46e5'},
   };
 }

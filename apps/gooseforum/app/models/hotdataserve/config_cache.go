@@ -111,8 +111,27 @@ var rateLimitConfigCache = &localcache.Cache[pageConfig.RateLimitConfig]{MaxEntr
 
 func GetRateLimitConfigCache() pageConfig.RateLimitConfig {
 	return rateLimitConfigCache.GetOrLoad("", func() (pageConfig.RateLimitConfig, error) {
-		return pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig()), nil
+		cfg := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, defaultconfig.GetDefaultRateLimitConfig())
+		mergeDefaultRateLimitActions(&cfg)
+		return cfg, nil
 	}, configFastCacheTTL)
+}
+
+// mergeDefaultRateLimitActions 把默认配置中缺失的 action 补入已存配置，
+// 保证升级后新增的 action（如 llms.index/full/topic）在存量部署自动生效。
+// 管理员若想停用某 action，应把其 limit 清零（仍在列表内）；删除整条会被视为回到默认。
+func mergeDefaultRateLimitActions(cfg *pageConfig.RateLimitConfig) {
+	defaults := defaultconfig.GetDefaultRateLimitConfig()
+	known := make(map[string]bool, len(cfg.Actions))
+	for _, rule := range cfg.Actions {
+		known[rule.Action] = true
+	}
+	for _, rule := range defaults.Actions {
+		if !known[rule.Action] {
+			cfg.Actions = append(cfg.Actions, rule)
+			known[rule.Action] = true
+		}
+	}
 }
 
 func ClearRateLimitConfigCache() {
@@ -125,6 +144,18 @@ func GetHttpNotifyConfigCache() pageConfig.HttpNotifyConfig {
 	return httpNotifyConfigCache.GetOrLoad("", func() (pageConfig.HttpNotifyConfig, error) {
 		return pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig()), nil
 	}, configRareCacheTTL)
+}
+
+var mcpSettingsConfigCache = &localcache.Cache[pageConfig.MCPSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetMCPSettingsConfigCache() pageConfig.MCPSettingsConfig {
+	return mcpSettingsConfigCache.GetOrLoad("", func() (pageConfig.MCPSettingsConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.MCPSettings, defaultconfig.GetDefaultMCPSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearMCPSettingsConfigCache() {
+	mcpSettingsConfigCache.Clear()
 }
 
 func ClearSecuritySettingsConfigCache() {

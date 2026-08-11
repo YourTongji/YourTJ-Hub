@@ -42,9 +42,12 @@ class UserRepository {
     return true;
   }
 
-  /// 修改绑定邮箱(后端 set-user-email,改后需重新验证)。
-  Future<bool> setUserEmail(String email) async {
-    await _client.post<Object?>('/api/set-user-email', body: {'email': email});
+  /// 修改绑定邮箱(后端 set-user-email 需登录密码 re-auth,改后需重新验证)。
+  Future<bool> setUserEmail(String email, String password) async {
+    await _client.post<Object?>(
+      '/api/set-user-email',
+      body: {'email': email, 'password': password},
+    );
     return true;
   }
 

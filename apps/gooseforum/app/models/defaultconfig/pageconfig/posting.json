@@ -12,5 +12,10 @@
     "maxAttachmentSizeKb": 5120,
     "maxDailyUploadsPerUser": 10,
     "newUserUploadCooldownMinutes": 1440
+  },
+  "llms": {
+    "enabled": false,
+    "fullText": false,
+    "files": false
   }
 }

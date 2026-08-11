@@ -63,6 +63,15 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonBack => '返回';
 
   @override
+  String get commonBackToTop => '返回顶部';
+
+  @override
+  String get commonUseLightTheme => '切换浅色模式';
+
+  @override
+  String get commonUseDarkTheme => '切换深色模式';
+
+  @override
   String get timeAgoJustNow => '刚刚';
 
   @override
@@ -159,7 +168,7 @@ class AppLocalizationsZh extends AppLocalizations {
   String get authGetCode => '获取验证码';
 
   @override
-  String get authCasdoorLogin => '统一身份登录(Casdoor)';
+  String get authOidcLogin => '使用 yourtj 统一登录';
 
   @override
   String get authRegisterSuccess => '注册成功,请登录';
@@ -169,6 +178,12 @@ class AppLocalizationsZh extends AppLocalizations {
 
   @override
   String get authLoading => '处理中…';
+
+  @override
+  String get authCacheClearFailed => '清除上一账号离线数据失败,请重试';
+
+  @override
+  String get authSessionSaveFailed => '安全保存新会话失败,请重试';
 
   @override
   String get loginWelcome => '欢迎回到 yourtj';
@@ -226,6 +241,58 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
+  String get composePreview => '预览';
+
+  @override
+  String get composeEdit => '编辑';
+
+  @override
+  String get publishBodyField => '正文';
+
+  @override
+  String get publishCategoryRequired => '请至少选择一个分类';
+
+  @override
+  String get publishPreviewEmpty => '开始输入后，这里会实时显示排版效果';
+
+  @override
+  String publishLoadFailed(String error) {
+    return '编辑器数据加载失败:$error';
+  }
+
+  @override
+  String get publishToolBold => '粗体';
+
+  @override
+  String get publishToolItalic => '斜体';
+
+  @override
+  String get publishToolStrike => '删除线';
+
+  @override
+  String get publishToolQuote => '引用';
+
+  @override
+  String get publishToolCode => '行内代码';
+
+  @override
+  String get publishToolBulletList => '无序列表';
+
+  @override
+  String get publishToolOrderedList => '有序列表';
+
+  @override
+  String get publishToolImage => '添加图片';
+
+  @override
+  String get publishRemoveImage => '移除图片';
+
+  @override
+  String topicReplyTarget(String name) {
+    return '回复 $name';
+  }
+
+  @override
   String get topicTitle => '话题';
 
   @override
@@ -261,6 +328,12 @@ class AppLocalizationsZh extends AppLocalizations {
   String topicReportFailed(String error) {
     return '举报失败:$error';
   }
+
+  @override
+  String get topicWatch => '关注话题回复';
+
+  @override
+  String get topicUnwatch => '取消关注话题回复';
 
   @override
   String topicReplies(int count) {
@@ -463,6 +536,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEmailUpdated => '邮箱已更新,请验证';
 
   @override
+  String get settingsEmailOAuthReauthRequired =>
+      '此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。';
+
+  @override
   String settingsEmailFailed(String error) {
     return '邮箱修改失败:$error';
   }
@@ -513,10 +590,10 @@ class AppLocalizationsZh extends AppLocalizations {
   }
 
   @override
-  String get settingsOAuth => 'Casdoor 统一身份';
+  String get settingsOAuth => '外部账号关联';
 
   @override
-  String get settingsOAuthSub => 'OIDC 登录绑定';
+  String get settingsOAuthSub => 'GitHub 与 Google 登录关联';
 
   @override
   String get settingsOAuthManage => 'OAuth 绑定管理';

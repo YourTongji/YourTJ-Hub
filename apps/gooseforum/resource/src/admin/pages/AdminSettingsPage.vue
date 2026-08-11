@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -27,8 +27,9 @@ import {
 import {
   createStorageMigrateTask,
   getAnnouncement,
-  getHttpNotifySettings,
+  getMCPSettings,
   getMailSettings,
+  getHttpNotifySettings,
   getPostingSettings,
   getRateLimitSettings,
   getSecuritySettings,
@@ -40,6 +41,7 @@ import {
   saveHttpNotifySettings,
   saveMailSettings,
   savePostingSettings,
+  saveMCPSettings,
   saveRateLimitSettings,
   saveSecuritySettings,
   saveSiteSettings,
@@ -53,12 +55,13 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
   HttpNotifyEndpoint,
   HttpNotifySettings,
   MailSettings,
-  ManageHomeProps,
+  MCPSettings,
   PostingSettings,
   RateLimitSettings,
   SecuritySettings,
@@ -67,7 +70,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -132,6 +135,11 @@ const rateLimitForm = reactive<RateLimitSettings>({
   minSubmitSeconds: 1,
 })
 
+const mcpForm = reactive<MCPSettings>({
+  enabled: false,
+  writes: false,
+})
+
 const postingForm = reactive<PostingSettings>({
   textControl: {
     minPostLength: 5,
@@ -146,6 +154,11 @@ const postingForm = reactive<PostingSettings>({
     maxAttachmentSizeKb: 5120,
     maxDailyUploadsPerUser: 10,
     newUserUploadCooldownMinutes: 0,
+  },
+  llms: {
+    enabled: false,
+    fullText: false,
+    files: false,
   },
 })
 
@@ -202,6 +215,7 @@ const pageMeta = computed(() => {
     security: { title: adminText('k0005'), description: adminText('k0006') },
     posting: { title: adminText('k0007'), description: adminText('k0008') },
     'rate-limit': { title: adminText('k00ig'), description: adminText('k00ij') },
+    mcp: { title: adminText('k00mj'), description: adminText('k00mk') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -298,6 +312,13 @@ function normalizeRateLimit(settings: Partial<RateLimitSettings> = {}) {
   } satisfies RateLimitSettings
 }
 
+function normalizeMCP(settings: Partial<MCPSettings> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    writes: toBool(settings.writes, false),
+  } satisfies MCPSettings
+}
+
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
   return {
     textControl: {
@@ -315,6 +336,11 @@ function normalizePosting(settings: Partial<PostingSettings> = {}) {
       maxAttachmentSizeKb: Number(settings.uploadControl?.maxAttachmentSizeKb ?? 5120),
       maxDailyUploadsPerUser: Number(settings.uploadControl?.maxDailyUploadsPerUser ?? 10),
       newUserUploadCooldownMinutes: Number(settings.uploadControl?.newUserUploadCooldownMinutes ?? 1440),
+    },
+    llms: {
+      enabled: toBool(settings.llms?.enabled, false),
+      fullText: toBool(settings.llms?.fullText, false),
+      files: toBool(settings.llms?.files, false),
     },
   } satisfies PostingSettings
 }
@@ -511,6 +537,7 @@ async function load() {
     else if (props.kind === 'security') Object.assign(securityForm, normalizeSecurity(await getSecuritySettings()))
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
+    else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
@@ -536,6 +563,7 @@ async function save() {
     else if (props.kind === 'security') await saveSecuritySettings(normalizeSecurity(securityForm))
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
+    else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -925,6 +953,17 @@ onMounted(load)
         </section>
       </form>
 
+      <form v-else-if="kind === 'mcp'" class="max-w-4xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="flex items-center gap-2 text-base font-medium"><Bot class="size-4" />{{ adminText('k00ml') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mm') }}</p></div>
+          <Switch v-model="mcpForm.enabled" />
+        </div>
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div><div class="text-base font-medium">{{ adminText('k00mn') }}</div><p class="text-sm text-muted-foreground">{{ adminText('k00mo') }}</p></div>
+          <Switch v-model="mcpForm.writes" :disabled="!mcpForm.enabled" />
+        </div>
+      </form>
+
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">
         <section class="space-y-6">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k0096') }}</div>
@@ -960,6 +999,24 @@ onMounted(load)
                   <Trash2 class="size-3.5" />
                 </AdminActionButton>
               </Badge>
+            </div>
+          </div>
+        </section>
+        <section class="space-y-5 lg:col-span-2">
+          <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><Bot class="size-5 text-muted-foreground" />{{ adminText('k00iv') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00iw') }}</p>
+          <div class="grid gap-4 lg:grid-cols-3">
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00ix') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00iy') }}</p></div>
+              <Switch v-model="postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00iz') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j3') }}</p></div>
+              <Switch v-model="postingForm.llms.fullText" :disabled="!postingForm.llms.enabled" />
+            </div>
+            <div class="flex items-center justify-between gap-4 rounded-lg border bg-muted/10 p-4">
+              <div><div class="font-medium">{{ adminText('k00j4') }}</div><p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00j5') }}</p></div>
+              <Switch v-model="postingForm.llms.files" :disabled="!postingForm.llms.enabled" />
             </div>
           </div>
         </section>

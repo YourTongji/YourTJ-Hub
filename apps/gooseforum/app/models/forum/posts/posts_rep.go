@@ -86,6 +86,21 @@ func GetByTopicPostNoAsc(topicId uint64, limit int) (entities []*Entity) {
 	return
 }
 
+func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) (entities []*Entity, err error) {
+	if limit <= 0 {
+		return []*Entity{}, nil
+	}
+	err = builder().
+		Where(queryopt.Eq("topic_id", topicID)).
+		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where(queryopt.Gt("post_no", afterPostNo)).
+		Order(queryopt.Asc("post_no")).
+		Order(queryopt.Asc("id")).
+		Limit(limit).
+		Find(&entities).Error
+	return
+}
+
 func GetByTopicPostNoDesc(topicId uint64, limit int) (entities []*Entity) {
 	builder().
 		Where(queryopt.Eq("topic_id", topicId)).

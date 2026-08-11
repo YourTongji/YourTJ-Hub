@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-08
+> Last verified: 2026-08-09
 
 ## Contract status
 
@@ -14,8 +14,23 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 `packages/api-contract/openapi.yaml`; it currently covers these operations only:
 
 - `POST /api/login`;
+- `GET /api/login-public-key`;
+- `POST /api/auth/totp/verify`;
+- `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
-- `POST /api/forum/topics/write`.
+- `POST /api/forum/topics/write`;
+- `GET /api/user/sessions`;
+- `POST /api/user/sessions/revoke`;
+- `POST /api/user/sessions/revoke-all`;
+- `GET /api/v1/agent/me`;
+- `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
+- `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
+- `GET /api/v1/agent/search`.
+
+Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
+`auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
+extending an existing one, so parallel contract PRs only meet in the `openapi.yaml` entry point and
+the generated TypeScript output.
 
 The first coverage intentionally describes the current legacy wire behavior. A business failure commonly
 uses HTTP `200` with `{ "code": 1, "result": null, "messageCode": ... }`; consumers must inspect the
@@ -51,7 +66,8 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   message codes, and rate-limit metadata. The route-level Go tests exercise real Gin route chains and
   assert the actual status, envelope, result shape, and `Retry-After` behavior against those fixtures.
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
-  this repository yet.
+  this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
+  exercise their runtime deserialization where the mobile client consumes a controlled operation.
 
 Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
 stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
@@ -66,6 +82,25 @@ than a hand-maintained duplicate baseline.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
+- Agent model: `users.actor_type` (0 human / 1 bot) plus `agents` (user_id PK-join, token_prefix,
+  token_hash, webhook_endpoint, enabled, created_by, last_used_at); `users.username` has one database
+  unique index shared by human and bot accounts. The token hash is the only stored secret material,
+  the prefix is a non-secret lookup key. Token rotation is a compare-and-swap on the current prefix
+  (concurrent rotations fail loudly); disable clears the token hash, so re-enabling requires an
+  explicit rotation. Rotation, disablement, and profile changes use column-scoped updates rather
+  than saving stale snapshots; successful authentication touches `last_used_at` at most once per
+  minute.
+- Agent public API coverage: the six operations under `/api/v1/agent` (`me`, topic list/create,
+  post list/create, search) are `Current` in the OpenAPI contract (`Agent` tag, `agentBearerAuth`
+  security scheme, `paths/agent.yaml`, dedicated schemas and fixtures). The route-level contract
+  tests assert all six operations plus the canonical `auth.required` 401 envelope shared by every
+  failed Agent credential. Agent writes reuse the human topic/post rate limits; browser-only
+  honeypot, captcha, and new-user cooldown gates are skipped.
+- Agent mention parsing and webhook sending remain `Planned`; they are not part of the covered
+  contract surface.
+- SQL connections enable GORM error translation so uniqueness races map to stable domain errors. The
+  structured GORM logger implements `ParamsFilter`; parameterized logging therefore keeps bind values
+  out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
 
@@ -90,6 +125,7 @@ New page config types added with this admin backlog work (all persisted in `page
 | `storageSettings` | `pageConfig.StorageSettings` | provider local/s3, endpoint/bucket/region, bucket lookup (auto/dns/path), credentials, optional public URL prefix |
 | `termsOfService` | `pageConfig.TermsOfServiceConfig` | markdown ToS rendered at `/terms` |
 | `securitySettings` (extended) | `pageConfig.SecurityAndRegistration` | + reservedUsernames / bannedUsernames / sensitiveWords / sensitiveAction (block\|review) |
+| `postingSettings` (extended) | `pageConfig.PostingContent` | `llms.enabled`, `llms.fullText`, and `llms.files` gate the public AI-readable projections |
 
 Object storage addressing notes: Alibaba OSS and Tencent COS (buckets created after 2024-01-01)
 require virtual-hosted style — use `bucketLookup: dns` with an explicit region; MinIO/R2 accept
@@ -104,8 +140,15 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 | Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
 | Hot lists / feeds | derived queries | ✅ |
 | Notification read/unread | user pointer table | ✅ |
+| AI-readable exports (`llms.txt`, full text, per-topic Markdown) | published topics and normal, non-deleted posts in the DB | ✅ generated on demand; 10-second cache cleared by topic/reply/category events, direct clear on moderation/reply-edit/topic-category/unpublish paths, and relevant setting changes; full export capped at 5000 topics / 8 MiB / 30 s (truncated with marker) |
 
 Principle: projections must be rebuildable from the fact source; never treat a projection as the only truth.
+
+The AI-readable exports are public text representations, not JSON API operations in the controlled
+OpenAPI surface. Their visibility boundary is the existing forum publication and moderation state:
+draft, blocked, pending-review, soft-deleted, or first-post-blocked content is excluded. The index follows
+the llms.txt Markdown structure (site heading, optional description, and a `Topics` link list); full-text
+and per-topic documents preserve the stored Markdown source.
 
 ## Contract change discipline
 

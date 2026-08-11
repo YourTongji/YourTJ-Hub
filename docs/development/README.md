@@ -44,6 +44,7 @@ requirements and product semantics
 - [Local environment](local-development.md)
 - [Testing strategy & commands](testing.md)
 - [Branches, commits & pull requests](pull-requests.md)
+- [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)
 
@@ -52,7 +53,7 @@ requirements and product semantics
 - No unexplained gaps in product semantics, permissions, failure/recovery, privacy, or retention.
 - Code lives in the right layer (service/models/http); for OpenAPI-covered operations, the OpenAPI
   definition and generated types match the implementation; migrations match the deployed schema.
-- The numeric-ID constraint (uint64 sub) is not bypassed; auth still has Casdoor as the only identity
-  source once integrated.
+- The numeric-ID constraint (uint64 sub) is not bypassed; the built-in OIDC Provider always issues
+  numeric `sub` = users.id.
 - Docs status words are updated; contract changes ship generated output and fixtures.
 - The commands actually run and their results are reported; a local subset is not CI passing.

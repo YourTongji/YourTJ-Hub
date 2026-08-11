@@ -37,8 +37,12 @@ func convertUserToSearchDocument(user *users.EntityComplete) UserSearchDocument 
 	}
 }
 
-// BuildSingleUserSearchDocument upserts a user document, or deletes it when the
-// user is missing or soft-deleted.
+func shouldIndexUser(user *users.EntityComplete) bool {
+	return user != nil && user.Id > 0 && !user.DeletedAt.Valid && !user.IsBot()
+}
+
+// BuildSingleUserSearchDocument upserts a human user document, or deletes it
+// when the user is missing from the public index, soft-deleted, or a bot.
 func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
@@ -49,7 +53,7 @@ func BuildSingleUserSearchDocument(user *users.EntityComplete) (*meilisearch.Tas
 	client := meiliconnect.GetClient()
 	index := client.Index(UserIndex)
 	pk := "id"
-	if user.Id > 0 && user.DeletedAt.Valid == false {
+	if shouldIndexUser(user) {
 		doc := convertUserToSearchDocument(user)
 		task, err := index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
@@ -105,7 +109,9 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 			slog.Warn("failed to build user search document", "userId", user.Id, "err", err)
 			continue
 		}
-		processedCount++
+		if shouldIndexUser(user) {
+			processedCount++
+		}
 	}
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,

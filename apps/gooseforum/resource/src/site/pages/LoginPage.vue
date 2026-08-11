@@ -479,12 +479,7 @@ function errorMessage(err: unknown, fallback: string) {
                   </svg>
                   GitHub
                 </a>
-                <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-lg gf-button-secondary w-full">
-                  <svg class="h-5 w-5" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-                    <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
-                  </svg>
-                  Casdoor
-                </a>
+
                 <button type="button" class="gf-button gf-button-lg gf-button-secondary w-full cursor-not-allowed opacity-70">
                   {{ t('auth.googleUnavailable') }}
                 </button>
@@ -503,12 +498,7 @@ function errorMessage(err: unknown, fallback: string) {
             </svg>
             GitHub
           </a>
-          <a v-if="page.props.casdoorUrl" :href="page.props.casdoorUrl" class="gf-button gf-button-md gf-button-secondary w-full">
-            <svg class="h-4 w-4" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-              <path d="M12 2C6.48 2 2 6.48 2 12s4.48 10 10 10 10-4.48 10-10S17.52 2 12 2Zm4.6 7.6a4.6 4.6 0 1 1-9.2 0 4.6 4.6 0 0 1 9.2 0ZM12 14.5c-2.5 0-4.5 1-4.5 2.2V18h9v-1.3c0-1.2-2-2.2-4.5-2.2Z" />
-            </svg>
-            Casdoor
-          </a>
+
           <button type="button" class="gf-button gf-button-md gf-button-secondary w-full cursor-not-allowed opacity-70">
             {{ t('auth.googleUnavailable') }}
           </button>

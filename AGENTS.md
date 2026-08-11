@@ -13,7 +13,7 @@ implementation, testing, review, CI, or PR work.
 
 yourtj-hub is the monorepo for the Tongji university campus forum platform (brand: yourtj, distinct from
 the archived YourTJ-Platform). The forum is the core product — a **direct modification of the upstream
-GooseForum, keeping the single-binary deployment**. Unified auth (Casdoor), search (Meilisearch), and
+GooseForum, keeping the single-binary deployment**. Unified auth (built-in OIDC Provider), search (Meilisearch), and
 points (credit, phase 2) are shared infrastructure subdomains. Database, search, and structure may all
 be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" deployment shape is kept.
 
@@ -28,11 +28,14 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
-- Auth: GitHub OAuth (goth) + **Casdoor OIDC integrated** (PKCE, numeric `sub` enforced server-side);
-  TOTP 2FA and session management (`jti` + `user_sessions`) in place (issue #8).
+- Auth: GitHub OAuth (goth) + **built-in OIDC Provider** (`/api/oauth`, authorization code + PKCE S256,
+  RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
+  (`jti` + `user_sessions`) in place. Casdoor is not enabled.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
-  password login, mobile OIDC exchange, and topic writing, with lint/bundle, generated TypeScript types,
-  fixtures, and route-level HTTP tests; broader route coverage still needs manual or annotation-based work.
+  password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all), and
+  topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
+  paths are split per domain under `paths/`; broader route coverage still needs manual or
+  annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules
@@ -49,7 +52,7 @@ apps/
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
 services/
-  casdoor/   Unified auth deployment config (numeric-ID init checklist)
+  casdoor/   Archived Casdoor deployment config (not enabled; built-in OIDC Provider replaces it)
   search/    Meilisearch deployment config
   credit/    Points (phase 2 placeholder)
 deploy/      Per-environment compose + env.example
@@ -62,17 +65,17 @@ docs/        Docs center (product/architecture/development/operations)
 - Cross-domain access goes through the owner's public API; no foreign SQL against other domains' tables.
 - Frontend output only via `resource/static/dist` (go:embed); vite :3010 hits the backend in dev,
   single binary in production.
-- `services/` holds deployment configs only, not third-party source (Casdoor/Meilisearch/credit are
-  off-the-shelf components).
+- `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
+  off-the-shelf components; Casdoor is archived and not enabled).
 - Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
 
 ## 3. Hard constraints
 
 - Deployment shape is a **single binary** (go:embed webdist/static-dist); no nginx/CDN split.
-- User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; Casdoor must use
-  the Incremental ID rule or explicit numeric ids (enforce at integration).
-- Once auth is integrated, Casdoor is the only identity source; the forum JWT is a session credential,
-  not identity truth.
+- User IDs must be **numeric** (uint64) — credit's `GetID()` only accepts numeric sub; the built-in
+  OIDC Provider always issues `sub` = users.id (uint64 decimal string).
+- The forum `users` table is the identity source; the forum JWT is a session credential, not identity
+  truth, and is never issued to external OIDC clients.
 - For OpenAPI-covered operations, contract changes ship in the same PR: backend behavior/structs →
   `openapi.yaml` → generated TypeScript output → fixture contract tests. Until the pipeline fully
   covers an operation, contract changes must also update the mobile Dart mirrors in

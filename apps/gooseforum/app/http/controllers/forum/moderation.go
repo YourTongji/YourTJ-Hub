@@ -22,6 +22,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"github.com/leancodebox/GooseForum/app/service/urlconfig"
@@ -193,6 +194,8 @@ func UpdateModerationTopicStatus(req component.BetterRequest[ModerationTopicStat
 	}
 	topic.ProcessStatus = nextStatus
 	hotdataserve.ClearTopicListCache()
+	// 审核封禁/解封不发布事件，同步清理 LLMS 投影缓存，避免封禁内容在 10s 窗口内继续导出。
+	llmsservice.ClearCache()
 	firstPost := posts.Get(topic.FirstPostId)
 	if firstPost.Id == 0 {
 		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
@@ -254,6 +257,8 @@ func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatus
 	if err := posts.UpdateProcessStatus(post.Id, nextStatus); err != nil {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
+	// 审核封禁/解封回复不发布事件，同步清理 LLMS 投影缓存。
+	llmsservice.ClearCache()
 	userMap := users.GetMapByIds([]uint64{post.UserId})
 	author := userPayload(post.UserId, userMap)
 	moderationservice.PostStatusChanged(req.UserId, moderationservice.PostSnapshot{
@@ -351,7 +356,7 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 	switch targetType {
 	case reports.TargetTopic:
 		topic := topics.GetSimple(targetID)
-		if topic.Id == 0 || !canViewTopicSimple(&topic, userID) {
+		if topic.Id == 0 || !CanViewTopicSimple(&topic, userID) {
 			return reportTargetInfoData{}, false
 		}
 		return reportTargetInfoData{UserID: topic.UserId, ArticleID: topic.Id, TopicID: topic.Id}, true
@@ -361,7 +366,7 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 			return reportTargetInfoData{}, false
 		}
 		topic := topics.GetSimple(post.TopicId)
-		if topic.Id == 0 || !canViewTopicSimple(&topic, userID) {
+		if topic.Id == 0 || !CanViewTopicSimple(&topic, userID) {
 			return reportTargetInfoData{}, false
 		}
 		return reportTargetInfoData{UserID: post.UserId, ArticleID: topic.Id, TopicID: topic.Id}, true

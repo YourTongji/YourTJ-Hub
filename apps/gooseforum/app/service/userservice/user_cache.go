@@ -34,6 +34,7 @@ type UserInfo struct {
 	IsFrozen            int8
 	IsActivated         int8
 	ActivatedAt         *time.Time
+	ActorType           int8
 	Nickname            string
 	RoleId              uint64
 	Prestige            int64
@@ -80,6 +81,9 @@ var (
 	userPublicProfileCache = localcache.Cache[UserPublicProfile]{MaxEntries: cacheconfig.Current().UserPublicProfile}
 )
 
+// GetUserInfo returns the cached account snapshot for one user, loading it on
+// demand. Invalidation (see InvalidateUserInfoCache) also drops any in-flight
+// load, so a stale row is never written back into the cache.
 func GetUserInfo(userID uint64) (UserInfo, bool) {
 	if userID == 0 {
 		return UserInfo{}, false
@@ -150,6 +154,14 @@ func GetUserPublicProfile(userID uint64) (UserPublicProfile, bool) {
 	return profile, true
 }
 
+// InvalidateUserInfoCache removes the cached account snapshot for one user.
+func InvalidateUserInfoCache(userID uint64) {
+	if userID == 0 {
+		return
+	}
+	userInfoCache.Delete(userInfoKey(userID))
+}
+
 func InvalidateUserPublicProfileCache(userID uint64) {
 	if userID == 0 {
 		return
@@ -200,6 +212,7 @@ func userInfoFromEntity(user users.EntityComplete) UserInfo {
 		IsFrozen:            user.IsFrozen,
 		IsActivated:         user.IsActivated,
 		ActivatedAt:         user.ActivatedAt,
+		ActorType:           user.ActorType,
 		Nickname:            user.Nickname,
 		RoleId:              user.RoleId,
 		Prestige:            user.Prestige,
@@ -246,6 +259,7 @@ func (user UserInfo) toEntity() users.EntityComplete {
 		IsFrozen:            user.IsFrozen,
 		IsActivated:         user.IsActivated,
 		ActivatedAt:         user.ActivatedAt,
+		ActorType:           user.ActorType,
 		Nickname:            user.Nickname,
 		RoleId:              user.RoleId,
 		Prestige:            user.Prestige,

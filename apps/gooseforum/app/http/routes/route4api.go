@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 	"net/http/httputil"
@@ -15,6 +16,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/http/controllers"
 	"github.com/leancodebox/GooseForum/app/http/middleware"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/permission"
 	"github.com/leancodebox/GooseForum/resource"
 )
@@ -113,6 +115,11 @@ func siteInfoRoute(ginApp *gin.Engine) {
 	ginApp.GET("/robots.txt", controllers.RenderRobotsTxt)
 	ginApp.GET("/sitemap.xml", controllers.RenderSitemapXml)
 	ginApp.GET("/rss.xml", controllers.RenderRss)
+	// LLMS 公开入口是派生文本投影：full 冷缓存全量重建、不同 {id}.md 会打穿 topic 级缓存，
+	// 需独立限流配额（index 宽松、full 严格、topic 中等），避免被脚本高频打满。
+	ginApp.GET("/llms.txt", middleware.RateLimit(middleware.RateLimitLLMSIndex), controllers.RenderLLMSIndex)
+	ginApp.GET("/llms-full.txt", middleware.RateLimit(middleware.RateLimitLLMSFull), controllers.RenderLLMSFull)
+	ginApp.GET("/p/posts/:document", middleware.RateLimit(middleware.RateLimitLLMSTopic), controllers.RenderLLMSTopic)
 }
 
 func apiRoute(ginApp *gin.Engine) {
@@ -129,21 +136,40 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
-	baseApi.GET("auth/oidc/login", api.OidcLogin)
-	baseApi.GET("auth/oidc/callback", middleware.JWTAuth, api.OidcCallback)
+
+	// 内建 OIDC Provider（/api/oauth）。逐个静态挂载已实现端点，避免
+	// oauth/*path catch-all 与论坛自身的 oauth/bindings 路由发生 Gin 冲突。
+	// 未启用或配置错误时不注册路由，但错误必须记录（生产误配 fail closed
+	// 时便于排查）。authorize 与 token 使用独立配额，且在进入 Provider 前限流。
+	if oidcHandler, err := oidcservice.Router(); err != nil {
+		if !errors.Is(err, oidcservice.ErrOIDCDisabled) {
+			slog.Error("OIDC provider router init failed", "error", err)
+		}
+	} else if oidcHandler != nil {
+		wrapped := gin.WrapH(oidcHandler)
+		baseApi.GET("oauth/.well-known/openid-configuration", wrapped)
+		baseApi.GET("oauth/authorize", middleware.RateLimit(middleware.RateLimitOIDCAuthorize), wrapped)
+		baseApi.GET("oauth/authorize/callback", wrapped)
+		baseApi.GET("oauth/token", middleware.RateLimit(middleware.RateLimitOIDCToken), wrapped)
+		baseApi.POST("oauth/token", middleware.RateLimit(middleware.RateLimitOIDCToken), wrapped)
+		baseApi.GET("oauth/userinfo", wrapped)
+		baseApi.POST("oauth/userinfo", wrapped)
+		baseApi.GET("oauth/keys", wrapped)
+	}
+
 	baseApi.POST("auth/totp/verify", middleware.TOTPChallengeAuth, api.TotpVerify)
 	baseApi.POST("auth/oidc/exchange", middleware.RateLimit(middleware.RateLimitLogin), api.OidcExchange)
 
 	loginApi := ginApp.Group("api").Use(middleware.JWTAuthCheck)
 	loginApi.POST("set-user-info", middleware.CheckWritableAccount, UpButterReq(api.EditUserInfo))
 	loginApi.POST("set-user-profile-cover", middleware.CheckWritableAccount, UpButterReq(api.EditUserProfileCover))
-	loginApi.POST("set-user-email", middleware.CheckWritableAccount, UpButterReq(api.EditUserEmail))
+	loginApi.POST("set-user-email", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitEmailChange), UpButterReq(api.EditUserEmail))
 	loginApi.POST("resend-activation-email", middleware.CheckWritableAccount, UpButterReq(api.ResendActivationEmail))
 	loginApi.POST("set-user-name", middleware.CheckWritableAccount, UpButterReq(api.EditUsername))
 	loginApi.POST("set-preset-avatar", middleware.CheckWritableAccount, UpButterReq(api.SetPresetAvatar))
 	loginApi.POST("wear-badge", middleware.CheckWritableAccount, UpButterReq(api.WearBadge))
 	loginApi.POST("upload-avatar", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitUpload), api.UploadAvatar)
-	loginApi.POST("change-password", middleware.CheckWritableAccount, UpButterReq(api.ChangePassword))
+	loginApi.POST("change-password", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPasswordChange), UpButterReq(api.ChangePassword))
 	loginApi.POST("auth/:provider/unbind", middleware.CheckWritableAccount, UpButterReq(api.UnbindOAuth))
 	loginApi.GET("oauth/bindings", UpButterReq(api.GetOAuthBindings))
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
@@ -183,6 +209,16 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
+
+	// Agent public API: opaque bearer-token authentication only. Writes reuse
+	// the human topic/post rate limits keyed by IP and bot userId.
+	agentApi := baseApi.Group("v1/agent", middleware.AgentAuth)
+	agentApi.GET("me", UpButterReq(api.AgentMe))
+	agentApi.GET("topics", UpQueryReq(api.AgentTopicList))
+	agentApi.POST("topics", middleware.RateLimit(middleware.RateLimitTopicWrite), UpJsonReq(api.AgentWriteTopic))
+	agentApi.GET("topics/:topicId/posts", UpUriQueryReq(api.AgentPostList))
+	agentApi.POST("topics/:topicId/posts", middleware.RateLimit(middleware.RateLimitPostCreate), UpUriJsonReq(api.AgentCreatePost))
+	agentApi.GET("search", UpQueryReq(forum.SearchJSON))
 	chatApi.POST("send", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitMessageSend), UpButterReq(api.SendMessage))
 	chatApi.POST("messages", UpButterReq(api.GetMessages))
 	chatApi.POST("mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkChatRead))
@@ -222,7 +258,12 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("role-delete", UpButterReq(api.RoleDel))
 
 	adminApi.Group("", middleware.CheckPermission(permission.Admin)).
-		POST("opt-record-page", UpButterReq(api.OptRecordPage))
+		POST("opt-record-page", UpButterReq(api.OptRecordPage)).
+		POST("agent-list", UpButterReq(api.AgentList)).
+		POST("agent-create", UpButterReq(api.AgentCreate)).
+		POST("agent-update", UpButterReq(api.AgentUpdate)).
+		POST("agent-rotate-token", UpButterReq(api.AgentRotateToken)).
+		POST("agent-disable", UpButterReq(api.AgentDisable))
 
 	adminApi.Group("", middleware.CheckPermission(permission.PageManager)).
 		GET("friend-links", UpButterReq(api.GetFriendLinks)).
@@ -258,6 +299,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("http-notify-settings", UpButterReq(api.GetHttpNotifySettings)).
 		POST("save-http-notify-settings", UpButterReq(api.SaveHttpNotifySettings)).
 		GET("badges", UpButterReq(api.BadgeList)).
+		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
+		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

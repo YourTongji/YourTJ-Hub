@@ -11,9 +11,10 @@
 ## System shape
 
 ```
-                        ┌─────────────────────┐
-                        │     Casdoor (OIDC)   │  Unified auth (numeric user ID)
-                        └──────────┬──────────┘
+                        ┌──────────────────────┐
+                        │  Built-in OIDC       │  forum users (numeric id)
+                        │  Provider (/api/oauth)│
+                        └──────────┬───────────┘
               OIDC/PKCE            │            OIDC browser flow
        ┌───────────────────────────┼───────────────────────────┐
        │                           │                           │
@@ -39,7 +40,7 @@
 
 - **Single binary**: forum frontend (Vue 3 output static/dist + GoHTML templates) is fully go:embed'd
   into the Go binary; vite :3010 hits the backend in dev, one file in production. No nginx/CDN split.
-- Dependency services (Casdoor/Meilisearch/PostgreSQL/Redis) are orchestrated with docker-compose;
+- Dependency services (Meilisearch/PostgreSQL/Redis) are orchestrated with docker-compose;
   `services/` holds deployment configs only, not third-party source.
 
 ## Domain boundaries (apps/gooseforum upstream layers)
@@ -68,9 +69,9 @@
 
 ### Auth
 
-- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), and
-  Casdoor OIDC unified login (PKCE + state + nonce, numeric `sub` enforced server-side). Sessions
-  are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
+- Web: password login (optional forum-side TOTP 2FA), GitHub OAuth (goth, config [github]), and the
+  built-in OIDC Provider (authorization code + PKCE S256, numeric `sub` = users.id) for first-party
+  clients. Sessions are `jti` + `user_sessions` backed and revocable (see identity-and-access.md).
 - Mobile (`Partial`): appauth+PKCE → id_token → `POST /api/auth/oidc/exchange` → forum JWT. The
   Flutter shell and feature pages consume the repository-owned `Gf*` UI API; `ui_kit` maps those
   tokens and components to the pinned TDesign v1 alpha implementation so application pages do not

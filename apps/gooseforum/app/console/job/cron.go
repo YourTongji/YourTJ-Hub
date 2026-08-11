@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/robfig/cron/v3"
 )
@@ -56,6 +57,11 @@ func Run() {
 		totpservice.CleanupExpiredChallenges()
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "5 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("6 3 * * *", upCmd(func() {
+		// 清理过期的 OIDC authorization request 和 access token 记录
+		oidcservice.CleanupExpired()
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "6 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

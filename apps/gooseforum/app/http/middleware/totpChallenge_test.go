@@ -8,6 +8,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
@@ -131,5 +132,48 @@ func TestTotpChallengeAuthRejectsConsumedChallengeToken(t *testing.T) {
 	recorder, _ := requestWithTotpChallenge(token)
 	if recorder.Code != http.StatusUnauthorized {
 		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusUnauthorized)
+	}
+}
+
+func TestTotpChallengeAuthRejectsFrozenAccount(t *testing.T) {
+	setupSessionAuthTestDB(t)
+	user, err := userservice.CreateUser("totpfrozen", "password", "totpfrozen@example.com", false)
+	if err != nil {
+		t.Fatalf("CreateUser() error = %v", err)
+	}
+	token, jti, err := jwt.CreateChallengeTokenWithJti(user.Id, user.TokenVersion, jwt.PurposeTotpChallenge, 5*time.Minute)
+	if err != nil {
+		t.Fatalf("create challenge token: %v", err)
+	}
+	if err := totpservice.SaveChallenge(user.Id, jti, 5*time.Minute); err != nil {
+		t.Fatalf("save challenge: %v", err)
+	}
+
+	entity, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("Get() error = %v", err)
+	}
+	entity.IsFrozen = users.StatusFrozen
+	if err := userservice.SaveUser(&entity); err != nil {
+		t.Fatalf("SaveUser() freeze error = %v", err)
+	}
+
+	recorder, _ := requestWithTotpChallenge(token)
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want %d", recorder.Code, http.StatusForbidden)
+	}
+
+	// The challenge is not consumed: unfreezing lets the same token through.
+	entity, err = users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("Get() after freeze error = %v", err)
+	}
+	entity.IsFrozen = users.StatusNormal
+	if err := userservice.SaveUser(&entity); err != nil {
+		t.Fatalf("SaveUser() unfreeze error = %v", err)
+	}
+	recorder, _ = requestWithTotpChallenge(token)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("status after unfreeze = %d, want %d", recorder.Code, http.StatusOK)
 	}
 }

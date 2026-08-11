@@ -4,18 +4,18 @@ import 'package:flutter/foundation.dart';
 ///
 /// 用法示例:
 /// ```bash
-/// flutter run --dart-define=YOURTJ_OIDC_ISSUER=https://casdoor.example.com \
-///             --dart-define=YOURTJ_OIDC_CLIENT_ID=forum-app
+/// flutter run --dart-define=YOURTJ_OIDC_ISSUER=https://forum.example.com/api/oauth \
+///             --dart-define=YOURTJ_OIDC_CLIENT_ID=yourtj-mobile
 /// ```
 abstract final class AppConfig {
   static const String _issuer = String.fromEnvironment(
     'YOURTJ_OIDC_ISSUER',
-    defaultValue: 'http://localhost:8001',
+    defaultValue: 'http://localhost:5234/api/oauth',
   );
 
   static const String _clientId = String.fromEnvironment(
     'YOURTJ_OIDC_CLIENT_ID',
-    defaultValue: 'forum-app',
+    defaultValue: 'yourtj-mobile',
   );
 
   static const String _apiBaseUrl = String.fromEnvironment(
@@ -23,10 +23,10 @@ abstract final class AppConfig {
     defaultValue: '',
   );
 
-  /// Casdoor/OIDC issuer(本地开发默认 localhost:8001)。
+  /// 论坛内建 OIDC Provider issuer（本地开发默认 localhost:5234/api/oauth）。
   static String get oidcIssuer => _issuer;
 
-  /// Casdoor 应用 client_id。
+  /// 论坛移动端 OIDC client_id。
   static String get oidcClientId => _clientId;
 
   /// API baseUrl;为空时由 GfApiClient 使用平台默认(Android 模拟器 10.0.2.2)。

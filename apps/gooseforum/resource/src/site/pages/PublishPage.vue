@@ -1,10 +1,11 @@
 <script setup lang="ts">
-import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { AlertTriangle, Check, FileText, ListChecks, Loader2, Send, X } from '@lucide/vue'
 import { submitTopic, uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import { useUnsavedDraftGuard } from '@/site/composables/useUnsavedDraftGuard'
 import { useCaptchaChallenge } from '@/site/composables/useCaptchaChallenge'
+import { computePopoverPlacement } from '@/site/utils/popover-position'
 import PageHeader from '@/site/components/PageHeader.vue'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
 import type { LayoutPayload, PublishPageProps } from '@gooseforum/client'
@@ -45,6 +46,48 @@ const headerSection = ref<HTMLElement | null>(null)
 const editorHost = ref<HTMLElement | null>(null)
 const categoryPickerOpen = ref(false)
 const categoryPickerRoot = ref<HTMLElement | null>(null)
+/** 分类面板 Teleport 到 body 后用 fixed 定位跟随触发按钮，避开 overflow-hidden 裁剪 */
+const panelEl = ref<HTMLElement | null>(null)
+const panelStyle = ref({ top: '0px', left: '0px', width: '0px' })
+let panelOpen = false
+let panelFrame: number | null = null
+function computePanelPosition() {
+  const rect = categoryPickerRoot.value?.getBoundingClientRect()
+  const panel = panelEl.value
+  if (!rect) return
+  const panelHeight = panel ? panel.offsetHeight || panel.getBoundingClientRect().height : 0
+  // 6px = 原 absolute 布局的 0.375rem 间距；下方不足自动向上翻转，并钳制在视口内
+  const pos = computePopoverPlacement({
+    trigger: { top: rect.top, bottom: rect.bottom, left: rect.left, width: rect.width },
+    panel: { width: rect.width, height: panelHeight },
+    viewport: { width: window.innerWidth, height: window.innerHeight },
+    gap: 6,
+  })
+  panelStyle.value = { top: `${pos.top}px`, left: `${pos.left}px`, width: `${pos.width}px` }
+}
+function repositionPanel() {
+  if (!panelOpen || panelFrame !== null) return
+  panelFrame = window.requestAnimationFrame(() => {
+    panelFrame = null
+    computePanelPosition()
+  })
+}
+watch(categoryPickerOpen, (open) => {
+  if (open) {
+    panelOpen = true
+    void nextTick(() => {
+      computePanelPosition()
+      // Teleport 后面板位于 body 末尾、远离触发按钮，打开时移焦入面板保证键盘 Tab 可达
+      panelEl.value?.focus({ preventScroll: true })
+    })
+    window.addEventListener('scroll', repositionPanel, { passive: true })
+    window.addEventListener('resize', repositionPanel)
+  } else {
+    panelOpen = false
+    window.removeEventListener('scroll', repositionPanel)
+    window.removeEventListener('resize', repositionPanel)
+  }
+})
 const bodySection = ref<HTMLElement | null>(null)
 /** 移动端 toggle 挂载容器（正文 label 行右侧） */
 const editorToggleHost = ref<HTMLElement | null>(null)
@@ -108,6 +151,8 @@ function toggleCategory(id: number) {
 function handleCategoryPickerPointerDown(event: PointerEvent) {
   const target = event.target
   if (target instanceof Node && categoryPickerRoot.value?.contains(target)) return
+  // 面板已 Teleport 到 body，不再位于 categoryPickerRoot 内，需单独判定内部点击
+  if (target instanceof Node && panelEl.value?.contains(target)) return
   categoryPickerOpen.value = false
 }
 
@@ -128,6 +173,12 @@ onMounted(() => {
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleCategoryPickerPointerDown)
+  window.removeEventListener('scroll', repositionPanel)
+  window.removeEventListener('resize', repositionPanel)
+  if (panelFrame !== null) {
+    window.cancelAnimationFrame(panelFrame)
+    panelFrame = null
+  }
 })
 
 async function validateRequiredFields() {
@@ -152,6 +203,8 @@ async function validateRequiredFields() {
 const HEADER_ANIM_MS = 300
 let headerHeightAnimTimer = 0
 function toggleHeaderCollapsed() {
+  // Teleport 面板不随头部折叠而隐藏，折叠前先关闭，避免悬浮在折叠区上
+  categoryPickerOpen.value = false
   const header = headerSection.value
   if (header) {
     collapsedHeaderHeight.value = header.offsetHeight
@@ -383,27 +436,33 @@ async function persistDraft(nextUrl?: string, redirect = true): Promise<boolean>
                       </svg>
                     </button>
 
-                    <Transition name="gf-menu">
-                      <div
-                        v-if="categoryPickerOpen"
-                        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-[300] max-h-64 overflow-y-auto p-1"
-                      >
-                        <button
-                          v-for="category in props.categories"
-                          :key="category.id"
-                          type="button"
-                          class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
-                          :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
-                          :disabled="!categoryIds.includes(category.id) && categoriesFull"
-                          @click="toggleCategory(category.id)"
+                    <Teleport to="body">
+                      <Transition name="gf-menu">
+                        <div
+                          v-if="categoryPickerOpen"
+                          ref="panelEl"
+                          tabindex="-1"
+                          class="gf-menu-surface fixed z-[300] max-h-64 overflow-y-auto p-1 outline-none"
+                          :style="panelStyle"
+                          @keydown.esc="categoryPickerOpen = false"
                         >
-                          <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-                          <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
-                          <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
-                        </button>
-                        <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
-                      </div>
-                    </Transition>
+                          <button
+                            v-for="category in props.categories"
+                            :key="category.id"
+                            type="button"
+                            class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium transition disabled:cursor-not-allowed disabled:opacity-40"
+                            :class="categoryIds.includes(category.id) ? 'bg-primary/10 text-primary' : 'text-base-content hover:bg-base-200'"
+                            :disabled="!categoryIds.includes(category.id) && categoriesFull"
+                            @click="toggleCategory(category.id)"
+                          >
+                            <span class="h-2 w-2 shrink-0 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                            <span class="min-w-0 flex-1 truncate">{{ category.name }}</span>
+                            <Check v-if="categoryIds.includes(category.id)" class="h-4 w-4 shrink-0" />
+                          </button>
+                          <p v-if="categoriesFull" class="px-2.5 py-1.5 text-xs text-base-content/55">{{ t('publish.maxCategories') }}</p>
+                        </div>
+                      </Transition>
+                    </Teleport>
                   </div>
                   <p v-if="categoryMissing" class="mt-1 text-xs text-error/80">{{ t('publish.validation.categoryRequired') }}</p>
                 </div>

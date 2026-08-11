@@ -1,6 +1,7 @@
 package users
 
 import (
+	"errors"
 	"fmt"
 	"math/rand"
 	"strings"
@@ -9,7 +10,19 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
+
+// dummyBotHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
+// equalize password-verification timing when a bot account is presented at
+// the human login endpoint. It runs the same 10000-iteration cost as real
+// hashes so username enumeration via response time is not possible.
+const dummyBotHashForTiming = "kQZbUFLHdF2p4QRUQ7kVsv6r0LqRFiYBoK9V0MaRTzc=:eW91cnRqLWJvdC10aW1pbmctc2FsdC0wMTIzNDU2Nzg5YWJjZGVm"
+
+// ErrInvalidCredentials is the single error returned for every failed
+// password verification (unknown user, bot account, or wrong password), so
+// response bodies and logs never distinguish bot accounts from humans.
+var ErrInvalidCredentials = errors.New("invalid username or password")
 
 func Get(id any) (entity EntityComplete, err error) {
 	err = builder().Where(pid, id).First(&entity).Error
@@ -27,9 +40,16 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	if err != nil {
 		return &user, err
 	}
+	// 机器人（Agent）账号不参与密码登录。先执行与真实校验等量的 PBKDF2
+	// 以抹平响应时间，再返回与错误密码完全相同的错误，避免枚举 bot 账号，
+	// 也与“bot 邮箱为空、密码不可用”的约束一致。
+	if user.IsBot() {
+		_ = algorithm.VerifyEncryptPassword(dummyBotHashForTiming, password)
+		return &EntityComplete{}, ErrInvalidCredentials
+	}
 	err = algorithm.VerifyEncryptPassword(user.Password, password)
 	if err != nil {
-		return &EntityComplete{}, err
+		return &EntityComplete{}, ErrInvalidCredentials
 	}
 	return &user, nil
 }
@@ -157,8 +177,15 @@ func IncrementPrestige(addNumber int64, userId uint64) int64 {
 	return result.RowsAffected
 }
 
-// IncrementTokenVersion bumps the user's token version, invalidating every
-// previously issued access token (used by "revoke all devices").
-func IncrementTokenVersion(userId uint64) {
-	builder().Exec("UPDATE users SET token_version = token_version + 1 where id = ?", userId)
+// IncrementTokenVersionWithDB increments token_version through the supplied database handle.
+// A missing user is an error so callers can roll back any coupled changes.
+func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {
+	result := conn.Exec("UPDATE users SET token_version = token_version + 1 where id = ?", userId)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

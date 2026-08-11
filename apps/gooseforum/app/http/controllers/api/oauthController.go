@@ -43,7 +43,7 @@ func ProviderCallback(c *gin.Context) {
 	currentUserId := currentUserInfo.UserId
 
 	if currentUserId > 0 {
-		if user, ok := userservice.GetUserInfo(currentUserId); !ok || user.IsFrozen == users.StatusFrozen {
+		if user, ok := userservice.GetUserInfo(currentUserId); !ok || user.IsFrozen == users.StatusFrozen || user.ActorType == users.ActorTypeBot {
 			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessagePermissionUserFrozen)
 			return
 		}
@@ -133,7 +133,7 @@ func GetOAuthBindings(req component.BetterRequest[component.Null]) component.Res
 	}
 
 	// 添加未绑定的提供商
-	allProviders := []string{"github", "google", "casdoor"}
+	allProviders := []string{"github", "google"}
 	for _, provider := range allProviders {
 		if _, exists := result[provider]; !exists {
 			result[provider] = map[string]any{

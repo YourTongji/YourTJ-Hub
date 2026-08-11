@@ -41,6 +41,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/mailservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
@@ -138,6 +139,7 @@ type UserItem struct {
 	AvatarUrl      string                              `json:"avatarUrl"`
 	Email          string                              `json:"email"`
 	Status         int8                                `json:"status"`
+	ActorType      int8                                `json:"actorType"`
 	Validate       int8                                `json:"validate"`
 	Prestige       int64                               `json:"prestige"`
 	RoleList       []datastruct.Option[string, uint64] `json:"roleList"`
@@ -184,6 +186,7 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 			AvatarUrl:      t.GetWebAvatarUrl(),
 			Username:       t.Username,
 			Email:          t.Email,
+			ActorType:      t.ActorType,
 			Status:         t.IsFrozen,
 			Validate:       t.IsActivated,
 			Prestige:       t.Prestige,
@@ -359,6 +362,10 @@ func EditUser(req component.BetterRequest[EditUserReq]) component.Response {
 	user, err := users.Get(params.UserId)
 	if err != nil || user.Id == 0 {
 		return component.FailResponseCode(component.MessageAdminTargetUserFetchFailed, nil)
+	}
+	// 机器人（Agent）账号不允许被授予任何角色（管理/版主等）。
+	if user.IsBot() && params.RoleId != 0 {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
 	}
 	opt := false
 	changes := make([]string, 0, 3)
@@ -554,6 +561,8 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
 	}
 	hotdataserve.ClearTopicListCache()
+	// 封禁/解封不发布 Topic*Event，需同步清理 LLMS 公开投影缓存，避免封禁内容在 10s 窗口内继续导出。
+	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
@@ -636,6 +645,8 @@ func EditTopicCategories(req component.BetterRequest[EditTopicCategoriesReq]) co
 		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
 	}
 	hotdataserve.ClearTopicListCache()
+	// 分类变更不发布事件，同步清理 LLMS 投影缓存（投影内嵌 Categories 列表）。
+	llmsservice.ClearCache()
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
@@ -943,6 +954,10 @@ func AddCategoryModerator(req component.BetterRequest[AddCategoryModeratorReq]) 
 	if !ok {
 		return component.FailResponseCode(component.MessageAdminModeratorUserNotFound, nil)
 	}
+	// 机器人（Agent）账号不允许成为版主。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
+	}
 
 	entity := moderators.GetByUserScope(user.Id, moderators.ScopeCategory, categoryEntity.Id)
 	entity.UserId = user.Id
@@ -982,6 +997,10 @@ func AddGlobalModerator(req component.BetterRequest[ModeratorUserReq]) component
 	user, ok := resolveModeratorUser(req.Params)
 	if !ok {
 		return component.FailResponseCode(component.MessageAdminModeratorUserNotFound, nil)
+	}
+	// 机器人（Agent）账号不允许成为版主。
+	if user.IsBot() {
+		return component.FailResponseCode(component.MessageAdminAgentRoleNotAllowed, nil)
 	}
 	entity := moderators.GetByUserScope(user.Id, moderators.ScopeGlobal, 0)
 	entity.UserId = user.Id
@@ -1184,7 +1203,10 @@ type SaveSiteSettingsReq struct {
 
 // SaveSiteSettings 保存站点设置
 func SaveSiteSettings(req component.BetterRequest[SaveSiteSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, hotdataserve.ClearSiteSettingsConfigCache)
+	return savePageConfig(pageConfig.SiteSettings, req.Params.Settings, func() {
+		hotdataserve.ClearSiteSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 func GetSiteChrome(req component.BetterRequest[component.Null]) component.Response {
@@ -1352,7 +1374,10 @@ type SavePostingSettingsReq struct {
 
 // SavePostingSettings 保存发布内容设置
 func SavePostingSettings(req component.BetterRequest[SavePostingSettingsReq]) component.Response {
-	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, hotdataserve.ClearPostingSettingsConfigCache)
+	return savePageConfig(pageConfig.PostingSettings, req.Params.Settings, func() {
+		hotdataserve.ClearPostingSettingsConfigCache()
+		llmsservice.ClearCache()
+	})
 }
 
 // GetRateLimitSettings 获取滥用防护（限流）设置
@@ -1373,6 +1398,21 @@ func SaveRateLimitSettings(req component.BetterRequest[SaveRateLimitSettingsReq]
 	// 继续作用于新配置（如 3600s → 60s 时旧 key 仍按 3600s 计数）。
 	ratelimit.Default().ResetAll()
 	return res
+}
+
+// GetMCPSettings 获取内置 MCP server 设置
+func GetMCPSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.MCPSettings, defaultconfig.GetDefaultMCPSettingsConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveMCPSettingsReq struct {
+	Settings pageConfig.MCPSettingsConfig `json:"settings" validate:"required"`
+}
+
+// SaveMCPSettings 保存内置 MCP server 设置
+func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.Response {
+	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
 }
 
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {

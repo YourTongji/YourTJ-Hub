@@ -65,6 +65,7 @@ const (
 	MessageAuthEmailUnverified           MessageCode = "auth.email.unverified"           // 邮箱未验证。
 	MessageAuthLoginFailed               MessageCode = "auth.login.failed"               // 登录异常。
 	MessageAuthOldPasswordInvalid        MessageCode = "auth.password.oldInvalid"        // 原密码错误。
+	MessageAuthPasswordOAuthRequired     MessageCode = "auth.password.oauthRequired"     // 无邮箱的 OAuth 账号密码校验失败，需通过 OAuth 恢复。
 	MessageAuthPasswordUpdateFailed      MessageCode = "auth.password.updateFailed"      // 修改密码失败。
 	MessageAuthPasswordUpdateSuccess     MessageCode = "auth.password.updateSuccess"     // 修改密码成功。
 	MessageAuthResetMailQueued           MessageCode = "auth.passwordReset.mailQueued"   // 如邮箱存在，将收到密码重置邮件。
@@ -154,11 +155,8 @@ const (
 	MessageOAuthAccountFrozen          MessageCode = "oauth.account.frozen"             // OAuth 登录账号被冻结。
 	MessageOAuthActivationUpdateFailed MessageCode = "oauth.activation.updateFailed"    // OAuth 用户激活状态更新失败。
 	MessageOAuthTokenFailed            MessageCode = "oauth.token.failed"               // OAuth 登录 token 生成失败。
-	MessageOAuthNumericSubRequired     MessageCode = "oauth.numericSubRequired"         // OAuth 账号标识必须为数字ID。
 	MessageOidcStartFailed             MessageCode = "oidc.start.failed"                // OIDC 登录发起失败。
 	MessageOidcCallbackFailed          MessageCode = "oidc.callback.failed"             // OIDC 登录回调失败。
-	MessageOidcBindFailed              MessageCode = "oidc.bind.failed"                 // OIDC 账号绑定失败。
-	MessageOidcBindConflict            MessageCode = "oidc.bind.conflict"               // 该 OIDC 账号已被其他用户绑定。
 	MessageChatSendFailed              MessageCode = "chat.send.failed"                 // 私信发送失败，params.error 可带原始错误。
 	MessageChatGetMessagesFailed       MessageCode = "chat.messages.failed"             // 获取私信列表失败。
 	MessageChatMarkReadFailed          MessageCode = "chat.markRead.failed"             // 标记私信已读失败。
@@ -226,4 +224,16 @@ const (
 	MessageAdminReviewNotFound      MessageCode = "admin.review.notFound"      // 审核对象不存在。
 	MessageAdminReviewProcessed     MessageCode = "admin.review.processed"     // 审核对象已处理。
 	MessageAdminReviewFailed        MessageCode = "admin.review.failed"        // 审核操作失败，params.error 可带原始错误。
+	// Agent（机器人账号）管理
+	MessageAdminAgentUsernameInvalid MessageCode = "admin.agent.usernameInvalid" // 用户名格式不符合规则。
+	MessageAdminAgentUsernameExists  MessageCode = "admin.agent.usernameExists"  // 用户名已存在。
+	MessageAdminAgentWebhookInvalid  MessageCode = "admin.agent.webhookInvalid"  // Webhook 端点必须是合法的 http(s) URL。
+	MessageAdminAgentCreateFailed    MessageCode = "admin.agent.createFailed"    // 创建 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentUpdateFailed    MessageCode = "admin.agent.updateFailed"    // 更新 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentNotFound        MessageCode = "admin.agent.notFound"        // Agent 不存在。
+	MessageAdminAgentRotateFailed    MessageCode = "admin.agent.rotateFailed"    // 轮换令牌失败，params.error 可带原始错误。
+	MessageAdminAgentDisableFailed   MessageCode = "admin.agent.disableFailed"   // 禁用 Agent 失败，params.error 可带原始错误。
+	MessageAdminAgentNeedsRotate     MessageCode = "admin.agent.needsRotate"     // 该 Agent 的令牌已被吊销，重新启用前必须先轮换。
+	MessageAdminAgentRoleNotAllowed  MessageCode = "admin.agent.roleNotAllowed"  // 机器人账号不允许被授予角色。
+	MessageAdminAgentRotateConflict  MessageCode = "admin.agent.rotateConflict"  // 并发轮换冲突，请重试。
 )

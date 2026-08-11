@@ -13,7 +13,7 @@
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
 - Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; Casdoor planned.
+  database `[db.file]` stays SQLite); optional Meilisearch; optional built-in OIDC Provider ([oidc] in config.toml).
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -54,12 +54,17 @@
   1. Build single binary (frontend + go build) on GitHub Actions.
   2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
      or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
+  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback;
+     after a successful deploy the script prunes old images (keeps the newest
+     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
+     rollback tag) and build cache older than 72h.
+     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
-     auto-rollback to previous image tag on failure.
+     auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
+     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -68,6 +73,9 @@
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Deploy workflows checkout the repo and upload `deploy/scripts/deploy.sh` to
+  `/opt/yourtj/scripts/deploy.sh` before running it, so script fixes reach the server without a
+  manual `init-server.sh` re-run.
 
 ## GitHub Actions secrets
 
@@ -132,6 +140,21 @@ Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
 
+### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+
+Before issue #113, the `access_token` and goth session cookies decided the
+`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
+even under `app.env = "production"`. The template default
+`server.url = "http://localhost"` thus produced a session cookie without
+`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
+is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
+other than `"local"` forces `Secure` regardless of `server.url`**, and the
+binary logs a startup warning when a non-local `server.url` is non-https and
+non-loopback. No `config.toml` change is required for existing instances, but
+operators who relied on plain-http production access (e.g. 0.0.0.0 without a
+TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
+address so browsers actually return the now-`Secure` cookies.
+
 ### Unique-index preflight (user_o_auth provider_uid)
 
 Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
@@ -148,6 +171,27 @@ SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, prov
 
 If duplicates exist, keep the row with the earliest `created_at` (or the one owned by the active
 account) and delete the rest before the upgrade; the index creation will then succeed.
+
+### Unique username migration preflight
+
+The `users.username` unique index is shared by human and bot accounts. Before `AutoMigrate` creates
+that index, startup checks an existing `users` table for blank or duplicate usernames. The binary
+does not rewrite identity data automatically: if dirty rows exist, startup exits non-zero with the
+blank-row count, up to ten duplicate usernames, and an instruction to assign non-empty globally
+unique usernames before restarting. Because dev receives a production snapshot, resolve the report
+on the authoritative main dataset, resync dev, and rehearse the migration there before releasing to
+main.
+
+Operator checks for all supported databases:
+
+```sql
+SELECT COUNT(*) FROM users WHERE username = '';
+SELECT username, COUNT(*) FROM users
+WHERE username <> ''
+GROUP BY username
+HAVING COUNT(*) > 1;
+```
+
 ## PostgreSQL support
 
 Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
@@ -239,6 +283,6 @@ instance:
 
 ## Runbooks to write
 
-- Casdoor production config (domain, certs, client registration)
+- Built-in OIDC Provider production config ([oidc] in config.toml: enabled, issuer, signing key, clients)
 - Meilisearch index rebuild, backup
 - Logging & monitoring (config [log] slow SQL, rolling logs; health probes)

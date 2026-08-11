@@ -18,6 +18,9 @@
   "commonCurrent": "Current",
   "commonEmpty": "Nothing here",
   "commonBack": "Back",
+  "commonBackToTop": "Back to top",
+  "commonUseLightTheme": "Use light theme",
+  "commonUseDarkTheme": "Use dark theme",
   "timeAgoJustNow": "just now",
   "timeAgoMinutes": "{count} min ago",
   "@timeAgoMinutes": {
@@ -88,10 +91,12 @@
   "authTwoFactorCode": "TOTP code",
   "authVerify": "Verify",
   "authGetCode": "Get code",
-  "authCasdoorLogin": "Sign in with Casdoor",
+  "authOidcLogin": "Sign in with yourtj",
   "authRegisterSuccess": "Registered successfully, please sign in",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
+  "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
+  "authSessionSaveFailed": "Failed to save the new session securely. Please retry.",
   "loginWelcome": "Welcome back to yourtj",
   "loginModeLogin": "Sign in",
   "loginModeRegister": "Sign up",
@@ -123,6 +128,36 @@
       }
     }
   },
+  "composePreview": "Preview",
+  "composeEdit": "Edit",
+  "publishBodyField": "Body",
+  "publishCategoryRequired": "Select at least one category",
+  "publishPreviewEmpty": "Start writing to see the formatted preview here",
+  "publishLoadFailed": "Failed to load editor data: {error}",
+  "@publishLoadFailed": {
+    "placeholders": {
+      "error": {
+        "type": "String"
+      }
+    }
+  },
+  "publishToolBold": "Bold",
+  "publishToolItalic": "Italic",
+  "publishToolStrike": "Strikethrough",
+  "publishToolQuote": "Quote",
+  "publishToolCode": "Inline code",
+  "publishToolBulletList": "Bulleted list",
+  "publishToolOrderedList": "Numbered list",
+  "publishToolImage": "Add image",
+  "publishRemoveImage": "Remove image",
+  "topicReplyTarget": "Replying to {name}",
+  "@topicReplyTarget": {
+    "placeholders": {
+      "name": {
+        "type": "String"
+      }
+    }
+  },
   "topicTitle": "Topic",
   "topicReply": "Reply",
   "topicReplySuccess": "Reply posted",
@@ -148,6 +183,8 @@
       }
     }
   },
+  "topicWatch": "Watch topic replies",
+  "topicUnwatch": "Stop watching topic replies",
   "topicReplies": "{count} replies",
   "@topicReplies": {
     "placeholders": {
@@ -240,6 +277,7 @@
   "settingsEmail": "Email",
   "settingsEmailEdit": "Change bound email",
   "settingsEmailUpdated": "Email updated, please verify",
+  "settingsEmailOAuthReauthRequired": "The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.",
   "settingsEmailFailed": "Email update failed: {error}",
   "@settingsEmailFailed": {
     "placeholders": {
@@ -282,8 +320,8 @@
       }
     }
   },
-  "settingsOAuth": "Casdoor unified identity",
-  "settingsOAuthSub": "OIDC login bindings",
+  "settingsOAuth": "External account connections",
+  "settingsOAuthSub": "GitHub and Google login connections",
   "settingsOAuthManage": "Manage OAuth bindings",
   "settingsOAuthBindings": "OAuth bindings",
   "settingsBound": "Bound",

@@ -2,6 +2,7 @@
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
   Award,
+  Bot,
   Database,
   FileText,
   Files,
@@ -15,8 +16,9 @@ import {
   Megaphone,
   Monitor,
   PanelsTopLeft,
-  ScrollText,
   PanelLeft,
+  ScrollText,
+  Cpu,
   Shield,
   ShieldCheck,
   Tags,
@@ -74,6 +76,7 @@ const navGroups = computed<NavGroup[]>(() => {
     items: [
       { title: adminText('k004c'), url: '/admin', icon: Monitor, permission: AdminPermission.Admin },
       { title: adminText('k006i'), url: '/admin/users', icon: UserCog, permission: AdminPermission.UserManager },
+      { title: adminText('k00k7'), url: '/admin/agents', icon: Bot, permission: AdminPermission.Admin },
       { title: adminText('k007f'), url: '/admin/roles', icon: ShieldCheck, permission: AdminPermission.RoleManager },
       { title: adminText('k005l'), url: '/admin/categories', icon: Tags, permission: AdminPermission.TopicsManager },
       { title: adminText('k005u'), url: '/admin/posts', icon: FileText, permission: AdminPermission.TopicsManager },
@@ -95,6 +98,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k0005'), url: '/admin/settings/security', icon: ShieldCheck, permission: AdminPermission.SiteManager },
       { title: adminText('k007w'), url: '/admin/settings/posting', icon: FileText, permission: AdminPermission.SiteManager },
       { title: adminText('k00ig'), url: '/admin/settings/rate-limit', icon: Shield, permission: AdminPermission.SiteManager },
+      { title: adminText('k00mj'), url: '/admin/settings/mcp', icon: Cpu, permission: AdminPermission.SiteManager },
       { title: adminText('k0009'), url: '/admin/settings/announcement', icon: Megaphone, permission: AdminPermission.PageManager },
       { title: adminText('k00cj'), url: '/admin/settings/http-notify', icon: Webhook, permission: AdminPermission.SiteManager },
       { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },

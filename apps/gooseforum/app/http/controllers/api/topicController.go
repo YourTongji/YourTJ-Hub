@@ -8,6 +8,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -20,6 +21,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
+	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
@@ -77,6 +79,13 @@ type WriteTopicReq struct {
 
 // WriteTopic creates or updates a topic and its first post.
 func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
+	return writeTopic(req, false)
+}
+
+// writeTopic is the shared topic write core. The agent flag skips
+// browser-only guards (honeypot, captcha, new-user cooldown); every other
+// rule and side effect behaves identically for human and Agent writers.
+func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) component.Response {
 	// 获取发布设置
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
@@ -84,21 +93,22 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
-
-	// 蜜罐字段：填了即机器，静默拒绝。
-	if strings.TrimSpace(req.Params.Website) != "" {
+	// 蜜罐字段：填了即机器，静默拒绝。Agent 请求不携带该字段。
+	if !agent && strings.TrimSpace(req.Params.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "topic.write", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 
-	// 新用户高频发帖触发验证码
-	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
-	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
-		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
-			if needCaptcha {
-				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "topic.write"})
+	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
+	if !agent {
+		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "topic.write", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "topic.write"); !ok {
+				if needCaptcha {
+					return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "topic.write"})
+				}
+				return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 			}
-			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 		}
 	}
 
@@ -143,8 +153,8 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 
 	}
 
-	// 检查新用户冷却时间
-	if postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	// 检查新用户冷却时间（浏览器专用，Agent 跳过）
+	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
@@ -206,6 +216,9 @@ func WriteTopic(req component.BetterRequest[WriteTopicReq]) component.Response {
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		hotdataserve.ClearTopicListCache()
+		// 编辑分支：下架（TopicStatus=0）或转入待审不发 TopicUpdatedEvent，
+		// 需同步清理 LLMS 投影缓存，避免下架内容在 10s 窗口内继续导出。
+		llmsservice.ClearCache()
 		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
@@ -286,6 +299,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
+	// 无条件清理：下架（1→0）不发事件，此处同步失效 LLMS 投影缓存；0→1 复发的
+	// TopicPublishedEvent 也会清一次，幂等无害。
+	llmsservice.ClearCache()
 	if topic.Status == 1 {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
@@ -302,28 +318,35 @@ type CreatePostReq struct {
 }
 
 func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
-	// 获取发布设置
+	return createPost(req, false)
+}
+
+// createPost is the shared post write core. The agent flag skips browser-only
+// guards (honeypot, captcha, new-user cooldown); every other rule and side
+// effect behaves identically for human and Agent writers.
+func createPost(req component.BetterRequest[CreatePostReq], agent bool) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 
 	userEntity, err := req.GetUser()
 	if err != nil || userEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
 	}
-
-	// 蜜罐字段：填了即机器，静默拒绝。
-	if strings.TrimSpace(req.Params.Website) != "" {
+	// 蜜罐字段：填了即机器，静默拒绝。Agent 请求不携带该字段。
+	if !agent && strings.TrimSpace(req.Params.Website) != "" {
 		slog.Warn("honeypot_hit", "action", "post.create", "ip", clientIPOf(req.GinContext), "userId", req.UserId)
 		return component.SuccessResponse(true)
 	}
 
-	// 新用户高频发帖触发验证码
-	rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
-	if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "post.create", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
-		if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "post.create"); !ok {
-			if needCaptcha {
-				return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "post.create"})
+	// 新用户高频发帖触发验证码（浏览器专用，Agent 跳过）
+	if !agent {
+		rateLimitConfig := hotdataserve.GetRateLimitConfigCache()
+		if newUserCaptchaRequired(userEntity.CreatedAt, req.UserId, "post.create", rateLimitConfig.NewUserCaptchaAfterPosts, rateLimitConfig.NewUserCaptchaDays) {
+			if ok, needCaptcha := checkCaptchaForRequest(req.GinContext, req.Params.CaptchaId, req.Params.CaptchaCode, true, rateLimitConfig.MinSubmitSeconds, "post.create"); !ok {
+				if needCaptcha {
+					return component.FailResponseCode(component.MessageCaptchaRequired, component.MessageParams{"action": "post.create"})
+				}
+				return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 			}
-			return component.FailResponseCode(component.MessageAuthCaptchaInvalid, nil)
 		}
 	}
 
@@ -351,8 +374,8 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 
 	}
 
-	// 评论也受发帖冷却限制
-	if postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
+	// 评论也受发帖冷却限制（浏览器专用，Agent 跳过）
+	if !agent && postingConfig.TextControl.NewUserPostCooldownMinutes > 0 {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
@@ -366,7 +389,7 @@ func CreatePost(req component.BetterRequest[CreatePostReq]) component.Response {
 	}
 
 	topicEntity := topics.GetSimple(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -462,6 +485,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止在读路径不可见（隐藏/封禁）的话题中编辑回复
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 
 	content := strings.TrimSpace(req.Params.Content)
 	if len(content) < postingConfig.TextControl.MinPostLength {
@@ -502,6 +530,8 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 
 	}
 	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
+	// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
+	llmsservice.ClearCache()
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
@@ -520,12 +550,16 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
-	posts.DeleteEntity(&postEntity)
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-		hotdataserve.ClearTopicListCache()
+	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止删除读路径不可见（隐藏/封禁）话题中的回复
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	posts.DeleteEntity(&postEntity)
+	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
+	hotdataserve.ClearTopicListCache()
+	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
+	llmsservice.ClearCache()
 	return component.SuccessResponse(true)
 }
 
@@ -540,6 +574,11 @@ func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的
+	// 既有点赞，避免 like_count 与 user_action 行被永久卡住（无状态者仍按不可见拒绝）。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -586,8 +625,12 @@ func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Resp
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)
@@ -621,8 +664,12 @@ func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）退订对已隐藏/封禁话题的关注。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+
 	targetWatched := req.Params.Action == 1
 	if state.Id == 0 && !targetWatched {
 		return component.SuccessResponse(true)
@@ -646,8 +693,16 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有点赞。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -662,7 +717,6 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 			userStatistics.GivenLike(req.UserId)
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
 			userStatistics.LikeTopic(postEntity.UserId)
-			topicEntity := topics.Get(postEntity.TopicId)
 			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
@@ -691,8 +745,16 @@ func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Respon
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)

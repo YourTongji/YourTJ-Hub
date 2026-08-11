@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
@@ -47,8 +49,52 @@ func runWeb(_ *cobra.Command, _ []string) {
 	slog.Info("GooseForum:start")
 	slog.Info(fmt.Sprintf("GooseForum:useMem %d KB", m.Alloc/1024/8))
 
+	warnInsecureServerURL()
 	startDebugServices()
 	ginServe()
+}
+
+// warnInsecureServerURL logs a startup warning when a non-local deployment is
+// reachable over plain http (CWE-614). Cookies are already fail-closed by
+// setting.CookieSecure(), so this is a deployment hygiene notice, not a fatal
+// gate — template defaults are `production` + `http://localhost`, and browsers
+// treat `localhost` as a secure context that still accepts Secure cookies,
+// so we do not refuse to boot (issue #113).
+func warnInsecureServerURL() {
+	serverURL := strings.TrimSpace(preferences.GetString("server.url", ""))
+	if !shouldWarnInsecureServerURL() {
+		return
+	}
+	slog.Warn(fmt.Sprintf(
+		"server.url=%q 在非 local 环境下不是 https，会话 Cookie 已强制 Secure，浏览器不会在明文连接上回传它们；请将 server.url 改为 https:// 反向代理地址或显式配置 HTTPS 终结",
+		serverURL,
+	))
+}
+
+// shouldWarnInsecureServerURL is the pure decision predicate backing
+// warnInsecureServerURL. Returns true only when the deployment is non-local
+// and `server.url` points at a non-https, non-loopback host.
+func shouldWarnInsecureServerURL() bool {
+	if setting.IsLocal() {
+		return false
+	}
+	serverURL := strings.TrimSpace(preferences.GetString("server.url", ""))
+	if serverURL == "" {
+		return false
+	}
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return false
+	}
+	if strings.ToLower(u.Scheme) == "https" {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "":
+		return false
+	}
+	return true
 }
 
 func startDebugServices() {
@@ -105,6 +151,7 @@ func ginServe() {
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	sessionservice.CleanupExpired()
+	oidcservice.CleanupExpired()
 	job.Run()
 
 	port := preferences.GetString("server.port", 8080)

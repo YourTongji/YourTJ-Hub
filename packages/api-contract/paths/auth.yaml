@@ -31,6 +31,9 @@ login:
                 externalValue: ../fixtures/login-success.json
               invalidCredentials:
                 externalValue: ../fixtures/login-failure.json
+              invalidRequest:
+                summary: Undecryptable or stale password payload (encrypt within ±3 minutes of `serverTs` from GET /api/login-public-key).
+                externalValue: ../fixtures/login-invalid-request.json
       '429':
         description: Login rate limit exceeded.
         headers:
@@ -55,9 +58,9 @@ oidcExchange:
     security: []
     description: |
       The mobile client sends the authorization code together with its PKCE verifier, nonce, and
-      redirect URI. The server requires `redirectUri` to exactly match its configured mobile
-      allowlist, exchanges the code with Casdoor, verifies the ID token signature, issuer, audience,
-      expiry and nonce, enforces a positive numeric `sub`, then issues a forum JWT session.
+      redirect URI. The server requires `redirectUri` to exactly match the registered mobile client
+      redirect URI of the forum built-in OIDC provider, redeems the code atomically (single-use,
+      PKCE S256), verifies the bound nonce and numeric `sub`, then issues a forum JWT session.
     requestBody:
       required: true
       content:
@@ -93,13 +96,13 @@ oidcExchange:
               invalidRequest:
                 externalValue: ../fixtures/oidc-exchange-invalid.json
       '401':
-        description: Casdoor rejected the code, token verification failed, or the ID token nonce did not match.
+        description: The authorization code is invalid, already used, or the PKCE verifier / nonce did not match.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
       '403':
-        description: The redirect URI is not allowlisted, OIDC is unavailable, numeric sub is invalid, signup is disabled, or the matched account is frozen.
+        description: The redirect URI is not allowlisted, OIDC is unavailable, or the matched account is frozen.
         content:
           application/json:
             schema:

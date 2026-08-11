@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onBeforeUnmount, onMounted, ref, watch } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import Vditor from 'vditor'
 import 'vditor/dist/index.css'
 import luteUrl from 'vditor/dist/js/lute/lute.min.js?url'
@@ -10,6 +10,8 @@ import zhUrl from 'vditor/dist/js/i18n/zh_CN.js?url'
 import katexJsUrl from 'katex/dist/katex.min.js?url'
 import katexChemUrl from 'katex/dist/contrib/mhchem.min.js?url'
 import katexCssUrl from 'katex/dist/katex.min.css?url'
+import contentThemeLightCssUrl from 'vditor/dist/css/content-theme/light.css?url'
+import contentThemeDarkCssUrl from 'vditor/dist/css/content-theme/dark.css?url'
 import hljsLightCssUrl from 'highlight.js/styles/github.css?url'
 import hljsDarkCssUrl from 'highlight.js/styles/github-dark.css?url'
 import hljs from 'highlight.js'
@@ -32,6 +34,8 @@ import { useI18n } from 'vue-i18n'
  *   #vditorHljsThirdScript 让官方流程直接进入高亮逻辑
  * - katex.min.js / mhchem.min.js 用 loadRuntimeScript 预载（带官方 id）
  * - KaTeX 样式由 link#vditorKatexStyle 提供；高亮样式由自定义 link 按主题切换
+ * - content-theme light/dark 由 syncContentTheme 本地切换（path 为空时官方不会加载；
+ *   另用 CSS 把 .vditor-reset 绑到 --textarea-text-color，避免深色正文仍用 #24292e）
  *
  * 站点集成：v-model 双向、上传经 upload 事件交宿主处理、卸载销毁。
  * 不做任何样式覆盖或功能裁剪——保持官版外观与行为。
@@ -63,12 +67,17 @@ const emit = defineEmits<{
   'toggle-header': []
 }>()
 
-const { t, te } = useI18n()
+const { t, te, locale } = useI18n()
 const { isDark } = useSiteTheme()
 const root = ref<HTMLElement | null>(null)
+const editorReady = ref(false)
+/** 资源预载 / 构造失败时为 true；宿主可据此结束 loading，避免遮罩永远转圈 */
+const editorFailed = ref(false)
 let editor: Vditor | null = null
 let destroyed = false
 let ready = false
+/** 监听全屏按钮 childList：官方用 innerHTML 换图标会冲掉按钮内小字 */
+let fullscreenLabelObserver: MutationObserver | null = null
 
 /**
  * 官方默认工具栏（vditor src/ts/util/Options.ts），调整：
@@ -256,6 +265,26 @@ function mathToolbarItems(): IMenuItem[] {
   return [mathInline, mathBlock]
 }
 
+/**
+ * 正文 content-theme：官方 index.css 把 .vditor-reset 写死为 #24292e，
+ * 深色正文色只在 content-theme/dark.css 里覆盖。
+ * 本组件 cdn/path 为空（离线），setContentTheme 不会加载样式，
+ * 这里按站点深浅色自行切换 light/dark 主题表（与 hljs 同套路）。
+ */
+const CONTENT_THEME_LINK_ID = 'hubVditorContentTheme'
+function syncContentTheme() {
+  const themeName = isDark.value ? 'dark' : 'light'
+  const existing = document.getElementById(CONTENT_THEME_LINK_ID) as HTMLLinkElement | null
+  if (existing && existing.dataset.theme === themeName) return
+  existing?.remove()
+  const link = document.createElement('link')
+  link.id = CONTENT_THEME_LINK_ID
+  link.rel = 'stylesheet'
+  link.dataset.theme = themeName
+  link.href = isDark.value ? contentThemeDarkCssUrl : contentThemeLightCssUrl
+  document.head.appendChild(link)
+}
+
 /** 高亮主题样式：与站点深浅色联动，替换 link 实现（不依赖 vditor 内置主题切换） */
 const HIGHLIGHT_THEME_LINK_ID = 'hubVditorHljsTheme'
 function syncHighlightTheme() {
@@ -315,33 +344,65 @@ function toolbarLabel(type: string): string {
   return window.VditorI18n?.[type] || ''
 }
 
+/**
+ * 在工具栏按钮内部补/保「图标下小字」（不挪到按钮外）。
+ * 全屏等会 innerHTML 整按钮，需可重复调用。
+ */
+function ensureToolbarButtonLabel(item: HTMLElement) {
+  const type = item.getAttribute('data-type') || ''
+  const labelText =
+    toolbarLabel(type) ||
+    (item.getAttribute('aria-label') || '').replace(HOTKEY_PATTERN, '').trim()
+  if (!labelText) return
+
+  const existing = item.querySelector<HTMLElement>(':scope > .vditor-toolbar-label')
+  if (existing) {
+    if (existing.textContent !== labelText) existing.textContent = labelText
+    return
+  }
+
+  const span = document.createElement('span')
+  span.className = 'vditor-toolbar-label'
+  span.textContent = labelText
+  item.appendChild(span)
+}
+
+/**
+ * 官方 Fullscreen 进入/退出时执行：
+ *   this.innerHTML = '<svg>…' / menuItem.icon
+ * 会清掉我们塞在 button 内的小字。监听 childList，仍在按钮内补回（不外置）。
+ */
+function guardFullscreenToolbarLabel() {
+  const button = root.value?.querySelector<HTMLElement>(
+    '.vditor-toolbar__item > [data-type="fullscreen"]',
+  )
+  if (!button) return
+
+  fullscreenLabelObserver?.disconnect()
+  fullscreenLabelObserver = new MutationObserver(() => {
+    if (destroyed || !button.isConnected) {
+      fullscreenLabelObserver?.disconnect()
+      fullscreenLabelObserver = null
+      return
+    }
+    ensureToolbarButtonLabel(button)
+  })
+  fullscreenLabelObserver.observe(button, { childList: true })
+}
+
 function attachToolbarLabels() {
   // 移动端保持官方 sweet-mobile 纯图标工具栏（44px 触控高度），不注入文字标签
   if (!root.value || window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
   root.value.querySelectorAll<HTMLElement>('.vditor-toolbar__item .vditor-tooltipped').forEach((item) => {
-    if (item.querySelector('.vditor-toolbar-label')) return
-    const type = item.getAttribute('data-type') || ''
-    const label =
-      toolbarLabel(type) ||
-      (item.getAttribute('aria-label') || '').replace(HOTKEY_PATTERN, '').trim()
-    if (!label) return
-    const span = document.createElement('span')
-    span.className = 'vditor-toolbar-label'
-    span.textContent = label
-    item.appendChild(span)
+    ensureToolbarButtonLabel(item)
   })
   // more 子菜单：vditor 的 Custom 类会把自定义项（公式等）强制渲染成纯图标、
   // 覆盖 level-2 的文字 tip；这里给含 svg 的项补上文字标签，保持菜单项可读
   root.value.querySelectorAll<HTMLElement>('.vditor-hint button[data-type]').forEach((item) => {
     if (!item.querySelector('svg') || item.querySelector('.vditor-toolbar-label')) return
-    const type = item.getAttribute('data-type') || ''
-    const label = toolbarLabel(type)
-    if (!label) return
-    const span = document.createElement('span')
-    span.className = 'vditor-toolbar-label'
-    span.textContent = label
-    item.appendChild(span)
+    ensureToolbarButtonLabel(item)
   })
+  guardFullscreenToolbarLabel()
   attachTooltipSmartPosition()
 }
 
@@ -389,6 +450,318 @@ function attachTooltipSmartPosition() {
   })
 }
 
+// ===== 语言热切换：替换 window.VditorI18n 后就地刷新文案 DOM =====
+// vditor 无 setI18n API（src/index.ts 公开方法仅 updateToolbarConfig/setTheme/getValue/…），
+// 全部界面文案在构造期由 window.VditorI18n 生成；切换 = 重载目标语言脚本 → 就地改
+// 文本节点/属性（绝不能 innerHTML 重建带事件监听的按钮/面板）。
+
+/** 主行按钮 tooltip（aria-label）文案：宿主自定义项走 t()（与构造期 tip 同源），
+ *  其余回落 vditor 原生 i18n。上传必须用 uploadImageTip 完整 tooltip，
+ *  不能回落 I.upload（vditor 默认「上传图片或文件」会覆盖宿主定制文案）。 */
+const TOOLBAR_TIP_KEYS: Record<string, string> = {
+  upload: 'editor.toolbar.uploadImageTip',
+  'math-inline': 'editor.toolbar.mathInline',
+  'math-block': 'editor.toolbar.mathBlock',
+}
+
+/** 语言热切换竞态令牌：快速连续切换时只应用最后一次 */
+let i18nSeq = 0
+/** 初始化期间（编辑器未 ready）切换语言时置位，after() 就绪后补刷，避免切换被静默丢弃 */
+let pendingLocaleRefresh = false
+
+/** 重载目标语言 i18n 脚本。loadRuntimeScript（runtime-script.ts:6）对
+ *  dataset.loaded='true' 的节点直接 resolve 不重跑 → 切回已加载语言时
+ *  window.VditorI18n 会停在上一个语言，必须先移除节点强制重跑。 */
+async function loadVditorI18n(lang: string, url: string) {
+  const id = `vditorI18nScript${lang}`
+  document.getElementById(id)?.remove()
+  await loadRuntimeScript(url, id)
+}
+
+/** 空态占位符：wysiwyg/ir/sv 的 .element 都是 pre.vditor-reset（HTMLPreElement），
+ *  CSS 用 content:attr(placeholder) 显示，直接改属性即时生效。 */
+function refreshPlaceholder() {
+  if (!editor || !ready || destroyed) return
+  const text = props.placeholder
+  editor.vditor.options.placeholder = text
+  editor.vditor.wysiwyg?.element.setAttribute('placeholder', text)
+  editor.vditor.ir?.element.setAttribute('placeholder', text)
+  editor.vditor.sv?.element.setAttribute('placeholder', text)
+}
+
+/** 主行按钮 hover tooltip：重建 aria-label，保留原热键后缀（跨语言不变）。 */
+function refreshMainRowAriaLabels(I: typeof window.VditorI18n) {
+  root.value
+    ?.querySelectorAll<HTMLElement>('.vditor-toolbar__item > .vditor-tooltipped[data-type]')
+    .forEach((btn) => {
+      const type = btn.getAttribute('data-type') || ''
+      const suffix = (btn.getAttribute('aria-label') || '').match(HOTKEY_PATTERN)?.[0] || ''
+      const tipKey = TOOLBAR_TIP_KEYS[type]
+      const tip = tipKey ? (te(tipKey) ? t(tipKey) : I[type] || '') : I[type] || ''
+      btn.setAttribute('aria-label', tip + suffix)
+    })
+}
+
+/** more 子菜单原生 level-2 项：改首文本节点保留事件监听（MenuItem.ts:23-24 innerHTML 生成）。
+ *  必须用 `type in window.VditorI18n` 排除 content-theme/export 面板——它们的按钮
+ *  data-type 是主题/格式键（dark/light/markdown/pdf/…），不在 vditor i18n 里，否则会把
+ *  面板文字刷成空串。 */
+function refreshHintNativeItems(I: typeof window.VditorI18n) {
+  root.value
+    ?.querySelectorAll<HTMLElement>('.vditor-hint button[data-type]')
+    .forEach((btn) => {
+      if (btn.querySelector('svg')) return // 宿主自定义图标项（公式等）走 refreshToolbarLabelText
+      const type = btn.getAttribute('data-type') || ''
+      if (!type || !(type in window.VditorI18n)) return
+      const suffix = (btn.textContent || '').match(/\s*<[^<>]*>\s*$/)?.[0] || ''
+      if (btn.firstChild?.nodeType === Node.TEXT_NODE) {
+        btn.firstChild.nodeValue = (I[type] || '') + suffix
+      }
+    })
+}
+
+/** Headings 面板：click 事件绑在 button 上（Headings.ts:56-71），只改首文本节点。 */
+const HEADING_KEYS = ['heading1', 'heading2', 'heading3', 'heading4', 'heading5', 'heading6']
+function refreshHeadingsPanel(I: typeof window.VditorI18n) {
+  root.value
+    ?.querySelectorAll<HTMLElement>('.vditor-hint button[data-tag]')
+    .forEach((btn, i) => {
+      const suffix = (btn.textContent || '').match(/\s*<[^<>]*>\s*$/)?.[0] || ''
+      if (btn.firstChild?.nodeType === Node.TEXT_NODE) {
+        btn.firstChild.nodeValue = (I[HEADING_KEYS[i]] || '') + suffix
+      }
+    })
+}
+
+/** EditMode 面板：同规则改首文本节点。 */
+const EDIT_MODE_KEYS: Record<string, string> = {
+  wysiwyg: 'wysiwyg',
+  ir: 'instantRendering',
+  sv: 'splitView',
+}
+function refreshEditModePanel(I: typeof window.VditorI18n) {
+  root.value
+    ?.querySelectorAll<HTMLElement>('.vditor-hint button[data-mode]')
+    .forEach((btn) => {
+      const key = EDIT_MODE_KEYS[btn.getAttribute('data-mode') || '']
+      if (!key) return
+      const suffix = (btn.textContent || '').match(/\s*<[^<>]*>\s*$/)?.[0] || ''
+      if (btn.firstChild?.nodeType === Node.TEXT_NODE) {
+        btn.firstChild.nodeValue = (I[key] || '') + suffix
+      }
+    })
+}
+
+/** 大纲标题 + 开关按钮。标题只改首文本节点：宿主把开关按钮 append 进 title
+ *  （syncOutlineToggleHost L778），textContent 会删掉按钮。开关按钮只查已存在的
+ *  aria-label，绝不调用 outlineToggleButton()/headerToggleButton()——它们缺省会新建
+ *  按钮，非 outline/headerToggle 模式的编辑器会残留悬浮按钮。 */
+function refreshOutlineAndToggles(I: typeof window.VditorI18n) {
+  const title = editor?.vditor.outline.element.querySelector<HTMLElement>('.vditor-outline__title')
+  if (title?.firstChild?.nodeType === Node.TEXT_NODE) title.firstChild.nodeValue = I.outline || ''
+  const scopes = [root.value, props.toggleHost]
+  for (const scope of scopes) {
+    scope
+      ?.querySelector<HTMLElement>(`.${OUTLINE_TOGGLE_CLASS}`)
+      ?.setAttribute('aria-label', I.outline || '大纲')
+    scope
+      ?.querySelector<HTMLElement>(`.${HEADER_TOGGLE_CLASS}`)
+      ?.setAttribute('aria-label', t('publish.collapseHeader'))
+  }
+}
+
+/** 图标下小字就地刷新：只重跑 ensureToolbarButtonLabel（L360 文本 diff 更新）。
+ *  不能复用 attachToolbarLabels（L393-407）——它内部 attachTooltipSmartPosition 会重绑
+ *  mouseenter、guardFullscreenToolbarLabel 会重建 observer，多调几次叠监听器。 */
+function refreshToolbarLabelText() {
+  if (!root.value || window.matchMedia(MOBILE_VIEWPORT_QUERY).matches) return
+  root.value
+    .querySelectorAll<HTMLElement>('.vditor-toolbar__item .vditor-tooltipped')
+    .forEach(ensureToolbarButtonLabel)
+  root.value
+    .querySelectorAll<HTMLElement>('.vditor-hint button[data-type]')
+    .forEach((item) => {
+      if (item.querySelector('svg')) ensureToolbarButtonLabel(item)
+    })
+}
+
+/** 语言切换主流程。 */
+async function refreshVditorLocale() {
+  if (!editor || !ready || destroyed) return
+  // 局部 const 捕获当前实例：跨 await 时模块级 let editor 的收窄会被重置，
+  // 用 const 保证 await 后续体类型安全；卸载由 destroyed + i18nSeq 双重拦截。
+  const current = editor
+  const newLocale = currentLocale()
+  const asset = languageAssets[newLocale]
+  if (!asset) return
+  const seq = ++i18nSeq
+  try {
+    await loadVditorI18n(asset.lang, asset.url)
+  } catch {
+    return // 脚本加载失败：保留旧语言 DOM，下次切换/重载再试
+  }
+  if (destroyed || seq !== i18nSeq || !current.vditor) return // 快速切换竞态：放弃陈旧调用
+  const I = window.VditorI18n
+  current.vditor.options.i18n = I // 与 previewRender.ts:117 保持一致（preview 渲染期读 window.VditorI18n）
+  current.vditor.options.lang = asset.lang
+  refreshPlaceholder()
+  refreshMainRowAriaLabels(I)
+  refreshHintNativeItems(I)
+  refreshHeadingsPanel(I)
+  refreshEditModePanel(I)
+  refreshOutlineAndToggles(I)
+  refreshToolbarLabelText()
+  scheduleMeasure() // 英文文案变宽可能改变折叠收纳 / 图标-only 判定
+}
+
+// ===== 工具栏图标窄屏收纳：溢出的按钮按原次序移入 more 子菜单 =====
+// 方案依据：vditor 无事件委托，监听器直接绑在按钮节点上（Custom.ts/MenuItem.ts/Upload.ts 等），
+// 因此收纳只能「移动整层 .vditor-toolbar__item 包裹 div」进子菜单（节点移动保留监听器与
+// vditor.toolbar.elements[name] 引用），绝不能 display:none 原地隐藏或 clone 重建。
+const OVERFLOW_TOLERANCE = 1 // px：折叠/恢复判定滞回，防抖动
+/** 工具栏容器宽度低于该值时隐藏主行按钮的文字标签（只显示图标）：
+ *  窄屏下英文/多字标签（如 "Block math"）会溢出按钮与相邻图标重叠。
+ *  带滞回：低于 HIDE 才隐藏，需宽到 SHOW 才恢复（页面左边栏折叠会让工具栏宽度
+ *  非单调变化，无滞回会反复跨越阈值导致标签先消失又出现）。
+ *  #7：一旦触发过隐藏即锁存，之后宽度恢复也不再显示（防止侧栏消失→展开闪现）。 */
+const LABEL_HIDE_THRESHOLD = 800
+const LABEL_SHOW_THRESHOLD = 900
+let labelsHidden = false
+let labelsLatched = false // #7：一旦隐藏即永久锁存（直到模块重置），不再恢复文字标签
+/** 带二级面板的项不收纳：它们的 toggleSubMenu 的 exceptElement 逻辑在折叠区内
+ *  会把整个 more 面板关掉（EditMode.ts:172 / Emoji.ts:37 / Headings.ts 证据） */
+const HUB_NO_FOLD_TYPES = new Set(['emoji', 'headings', 'edit-mode'])
+let foldObserver: ResizeObserver | null = null
+let foldRaf = 0
+let toolbarEl: HTMLElement | null = null
+let moreWrapper: HTMLElement | null = null
+let hintPanel: HTMLElement | null = null
+let foldRegion: HTMLElement | null = null
+let mainRowSequence: HTMLElement[] = []
+
+function isFolded(el: HTMLElement) {
+  return el.parentElement === foldRegion
+}
+
+function syncDivider(d: HTMLElement) {
+  const i = mainRowSequence.indexOf(d)
+  const left = mainRowSequence[i - 1]
+  const right = mainRowSequence[i + 1]
+  const leftFolded = left ? isFolded(left) : false
+  const rightFolded = right ? isFolded(right) : false
+  d.style.display = leftFolded && rightFolded ? 'none' : ''
+}
+
+function syncAdjacentDividers(item: HTMLElement) {
+  const i = mainRowSequence.indexOf(item)
+  const left = mainRowSequence[i - 1]
+  const right = mainRowSequence[i + 1]
+  if (left?.classList.contains('vditor-toolbar__divider')) syncDivider(left)
+  if (right?.classList.contains('vditor-toolbar__divider')) syncDivider(right)
+}
+
+function rightmostMainRowItem(): HTMLElement | null {
+  for (let j = toolbarEl!.children.length - 1; j >= 0; j--) {
+    const c = toolbarEl!.children[j] as HTMLElement
+    if (c === moreWrapper || c.classList.contains('vditor-counter')) continue
+    if (!c.classList.contains('vditor-toolbar__item')) continue
+    const type = c.children[0]?.getAttribute('data-type') ?? ''
+    if (HUB_NO_FOLD_TYPES.has(type)) continue
+    return c
+  }
+  return null
+}
+
+function foldItem(item: HTMLElement) {
+  const i = mainRowSequence.indexOf(item)
+  const left = mainRowSequence[i - 1]
+  // 原次序内跨组：左邻是分隔符 → 打组分隔标记（region 首个项由 CSS 抑制顶线）
+  item.classList.toggle('hub-fold-group-start', !!left?.classList.contains('vditor-toolbar__divider'))
+  foldRegion!.insertBefore(item, foldRegion!.firstChild) // 插到最前 → 折叠区保持主行左→右次序
+  syncAdjacentDividers(item)
+}
+
+function unfoldItem(item: HTMLElement) {
+  const i = mainRowSequence.indexOf(item)
+  let anchor: HTMLElement | null = null
+  for (let j = i + 1; j < mainRowSequence.length; j++) {
+    if (mainRowSequence[j].parentElement === toolbarEl) {
+      anchor = mainRowSequence[j]
+      break
+    }
+  }
+  toolbarEl!.insertBefore(item, anchor ?? moreWrapper!) // 放回原次序正确位置
+  item.classList.remove('hub-fold-group-start')
+  syncAdjacentDividers(item)
+}
+
+function measureToolbar() {
+  foldRaf = 0
+  if (destroyed || !toolbarEl?.isConnected || !foldRegion) return
+  // 恒覆盖工具栏左 padding（防 vditor setPadding 按「内容 padding + 大纲宽度」
+  // 在窄屏/大纲展开时把图标挤到右端）；再按宽度滞回切换标签显隐。
+  syncToolbarLeftPadding()
+  if (toolbarEl.clientWidth < LABEL_HIDE_THRESHOLD) {
+    labelsHidden = true
+    labelsLatched = true        // #7：触发一次即锁存，之后宽度恢复不再显示
+  } else if (!labelsLatched && toolbarEl.clientWidth >= LABEL_SHOW_THRESHOLD) {
+    labelsHidden = false
+  }
+  if (root.value && root.value.classList.contains('hub-toolbar-icon-only') !== labelsHidden) {
+    root.value.classList.toggle('hub-toolbar-icon-only', labelsHidden)
+  }
+  for (let g = 0; g < 100; g++) {
+    // 折叠：右→左
+    if (toolbarEl.scrollWidth <= toolbarEl.clientWidth + OVERFLOW_TOLERANCE) break
+    const item = rightmostMainRowItem()
+    if (!item) break
+    foldItem(item)
+  }
+  for (let g = 0; g < 100; g++) {
+    // 恢复：反序尝试放回。主行项 flex-grow 到 clientWidth，scrollWidth 无法反映富余量，
+    // 因此改为「放回→查溢出→溢出则收回」的试放法；收回后停止，避免与折叠来回抖。
+    const item = foldRegion.firstElementChild as HTMLElement | null
+    if (!item) break
+    unfoldItem(item)
+    if (toolbarEl.scrollWidth > toolbarEl.clientWidth + OVERFLOW_TOLERANCE) {
+      foldItem(item)
+      break
+    }
+  }
+}
+
+function scheduleMeasure() {
+  if (destroyed || foldRaf) return
+  foldRaf = requestAnimationFrame(measureToolbar)
+}
+
+function initToolbarFolding() {
+  if (!root.value) return
+  toolbarEl = root.value.querySelector<HTMLElement>('.vditor-toolbar')
+  if (!toolbarEl) return
+  moreWrapper = toolbarEl.querySelector<HTMLElement>(
+    ':scope > .vditor-toolbar__item > [data-type="more"]',
+  )?.parentElement ?? null
+  if (!moreWrapper) return // 无 more（理论不会发生）→ 不做收纳
+  hintPanel = moreWrapper.querySelector<HTMLElement>(':scope > .vditor-hint')
+  if (!hintPanel) return
+  mainRowSequence = Array.from(toolbarEl.children).filter(
+    (c): c is HTMLElement => c !== moreWrapper && !c.classList.contains('vditor-counter'),
+  )
+  foldRegion = document.createElement('div')
+  foldRegion.className = 'hub-fold-region'
+  hintPanel.insertBefore(foldRegion, hintPanel.firstChild) // 折叠区置于子菜单最顶部
+  foldObserver = new ResizeObserver(scheduleMeasure)
+  foldObserver.observe(toolbarEl)
+  window.addEventListener('resize', scheduleMeasure)
+  // vditor setPadding 在窗口缩放时会按「内容 padding + 大纲宽度」重设工具栏 paddingLeft，
+  // 这里覆盖回恒定靠左值，保证缩放后工具栏左缘不变
+  window.addEventListener('resize', syncToolbarLeftPadding)
+  // 初始即定稿恒定靠左值（大纲初始展开后 vditor 可能已写入位移值）
+  syncToolbarLeftPadding()
+  measureToolbar() // 首次同步测量，避免初始闪烁
+}
+
 /**
  * 预置官方 id 的运行时资源，让 vditor 跳过 CDN：
  * - script#vditorHljsScript / #vditorHljsThirdScript：空占位，addScript 直接 resolve
@@ -422,6 +795,7 @@ function syncEditorTheme() {
   if (editor.vditor.options.preview?.theme) {
     editor.vditor.options.preview.theme.current = isDark.value ? 'dark' : 'light'
   }
+  syncContentTheme()
   syncHighlightTheme()
 }
 
@@ -496,6 +870,8 @@ function animateOutline(show: boolean) {
       outlineEl.style.display = 'none'
     }
     syncOutlineToggleHost()
+    // 大纲动画收尾 paddingLeft 突变后确定性重测折叠
+    scheduleMeasure()
   }
   outlineEndHandler = (event) => {
     if (event.propertyName === 'width') finish()
@@ -531,6 +907,19 @@ function outlineToggleButton(): HTMLButtonElement | null {
   return button
 }
 
+/** 工具栏内容恒定靠左、不随大纲开合移动：
+ *  有悬浮「向上扩展」按钮（headerToggle）时让出 35px（按钮占 0-35px），否则用 vditor 默认 5px。
+ *  显式覆盖 vditor setPadding 的「内容 padding + 大纲宽度」算法（它会让工具栏随大纲位移），
+ *  保证开关大纲 / 窗口缩放后工具栏左缘恒定。仅桌面生效：移动端大纲隐藏、悬浮按钮移入行内。 */
+function syncToolbarLeftPadding() {
+  const toolbar = root.value?.querySelector<HTMLElement>('.vditor-toolbar')
+  if (!toolbar) return
+  // 桌面且有悬浮「向上扩展」按钮 → 让出 35px；移动端按钮移入行内 / 无按钮 → 5px。
+  // 恒覆盖 vditor setPadding：它按「内容 padding + 大纲宽度」计算，大纲展开/窄屏下
+  // 会把 padding-left 推到数百像素（如 260px），把图标挤到工具栏右端。
+  toolbar.style.paddingLeft = !window.matchMedia(MOBILE_VIEWPORT_QUERY).matches && props.headerToggle ? '35px' : '5px'
+}
+
 function syncOutlineToggleHost() {
   const button = outlineToggleButton()
   const outline = editor?.vditor.outline
@@ -564,6 +953,8 @@ function syncOutlineToggleHost() {
 
   // 发布页「向上扩展」按钮跟随大纲显隐（仅大纲展开时浮在大纲上方，收起时隐藏避免遮挡工具栏）
   if (props.headerToggle) syncHeaderToggleHost()
+  // 工具栏恒定靠左（覆盖 vditor setPadding 可能在大纲动画中写下的位移值）
+  syncToolbarLeftPadding()
 }
 
 /** 「向上扩展」按钮：悬浮在大纲列正上方（工具栏左侧空白区），与工具栏工具完全分离；
@@ -610,15 +1001,8 @@ function syncHeaderToggleHost() {
   button.classList.remove('is-hidden')
   button.classList.remove('hub-toggle--inline')
 
-  // 大纲收起时 vditor 会把工具栏 padding-left 恢复为 5px，
-  // 悬浮按钮（header-toggle 0-35px）会盖住第一个工具，这里补偿 35px；
-  // 大纲展开时不动（保留 vditor 设置的大纲占位宽度）
-  const outline = editor?.vditor.outline
-  const outlineShown = props.outline === true && outline?.element.style.display === 'block'
-  const toolbar = root.value?.querySelector<HTMLElement>('.vditor-toolbar')
-  if (toolbar && !outlineShown) {
-    toolbar.style.paddingLeft = '35px'
-  }
+  // 工具栏恒定靠左（见 syncToolbarLeftPadding 注释）
+  syncToolbarLeftPadding()
 }
 
 onMounted(async () => {
@@ -639,6 +1023,8 @@ onMounted(async () => {
     ])
     await loadRuntimeScript(katexChemUrl, 'vditorKatexChemScript')
   } catch (error) {
+    editorFailed.value = true
+    editorReady.value = false
     emit('error', error instanceof Error ? error : new Error(String(error)))
     return
   }
@@ -695,6 +1081,9 @@ onMounted(async () => {
           return
         }
         ready = true
+        editorFailed.value = false
+        editorReady.value = true
+        syncContentTheme()
         syncHighlightTheme()
         attachToolbarLabels()
         // 大纲初始展开：enable 只是配置，需 toggle 后面板才显示（官方 Outline 按钮同逻辑）
@@ -707,16 +1096,27 @@ onMounted(async () => {
           syncOutlineToggleHost()
         }
         if (props.headerToggle) syncHeaderToggleHost()
+        // 工具栏收纳：须在大纲展开/header-toggle 定稿 paddingLeft 后再首次测量
+        initToolbarFolding()
+        // 初始化期间若切换过语言，就绪后按当前语言补刷（防切换被静默丢弃）
+        if (pendingLocaleRefresh) {
+          pendingLocaleRefresh = false
+          void refreshVditorLocale()
+        }
         if (props.modelValue && props.modelValue !== nextEditor?.getValue()) {
           nextEditor?.setValue(props.modelValue, true)
         }
       },
       input(value) {
         emit('update:modelValue', value)
+        // 字数变化改变工具栏末位 counter 宽度，RO 只测 border-box，需显式重测
+        scheduleMeasure()
       },
     })
     editor = nextEditor
   } catch (error) {
+    editorFailed.value = true
+    editorReady.value = false
     emit('error', error instanceof Error ? error : new Error(String(error)))
   }
 })
@@ -728,10 +1128,38 @@ watch(() => props.modelValue, (value) => {
 
 watch(isDark, syncEditorTheme)
 
+// #8：语言切换 → 重载 vditor i18n 脚本并就地刷新全部界面文案。
+// SPA 内 setLocale 只改 vue-i18n ref，绝不 location.reload()（AppShell.setLang）。
+watch(locale, () => {
+  if (!editor || !ready || destroyed) {
+    // 编辑器初始化期间：标记待补刷，after() 就绪后按当前语言应用
+    pendingLocaleRefresh = true
+    return
+  }
+  void refreshVditorLocale()
+})
+
+// #8：空态占位符。父组件 placeholder 是 computed(t(...))（如 PostComposer L102），
+// locale 一变 prop 即变；vditor 无热 setter，只能同步三个 mode 元素的 placeholder 属性。
+watch(() => props.placeholder, () => { refreshPlaceholder() })
+
 onBeforeUnmount(() => {
   destroyed = true
+  fullscreenLabelObserver?.disconnect()
+  fullscreenLabelObserver = null
+  // 工具栏收纳清理：观察器/监听/rAF 全部释放，防止陈旧实例泄漏
+  foldObserver?.disconnect()
+  foldObserver = null
+  window.removeEventListener('resize', scheduleMeasure)
+  window.removeEventListener('resize', syncToolbarLeftPadding)
+  if (foldRaf) cancelAnimationFrame(foldRaf)
+  foldRaf = 0
+  toolbarEl = moreWrapper = hintPanel = foldRegion = null
+  mainRowSequence = []
   const currentEditor = editor
   editor = null
+  editorReady.value = false
+  editorFailed.value = false
   // 与官方 beforeDestroy 一致：ready 后直接 destroy；未 ready 时由 after() 兜底。
   if (!ready) return
   ready = false
@@ -772,11 +1200,13 @@ function syncValue() {
   return value
 }
 
-defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
+defineExpose({ editorFailed, editorReady, focus, getValue, insertMarkdown, setHeight, syncValue })
 </script>
 
 <template>
-  <div ref="root" class="vditor-official" />
+  <!-- 用 data-locale 属性而非 :class 驱动语言样式：Vue 动态 class 重渲染会抹掉
+       Vditor 命令式添加的 .vditor 类（编辑器边框/工具栏样式依赖它），属性则不影响 className -->
+  <div ref="root" class="vditor-official" :data-locale="locale" />
 </template>
 
 <style>
@@ -795,6 +1225,16 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
 
 .vditor-official .vditor-reset ol ol ol {
   list-style-type: lower-roman;
+}
+
+/*
+ * 正文文字色：官方 index.css 写死 .vditor-reset { color: #24292e }，
+ * 不读 --textarea-text-color；.vditor--dark 只换 chrome token。
+ * content-theme 异步加载前用 chrome token 立即跟主题，避免深色下仍是深色字。
+ * 选择器加 .vditor-official 提高特异性，压过官方 content-theme 的硬编码色。
+ */
+.vditor-official .vditor-reset {
+  color: var(--textarea-text-color);
 }
 
 /*
@@ -1022,6 +1462,14 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   opacity: 0.9;
 }
 
+/* ===== 英文/意大利文标签更宽：10px 下溢出/截断，缩到 9px 保持单行 =====
+ * 仅命中主行「图标下小字」（选择器粒度与 L1428 图标-only 隐藏规则一致），
+ * 与 more 子菜单 / 折叠区 12px 文字（L1410-1417 / L1459-1466）正交。 */
+.vditor-official[data-locale='en'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label,
+.vditor-official[data-locale='it'] .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
+  font-size: 9px;
+}
+
 /* 上传按钮内嵌 file input：随新按钮高度铺满 */
 .vditor-official .vditor-toolbar__item input[type='file'] {
   width: 100%;
@@ -1163,6 +1611,75 @@ defineExpose({ focus, getValue, insertMarkdown, setHeight, syncValue })
   font-weight: 400;
   line-height: 1.4;
   vertical-align: middle;
+}
+
+/* ===== 工具栏图标窄屏收纳到 more 子菜单 ===== */
+/* 折叠区容器：位于 more 子菜单最顶部；空时隐藏，不占子菜单空间 */
+.vditor-official .hub-fold-region:empty {
+  display: none;
+}
+
+/* ===== 窄屏只显示图标：主行按钮隐藏文字标签（保留 more 子菜单里的文字行） =====
+ * 仅命中主行按钮（item 直接子级 button 内的 label）；折叠区位于 .vditor-hint 内，
+ * 其 label 不在「item > button」直系，不受影响。 */
+.vditor-official.hub-toolbar-icon-only .vditor-toolbar > .vditor-toolbar__item > .vditor-tooltipped .vditor-toolbar-label {
+  display: none;
+}
+
+/* 折叠项：恢复为纵向堆叠的菜单行（脱离主行 flex 的 21px 均分/横排小字） */
+.vditor-official .hub-fold-region .vditor-toolbar__item {
+  position: relative; /* 官方 .vditor-toolbar__item 本就有，保留给 upload input / 二级面板定位 */
+  flex: none;
+  width: 100%;
+  min-width: 0;
+  margin: 0;
+  padding: 0;
+}
+
+/* 折叠项按钮：图标+文字横排，与 hint 内既有自定义项视觉一致 */
+.vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  justify-content: flex-start;
+  gap: 6px;
+  width: 100%;
+  min-width: 0;
+  height: auto;
+  margin: 0;
+  padding: 5px 10px;
+  box-sizing: border-box;
+  border-radius: 0;
+  font-size: 12px;
+}
+
+.vditor-official .hub-fold-region .vditor-toolbar__item .vditor-toolbar-label {
+  display: inline-block;
+  margin-left: 0; /* 覆盖 hint 通用 6px，用 flex gap 统一间距 */
+  font-size: 12px;
+  font-weight: 400;
+  line-height: 1.4;
+  white-space: nowrap;
+}
+
+/* 跨组折叠项顶部细线（保持原分组感）；region 首个折叠项不加（其边界由主行 `… | more` 表示） */
+.vditor-official .hub-fold-region .vditor-toolbar__item.hub-fold-group-start .vditor-tooltipped {
+  border-top: 1px solid var(--border-color);
+}
+
+.vditor-official .hub-fold-region .vditor-toolbar__item:first-child .vditor-tooltipped {
+  border-top: 0;
+}
+
+/* 折叠项在子菜单内关闭 hover 气泡（行内已有文字标签，气泡冗余且会与面板重叠） */
+.vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped::after,
+.vditor-official .hub-fold-region .vditor-toolbar__item .vditor-tooltipped::before {
+  display: none;
+}
+
+/* upload 折叠进子菜单：file input 铺满整行（整行可点开文件选择器） */
+.vditor-official .hub-fold-region .vditor-toolbar__item input[type='file'] {
+  height: 100%;
 }
 
 /*

@@ -63,6 +63,15 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonBack => 'Back';
 
   @override
+  String get commonBackToTop => 'Back to top';
+
+  @override
+  String get commonUseLightTheme => 'Use light theme';
+
+  @override
+  String get commonUseDarkTheme => 'Use dark theme';
+
+  @override
   String get timeAgoJustNow => 'just now';
 
   @override
@@ -162,7 +171,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get authGetCode => 'Get code';
 
   @override
-  String get authCasdoorLogin => 'Sign in with Casdoor';
+  String get authOidcLogin => 'Sign in with yourtj';
 
   @override
   String get authRegisterSuccess => 'Registered successfully, please sign in';
@@ -172,6 +181,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get authLoading => 'Processing…';
+
+  @override
+  String get authCacheClearFailed =>
+      'Failed to clear the previous account\'s offline data. Please retry.';
+
+  @override
+  String get authSessionSaveFailed =>
+      'Failed to save the new session securely. Please retry.';
 
   @override
   String get loginWelcome => 'Welcome back to yourtj';
@@ -229,6 +246,59 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
+  String get composePreview => 'Preview';
+
+  @override
+  String get composeEdit => 'Edit';
+
+  @override
+  String get publishBodyField => 'Body';
+
+  @override
+  String get publishCategoryRequired => 'Select at least one category';
+
+  @override
+  String get publishPreviewEmpty =>
+      'Start writing to see the formatted preview here';
+
+  @override
+  String publishLoadFailed(String error) {
+    return 'Failed to load editor data: $error';
+  }
+
+  @override
+  String get publishToolBold => 'Bold';
+
+  @override
+  String get publishToolItalic => 'Italic';
+
+  @override
+  String get publishToolStrike => 'Strikethrough';
+
+  @override
+  String get publishToolQuote => 'Quote';
+
+  @override
+  String get publishToolCode => 'Inline code';
+
+  @override
+  String get publishToolBulletList => 'Bulleted list';
+
+  @override
+  String get publishToolOrderedList => 'Numbered list';
+
+  @override
+  String get publishToolImage => 'Add image';
+
+  @override
+  String get publishRemoveImage => 'Remove image';
+
+  @override
+  String topicReplyTarget(String name) {
+    return 'Replying to $name';
+  }
+
+  @override
   String get topicTitle => 'Topic';
 
   @override
@@ -264,6 +334,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String topicReportFailed(String error) {
     return 'Report failed: $error';
   }
+
+  @override
+  String get topicWatch => 'Watch topic replies';
+
+  @override
+  String get topicUnwatch => 'Stop watching topic replies';
 
   @override
   String topicReplies(int count) {
@@ -467,6 +543,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get settingsEmailUpdated => 'Email updated, please verify';
 
   @override
+  String get settingsEmailOAuthReauthRequired =>
+      'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.';
+
+  @override
   String settingsEmailFailed(String error) {
     return 'Email update failed: $error';
   }
@@ -517,10 +597,10 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String get settingsOAuth => 'Casdoor unified identity';
+  String get settingsOAuth => 'External account connections';
 
   @override
-  String get settingsOAuthSub => 'OIDC login bindings';
+  String get settingsOAuthSub => 'GitHub and Google login connections';
 
   @override
   String get settingsOAuthManage => 'Manage OAuth bindings';

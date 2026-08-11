@@ -34,7 +34,6 @@ const (
 	ProviderGoogle   = "google"
 	ProviderFacebook = "facebook"
 	ProviderTwitter  = "twitter"
-	ProviderCasdoor  = "casdoor"
 )
 
 // InitOAuth configures available OAuth providers.
@@ -107,6 +106,10 @@ func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 		user, err := users.Get(existingOAuth.UserId)
 		if err != nil {
 			return nil, fmt.Errorf("获取用户信息失败: %w", err)
+		}
+		// 机器人（Agent）账号禁止通过 OAuth（goth）登录。
+		if user.IsBot() {
+			return nil, fmt.Errorf("机器人账号不允许 OAuth 登录")
 		}
 		updateOAuthRecord(existingOAuth, gothUser)
 		return &user, nil
@@ -277,6 +280,11 @@ func checkUnbindSafety(userID uint64, providerToUnbind string) error {
 func ProcessOAuthBind(userID uint64, gothUser goth.User) error {
 	userInfo := parseOAuthUserInfo(gothUser)
 
+	// 机器人（Agent）账号禁止绑定任何 OAuth 身份。
+	if err := rejectBotUser(userID); err != nil {
+		return err
+	}
+
 	existingOAuth := userOAuth.GetByProviderAndUID(userInfo.Provider, userInfo.ID)
 	if existingOAuth != nil {
 		if existingOAuth.UserId != userID {
@@ -294,14 +302,34 @@ func ProcessOAuthBind(userID uint64, gothUser goth.User) error {
 	return createOAuthRecord(userID, gothUser, userInfo)
 }
 
+// rejectBotUser returns an error when the user is a bot (agent) persona.
+func rejectBotUser(userID uint64) error {
+	user, err := users.Get(userID)
+	if err != nil {
+		return fmt.Errorf("获取用户信息失败: %w", err)
+	}
+	if user.Id == 0 {
+		return errors.New("获取用户信息失败")
+	}
+	if user.IsBot() {
+		return errors.New("机器人账号不允许该操作")
+	}
+	return nil
+}
+
 // GetUserOAuthBindings returns active OAuth bindings keyed by provider.
 func GetUserOAuthBindings(userID uint64) map[string]*userOAuth.Entity {
-	providers := []string{ProviderGitHub, ProviderGoogle, ProviderCasdoor}
+	providers := []string{ProviderGitHub, ProviderGoogle}
 	return lo.PickBy(lo.Associate(providers, func(p string) (string, *userOAuth.Entity) {
 		return p, userOAuth.GetByUserIDAndProvider(userID, p)
 	}), func(_ string, v *userOAuth.Entity) bool {
 		return v != nil
 	})
+}
+
+// HasOAuthBinding reports whether the user can authenticate through an external provider.
+func HasOAuthBinding(userID uint64) bool {
+	return len(GetUserOAuthBindings(userID)) > 0
 }
 
 // downloadAndSaveAvatar stores an external OAuth avatar locally.

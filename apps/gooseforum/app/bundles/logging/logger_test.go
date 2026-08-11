@@ -2,6 +2,8 @@ package logging
 
 import (
 	"bytes"
+	"context"
+	"reflect"
 	"strings"
 	"testing"
 
@@ -107,5 +109,22 @@ func TestJSONFormatProducesJSON(t *testing.T) {
 	out := strings.TrimSpace(buf.String())
 	if !strings.HasPrefix(out, "{") || !strings.Contains(out, `"msg":"json-line"`) {
 		t.Fatalf("json encoder produced unexpected output: %q", out)
+	}
+}
+
+func TestGormLoggerParamsFilter(t *testing.T) {
+	query := "SELECT * FROM users WHERE username = ?"
+	params := []interface{}{"secret-user"}
+
+	parameterized := NewGormLogger(&GormLoggerConfig{ParameterizedQueries: true})
+	filteredQuery, filteredParams := parameterized.ParamsFilter(context.Background(), query, params...)
+	if filteredQuery != query || filteredParams != nil {
+		t.Fatalf("parameterized filter = (%q, %#v), want original SQL and nil params", filteredQuery, filteredParams)
+	}
+
+	raw := NewGormLogger(&GormLoggerConfig{ParameterizedQueries: false})
+	rawQuery, rawParams := raw.ParamsFilter(context.Background(), query, params...)
+	if rawQuery != query || !reflect.DeepEqual(rawParams, params) {
+		t.Fatalf("raw filter = (%q, %#v), want original SQL and params %#v", rawQuery, rawParams, params)
 	}
 }

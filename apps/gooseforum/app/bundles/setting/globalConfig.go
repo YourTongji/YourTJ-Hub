@@ -40,3 +40,15 @@ func GetCDNURL() string {
 func URL(path string) string {
 	return preferences.Get("server.url") + path
 }
+
+// CookieSecure reports whether session cookies should carry the Secure flag.
+//
+// Fail-closed by environment, not by site URL scheme: any environment other
+// than "local" forces Secure regardless of `server.url`. This closes the
+// CWE-614 gap where template defaults `app.env = "production"` with
+// `server.url = "http://localhost"` dropped the Secure flag on `access_token`
+// and goth session cookies. Local keeps Secure off so 0.0.0.0 / LAN-IP dev
+// access over plain http keeps working (browsers accept Secure on localhost).
+func CookieSecure() bool {
+	return !IsLocal()
+}

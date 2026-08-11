@@ -15,10 +15,11 @@ abstract class OfflineTopicCache {
 
 /// 离线 IM 会话缓存抽象(会话列表 + 单会话消息)。
 abstract class OfflineChatCache {
-  Future<void> putConversation(ChatItemPayload conv);
+  Future<void> putConversations(List<ChatItemPayload> conversations);
   Future<List<ChatItemPayload>> getConversations();
   Future<void> putMessages(int convId, List<ChatMessagePayload> messages);
   Future<List<ChatMessagePayload>> getMessages(int convId);
+  Future<void> clear();
 }
 
 /// 已浏览话题/会话的 drift 离线缓存。
@@ -126,19 +127,21 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
 
   // ---- OfflineChatCache ----
 
-  /// 保存会话列表项。
+  /// 批量保存会话列表,用一个事务完成写入并只裁剪一次。
   @override
-  Future<void> putConversation(ChatItemPayload conv) async {
-    await _db.customStatement(
-      'INSERT OR REPLACE INTO cached_conversations (conv_id, payload, cached_at) '
-      'VALUES (?, ?, ?)',
-      [
-        conv.convId,
-        jsonEncode(conv.toJson()),
-        DateTime.now().toUtc().toIso8601String(),
-      ],
-    );
-    await _trimConversations();
+  Future<void> putConversations(List<ChatItemPayload> conversations) async {
+    if (conversations.isEmpty) return;
+    final String cachedAt = DateTime.now().toUtc().toIso8601String();
+    await _db.transaction(() async {
+      for (final ChatItemPayload conversation in conversations) {
+        await _db.customStatement(
+          'INSERT OR REPLACE INTO cached_conversations '
+          '(conv_id, payload, cached_at) VALUES (?, ?, ?)',
+          [conversation.convId, jsonEncode(conversation.toJson()), cachedAt],
+        );
+      }
+      await _trimConversations();
+    });
   }
 
   /// 读取全部已缓存会话(按最近活跃排序)。
@@ -179,25 +182,28 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
     }
   }
 
-  /// 保存单会话消息列表。
+  /// 保存单会话消息列表(单事务提交,避免与清库语句交错)。
   @override
   Future<void> putMessages(
     int convId,
     List<ChatMessagePayload> messages,
   ) async {
-    for (final m in messages) {
-      await _db.customStatement(
-        'INSERT OR REPLACE INTO cached_messages (conv_id, msg_id, payload, cached_at) '
-        'VALUES (?, ?, ?, ?)',
-        [
-          convId,
-          m.id,
-          jsonEncode(m.toJson()),
-          DateTime.now().toUtc().toIso8601String(),
-        ],
-      );
-    }
-    await _trimMessages(convId);
+    if (messages.isEmpty) return;
+    await _db.transaction(() async {
+      for (final m in messages) {
+        await _db.customStatement(
+          'INSERT OR REPLACE INTO cached_messages (conv_id, msg_id, payload, cached_at) '
+          'VALUES (?, ?, ?, ?)',
+          [
+            convId,
+            m.id,
+            jsonEncode(m.toJson()),
+            DateTime.now().toUtc().toIso8601String(),
+          ],
+        );
+      }
+      await _trimMessages(convId);
+    });
   }
 
   /// 读取单会话已缓存消息(按消息 id 升序)。
@@ -243,12 +249,15 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
     }
   }
 
-  /// 清除全部缓存(登出/清理)。
+  /// 清除全部缓存(登出/清理),三条 DELETE 单事务提交,
+  /// 与页面写入互斥,避免清库与写入交错产生残留。
   @override
   Future<void> clear() async {
-    await _db.customStatement('DELETE FROM cached_topics');
-    await _db.customStatement('DELETE FROM cached_conversations');
-    await _db.customStatement('DELETE FROM cached_messages');
+    await _db.transaction(() async {
+      await _db.customStatement('DELETE FROM cached_topics');
+      await _db.customStatement('DELETE FROM cached_conversations');
+      await _db.customStatement('DELETE FROM cached_messages');
+    });
   }
 
   @override

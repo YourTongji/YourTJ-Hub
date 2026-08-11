@@ -27,9 +27,11 @@ _$PublishTopicPayloadImpl _$$PublishTopicPayloadImplFromJson(
 ) => _$PublishTopicPayloadImpl(
   title: json['title'] as String,
   content: json['content'] as String,
-  categoryIds: (json['categoryIds'] as List<dynamic>)
-      .map((e) => (e as num).toInt())
-      .toList(),
+  categoryIds:
+      (json['categoryIds'] as List<dynamic>?)
+          ?.map((e) => (e as num).toInt())
+          .toList() ??
+      const <int>[],
   topicStatus: (json['topicStatus'] as num).toInt(),
 );
 

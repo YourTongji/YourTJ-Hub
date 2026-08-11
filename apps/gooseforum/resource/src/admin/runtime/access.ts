@@ -10,6 +10,7 @@ export enum AdminPermission {
 const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin': AdminPermission.Admin,
   '/admin/users': AdminPermission.UserManager,
+  '/admin/agents': AdminPermission.Admin,
   '/admin/roles': AdminPermission.RoleManager,
   '/admin/categories': AdminPermission.TopicsManager,
   '/admin/posts': AdminPermission.TopicsManager,
@@ -24,6 +25,7 @@ const adminPathPermissions: Record<string, AdminPermission> = {
   '/admin/settings/mail': AdminPermission.SiteManager,
   '/admin/settings/security': AdminPermission.SiteManager,
   '/admin/settings/posting': AdminPermission.SiteManager,
+  '/admin/settings/mcp': AdminPermission.SiteManager,
   '/admin/settings/http-notify': AdminPermission.SiteManager,
   '/admin/settings/storage': AdminPermission.SiteManager,
   '/admin/settings/terms': AdminPermission.SiteManager,
@@ -35,6 +37,7 @@ const adminPathPermissions: Record<string, AdminPermission> = {
 const adminEntryPaths = [
   '/admin',
   '/admin/users',
+  '/admin/agents',
   '/admin/posts',
   '/admin/categories',
   '/admin/roles',
@@ -49,6 +52,7 @@ const adminEntryPaths = [
   '/admin/settings/mail',
   '/admin/settings/security',
   '/admin/settings/posting',
+  '/admin/settings/mcp',
   '/admin/settings/storage',
   '/admin/settings/terms',
   '/admin/settings/site-chrome',

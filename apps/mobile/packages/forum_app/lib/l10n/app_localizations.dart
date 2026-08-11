@@ -206,6 +206,24 @@ abstract class AppLocalizations {
   /// **'Back'**
   String get commonBack;
 
+  /// No description provided for @commonBackToTop.
+  ///
+  /// In en, this message translates to:
+  /// **'Back to top'**
+  String get commonBackToTop;
+
+  /// No description provided for @commonUseLightTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Use light theme'**
+  String get commonUseLightTheme;
+
+  /// No description provided for @commonUseDarkTheme.
+  ///
+  /// In en, this message translates to:
+  /// **'Use dark theme'**
+  String get commonUseDarkTheme;
+
   /// No description provided for @timeAgoJustNow.
   ///
   /// In en, this message translates to:
@@ -374,11 +392,11 @@ abstract class AppLocalizations {
   /// **'Get code'**
   String get authGetCode;
 
-  /// No description provided for @authCasdoorLogin.
+  /// No description provided for @authOidcLogin.
   ///
   /// In en, this message translates to:
-  /// **'Sign in with Casdoor'**
-  String get authCasdoorLogin;
+  /// **'Sign in with yourtj'**
+  String get authOidcLogin;
 
   /// No description provided for @authRegisterSuccess.
   ///
@@ -397,6 +415,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Processing…'**
   String get authLoading;
+
+  /// No description provided for @authCacheClearFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to clear the previous account\'s offline data. Please retry.'**
+  String get authCacheClearFailed;
+
+  /// No description provided for @authSessionSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save the new session securely. Please retry.'**
+  String get authSessionSaveFailed;
 
   /// No description provided for @loginWelcome.
   ///
@@ -500,6 +530,102 @@ abstract class AppLocalizations {
   /// **'Image upload failed: {error}'**
   String publishImageFailed(String error);
 
+  /// No description provided for @composePreview.
+  ///
+  /// In en, this message translates to:
+  /// **'Preview'**
+  String get composePreview;
+
+  /// No description provided for @composeEdit.
+  ///
+  /// In en, this message translates to:
+  /// **'Edit'**
+  String get composeEdit;
+
+  /// No description provided for @publishBodyField.
+  ///
+  /// In en, this message translates to:
+  /// **'Body'**
+  String get publishBodyField;
+
+  /// No description provided for @publishCategoryRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'Select at least one category'**
+  String get publishCategoryRequired;
+
+  /// No description provided for @publishPreviewEmpty.
+  ///
+  /// In en, this message translates to:
+  /// **'Start writing to see the formatted preview here'**
+  String get publishPreviewEmpty;
+
+  /// No description provided for @publishLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load editor data: {error}'**
+  String publishLoadFailed(String error);
+
+  /// No description provided for @publishToolBold.
+  ///
+  /// In en, this message translates to:
+  /// **'Bold'**
+  String get publishToolBold;
+
+  /// No description provided for @publishToolItalic.
+  ///
+  /// In en, this message translates to:
+  /// **'Italic'**
+  String get publishToolItalic;
+
+  /// No description provided for @publishToolStrike.
+  ///
+  /// In en, this message translates to:
+  /// **'Strikethrough'**
+  String get publishToolStrike;
+
+  /// No description provided for @publishToolQuote.
+  ///
+  /// In en, this message translates to:
+  /// **'Quote'**
+  String get publishToolQuote;
+
+  /// No description provided for @publishToolCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Inline code'**
+  String get publishToolCode;
+
+  /// No description provided for @publishToolBulletList.
+  ///
+  /// In en, this message translates to:
+  /// **'Bulleted list'**
+  String get publishToolBulletList;
+
+  /// No description provided for @publishToolOrderedList.
+  ///
+  /// In en, this message translates to:
+  /// **'Numbered list'**
+  String get publishToolOrderedList;
+
+  /// No description provided for @publishToolImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Add image'**
+  String get publishToolImage;
+
+  /// No description provided for @publishRemoveImage.
+  ///
+  /// In en, this message translates to:
+  /// **'Remove image'**
+  String get publishRemoveImage;
+
+  /// No description provided for @topicReplyTarget.
+  ///
+  /// In en, this message translates to:
+  /// **'Replying to {name}'**
+  String topicReplyTarget(String name);
+
   /// No description provided for @topicTitle.
   ///
   /// In en, this message translates to:
@@ -565,6 +691,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Report failed: {error}'**
   String topicReportFailed(String error);
+
+  /// No description provided for @topicWatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Watch topic replies'**
+  String get topicWatch;
+
+  /// No description provided for @topicUnwatch.
+  ///
+  /// In en, this message translates to:
+  /// **'Stop watching topic replies'**
+  String get topicUnwatch;
 
   /// No description provided for @topicReplies.
   ///
@@ -950,6 +1088,12 @@ abstract class AppLocalizations {
   /// **'Email updated, please verify'**
   String get settingsEmailUpdated;
 
+  /// No description provided for @settingsEmailOAuthReauthRequired.
+  ///
+  /// In en, this message translates to:
+  /// **'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.'**
+  String get settingsEmailOAuthReauthRequired;
+
   /// No description provided for @settingsEmailFailed.
   ///
   /// In en, this message translates to:
@@ -1037,13 +1181,13 @@ abstract class AppLocalizations {
   /// No description provided for @settingsOAuth.
   ///
   /// In en, this message translates to:
-  /// **'Casdoor unified identity'**
+  /// **'External account connections'**
   String get settingsOAuth;
 
   /// No description provided for @settingsOAuthSub.
   ///
   /// In en, this message translates to:
-  /// **'OIDC login bindings'**
+  /// **'GitHub and Google login connections'**
   String get settingsOAuthSub;
 
   /// No description provided for @settingsOAuthManage.

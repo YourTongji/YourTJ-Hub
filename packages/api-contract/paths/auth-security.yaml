@@ -1,0 +1,99 @@
+loginPublicKey:
+  get:
+    tags: [Authentication]
+    summary: Retrieve the password-login encryption public key
+    operationId: getLoginPublicKey
+    security: []
+    description: |
+      Returns the current RSA public key and server time used by password-login clients to build
+      an RSA-OAEP-256 encrypted password payload. The public key is intentionally public; private
+      key material never leaves the server. This route currently has no authentication middleware
+      and always returns an HTTP 200 success envelope.
+    responses:
+      '200':
+        description: Public key and server clock required to encrypt a password-login request.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/LoginPublicKeyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/login-public-key-success.json
+
+verifyTotp:
+  post:
+    tags: [Authentication]
+    summary: Complete a password login with TOTP or a recovery code
+    operationId: verifyTotpLogin
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      The supplied JWT must be a live, unconsumed, short-lived `totp_challenge` token issued by
+      password login; a normal session JWT is rejected. The middleware accepts that challenge via
+      Bearer authentication or the `access_token` cookie. When `code` is non-empty it takes
+      precedence over `recoveryCode`; an empty request is a legacy HTTP 200
+      `totp.code.invalid` business failure. Invalid codes and the internal per-user TOTP attempt
+      limit also remain HTTP 200 failures, and the internal limit does not emit `Retry-After`.
+      Successful verification atomically consumes the challenge before issuing a session, so a
+      sequentially replayed challenge cannot create a second session; a request that loses the
+      consume race is reported as a legacy HTTP 200 `totp.code.invalid` business failure.
+      The middleware rejects frozen accounts (`auth.account.frozen`, HTTP 403) without consuming
+      the challenge, matching the password-login stage; the challenge survives and can complete
+      after the account is unfrozen. The endpoint has no IP-level rate limiting: it relies only on
+      the in-process per-user TOTP limit, so multi-instance deployments must add edge rate limiting.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TotpVerifyRequest
+    responses:
+      '200':
+        description: Login completed, or a legacy validation, verification, rate-limit, or session failure envelope. A session-failure envelope (`auth.login.failed`) can surface after a successful challenge when the user snapshot is missing or when the session token cannot be created or persisted (e.g. signing or database failures); see the `sessionIssuanceFailed` example.
+        headers:
+          Set-Cookie:
+            description: On success, replaces the challenge cookie with an HTTP-only session cookie.
+            schema:
+              type: string
+          New-Token:
+            description: On success, contains the newly issued forum session JWT.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpVerifyResponse
+            examples:
+              success:
+                externalValue: ../fixtures/totp-verify-success.json
+              malformedRequest:
+                externalValue: ../fixtures/totp-verify-invalid-format.json
+              invalidCode:
+                externalValue: ../fixtures/totp-verify-invalid-code.json
+              rateLimited:
+                externalValue: ../fixtures/totp-verify-rate-limited.json
+              sessionIssuanceFailed:
+                externalValue: ../fixtures/totp-verify-login-failed.json
+      '403':
+        description: The challenge is valid but the account is frozen; the challenge is not consumed and the account can retry after it is unfrozen.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              accountFrozen:
+                externalValue: ../fixtures/totp-verify-account-frozen.json
+      '401':
+        description: Missing, invalid, expired, wrong-purpose, stale, or already-consumed (sequentially replayed) challenge token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              # The middleware reports every 401 path with the same `auth.required`
+              # envelope, so both examples intentionally share this fixture.
+              unauthenticated:
+                externalValue: ../fixtures/totp-verify-unauthenticated.json
+              challengeConsumed:
+                externalValue: ../fixtures/totp-verify-unauthenticated.json

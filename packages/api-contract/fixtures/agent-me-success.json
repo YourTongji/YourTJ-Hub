@@ -1,0 +1,13 @@
+{
+  "result": {
+    "agentId": 1001,
+    "username": "campus-bot",
+    "nickname": "Campus Bot",
+    "avatarUrl": "/static/img/avatar/1.png",
+    "tokenPrefix": "agt_AbCdEf12",
+    "enabled": 1,
+    "createdAt": 1750000000000,
+    "updatedAt": 1750000000000
+  },
+  "code": 0
+}

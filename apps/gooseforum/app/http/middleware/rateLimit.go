@@ -20,12 +20,20 @@ import (
 const (
 	RateLimitRegister       = "register"
 	RateLimitLogin          = "login"
+	RateLimitOIDCAuthorize  = "oidc.authorize"
+	RateLimitOIDCToken      = "oidc.token"
 	RateLimitForgotPassword = "forgot-password"
+	RateLimitEmailChange    = "email.change"
+	RateLimitPasswordChange = "password.change"
 	RateLimitTopicWrite     = "topic.write"
 	RateLimitPostCreate     = "post.create"
 	RateLimitMessageSend    = "message.send"
 	RateLimitUpload         = "upload"
 	RateLimitInteract       = "interact"
+	RateLimitLLMSIndex      = "llms.index"
+	RateLimitLLMSFull       = "llms.full"
+	RateLimitLLMSTopic      = "llms.topic"
+	RateLimitMCPAuth        = "mcp.auth"
 )
 
 // RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。
