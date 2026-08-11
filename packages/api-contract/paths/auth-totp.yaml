@@ -1,0 +1,160 @@
+status:
+  get:
+    tags: [Authentication]
+    summary: Retrieve the authenticated user's TOTP status
+    operationId: getTotpStatus
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
+      exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+    responses:
+      '200':
+        description: TOTP status or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpStatusResponse
+            examples:
+              disabled:
+                externalValue: ../fixtures/totp-status-disabled.json
+              enabled:
+                externalValue: ../fixtures/totp-status-enabled.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/totp-settings-unauthenticated.json
+
+setup:
+  post:
+    tags: [Authentication]
+    summary: Provision a TOTP secret for the authenticated user
+    operationId: setupTotp
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Requires the account password as re-authentication. The secret and otpauth URI are returned
+      once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
+      setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
+      rejected by this route because it is not a writable-account operation.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TotpSetupRequest
+    responses:
+      '200':
+        description: Setup result or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpSetupResponse
+            examples:
+              success:
+                externalValue: ../fixtures/totp-setup-success.json
+              invalidParams:
+                externalValue: ../fixtures/totp-settings-invalid-params.json
+              invalidCredentials:
+                externalValue: ../fixtures/totp-setup-invalid-credentials.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/totp-settings-unauthenticated.json
+
+enable:
+  post:
+    tags: [Authentication]
+    summary: Enable TOTP after verifying the authenticator code
+    operationId: enableTotp
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
+      ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
+      enable without setup returns `totp.notEnabled`; calling it after enable returns
+      `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TotpEnableRequest
+    responses:
+      '200':
+        description: Enable result or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpEnableResponse
+            examples:
+              success:
+                externalValue: ../fixtures/totp-enable-success.json
+              invalidCode:
+                externalValue: ../fixtures/totp-code-invalid.json
+              notSetup:
+                externalValue: ../fixtures/totp-not-enabled.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/totp-settings-unauthenticated.json
+
+disable:
+  post:
+    tags: [Authentication]
+    summary: Disable TOTP for the authenticated user
+    operationId: disableTotp
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Accepts either the current TOTP code or the account password. Disabling removes all stored
+      recovery codes and returns a human-readable success result. Calling disable when TOTP is not
+      enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/TotpDisableRequest
+    responses:
+      '200':
+        description: Disable result or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/TotpDisableResponse
+            examples:
+              success:
+                externalValue: ../fixtures/totp-disable-success.json
+              invalidCode:
+                externalValue: ../fixtures/totp-code-invalid.json
+              notEnabled:
+                externalValue: ../fixtures/totp-not-enabled.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/totp-settings-unauthenticated.json

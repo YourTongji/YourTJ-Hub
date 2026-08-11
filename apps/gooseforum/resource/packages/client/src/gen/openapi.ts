@@ -100,6 +100,95 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/user/totp/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Retrieve the authenticated user's TOTP status
+         * @description Returns only whether TOTP is currently enabled. Recovery-code inventory is intentionally not
+         *     exposed by this endpoint. Frozen accounts are not rejected, allowing account recovery actions.
+         */
+        get: operations["getTotpStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/totp/setup": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Provision a TOTP secret for the authenticated user
+         * @description Requires the account password as re-authentication. The secret and otpauth URI are returned
+         *     once for authenticator enrollment; setup leaves TOTP disabled until enable is called. Calling
+         *     setup for an already enabled account returns `totp.alreadyEnabled`. Frozen accounts are not
+         *     rejected by this route because it is not a writable-account operation.
+         */
+        post: operations["setupTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/totp/enable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enable TOTP after verifying the authenticator code
+         * @description Verifies the current six-digit code for a provisioned secret, marks TOTP enabled, and returns
+         *     ten one-time recovery codes. Recovery codes are shown only in this success response. Calling
+         *     enable without setup returns `totp.notEnabled`; calling it after enable returns
+         *     `totp.alreadyEnabled`. Frozen accounts are not rejected by this route.
+         */
+        post: operations["enableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user/totp/disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable TOTP for the authenticated user
+         * @description Accepts either the current TOTP code or the account password. Disabling removes all stored
+         *     recovery codes and returns a human-readable success result. Calling disable when TOTP is not
+         *     enabled returns `totp.notEnabled`. Frozen accounts are not rejected by this route.
+         */
+        post: operations["disableTotp"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/oidc/exchange": {
         parameters: {
             query?: never;
@@ -383,6 +472,55 @@ export interface components {
             /** @constant */
             messageCode: "auth.login.success";
         };
+        TotpStatusResult: {
+            enabled: boolean;
+        };
+        TotpStatusSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TotpStatusResult"];
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        TotpStatusResponse: components["schemas"]["TotpStatusSuccess"] | components["schemas"]["ApiFailure"];
+        TotpSetupRequest: {
+            /** @description Current account password used for re-authentication before provisioning TOTP. */
+            password: string;
+        };
+        TotpSetupResult: {
+            /** @description Base32 TOTP secret. It is returned only during setup and is not persisted in plaintext. */
+            secret: string;
+            /** @description otpauth URI for authenticator enrollment. */
+            otpauthUrl: string;
+        };
+        TotpSetupSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TotpSetupResult"];
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        TotpSetupResponse: components["schemas"]["TotpSetupSuccess"] | components["schemas"]["ApiFailure"];
+        TotpEnableRequest: {
+            /** @description Current six-digit TOTP code proving authenticator setup before enabling 2FA. */
+            code: string;
+        };
+        TotpEnableResult: {
+            recoveryCodes: string[];
+        };
+        TotpEnableSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["TotpEnableResult"];
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        TotpEnableResponse: components["schemas"]["TotpEnableSuccess"] | components["schemas"]["ApiFailure"];
+        TotpDisableRequest: {
+            /** @description Current TOTP code or account password used to disable 2FA. */
+            code: string;
+        };
+        TotpDisableSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "两步验证已关闭";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        TotpDisableResponse: components["schemas"]["TotpDisableSuccess"] | components["schemas"]["ApiFailure"];
         WriteTopicRequest: {
             /**
              * Format: uint64
@@ -692,6 +830,134 @@ export interface operations {
             };
             /** @description The challenge is valid but the account is frozen; the challenge is not consumed and the account can retry after it is unfrozen. */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getTotpStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description TOTP status or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setupTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpSetupRequest"];
+            };
+        };
+        responses: {
+            /** @description Setup result or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpSetupResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    enableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpEnableRequest"];
+            };
+        };
+        responses: {
+            /** @description Enable result or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpEnableResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    disableTotp: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TotpDisableRequest"];
+            };
+        };
+        responses: {
+            /** @description Disable result or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TotpDisableResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

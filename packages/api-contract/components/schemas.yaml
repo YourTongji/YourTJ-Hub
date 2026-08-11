@@ -159,6 +159,136 @@ TotpVerifyResponse:
     - $ref: '#/TotpVerifySuccess'
     - $ref: '#/ApiFailure'
 
+TotpStatusResult:
+  type: object
+  required: [enabled]
+  properties:
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+TotpStatusSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpStatusResult'
+        messageCode:
+          const: common.operation.success
+
+TotpStatusResponse:
+  oneOf:
+    - $ref: '#/TotpStatusSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpSetupRequest:
+  type: object
+  required: [password]
+  properties:
+    password:
+      type: string
+      minLength: 1
+      description: Current account password used for re-authentication before provisioning TOTP.
+  additionalProperties: false
+
+TotpSetupResult:
+  type: object
+  required: [secret, otpauthUrl]
+  properties:
+    secret:
+      type: string
+      minLength: 1
+      description: Base32 TOTP secret. It is returned only during setup and is not persisted in plaintext.
+    otpauthUrl:
+      type: string
+      minLength: 1
+      description: otpauth URI for authenticator enrollment.
+  additionalProperties: false
+
+TotpSetupSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpSetupResult'
+        messageCode:
+          const: common.operation.success
+
+TotpSetupResponse:
+  oneOf:
+    - $ref: '#/TotpSetupSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpEnableRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      description: Current six-digit TOTP code proving authenticator setup before enabling 2FA.
+  additionalProperties: false
+
+TotpEnableResult:
+  type: object
+  required: [recoveryCodes]
+  properties:
+    recoveryCodes:
+      type: array
+      minItems: 10
+      maxItems: 10
+      items:
+        type: string
+        minLength: 1
+  additionalProperties: false
+
+TotpEnableSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpEnableResult'
+        messageCode:
+          const: common.operation.success
+
+TotpEnableResponse:
+  oneOf:
+    - $ref: '#/TotpEnableSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpDisableRequest:
+  type: object
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      description: Current TOTP code or account password used to disable 2FA.
+  additionalProperties: false
+
+TotpDisableSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 两步验证已关闭
+        messageCode:
+          const: common.operation.success
+
+TotpDisableResponse:
+  oneOf:
+    - $ref: '#/TotpDisableSuccess'
+    - $ref: '#/ApiFailure'
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
