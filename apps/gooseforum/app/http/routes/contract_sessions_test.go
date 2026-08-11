@@ -8,11 +8,14 @@ import (
 	"reflect"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/http/controllers/api"
 	"github.com/leancodebox/GooseForum/app/http/middleware"
+	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"gorm.io/gorm"
 )
 
@@ -200,6 +203,47 @@ func TestListSessionsHTTPContract(t *testing.T) {
 		}
 		if currentCount != 1 {
 			t.Fatalf("isCurrent count = %d, want exactly 1", currentCount)
+		}
+	})
+
+	t.Run("excludes expired rows and never exposes unparseable addresses", func(t *testing.T) {
+		conn, router := setupSessionContractTest(t)
+		user := createHTTPContractUser(t, conn, contractTestID())
+		token := contractSessionToken(t, user)
+		if err := sessionservice.Create(user.Id, "contract-malformed-ip", "contract-test", "not-an-ip"); err != nil {
+			t.Fatalf("create malformed-ip session: %v", err)
+		}
+		if err := sessionservice.Create(user.Id, "contract-expired-session", "contract-test", "203.0.113.9"); err != nil {
+			t.Fatalf("create expired session: %v", err)
+		}
+		if err := userSessions.UpdateExpiresAtByJti("contract-expired-session", time.Now().Add(-time.Hour)); err != nil {
+			t.Fatalf("expire session: %v", err)
+		}
+
+		recorder := serveSessionJSON(router, http.MethodGet, "/api/user/sessions", "", token)
+		if recorder.Code != http.StatusOK {
+			t.Fatalf("list sessions status = %d, want 200: %s", recorder.Code, recorder.Body.String())
+		}
+		items := decodeSessionList(t, decodeContractEnvelope(t, recorder).Result)
+		if len(items) != 2 {
+			t.Fatalf("session count = %d, want 2 live rows", len(items))
+		}
+		for _, item := range items {
+			if item.ID == 0 {
+				t.Fatal("session id = 0, want positive")
+			}
+			if item.IPMasked == "not-an-ip" {
+				t.Fatal("session list exposed an unparseable raw IP")
+			}
+		}
+		var malformedIPFound bool
+		for _, item := range items {
+			if item.IPMasked == "" {
+				malformedIPFound = true
+			}
+		}
+		if !malformedIPFound {
+			t.Fatal("session list did not include the malformed-IP session as an empty mask")
 		}
 	})
 

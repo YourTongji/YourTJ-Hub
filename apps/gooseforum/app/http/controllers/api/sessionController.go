@@ -3,7 +3,6 @@ package api
 import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 )
 
@@ -79,9 +78,8 @@ func RevokeSession(req component.BetterRequest[RevokeSessionReq]) component.Resp
 // RevokeAllSessions 吊销该用户全部会话（含当前），并自增 TokenVersion 双保险
 func RevokeAllSessions(req component.BetterRequest[component.Null]) component.Response {
 	userID := req.UserId
-	if err := sessionservice.RevokeAll(userID); err != nil {
+	if err := sessionservice.RevokeAllAndInvalidate(userID); err != nil {
 		return component.FailResponseCode(component.MessageSessionRevokeFailed, nil)
 	}
-	users.IncrementTokenVersion(userID)
 	return component.SuccessResponseCode("已退出所有设备", component.MessageSessionRevokeAllSuccess, nil)
 }

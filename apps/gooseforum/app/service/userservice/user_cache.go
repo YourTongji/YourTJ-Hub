@@ -151,6 +151,14 @@ func GetUserPublicProfile(userID uint64) (UserPublicProfile, bool) {
 	return profile, true
 }
 
+// InvalidateUserInfoCache removes the cached account snapshot for one user.
+func InvalidateUserInfoCache(userID uint64) {
+	if userID == 0 {
+		return
+	}
+	userInfoCache.Delete(userInfoKey(userID))
+}
+
 func InvalidateUserPublicProfileCache(userID uint64) {
 	if userID == 0 {
 		return

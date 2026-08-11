@@ -58,9 +58,8 @@ export interface paths {
          * @description Session is optional. When the request carries a valid session token (cookie or Bearer), the
          *     server revokes that session record, so the token immediately stops authenticating. An absent,
          *     unverifiable, or already-revoked token is treated as already logged out, which makes this
-         *     operation idempotent. The `access_token` cookie is cleared on the success and
-         *     already-logged-out paths; the rare `session.revoke.failed` business failure (HTTP 200 with
-         *     `code: 1`) currently returns before the cookie is cleared (tracked in issue #79).
+         *     operation idempotent. The `access_token` cookie is cleared on every path, including the rare
+         *     `session.revoke.failed` business failure (HTTP 200 with `code: 1`).
          */
         post: operations["logout"];
         delete?: never;
@@ -133,12 +132,11 @@ export interface paths {
         };
         /**
          * List the authenticated user's sessions
-         * @description Returns all stored session rows of the caller, newest first, marking the session that carries
-         *     the current token; expired rows may appear until housekeeping removes them (tracked in issue
-         *     #79). Parseable addresses in `ipMasked` are privacy-masked (the last IPv4 octet or the IPv6
-         *     interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in
-         *     issue #79). Frozen accounts are intentionally not rejected here so they can still inspect and
-         *     revoke their sessions.
+         * @description Returns only non-expired session rows of the caller, newest first, marking the session that
+         *     carries the current token. `ipMasked` never exposes the stored raw address: parseable values
+         *     hide the last IPv4 octet or the IPv6 interface ID, while unparseable values are returned as an
+         *     empty string. Frozen accounts are intentionally not rejected here so they can still inspect
+         *     and revoke their sessions.
          */
         get: operations["listSessions"];
         put?: never;
@@ -186,11 +184,12 @@ export interface paths {
         put?: never;
         /**
          * Revoke every session of the authenticated user
-         * @description Deletes all session records of the caller, including the one carrying the current token, and
-         *     increments the account's token version as a second layer of invalidation; the increment is
-         *     currently best-effort (not transactional with the deletion, tracked in issue #79). Every
-         *     existing token of the account gets 401 on its next request; the client must log in again
-         *     afterwards. Frozen accounts are not rejected here either.
+         * @description Atomically deletes all session records of the caller, including the one carrying the current
+         *     token, and increments the account's token version as a second layer of invalidation. If either
+         *     database operation fails, neither change is committed and the endpoint returns
+         *     `session.revoke.failed`. Every existing token of the account gets 401 on its next request
+         *     after a successful revocation; the client must log in again afterwards. Frozen accounts are
+         *     not rejected here either.
          */
         post: operations["revokeAllSessions"];
         delete?: never;
@@ -646,7 +645,7 @@ export interface operations {
             /** @description Logout completed (or the caller was already logged out), or a revocation failure. */
             200: {
                 headers: {
-                    /** @description Expires the HTTP-only `access_token` session cookie on the success and already-logged-out paths. */
+                    /** @description Expires the HTTP-only `access_token` session cookie on every logout response. */
                     "Set-Cookie"?: string;
                     [name: string]: unknown;
                 };

@@ -10,6 +10,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
 	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
 	"github.com/samber/lo"
+	"gorm.io/gorm"
 )
 
 // dummyBotHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
@@ -179,5 +180,18 @@ func IncrementPrestige(addNumber int64, userId uint64) int64 {
 // IncrementTokenVersion bumps the user's token version, invalidating every
 // previously issued access token (used by "revoke all devices").
 func IncrementTokenVersion(userId uint64) {
-	builder().Exec("UPDATE users SET token_version = token_version + 1 where id = ?", userId)
+	_ = IncrementTokenVersionWithDB(builder(), userId)
+}
+
+// IncrementTokenVersionWithDB increments token_version through the supplied database handle.
+// A missing user is an error so callers can roll back any coupled changes.
+func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {
+	result := conn.Exec("UPDATE users SET token_version = token_version + 1 where id = ?", userId)
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected != 1 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }

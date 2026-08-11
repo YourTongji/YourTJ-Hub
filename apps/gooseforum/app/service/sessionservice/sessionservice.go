@@ -6,8 +6,12 @@ import (
 	"strings"
 	"time"
 
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"gorm.io/gorm"
 )
 
 // sessionLifetime mirrors jwtopt.validTime so session records stay in sync
@@ -70,6 +74,22 @@ func RevokeAll(userID uint64) error {
 	return userSessions.DeleteAllByUserID(userID)
 }
 
+// RevokeAllAndInvalidate atomically deletes every session and invalidates every
+// previously issued token for the user. The user-info cache is cleared only
+// after the database transaction commits.
+func RevokeAllAndInvalidate(userID uint64) error {
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := userSessions.DeleteAllByUserIDWithDB(tx, userID); err != nil {
+			return err
+		}
+		return users.IncrementTokenVersionWithDB(tx, userID)
+	}); err != nil {
+		return err
+	}
+	userservice.InvalidateUserInfoCache(userID)
+	return nil
+}
+
 // CleanupExpired removes expired session rows (cheap housekeeping on issue).
 func CleanupExpired() {
 	_ = userSessions.DeleteExpired()
@@ -90,7 +110,7 @@ func MaskIP(ip string) string {
 		}
 	}
 	if parsed == nil {
-		return ip
+		return ""
 	}
 	if v4 := parsed.To4(); v4 != nil {
 		return fmt.Sprintf("%d.%d.%d.*", v4[0], v4[1], v4[2])

@@ -2,6 +2,8 @@ package userSessions
 
 import (
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Create 创建会话记录
@@ -32,7 +34,7 @@ func DeleteByID(userID uint64, id uint64) error {
 // ListByUserID 获取用户全部会话，按创建时间倒序
 func ListByUserID(userID uint64) ([]Entity, error) {
 	var entities []Entity
-	err := builder().Where(fieldUserId, userID).Order(fieldCreatedAt + " desc").Find(&entities).Error
+	err := builder().Where(fieldUserId, userID).Where(fieldExpiresAt+" > ?", time.Now()).Order(fieldCreatedAt + " desc").Find(&entities).Error
 	return entities, err
 }
 
@@ -43,7 +45,12 @@ func DeleteExpired() error {
 
 // DeleteAllByUserID 删除用户全部会话
 func DeleteAllByUserID(userID uint64) error {
-	return builder().Where(fieldUserId, userID).Delete(&Entity{}).Error
+	return DeleteAllByUserIDWithDB(builder(), userID)
+}
+
+// DeleteAllByUserIDWithDB deletes every session of the user through the supplied database handle.
+func DeleteAllByUserIDWithDB(conn *gorm.DB, userID uint64) error {
+	return conn.Where(fieldUserId, userID).Delete(&Entity{}).Error
 }
 
 // UpdateExpiresAtByJti 更新会话过期时间（续签时保持同一会话）

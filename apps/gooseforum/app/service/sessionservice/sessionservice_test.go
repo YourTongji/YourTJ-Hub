@@ -6,15 +6,18 @@ import (
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 func setupTestDB(t *testing.T) {
 	t.Helper()
 	conn := db.Connect()
-	if err := conn.AutoMigrate(&userSessions.Entity{}); err != nil {
-		t.Fatalf("migrate user_sessions: %v", err)
+	if err := conn.AutoMigrate(&users.EntityComplete{}, &userSessions.Entity{}); err != nil {
+		t.Fatalf("migrate session test tables: %v", err)
 	}
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
+	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }
 
 func TestCreateAndGetValidByJti(t *testing.T) {
@@ -72,6 +75,91 @@ func TestRevokeByIDAndRevokeAll(t *testing.T) {
 	}
 }
 
+func TestListExcludesExpiredSessions(t *testing.T) {
+	setupTestDB(t)
+
+	if err := Create(100, "jti-live", "ua", "1.1.1.1"); err != nil {
+		t.Fatalf("create live session: %v", err)
+	}
+	if err := Create(100, "jti-expired-list", "ua", "2.2.2.2"); err != nil {
+		t.Fatalf("create expired session: %v", err)
+	}
+	if err := userSessions.UpdateExpiresAtByJti("jti-expired-list", time.Now().Add(-time.Hour)); err != nil {
+		t.Fatalf("expire session: %v", err)
+	}
+
+	entities, err := List(100)
+	if err != nil {
+		t.Fatalf("list sessions: %v", err)
+	}
+	if len(entities) != 1 || entities[0].Jti != "jti-live" {
+		t.Fatalf("List() = %+v, want only the live session", entities)
+	}
+}
+
+func TestRevokeAllAndInvalidateInvalidatesCacheAfterCommit(t *testing.T) {
+	setupTestDB(t)
+
+	user := users.MakeUser("session-revoke-all", "password", "session-revoke-all@example.com")
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := Create(user.Id, "jti-revoke-all", "ua", "1.1.1.1"); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	if cached, ok := userservice.GetUserInfo(user.Id); !ok || cached.TokenVersion != user.TokenVersion {
+		t.Fatalf("warm user-info cache = %+v, ok = %t", cached, ok)
+	}
+
+	if err := RevokeAllAndInvalidate(user.Id); err != nil {
+		t.Fatalf("revoke all: %v", err)
+	}
+	if GetValidByJti("jti-revoke-all") != nil {
+		t.Fatal("revoke-all should delete every session")
+	}
+	if cached, ok := userservice.GetUserInfo(user.Id); !ok || cached.TokenVersion != user.TokenVersion+1 {
+		t.Fatalf("cached token version = %d, ok = %t, want %d after commit", cached.TokenVersion, ok, user.TokenVersion+1)
+	}
+}
+
+func TestRevokeAllAndInvalidateRollsBackWhenTokenVersionUpdateFails(t *testing.T) {
+	setupTestDB(t)
+	if !db.IsSqlite() {
+		t.Skip("requires SQLite trigger support")
+	}
+
+	user := users.MakeUser("session-revoke-all-rollback", "password", "session-revoke-all-rollback@example.com")
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := Create(user.Id, "jti-revoke-all-rollback", "ua", "1.1.1.1"); err != nil {
+		t.Fatalf("create session: %v", err)
+	}
+	conn := db.Connect()
+	if err := conn.Exec("CREATE TRIGGER session_revoke_all_rollback BEFORE UPDATE OF token_version ON users BEGIN SELECT RAISE(ABORT, 'forced token version failure'); END;").Error; err != nil {
+		t.Fatalf("create failure trigger: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.Exec("DROP TRIGGER IF EXISTS session_revoke_all_rollback").Error; err != nil {
+			t.Errorf("drop failure trigger: %v", err)
+		}
+	})
+
+	if err := RevokeAllAndInvalidate(user.Id); err == nil {
+		t.Fatal("revoke all succeeded, want token-version failure")
+	}
+	if GetValidByJti("jti-revoke-all-rollback") == nil {
+		t.Fatal("session delete committed even though token-version update failed")
+	}
+	reloaded, err := users.Get(user.Id)
+	if err != nil {
+		t.Fatalf("reload user: %v", err)
+	}
+	if reloaded.TokenVersion != user.TokenVersion {
+		t.Fatalf("token version = %d, want %d after rollback", reloaded.TokenVersion, user.TokenVersion)
+	}
+}
+
 func TestTouchExpiry(t *testing.T) {
 	setupTestDB(t)
 
@@ -108,6 +196,7 @@ func TestMaskIP(t *testing.T) {
 		"203.0.113.7":    "203.0.113.*",
 		"203.0.113.7:80": "203.0.113.*",
 		"2001:db8::1":    "2001:db8:0:0:*",
+		"not-an-ip":      "",
 		"":               "",
 	}
 	for in, want := range cases {
