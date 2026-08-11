@@ -141,10 +141,10 @@ onBeforeUnmount(() => {
   clearTimeout(lockSettleTimer)
 })
 
-// 登录后回跳当前话题页，与 TopicPage.openLogin() 的 next 约定一致（服务端白名单校验 / 前缀，拒绝 // 与 \）
+// 登录后回跳当前话题页；服务端只读取 ?redirect=，并用站内相对路径白名单校验。
 const loginHref = computed(() => {
-  const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search
-  return currentPath ? `/login?next=${encodeURIComponent(currentPath)}` : '/login'
+  const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search + window.location.hash
+  return currentPath ? `/login?redirect=${encodeURIComponent(currentPath)}` : '/login'
 })
 
 function closeComposer() {
@@ -220,6 +220,9 @@ function submit() {
         <Transition name="composer-rise" appear>
           <div
             v-if="open"
+            role="dialog"
+            aria-modal="true"
+            aria-labelledby="post-composer-title"
             class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
             :style="{
               height: isMobileComposer() ? undefined : `${composerHeight}px`,
@@ -243,7 +246,7 @@ function submit() {
 
             <div class="mb-2 flex items-center justify-between gap-3">
               <div class="min-w-0">
-                <div class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
+                <div id="post-composer-title" class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
               </div>
               <button type="button" class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-60" :disabled="composerBusy" :aria-label="t('common.close')" @click="closeComposer">
                 <X class="h-4 w-4" />
@@ -317,6 +320,7 @@ function submit() {
             </template>
             <div
               v-else
+              role="status"
               class="flex min-h-40 flex-1 flex-col items-center justify-center gap-5 px-6 py-8 text-center"
               :class="{ 'guest-lock-settled': lockSettled }"
             >

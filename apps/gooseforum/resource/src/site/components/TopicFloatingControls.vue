@@ -1,5 +1,4 @@
 <script setup lang="ts">
-import { computed } from 'vue'
 import type { Component } from 'vue'
 import { Loader2, MessageSquare, X } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
@@ -44,8 +43,6 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const showFloatingControls = computed(() => true)
-
 function toggleMobileRail() {
   emit('update:mobileRailOpen', !props.mobileRailOpen)
 }
@@ -56,7 +53,7 @@ function closeMobileRail() {
 </script>
 
 <template>
-  <Teleport v-if="showFloatingControls" to="body">
+  <Teleport to="body">
     <div
       v-if="mobileRailOpen"
       class="pointer-events-auto fixed inset-0 z-[89] xl:hidden"
@@ -124,7 +121,7 @@ function closeMobileRail() {
                 </button>
               </template>
               <button
-                v-if="authenticated ? canPost : true"
+                v-if="!authenticated || canPost"
                 type="button"
                 class="inline-flex h-9 items-center gap-1.5 rounded-full px-3 text-sm font-semibold text-base-content/75 transition hover:bg-info/10 hover:text-primary"
                 :title="t('topic.joinDiscussion')"
