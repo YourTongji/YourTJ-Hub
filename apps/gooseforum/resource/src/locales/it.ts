@@ -414,7 +414,9 @@ export default {
     resizeComposer: 'Regola l’altezza del pannello',
     markdownSoon: 'Il supporto Markdown arriverà più avanti',
     publishReply: 'Pubblica risposta',
-    loginToReply: 'Accedi per rispondere a questo argomento.',
+    loginRequiredToComment: 'Solo gli utenti autenticati possono commentare',
+    loginRequiredToCommentHint: 'Accedi per partecipare alla discussione e interagire con gli altri membri.',
+    loginToComment: 'Accedi',
     fullEditor: 'Editor completo',
     overview: 'Panoramica argomento',
     createdAt: 'Creato',
@@ -699,6 +701,7 @@ export default {
     validation: {
       usernameRequired: 'Il nome utente è obbligatorio',
       emailRequired: 'L’email è obbligatoria',
+      passwordRequired: 'La password attuale è obbligatoria',
     },
     emailVerification: {
       title: 'Email non verificata',
@@ -1012,6 +1015,7 @@ export default {
         needsLetterNumber: 'La password deve contenere sia lettere che numeri',
         invalidFormat: 'Formato della password non valido',
         oldInvalid: 'La password attuale non è corretta',
+        oauthRequired: 'Questo account solo OAuth deve essere riautenticato tramite il provider prima di impostare un indirizzo email. Se necessario, contatta un amministratore.',
         updateFailed: 'Aggiornamento della password non riuscito',
         updateSuccess: 'Password modificata con successo',
       },

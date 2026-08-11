@@ -414,7 +414,9 @@ export default {
     resizeComposer: '调整回复面板高度',
     markdownSoon: 'Markdown 支持稍后补齐',
     publishReply: '发布回复',
-    loginToReply: '登录后可以回复这个话题。',
+    loginRequiredToComment: '仅登录用户可评论',
+    loginRequiredToCommentHint: '登录后即可参与讨论，与其他用户交流。',
+    loginToComment: '去登录',
     fullEditor: '完整编辑',
     overview: '话题概览',
     createdAt: '创建于',
@@ -699,6 +701,7 @@ export default {
     validation: {
       usernameRequired: '用户名不能为空',
       emailRequired: '邮箱不能为空',
+      passwordRequired: '请输入当前密码',
     },
     emailVerification: {
       title: '邮箱尚未验证',
@@ -1041,6 +1044,7 @@ export default {
         needsLetterNumber: '密码必须包含字母和数字',
         invalidFormat: '密码格式错误',
         oldInvalid: '原密码错误',
+        oauthRequired: '此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。',
         updateFailed: '更新密码失败',
         updateSuccess: '密码修改成功',
       },

@@ -414,7 +414,9 @@ export default {
     resizeComposer: 'Resize reply panel',
     markdownSoon: 'Markdown support is coming later',
     publishReply: 'Post reply',
-    loginToReply: 'Log in to reply to this topic.',
+    loginRequiredToComment: 'Only logged-in users can comment',
+    loginRequiredToCommentHint: 'Log in to join the discussion and interact with other members.',
+    loginToComment: 'Log in',
     fullEditor: 'Full editor',
     overview: 'Topic overview',
     createdAt: 'Created',
@@ -699,6 +701,7 @@ export default {
     validation: {
       usernameRequired: 'Username is required',
       emailRequired: 'Email is required',
+      passwordRequired: 'Current password is required',
     },
     emailVerification: {
       title: 'Email not verified',
@@ -1041,6 +1044,7 @@ export default {
         needsLetterNumber: 'Password must contain both letters and numbers',
         invalidFormat: 'Invalid password format',
         oldInvalid: 'Current password is incorrect',
+        oauthRequired: 'The password could not be verified for this OAuth-linked account. Re-authenticate with your provider or contact an administrator.',
         updateFailed: 'Failed to update password',
         updateSuccess: 'Password changed successfully',
       },

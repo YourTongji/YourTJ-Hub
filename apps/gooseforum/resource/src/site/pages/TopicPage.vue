@@ -1503,7 +1503,7 @@ async function updateTopicModerationFromDetail() {
 }
 
 function openLogin() {
-  window.location.href = `/login?next=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`
+  window.location.href = `/login?redirect=${encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)}`
 }
 
 function requestReport(target: { targetType: 'topic' | 'post'; targetId: number; title: string; excerpt: string }) {
@@ -1774,7 +1774,7 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete') }}</span>
                     </button>
                     <button
-                      v-if="page.props.permissions.canPost && !group.root.isHidden && !isPostRemoved(group.root)"
+                      v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !group.root.isHidden && !isPostRemoved(group.root)"
                       type="button"
                       class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
                       :title="t('topic.reply')"
@@ -1990,7 +1990,7 @@ async function removePost(postId: number) {
                     </div>
                     <div class="mt-2 flex items-center gap-1">
                       <button
-                        v-if="page.props.permissions.canPost && !reply.isHidden && !isPostRemoved(reply)"
+                        v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !reply.isHidden && !isPostRemoved(reply)"
                         type="button"
                         class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-xs font-semibold text-base-content/55 transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         :title="t('topic.reply')"

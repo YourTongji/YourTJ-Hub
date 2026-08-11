@@ -54,6 +54,20 @@ func TestGeneratePasswordResetEmailBodyUsesLocale(t *testing.T) {
 	}
 }
 
+func TestGenerateEmailChangedEmailBodyUsesLocale(t *testing.T) {
+	body, err := generateEmailChangedEmailBody("aki", "new@example.com", "en")
+	if err != nil {
+		t.Fatalf("generateEmailChangedEmailBody() error = %v", err)
+	}
+
+	if !strings.Contains(body, "Email address changed") {
+		t.Fatalf("email changed body should use English copy, got %q", body)
+	}
+	if !strings.Contains(body, "new@example.com") {
+		t.Fatalf("email changed body should include the new email address, got %q", body)
+	}
+}
+
 func TestNormalizeSenderUsesConfiguredNameAndEmail(t *testing.T) {
 	name, email := normalizeSender(pageConfig.MailSettingsConfig{
 		FromName:     " YourTJHub Notice ",

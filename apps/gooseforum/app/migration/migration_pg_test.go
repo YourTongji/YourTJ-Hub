@@ -57,6 +57,10 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 			t.Errorf("table %q missing after postgres migration", table)
 		}
 	}
+	// Issue #83：users.email_changed_at 列必须存在（邮箱变更冷静期依赖此列）。
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
+		t.Error("users.email_changed_at column missing after postgres migration")
+	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
@@ -89,6 +93,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "actor_type"); err != nil {
 		t.Fatalf("drop legacy-missing users.actor_type: %v", err)
 	}
+	if err := db.Migrator().DropColumn(&users.EntityComplete{}, "email_changed_at"); err != nil {
+		t.Fatalf("drop legacy-missing users.email_changed_at: %v", err)
+	}
 	// The current model also includes the username unique index. Remove it so
 	// the upgrade phase proves AutoMigrate creates the constraint for legacy DBs.
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
@@ -96,6 +103,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Fatal("precondition failed: legacy users table should not have actor_type")
+	}
+	if db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
+		t.Fatal("precondition failed: legacy users table should not have email_changed_at")
 	}
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Fatal("precondition failed: legacy users table should not have username unique index")
@@ -129,6 +139,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after upgrade migration")
+	}
+	if !db.Migrator().HasColumn(&users.EntityComplete{}, "email_changed_at") {
+		t.Error("users.email_changed_at column missing after upgrade migration")
 	}
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")

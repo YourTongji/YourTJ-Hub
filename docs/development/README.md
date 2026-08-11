@@ -44,6 +44,7 @@ requirements and product semantics
 - [Local environment](local-development.md)
 - [Testing strategy & commands](testing.md)
 - [Branches, commits & pull requests](pull-requests.md)
+- [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)
 

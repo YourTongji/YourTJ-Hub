@@ -530,6 +530,10 @@ class AppLocalizationsZh extends AppLocalizations {
   String get settingsEmailUpdated => '邮箱已更新,请验证';
 
   @override
+  String get settingsEmailOAuthReauthRequired =>
+      '此 OAuth 关联账号无法通过当前密码验证，请通过 OAuth 重新认证或联系管理员。';
+
+  @override
   String settingsEmailFailed(String error) {
     return '邮箱修改失败:$error';
   }

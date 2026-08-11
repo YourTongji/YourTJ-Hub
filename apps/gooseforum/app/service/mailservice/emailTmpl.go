@@ -21,9 +21,14 @@ var emailTmpl *template.Template
 var passwordResetTemplate string
 var passwordResetTmpl *template.Template
 
+//go:embed email-changed-email.gohtml
+var emailChangedTemplate string
+var emailChangedTmpl *template.Template
+
 func init() {
 	emailTmpl = template.Must(template.New("activation").Parse(emailTemplate))
 	passwordResetTmpl = template.Must(template.New("passwordReset").Parse(passwordResetTemplate))
+	emailChangedTmpl = template.Must(template.New("emailChanged").Parse(emailChangedTemplate))
 }
 
 func generateActivationEmailBody(username, token string, locale ...string) (string, error) {
@@ -53,6 +58,23 @@ func generatePasswordResetEmailBody(username, token string, locale ...string) (s
 		"ResetLink": buildEmailActionURL(emailSiteBaseURL(siteConfig.SiteUrl), urlconfig.ResetPassword(), token, locale...),
 		"Lang":      lang,
 		"T":         i18n.Func(lang),
+	})
+	if err != nil {
+		return "", err
+	}
+	return buf.String(), nil
+}
+
+func generateEmailChangedEmailBody(username, newEmail string, locale ...string) (string, error) {
+	siteConfig := hotdataserve.GetSiteSettingsConfigCache()
+	lang := emailBodyLang(locale...)
+	var buf bytes.Buffer
+	err := emailChangedTmpl.Execute(&buf, map[string]any{
+		"SiteName": siteConfig.SiteName,
+		"Username": username,
+		"NewEmail": newEmail,
+		"Lang":     lang,
+		"T":        i18n.Func(lang),
 	})
 	if err != nil {
 		return "", err
