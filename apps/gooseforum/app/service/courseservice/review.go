@@ -69,7 +69,9 @@ type UpdateReviewInput struct {
 	IsAnonymous *bool  `json:"isAnonymous"`
 }
 
-// CreateReview 登录用户为 offering 写评价；与 stats delta 和搜索任务同事务提交。
+// CreateReview 登录用户为 offering 写评价；与 stats delta 同事务提交。
+// 搜索文档当前不携带课评字段，故不在此入队搜索任务（Update/Delete/Visibility
+// 仍入队以保持 outbox 契约，供后续 slice 扩展文档字段时复用）。
 func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error) {
 	if userId == 0 {
 		return ReviewPayload{}, ErrReviewNotOwned
@@ -104,6 +106,11 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			Status:       course.ReviewStatusVisible,
 		}
 		if err := course.CreateReviewTx(tx, &entity); err != nil {
+			// 并发兜底：数据库唯一索引 (offering_id, author_user_id) 冲突
+			// 映射为同一语义错误，与事务内查重一致。
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				return ErrReviewDuplicate
+			}
 			return err
 		}
 		// stats delta（同事务）
@@ -186,6 +193,8 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 }
 
 // DeleteReview 作者删除评价（隔离窗口语义由 status=deleted 表达，正文保留待清理）。
+// 幂等：已删除（含隔离窗口后的清理）直接成功；仅当评价仍可见时扣减 stats，
+// 避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
 func DeleteReview(userId, reviewId uint64) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity, err := course.GetReviewTx(tx, reviewId)
@@ -195,9 +204,8 @@ func DeleteReview(userId, reviewId uint64) error {
 		if entity.AuthorUserId != userId {
 			return ErrReviewNotOwned
 		}
-		rating := 0
-		if entity.Rating != nil {
-			rating = *entity.Rating
+		if entity.Status == course.ReviewStatusDeleted {
+			return nil
 		}
 		if err := course.UpdateReviewStatusTx(tx, reviewId, course.ReviewStatusDeleted); err != nil {
 			return err
@@ -206,12 +214,19 @@ func DeleteReview(userId, reviewId uint64) error {
 		if err != nil {
 			return err
 		}
-		if rating > 0 {
-			if err := course.UpsertCourseStatsTx(tx, offering.CourseId, -1, -rating, -1); err != nil {
-				return err
+		// 仅当评价仍可见时才扣减 stats（隐藏时 SetReviewVisibility 已扣）。
+		if entity.Status == course.ReviewStatusVisible {
+			rating := 0
+			if entity.Rating != nil {
+				rating = *entity.Rating
 			}
-			if err := course.UpsertOfferingStatsTx(tx, offering.Id, -1, -rating, -1); err != nil {
-				return err
+			if rating > 0 {
+				if err := course.UpsertCourseStatsTx(tx, offering.CourseId, -1, -rating, -1); err != nil {
+					return err
+				}
+				if err := course.UpsertOfferingStatsTx(tx, offering.Id, -1, -rating, -1); err != nil {
+					return err
+				}
 			}
 		}
 		return searchservice.EnqueueCourseSearchTask(tx, offering.CourseId)

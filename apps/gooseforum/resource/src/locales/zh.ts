@@ -1045,7 +1045,7 @@ export default {
       request: {
         invalidFormat: '请求参数格式错误',
         invalidParams: '请求参数验证失败',
-        parseFailed: '参数解析失败: {error}',
+        parseFailed: '参数解析失败',
       },
       operation: {
         success: '操作成功',

@@ -45,10 +45,6 @@ func offeringStatsBuilder() *gorm.DB {
 	return db.Connect().Table(offeringStatsTableName)
 }
 
-func searchProjectionBuilder() *gorm.DB {
-	return db.Connect().Table(searchProjectionTableName)
-}
-
 func importRunBuilder() *gorm.DB {
 	return db.Connect().Table(importRunTableName)
 }

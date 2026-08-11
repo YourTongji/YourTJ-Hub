@@ -1045,7 +1045,7 @@ export default {
       request: {
         invalidFormat: 'Invalid request format',
         invalidParams: 'Invalid request parameters',
-        parseFailed: 'Failed to parse parameters: {error}',
+        parseFailed: 'Failed to parse parameters',
       },
       operation: {
         success: 'Operation successful',

@@ -1044,7 +1044,7 @@ export default {
       request: {
         invalidFormat: 'Formato della richiesta non valido',
         invalidParams: 'Parametri della richiesta non validi',
-        parseFailed: 'Analisi dei parametri non riuscita: {error}',
+        parseFailed: 'Analisi dei parametri non riuscita',
       },
       operation: {
         success: 'Operazione riuscita',

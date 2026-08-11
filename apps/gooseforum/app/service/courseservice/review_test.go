@@ -323,3 +323,79 @@ func TestCreateReviewMemberLabelVisibleToOwner(t *testing.T) {
 		t.Fatalf("stranger must not see ownership: %+v", list)
 	}
 }
+
+// TestDeleteReviewAfterHideDoesNotDoubleDecrement 隐藏后再删除不得重复扣减 stats
+// （隐藏时 SetReviewVisibility 已扣减；删除只对可见评价扣减）。
+func TestDeleteReviewAfterHideDoesNotDoubleDecrement(t *testing.T) {
+	courseId, offeringId := setupReviewTest(t)
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "隐藏后删除", IsAnonymous: false}); err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	review, err := course.FindReviewByOfferingAndUser(offeringId, 1001)
+	if err != nil {
+		t.Fatalf("find review: %v", err)
+	}
+	if err := SetReviewVisibility(review.Id, true); err != nil {
+		t.Fatalf("hide review: %v", err)
+	}
+	courseStats, err := course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.RatingCount != 0 || courseStats.RatingSum != 0 || courseStats.ReviewCount != 0 {
+		t.Fatalf("expected zero stats after hide, got %+v", courseStats)
+	}
+	if err := DeleteReview(1001, review.Id); err != nil {
+		t.Fatalf("delete hidden review: %v", err)
+	}
+	courseStats, _ = course.GetCourseStats(courseId)
+	if courseStats.RatingCount != 0 || courseStats.RatingSum != 0 || courseStats.ReviewCount != 0 {
+		t.Fatalf("stats corrupted after deleting hidden review: %+v", courseStats)
+	}
+	offeringStats, err := course.GetOfferingStats(offeringId)
+	if err != nil {
+		t.Fatalf("get offering stats: %v", err)
+	}
+	if offeringStats.RatingCount != 0 || offeringStats.RatingSum != 0 || offeringStats.ReviewCount != 0 {
+		t.Fatalf("offering stats corrupted after deleting hidden review: %+v", offeringStats)
+	}
+}
+
+// TestDeleteReviewIdempotent 重复删除幂等（隔离窗口内再次删除直接成功，不重复扣减）。
+func TestDeleteReviewIdempotent(t *testing.T) {
+	courseId, offeringId := setupReviewTest(t)
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "幂等删除", IsAnonymous: false}); err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	review, err := course.FindReviewByOfferingAndUser(offeringId, 1001)
+	if err != nil {
+		t.Fatalf("find review: %v", err)
+	}
+	if err := DeleteReview(1001, review.Id); err != nil {
+		t.Fatalf("first delete: %v", err)
+	}
+	if err := DeleteReview(1001, review.Id); err != nil {
+		t.Fatalf("second delete must be idempotent: %v", err)
+	}
+	courseStats, err := course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.RatingCount != 0 || courseStats.RatingSum != 0 || courseStats.ReviewCount != 0 {
+		t.Fatalf("expected zero stats after idempotent delete, got %+v", courseStats)
+	}
+}
+
+// TestReviewUniqueOfferingAuthor 数据库唯一索引兜底：同 offering+用户直接插入第二行被拒。
+func TestReviewUniqueOfferingAuthor(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	rating := 5
+	first := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: 1001, Rating: &rating, Content: "第一条", Status: course.ReviewStatusVisible}
+	if err := dbconnect.Connect().Create(&first).Error; err != nil {
+		t.Fatalf("create first review: %v", err)
+	}
+	second := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: 1001, Rating: &rating, Content: "第二条", Status: course.ReviewStatusVisible}
+	if err := dbconnect.Connect().Create(&second).Error; err == nil {
+		t.Fatal("expected duplicate key error for same offering+user")
+	}
+}

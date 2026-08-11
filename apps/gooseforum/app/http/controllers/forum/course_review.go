@@ -357,19 +357,19 @@ func reviewErrorResponse(err error) component.Response {
 }
 
 // buildModerationCourseReviewReportItems 批量构建课评举报项（不泄露匿名作者身份）。
+// reportCount 为该 review 累计举报总数（跨全部状态），不限于当前分页。
 func buildModerationCourseReviewReportItems(records []reports.Entity) []ModerationCourseReviewReportItem {
 	if len(records) == 0 {
 		return []ModerationCourseReviewReportItem{}
 	}
 	reviewIDs := make([]uint64, 0, len(records))
 	userIDs := make([]uint64, 0, len(records)*2)
-	reportCountByReview := make(map[uint64]int, len(records))
 	for _, record := range records {
-		reviewIDs = append(reviewIDs, record.TargetId)
+		reviewIDs = appendUniqueUint64(reviewIDs, record.TargetId)
 		userIDs = appendUniqueUint64(userIDs, record.ReporterId)
 		userIDs = appendUniqueUint64(userIDs, record.HandlerId)
-		reportCountByReview[record.TargetId]++
 	}
+	reportCountByReview := reports.CountByTargetIds(reports.TargetCourseReview, reviewIDs)
 	reviewMap := course.GetReviewMapByIds(reviewIDs)
 	userMap := users.GetMapByIds(userIDs)
 	items := make([]ModerationCourseReviewReportItem, 0, len(records))

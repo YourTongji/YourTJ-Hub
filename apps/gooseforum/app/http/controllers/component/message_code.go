@@ -29,7 +29,7 @@ func NewMessageError(code MessageCode, fallback string, params MessageParams) er
 const (
 	MessageRequestInvalidFormat MessageCode = "common.request.invalidFormat" // 请求体或参数格式无法解析。
 	MessageRequestInvalidParams MessageCode = "common.request.invalidParams" // 请求参数未通过业务校验。
-	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败，params.error 可带原始错误。
+	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败（400；不返回原始解析错误）。
 	MessageOperationSuccess     MessageCode = "common.operation.success"     // 通用操作成功。
 	MessageOperationFailed      MessageCode = "common.operation.failed"      // 通用操作失败。
 	MessageRateLimited          MessageCode = "common.rateLimited"           // 操作过于频繁，params.action/retryAfterSeconds。

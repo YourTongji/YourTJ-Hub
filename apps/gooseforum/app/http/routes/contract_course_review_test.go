@@ -10,6 +10,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/http/middleware"
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
@@ -277,6 +278,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	token := contractSessionToken(t, alice)
 
 	t.Run("success returns the review payload without identity fields", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
 			`{"offeringId":902,"rating":5,"content":"好课"}`, token)
 		if rec.Code != http.StatusOK {
@@ -294,6 +296,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	})
 
 	t.Run("duplicate review for the same offering returns 409", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
 			`{"offeringId":902,"rating":5,"content":"好课"}`, token)
 		if rec.Code != http.StatusConflict {
@@ -303,6 +306,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	})
 
 	t.Run("invalid rating stays a legacy HTTP 200 validation failure", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
 			`{"offeringId":902,"rating":0,"content":"好课"}`, token)
 		if rec.Code != http.StatusOK {
@@ -312,6 +316,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	})
 
 	t.Run("unknown offering returns 404", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
 			`{"offeringId":99999,"rating":5,"content":"好课"}`, token)
 		if rec.Code != http.StatusNotFound {
@@ -321,6 +326,7 @@ func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/course-reviews",
 			`{"offeringId":902,"rating":5,"content":"好课"}`, "")
 		if rec.Code != http.StatusUnauthorized {
@@ -340,6 +346,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	seedCourseReview(t, conn, 300, 902, alice.Id, intPtr(5), "好课", false, "", course.ReviewStatusVisible)
 
 	t.Run("updating someone else's review returns 403", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/300", `{"rating":4}`, bobToken)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("not-owned update status = %d, want 403: %s", rec.Code, rec.Body.String())
@@ -348,6 +355,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	})
 
 	t.Run("author update succeeds", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/300", `{"rating":4,"content":"更新后的评价"}`, aliceToken)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("author update status = %d, want 200: %s", rec.Code, rec.Body.String())
@@ -360,6 +368,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	})
 
 	t.Run("rating outside 1..5 returns 400", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/300", `{"rating":6}`, aliceToken)
 		if rec.Code != http.StatusBadRequest {
 			t.Fatalf("out-of-range rating status = %d, want 400: %s", rec.Code, rec.Body.String())
@@ -368,6 +377,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	})
 
 	t.Run("unknown review returns 404", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodPatch, "/api/forum/course-reviews/99999", `{"rating":4}`, aliceToken)
 		if rec.Code != http.StatusNotFound {
 			t.Fatalf("unknown review update status = %d, want 404: %s", rec.Code, rec.Body.String())
@@ -376,6 +386,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	})
 
 	t.Run("deleting someone else's review returns 403", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodDelete, "/api/forum/course-reviews/300", "", bobToken)
 		if rec.Code != http.StatusForbidden {
 			t.Fatalf("not-owned delete status = %d, want 403: %s", rec.Code, rec.Body.String())
@@ -384,6 +395,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 	})
 
 	t.Run("author delete succeeds, stays idempotent, and hides the review from the public list", func(t *testing.T) {
+		ratelimit.Default().ResetAll()
 		rec := serveAuthSecurityJSON(router, http.MethodDelete, "/api/forum/course-reviews/300", "", aliceToken)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("author delete status = %d, want 200: %s", rec.Code, rec.Body.String())

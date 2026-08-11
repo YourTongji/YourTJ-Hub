@@ -1044,7 +1044,7 @@ export default {
       request: {
         invalidFormat: 'リクエスト形式が正しくありません',
         invalidParams: 'リクエストパラメータが正しくありません',
-        parseFailed: 'パラメータの解析に失敗しました: {error}',
+        parseFailed: 'パラメータの解析に失敗しました',
       },
       operation: {
         success: '操作が完了しました',

@@ -130,6 +130,17 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 		_ = course.SaveImportRun(&run)
 		return report, err
 	}
+	// 统计投影兜底：以 review 事实表为准全量重建，保证与导入一致。
+	// 重建成功后才把 run 置为 completed；失败置 failed 允许重试，
+	// 避免"completed 但投影陈旧且幂等跳过"的不可恢复状态。
+	if err := course.RebuildAllCourseStats(); err != nil {
+		run.Status = course.ImportStatusFailed
+		run.ErrorCount = len(report.Errors)
+		finished := time.Now()
+		run.FinishedAt = &finished
+		_ = course.SaveImportRun(&run)
+		return nil, fmt.Errorf("rebuild course stats: %w", err)
+	}
 	run.Status = course.ImportStatusCompleted
 	run.InsertedCount = report.Inserted
 	run.UpdatedCount = report.Updated
@@ -139,10 +150,6 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 	run.FinishedAt = &finished
 	if err := course.SaveImportRun(&run); err != nil {
 		return nil, fmt.Errorf("save import run: %w", err)
-	}
-	// 统计投影兜底：以 review 事实表为准全量重建，保证与导入一致。
-	if err := course.RebuildAllCourseStats(); err != nil {
-		return nil, fmt.Errorf("rebuild course stats: %w", err)
 	}
 	return report, nil
 }

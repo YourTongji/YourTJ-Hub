@@ -142,7 +142,6 @@ func SchemaModels() []any {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
-		&course.SearchProjectionEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},
