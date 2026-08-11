@@ -265,6 +265,10 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // 新 token 已接受:使缓存的当前用户身份失效,新 shell 重新从
       // 新令牌解析账号 id,避免 ProfilePage 仍用上一账号的 id 请求数据。
       ref.invalidate(currentUserProvider);
+      // 会话边界:重建主 API client。旧 client 捕获的是上一会话的 epoch,
+      // 其 New-Token 续期与 401 回调已永久失效;新 shell 首次读取时重建
+      // 并捕获当前 epoch,恢复新账号的滑动续期与 401 清理。
+      ref.invalidate(apiClientProvider);
       // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
       // 避免新账号返回后看到上一账号的会话/消息数据。
       context.go('/');

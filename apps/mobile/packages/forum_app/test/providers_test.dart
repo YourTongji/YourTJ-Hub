@@ -163,6 +163,55 @@ void main() {
       expect(topicCache.clears, 1);
       expect(chatCache.clears, 1);
     });
+
+    test('会话边界后重建的 client 恢复续期与 401 处理', () async {
+      final storage = _GatedClearTokenStorage();
+      final topicCache = _MemOfflineCache();
+      final chatCache = _MemOfflineCache();
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+      await storage.write('old-token');
+
+      final stale = container.read(apiClientProvider);
+      // 会话边界(进入登录页/登出/401)使旧 client 捕获的世代失效。
+      container.read(offlineCacheEpochProvider.notifier).invalidate();
+      await stale.onTokenRenewed?.call('stale-renewal');
+      stale.onUnauthorized?.call();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(
+        await storage.read(),
+        'old-token',
+        reason: '旧 client 在边界后必须忽略续期与 401',
+      );
+      expect(container.read(unauthorizedEventsProvider), 0);
+
+      // 登录提交成功后重建 provider(生产在 _finishAuthentication 中 invalidate)。
+      container.invalidate(apiClientProvider);
+      final fresh = container.read(apiClientProvider);
+      expect(fresh, isNot(same(stale)), reason: '登录后必须重建主 API client');
+
+      // 新 client 恢复滑动续期:New-Token 写回 tokenStorage。
+      await fresh.onTokenRenewed?.call('fresh-token');
+      expect(await storage.read(), 'fresh-token');
+
+      // 新 client 恢复 401 处理:清除 token/cache 并通知 UI 跳转登录页。
+      fresh.onUnauthorized?.call();
+      await storage.clearStarted.future;
+      storage.allowClear.complete();
+      await Future<void>.delayed(Duration.zero);
+      await Future<void>.delayed(Duration.zero);
+      expect(await storage.read(), isNull);
+      expect(container.read(unauthorizedEventsProvider), 1);
+      expect(topicCache.clears, 1);
+      expect(chatCache.clears, 1);
+    });
   });
 }
 
