@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
 import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, deleteTopic, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent } from '@/runtime/api'
+import { bookmarkTopic, deletePost, deleteTopic, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, privacyEraseContent } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -1437,6 +1437,42 @@ async function removeTopic() {
   }
 }
 
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+async function privacyEraseTopic() {
+  if (deletingTopic.value || !pendingDeleteTopic.value) return
+  if (!window.confirm(t('topic.privacyEraseConfirm'))) return
+  deletingTopic.value = true
+  deleteErrorMessage.value = ''
+  try {
+    await privacyEraseContent('topic', page.props.topic.id)
+    pendingDeleteTopic.value = false
+    pushFlash(t('topic.privacyEraseSuccess'), 'success')
+    await refreshCurrentPage()
+  } catch (error) {
+    deleteErrorMessage.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    deletingTopic.value = false
+  }
+}
+
+async function privacyErasePost() {
+  if (!pendingDeletePost.value || deletingPostId.value) return
+  if (!window.confirm(t('topic.privacyEraseConfirm'))) return
+  deletingPostId.value = pendingDeletePost.value.id
+  deleteErrorMessage.value = ''
+  try {
+    await privacyEraseContent('post', pendingDeletePost.value.id)
+    const deletedId = pendingDeletePost.value.id
+    pendingDeletePost.value = null
+    pushFlash(t('topic.privacyEraseSuccess'), 'success')
+    posts.value = posts.value.filter((post) => post.id !== deletedId)
+  } catch (error) {
+    deleteErrorMessage.value = error instanceof Error ? error.message : t('api.replyDeleteFailed')
+  } finally {
+    deletingPostId.value = 0
+  }
+}
+
 function requestTopicModeration(action: 'ban' | 'unban') {
   actionMessage.value = ''
   pendingModerationAction.value = action
@@ -2226,6 +2262,17 @@ async function removePost(postId: number) {
             <p v-if="deleteErrorMessage" class="mt-3 text-sm text-error">{{ deleteErrorMessage }}</p>
             <p class="mt-3 rounded bg-base-200/70 px-2.5 py-2 text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
 
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                class="text-xs font-medium text-base-content/55 transition hover:text-primary"
+                :disabled="Boolean(deletingPostId)"
+                @click="privacyErasePost"
+              >
+                {{ t('topic.privacyErase') }}
+              </button>
+            </div>
+
             <div class="mt-4 flex justify-end gap-2">
               <button
                 type="button"
@@ -2412,6 +2459,17 @@ async function removePost(postId: number) {
 
             <p v-if="deleteErrorMessage" class="mt-3 text-sm text-error">{{ deleteErrorMessage }}</p>
             <p class="mt-3 rounded bg-base-200/70 px-2.5 py-2 text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
+
+            <div class="mt-3 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                class="text-xs font-medium text-base-content/55 transition hover:text-primary"
+                :disabled="deletingTopic"
+                @click="privacyEraseTopic"
+              >
+                {{ t('topic.privacyErase') }}
+              </button>
+            </div>
 
             <div class="mt-4 flex justify-end gap-2">
               <button

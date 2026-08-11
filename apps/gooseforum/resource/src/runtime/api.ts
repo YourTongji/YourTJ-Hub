@@ -199,6 +199,21 @@ export async function purgeDeletedContent(contentType: DeletedContentType, conte
   return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
 }
 
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+export async function privacyEraseContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-privacy-erase', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
+}
+
 /** 删除生命周期埋点（PRD R14）：前端点击/确认类事件上报。 */
 export async function reportContentEvent(eventType: 'content_delete_clicked' | 'content_delete_confirmed', contentType: DeletedContentType, contentId: number): Promise<boolean> {
   const response = await fetch('/api/forum/user/content-event', {
@@ -253,22 +268,29 @@ export interface BatchDeleteContentResult {
   results: BatchDeleteResultItem[]
 }
 
-/** 批量删除本人内容（PRD R9）：超过频率阈值时后端要求二次确认。 */
-export async function batchDeleteContent(contentType: DeletedContentType, contentIds: number[], force = false): Promise<BatchDeleteContentResult> {
+/** 批量删除本人内容（PRD R9）：超过频率阈值时后端要求二次确认。
+ * force=true 时后端强制校验当前用户密码，防止账号被盗后无脑清空内容。 */
+export async function batchDeleteContent(
+  contentType: DeletedContentType,
+  contentIds: number[],
+  force = false,
+  password = '',
+): Promise<BatchDeleteContentResult> {
   const response = await fetch('/api/forum/user/content-batch-delete', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ contentType, contentIds, force }),
+    body: JSON.stringify({ contentType, contentIds, force, password }),
   })
   return readApiResponse<BatchDeleteContentResult>(response, t('api.topicDeleteFailed'))
 }
 
-/** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。 */
-export async function closeAccount(mode: 'anonymize' | 'delete'): Promise<boolean> {
+/** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。
+ * 注销不可逆，后端强制校验当前密码。 */
+export async function closeAccount(mode: 'anonymize' | 'delete', password: string): Promise<boolean> {
   const response = await fetch('/api/forum/user/account-close', {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
-    body: JSON.stringify({ mode }),
+    body: JSON.stringify({ mode, password }),
   })
   return readApiResponse<boolean>(response, t('api.operationFailed'))
 }

@@ -37,6 +37,7 @@ import {
   getDeletedContent,
   purgeDeletedContent,
   restoreDeletedContent,
+  privacyEraseContent,
   getMyContent,
   batchDeleteContent,
   closeAccount,
@@ -137,10 +138,12 @@ const myContentType = ref<DeletedContentType>('topic')
 const selectedMyContentIds = ref<number[]>([])
 const batchDeleting = ref(false)
 const batchDeleteConfirmOpen = ref(false)
+const batchDeletePassword = ref('')
 const batchDeleteError = ref('')
-// 注销账号（PRD R10）
+// 注销账号（PRD R10）：密码二次认证 + 输入「注销」确认
 const accountCloseOpen = ref(false)
 const accountCloseMode = ref<'anonymize' | 'delete'>('anonymize')
+const accountClosePassword = ref('')
 const accountCloseConfirmText = ref('')
 const accountCloseSubmitting = ref(false)
 const accountCloseError = ref('')
@@ -380,7 +383,7 @@ function deletedContentTitle(item: DeletedContentItem) {
   return item.title || item.excerpt || t('settings.deleted.untitled')
 }
 
-function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge') {
+function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge' | 'privacy') {
   return `${action}:${item.contentType}:${item.id}`
 }
 
@@ -477,7 +480,7 @@ async function runBatchDelete(force: boolean) {
   batchDeleting.value = true
   batchDeleteError.value = ''
   try {
-    const result = await batchDeleteContent(myContentType.value, selectedMyContentIds.value, force)
+    const result = await batchDeleteContent(myContentType.value, selectedMyContentIds.value, force, batchDeletePassword.value)
     if (myContentType.value === 'topic') {
       myTopics.value = myTopics.value.filter(item => !selectedMyContentIds.value.includes(item.id))
     } else {
@@ -485,6 +488,7 @@ async function runBatchDelete(force: boolean) {
     }
     selectedMyContentIds.value = []
     batchDeleteConfirmOpen.value = false
+    batchDeletePassword.value = ''
     pushFlash(
       result.failed > 0
         ? t('settings.content.batchDeletePartial', { succeeded: result.succeeded, failed: result.failed })
@@ -494,6 +498,10 @@ async function runBatchDelete(force: boolean) {
   } catch (error) {
     if (error instanceof ApiResponseError && error.messageCode === 'content.batchDelete.confirmRequired') {
       batchDeleteConfirmOpen.value = true
+      return
+    }
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      batchDeleteError.value = t('settings.content.batchPasswordMismatch')
       return
     }
     batchDeleteError.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
@@ -509,18 +517,21 @@ async function requestBatchDelete() {
 }
 
 function confirmForceBatchDelete() {
+  if (batchDeleting.value) return
   void runBatchDelete(true)
 }
 
 function cancelBatchDeleteConfirm() {
   if (batchDeleting.value) return
   batchDeleteConfirmOpen.value = false
+  batchDeletePassword.value = ''
 }
 
 // 注销账号（PRD R10）
 function openAccountCloseDialog() {
   accountCloseOpen.value = true
   accountCloseMode.value = 'anonymize'
+  accountClosePassword.value = ''
   accountCloseConfirmText.value = ''
   accountCloseError.value = ''
 }
@@ -536,13 +547,21 @@ async function submitAccountClose() {
     accountCloseError.value = t('settings.account.closeConfirmMismatch')
     return
   }
+  if (!accountClosePassword.value) {
+    accountCloseError.value = t('settings.account.closePasswordRequired')
+    return
+  }
   accountCloseSubmitting.value = true
   accountCloseError.value = ''
   try {
-    await closeAccount(accountCloseMode.value)
+    await closeAccount(accountCloseMode.value, accountClosePassword.value)
     await logout()
     window.location.href = '/'
   } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      accountCloseError.value = t('settings.account.closePasswordMismatch')
+      return
+    }
     accountCloseError.value = error instanceof Error ? error.message : t('api.operationFailed')
   } finally {
     accountCloseSubmitting.value = false
@@ -571,6 +590,22 @@ async function purgeDeletedItem(item: DeletedContentItem) {
   try {
     await purgeDeletedContent(item.contentType as DeletedContentType, item.id)
     pushFlash(t('settings.deleted.purgeSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
+}
+
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+async function privacyEraseDeletedItem(item: DeletedContentItem) {
+  if (deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.privacyEraseConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'privacy')
+  try {
+    await privacyEraseContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.privacyEraseSuccess'), 'success')
     await loadDeletedContent()
   } catch (err) {
     pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
@@ -1823,13 +1858,27 @@ async function toggleBinding(provider: string) {
                   <input v-model="accountCloseConfirmText" type="text" class="gf-input mt-1" placeholder="注销" />
                 </label>
 
+                <label class="mt-4 block">
+                  <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closePasswordLabel') }}</span>
+                  <input
+                    v-model="accountClosePassword"
+                    type="password"
+                    autocomplete="current-password"
+                    class="gf-input mt-1"
+                    :placeholder="t('settings.account.closePasswordPlaceholder')"
+                    :disabled="accountCloseSubmitting"
+                    @keydown.enter="submitAccountClose"
+                  />
+                </label>
+                <p class="mt-1.5 text-xs leading-5 text-base-content/50">{{ t('settings.account.closePasswordHint') }}</p>
+
                 <p v-if="accountCloseError" class="mt-2 text-sm text-error">{{ accountCloseError }}</p>
 
                 <div class="mt-4 flex justify-end gap-2">
                   <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
                     {{ t('common.cancel') }}
                   </button>
-                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="accountCloseSubmitting" @click="submitAccountClose">
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="accountCloseSubmitting || !accountClosePassword || !accountCloseConfirmText" @click="submitAccountClose">
                     <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" />
                     {{ t('settings.account.closeConfirmButton') }}
                   </button>
@@ -2160,11 +2209,24 @@ async function toggleBinding(provider: string) {
               <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
                 <h3 class="text-base font-semibold text-base-content">{{ t('settings.content.batchConfirmTitle') }}</h3>
                 <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.content.batchConfirmDescription', { count: selectedMyContentIds.length }) }}</p>
+                <label class="mt-4 block">
+                  <span class="mb-1 block text-xs font-semibold text-base-content/70">{{ t('settings.content.batchPasswordLabel') }}</span>
+                  <input
+                    v-model="batchDeletePassword"
+                    type="password"
+                    autocomplete="current-password"
+                    class="gf-input h-9 w-full text-sm"
+                    :placeholder="t('settings.content.batchPasswordPlaceholder')"
+                    :disabled="batchDeleting"
+                    @keydown.enter="confirmForceBatchDelete"
+                  />
+                </label>
+                <p class="mt-2 text-xs leading-5 text-base-content/50">{{ t('settings.content.batchPasswordHint') }}</p>
                 <div class="mt-4 flex justify-end gap-2">
                   <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="batchDeleting" @click="cancelBatchDeleteConfirm">
                     {{ t('common.cancel') }}
                   </button>
-                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="batchDeleting" @click="confirmForceBatchDelete">
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="batchDeleting || !batchDeletePassword" @click="confirmForceBatchDelete">
                     <Loader2 v-if="batchDeleting" class="h-4 w-4 animate-spin" />
                     {{ t('settings.content.batchConfirmContinue') }}
                   </button>
@@ -2239,6 +2301,16 @@ async function toggleBinding(provider: string) {
                       <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'purge')" class="h-3.5 w-3.5 animate-spin" />
                       <Trash2 v-else class="h-3.5 w-3.5" />
                       {{ t('settings.deleted.purge') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-secondary"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="privacyEraseDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'privacy')" class="h-3.5 w-3.5 animate-spin" />
+                      <Shield v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.privacyErase') }}
                     </button>
                   </div>
                 </div>
