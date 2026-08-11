@@ -549,7 +549,7 @@ export interface components {
         UserSession: {
             /** Format: uint64 */
             id: number;
-            /** @description Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in issue */
+            /** @description Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are returned as an empty string. */
             ipMasked: string;
             /** @description Truncated raw user agent; clients render a parsed device label. */
             userAgent: string;

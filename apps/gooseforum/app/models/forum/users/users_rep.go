@@ -178,7 +178,8 @@ func IncrementPrestige(addNumber int64, userId uint64) int64 {
 }
 
 // IncrementTokenVersion bumps the user's token version, invalidating every
-// previously issued access token (used by "revoke all devices").
+// previously issued access token (used by "revoke all devices"). Callers that
+// need error propagation or transactional composition should use IncrementTokenVersionWithDB.
 func IncrementTokenVersion(userId uint64) {
 	_ = IncrementTokenVersionWithDB(builder(), userId)
 }
