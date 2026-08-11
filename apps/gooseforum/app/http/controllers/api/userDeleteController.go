@@ -132,7 +132,8 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 type BatchDeleteContentReq struct {
 	ContentType string   `json:"contentType" validate:"required,oneof=topic post"`
 	ContentIDs  []uint64 `json:"contentIds" validate:"required,min=1,max=50"`
-	Force       bool     `json:"force"` // 频率超限时的二次确认标记
+	Force       bool     `json:"force"`    // 频率超限时的二次确认标记
+	Password    string   `json:"password"` // force=true 时必须提供密码二次认证
 }
 
 // BatchDeleteResultItem 批量删除逐条结果。
@@ -149,19 +150,34 @@ const (
 )
 
 // BatchDeleteContent 批量删除本人内容（R9）。
-// 10 分钟内删除超过 20 条时要求二次确认（force=true），防止脚本误操作/账号被盗清空。
+// 10 分钟内删除超过 20 条时要求二次确认：force=true 且校验当前用户密码
+// （防止账号被盗后无脑清空）。单条删除端点与隐私擦除同样计入该窗口。
 func BatchDeleteContent(req component.BetterRequest[BatchDeleteContentReq]) component.Response {
 	if len(req.Params.ContentIDs) == 0 {
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
-	recent, err := contentDeleteEvent.CountRecentByActor(req.UserId, string(contentDeleteEvent.EventDeleted), time.Now().Add(-batchDeleteWindow))
+	// 频率窗口同时计入普通删除与隐私紧急删除（PRD R9），避免通过隐私删除绕过限速。
+	recent, err := contentDeleteEvent.CountRecentByActorEvents(req.UserId, []string{
+		string(contentDeleteEvent.EventDeleted),
+		string(contentDeleteEvent.EventPrivacyDelete),
+	}, time.Now().Add(-batchDeleteWindow))
 	if err != nil {
 		slog.Error("count recent content deletes failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if recent+int64(len(req.Params.ContentIDs)) > batchDeleteLimit && !req.Params.Force {
-		return component.FailResponseCode(component.MessageContentBatchConfirmRequired,
-			component.MessageParams{"count": recent + int64(len(req.Params.ContentIDs))})
+	if recent+int64(len(req.Params.ContentIDs)) > batchDeleteLimit {
+		if !req.Params.Force {
+			return component.FailResponseCode(component.MessageContentBatchConfirmRequired,
+				component.MessageParams{"count": recent + int64(len(req.Params.ContentIDs))})
+		}
+		// force 必须通过密码二次认证，防止攻击者仅凭被盗会话绕过限速清空内容。
+		user, userErr := users.Get(req.UserId)
+		if userErr != nil || user.Id == 0 {
+			return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+		}
+		if _, verifyErr := users.Verify(user.Username, req.Params.Password); verifyErr != nil {
+			return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
+		}
 	}
 
 	results := make([]BatchDeleteResultItem, 0, len(req.Params.ContentIDs))
@@ -203,8 +219,11 @@ func myContentCursorID(items []MyContentItem) uint64 {
 
 // AccountCloseReq 注销账号请求（PRD R10）。
 // mode=anonymize 保留内容但匿名化；mode=delete 先删除全部内容再注销。
+// 注销为不可逆操作，必须提供当前密码二次认证（与批量删除 force 保持一致，
+// 防止账号被盗后仅凭已登录会话即可注销清空）。
 type AccountCloseReq struct {
-	Mode string `json:"mode" validate:"required,oneof=anonymize delete"`
+	Mode     string `json:"mode" validate:"required,oneof=anonymize delete"`
+	Password string `json:"password" validate:"required"`
 }
 
 // AccountClose 注销当前账号（R10）：
@@ -218,6 +237,15 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 	}
 	if users.IsAccountClosed(req.UserId) {
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+
+	// 密码二次认证：注销不可逆，校验当前密码防止账号被盗后被无脑清空。
+	user, userErr := users.Get(req.UserId)
+	if userErr != nil || user.Id == 0 {
+		return component.FailResponseCode(component.MessageUserFetchFailed, nil)
+	}
+	if _, verifyErr := users.Verify(user.Username, req.Params.Password); verifyErr != nil {
+		return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
 	}
 
 	if req.Params.Mode == "delete" {

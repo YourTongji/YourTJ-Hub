@@ -98,13 +98,16 @@ func TestBatchDeleteContentDeletesAll(t *testing.T) {
 	}
 }
 
-// R9：删除频率超限时要求二次确认，force=true 后放行。
+// R9：删除频率超限时要求二次确认，force=true 且密码正确后才放行。
 func TestBatchDeleteContentRequiresConfirmOverThreshold(t *testing.T) {
 	conn := setupBatchDeleteTestDB(t)
-	userID := uint64(9_900_000_002)
-	if err := conn.Create(&users.EntityComplete{Id: userID, Username: "batch_confirm", IsActivated: 1}).Error; err != nil {
+	const userPassword = "batch-confirm-password"
+	user := users.MakeUser("batch_confirm", userPassword, "batch-confirm@example.com")
+	user.Activate()
+	if err := conn.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	userID := user.Id
 	// 模拟历史已删除 20 条：写入 20 条 content_deleted 事件。
 	for i := 0; i < 20; i++ {
 		if err := contentDeleteEvent.Record(contentDeleteEvent.Entity{
@@ -135,10 +138,27 @@ func TestBatchDeleteContentRequiresConfirmOverThreshold(t *testing.T) {
 		}
 	}
 
-	// force=true：放行。
+	// force=true 但密码错误：拒绝，不清空内容（防止被盗会话无脑清空）。
+	wrongPassword := BatchDeleteContent(component.BetterRequest[BatchDeleteContentReq]{
+		UserId: userID,
+		Params: BatchDeleteContentReq{ContentType: "topic", ContentIDs: ids, Force: true, Password: "wrong-password"},
+	})
+	if wrongPassword.Data.Code == component.SUCCESS {
+		t.Fatalf("expected password-rejected failure, got %#v", wrongPassword)
+	}
+	if wrongPassword.Data.MessageCode != component.MessageAuthInvalidCredentials {
+		t.Fatalf("messageCode = %s, want %s", wrongPassword.Data.MessageCode, component.MessageAuthInvalidCredentials)
+	}
+	for _, id := range ids {
+		if visible := topics.Get(id); visible.Id == 0 {
+			t.Fatalf("topic %d should not be deleted with wrong password", id)
+		}
+	}
+
+	// force=true 且密码正确：放行。
 	forced := BatchDeleteContent(component.BetterRequest[BatchDeleteContentReq]{
 		UserId: userID,
-		Params: BatchDeleteContentReq{ContentType: "topic", ContentIDs: ids, Force: true},
+		Params: BatchDeleteContentReq{ContentType: "topic", ContentIDs: ids, Force: true, Password: userPassword},
 	})
 	if forced.Data.Code != component.SUCCESS {
 		t.Fatalf("forced batch delete failed: %#v", forced)
@@ -153,15 +173,18 @@ func TestBatchDeleteContentRequiresConfirmOverThreshold(t *testing.T) {
 // R10：注销账号 anonymize 模式保留内容但用户不可见。
 func TestAccountCloseAnonymizeKeepsContent(t *testing.T) {
 	conn := setupBatchDeleteTestDB(t)
-	userID := uint64(9_900_000_004)
-	if err := conn.Create(&users.EntityComplete{Id: userID, Username: "close_anonym", IsActivated: 1}).Error; err != nil {
+	const userPassword = "close-anonym-password"
+	user := users.MakeUser("close_anonym", userPassword, "close-anonym@example.com")
+	user.Activate()
+	if err := conn.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	userID := user.Id
 	ids := seedBatchTopics(t, conn, userID, 9_900_000_500, 2)
 
 	res := AccountClose(component.BetterRequest[AccountCloseReq]{
 		UserId: userID,
-		Params: AccountCloseReq{Mode: "anonymize"},
+		Params: AccountCloseReq{Mode: "anonymize", Password: userPassword},
 	})
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("AccountClose anonymize failed: %#v", res)
@@ -185,15 +208,18 @@ func TestAccountCloseAnonymizeKeepsContent(t *testing.T) {
 // R10：注销账号 delete 模式先删除全部内容再注销。
 func TestAccountCloseDeleteRemovesContent(t *testing.T) {
 	conn := setupBatchDeleteTestDB(t)
-	userID := uint64(9_900_000_005)
-	if err := conn.Create(&users.EntityComplete{Id: userID, Username: "close_delete", IsActivated: 1}).Error; err != nil {
+	const userPassword = "close-delete-password"
+	user := users.MakeUser("close_delete", userPassword, "close-delete@example.com")
+	user.Activate()
+	if err := conn.Create(user).Error; err != nil {
 		t.Fatalf("create user: %v", err)
 	}
+	userID := user.Id
 	ids := seedBatchTopics(t, conn, userID, 9_900_000_600, 2)
 
 	res := AccountClose(component.BetterRequest[AccountCloseReq]{
 		UserId: userID,
-		Params: AccountCloseReq{Mode: "delete"},
+		Params: AccountCloseReq{Mode: "delete", Password: userPassword},
 	})
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("AccountClose delete failed: %#v", res)
@@ -205,5 +231,38 @@ func TestAccountCloseDeleteRemovesContent(t *testing.T) {
 	}
 	if !users.IsAccountClosed(userID) {
 		t.Fatal("expected account to be closed after delete-mode close")
+	}
+}
+
+// R10：注销账号必须提供正确密码；密码错误时拒绝且不产生任何副作用。
+func TestAccountCloseRejectsWrongPassword(t *testing.T) {
+	conn := setupBatchDeleteTestDB(t)
+	const userPassword = "close-wrong-password"
+	user := users.MakeUser("close_wrong", userPassword, "close-wrong@example.com")
+	user.Activate()
+	if err := conn.Create(user).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	userID := user.Id
+	ids := seedBatchTopics(t, conn, userID, 9_900_000_700, 2)
+
+	res := AccountClose(component.BetterRequest[AccountCloseReq]{
+		UserId: userID,
+		Params: AccountCloseReq{Mode: "delete", Password: "wrong-password"},
+	})
+	if res.Data.Code == component.SUCCESS {
+		t.Fatalf("expected password-rejected failure, got %#v", res)
+	}
+	if res.Data.MessageCode != component.MessageAuthInvalidCredentials {
+		t.Fatalf("messageCode = %s, want %s", res.Data.MessageCode, component.MessageAuthInvalidCredentials)
+	}
+	// 账号未注销、内容未被删除。
+	if users.IsAccountClosed(userID) {
+		t.Fatal("account should not be closed with wrong password")
+	}
+	for _, id := range ids {
+		if visible := topics.Get(id); visible.Id == 0 {
+			t.Fatalf("topic %d should not be deleted with wrong password", id)
+		}
 	}
 }

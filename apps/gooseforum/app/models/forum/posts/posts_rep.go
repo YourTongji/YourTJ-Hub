@@ -80,6 +80,13 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).Update("process_status", processStatus).Error
 }
 
+// ResetPendingReview 作废待审状态：将 process_status 复位为正常。
+// 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
+// 语义叠加导致审核队列出现幽灵项。
+func ResetPendingReview(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("process_status", ProcessStatusNormal).Error
+}
+
 func DeleteEntity(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
 }
@@ -228,10 +235,13 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
+// 同时清空正文，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
 func MarkPurged(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"deleted_at":       time.Now(),
 		"retention_status": RetentionPurged,
+		"content":          "",
+		"rendered_html":    "",
 	}).Error
 }
 
@@ -255,6 +265,8 @@ func MarkPurgedByTopicID(topicID uint64) int64 {
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
+			"content":          "",
+			"rendered_html":    "",
 		}).RowsAffected
 }
 

@@ -134,6 +134,35 @@ func TestDeleteTopicByUserWithoutRepliesCascades(t *testing.T) {
 	}
 }
 
+// R1：待审（process_status=2）话题被作者删除后，process_status 应复位为正常，
+// 不再停留在管理审核队列（避免"已删除+待审"幽灵项）。
+func TestDeleteTopicByUserVoidsPendingReview(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, 941200, false)
+	if err := topics.UpdateProcessStatus(941200, topics.ProcessStatusPending); err != nil {
+		t.Fatalf("set pending review: %v", err)
+	}
+
+	if err := DeleteTopicByUser(authorID, 941200); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+
+	topic := topics.UnscopedGet(941200)
+	if topic.ProcessStatus != topics.ProcessStatusNormal {
+		t.Fatalf("process_status = %d after delete, want %d (normal)", topic.ProcessStatus, topics.ProcessStatusNormal)
+	}
+	if topic.VisibilityStatus != topics.VisibilityUserDeleted {
+		t.Fatalf("visibility = %s, want USER_DELETED", topic.VisibilityStatus)
+	}
+	// 待审队列不应再包含被删话题。
+	pending := topics.PagePendingReview(1, 50)
+	for _, item := range pending.Data {
+		if item.Id == 941200 {
+			t.Fatal("deleted topic still appears in pending review queue")
+		}
+	}
+}
+
 func TestDeleteTopicByUserWithRepliesKeepsDiscussionTombstone(t *testing.T) {
 	conn := setupContentDeleteTestDB(t)
 	authorID, _ := seedTopicWithOptionalReply(t, conn, 940002, true)

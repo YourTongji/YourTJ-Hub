@@ -437,7 +437,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 	switch req.Params.ContentType {
 	case reports.TargetTopic:
 		topic := topics.UnscopedGet(req.Params.ContentID)
-		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive {
+		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive || topic.RetentionStatus == topics.RetentionPurged {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
@@ -460,7 +460,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		}
 	case reports.TargetPost:
 		post := posts.UnscopedGet(req.Params.ContentID)
-		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive {
+		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive || post.RetentionStatus == posts.RetentionPurged {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
 		topic := topics.UnscopedGet(post.TopicId)

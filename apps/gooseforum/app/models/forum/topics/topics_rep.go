@@ -377,6 +377,13 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 	return builder().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", processStatus).Error
 }
 
+// ResetPendingReview 作废待审状态：将 process_status 复位为正常。
+// 内容被删除后不应继续停留在管理审核队列（PRD R1），避免"已删除+待审"
+// 语义叠加导致审核队列出现幽灵项。
+func ResetPendingReview(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).UpdateColumn("process_status", ProcessStatusNormal).Error
+}
+
 func UpdatePinWeight(id uint64, pinWeight int) error {
 	return builder().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"pin_weight": pinWeight,
@@ -543,27 +550,21 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
+// 同时清空正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
 func MarkPurged(id uint64) error {
-	result := builder().Unscoped().
-		Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Updates(map[string]any{
-			"deleted_at":       time.Now(),
-			"retention_status": RetentionPurged,
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"deleted_at":       time.Now(),
+		"retention_status": RetentionPurged,
+		"excerpt":          "",
+		"first_image_url":  "",
+		"image_urls":       "[]",
+	}).Error
 }
 
 // MarkPrivacyErased immediately hides a user's content and makes it unrecoverable.
 // The visibility state remains distinct from moderator removal so governance
 // records can distinguish privacy erasure from moderation action.
+// 与永久删除一致清空标题/摘要/图片引用，保证"隐私彻底删除"后原文不留库（PRD R8）。
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"deleted_at":        time.Now(),
@@ -571,5 +572,9 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 		"retention_status":  RetentionPurged,
 		"deleted_by":        erasedBy,
 		"delete_reason":     reason,
+		"title":             "",
+		"excerpt":           "",
+		"first_image_url":   "",
+		"image_urls":        "[]",
 	}).Error
 }

@@ -321,3 +321,27 @@ func TestViewDeletedContentRequiresReasonAndAudits(t *testing.T) {
 	}
 	_ = activeRes
 }
+
+// R7+R12：永久删除（PURGED）的内容不可再被版主"查看已删除内容"（应返回 404 语义）。
+func TestViewDeletedContentRejectsPurgedTarget(t *testing.T) {
+	conn := setupReportSnapshotTestDB(t)
+	authorID, moderatorID, _, topicID, _ := seedReportSnapshotTopic(t, conn, 9_700_001_000)
+
+	if err := contentdeleteservice.DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if err := contentdeleteservice.PurgeContent(authorID, contentdeleteservice.ContentTypeTopic, topicID, "test purge"); err != nil {
+		t.Fatalf("PurgeContent: %v", err)
+	}
+
+	res := ViewDeletedContent(component.BetterRequest[ViewDeletedContentReq]{
+		UserId: moderatorID,
+		Params: ViewDeletedContentReq{ContentType: reports.TargetTopic, ContentID: topicID, Reason: "audit"},
+	})
+	if res.Data.Code == component.SUCCESS {
+		t.Fatalf("expected purged target view to fail: %#v", res)
+	}
+	if res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("messageCode = %s, want %s", res.Data.MessageCode, component.MessageTopicNotFound)
+	}
+}
