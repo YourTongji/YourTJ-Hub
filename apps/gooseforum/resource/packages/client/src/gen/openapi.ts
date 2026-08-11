@@ -822,6 +822,8 @@ export interface components {
             offeringId: number;
             /** @description Legacy imported reviews may have no rating (null); native reviews are 1..5. */
             rating: number | null;
+            /** @description Raw markdown review content; the edit form pre-fills from this field. */
+            content: string;
             /** @description Rendered review content; never the raw markdown. */
             contentHtml: string;
             author: components["schemas"]["ReviewAuthorPayload"];

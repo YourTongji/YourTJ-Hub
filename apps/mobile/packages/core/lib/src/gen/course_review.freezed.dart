@@ -395,6 +395,7 @@ mixin _$ReviewPayload {
   int get id => throw _privateConstructorUsedError;
   int get offeringId => throw _privateConstructorUsedError;
   int? get rating => throw _privateConstructorUsedError;
+  String get content => throw _privateConstructorUsedError;
   String get contentHtml => throw _privateConstructorUsedError;
   ReviewAuthorPayload get author => throw _privateConstructorUsedError;
   ReviewViewerPayload get viewer => throw _privateConstructorUsedError;
@@ -423,6 +424,7 @@ abstract class $ReviewPayloadCopyWith<$Res> {
     int id,
     int offeringId,
     int? rating,
+    String content,
     String contentHtml,
     ReviewAuthorPayload author,
     ReviewViewerPayload viewer,
@@ -453,6 +455,7 @@ class _$ReviewPayloadCopyWithImpl<$Res, $Val extends ReviewPayload>
     Object? id = null,
     Object? offeringId = null,
     Object? rating = freezed,
+    Object? content = null,
     Object? contentHtml = null,
     Object? author = null,
     Object? viewer = null,
@@ -474,6 +477,10 @@ class _$ReviewPayloadCopyWithImpl<$Res, $Val extends ReviewPayload>
                 ? _value.rating
                 : rating // ignore: cast_nullable_to_non_nullable
                       as int?,
+            content: null == content
+                ? _value.content
+                : content // ignore: cast_nullable_to_non_nullable
+                      as String,
             contentHtml: null == contentHtml
                 ? _value.contentHtml
                 : contentHtml // ignore: cast_nullable_to_non_nullable
@@ -537,6 +544,7 @@ abstract class _$$ReviewPayloadImplCopyWith<$Res>
     int id,
     int offeringId,
     int? rating,
+    String content,
     String contentHtml,
     ReviewAuthorPayload author,
     ReviewViewerPayload viewer,
@@ -568,6 +576,7 @@ class __$$ReviewPayloadImplCopyWithImpl<$Res>
     Object? id = null,
     Object? offeringId = null,
     Object? rating = freezed,
+    Object? content = null,
     Object? contentHtml = null,
     Object? author = null,
     Object? viewer = null,
@@ -589,6 +598,10 @@ class __$$ReviewPayloadImplCopyWithImpl<$Res>
             ? _value.rating
             : rating // ignore: cast_nullable_to_non_nullable
                   as int?,
+        content: null == content
+            ? _value.content
+            : content // ignore: cast_nullable_to_non_nullable
+                  as String,
         contentHtml: null == contentHtml
             ? _value.contentHtml
             : contentHtml // ignore: cast_nullable_to_non_nullable
@@ -625,6 +638,7 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
     required this.id,
     required this.offeringId,
     this.rating,
+    required this.content,
     required this.contentHtml,
     required this.author,
     required this.viewer,
@@ -643,6 +657,8 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
   @override
   final int? rating;
   @override
+  final String content;
+  @override
   final String contentHtml;
   @override
   final ReviewAuthorPayload author;
@@ -657,7 +673,7 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
 
   @override
   String toString() {
-    return 'ReviewPayload(id: $id, offeringId: $offeringId, rating: $rating, contentHtml: $contentHtml, author: $author, viewer: $viewer, helpfulCount: $helpfulCount, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ReviewPayload(id: $id, offeringId: $offeringId, rating: $rating, content: $content, contentHtml: $contentHtml, author: $author, viewer: $viewer, helpfulCount: $helpfulCount, createdAt: $createdAt, updatedAt: $updatedAt)';
   }
 
   @override
@@ -669,6 +685,7 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
             (identical(other.offeringId, offeringId) ||
                 other.offeringId == offeringId) &&
             (identical(other.rating, rating) || other.rating == rating) &&
+            (identical(other.content, content) || other.content == content) &&
             (identical(other.contentHtml, contentHtml) ||
                 other.contentHtml == contentHtml) &&
             (identical(other.author, author) || other.author == author) &&
@@ -688,6 +705,7 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
     id,
     offeringId,
     rating,
+    content,
     contentHtml,
     author,
     viewer,
@@ -715,6 +733,7 @@ abstract class _ReviewPayload implements ReviewPayload {
     required final int id,
     required final int offeringId,
     final int? rating,
+    required final String content,
     required final String contentHtml,
     required final ReviewAuthorPayload author,
     required final ReviewViewerPayload viewer,
@@ -732,6 +751,8 @@ abstract class _ReviewPayload implements ReviewPayload {
   int get offeringId;
   @override
   int? get rating;
+  @override
+  String get content;
   @override
   String get contentHtml;
   @override
