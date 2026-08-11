@@ -85,6 +85,7 @@ export default {
       topics: '话题',
       hot: '热门',
       popular: '流行',
+      courses: '课程',
       messages: '私信',
       notifications: '通知',
       drafts: '草稿箱',

@@ -85,6 +85,7 @@ export default {
       topics: 'トピック',
       hot: '人気',
       popular: '注目',
+      courses: 'コース',
       messages: 'メッセージ',
       notifications: '通知',
       drafts: '下書き',

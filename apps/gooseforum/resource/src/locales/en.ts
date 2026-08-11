@@ -85,6 +85,7 @@ export default {
       topics: 'Topics',
       hot: 'Hot',
       popular: 'Popular',
+      courses: 'Courses',
       messages: 'Messages',
       notifications: 'Notifications',
       drafts: 'Drafts',

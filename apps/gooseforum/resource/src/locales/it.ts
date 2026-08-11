@@ -85,6 +85,7 @@ export default {
       topics: 'Argomenti',
       hot: 'Di tendenza',
       popular: 'Popolari',
+      courses: 'Corsi',
       messages: 'Messaggi',
       notifications: 'Notifiche',
       drafts: 'Bozze',

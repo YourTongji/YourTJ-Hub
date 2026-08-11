@@ -239,7 +239,7 @@ onMounted(loadReviews)
       </span>
     </div>
 
-    <section class="gf-panel">
+    <section class="gf-panel p-4">
       <h2 class="mb-3 text-base font-semibold text-base-content">
         {{ t('courseDetailPage.offeringsTitle') }}
       </h2>

@@ -2,6 +2,7 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
   Bell,
+  BookOpen,
   FileText,
   Flame,
   Heart,
@@ -87,6 +88,7 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
     sidebarItem('topics', t('shell.nav.topics'), '/'),
     sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
     sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
+    sidebarItem('courses', t('shell.nav.courses'), '/courses'),
   ]
   if (props.layout.viewer.isAuthenticated) {
     items.push(
@@ -146,6 +148,7 @@ const sidebarIconMap = {
   topics: MessageCircle,
   hot: Flame,
   popular: TrendingUp,
+  courses: BookOpen,
   messages: Inbox,
   notifications: Bell,
   drafts: FileText,
