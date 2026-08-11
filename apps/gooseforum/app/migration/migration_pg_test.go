@@ -1,9 +1,11 @@
 package migration
 
 import (
+	"errors"
 	"os"
 	"testing"
 
+	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
@@ -25,7 +27,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
 	if err != nil {
 		t.Fatalf("connect postgres: %v", err)
 	}
@@ -64,6 +66,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	assertPointsSourceKeySchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
@@ -75,7 +78,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		t.Skip("YOURTJ_TEST_PG_URL not set; skipping PostgreSQL migration test")
 	}
 
-	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{})
+	db, err := gorm.Open(postgres.Open(dsn), &gorm.Config{TranslateError: true})
 	if err != nil {
 		t.Fatalf("connect postgres: %v", err)
 	}
@@ -84,7 +87,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Exec(`DROP SCHEMA public CASCADE; CREATE SCHEMA public;`).Error; err != nil {
 		t.Fatalf("reset schema: %v", err)
 	}
-	legacy := []any{&users.EntityComplete{}, &userOAuth.Entity{}, &topics.Entity{}}
+	legacy := []any{&users.EntityComplete{}, &userOAuth.Entity{}, &topics.Entity{}, &pointsRecord.Entity{}}
 	if err := db.AutoMigrate(legacy...); err != nil {
 		t.Fatalf("AutoMigrate legacy subset failed: %v", err)
 	}
@@ -101,6 +104,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if err := db.Migrator().DropIndex(&users.EntityComplete{}, "uniq_users_username"); err != nil {
 		t.Fatalf("drop legacy-missing username index: %v", err)
 	}
+	if err := db.Migrator().DropColumn(&pointsRecord.Entity{}, "source_key"); err != nil {
+		t.Fatalf("drop legacy-missing points_record.source_key: %v", err)
+	}
+	if err := db.Exec("INSERT INTO points_record (user_id, action, points_change, created_at) VALUES (?, ?, ?, NOW())", 1, "init", 100).Error; err != nil {
+		t.Fatalf("insert legacy points record: %v", err)
+	}
 	if db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Fatal("precondition failed: legacy users table should not have actor_type")
 	}
@@ -109,6 +118,9 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Fatal("precondition failed: legacy users table should not have username unique index")
+	}
+	if db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
+		t.Fatal("precondition failed: legacy points_record table should not have source_key")
 	}
 	if db.Migrator().HasTable("user_sessions") {
 		t.Fatal("precondition failed: legacy schema should not have user_sessions")
@@ -145,5 +157,50 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
+	}
+	assertPointsSourceKeySchema(t, db)
+	var legacyPointsCount int64
+	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
+		t.Fatalf("count legacy points records after upgrade: %v", err)
+	}
+	if legacyPointsCount != 1 {
+		t.Errorf("legacy points record count after upgrade = %d, want 1", legacyPointsCount)
+	}
+}
+
+func assertPointsSourceKeySchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasColumn(&pointsRecord.Entity{}, "source_key") {
+		t.Error("points_record.source_key column missing after postgres migration")
+	}
+	indexes, err := db.Migrator().GetIndexes(&pointsRecord.Entity{})
+	if err != nil {
+		t.Fatalf("list points_record indexes: %v", err)
+	}
+	uniqueSourceKey := false
+	for _, index := range indexes {
+		if index.Name() != "idx_points_record_source_key" {
+			continue
+		}
+		unique, ok := index.Unique()
+		uniqueSourceKey = ok && unique
+		break
+	}
+	if !uniqueSourceKey {
+		t.Error("points_record.source_key unique index missing after postgres migration")
+	}
+
+	if err := db.Create(&pointsRecord.Entity{UserId: 9001, Action: "legacy", PointsChange: 1}).Error; err != nil {
+		t.Fatalf("insert first NULL source_key record: %v", err)
+	}
+	if err := db.Create(&pointsRecord.Entity{UserId: 9002, Action: "legacy", PointsChange: 1}).Error; err != nil {
+		t.Fatalf("insert second NULL source_key record: %v", err)
+	}
+	key := "schema-test:unique"
+	if err := db.Create(&pointsRecord.Entity{UserId: 9003, Action: "test", SourceKey: &key}).Error; err != nil {
+		t.Fatalf("insert unique source_key record: %v", err)
+	}
+	if err := db.Create(&pointsRecord.Entity{UserId: 9004, Action: "test", SourceKey: &key}).Error; !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("duplicate source_key error = %v, want gorm.ErrDuplicatedKey", err)
 	}
 }

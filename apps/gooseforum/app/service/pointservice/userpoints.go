@@ -14,6 +14,11 @@ import (
 	"gorm.io/gorm/clause"
 )
 
+const (
+	TopicPublishedReward int64 = 10
+	PostCreatedReward    int64 = 2
+)
+
 type PointsAction int
 
 const (
@@ -43,8 +48,9 @@ func RewardPoints(userId uint64, points int64, action PointsAction, sourceKey st
 	return applyPoints(userId, points, action, sourceKey, "")
 }
 
-func ReversePoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
-	return applyPoints(userId, -points, action, sourceKey, originalSourceKey)
+func ReversePostRewardTx(tx *gorm.DB, userId, postID uint64) error {
+	return applyPointsTx(tx, userId, -PostCreatedReward, PointsActionPostDeleted,
+		fmt.Sprintf("post-deleted:%d", postID), fmt.Sprintf("post:%d", postID))
 }
 
 func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
@@ -58,17 +64,23 @@ func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, or
 
 func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
 	locking := clause.Locking{Strength: "UPDATE"}
+	// Publication handlers receive events only after the write path has accepted the
+	// content. Rechecking mutable moderation state here would make rewards depend on
+	// asynchronous scheduling; deletion is handled deterministically by its tombstone.
 	if strings.HasPrefix(sourceKey, "topic:") {
 		topicID, err := strconv.ParseUint(strings.TrimPrefix(sourceKey, "topic:"), 10, 64)
 		if err != nil {
 			return err
 		}
-		var status int8
-		if err := tx.Table("topics").Clauses(locking).Where("id = ? AND deleted_at IS NULL", topicID).
-			Pluck("status", &status).Error; err != nil {
+		var topic struct{ UserId uint64 }
+		if err := tx.Table("topics").Clauses(locking).Where("id = ?", topicID).
+			Take(&topic).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return nil
+			}
 			return err
 		}
-		if status != 1 {
+		if topic.UserId != userId {
 			return nil
 		}
 	}
@@ -81,22 +93,16 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 			return err
 		}
 		var post struct {
-			Id      uint64
-			TopicId uint64
+			Id     uint64
+			UserId uint64
 		}
-		if err := tx.Table("posts").Unscoped().Clauses(locking).
-			Where("id = ? AND deleted_at IS NULL", postID).First(&post).Error; err != nil {
+		if err := tx.Table("posts").Clauses(locking).Where("id = ?", postID).Take(&post).Error; err != nil {
 			if errors.Is(err, gorm.ErrRecordNotFound) {
 				return nil
 			}
 			return err
 		}
-		var topicStatus int8
-		if err := tx.Table("topics").Clauses(locking).Where("id = ? AND deleted_at IS NULL", post.TopicId).
-			Pluck("status", &topicStatus).Error; err != nil {
-			return err
-		}
-		if topicStatus != 1 {
+		if post.UserId != userId {
 			return nil
 		}
 		var deletedCount int64
@@ -109,12 +115,16 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	}
 	applyBalance := true
 	if originalSourceKey != "" {
-		var count int64
-		if err := tx.Table("points_record").Where("source_key = ?", originalSourceKey).Count(&count).Error; err != nil {
-			return err
+		var original pointsRecord.Entity
+		if err := tx.Clauses(locking).Where("source_key = ?", originalSourceKey).Take(&original).Error; err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				applyBalance = false
+			} else {
+				return err
+			}
 		}
-		if count == 0 {
-			applyBalance = false
+		if original.Id != 0 && (original.UserId != userId || original.PointsChange != -points) {
+			return fmt.Errorf("original points record %q does not match user %d and points %d", originalSourceKey, userId, -points)
 		}
 	}
 	key := sourceKey
@@ -122,7 +132,11 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	if !applyBalance {
 		recordPoints = 0
 	}
-	result := tx.Clauses(clause.OnConflict{DoNothing: true}).Create(&pointsRecord.Entity{
+	const insertSavepoint = "before_points_record_insert"
+	if err := tx.SavePoint(insertSavepoint).Error; err != nil {
+		return err
+	}
+	result := tx.Create(&pointsRecord.Entity{
 		UserId:       userId,
 		Action:       action.Code(),
 		PointsChange: recordPoints,
@@ -130,10 +144,13 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 		CreatedAt:    time.Now(),
 	})
 	if result.Error != nil {
+		if errors.Is(result.Error, gorm.ErrDuplicatedKey) {
+			if err := tx.RollbackTo(insertSavepoint).Error; err != nil {
+				return err
+			}
+			return nil
+		}
 		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return nil
 	}
 	if !applyBalance {
 		return nil
@@ -153,14 +170,17 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	return nil
 }
 
-func InitUserPoints(userId uint64, points int64) error {
-	userPoint := userPoints.Get(userId)
+func InitUserPointsTx(tx *gorm.DB, userId uint64, points int64) error {
+	var userPoint userPoints.Entity
+	if err := tx.Where("user_id = ?", userId).Take(&userPoint).Error; err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
+		return err
+	}
 	if userPoint.UserId > 0 {
 		return nil
 	}
 	userPoint.UserId = userId
 	userPoint.CurrentPoints += points
-	if err := userPoints.CreateError(&userPoint); err != nil {
+	if err := tx.Create(&userPoint).Error; err != nil {
 		return fmt.Errorf("create user points failed for user %d: %w", userId, err)
 	}
 
@@ -170,5 +190,5 @@ func InitUserPoints(userId uint64, points int64) error {
 		PointsChange: points,
 		CreatedAt:    time.Now(),
 	}
-	return pointsRecord.SaveError(&pointsRecordEntity)
+	return tx.Create(&pointsRecordEntity).Error
 }

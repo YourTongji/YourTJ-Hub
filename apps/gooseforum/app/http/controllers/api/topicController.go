@@ -2,7 +2,7 @@ package api
 
 import (
 	"context"
-	"fmt"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -23,7 +23,6 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/pointservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
@@ -291,6 +290,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	nextStatus := req.Params.TopicStatus
+	if nextStatus == 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	if topic.Status == nextStatus {
 		return component.SuccessResponse(true)
 	}
@@ -546,13 +548,15 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
-	if posts.DeleteEntity(&postEntity) == 0 {
-		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	deletedPost, err := postservice.DeleteTopicPost(postEntity.Id, req.UserId)
+	if err != nil {
+		if errors.Is(err, postservice.ErrPostNotFound) {
+			return component.FailResponseCode(component.MessagePostNotFound, nil)
+		}
+		slog.Error("delete post failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
-	if err := pointservice.ReversePoints(postEntity.UserId, 2, pointservice.PointsActionPostDeleted,
-		fmt.Sprintf("post-deleted:%d", postEntity.Id), fmt.Sprintf("post:%d", postEntity.Id)); err != nil {
-		slog.Error("reverse deleted post points failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
-	}
+	postEntity = deletedPost
 	topicEntity := topics.GetSimple(postEntity.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, postEntity, true)
