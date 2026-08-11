@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-11
 
 ## Identity model
 
@@ -129,7 +129,9 @@
 - Client secrets are configured server-side and never logged.
 - id_token / access token never persisted by clients; forum JWT goes into an HttpOnly cookie
   (Secure + SameSite=Lax when the site is served over HTTPS).
-- Enumeration resistance: login errors do not distinguish "user not found / wrong password".
+- Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
+  unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
+  reveal whether a username/email is registered.
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,

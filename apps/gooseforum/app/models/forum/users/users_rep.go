@@ -13,11 +13,12 @@ import (
 	"gorm.io/gorm"
 )
 
-// dummyBotHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
-// equalize password-verification timing when a bot account is presented at
-// the human login endpoint. It runs the same 10000-iteration cost as real
-// hashes so username enumeration via response time is not possible.
-const dummyBotHashForTiming = "kQZbUFLHdF2p4QRUQ7kVsv6r0LqRFiYBoK9V0MaRTzc=:eW91cnRqLWJvdC10aW1pbmctc2FsdC0wMTIzNDU2Nzg5YWJjZGVm"
+// dummyHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
+// equalize password-verification timing when no usable credential row is
+// present (unknown username/email, or a bot account at the human login
+// endpoint). It runs the same 10000-iteration cost as real hashes so
+// username enumeration via response time is not possible.
+const dummyHashForTiming = "kQZbUFLHdF2p4QRUQ7kVsv6r0LqRFiYBoK9V0MaRTzc=:eW91cnRqLWJvdC10aW1pbmctc2FsdC0wMTIzNDU2Nzg5YWJjZGVm"
 
 // ErrInvalidCredentials is the single error returned for every failed
 // password verification (unknown user, bot account, or wrong password), so
@@ -38,13 +39,19 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 		err = builder().Where("username = ?", usernameOrEmail).First(&user).Error
 	}
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 账号不存在时也执行与真实校验等量的 PBKDF2，抹平响应时间差，
+			// 避免通过登录响应时间枚举已注册账号（CWE-208）。
+			_ = algorithm.VerifyEncryptPassword(dummyHashForTiming, password)
+			return &EntityComplete{}, ErrInvalidCredentials
+		}
 		return &user, err
 	}
 	// 机器人（Agent）账号不参与密码登录。先执行与真实校验等量的 PBKDF2
 	// 以抹平响应时间，再返回与错误密码完全相同的错误，避免枚举 bot 账号，
 	// 也与“bot 邮箱为空、密码不可用”的约束一致。
 	if user.IsBot() {
-		_ = algorithm.VerifyEncryptPassword(dummyBotHashForTiming, password)
+		_ = algorithm.VerifyEncryptPassword(dummyHashForTiming, password)
 		return &EntityComplete{}, ErrInvalidCredentials
 	}
 	err = algorithm.VerifyEncryptPassword(user.Password, password)
