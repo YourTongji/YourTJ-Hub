@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { useI18n } from 'vue-i18n'
-import { BookOpen, Search } from '@lucide/vue'
+import { BookOpen, Building2, CalendarDays, MapPin, Search } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseCatalogPageProps, LayoutPayload } from '@gooseforum/client'
@@ -22,28 +22,67 @@ const { t } = useI18n()
 
     <div class="space-y-4">
       <form
-        class="flex flex-col gap-2 sm:flex-row"
+        class="gf-panel space-y-3 p-4"
         action="/courses"
         method="get"
         role="search"
       >
-        <label class="sr-only" for="course-keyword">{{ t('coursesPage.search') }}</label>
-        <div class="relative flex-1">
-          <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
-          <input
-            id="course-keyword"
-            name="keyword"
-            type="search"
-            :value="props.query.keyword"
-            :placeholder="t('coursesPage.searchPlaceholder')"
-            class="gf-input gf-input-md w-full pl-9"
-          />
+        <div class="flex flex-col gap-2 sm:flex-row">
+          <label class="sr-only" for="course-keyword">{{ t('coursesPage.search') }}</label>
+          <div class="relative flex-1">
+            <Search class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
+            <input
+              id="course-keyword"
+              name="keyword"
+              type="search"
+              :value="props.query.keyword"
+              :placeholder="t('coursesPage.searchPlaceholder')"
+              class="gf-input gf-input-md w-full pl-9"
+            />
+          </div>
+          <button type="submit" class="gf-button gf-button-md gf-button-primary">
+            {{ t('coursesPage.search') }}
+          </button>
         </div>
-        <button type="submit" class="gf-button gf-button-md gf-button-primary">
-          {{ t('coursesPage.search') }}
-        </button>
+        <div class="grid gap-2 sm:grid-cols-3">
+          <label class="sr-only" for="course-department">{{ t('coursesPage.department') }}</label>
+          <div class="relative">
+            <Building2 class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
+            <input
+              id="course-department"
+              name="department"
+              type="text"
+              :value="props.query.department"
+              :placeholder="t('coursesPage.department')"
+              class="gf-input gf-input-md w-full pl-9"
+            />
+          </div>
+          <label class="sr-only" for="course-term">{{ t('coursesPage.term') }}</label>
+          <div class="relative">
+            <CalendarDays class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
+            <input
+              id="course-term"
+              name="term"
+              type="text"
+              :value="props.query.term"
+              :placeholder="t('coursesPage.term')"
+              class="gf-input gf-input-md w-full pl-9"
+            />
+          </div>
+          <label class="sr-only" for="course-campus">{{ t('coursesPage.campus') }}</label>
+          <div class="relative">
+            <MapPin class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
+            <input
+              id="course-campus"
+              name="campus"
+              type="text"
+              :value="props.query.campus"
+              :placeholder="t('coursesPage.campus')"
+              class="gf-input gf-input-md w-full pl-9"
+            />
+          </div>
+        </div>
       </form>
-
       <EmptyState
         v-if="!props.courses.length"
         class="gf-panel"

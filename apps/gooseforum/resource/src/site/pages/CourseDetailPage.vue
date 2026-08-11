@@ -38,6 +38,14 @@ function offeringLabel(id: number) {
   return [offering.termCode, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
 }
 
+// authorLabel 作者展示名：member 用服务端回填的用户名；anonymous/legacy 走本地 i18n，
+// 避免非中文界面原样渲染服务端硬编码的中文标签。
+function authorLabel(author: ReviewPayload['author']) {
+  if (author.kind === 'member') return author.label
+  if (author.kind === 'legacy') return t('courseDetailPage.authorLegacy')
+  return t('courseDetailPage.authorAnonymous')
+}
+
 // ---- 评价列表 ----
 const reviews = ref<ReviewPayload[]>([])
 const reviewLoading = ref(false)
@@ -356,7 +364,7 @@ onMounted(loadReviews)
               id="review-content"
               v-model="formContent"
               class="gf-textarea min-h-28"
-              maxlength="2000"
+              maxlength="50000"
               :placeholder="t('courseDetailPage.contentPlaceholder')"
             />
           </div>
@@ -417,7 +425,7 @@ onMounted(loadReviews)
               />
             </span>
             <span v-else class="text-[12px] text-base-content/45">{{ t('courseDetailPage.noRating') }}</span>
-            <span class="text-[12px] text-base-content/55">{{ review.author.label }}</span>
+            <span class="text-[12px] text-base-content/55">{{ authorLabel(review.author) }}</span>
             <time class="text-[12px] tabular-nums text-base-content/45">{{ formatDateTime(review.createdAt) }}</time>
           </div>
 

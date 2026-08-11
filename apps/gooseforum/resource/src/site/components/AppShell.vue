@@ -21,6 +21,7 @@ import {
   Shield,
   Moon,
   Sun,
+  GraduationCap,
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
@@ -100,6 +101,10 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
   if (props.layout.viewer.isModerator) {
     items.push(sidebarItem('moderation', t('shell.nav.moderation'), '/moderation'))
   }
+  // 课评审核入口：CourseManager 权限（Admin 通过 adminPermissions 全量包含，id=6）。
+  if (props.layout.viewer.isAuthenticated && props.layout.viewer.adminPermissions.includes(6)) {
+    items.push(sidebarItem('courseReviews', t('shell.nav.courseReviews'), '/moderation/course-reviews'))
+  }
   return [...items, ...serverSidebarItems(props.layout.sidebar.main)]
 })
 const resourceItems = computed<SidebarNavItem[]>(() => [
@@ -153,6 +158,7 @@ const sidebarIconMap = {
   notifications: Bell,
   drafts: FileText,
   moderation: Scale,
+  courseReviews: GraduationCap,
   links: Link,
   sponsors: Heart,
 } as const

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { Ban, Eye, Flag, Loader2, X } from '@lucide/vue'
+import { Ban, Eye, Flag, Loader2, X, XCircle } from '@lucide/vue'
 import {
   fetchModerationCourseReviewReports,
   moderationCourseReviewStatus,
@@ -81,6 +81,37 @@ async function hideReview(item: ModerationCourseReviewReportItem) {
   try {
     await moderationCourseReviewStatus(item.reviewId, 'hide')
     await updateModerationReportStatus(item.id, 'ban')
+    reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
+  } catch (error) {
+    reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
+  } finally {
+    reportBusyIds.value = reportBusyIds.value.filter((id) => id !== item.id)
+  }
+}
+
+// 恢复显示：把已隐藏的评价恢复可见，并把举报标记为已处理。
+async function showReview(item: ModerationCourseReviewReportItem) {
+  if (reportBusy(item.id)) return
+  reportBusyIds.value = [...reportBusyIds.value, item.id]
+  reportError.value = ''
+  try {
+    await moderationCourseReviewStatus(item.reviewId, 'show')
+    await updateModerationReportStatus(item.id, 'resolve')
+    reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
+  } catch (error) {
+    reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
+  } finally {
+    reportBusyIds.value = reportBusyIds.value.filter((id) => id !== item.id)
+  }
+}
+
+// 驳回举报：评价保持现状，举报置为 rejected。
+async function rejectReport(item: ModerationCourseReviewReportItem) {
+  if (reportBusy(item.id)) return
+  reportBusyIds.value = [...reportBusyIds.value, item.id]
+  reportError.value = ''
+  try {
+    await updateModerationReportStatus(item.id, 'reject')
     reportItems.value = reportItems.value.filter((report) => report.id !== item.id)
   } catch (error) {
     reportError.value = error instanceof Error ? error.message : t('api.moderationActionFailed')
@@ -248,6 +279,15 @@ onMounted(() => {
                   {{ t('courseReviewModeration.hide') }}
                 </button>
                 <button
+                  type="button"
+                  class="gf-button gf-button-sm gf-button-ghost shrink-0 whitespace-nowrap text-xs"
+                  :disabled="reportBusy(item.id)"
+                  @click="rejectReport(item)"
+                >
+                  <XCircle class="h-4 w-4" />
+                  {{ t('courseReviewModeration.reject') }}
+                </button>
+                <button
                   v-if="isAdmin"
                   type="button"
                   class="gf-button gf-button-sm gf-button-outline shrink-0 whitespace-nowrap text-xs"
@@ -256,6 +296,17 @@ onMounted(() => {
                 >
                   <Eye class="h-4 w-4" />
                   {{ t('courseReviewModeration.reveal') }}
+                </button>
+              </template>
+              <template v-else-if="reportStatus === 'resolved'">
+                <button
+                  type="button"
+                  class="gf-button gf-button-sm gf-button-outline shrink-0 whitespace-nowrap text-xs"
+                  :disabled="reportBusy(item.id)"
+                  @click="showReview(item)"
+                >
+                  <Eye class="h-4 w-4" />
+                  {{ t('courseReviewModeration.show') }}
                 </button>
               </template>
             </div>
