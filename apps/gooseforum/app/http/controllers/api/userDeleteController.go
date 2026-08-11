@@ -311,7 +311,7 @@ func DeletedContentList(req component.BetterRequest[DeletedContentListReq]) comp
 				Visibility:   topic.VisibilityStatus,
 				Retention:    topic.RetentionStatus,
 				DeletedAt:    formatDeletedAt(topic.DeletedAt.Time),
-				CanRestore:   canRestore(topic.VisibilityStatus, topic.RetentionStatus),
+				CanRestore:   canRestoreInWindow(topic.VisibilityStatus, topic.RetentionStatus, topic.DeletedAt.Time),
 				CanPermanent: canPermanentDelete(topic.VisibilityStatus, topic.RetentionStatus),
 			})
 		}
@@ -341,7 +341,7 @@ func DeletedContentList(req component.BetterRequest[DeletedContentListReq]) comp
 				Visibility:   post.VisibilityStatus,
 				Retention:    post.RetentionStatus,
 				DeletedAt:    formatDeletedAt(deletedAt),
-				CanRestore:   canRestore(post.VisibilityStatus, post.RetentionStatus),
+				CanRestore:   canRestoreInWindow(post.VisibilityStatus, post.RetentionStatus, deletedAt),
 				CanPermanent: canPermanentDelete(post.VisibilityStatus, post.RetentionStatus),
 			})
 		}
@@ -407,6 +407,16 @@ func formatDeletedAt(t time.Time) string {
 
 func canRestore(visibility string, retention string) bool {
 	return visibility == topics.VisibilityUserDeleted && retention == topics.RetentionRecoverable
+}
+
+// canRestoreInWindow 在 canRestore 基础上叠加恢复窗口校验：墓碑态行无
+// deleted_at，以 updated_at 近似（与 checkRestorable 一致）。避免"窗口已过、
+// 定时清理尚未执行"时前端仍展示可恢复按钮但后端拒绝的 UX 不一致（PRD R3）。
+func canRestoreInWindow(visibility string, retention string, deletedAt time.Time) bool {
+	if !canRestore(visibility, retention) || deletedAt.IsZero() {
+		return false
+	}
+	return time.Since(deletedAt) <= contentdeleteservice.RecoveryWindow
 }
 
 func canPermanentDelete(visibility string, retention string) bool {

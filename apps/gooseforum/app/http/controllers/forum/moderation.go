@@ -410,6 +410,7 @@ type ViewDeletedContentReq struct {
 type ModerationDeletedContentView struct {
 	ContentType  string                 `json:"contentType"`
 	ContentID    uint64                 `json:"contentId"`
+	TopicID      uint64                 `json:"topicId,omitempty"`
 	Title        string                 `json:"title"`
 	Content      string                 `json:"content"`
 	AuthorID     uint64                 `json:"authorId"`
@@ -446,6 +447,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		view = ModerationDeletedContentView{
 			ContentType:  reports.TargetTopic,
 			ContentID:    topic.Id,
+			TopicID:      topic.Id,
 			Title:        topic.Title,
 			AuthorID:     topic.UserId,
 			DeletedBy:    topic.DeletedBy,
@@ -470,6 +472,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		view = ModerationDeletedContentView{
 			ContentType:  reports.TargetPost,
 			ContentID:    post.Id,
+			TopicID:      post.TopicId,
 			Title:        fmt.Sprintf("回复 #%d", post.PostNo),
 			Content:      post.Content,
 			AuthorID:     post.UserId,
@@ -497,6 +500,7 @@ func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) comp
 		EventType:   string(contentDeleteEvent.EventModerationViewed),
 		ContentType: view.ContentType,
 		ContentID:   view.ContentID,
+		TopicID:     view.TopicID,
 		ActorID:     req.UserId,
 	}); err != nil {
 		slog.Error("record moderation deleted content viewed failed", "contentType", view.ContentType, "contentId", view.ContentID, "err", err)

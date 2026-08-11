@@ -105,6 +105,10 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 			}
 			item.Payload.TemplateParams.Preview = ""
 			item.Payload.Content = ""
+			// 标题/话题标题同样置空：通知列表不应再展示被删内容的原文标题
+			// （PRD R11「该内容已被删除」），仅保留可用于定位的 topicId/postId。
+			item.Payload.Title = ""
+			item.Payload.TopicTitle = ""
 			// 显式序列化为 JSON 字节再写入：GORM 的 Updates(map[...]) 不会对值应用
 			// serializer:json，直接传结构体在三库驱动下都会报错。先 marshal 保证
 			// SQLite/MySQL/PostgreSQL 的 JSON 列都能正常写入。

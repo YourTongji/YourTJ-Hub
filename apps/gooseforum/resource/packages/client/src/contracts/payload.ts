@@ -482,6 +482,7 @@ export interface ModerationReportListResponse {
 export interface ModerationDeletedContentView {
   contentType: 'topic' | 'post'
   contentId: number
+  topicId?: number
   title: string
   content: string
   authorId: number

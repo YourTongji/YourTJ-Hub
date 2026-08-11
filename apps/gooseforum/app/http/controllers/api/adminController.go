@@ -584,7 +584,10 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 }
 
 func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response {
-	topic := topics.Get(req.Params.TopicId)
+	// 用 UnscopedGet 读取：被管理端删除的话题 deleted_at 已置位，
+	// 软删过滤的 Get 会返回空行，导致下方的幂等分支永远不可达（死代码）。
+	// 必须先读到已删除行才能判断"重复删除直接成功"。
+	topic := topics.UnscopedGet(req.Params.TopicId)
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}

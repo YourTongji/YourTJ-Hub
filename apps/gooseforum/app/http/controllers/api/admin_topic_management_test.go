@@ -196,3 +196,34 @@ func TestAdminDeleteTopicRequiresReasonAndMarksModeratorRemoved(t *testing.T) {
 		}
 	}
 }
+
+// 管理员删除幂等：对已处于 MODERATOR_REMOVED 的话题重复删除应直接成功，
+// 且不得重置 deleted_at / 覆盖删除原因。
+func TestAdminDeleteTopicIdempotentOnAlreadyRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923002)
+
+	first := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923002, Reason: "policy violation"},
+	})
+	if first.Data.Code != component.SUCCESS {
+		t.Fatalf("first DeleteTopic failed: %#v", first)
+	}
+
+	before := topics.UnscopedGet(923002)
+	second := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923002, Reason: "again"},
+	})
+	if second.Data.Code != component.SUCCESS {
+		t.Fatalf("second DeleteTopic should be idempotent success: %#v", second)
+	}
+	after := topics.UnscopedGet(923002)
+	if after.DeleteReason != before.DeleteReason {
+		t.Fatalf("idempotent delete overwrote reason: before=%q after=%q", before.DeleteReason, after.DeleteReason)
+	}
+	if after.VisibilityStatus != topics.VisibilityModeratorRemoved {
+		t.Fatalf("visibility = %s, want MODERATOR_REMOVED", after.VisibilityStatus)
+	}
+}

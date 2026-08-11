@@ -550,11 +550,12 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
-// 同时清空正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
+// 同时清空标题、正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
 func MarkPurged(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
 		"deleted_at":       time.Now(),
 		"retention_status": RetentionPurged,
+		"title":            "",
 		"excerpt":          "",
 		"first_image_url":  "",
 		"image_urls":       "[]",
