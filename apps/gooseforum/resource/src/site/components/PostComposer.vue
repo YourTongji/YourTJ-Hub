@@ -1,6 +1,6 @@
 <script setup lang="ts">
-import { computed, nextTick, ref, watch } from 'vue'
-import { Check, Loader2, Lock, Send, X } from '@lucide/vue'
+import { computed, nextTick, onBeforeUnmount, ref, watch } from 'vue'
+import { Check, Loader2, LockKeyhole, LockKeyholeOpen, Send, X } from '@lucide/vue'
 import { uploadImage } from '@/runtime/api'
 import { processImageFile, validateImageFile } from '@/runtime/image'
 import VditorOfficial from '@/site/components/VditorOfficial.vue'
@@ -106,19 +106,46 @@ const submitText = computed(() => {
   return editing.value ? t('common.save') : t('topic.publishReply')
 })
 
+// 访客登录门的登录链接引用：打开面板时把键盘焦点移过去（访客态没有编辑器可聚焦）
+const loginLinkRef = ref<HTMLAnchorElement | null>(null)
+// 访客门进场叙事：先呈现"开锁"，短暂停留后切换为"闭锁"——登录后才能解锁评论
+const lockSettled = ref(false)
+let lockSettleTimer: ReturnType<typeof setTimeout> | undefined
+
 watch(
   () => props.open,
   async (open) => {
     if (!open) return
     // 面板关闭会卸载内层 Vditor；再次打开时清失败态，重新走 loading → ready/error
     editorInitFailed.value = false
+    if (!props.authenticated) {
+      lockSettled.value = false
+      clearTimeout(lockSettleTimer)
+      lockSettleTimer = setTimeout(() => {
+        lockSettled.value = true
+      }, 650)
+    }
     await nextTick()
     window.requestAnimationFrame(() => {
-      if (!editorInitFailed.value) editor.value?.focus()
+      if (props.authenticated) {
+        if (!editorInitFailed.value) editor.value?.focus()
+      } else {
+        loginLinkRef.value?.focus()
+      }
     })
   },
   { immediate: true },
 )
+
+onBeforeUnmount(() => {
+  clearTimeout(lockSettleTimer)
+})
+
+// 登录后回跳当前话题页，与 TopicPage.openLogin() 的 next 约定一致（服务端白名单校验 / 前缀，拒绝 // 与 \）
+const loginHref = computed(() => {
+  const currentPath = typeof window === 'undefined' ? '' : window.location.pathname + window.location.search
+  return currentPath ? `/login?next=${encodeURIComponent(currentPath)}` : '/login'
+})
 
 function closeComposer() {
   if (composerBusy.value) return
@@ -218,7 +245,7 @@ function submit() {
               <div class="min-w-0">
                 <div class="text-sm font-semibold text-base-content">{{ composerTitle }}</div>
               </div>
-              <button type="button" class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-60" :disabled="composerBusy" @click="closeComposer">
+              <button type="button" class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-60" :disabled="composerBusy" :aria-label="t('common.close')" @click="closeComposer">
                 <X class="h-4 w-4" />
               </button>
             </div>
@@ -288,10 +315,25 @@ function submit() {
               </button>
             </div>
             </template>
-            <div v-else class="grid min-h-40 flex-1 place-items-center px-6 py-10 text-center">
-              <Lock class="h-8 w-8 text-base-content/35" />
-              <p class="mt-3 text-sm font-semibold text-base-content/70">{{ t('topic.loginRequiredToComment') }}</p>
-              <a href="/login" class="gf-button gf-button-md gf-button-primary mt-4">{{ t('topic.loginToComment') }}</a>
+            <div
+              v-else
+              class="flex min-h-40 flex-1 flex-col items-center justify-center gap-5 px-6 py-8 text-center"
+              :class="{ 'guest-lock-settled': lockSettled }"
+            >
+              <!-- 开锁 → 闭锁 进场叙事：访客看到"需要登录才能解锁评论" -->
+              <div class="relative h-14 w-14 shrink-0 overflow-hidden rounded-full bg-info/10 text-primary">
+                <LockKeyholeOpen aria-hidden="true" class="guest-lock-icon guest-lock-open absolute inset-0 m-auto h-7 w-7" />
+                <LockKeyhole aria-hidden="true" class="guest-lock-icon guest-lock-closed absolute inset-0 m-auto h-7 w-7" />
+              </div>
+              <div class="space-y-1.5">
+                <p class="text-sm font-semibold text-base-content">{{ t('topic.loginRequiredToComment') }}</p>
+                <p class="text-xs text-base-content/55">{{ t('topic.loginRequiredToCommentHint') }}</p>
+              </div>
+              <a
+                ref="loginLinkRef"
+                :href="loginHref"
+                class="gf-button gf-button-md gf-button-primary"
+              >{{ t('topic.loginToComment') }}</a>
             </div>
           </div>
         </Transition>
@@ -332,5 +374,58 @@ function submit() {
 
 .composer-resize-handle.is-active {
   background: color-mix(in oklch, var(--gf-color-primary) 6%, transparent);
+}
+
+/*
+ * 访客登录门：开锁 → 闭锁 进场叙事（design-taste：trust-first 语言，VARIANCE 4 / MOTION 5）。
+ * 面板打开先呈现"开锁"，650ms 后 cross-fade 到"闭锁"，隐喻"登录后才能解锁评论"。
+ * 遵循 better-ui：opacity / scale / blur 驱动（0.25→1、0→1、4px→0），一次性、之后静止；
+ * prefers-reduced-motion 下直接显示闭锁态。
+ */
+.guest-lock-icon {
+  transition:
+    opacity 0.45s cubic-bezier(0.2, 0, 0, 1),
+    transform 0.45s cubic-bezier(0.2, 0, 0, 1),
+    filter 0.45s cubic-bezier(0.2, 0, 0, 1);
+}
+
+.guest-lock-open {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+.guest-lock-closed {
+  opacity: 0;
+  transform: scale(0.25);
+  filter: blur(4px);
+}
+
+.guest-lock-settled .guest-lock-open {
+  opacity: 0;
+  transform: scale(0.25);
+  filter: blur(4px);
+}
+
+.guest-lock-settled .guest-lock-closed {
+  opacity: 1;
+  transform: scale(1);
+  filter: blur(0);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .guest-lock-icon {
+    transition: none;
+  }
+
+  .guest-lock-open {
+    opacity: 0;
+    transform: scale(1);
+    filter: none;
+  }
+
+  .guest-lock-closed {
+    opacity: 1;
+  }
 }
 </style>

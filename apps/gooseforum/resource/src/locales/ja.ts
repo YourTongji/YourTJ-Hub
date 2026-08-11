@@ -403,6 +403,7 @@ export default {
     publishReply: '返信を投稿',
     loginToReply: 'ログインするとこのトピックに返信できます。',
     loginRequiredToComment: 'ログインユーザーのみコメントできます',
+    loginRequiredToCommentHint: 'ログインするとディスカッションに参加し、他のユーザーと交流できます。',
     loginToComment: 'ログイン',
     fullEditor: 'フルエディター',
     overview: 'トピック概要',

@@ -403,6 +403,7 @@ export default {
     publishReply: 'Pubblica risposta',
     loginToReply: 'Accedi per rispondere a questo argomento.',
     loginRequiredToComment: 'Solo gli utenti autenticati possono commentare',
+    loginRequiredToCommentHint: 'Accedi per partecipare alla discussione e interagire con gli altri membri.',
     loginToComment: 'Accedi',
     fullEditor: 'Editor completo',
     overview: 'Panoramica argomento',
