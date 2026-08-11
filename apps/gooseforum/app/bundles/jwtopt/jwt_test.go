@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 )
 
 func TestCreateNewToken(t *testing.T) {
@@ -122,6 +123,74 @@ func TestTokenSettingAndClean(t *testing.T) {
 	setCookie := cleanRecorder.Header().Get("Set-Cookie")
 	if !strings.Contains(setCookie, "access_token=") || !strings.Contains(setCookie, "Max-Age=0") {
 		t.Fatalf("clear cookie header = %q", setCookie)
+	}
+}
+
+// withEnv restores app.env and server.url after the test so package-level
+// viper state does not leak across tests.
+func withEnv(t *testing.T, appEnv, serverURL string) {
+	t.Helper()
+	prevEnv := preferences.GetString("app.env", "production")
+	prevURL := preferences.GetString("server.url", "")
+	preferences.Set("app.env", appEnv)
+	preferences.Set("server.url", serverURL)
+	t.Cleanup(func() {
+		preferences.Set("app.env", prevEnv)
+		preferences.Set("server.url", prevURL)
+	})
+}
+
+// TestAccessTokenCookieSecureProductionHTTP reproduces issue #113: under the
+// template defaults `app.env = "production"` + `server.url = "http://localhost"`
+// the access_token cookie must still carry the Secure flag.
+func TestAccessTokenCookieSecureProductionHTTP(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withEnv(t, "production", "http://localhost")
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	TokenSetting(c, "tok")
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name != "access_token" {
+			continue
+		}
+		if !ck.Secure {
+			t.Fatalf("access_token cookie Secure=false under production+http://localhost, want Secure (CWE-614)")
+		}
+		if !ck.HttpOnly {
+			t.Fatalf("access_token cookie HttpOnly=false")
+		}
+		if ck.SameSite != http.SameSiteLaxMode {
+			t.Fatalf("access_token SameSite = %v, want Lax", ck.SameSite)
+		}
+	}
+
+	cleanRec := httptest.NewRecorder()
+	cleanC, _ := gin.CreateTestContext(cleanRec)
+	cleanC.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	TokenClean(cleanC)
+	for _, ck := range cleanRec.Result().Cookies() {
+		if ck.Name == "access_token" && !ck.Secure {
+			t.Fatalf("access_token clear cookie Secure=false under production+http://localhost, want Secure")
+		}
+	}
+}
+
+// TestAccessTokenCookieLocalKeepsSecureOff verifies local dev still drops Secure
+// so plain-http 0.0.0.0 / LAN-IP access keeps the cookie.
+func TestAccessTokenCookieLocalKeepsSecureOff(t *testing.T) {
+	gin.SetMode(gin.TestMode)
+	withEnv(t, "local", "http://localhost:5234")
+
+	rec := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(rec)
+	c.Request = httptest.NewRequest(http.MethodGet, "/", nil)
+	TokenSetting(c, "tok")
+	for _, ck := range rec.Result().Cookies() {
+		if ck.Name == "access_token" && ck.Secure {
+			t.Fatalf("access_token Secure=true under local, want false for dev over plain http")
+		}
 	}
 }
 

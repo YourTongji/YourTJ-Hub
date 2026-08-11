@@ -140,6 +140,21 @@ Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
 
+### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+
+Before issue #113, the `access_token` and goth session cookies decided the
+`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
+even under `app.env = "production"`. The template default
+`server.url = "http://localhost"` thus produced a session cookie without
+`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
+is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
+other than `"local"` forces `Secure` regardless of `server.url`**, and the
+binary logs a startup warning when a non-local `server.url` is non-https and
+non-loopback. No `config.toml` change is required for existing instances, but
+operators who relied on plain-http production access (e.g. 0.0.0.0 without a
+TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
+address so browsers actually return the now-`Secure` cookies.
+
 ### Unique-index preflight (user_o_auth provider_uid)
 
 Issue #8 added a unique index on `(provider, provider_uid)` in `user_o_auth`. On databases that
