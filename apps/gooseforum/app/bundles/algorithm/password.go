@@ -32,6 +32,27 @@ func VerifyEncryptPassword(secretPassword, inputPassword string) error {
 	return VerifyPassword(passwordStore[0], passwordStore[1], inputPassword)
 }
 
+// IsWellFormedPasswordHash reports whether secretPassword is a hash:salt
+// value that VerifyEncryptPassword will fully process: exactly two segments,
+// both valid base64, decoding to the expected hash/salt lengths. Malformed
+// values fail fast inside VerifyEncryptPassword without running PBKDF2, so
+// callers that equalize verification timing must detect them up front.
+func IsWellFormedPasswordHash(secretPassword string) bool {
+	passwordStore := strings.Split(secretPassword, ":")
+	if len(passwordStore) != 2 {
+		return false
+	}
+	hash, err := base64.StdEncoding.DecodeString(passwordStore[0])
+	if err != nil || len(hash) != hashKeyLen {
+		return false
+	}
+	salt, err := base64.StdEncoding.DecodeString(passwordStore[1])
+	if err != nil || len(salt) != saltLength {
+		return false
+	}
+	return true
+}
+
 // EncryptPassword hashes password with a random salt.
 func EncryptPassword(password string) (string, string, error) {
 	salt := make([]byte, saltLength)

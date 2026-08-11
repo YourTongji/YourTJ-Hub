@@ -56,9 +56,10 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 	}
 	// 两类无法完成真实校验的账号同样先执行等量 PBKDF2 再返回统一错误：
 	// bot 账号不参与密码登录（也无可用密码）；存储哈希为空或畸形的账号
-	// （如数据导入未设密码）不可能校验通过。否则快速响应会确定性地区分
+	// （如数据导入未设密码）不可能校验通过，且 VerifyEncryptPassword 对
+	// 畸形值会跳过 PBKDF2 直接报错。否则快速响应会确定性地区分
 	// “账号不存在”与“账号已存在但无有效密码”，重开枚举侧信道。
-	if user.IsBot() || !strings.Contains(user.Password, ":") {
+	if user.IsBot() || !algorithm.IsWellFormedPasswordHash(user.Password) {
 		_ = verifyEncryptPassword(dummyHashForTiming, password)
 		return &EntityComplete{}, ErrInvalidCredentials
 	}

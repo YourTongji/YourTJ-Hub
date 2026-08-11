@@ -2,6 +2,8 @@ package users
 
 import (
 	"errors"
+	"fmt"
+	"strings"
 	"testing"
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
@@ -120,10 +122,21 @@ func TestVerifyUnknownAccountMatchesCredentialFailures(t *testing.T) {
 // without a password) can never authenticate; they must still pay the
 // equal-cost PBKDF2 against the dummy hash, or a fast response would
 // deterministically reveal "username exists but has no usable password".
+// VerifyEncryptPassword fails fast on any malformed value, so the malformed
+// detection must reject every shape it would skip PBKDF2 for.
 func TestVerifyMalformedStoredHashUsesDummy(t *testing.T) {
 	setupUserIsolationTestDB(t)
-	for i, stored := range []string{"", "not-a-hash"} {
-		user := &EntityComplete{Username: "malformed-hash-user-" + string(rune('a'+i))}
+	validHash, validSalt, _ := strings.Cut(dummyHashForTiming, ":")
+	malformed := []string{
+		"",
+		"not-a-hash",
+		"%%%:" + validSalt, // hash segment not base64
+		validHash + ":%%%", // salt segment not base64
+		"a:b:c",            // more than two segments
+		validHash + ":" + validSalt[:len(validSalt)-4], // salt of wrong length
+	}
+	for i, stored := range malformed {
+		user := &EntityComplete{Username: fmt.Sprintf("malformed-hash-user-%d", i)}
 		user.Password = stored
 		if err := Create(user); err != nil {
 			t.Fatalf("create user with stored hash %q: %v", stored, err)
