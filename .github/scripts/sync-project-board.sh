@@ -38,6 +38,9 @@ IN_PROGRESS_VALUE="${IN_PROGRESS_VALUE:-In Progress}"
 DONE_VALUE="${DONE_VALUE:-Done}"
 PLANNED_LABELS="${PLANNED_LABELS:-planning,planned,ready}"
 
+# 解析逗号分隔的标签列表（用 read -ra 精确切分，避免 word-splitting 拆坏含空格的标签）。
+IFS=',' read -r -a LABEL_LIST <<<"$LABELS"
+
 log()  { printf '[sync-project-board] %s\n' "$*"; }
 fail() { printf '::error:: %s\n' "$*" >&2; exit 1; }
 warn() { printf '::warning:: %s\n' "$*" >&2; }
@@ -52,7 +55,7 @@ if [ -z "$ITEM_URL" ]; then
   [ -n "$ITEM_NUMBER" ] || fail "ITEM_URL 与 ITEM_NUMBER 均未设置：无法定位要同步的 issue/PR"
   kind_path="issues"
   [ "$ITEM_KIND" = "pr" ] && kind_path="pull"
-  ITEM_URL="https://github.com/${GITHUB_REPOSITORY:-$PROJECT_OWNER/repo}/${kind_path}/${ITEM_NUMBER}"
+  ITEM_URL="https://github.com/${GITHUB_REPOSITORY:-$PROJECT_OWNER/YourTJ-Hub}/${kind_path}/${ITEM_NUMBER}"
 fi
 log "目标条目: $ITEM_URL (kind=$ITEM_KIND, event=$EVENT)"
 
@@ -69,13 +72,15 @@ log "已定位项目 $PROJECT_OWNER/projects/$PROJECT_NUMBER ($PROJECT_ID)"
 # 2) 幂等添加：已存在则复用 item id，否则添加
 # ---------------------------------------------------------------------------
 existing_item="$(gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --limit 100 --format json \
-  | jq -r --arg url "$ITEM_URL" '.items[] | select(.url == $url) | .id' | head -n1)"
+  | jq -r --arg url "$ITEM_URL" '[.items[] | select(.content.url == $url) | .id][0] // empty')"
 
 if [ -n "$existing_item" ]; then
   ITEM_ID="$existing_item"
+  ITEM_REUSED=1
   log "条目已在项目中，复用 item $ITEM_ID"
 else
   ITEM_ID="$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$ITEM_URL" --format json --jq '.id')"
+  ITEM_REUSED=0
   log "已添加条目 → item $ITEM_ID"
 fi
 
@@ -94,20 +99,43 @@ fi
 # 4) RPD 状态机：目标列计算
 # ---------------------------------------------------------------------------
 target_value="$TODO_VALUE"
+skip_status=false
 if [ "$EVENT" = "closed" ]; then
   target_value="$DONE_VALUE"
+elif [ "$EVENT" = "labeled" ] && [ "$ITEM_KIND" = "issue" ]; then
+  # labeled 事件：仅命中计划标签时更新为 Planned；未命中则保持看板现状
+  # （新入板条目仍落 Todo，已存在条目不覆盖人工挪动的状态）。
+  if [ "${#LABEL_LIST[@]}" -gt 0 ]; then
+    for label in "${LABEL_LIST[@]}"; do
+      if [[ ",$PLANNED_LABELS," == *",$label,"* ]]; then
+        target_value="$PLANNED_VALUE"
+        break
+      fi
+    done
+  fi
+  if [ "$target_value" = "$TODO_VALUE" ] && [ "$ITEM_REUSED" = "1" ]; then
+    log "labeled 事件未命中计划标签（labels=[$LABELS]），条目已存在，保持看板现状"
+    skip_status=true
+  fi
 elif [ "$ITEM_KIND" = "pr" ] && [[ "$EVENT" =~ ^(opened|reopened|ready_for_review|labeled|manual)$ ]]; then
   target_value="$IN_PROGRESS_VALUE"
 elif [ "$ITEM_KIND" = "issue" ]; then
-  for label in ${LABELS//,/ }; do
-    if [[ ",$PLANNED_LABELS," == *",$label,"* ]]; then
-      target_value="$PLANNED_VALUE"
-      break
-    fi
-  done
+  if [ "${#LABEL_LIST[@]}" -gt 0 ]; then
+    for label in "${LABEL_LIST[@]}"; do
+      if [[ ",$PLANNED_LABELS," == *",$label,"* ]]; then
+        target_value="$PLANNED_VALUE"
+        break
+      fi
+    done
+  fi
 fi
 
-option_id="$(jq -r --arg v "$target_value" '(.options // [])[] | select(.name == $v) | .id' <<<"$field" | head -n1)"
+if [ "$skip_status" = "true" ]; then
+  exit 0
+fi
+
+
+option_id="$(jq -r --arg v "$target_value" '[((.options // [])[]) | select(.name == $v) | .id][0] // empty' <<<"$field")"
 if [ -z "$option_id" ]; then
   warn "字段 \"$STATUS_FIELD\" 缺少选项 \"$target_value\"，跳过状态设置（可用 TODO_VALUE/PLANNED_VALUE/IN_PROGRESS_VALUE/DONE_VALUE 变量调整）"
   exit 0

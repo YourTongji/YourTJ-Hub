@@ -59,7 +59,9 @@ jobs:
       LABELS: ${{ (github.event_name == 'issues' && join(github.event.issue.labels.*.name, ',')) || (github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',')) || '' }}
     steps:
       - uses: actions/checkout@v4
-        if: ${{ env.GH_TOKEN != '' }}
+        # fork PR 默认拿不到 secret 会自跳；此守卫是纵深防御：即便仓库配置了
+        # "send secrets to fork PRs"，也绝不执行来自 fork 的脚本。
+        if: ${{ env.GH_TOKEN != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
       - name: Run project board sync
-        if: ${{ env.GH_TOKEN != '' }}
+        if: ${{ env.GH_TOKEN != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
         run: bash .github/scripts/sync-project-board.sh
