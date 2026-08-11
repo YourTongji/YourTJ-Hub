@@ -150,5 +150,15 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(13)
 		currentVersion = 13
 	}
+	if currentVersion < 14 {
+		result := datamigration.BackfillDeleteLifecycle()
+		slog.Info("app migration delete lifecycle backfill done", "topics", result.TopicsBackfilled, "posts", result.PostsBackfilled, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration delete lifecycle backfill has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(14)
+		currentVersion = 14
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }
