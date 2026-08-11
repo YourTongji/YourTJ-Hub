@@ -208,9 +208,9 @@ func UpsertCourseStatsTx(tx *gorm.DB, courseId uint64, deltaRatingCount, deltaRa
 	return tx.Table(courseStatsTableName).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "course_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"rating_count": gorm.Expr("rating_count + ?", deltaRatingCount),
-			"rating_sum":   gorm.Expr("rating_sum + ?", deltaRatingSum),
-			"review_count": gorm.Expr("review_count + ?", deltaReviewCount),
+			"rating_count": gorm.Expr(courseStatsTableName+".rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr(courseStatsTableName+".rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr(courseStatsTableName+".review_count + ?", deltaReviewCount),
 			"updated_at":   time.Now(),
 		}),
 	}).Create(&CourseStatsEntity{
@@ -227,9 +227,9 @@ func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, del
 	return tx.Table(offeringStatsTableName).Clauses(clause.OnConflict{
 		Columns: []clause.Column{{Name: "offering_id"}},
 		DoUpdates: clause.Assignments(map[string]any{
-			"rating_count": gorm.Expr("rating_count + ?", deltaRatingCount),
-			"rating_sum":   gorm.Expr("rating_sum + ?", deltaRatingSum),
-			"review_count": gorm.Expr("review_count + ?", deltaReviewCount),
+			"rating_count": gorm.Expr(offeringStatsTableName+".rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr(offeringStatsTableName+".rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr(offeringStatsTableName+".review_count + ?", deltaReviewCount),
 			"updated_at":   time.Now(),
 		}),
 	}).Create(&OfferingStatsEntity{
