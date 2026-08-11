@@ -258,10 +258,13 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	}).Error
 }
 
-// MarkPurgedByTopicID 将某话题下所有回复置为已永久删除（话题永久删除级联）。
+// MarkPurgedByTopicID 将某话题下已删除的回复置为已永久删除（话题永久删除级联）。
+// 只处理已进入删除生命周期的回复（非 ACTIVE），其他用户仍 ACTIVE 的回复
+// 属于他人内容，不得被话题作者/自动过期的级联永久删除（PRD Out of Scope）。
 func MarkPurgedByTopicID(topicID uint64) int64 {
 	return builder().Unscoped().
 		Where(queryopt.Eq("topic_id", topicID)).
+		Where(queryopt.Ne("visibility_status", VisibilityActive)).
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
@@ -322,10 +325,17 @@ func RestoreDeletedByTopicID(topicID uint64) int64 {
 // the current topic deletion operation. Moderator removals and independently
 // deleted replies remain untouched.
 func RestoreCascadeDeletedByTopicID(topicID uint64, deletedBy uint64, deleteReason string) int64 {
+	return RestoreCascadeDeletedByTopicIDWithVisibility(topicID, deletedBy, deleteReason, VisibilityUserDeleted)
+}
+
+// RestoreCascadeDeletedByTopicIDWithVisibility 按指定删除来源恢复话题级联删除的回复。
+// 只恢复"本次删除操作"标记的行（deleted_by + delete_reason 精确匹配），
+// 独立删除的回复与管理端删除不随作者恢复；管理端恢复话题时传 MODERATOR_REMOVED。
+func RestoreCascadeDeletedByTopicIDWithVisibility(topicID uint64, deletedBy uint64, deleteReason string, visibility string) int64 {
 	return builder().Unscoped().
 		Where(queryopt.Eq("topic_id", topicID)).
 		Where("deleted_at IS NOT NULL").
-		Where(queryopt.Eq("visibility_status", VisibilityUserDeleted)).
+		Where(queryopt.Eq("visibility_status", visibility)).
 		Where(queryopt.Eq("deleted_by", deletedBy)).
 		Where(queryopt.Eq("delete_reason", deleteReason)).
 		Updates(map[string]any{

@@ -15,6 +15,7 @@ func TestClearPreviewsByTopicBlanksPayloadAndStaysPortable(t *testing.T) {
 	target := Entity{
 		UserId:    1,
 		EventType: EventTypeComment,
+		TopicID:   1001,
 		Payload: NotificationPayload{
 			Title:   "someone replied",
 			Content: "sensitive body",
@@ -28,10 +29,11 @@ func TestClearPreviewsByTopicBlanksPayloadAndStaysPortable(t *testing.T) {
 	if err := Create(&target); err != nil {
 		t.Fatalf("create target notification: %v", err)
 	}
-	// 无关通知：postId 不匹配，不应被改动。
+	// 同话题但 postId 不匹配：不应被改动。
 	unrelated := Entity{
 		UserId:    1,
 		EventType: EventTypeComment,
+		TopicID:   1001,
 		Payload: NotificationPayload{
 			Title:   "another reply",
 			Content: "keep me",
@@ -44,6 +46,24 @@ func TestClearPreviewsByTopicBlanksPayloadAndStaysPortable(t *testing.T) {
 	}
 	if err := Create(&unrelated); err != nil {
 		t.Fatalf("create unrelated notification: %v", err)
+	}
+	// 不同话题的通知：不应被改动。
+	otherTopic := Entity{
+		UserId:    1,
+		EventType: EventTypeComment,
+		TopicID:   1999,
+		Payload: NotificationPayload{
+			Title:   "other topic reply",
+			Content: "keep other",
+			TopicId: 1999,
+			PostId:  2001,
+			TemplateParams: NotificationTemplateParams{
+				Preview: "keep other preview",
+			},
+		},
+	}
+	if err := Create(&otherTopic); err != nil {
+		t.Fatalf("create other-topic notification: %v", err)
 	}
 
 	if err := ClearPreviewsByTopic(1001, 2001); err != nil {
@@ -71,6 +91,14 @@ func TestClearPreviewsByTopicBlanksPayloadAndStaysPortable(t *testing.T) {
 	if reloadedUnrelated.Payload.TemplateParams.Preview != "keep me preview" {
 		t.Fatalf("unrelated preview was modified: %q", reloadedUnrelated.Payload.TemplateParams.Preview)
 	}
+
+	reloadedOther := findByID(t, otherTopic.Id)
+	if reloadedOther.Id == 0 {
+		t.Fatal("other-topic notification missing after clear")
+	}
+	if reloadedOther.Payload.TemplateParams.Preview != "keep other preview" {
+		t.Fatalf("other-topic preview was modified: %q", reloadedOther.Payload.TemplateParams.Preview)
+	}
 }
 
 func TestClearPreviewsByTopicByTopicOnly(t *testing.T) {
@@ -81,6 +109,7 @@ func TestClearPreviewsByTopicByTopicOnly(t *testing.T) {
 	first := Entity{
 		UserId:    1,
 		EventType: EventTypeTopicPost,
+		TopicID:   2001,
 		Payload: NotificationPayload{
 			Title:   "post in followed topic",
 			Content: "preview body",

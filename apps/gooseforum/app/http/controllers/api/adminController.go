@@ -583,6 +583,21 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
+// RestoreTopicReq 管理端恢复被治理删除话题的请求。
+type RestoreTopicReq struct {
+	TopicId uint64 `json:"topicId" validate:"required"`
+}
+
+// RestoreTopic 管理端恢复被治理删除（MODERATOR_REMOVED）的话题（review MEDIUM-2）。
+// 管理端是治理删除的唯一恢复通道：作者不可恢复管理端删除；恢复后重建搜索索引、
+// 清缓存、恢复附件可见性并写审计日志与埋点。
+func RestoreTopic(req component.BetterRequest[RestoreTopicReq]) component.Response {
+	if err := contentdeleteservice.RestoreTopicAsModerator(req.UserId, req.Params.TopicId); err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponseCode("操作成功", component.MessageContentRestoreSuccess, nil)
+}
+
 func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response {
 	// 用 UnscopedGet 读取：被管理端删除的话题 deleted_at 已置位，
 	// 软删过滤的 Get 会返回空行，导致下方的幂等分支永远不可达（死代码）。

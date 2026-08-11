@@ -81,13 +81,17 @@ func MarkAllAsRead(userId uint64) error {
 }
 
 // ClearPreviewsByTopic 将某话题/回复相关通知的正文预览置空（内容删除后联动）。
-// 通过序列化后的 Go 结构匹配，避免依赖某一种数据库的 JSON 查询语法，
-// 并使用主键游标批量处理，确保高通知量话题不会被固定上限截断。
+// 通过冗余 topic_id 列（SQL 过滤）定位目标话题的通知，避免对全表做 JSON 解析；
+// 命中后再按 postId（0=话题级）过滤，并逐行写回（payload 各行不同，无法合并为
+// 单条 UPDATE）。游标分批处理，确保高通知量话题不会被固定上限截断。
 func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
+	if topicId == 0 {
+		return nil
+	}
 	const batchSize = 500
 	var cursorID uint64
 	for {
-		query := builder().Order(queryopt.Asc("id")).Limit(batchSize)
+		query := builder().Where(queryopt.Eq("topic_id", topicId)).Order(queryopt.Asc("id")).Limit(batchSize)
 		if cursorID != 0 {
 			query = query.Where(queryopt.Gt("id", cursorID))
 		}
@@ -100,7 +104,7 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 		}
 		for _, item := range notifications {
 			cursorID = item.Id
-			if item.Payload.TopicId != topicId || (postId != 0 && item.Payload.PostId != postId) {
+			if postId != 0 && item.Payload.PostId != postId {
 				continue
 			}
 			item.Payload.TemplateParams.Preview = ""

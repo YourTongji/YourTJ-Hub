@@ -163,6 +163,105 @@ func TestDeleteTopicByUserVoidsPendingReview(t *testing.T) {
 	}
 }
 
+// review MEDIUM-1：作者永久删除话题时，只清理已进入删除生命周期的回复
+// （首楼墓碑/级联软删行），其他用户仍 ACTIVE 的回复正文与状态必须保留。
+func TestPurgeTopicKeepsOtherUsersActiveReplies(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, replyAuthorID := seedTopicWithOptionalReply(t, conn, 941300, true)
+
+	if err := DeleteTopicByUser(authorID, 941300); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if err := PurgeContent(authorID, ContentTypeTopic, 941300, "user_purge"); err != nil {
+		t.Fatalf("PurgeContent: %v", err)
+	}
+
+	// 话题本身已永久删除。
+	topic := topics.UnscopedGet(941300)
+	if topic.RetentionStatus != topics.RetentionPurged {
+		t.Fatalf("topic retention = %s, want PURGED", topic.RetentionStatus)
+	}
+
+	// 作者首楼（墓碑）被清空并置 PURGED。
+	firstPost := posts.UnscopedGet(941300 + 100)
+	if firstPost.RetentionStatus != posts.RetentionPurged || firstPost.Content != "" {
+		t.Fatalf("author first post should be purged and blanked: %#v", firstPost)
+	}
+
+	// 其他用户的 ACTIVE 回复保留正文、不被置 PURGED。
+	reply := posts.UnscopedGet(941300 + 200)
+	if reply.VisibilityStatus != posts.VisibilityActive || reply.RetentionStatus != posts.RetentionNormal {
+		t.Fatalf("other user reply state = %s/%s, want ACTIVE/NORMAL", reply.VisibilityStatus, reply.RetentionStatus)
+	}
+	if reply.Content != "reply body" {
+		t.Fatalf("other user reply content was wiped: %q", reply.Content)
+	}
+	_ = replyAuthorID
+}
+
+// review MEDIUM-2：管理端恢复被治理删除的话题，级联回复与审计一并恢复。
+func TestRestoreTopicAsModeratorRestoresTopicAndCascade(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, 941600, true)
+	moderatorID := uint64(941699)
+
+	topic := topics.Get(941600)
+	if err := DeleteTopicAs(topic, moderatorID, topics.VisibilityModeratorRemoved, "policy violation"); err != nil {
+		t.Fatalf("DeleteTopicAs: %v", err)
+	}
+	// 有回复场景：首楼为墓碑态（MODERATOR_REMOVED，无 deleted_at），他人回复保持 ACTIVE。
+	firstPost := posts.UnscopedGet(941600 + 100)
+	if firstPost.VisibilityStatus != posts.VisibilityModeratorRemoved {
+		t.Fatalf("first post visibility = %s, want MODERATOR_REMOVED", firstPost.VisibilityStatus)
+	}
+
+	if err := RestoreTopicAsModerator(moderatorID, 941600); err != nil {
+		t.Fatalf("RestoreTopicAsModerator: %v", err)
+	}
+
+	restored := topics.UnscopedGet(941600)
+	if restored.VisibilityStatus != topics.VisibilityActive || restored.RetentionStatus != topics.RetentionNormal {
+		t.Fatalf("restored topic state = %s/%s, want ACTIVE/NORMAL", restored.VisibilityStatus, restored.RetentionStatus)
+	}
+	restoredFirstPost := posts.UnscopedGet(941600 + 100)
+	if restoredFirstPost.VisibilityStatus != posts.VisibilityActive || restoredFirstPost.DeletedAt.Valid {
+		t.Fatalf("restored first post state = %s deleted=%v, want ACTIVE/no deleted_at", restoredFirstPost.VisibilityStatus, restoredFirstPost.DeletedAt.Valid)
+	}
+	restoredReply := posts.UnscopedGet(941600 + 200)
+	if restoredReply.VisibilityStatus != posts.VisibilityActive {
+		t.Fatalf("restored reply visibility = %s, want ACTIVE", restoredReply.VisibilityStatus)
+	}
+
+	// 恢复审计日志应写入。
+	var restoredCount int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("action = ? AND subject_type = ? AND subject_id = ?", moderationLog.ActionContentRestored, moderationLog.SubjectTopic, 941600).
+		Count(&restoredCount)
+	if restoredCount != 1 {
+		t.Fatalf("content restored logs = %d, want 1", restoredCount)
+	}
+	_ = authorID
+}
+
+// review MEDIUM-2：作者不能借管理端恢复通道恢复自己被删的话题（管理端删除
+// 状态话题作者不可自行恢复；恢复端点对非 MODERATOR_REMOVED 话题拒绝）。
+func TestRestoreTopicAsModeratorRejectsUserDeletedTopic(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, 941601, false)
+	moderatorID := uint64(941699)
+
+	if err := DeleteTopicByUser(authorID, 941601); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+
+	if err := RestoreTopicAsModerator(moderatorID, 941601); err == nil {
+		t.Fatal("expected restore of USER_DELETED topic by moderator to fail")
+	}
+	if visible := topics.UnscopedGet(941601); visible.VisibilityStatus != topics.VisibilityUserDeleted {
+		t.Fatalf("user-deleted topic state changed: %#v", visible)
+	}
+}
+
 func TestDeleteTopicByUserWithRepliesKeepsDiscussionTombstone(t *testing.T) {
 	conn := setupContentDeleteTestDB(t)
 	authorID, _ := seedTopicWithOptionalReply(t, conn, 940002, true)
@@ -308,6 +407,22 @@ func TestRestoreTopicDoesNotRestoreIndependentlyDeletedReply(t *testing.T) {
 	firstPost := posts.UnscopedGet(940008 + 100)
 	if firstPost.VisibilityStatus != posts.VisibilityActive || firstPost.DeletedAt.Valid {
 		t.Fatalf("topic deletion tombstone was not restored: %#v", firstPost)
+	}
+}
+
+// review LOW-7：postDeletionSnapshot 应填充 PostAuthor（审计日志中的作者名），
+// 不能恒为空。
+func TestPostDeletionSnapshotIncludesPostAuthor(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, 941800, false)
+
+	post := posts.UnscopedGet(941800 + 100)
+	snapshot := postDeletionSnapshot(post)
+	if snapshot.PostAuthor == "" {
+		t.Fatalf("postDeletionSnapshot PostAuthor is empty, want username of %d", authorID)
+	}
+	if snapshot.PostAuthorId != authorID {
+		t.Fatalf("PostAuthorId = %d, want %d", snapshot.PostAuthorId, authorID)
 	}
 }
 

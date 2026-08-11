@@ -24,6 +24,7 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeComment,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
@@ -50,6 +51,7 @@ func SendPostReplyNotification(userId uint64, postId uint64, topicId uint64, rep
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypePostReply,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
@@ -73,6 +75,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 		notifications = append(notifications, &eventNotification.Entity{
 			UserId:    userId,
 			EventType: eventNotification.EventTypeTopicPost,
+			TopicID:   topicId,
 			Payload: eventNotification.NotificationPayload{
 				Content:     commentContent,
 				TemplateKey: eventNotification.TemplateTopicPost,
@@ -140,6 +143,7 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeLike,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 

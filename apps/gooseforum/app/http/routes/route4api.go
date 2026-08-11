@@ -195,12 +195,12 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
 	forumLoginApi.GET("user/deleted-content", middleware.NoUpdateUserActivity, UpQueryReq(api.DeletedContentList))
 	forumLoginApi.GET("user/my-content", middleware.NoUpdateUserActivity, UpQueryReq(api.MyContentList))
-	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, UpButterReq(api.BatchDeleteContent))
-	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, UpButterReq(api.RestoreContent))
-	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, UpButterReq(api.PurgeContent))
-	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, UpButterReq(api.PrivacyErase))
+	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
+	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
+	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
+	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
 	forumLoginApi.POST("user/content-event", middleware.CheckWritableAccount, UpButterReq(api.ReportContentEvent))
-	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccount, UpButterReq(api.AccountClose))
+	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeletePost))
@@ -250,6 +250,7 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("topics/source", UpButterReq(api.TopicSource)).
 		POST("topics/edit", UpButterReq(api.EditTopic)).
 		POST("topics/delete", UpButterReq(api.DeleteTopic)).
+		POST("topics/restore", UpButterReq(api.RestoreTopic)).
 		POST("posts/delete", UpButterReq(api.DeletePostAsModerator)).
 		POST("topics/pin-edit", UpButterReq(api.EditTopicPin)).
 		POST("topics/categories-edit", UpButterReq(api.EditTopicCategories)).

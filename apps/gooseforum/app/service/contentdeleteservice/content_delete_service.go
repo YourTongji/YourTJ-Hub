@@ -20,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
@@ -356,6 +357,61 @@ func restoreTopicPosts(topicID uint64, operatorID uint64) {
 	}
 }
 
+// RestoreTopicAsModerator 管理端恢复被治理删除的话题（PRD R7 / review MEDIUM-2）。
+// 仅可恢复 MODERATOR_REMOVED 的话题：作者不可自行恢复管理端删除，管理端是
+// 唯一的恢复通道。恢复级联删除的回复、重建搜索索引、恢复附件可见性并写审计。
+func RestoreTopicAsModerator(moderatorID uint64, topicID uint64) error {
+	topic := topics.UnscopedGet(topicID)
+	if topic.Id == 0 {
+		return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
+	}
+	if topic.VisibilityStatus != topics.VisibilityModeratorRemoved || topic.RetentionStatus != topics.RetentionRecoverable {
+		return component.NewMessageError(component.MessageContentNotRecoverable, "该话题不可由管理端恢复", nil)
+	}
+	if err := topics.Restore(topicID); err != nil {
+		return component.NewMessageError(component.MessageContentRestoreFailed, "恢复话题失败", component.MessageParams{"error": err.Error()})
+	}
+	restoreModeratorRemovedTopicPosts(topic, moderatorID)
+	rebuildTopicSearchIndex(topicID)
+	fileusageservice.RecoverTargetFiles(topicsTarget(topicID))
+	hotdataserve.ClearTopicListCache()
+	llmsservice.ClearCache()
+	eventbus.Publish(context.Background(), &eventhandlers.ContentRestoredEvent{
+		ContentType: string(ContentTypeTopic),
+		TopicId:     topicID,
+	})
+	moderationservice.ContentRestored(moderatorID, "topic", topic.Id, topic.Title)
+	recordEvent(contentDeleteEvent.EventRestored, ContentTypeTopic, topicID, topicID, moderatorID)
+	return nil
+}
+
+// restoreModeratorRemovedTopicPosts 恢复管理端治理删除话题时级联软删的回复。
+// 只恢复本次删除操作标记的 MODERATOR_REMOVED 行，不误恢复独立删除的回复。
+func restoreModeratorRemovedTopicPosts(topic topics.Entity, moderatorID uint64) {
+	posts.RestoreCascadeDeletedByTopicIDWithVisibility(topic.Id, moderatorID, topic.DeleteReason, posts.VisibilityModeratorRemoved)
+	firstPost := posts.UnscopedGet(topic.FirstPostId)
+	if firstPost.Id > 0 && firstPost.VisibilityStatus == posts.VisibilityModeratorRemoved &&
+		firstPost.RetentionStatus == posts.RetentionRecoverable && firstPost.DeletedBy == moderatorID &&
+		firstPost.DeleteReason == topic.DeleteReason {
+		if err := posts.Restore(firstPost.Id); err != nil {
+			slog.Error("failed to restore moderator-removed topic first post", "topicId", topic.Id, "postId", firstPost.Id, "error", err)
+		}
+	}
+	var activePosts []*posts.Entity
+	if err := posts.ListUnscopedByTopicID(topic.Id, &activePosts); err != nil {
+		slog.Error("failed to load posts for moderator restore stats rebuild", "topicId", topic.Id, "error", err)
+		return
+	}
+	if err := postservice.RebuildTopicPostStats(topic, activePosts); err != nil {
+		slog.Error("failed to rebuild topic stats after moderator restore", "topicId", topic.Id, "error", err)
+	}
+	for _, post := range activePosts {
+		if post != nil && post.VisibilityStatus == posts.VisibilityActive {
+			fileusageservice.RecoverTargetFiles(postsTarget(post.Id))
+		}
+	}
+}
+
 func topicDeleteCascadeReason(topicID uint64) string {
 	return "topic_delete:" + fmt.Sprint(topicID)
 }
@@ -502,22 +558,35 @@ func purgeTopicPosts(topicID uint64) {
 		slog.Error("failed to load topic posts for purge", "topicId", topicID, "error", err)
 		return
 	}
-	posts.MarkPurgedByTopicID(topicID)
+	// 只清理已进入删除生命周期（作者级联删除/墓碑）的回复：
+	// 其他用户仍 ACTIVE 的回复属于他人内容，不得随作者永久删除被静默清除
+	// （PRD Out of Scope：不允许删除他人内容）。这些回复保留正文与附件，
+	// 等待管理端恢复或另行处置。
 	for _, post := range topicPosts {
-		if post != nil {
-			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+		if post == nil || post.VisibilityStatus == posts.VisibilityActive {
+			continue
 		}
+		if err := posts.MarkPurged(post.Id); err != nil {
+			slog.Error("failed to purge topic post", "topicId", topicID, "postId", post.Id, "err", err)
+			continue
+		}
+		fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
 	}
 }
 
 func postDeletionSnapshot(post posts.Entity) moderationservice.PostSnapshot {
 	topic := topics.UnscopedGet(post.TopicId)
+	authorName := ""
+	if author, err := users.Get(post.UserId); err == nil && author.Id > 0 {
+		authorName = author.Username
+	}
 	return moderationservice.PostSnapshot{
 		PostId:       post.Id,
 		TopicId:      post.TopicId,
 		TopicTitle:   topic.Title,
 		PostNo:       post.PostNo,
 		PostAuthorId: post.UserId,
+		PostAuthor:   authorName,
 		Excerpt:      excerpt(post.Content),
 	}
 }

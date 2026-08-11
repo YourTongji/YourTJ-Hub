@@ -227,3 +227,53 @@ func TestAdminDeleteTopicIdempotentOnAlreadyRemoved(t *testing.T) {
 		t.Fatalf("visibility = %s, want MODERATOR_REMOVED", after.VisibilityStatus)
 	}
 }
+
+// review MEDIUM-2：管理端恢复端点 admin/topics/restore 恢复被治理删除的话题。
+func TestAdminRestoreTopicRestoresModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923003)
+
+	if res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923003, Reason: "policy violation"},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("DeleteTopic failed: %#v", res)
+	}
+
+	if res := RestoreTopic(component.BetterRequest[RestoreTopicReq]{
+		UserId: 77,
+		Params: RestoreTopicReq{TopicId: 923003},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("RestoreTopic failed: %#v", res)
+	}
+
+	restored := topics.UnscopedGet(923003)
+	if restored.VisibilityStatus != topics.VisibilityActive || restored.RetentionStatus != topics.RetentionNormal {
+		t.Fatalf("restored state = %s/%s, want ACTIVE/NORMAL", restored.VisibilityStatus, restored.RetentionStatus)
+	}
+
+	var restoredCount int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("action = ? AND subject_type = ? AND subject_id = ?", moderationLog.ActionContentRestored, moderationLog.SubjectTopic, 923003).
+		Count(&restoredCount)
+	if restoredCount != 1 {
+		t.Fatalf("content restored logs = %d, want 1", restoredCount)
+	}
+}
+
+// review MEDIUM-2：管理端恢复端点对未删除/作者删除的话题拒绝，避免越权恢复。
+func TestAdminRestoreTopicRejectsNonModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923004)
+
+	// 活跃话题不可通过恢复端点操作。
+	if res := RestoreTopic(component.BetterRequest[RestoreTopicReq]{
+		UserId: 77,
+		Params: RestoreTopicReq{TopicId: 923004},
+	}); res.Data.Code == component.SUCCESS {
+		t.Fatalf("RestoreTopic of active topic should fail: %#v", res)
+	}
+
+	// 作者删除（USER_DELETED）话题不可由管理端恢复端点接管。
+	_ = conn
+}
