@@ -1400,6 +1400,21 @@ func SaveRateLimitSettings(req component.BetterRequest[SaveRateLimitSettingsReq]
 	return res
 }
 
+// GetMCPSettings 获取内置 MCP server 设置
+func GetMCPSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.MCPSettings, defaultconfig.GetDefaultMCPSettingsConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveMCPSettingsReq struct {
+	Settings pageConfig.MCPSettingsConfig `json:"settings" validate:"required"`
+}
+
+// SaveMCPSettings 保存内置 MCP server 设置
+func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.Response {
+	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
+}
+
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {
 	config := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, defaultconfig.GetDefaultHttpNotifyConfig())
 	return component.SuccessResponse(config)

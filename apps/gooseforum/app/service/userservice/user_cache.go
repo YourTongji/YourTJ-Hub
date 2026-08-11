@@ -81,6 +81,9 @@ var (
 	userPublicProfileCache = localcache.Cache[UserPublicProfile]{MaxEntries: cacheconfig.Current().UserPublicProfile}
 )
 
+// GetUserInfo returns the cached account snapshot for one user, loading it on
+// demand. Invalidation (see InvalidateUserInfoCache) also drops any in-flight
+// load, so a stale row is never written back into the cache.
 func GetUserInfo(userID uint64) (UserInfo, bool) {
 	if userID == 0 {
 		return UserInfo{}, false
@@ -149,6 +152,14 @@ func GetUserPublicProfile(userID uint64) (UserPublicProfile, bool) {
 	profile.Badges = cloneUserBadges(profile.Badges)
 	profile.WornBadge = cloneUserBadgePtr(profile.WornBadge)
 	return profile, true
+}
+
+// InvalidateUserInfoCache removes the cached account snapshot for one user.
+func InvalidateUserInfoCache(userID uint64) {
+	if userID == 0 {
+		return
+	}
+	userInfoCache.Delete(userInfoKey(userID))
 }
 
 func InvalidateUserPublicProfileCache(userID uint64) {

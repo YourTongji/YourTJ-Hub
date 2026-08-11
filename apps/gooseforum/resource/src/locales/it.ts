@@ -76,6 +76,7 @@ export default {
     themePreview: 'Anteprima tema',
     admin: 'Amministrazione',
     logout: 'Esci',
+    logoutFailed: 'Disconnessione non riuscita: la sessione non può essere revocata. Potresti essere ancora connesso su questo dispositivo.',
     login: 'Accedi',
     register: 'Registrati',
     resources: 'Risorse',

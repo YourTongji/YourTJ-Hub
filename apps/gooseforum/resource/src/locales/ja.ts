@@ -76,6 +76,7 @@ export default {
     themePreview: 'テーマプレビュー',
     admin: '管理画面',
     logout: 'ログアウト',
+    logoutFailed: 'ログアウトに失敗しました：セッションを取り消せませんでした。この端末ではログイン状態が続いている可能性があります。',
     login: 'ログイン',
     register: '登録',
     resources: 'リソース',

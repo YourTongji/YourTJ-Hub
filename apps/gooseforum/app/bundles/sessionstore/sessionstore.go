@@ -2,12 +2,12 @@ package sessionstore
 
 import (
 	"net/http"
-	"strings"
 	"sync"
 
 	"github.com/gorilla/sessions"
 	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/leancodebox/GooseForum/app/bundles/setting"
 )
 
 var store *sessions.CookieStore
@@ -32,16 +32,5 @@ func configureSessionStore(store *sessions.CookieStore) {
 	store.Options.Path = "/"
 	store.Options.HttpOnly = true
 	store.Options.SameSite = http.SameSiteLaxMode
-	store.Options.Secure = sessionCookieSecure(preferences.GetString("server.url", ""), preferences.GetString("app.env", "production"))
-}
-
-func sessionCookieSecure(serverURL string, appEnv string) bool {
-	normalizedURL := strings.ToLower(strings.TrimSpace(serverURL))
-	if strings.HasPrefix(normalizedURL, "https://") {
-		return true
-	}
-	if strings.HasPrefix(normalizedURL, "http://") {
-		return false
-	}
-	return !strings.EqualFold(strings.TrimSpace(appEnv), "local")
+	store.Options.Secure = setting.CookieSecure()
 }

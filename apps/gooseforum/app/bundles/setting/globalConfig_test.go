@@ -1,9 +1,8 @@
-package sessionstore
+package setting
 
 import (
 	"testing"
 
-	"github.com/gorilla/sessions"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 )
 
@@ -21,21 +20,21 @@ func withEnv(t *testing.T, appEnv, serverURL string) {
 	})
 }
 
-// TestSessionStoreSecureByEnv replaces the old scheme-based sessionCookieSecure
-// table: the Secure flag now follows setting.CookieSecure (fail-closed by env),
-// not server.url scheme. Covers issue #113.
-func TestSessionStoreSecureByEnv(t *testing.T) {
+func TestCookieSecureFailClosed(t *testing.T) {
 	cases := []struct {
 		name      string
 		appEnv    string
 		serverURL string
 		want      bool
 	}{
-		{name: "production http localhost default", appEnv: "production", serverURL: "http://localhost", want: true},
+		// Issue #113: production must force Secure regardless of server.url scheme.
 		{name: "production http example", appEnv: "production", serverURL: "http://example.com", want: true},
+		{name: "production http localhost", appEnv: "production", serverURL: "http://localhost", want: true},
 		{name: "production https", appEnv: "production", serverURL: "https://example.com", want: true},
 		{name: "production empty url", appEnv: "production", serverURL: "", want: true},
 		{name: "staging http", appEnv: "staging", serverURL: "http://staging.example.com", want: true},
+		{name: "unknown env treated as non-local", appEnv: "anything-else", serverURL: "http://x", want: true},
+		// Local dev keeps Secure off so 0.0.0.0 / LAN-IP over plain http works.
 		{name: "local http localhost", appEnv: "local", serverURL: "http://localhost:5234", want: false},
 		{name: "local https", appEnv: "local", serverURL: "https://localhost", want: false},
 		{name: "local empty url", appEnv: "local", serverURL: "", want: false},
@@ -44,17 +43,17 @@ func TestSessionStoreSecureByEnv(t *testing.T) {
 	for _, tt := range cases {
 		t.Run(tt.name, func(t *testing.T) {
 			withEnv(t, tt.appEnv, tt.serverURL)
-			st := sessions.NewCookieStore([]byte("test-key"))
-			configureSessionStore(st)
-			if st.Options.Secure != tt.want {
-				t.Fatalf("Options.Secure = %v (env=%q url=%q), want %v", st.Options.Secure, tt.appEnv, tt.serverURL, tt.want)
-			}
-			if st.Options.Path != "/" {
-				t.Fatalf("Path = %q, want /", st.Options.Path)
-			}
-			if !st.Options.HttpOnly {
-				t.Fatalf("HttpOnly = false, want true")
+			if got := CookieSecure(); got != tt.want {
+				t.Fatalf("CookieSecure(env=%q, url=%q) = %v, want %v", tt.appEnv, tt.serverURL, got, tt.want)
 			}
 		})
+	}
+}
+
+func TestCookieSecureDefaultIsProduction(t *testing.T) {
+	// When app.env is unset the default must read as production (fail-closed).
+	withEnv(t, "production", "http://example.com")
+	if !CookieSecure() {
+		t.Fatal("default production env must yield Secure=true")
 	}
 }

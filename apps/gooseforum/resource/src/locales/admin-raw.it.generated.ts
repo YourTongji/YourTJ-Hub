@@ -719,5 +719,13 @@ export default {
   "k00l7": "Soprannome",
   "k00l8": "es. my-agent",
   "k00l9": "Modifica il profilo della persona bot e la configurazione webhook.",
+  "k00mh": "Impossibile caricare le impostazioni del server MCP",
+  "k00mi": "Impossibile salvare le impostazioni del server MCP",
+  "k00mj": "Server MCP",
+  "k00mk": "Gestisci il server MCP integrato: interruttore endpoint e accesso in scrittura AI.",
+  "k00ml": "Abilita server MCP",
+  "k00mm": "Se abilitato, l'endpoint /mcp è disponibile per i client MCP (es. Claude, VS Code), autenticati con il token Bearer dell'agente (agt_*).",
+  "k00mn": "Consenti scritture AI",
+  "k00mo": "Se abilitato, gli strumenti create_topic / create_post sono disponibili (soggetti ai limiti di frequenza topic.write / post.create); disattivato di default, così l'AI può solo leggere.",
 
 } as const

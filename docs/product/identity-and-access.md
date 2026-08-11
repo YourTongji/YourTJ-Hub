@@ -128,7 +128,9 @@
 - The forum HS256 JWT is never accepted at the OIDC userinfo endpoint (opaque access tokens only).
 - Client secrets are configured server-side and never logged.
 - id_token / access token never persisted by clients; forum JWT goes into an HttpOnly cookie
-  (Secure + SameSite=Lax when the site is served over HTTPS).
+  (`Secure` + SameSite=Lax whenever `app.env != "local"`; the Secure flag follows the environment
+  fail-closed rather than the `server.url` scheme, so production cookies stay Secure even when the
+  template default `server.url = "http://localhost"` is left untouched — issue #113).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password".
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
