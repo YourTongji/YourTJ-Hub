@@ -909,7 +909,7 @@ ModerationCourseReviewReportListRequest:
       type: integer
       minimum: 1
       maximum: 50
-      description: Bounded to 10..50 by the server; default behavior with 0 uses the lower bound.
+      description: Page size for the report queue. The server clamps values to 10..50; values below 10 (including 0) use 10, values above 50 use 50. The schema accepts 1..50 to reflect tolerated input.
   additionalProperties: false
 
 ModerationCourseReviewReportItem:

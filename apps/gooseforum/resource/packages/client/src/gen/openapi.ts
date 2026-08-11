@@ -891,7 +891,7 @@ export interface components {
              * @description Last seen report id for cursor pagination; 0 starts at the newest page.
              */
             cursor?: number;
-            /** @description Bounded to 10..50 by the server; default behavior with 0 uses the lower bound. */
+            /** @description Page size for the report queue. The server clamps values to 10..50; values below 10 (including 0) use 10, values above 50 use 50. The schema accepts 1..50 to reflect tolerated input. */
             pageSize?: number;
         };
         ModerationCourseReviewReportItem: {
