@@ -485,6 +485,11 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止在读路径不可见（隐藏/封禁）的话题中编辑回复
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 
 	content := strings.TrimSpace(req.Params.Content)
 	if len(content) < postingConfig.TextControl.MinPostLength {
@@ -545,14 +550,16 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
-	posts.DeleteEntity(&postEntity)
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id > 0 {
-		postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-		hotdataserve.ClearTopicListCache()
-		// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
-		llmsservice.ClearCache()
+	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止删除读路径不可见（隐藏/封禁）话题中的回复
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	posts.DeleteEntity(&postEntity)
+	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
+	hotdataserve.ClearTopicListCache()
+	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
+	llmsservice.ClearCache()
 	return component.SuccessResponse(true)
 }
 
@@ -563,10 +570,15 @@ type LikeTopicReq struct {
 
 func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的
+	// 既有点赞，避免 like_count 与 user_action 行被永久卡住（无状态者仍按不可见拒绝）。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -610,11 +622,15 @@ type BookmarkTopicReq struct {
 
 func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
-	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)
@@ -645,11 +661,15 @@ type WatchTopicReq struct {
 
 func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）退订对已隐藏/封禁话题的关注。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
-	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
 	targetWatched := req.Params.Action == 1
 	if state.Id == 0 && !targetWatched {
 		return component.SuccessResponse(true)
@@ -674,11 +694,15 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有点赞。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 
-	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
 	targetLiked := req.Params.Action == 1
 	if state.Id == 0 && !targetLiked {
 		return component.SuccessResponse(true)
@@ -722,11 +746,15 @@ func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Respon
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+	if topicEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
+	// 仅"新增互动"要求话题可见；已持状态者可取消（Action=2）清理对已隐藏/封禁话题的既有收藏。
+	if !forum.CanViewTopicSimple(&topicEntity, req.UserId) && !(req.Params.Action == 2 && state.Id != 0) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 
-	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
 	targetBookmarked := req.Params.Action == 1
 	if state.Id == 0 && !targetBookmarked {
 		return component.SuccessResponse(true)

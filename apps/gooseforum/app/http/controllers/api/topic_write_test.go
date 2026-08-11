@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
+	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
@@ -42,6 +43,7 @@ func setupTopicWriteTestDB(t *testing.T) *gorm.DB {
 		&userActivities.Entity{},
 		&userPoints.Entity{},
 		&pointsRecord.Entity{},
+		&postUserAction.Entity{},
 		&userBadges.Entity{},
 		&moderators.Entity{},
 	)
@@ -285,5 +287,172 @@ func TestWriteEndpointsAllowAuthorOnOwnHiddenTopic(t *testing.T) {
 	res2 := LikePost(component.BetterRequest[LikePostReq]{UserId: 1391, Params: LikePostReq{PostId: firstPostID, Action: 1}})
 	if res2.Data.Code != component.SUCCESS {
 		t.Fatalf("author LikePost own hidden topic = code=%v, want SUCCESS", res2.Data.Code)
+	}
+}
+
+// createTopicReply 在指定话题下直接插入一条由 userID 创作的回复（PostNo>1），
+// 用于模拟话题变隐藏/封禁前已存在的楼层，供 UpdatePost/DeletePost 可见性守卫测试使用。
+func createTopicReply(t *testing.T, conn *gorm.DB, id, topicID, postNo, userID uint64, content string) {
+	t.Helper()
+	now := time.Now().Add(-time.Hour)
+	if err := conn.Create(&posts.Entity{Id: id, TopicId: topicID, PostNo: postNo, UserId: userID, Content: content, ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+}
+
+// 用户对曾互动过的话题，话题变隐藏后仍应能取消点赞/收藏/关注，避免
+// like_count 与 user_action 行被永久卡住（PR #118 review 修复项）。
+func TestUnlikeTopicAfterHiddenAllowed(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 1, 1401, 1402, 5100, 6100)
+	if res := LikeTopic(component.BetterRequest[LikeTopicReq]{UserId: 1402, Params: LikeTopicReq{TopicId: topicID, Action: 1}}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("like visible topic = code=%v", res.Data.Code)
+	}
+	if got := topics.Get(topicID); got.LikeCount != 1 {
+		t.Fatalf("like count = %d, want 1", got.LikeCount)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatalf("hide topic: %v", err)
+	}
+	res := LikeTopic(component.BetterRequest[LikeTopicReq]{UserId: 1402, Params: LikeTopicReq{TopicId: topicID, Action: 2}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("unlike hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := topics.Get(topicID); got.LikeCount != 0 {
+		t.Fatalf("like count after unlike = %d, want 0", got.LikeCount)
+	}
+	if action := topicUserAction.GetByTopicId(1402, topicID); action.LikedAt != nil {
+		t.Fatalf("action liked_at not cleared = %#v", action)
+	}
+}
+
+func TestUnbookmarkTopicAfterHiddenAllowed(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 1, 1411, 1412, 5110, 6110)
+	if res := BookmarkTopic(component.BetterRequest[BookmarkTopicReq]{UserId: 1412, Params: BookmarkTopicReq{TopicId: topicID, Action: 1}}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("bookmark visible topic = code=%v", res.Data.Code)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatalf("hide topic: %v", err)
+	}
+	res := BookmarkTopic(component.BetterRequest[BookmarkTopicReq]{UserId: 1412, Params: BookmarkTopicReq{TopicId: topicID, Action: 2}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("unbookmark hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := topicUserAction.GetByTopicId(1412, topicID); action.BookmarkedAt != nil {
+		t.Fatalf("action bookmarked_at not cleared = %#v", action)
+	}
+}
+
+func TestUnwatchTopicAfterHiddenAllowed(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 1, 1421, 1422, 5120, 6120)
+	if res := WatchTopic(component.BetterRequest[WatchTopicReq]{UserId: 1422, Params: WatchTopicReq{TopicId: topicID, Action: 1}}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("watch visible topic = code=%v", res.Data.Code)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatalf("hide topic: %v", err)
+	}
+	res := WatchTopic(component.BetterRequest[WatchTopicReq]{UserId: 1422, Params: WatchTopicReq{TopicId: topicID, Action: 2}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("unwatch hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := topicUserAction.GetByTopicId(1422, topicID); action.WatchedAt != nil {
+		t.Fatalf("action watched_at not cleared = %#v", action)
+	}
+}
+
+func TestUnlikePostAfterHiddenAllowed(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, firstPostID := visibilityRejectionFixture(t, conn, 1, 1431, 1432, 5130, 6130)
+	if res := LikePost(component.BetterRequest[LikePostReq]{UserId: 1432, Params: LikePostReq{PostId: firstPostID, Action: 1}}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("like post in visible topic = code=%v", res.Data.Code)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatalf("hide topic: %v", err)
+	}
+	res := LikePost(component.BetterRequest[LikePostReq]{UserId: 1432, Params: LikePostReq{PostId: firstPostID, Action: 2}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("unlike post in hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := postUserAction.GetByPostId(1432, firstPostID); action.LikedAt != nil {
+		t.Fatalf("post action liked_at not cleared = %#v", action)
+	}
+}
+
+func TestUnbookmarkPostAfterHiddenAllowed(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, firstPostID := visibilityRejectionFixture(t, conn, 1, 1441, 1442, 5140, 6140)
+	if res := BookmarkPost(component.BetterRequest[BookmarkPostReq]{UserId: 1442, Params: BookmarkPostReq{PostId: firstPostID, Action: 1}}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("bookmark post in visible topic = code=%v", res.Data.Code)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("status", 0).Error; err != nil {
+		t.Fatalf("hide topic: %v", err)
+	}
+	res := BookmarkPost(component.BetterRequest[BookmarkPostReq]{UserId: 1442, Params: BookmarkPostReq{PostId: firstPostID, Action: 2}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("unbookmark post in hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := postUserAction.GetByPostId(1442, firstPostID); action.BookmarkedAt != nil {
+		t.Fatalf("post action bookmarked_at not cleared = %#v", action)
+	}
+}
+
+// 无既有互动状态的用户对隐藏话题执行取消，应同样按不可见拒绝，避免成为话题存在性探针。
+func TestUnlikeHiddenTopicWithoutPriorStateRejected(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1451, 1452, 5150, 6150)
+	res := LikeTopic(component.BetterRequest[LikeTopicReq]{UserId: 1452, Params: LikeTopicReq{TopicId: topicID, Action: 2}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("unlike hidden topic without state = code=%v msg=%v, want FAIL/MessageTopicNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+// 回复作者对读路径不可见（隐藏/封禁）话题中的楼层，不可编辑/删除（与 LikePost/BookmarkPost 守卫一致）。
+func TestUpdatePostRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1461, 1462, 5160, 6160)
+	createTopicReply(t, conn, 6161, topicID, 2, 1462, "reply before hidden")
+	res := UpdatePost(component.BetterRequest[UpdatePostReq]{UserId: 1462, Params: UpdatePostReq{PostId: 6161, Content: "updated content with enough words"}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("UpdatePost on hidden topic = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+func TestDeletePostRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1471, 1472, 5170, 6170)
+	createTopicReply(t, conn, 6171, topicID, 2, 1472, "reply before hidden")
+	res := DeletePost(component.BetterRequest[DeletePostReq]{UserId: 1472, Params: DeletePostReq{PostId: 6171}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("DeletePost on hidden topic = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+func TestUpdatePostRejectsBannedTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 1, 1481, 1482, 5180, 6180)
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("process_status", topics.ProcessStatusBlocked).Error; err != nil {
+		t.Fatalf("set process_status: %v", err)
+	}
+	createTopicReply(t, conn, 6181, topicID, 2, 1482, "reply before ban")
+	res := UpdatePost(component.BetterRequest[UpdatePostReq]{UserId: 1482, Params: UpdatePostReq{PostId: 6181, Content: "updated content with enough words"}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("UpdatePost on banned topic = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+// 作者对自身隐藏话题中的楼层仍可编辑，与读路径 canViewTopicSimple 的作者放行分支一致。
+func TestAuthorCanUpdatePostOnOwnHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1491, 1492, 5190, 6190)
+	createTopicReply(t, conn, 6191, topicID, 2, 1491, "author reply")
+	res := UpdatePost(component.BetterRequest[UpdatePostReq]{UserId: 1491, Params: UpdatePostReq{PostId: 6191, Content: "author updated with enough words"}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("author UpdatePost own hidden topic = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	post := posts.Get(6191)
+	if post.Content != "author updated with enough words" {
+		t.Fatalf("updated post content = %q", post.Content)
 	}
 }

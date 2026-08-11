@@ -205,14 +205,10 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	))
 }
 
+// canViewTopic 为历史别名，委托共享可见性谓词 CanViewTopicSimple，避免两处
+// 安全边界实现漂移。调用方：TopicDetail（读路径）。
 func canViewTopic(entity *topics.Entity, userID uint64) bool {
-	if entity.Status != 1 {
-		return userID != 0 && userID == entity.UserId
-	}
-	if entity.ProcessStatus != 0 && !currentUserCanViewProcessedTopic(userID) && !moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
-		return false
-	}
-	return true
+	return CanViewTopicSimple(entity, userID)
 }
 
 // CanViewTopicSimple is the shared read-path visibility predicate for topics
