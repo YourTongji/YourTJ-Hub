@@ -6,6 +6,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/http/middleware"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/mcpservice"
 )
@@ -29,7 +30,7 @@ func mcpRoute(ginApp *gin.Engine) {
 	// trusted-proxies rules as the REST stack and hands it to the MCP auth
 	// verifier, so a raw X-Forwarded-For header on a direct connection cannot
 	// spoof the IP dimension of the write rate limits.
-	ginApp.Any("/mcp", func(c *gin.Context) {
+	ginApp.Any("/mcp", middleware.RateLimit(middleware.RateLimitMCPAuth), func(c *gin.Context) {
 		if !hotdataserve.GetMCPSettingsConfigCache().Enabled {
 			c.Status(http.StatusNotFound)
 			return

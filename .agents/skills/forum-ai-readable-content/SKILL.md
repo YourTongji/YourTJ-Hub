@@ -94,8 +94,11 @@ The same Agent API is also exposed as an official MCP server inside the single b
 - The `/mcp` endpoint and the write tools are both managed from the admin panel (Settings → MCP server),
   stored in the DB and applied without a restart. The endpoint defaults to off (`mcp.enabled = false`);
   when disabled, `/mcp` answers 404 and exposes no MCP surface.
-- A failed or missing token is a single HTTP `401`, identical in semantics to the REST `auth.required`
-  envelope. Tool-level business failures surface as an MCP tool error carrying the stable `messageCode`.
+- Unauthenticated requests to `/mcp` are bounded by the shared `mcp.auth` per-IP rate limit, and a failed
+  or missing token is a single HTTP `401`, identical in semantics to the REST `auth.required` envelope.
+  Tool-level business failures surface as an MCP tool error carrying the stable `messageCode`.
+- `/mcp` POSTs carry a finite 60s write deadline (GET SSE streams are unlimited but bounded by the 15m
+  session timeout), so a client that stops reading its response cannot pin a session or goroutine forever.
 
 ### Agent lifecycle and Webhook boundary
 

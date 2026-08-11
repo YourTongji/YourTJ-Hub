@@ -8,6 +8,8 @@ import (
 	"github.com/gin-gonic/gin"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
+	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
+	"github.com/leancodebox/GooseForum/app/http/middleware"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 )
@@ -96,5 +98,64 @@ func TestMcpRouteEnabledServes(t *testing.T) {
 	router.ServeHTTP(rec, req)
 	if rec.Code != http.StatusUnauthorized {
 		t.Errorf("POST /mcp with enabled=true (no token): status = %d, want 401 from bearer auth", rec.Code)
+	}
+}
+
+// setMcpAuthRateLimit persists a rate-limit config where the mcp.auth action
+// allows only limitPerIp requests per minute per client IP, so tests can
+// observe the 429 without flooding the default quota. The previous config row
+// (if any) is restored on cleanup.
+func setMcpAuthRateLimit(t *testing.T, limitPerIp int) {
+	t.Helper()
+	conn := db.Connect()
+	var prev pageConfig.Entity
+	hasPrev := conn.Where("page_type = ?", pageConfig.RateLimitSettings).First(&prev).Error == nil
+	cfg := pageConfig.RateLimitConfig{
+		Enabled:   true,
+		SkipAdmin: false,
+		Actions: []pageConfig.RateLimitRule{
+			{Action: middleware.RateLimitMCPAuth, WindowSeconds: 60, LimitPerIp: limitPerIp, LimitPerUser: 0},
+		},
+	}
+	conn.Where("page_type = ?", pageConfig.RateLimitSettings).Delete(&pageConfig.Entity{})
+	if err := conn.Create(&pageConfig.Entity{PageType: pageConfig.RateLimitSettings, Config: jsonopt.Encode(cfg)}).Error; err != nil {
+		t.Fatalf("write mcp.auth rate limit: %v", err)
+	}
+	hotdataserve.ClearRateLimitConfigCache()
+	ratelimit.Default().ResetAll()
+	t.Cleanup(func() {
+		conn.Where("page_type = ?", pageConfig.RateLimitSettings).Delete(&pageConfig.Entity{})
+		if hasPrev {
+			conn.Create(&prev)
+		}
+		hotdataserve.ClearRateLimitConfigCache()
+		ratelimit.Default().ResetAll()
+	})
+}
+
+// TestMcpRouteAuthFailureRateLimited asserts /mcp is protected by the shared
+// mcp.auth per-IP rate limit. Every failed bearer attempt otherwise triggers a
+// ResolveByToken DB query, so unauthenticated floods must be bounded by the
+// same ratelimit store as the REST stack; the quota is charged before the MCP
+// handler runs, keyed by gin's trusted-proxy-resolved client IP.
+func TestMcpRouteAuthFailureRateLimited(t *testing.T) {
+	setupMcpRouteTestDB(t)
+	writeMCPSettings(t, pageConfig.MCPSettingsConfig{Enabled: true, Writes: false})
+	setMcpAuthRateLimit(t, 3)
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterByGin(router)
+
+	for i := 0; i < 4; i++ {
+		req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		want := http.StatusUnauthorized
+		if i == 3 {
+			want = http.StatusTooManyRequests
+		}
+		if rec.Code != want {
+			t.Fatalf("request %d: status = %d, want %d", i+1, rec.Code, want)
+		}
 	}
 }

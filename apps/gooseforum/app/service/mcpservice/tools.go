@@ -63,6 +63,14 @@ var maxJSONSafeInt = f(float64(1<<53 - 1))
 func strProp(desc string, minLen *int) *jsonschema.Schema {
 	return &jsonschema.Schema{Type: "string", Description: desc, MinLength: minLen}
 }
+func strPropEnum(desc string, values ...string) *jsonschema.Schema {
+	s := strProp(desc, nil)
+	s.Enum = make([]any, len(values))
+	for i, v := range values {
+		s.Enum[i] = v
+	}
+	return s
+}
 
 func uintArrayProp(desc string, minItems, maxItems int) *jsonschema.Schema {
 	one := f(1)
@@ -128,7 +136,7 @@ func registerListTopics(s *mcp.Server, svc *Service) {
 	props := map[string]*jsonschema.Schema{
 		"page":       intPropMax("页码，从 1 开始", f(1), f(1000), f(1)),
 		"pageSize":   intPropMax("每页条数，最小 10", f(10), f(50), f(10)),
-		"sort":       strProp("排序：latest / hot / popular / new", nil),
+		"sort":       strPropEnum("排序：latest / hot / popular / new", "latest", "hot", "popular", "new"),
 		"categoryId": intPropMax("分类 ID（单值过滤）", f(1), maxJSONSafeInt, nil),
 	}
 	mcp.AddTool(s, &mcp.Tool{

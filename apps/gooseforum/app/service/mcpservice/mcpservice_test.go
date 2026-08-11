@@ -662,3 +662,98 @@ func TestStdioWriteRateLimitedWithIPOnlyConfig(t *testing.T) {
 		t.Fatal("create_topic never hit rate limit with IP-only config; stdio writes should still be bounded")
 	}
 }
+
+// deadlineRecordingWriter records SetWriteDeadline calls made through
+// http.ResponseController so tests can assert the handler's per-method
+// deadline policy.
+type deadlineRecordingWriter struct {
+	http.ResponseWriter
+	deadlines []time.Time
+}
+
+func (w *deadlineRecordingWriter) SetWriteDeadline(t time.Time) error {
+	w.deadlines = append(w.deadlines, t)
+	return nil
+}
+
+func (w *deadlineRecordingWriter) Unwrap() http.ResponseWriter {
+	return w.ResponseWriter
+}
+
+// TestHTTPWriteDeadlineByMethod asserts the /mcp handler applies a finite
+// write deadline to POSTs and none to GET SSE streams. The SDK pauses the
+// idle-session timer for the duration of an in-flight POST, so a client that
+// stops reading its response would otherwise pin the connection, session, and
+// goroutines forever; the finite deadline bounds that. GET streams are
+// long-lived and bounded by the session timeout instead.
+func TestHTTPWriteDeadlineByMethod(t *testing.T) {
+	setupMCPServiceTestDB(t)
+	handler := NewService().HTTPHandler()
+
+	postRec := httptest.NewRecorder()
+	postW := &deadlineRecordingWriter{ResponseWriter: postRec}
+	handler.ServeHTTP(postW, httptest.NewRequest(http.MethodPost, "/mcp", strings.NewReader(`{}`)))
+	if len(postW.deadlines) == 0 {
+		t.Fatal("POST /mcp: no SetWriteDeadline call recorded")
+	}
+	if d := postW.deadlines[0]; d.IsZero() {
+		t.Fatal("POST /mcp: write deadline is zero, want a finite deadline")
+	} else if got := time.Until(d); got < 30*time.Second || got > 90*time.Second {
+		t.Fatalf("POST /mcp: write deadline in %v, want ~60s", got)
+	}
+
+	getRec := httptest.NewRecorder()
+	getW := &deadlineRecordingWriter{ResponseWriter: getRec}
+	handler.ServeHTTP(getW, httptest.NewRequest(http.MethodGet, "/mcp", nil))
+	if len(getW.deadlines) == 0 {
+		t.Fatal("GET /mcp: no SetWriteDeadline call recorded")
+	}
+	if !getW.deadlines[0].IsZero() {
+		t.Fatalf("GET /mcp: write deadline is finite (%v), want zero (unlimited SSE stream)", getW.deadlines[0])
+	}
+}
+
+// TestSchemaSortEnum asserts the list_topics sort parameter is constrained to
+// the supported values (latest/hot/popular/new), so an LLM cannot invent a
+// sort key that silently falls back to the default ordering.
+func TestSchemaSortEnum(t *testing.T) {
+	setupMCPServiceTestDB(t)
+	agentID, _ := createMCPServiceAgent(t, "mcp-sort-enum")
+	conn := db.Connect()
+	// Use a high ID: earlier tests create topics through the real service with
+	// auto-increment IDs (which continue from the explicit IDs the tests
+	// insert), and cleanup soft-deletes, so a reused low ID would collide with
+	// a soft-deleted row.
+	conn.Create(&category.Entity{Id: 9502, Name: "enum", Slug: "enum"})
+	now := time.Now().Add(-time.Hour)
+	if err := conn.Create(&topics.Entity{Id: 9501, Title: "Enum topic", UserId: agentID, Status: 1, ProcessStatus: 0, CategoryIds: []uint64{9502}, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+
+	cs := connectMCPServer(t, true, agentID)
+
+	// A valid sort value must pass schema validation.
+	res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_topics",
+		Arguments: map[string]any{"page": 1, "pageSize": 10, "sort": "latest"},
+	})
+	if err != nil {
+		t.Fatalf("call list_topics sort=latest: %v", err)
+	}
+	if res.IsError {
+		t.Fatalf("list_topics sort=latest returned error: %+v", res.Content)
+	}
+
+	// An out-of-enum value must be rejected by schema validation before the
+	// handler runs.
+	res, err = cs.CallTool(context.Background(), &mcp.CallToolParams{
+		Name:      "list_topics",
+		Arguments: map[string]any{"page": 1, "pageSize": 10, "sort": "bogus"},
+	})
+	if err != nil {
+		t.Fatalf("call list_topics sort=bogus: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("list_topics sort=bogus succeeded; want schema enum rejection: %+v", res.Content)
+	}
+}

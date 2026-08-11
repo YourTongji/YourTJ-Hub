@@ -73,6 +73,13 @@ type Service struct {
 // far beyond any real MCP interaction and lets us reap those sessions.
 const defaultMCPSessionTimeout = 15 * time.Minute
 
+// defaultMCPPostWriteTimeout bounds a single /mcp POST (JSON-RPC) write. The
+// SDK writes the response body only after the tool handler finishes, so the
+// deadline must be generous; it exists to break clients that stop reading,
+// which would otherwise pin the session forever (the SDK pauses the
+// idle-session timer while a POST is in flight). See HTTPHandler.
+const defaultMCPPostWriteTimeout = 60 * time.Second
+
 // NewService returns a Service that authenticates every request via the
 // agt_ bearer token (fixedUserID == 0).
 func NewService() *Service {
@@ -218,17 +225,25 @@ func (s *Service) buildServer(writes bool) *mcp.Server {
 //
 // The surrounding http.Server (see console/serve.go) sets WriteTimeout to 10s,
 // which would kill the SSE/streamable long-lived connections MCP clients rely
-// on. Per request we therefore lift the write deadline back to "no timeout";
-// this only affects /mcp and leaves the 10s slow-writer protection in place
-// for every other endpoint.
+// on. Per request we therefore adjust the write deadline; this only affects
+// /mcp and leaves the 10s slow-writer protection in place for every other
+// endpoint.
 //
-// Both the SSE stream (GET) and the JSON-RPC response (POST) are long-lived or
-// slow writes: the SDK writes the POST response body (text/event-stream by
-// default) only after the tool handler has finished, so a slow handler
-// (e.g. search over meilisearch, or a write tool hitting the DB) would hit the
-// 10s deadline and be cut off — the client would see a truncated response and
-// could retry a write tool, duplicating the post. So the deadline is lifted
-// for every /mcp request, not just GET.
+//   - GET (SSE stream): the connection lives as long as the session, so the
+//     write deadline is lifted to "no timeout". The stream is still bounded by
+//     the session timeout (defaultMCPSessionTimeout, 15m), which reaps idle
+//     sessions and closes their streams.
+//   - POST (JSON-RPC): the SDK writes the response body (text/event-stream by
+//     default) only after the tool handler has finished, so a slow handler
+//     (e.g. search over meilisearch, or a write tool hitting the DB) must not
+//     be cut off by a 10s deadline. A finite generous deadline
+//     (defaultMCPPostWriteTimeout, 60s) keeps that headroom while still
+//     bounding the request: the SDK pauses the idle-session timer for the
+//     duration of an in-flight POST, so without any write deadline a client
+//     that never reads its response could pin the connection, the session, and
+//     their goroutines forever. 60s is far beyond any real handler time; once
+//     the write fails the request completes and the idle timer resumes, so the
+//     session can be reaped normally.
 func (s *Service) HTTPHandler() http.Handler {
 	timeout := defaultMCPSessionTimeout
 	if s.sessionTimeout > 0 {
@@ -250,7 +265,11 @@ func (s *Service) HTTPHandler() http.Handler {
 	authed := auth.RequireBearerToken(s.verifier, nil)(handler)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if rc := http.NewResponseController(w); rc != nil {
-			_ = rc.SetWriteDeadline(time.Time{})
+			deadline := time.Time{} // GET SSE streams are long-lived
+			if r.Method != http.MethodGet {
+				deadline = time.Now().Add(defaultMCPPostWriteTimeout)
+			}
+			_ = rc.SetWriteDeadline(deadline)
 		}
 		authed.ServeHTTP(w, r)
 	})

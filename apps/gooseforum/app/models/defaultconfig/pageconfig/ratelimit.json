@@ -14,7 +14,8 @@
     { "action": "interact", "windowSeconds": 60, "limitPerIp": 60, "limitPerUser": 30 },
     { "action": "llms.index", "windowSeconds": 60, "limitPerIp": 60, "limitPerUser": 0 },
     { "action": "llms.full", "windowSeconds": 300, "limitPerIp": 10, "limitPerUser": 0 },
-    { "action": "llms.topic", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 0 }
+    { "action": "llms.topic", "windowSeconds": 60, "limitPerIp": 30, "limitPerUser": 0 },
+    { "action": "mcp.auth", "windowSeconds": 60, "limitPerIp": 60, "limitPerUser": 0 }
   ],
   "newUserCaptchaAfterPosts": 3,
   "newUserCaptchaDays": 7,
