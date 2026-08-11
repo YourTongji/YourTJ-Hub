@@ -14,6 +14,7 @@ import '../../providers.dart';
 import '../../format.dart';
 import '../../theme_mode.dart';
 import '../../widgets/status_views.dart';
+import '../../current_user.dart';
 import '../../widgets/skeletons.dart';
 
 enum _SettingsTab {
@@ -1021,7 +1022,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     );
   }
 
-  /// 登出:确认 → 服务端失效 → 清 token → 跳登录页。
+  /// 登出:确认 → 服务端失效 → 清 token → 清离线缓存 → 跳登录页。
+  ///
+  /// 离线缓存(drift)保存私信与已浏览话题,登出必须清空,否则同一设备
+  /// 换账号后仍可读到上一账号的缓存数据(跨账号数据泄漏)。
   Future<void> _logout() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     final bool? ok = await showGfAlertDialog<bool>(
@@ -1049,6 +1053,15 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       // 服务端失效失败不阻塞本地登出(会话已不可信)。
     }
     await ref.read(tokenStorageProvider).clear();
+    // 登出即进入新会话边界:先使旧会话在途写入失效、当前用户身份失效,
+    // 再清空缓存。
+    ref.read(offlineCacheEpochProvider.notifier).invalidate();
+    ref.invalidate(currentUserProvider);
+    // 清空话题/会话/私信离线缓存;失败静默(下次登出/登录会重试)。
+    await clearOfflineCacheQuietly(
+      ref.read(offlineTopicCacheProvider),
+      ref.read(offlineChatCacheProvider),
+    );
     if (mounted) context.go('/login');
   }
 

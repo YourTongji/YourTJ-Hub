@@ -19,6 +19,7 @@ import 'pages/search/search_page.dart';
 import 'pages/settings/settings_page.dart';
 import 'pages/topic/topic_page.dart';
 import 'providers.dart';
+import 'current_user.dart';
 
 extension on GfShellDestination {
   IconData get icon => switch (this) {
@@ -63,6 +64,7 @@ class _GfShellState extends ConsumerState<GfShell> {
   @override
   void initState() {
     super.initState();
+    unawaited(_purgeStaleOfflineCacheOnBoot());
     _pollUnread();
     _unreadTimer = Timer.periodic(
       const Duration(seconds: 30),
@@ -74,6 +76,20 @@ class _GfShellState extends ConsumerState<GfShell> {
   void dispose() {
     _unreadTimer?.cancel();
     super.dispose();
+  }
+
+  /// 启动兜底:无令牌(上次 401 清库可能被进程中断)时清空离线缓存,
+  /// 防止未登录态读取上一账号残留的私信/话题。清理失败不影响启动。
+  Future<void> _purgeStaleOfflineCacheOnBoot() async {
+    try {
+      if (await hasSessionToken(ref.read(tokenStorageProvider))) return;
+      await clearOfflineCacheQuietly(
+        ref.read(offlineTopicCacheProvider),
+        ref.read(offlineChatCacheProvider),
+      );
+    } catch (_) {
+      // 兜底清理失败(缓存不可用)不阻塞启动。
+    }
   }
 
   Future<void> _pollUnread() async {
@@ -118,8 +134,12 @@ class _GfShellState extends ConsumerState<GfShell> {
     ref.listen(unauthorizedEventsProvider, (int? previous, int next) {
       if (next > (previous ?? 0) &&
           mounted &&
-          appRouter.state.uri.path != '/login') {
-        context.push('/login');
+          GoRouter.of(context).state.uri.path != '/login') {
+        // 401 即会话边界:使缓存的当前用户身份失效(旧账号 id 不再被
+        // 后续新 shell 读取),用 go 替换导航栈销毁保留旧账号内存态的
+        // shell;重新登录后 go('/') 得到全新 shell。
+        ref.invalidate(currentUserProvider);
+        context.go('/login');
       }
     });
 
