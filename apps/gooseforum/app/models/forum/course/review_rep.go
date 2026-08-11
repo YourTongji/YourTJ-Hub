@@ -54,11 +54,15 @@ func GetOfferingTx(tx *gorm.DB, id uint64) (entity OfferingEntity, err error) {
 	return
 }
 
-// FindReviewByOfferingAndUserTx 事务内查同一用户对同一 offering 的评价。
+// FindReviewByOfferingAndUserTx 事务内查同一用户对同一 offering 的可见/隐藏评价。
+// 已删除（隔离窗口）的评价不参与查重：用户删除后可对同一 offering 重新评价。
+// 与唯一索引 (offering_id, author_user_id) 配合：删除仅改 status 不物理删除，
+// 若按全状态查重，删除后同一 offering 将永远无法再评。
 func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (entity ReviewEntity, err error) {
 	err = tx.Table(reviewTableName).
 		Where(queryopt.Eq("offering_id", offeringId)).
 		Where(queryopt.Eq("author_user_id", userId)).
+		Where("status IN ?", []int8{ReviewStatusVisible, ReviewStatusHidden}).
 		First(&entity).Error
 	return
 }
@@ -84,17 +88,74 @@ func UpdateReviewStatusTx(tx *gorm.DB, id uint64, status int8) error {
 	return tx.Table(reviewTableName).Where("id = ?", id).Update("status", status).Error
 }
 
-// CreateHelpfulTx 事务内标记 helpful（唯一约束 (review_id, user_id) 防重）。
-func CreateHelpfulTx(tx *gorm.DB, entity *HelpfulEntity) error {
-	return tx.Table(helpfulTableName).Create(entity).Error
+// UpdateReviewStatusFromTx 事务内带旧状态条件的 CAS 状态转换：
+// 仅当当前 status 仍为 from 时更新为 to，返回是否成功转换。
+// 并发 hide/delete 双写时只有一个事务能拿到转换权，另一个 RowsAffected=0，
+// 调用方据此决定是否调整 stats，避免按陈旧旧值重复扣减/累加。
+func UpdateReviewStatusFromTx(tx *gorm.DB, id uint64, from, to int8) (bool, error) {
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Update("status", to)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
 }
 
-// DeleteHelpfulTx 事务内取消 helpful。
+// UpdateReviewRatingFromTx 事务内带旧评分条件的 CAS 评分更新：
+// 仅当当前 rating 仍为 oldRating 时更新，返回是否成功。
+// 并发 PATCH 评分时避免两笔事务都基于同一旧值累加 stats delta。
+func UpdateReviewRatingFromTx(tx *gorm.DB, id uint64, oldRating int, newRating int) (bool, error) {
+	var res *gorm.DB
+	if oldRating > 0 {
+		res = tx.Table(reviewTableName).
+			Where("id = ? AND rating = ?", id, oldRating).
+			Update("rating", newRating)
+	} else {
+		res = tx.Table(reviewTableName).
+			Where("id = ? AND rating IS NULL", id).
+			Update("rating", newRating)
+	}
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// DeleteHelpfulTx 事务内取消 helpful（物理删除）。
+// helpful 表主键为 (review_id, user_id) 且带软删；软删后主键仍占位，
+// 再次标记会撞唯一约束。物理删除恢复 false→true 生命周期。
 func DeleteHelpfulTx(tx *gorm.DB, reviewId, userId uint64) error {
-	return tx.Table(helpfulTableName).
+	return tx.Unscoped().Table(helpfulTableName).
 		Where(queryopt.Eq("review_id", reviewId)).
 		Where(queryopt.Eq("user_id", userId)).
 		Delete(&HelpfulEntity{}).Error
+}
+
+// DeleteHelpful 取消 helpful（物理删除，理由同 DeleteHelpfulTx）。
+func DeleteHelpful(reviewId, userId uint64) error {
+	return helpfulBuilder().Unscoped().
+		Where(queryopt.Eq("review_id", reviewId)).
+		Where(queryopt.Eq("user_id", userId)).
+		Delete(&HelpfulEntity{}).Error
+}
+
+// ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID
+// （教师变更后 fan-out 入队课程搜索同步用）。
+func ListCourseIDsByInstructorTx(tx *gorm.DB, instructorId uint64) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Table(offeringTableName+" o").
+		Select("DISTINCT o.course_id").
+		Joins("JOIN "+offeringInstructorTableName+" oi ON oi.offering_id = o.id").
+		Where("oi.instructor_id = ?", instructorId).
+		Where("o.deleted_at IS NULL").
+		Scan(&ids).Error
+	return ids, err
+}
+
+// CreateHelpfulTx 事务内标记 helpful（唯一约束 (review_id, user_id) 防重）。
+func CreateHelpfulTx(tx *gorm.DB, entity *HelpfulEntity) error {
+	return tx.Table(helpfulTableName).Create(entity).Error
 }
 
 // FindReviewByOfferingAndUser 同一用户对同一 offering 的评价（唯一约束 (offering_id, author_user_id)）。
@@ -144,14 +205,6 @@ func ListReviewsByOfferings(offeringIds []uint64) (entities []ReviewEntity, err 
 // CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。
 func CreateHelpful(entity *HelpfulEntity) error {
 	return helpfulBuilder().Create(entity).Error
-}
-
-// DeleteHelpful 取消 helpful。
-func DeleteHelpful(reviewId, userId uint64) error {
-	return helpfulBuilder().
-		Where(queryopt.Eq("review_id", reviewId)).
-		Where(queryopt.Eq("user_id", userId)).
-		Delete(&HelpfulEntity{}).Error
 }
 
 // GetHelpful 查询某用户的 helpful 状态。
@@ -242,68 +295,72 @@ func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, del
 
 // RebuildAllCourseStats 全量重建课程/offering 统计投影（rebuild-course-stats 命令）。
 // 以 review 事实表为准重新聚合，发现漂移时用于对账。
+// 在单事务内先清空两张统计表再重插：中途失败整体回滚，避免留下空表/半成品；
+// 事务快照保证并发课评写入不会在 DELETE 与重插之间插入同主键统计行。
 func RebuildAllCourseStats() error {
 	conn := db.Connect()
-	if err := conn.Unscoped().Table(courseStatsTableName).Where("1 = 1").Delete(&CourseStatsEntity{}).Error; err != nil {
-		return err
-	}
-	if err := conn.Unscoped().Table(offeringStatsTableName).Where("1 = 1").Delete(&OfferingStatsEntity{}).Error; err != nil {
-		return err
-	}
-	// offering 级聚合
-	type offeringAgg struct {
-		OfferingId  uint64
-		RatingCount int
-		RatingSum   int
-		ReviewCount int
-	}
-	var offeringAggs []offeringAgg
-	if err := conn.Table(reviewTableName).
-		Select("offering_id, COUNT(CASE WHEN rating IS NOT NULL AND status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN rating IS NOT NULL AND status = ? THEN rating END), 0) AS rating_sum, COUNT(CASE WHEN status = ? THEN 1 END) AS review_count",
-			ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
-		Where("deleted_at IS NULL").
-		Group("offering_id").
-		Scan(&offeringAggs).Error; err != nil {
-		return err
-	}
-	for _, agg := range offeringAggs {
-		if err := conn.Table(offeringStatsTableName).Create(&OfferingStatsEntity{
-			OfferingId:  agg.OfferingId,
-			RatingCount: agg.RatingCount,
-			RatingSum:   agg.RatingSum,
-			ReviewCount: agg.ReviewCount,
-			UpdatedAt:   time.Now(),
-		}).Error; err != nil {
+	return conn.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Table(courseStatsTableName).Where("1 = 1").Delete(&CourseStatsEntity{}).Error; err != nil {
 			return err
 		}
-	}
-	// course 级聚合（通过 offering 关联）
-	type courseAgg struct {
-		CourseId    uint64
-		RatingCount int
-		RatingSum   int
-		ReviewCount int
-	}
-	var courseAggs []courseAgg
-	if err := conn.Table(offeringTableName+" o").
-		Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
-			ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
-		Joins("LEFT JOIN " + reviewTableName + " r ON r.offering_id = o.id AND r.deleted_at IS NULL").
-		Where("o.deleted_at IS NULL").
-		Group("o.course_id").
-		Scan(&courseAggs).Error; err != nil {
-		return err
-	}
-	for _, agg := range courseAggs {
-		if err := conn.Table(courseStatsTableName).Create(&CourseStatsEntity{
-			CourseId:    agg.CourseId,
-			RatingCount: agg.RatingCount,
-			RatingSum:   agg.RatingSum,
-			ReviewCount: agg.ReviewCount,
-			UpdatedAt:   time.Now(),
-		}).Error; err != nil {
+		if err := tx.Unscoped().Table(offeringStatsTableName).Where("1 = 1").Delete(&OfferingStatsEntity{}).Error; err != nil {
 			return err
 		}
-	}
-	return nil
+		// offering 级聚合
+		type offeringAgg struct {
+			OfferingId  uint64
+			RatingCount int
+			RatingSum   int
+			ReviewCount int
+		}
+		var offeringAggs []offeringAgg
+		if err := tx.Table(reviewTableName).
+			Select("offering_id, COUNT(CASE WHEN rating IS NOT NULL AND status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN rating IS NOT NULL AND status = ? THEN rating END), 0) AS rating_sum, COUNT(CASE WHEN status = ? THEN 1 END) AS review_count",
+				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
+			Where("deleted_at IS NULL").
+			Group("offering_id").
+			Scan(&offeringAggs).Error; err != nil {
+			return err
+		}
+		for _, agg := range offeringAggs {
+			if err := tx.Table(offeringStatsTableName).Create(&OfferingStatsEntity{
+				OfferingId:  agg.OfferingId,
+				RatingCount: agg.RatingCount,
+				RatingSum:   agg.RatingSum,
+				ReviewCount: agg.ReviewCount,
+				UpdatedAt:   time.Now(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		// course 级聚合（通过 offering 关联）
+		type courseAgg struct {
+			CourseId    uint64
+			RatingCount int
+			RatingSum   int
+			ReviewCount int
+		}
+		var courseAggs []courseAgg
+		if err := tx.Table(offeringTableName+" o").
+			Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
+				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
+			Joins("LEFT JOIN " + reviewTableName + " r ON r.offering_id = o.id AND r.deleted_at IS NULL").
+			Where("o.deleted_at IS NULL").
+			Group("o.course_id").
+			Scan(&courseAggs).Error; err != nil {
+			return err
+		}
+		for _, agg := range courseAggs {
+			if err := tx.Table(courseStatsTableName).Create(&CourseStatsEntity{
+				CourseId:    agg.CourseId,
+				RatingCount: agg.RatingCount,
+				RatingSum:   agg.RatingSum,
+				ReviewCount: agg.ReviewCount,
+				UpdatedAt:   time.Now(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
 }

@@ -38,9 +38,9 @@ const (
 	RateLimitReviewWrite    = "course.review.write"
 	RateLimitReviewHelpful  = "course.review.helpful"
 	RateLimitReviewReport   = "course.review.report"
+	RateLimitReviewReveal   = "course.review.reveal"
 )
 
-// RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。
 func RateLimit(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {

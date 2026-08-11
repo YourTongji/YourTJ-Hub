@@ -8,9 +8,11 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"gorm.io/gorm"
 )
+
+// ReviewContentMaxLength 评价正文最大长度（rune 计数，与帖子正文上限一致）。
+const ReviewContentMaxLength = 50000
 
 // 稳定错误 sentinel：控制器据此映射语义 HTTP 状态（400/403/404/409/500）。
 var (
@@ -26,6 +28,8 @@ var (
 	ErrRatingOutOfRange = errors.New("rating must be 1..5")
 	// ErrReviewContentEmpty 正文为空。
 	ErrReviewContentEmpty = errors.New("content is required")
+	// ErrReviewContentTooLong 正文超过上限。
+	ErrReviewContentTooLong = errors.New("content too long")
 )
 
 // ReviewAuthorPayload 评价作者（公开展示用，匿名时不泄漏身份）。
@@ -46,6 +50,7 @@ type ReviewPayload struct {
 	Id           uint64              `json:"id"`
 	OfferingId   uint64              `json:"offeringId"`
 	Rating       *int                `json:"rating"`
+	Content      string              `json:"content"`
 	ContentHtml  string              `json:"contentHtml"`
 	Author       ReviewAuthorPayload `json:"author"`
 	Viewer       ReviewViewerPayload `json:"viewer"`
@@ -72,8 +77,8 @@ type UpdateReviewInput struct {
 }
 
 // CreateReview 登录用户为 offering 写评价；与 stats delta 同事务提交。
-// 搜索文档当前不携带课评字段，故不在此入队搜索任务（Update/Delete/Visibility
-// 仍入队以保持 outbox 契约，供后续 slice 扩展文档字段时复用）。
+// 课程搜索文档当前不携带课评字段，评价写路径一律不入队搜索任务
+// （课程数据变化才由目录导入/审核入口入队）。
 func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error) {
 	if userId == 0 {
 		return ReviewPayload{}, ErrReviewNotOwned
@@ -83,6 +88,9 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 	}
 	if input.Content == "" {
 		return ReviewPayload{}, ErrReviewContentEmpty
+	}
+	if len([]rune(input.Content)) > ReviewContentMaxLength {
+		return ReviewPayload{}, ErrReviewContentTooLong
 	}
 	var payload ReviewPayload
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
@@ -134,72 +142,99 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 	return payload, nil
 }
 
+// errReviewRatingConflict 内部 sentinel：并发 PATCH 评分时 CAS 未命中（另一事务已改评分），
+// 调用方重试整个事务（事务已回滚，无副作用）。
+var errReviewRatingConflict = errors.New("review rating changed concurrently")
+
 // UpdateReview 作者更新自己的评价（rating/content/anonymous）。
+// 评分更新使用带旧评分条件的 CAS：仅当 rating 仍是读取时的旧值才更新并累加 stats delta；
+// 并发 PATCH 时 CAS 未命中的事务回滚重试，避免两笔事务基于同一旧值重复累加 delta。
 func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPayload, error) {
-	var payload ReviewPayload
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		entity, err := course.GetReviewTx(tx, reviewId)
-		if err != nil {
-			return ErrReviewNotFound
-		}
-		if entity.Status != course.ReviewStatusVisible {
-			return ErrReviewNotFound
-		}
-		if entity.AuthorUserId != userId {
-			return ErrReviewNotOwned
-		}
-		// 旧 rating 与新 rating 的 stats delta
-		oldRating := 0
-		if entity.Rating != nil {
-			oldRating = *entity.Rating
-		}
-		newRating := oldRating
-		if input.Rating != nil {
-			if *input.Rating < 1 || *input.Rating > 5 {
-				return ErrRatingOutOfRange
+	for attempt := 0; attempt < 3; attempt++ {
+		var payload ReviewPayload
+		err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+			entity, err := course.GetReviewTx(tx, reviewId)
+			if err != nil {
+				return ErrReviewNotFound
 			}
-			newRating = *input.Rating
-			entity.Rating = input.Rating
-		}
-		// PATCH 部分更新：content 缺省（nil）时保留原正文；显式空串才清空。
-		if input.Content != nil {
-			entity.Content = *input.Content
-		}
-		if input.IsAnonymous != nil {
-			entity.IsAnonymous = *input.IsAnonymous
-		}
-		if err := course.SaveReviewTx(tx, &entity); err != nil {
-			return err
-		}
-		offering, err := course.GetOfferingTx(tx, entity.OfferingId)
-		if err != nil {
-			return err
-		}
-		// 更新 stats（替换旧 rating 的贡献）
-		if newRating != oldRating {
-			if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, newRating-oldRating, 0); err != nil {
+			if entity.Status != course.ReviewStatusVisible {
+				return ErrReviewNotFound
+			}
+			if entity.AuthorUserId != userId {
+				return ErrReviewNotOwned
+			}
+			oldRating := 0
+			if entity.Rating != nil {
+				oldRating = *entity.Rating
+			}
+			newRating := oldRating
+			if input.Rating != nil {
+				if *input.Rating < 1 || *input.Rating > 5 {
+					return ErrRatingOutOfRange
+				}
+				newRating = *input.Rating
+			}
+			// PATCH 部分更新：content 缺省（nil）时保留原正文；显式空串才清空。
+			if input.Content != nil {
+				if len([]rune(*input.Content)) > ReviewContentMaxLength {
+					return ErrReviewContentTooLong
+				}
+				if err := tx.Table((&course.ReviewEntity{}).TableName()).
+					Where("id = ?", reviewId).
+					Update("content", *input.Content).Error; err != nil {
+					return err
+				}
+			}
+			if input.IsAnonymous != nil {
+				if err := tx.Table((&course.ReviewEntity{}).TableName()).
+					Where("id = ?", reviewId).
+					Update("is_anonymous", *input.IsAnonymous).Error; err != nil {
+					return err
+				}
+			}
+			// 评分变化：CAS 更新（WHERE rating = 旧值），成功才调整 stats delta。
+			if newRating != oldRating {
+				ok, err := course.UpdateReviewRatingFromTx(tx, reviewId, oldRating, newRating)
+				if err != nil {
+					return err
+				}
+				if !ok {
+					return errReviewRatingConflict // 事务回滚后重试
+				}
+				offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+				if err != nil {
+					return err
+				}
+				if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, newRating-oldRating, 0); err != nil {
+					return err
+				}
+				if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, newRating-oldRating, 0); err != nil {
+					return err
+				}
+			}
+			refreshed, err := course.GetReviewTx(tx, reviewId)
+			if err != nil {
 				return err
 			}
-			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, newRating-oldRating, 0); err != nil {
-				return err
-			}
+			payload = buildReviewPayload(refreshed, userId, int64(0))
+			return nil
+		})
+		if err == nil {
+			fillReviewAuthorLabel(&payload, userId)
+			return payload, nil
 		}
-		if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
-			return err
+		if !errors.Is(err, errReviewRatingConflict) {
+			return ReviewPayload{}, err
 		}
-		payload = buildReviewPayload(entity, userId, int64(0))
-		return nil
-	})
-	if err != nil {
-		return ReviewPayload{}, err
 	}
-	fillReviewAuthorLabel(&payload, userId)
-	return payload, nil
+	return ReviewPayload{}, errReviewRatingConflict
 }
 
 // DeleteReview 作者删除评价（隔离窗口语义由 status=deleted 表达，正文保留待清理）。
 // 幂等：已删除（含隔离窗口后的清理）直接成功；仅当评价仍可见时扣减 stats，
 // 避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
+// 状态转换使用 CAS（WHERE status = 旧值）：并发 hide 与 delete 同时到达时，
+// 只有拿到转换权的事务会调整 stats，另一个 RowsAffected=0 直接幂等成功。
 func DeleteReview(userId, reviewId uint64) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity, err := course.GetReviewTx(tx, reviewId)
@@ -212,15 +247,22 @@ func DeleteReview(userId, reviewId uint64) error {
 		if entity.Status == course.ReviewStatusDeleted {
 			return nil
 		}
-		if err := course.UpdateReviewStatusTx(tx, reviewId, course.ReviewStatusDeleted); err != nil {
-			return err
-		}
-		offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+		converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, course.ReviewStatusDeleted)
 		if err != nil {
 			return err
 		}
-		// 仅当评价仍可见时才扣减 stats（隐藏时 SetReviewVisibility 已扣）。
+		if !converted {
+			// 另一事务已并发改变状态（隐藏/删除）；删除语义已由该事务完成，
+			// 当前事务不重复扣减 stats。
+			return nil
+		}
+		// 仅当评价原为可见时才扣减 stats（隐藏时 SetReviewVisibility 已扣）。
+		// 与 SetReviewVisibility 口径一致：无 rating 的评价也扣 review_count。
 		if entity.Status == course.ReviewStatusVisible {
+			offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+			if err != nil {
+				return err
+			}
 			rating := 0
 			if entity.Rating != nil {
 				rating = *entity.Rating
@@ -232,9 +274,16 @@ func DeleteReview(userId, reviewId uint64) error {
 				if err := course.UpsertOfferingStatsTx(tx, offering.Id, -1, -rating, -1); err != nil {
 					return err
 				}
+			} else {
+				if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, 0, -1); err != nil {
+					return err
+				}
+				if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, 0, -1); err != nil {
+					return err
+				}
 			}
 		}
-		return searchservice.EnqueueCourseSearchTask(tx, offering.CourseId)
+		return nil
 	})
 }
 
@@ -262,16 +311,23 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 	})
 }
 
-// ListReviewsByOffering 返回 offering 的可见评价列表（匿名 DTO）。
+// ReviewListMaxItems 评价列表单次返回上限（防止热门课程响应无界；分页由后续 slice 增强）。
+const ReviewListMaxItems = 200
+
+// ListReviewsByOffering 返回 offering 的可见评价列表（匿名 DTO，最多 ReviewListMaxItems 条）。
 func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error) {
 	entities, err := course.ListReviewsByOffering(offeringId)
 	if err != nil {
 		return nil, err
 	}
+	if len(entities) > ReviewListMaxItems {
+		entities = entities[:ReviewListMaxItems]
+	}
 	return listReviewPayloads(entities, viewerId)
 }
 
-// ListReviewsByCourse 返回课程下所有可见 offering 的评价（时间倒序，匿名 DTO）。
+// ListReviewsByCourse 返回课程下所有可见 offering 的评价（时间倒序，匿名 DTO，
+// 最多 ReviewListMaxItems 条）。
 func ListReviewsByCourse(courseId, viewerId uint64) ([]ReviewPayload, error) {
 	offerings, err := course.ListOfferingsByCourse(courseId)
 	if err != nil {
@@ -288,11 +344,17 @@ func ListReviewsByCourse(courseId, viewerId uint64) ([]ReviewPayload, error) {
 	if err != nil {
 		return nil, err
 	}
+	if len(entities) > ReviewListMaxItems {
+		entities = entities[:ReviewListMaxItems]
+	}
 	return listReviewPayloads(entities, viewerId)
 }
 
-// SetReviewVisibility 审核隐藏/恢复评价；与 stats delta 和搜索任务同事务提交。
+// SetReviewVisibility 审核隐藏/恢复评价；与 stats delta 同事务提交。
 // 幂等：状态已为目标值时直接成功。已删除（隔离窗口）的评价不可恢复。
+// 状态转换使用 CAS（WHERE status = 旧值）：并发 hide/delete 双写时只有
+// 拿到转换权的事务调整 stats；CAS 未命中则重新读取，按最新状态决定
+// 幂等成功（已被并发转为目标态）或 404（已被删除）。
 func SetReviewVisibility(reviewId uint64, hidden bool) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity, err := course.GetReviewTx(tx, reviewId)
@@ -309,8 +371,20 @@ func SetReviewVisibility(reviewId uint64, hidden bool) error {
 		if entity.Status == target {
 			return nil
 		}
-		if err := course.UpdateReviewStatusTx(tx, reviewId, target); err != nil {
+		converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, target)
+		if err != nil {
 			return err
+		}
+		if !converted {
+			// 并发状态转换已发生：重新读取，按最新状态判定幂等成功或 404。
+			latest, err := course.GetReviewTx(tx, reviewId)
+			if err != nil {
+				return ErrReviewNotFound
+			}
+			if latest.Status == target {
+				return nil
+			}
+			return ErrReviewNotFound
 		}
 		offering, err := course.GetOfferingTx(tx, entity.OfferingId)
 		if err != nil {
@@ -340,7 +414,7 @@ func SetReviewVisibility(reviewId uint64, hidden bool) error {
 				return err
 			}
 		}
-		return searchservice.EnqueueCourseSearchTask(tx, offering.CourseId)
+		return nil
 	})
 }
 
@@ -423,6 +497,7 @@ func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCoun
 		Id:           entity.Id,
 		OfferingId:   entity.OfferingId,
 		Rating:       entity.Rating,
+		Content:      entity.Content,
 		ContentHtml:  markdown2html.PostMarkdownToHTML(entity.Content),
 		Author:       author,
 		Viewer:       viewer,

@@ -87,3 +87,20 @@ func GetByID(id any) (entity Entity, err error) {
 	err = builder().Where("id = ?", id).First(&entity).Error
 	return
 }
+
+// RecoverStaleRunning 将指定类型前缀下长时间停留在 Running 的任务恢复为 Pending
+// （processed_at 超过 staleAfter 视为进程崩溃残留；正常运行的 worker 会持续
+// 更新 processed_at）。启动时调用一次即可安全回收崩溃遗留任务，
+// 避免任务在 Running 与终态之间永久不可见导致投影更新丢失。
+func RecoverStaleRunning(typePrefix string, staleAfter time.Duration) error {
+	cutoff := time.Now().Add(-staleAfter)
+	return builder().
+		Where("type LIKE ?", typePrefix+"%").
+		Where("status = ?", StatusRunning).
+		Where("processed_at < ?", cutoff).
+		Updates(map[string]any{
+			"status":       StatusPending,
+			"last_error":   "recovered stale running task at startup",
+			"processed_at": time.Now(),
+		}).Error
+}

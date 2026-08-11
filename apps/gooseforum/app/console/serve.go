@@ -101,6 +101,13 @@ func ginServe() {
 	captchaOpt.StartCleanup()
 	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
+	// 启动时回收进程崩溃遗留的 Running 任务（taskQueue 无租约机制，
+	// 崩溃时任务卡在 Running 将永久不可见，投影更新丢失）。
+	// 邮件/文件迁移/导出 worker 共用同一恢复逻辑，各按类型前缀处理。
+	mailservice.RecoverStaleTasks()
+	filemigrateservice.RecoverStaleTasks()
+	dataservice.RecoverStaleTasks()
+	searchservice.RecoverStaleTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务

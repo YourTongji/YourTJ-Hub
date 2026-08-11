@@ -169,10 +169,10 @@ func isRFC3339(raw string) bool {
 // assertReviewItemShape 校验单条评价的结构与 fixture 一致（时间戳只校验 RFC3339 可解析）。
 func assertReviewItemShape(t *testing.T, actual, fixture map[string]any) {
 	t.Helper()
-	if got, want := sortedReviewKeys(actual), "author,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
+	if got, want := sortedReviewKeys(actual), "author,content,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
 		t.Fatalf("review keys = %s, want %s", got, want)
 	}
-	for _, key := range []string{"id", "offeringId", "rating", "contentHtml", "helpfulCount"} {
+	for _, key := range []string{"id", "offeringId", "rating", "content", "contentHtml", "helpfulCount"} {
 		if !reflect.DeepEqual(actual[key], fixture[key]) {
 			t.Fatalf("review %s = %#v, want fixture %#v", key, actual[key], fixture[key])
 		}
@@ -201,7 +201,7 @@ func assertReviewWriteShape(t *testing.T, response contractEnvelope, wantRating 
 	if err := json.Unmarshal(response.Result, &item); err != nil {
 		t.Fatalf("decode review write result %q: %v", response.Result, err)
 	}
-	if got, want := sortedReviewKeys(item), "author,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
+	if got, want := sortedReviewKeys(item), "author,content,contentHtml,createdAt,helpfulCount,id,offeringId,rating,updatedAt,viewer"; got != want {
 		t.Fatalf("review keys = %s, want %s", got, want)
 	}
 	assertNoReviewIdentityKeys(t, item)

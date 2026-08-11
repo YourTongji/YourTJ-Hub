@@ -13,7 +13,6 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"go.yaml.in/yaml/v3"
 	"gorm.io/gorm"
 )
@@ -184,15 +183,45 @@ func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReview
 // validateReviewRows 统计隔离行（dry-run 与真实导入共用同一判定，保证报告一致）。
 // 只读访问数据库（offering 解析），不写库。
 // source 为 reviews manifest 来源标识，offering 解析限定在该来源下（与目录导入同源）。
+// 除行级校验外，同一文件内重复的 offering_external_id 只有第一行可导入，
+// 其余进入隔离区（与目录导入的重复 external id 语义一致），避免第二行
+// 静默覆盖第一行内容、报告却记为 Updated。
 func validateReviewRows(rows []importReviewRow, source string) (quarantined int, errs []ImportError) {
 	db := dbconnect.Connect()
+	dupKeys := duplicateReviewKeys(rows)
 	for _, row := range rows {
 		if reason := reviewRowQuarantined(db, source, row); reason != "" {
 			quarantined++
 			errs = append(errs, ImportError{Entity: "review", Reason: reason})
+			continue
+		}
+		if dupKeys[strings.TrimSpace(row.OfferingExternalID)] {
+			quarantined++
+			errs = append(errs, ImportError{
+				Entity: "review",
+				Reason: fmt.Sprintf("duplicate offering_external_id %q in the same manifest", strings.TrimSpace(row.OfferingExternalID)),
+			})
 		}
 	}
 	return
+}
+
+// duplicateReviewKeys 返回同一文件内重复出现的 offering_external_id 集合
+// （第一行保留，后续行全部进入隔离区）。
+func duplicateReviewKeys(rows []importReviewRow) map[string]bool {
+	seen := make(map[string]struct{}, len(rows))
+	dup := make(map[string]bool)
+	for _, row := range rows {
+		key := strings.TrimSpace(row.OfferingExternalID)
+		if key == "" {
+			continue
+		}
+		if _, ok := seen[key]; ok {
+			dup[key] = true
+		}
+		seen[key] = struct{}{}
+	}
+	return dup
 }
 
 // reviewRowQuarantined 返回该行隔离原因；空串表示可导入。
@@ -218,9 +247,12 @@ func reviewRowQuarantined(db *gorm.DB, source string, row importReviewRow) strin
 }
 
 // applyReviewRows 实际写入：先做行级校验（与 dry-run 一致），每批 500 行一个事务。
+// 同一文件内重复的 offering_external_id 只有第一行可导入，其余隔离
+// （validateReviewRows 已统计），避免第二行静默覆盖第一行内容。
 func applyReviewRows(runID uint64, source string, rows []importReviewRow, report *ReviewsImportReport) error {
 	const batchSize = 500
 	db := dbconnect.Connect()
+	dupKeys := duplicateReviewKeys(rows)
 	for i := 0; i < len(rows); i += batchSize {
 		end := i + batchSize
 		if end > len(rows) {
@@ -231,7 +263,7 @@ func applyReviewRows(runID uint64, source string, rows []importReviewRow, report
 		snapshot := *report
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			for _, row := range batch {
-				if err := applyReviewRow(tx, runID, source, row, report); err != nil {
+				if err := applyReviewRow(tx, runID, source, row, report, dupKeys); err != nil {
 					return err
 				}
 			}
@@ -246,19 +278,23 @@ func applyReviewRows(runID uint64, source string, rows []importReviewRow, report
 
 // applyReviewRow 事务内写入/更新一条 legacy 评价，并 touch 行级 source_ref checksum。
 // 内容未变化（checksum 相同）时跳过，不入队搜索任务。
-func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRow, report *ReviewsImportReport) error {
+func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRow, report *ReviewsImportReport, dupKeys map[string]bool) error {
 	if reason := reviewRowQuarantined(tx, source, row); reason != "" {
 		report.Quarantined++
 		report.Errors = append(report.Errors, ImportError{Entity: "review", Reason: reason})
 		return nil
 	}
+	if dupKeys[strings.TrimSpace(row.OfferingExternalID)] {
+		report.Quarantined++
+		report.Errors = append(report.Errors, ImportError{
+			Entity: "review",
+			Reason: fmt.Sprintf("duplicate offering_external_id %q in the same manifest", strings.TrimSpace(row.OfferingExternalID)),
+		})
+		return nil
+	}
 	offeringLocalID, err := sourceRefLocalID(tx, source, row.OfferingExternalID, course.EntityTypeOffering)
 	if err != nil {
 		return fmt.Errorf("lookup offering source ref %s: %w", row.OfferingExternalID, err)
-	}
-	offering, err := course.GetOfferingTx(tx, offeringLocalID)
-	if err != nil {
-		return fmt.Errorf("load offering %d: %w", offeringLocalID, err)
 	}
 	rating, createdAt, helpful, content := parseReviewRow(row)
 	checksum := rowChecksum(row)
@@ -308,10 +344,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 	if err := touchSourceRef(tx, runID, source, row.OfferingExternalID, reviewID, course.EntityTypeReview, checksum); err != nil {
 		return err
 	}
-	// 该 offering 所属课程需要重建搜索文档（transaction-bound outbox）。
-	if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
-		return fmt.Errorf("enqueue course search task %d: %w", offering.CourseId, err)
-	}
+	// legacy 评价导入不改变课程搜索文档内容（文档不含课评字段），不入队搜索任务。
 	return nil
 }
 

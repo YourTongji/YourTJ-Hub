@@ -34,6 +34,7 @@ abstract class ReviewPayload with _$ReviewPayload {
     required int id,
     required int offeringId,
     int? rating,
+    required String content,
     required String contentHtml,
     required ReviewAuthorPayload author,
     required ReviewViewerPayload viewer,

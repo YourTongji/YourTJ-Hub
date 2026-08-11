@@ -141,12 +141,21 @@ type ListCourseReviewsReq struct {
 }
 
 // ListCourseReviews 返回课程（或指定 offering）的可见评价列表；可选 JWT 提供 viewer 状态。
+// offeringId 路径必须属于 courseId 且可见，否则 404（防止列出隐藏 offering 的评价，
+// 或跨课程指定无归属的 offering）。
 func ListCourseReviews(req component.BetterRequest[ListCourseReviewsReq]) component.Response {
 	var (
 		payloads []courseservice.ReviewPayload
 		err      error
 	)
 	if req.Params.OfferingId > 0 {
+		offering, gErr := course.GetOffering(req.Params.OfferingId)
+		if gErr != nil || offering.Id == 0 ||
+			offering.CourseId != req.Params.CourseId ||
+			offering.Status != course.OfferingStatusVisible {
+			return component.BuildResponse(http.StatusNotFound,
+				component.FailDataCode(component.MessageReviewOfferingNotFound, nil))
+		}
 		payloads, err = courseservice.ListReviewsByOffering(req.Params.OfferingId, req.UserId)
 	} else {
 		payloads, err = courseservice.ListReviewsByCourse(req.Params.CourseId, req.UserId)
@@ -350,6 +359,10 @@ func reviewErrorResponse(err error) component.Response {
 	case errors.Is(err, courseservice.ErrReviewContentEmpty):
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageReviewContentEmpty, nil))
+	case errors.Is(err, courseservice.ErrReviewContentTooLong):
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageReviewContentTooLong,
+				component.MessageParams{"maxLength": courseservice.ReviewContentMaxLength}))
 	default:
 		slog.Error("course_review_write_failed", "error", err)
 		return component.BuildResponse(http.StatusInternalServerError,

@@ -747,7 +747,7 @@ ReviewViewerPayload:
 
 ReviewPayload:
   type: object
-  required: [id, offeringId, rating, contentHtml, author, viewer, helpfulCount, createdAt, updatedAt]
+  required: [id, offeringId, rating, content, contentHtml, author, viewer, helpfulCount, createdAt, updatedAt]
   properties:
     id:
       type: integer
@@ -762,6 +762,9 @@ ReviewPayload:
       minimum: 1
       maximum: 5
       description: Legacy imported reviews may have no rating (null); native reviews are 1..5.
+    content:
+      type: string
+      description: Raw markdown review content; the edit form pre-fills from this field.
     contentHtml:
       type: string
       description: Rendered review content; never the raw markdown.
@@ -813,7 +816,8 @@ ReviewWriteRequest:
     content:
       type: string
       minLength: 1
-      description: Markdown review content; rendered into contentHtml by the server.
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); rendered into contentHtml by the server.
     isAnonymous:
       type: boolean
       default: false
@@ -844,7 +848,8 @@ ReviewUpdateRequest:
       description: Omit (or send null) to keep the current rating.
     content:
       type: string
-      description: Markdown review content; an empty string clears the body while keeping the review.
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); an empty string clears the body while keeping the review.
     isAnonymous:
       type: boolean
       description: Omit to keep the current anonymity setting.
@@ -936,7 +941,7 @@ ModerationCourseReviewReportItem:
     reporter:
       $ref: '#/TopicAuthorPayload'
     handler:
-      $ref: '#/TopicAuthorPayload'
+      $ref: '#/ReportHandlerPayload'
     createdAt:
       type: string
       description: Report creation time in the server's `2006-01-02 15:04:05` format.
@@ -1045,3 +1050,22 @@ TopicAuthorPayload:
       type: [object, 'null']
       description: Present only when the user wears a badge.
   additionalProperties: false
+
+ReportHandlerPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 while the report is still open (no handler assigned yet); a real user id once handled.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+  additionalProperties: false
+  description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.

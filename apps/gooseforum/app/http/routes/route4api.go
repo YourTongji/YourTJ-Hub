@@ -219,7 +219,7 @@ func apiRoute(ginApp *gin.Engine) {
 	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
 	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewStatus))
 	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationCourseReviewReportList))
-	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewReveal))
+	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))

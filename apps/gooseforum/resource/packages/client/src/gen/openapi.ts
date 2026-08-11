@@ -842,7 +842,7 @@ export interface components {
             /** Format: uint64 */
             offeringId: number;
             rating: number;
-            /** @description Markdown review content; rendered into contentHtml by the server. */
+            /** @description Markdown review content (max 50000 runes); rendered into contentHtml by the server. */
             content: string;
             /**
              * @description When true, the review is displayed without any author identity.
@@ -857,7 +857,7 @@ export interface components {
         ReviewUpdateRequest: {
             /** @description Omit (or send null) to keep the current rating. */
             rating?: number | null;
-            /** @description Markdown review content; an empty string clears the body while keeping the review. */
+            /** @description Markdown review content (max 50000 runes); an empty string clears the body while keeping the review. */
             content?: string;
             /** @description Omit to keep the current anonymity setting. */
             isAnonymous?: boolean;
@@ -907,7 +907,7 @@ export interface components {
             /** @description Trimmed review content (120 runes) or a */
             excerpt: string;
             reporter: components["schemas"]["TopicAuthorPayload"];
-            handler: components["schemas"]["TopicAuthorPayload"];
+            handler: components["schemas"]["ReportHandlerPayload"];
             /** @description Report creation time in the server's `2006-01-02 15:04:05` format. */
             createdAt: string;
             /** @description Handling time in the server's `2006-01-02 15:04:05` format; present only when the report has been handled. */
@@ -996,6 +996,18 @@ export interface components {
             expiresAt: number;
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
+        };
+        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
+        ReportHandlerPayload: {
+            /**
+             * Format: uint64
+             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
+             */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
         };
     };
     responses: never;
@@ -2201,6 +2213,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Identity-reveal rate limit exceeded (1h window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

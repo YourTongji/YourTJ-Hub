@@ -11,6 +11,7 @@ import (
 	"math"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"time"
 
@@ -135,7 +136,12 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 			report.Skipped = 1 // 幂等：该 manifest 已导入完成
 			return report, nil
 		case err == nil:
-			// 复用失败的 run：重置为 running，行级 checksum 幂等负责断点续跑。
+			// 复用 failed 或 stale（running 超时，如进程崩溃残留）的 run：
+			// 重置为 running，行级 checksum 幂等负责断点续跑。
+			// running 且未超时视为"另一进程正在跑"，不抢（计数器竞争）。
+			if existing.Status == course.ImportStatusRunning && !importRunStale(existing) {
+				return nil, fmt.Errorf("import run %d is still running (started %s)", existing.Id, existing.StartedAt.Format(time.RFC3339))
+			}
 			run = existing
 			run.Status = course.ImportStatusRunning
 			run.StartedAt = &now
@@ -189,7 +195,15 @@ type importRows struct {
 // 文件路径相对 manifest 所在目录解析，拒绝绝对路径与父目录引用。
 func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows, error) {
 	var rows importRows
-	for name, wantSum := range manifest.Files {
+	// manifest.Files 是 map，迭代顺序随机；按文件名排序保证多 JSONL 文件
+	// 的处理顺序确定（重复行"谁被隔离"在 dry-run 与真实导入间一致）。
+	names := make([]string, 0, len(manifest.Files))
+	for name := range manifest.Files {
+		names = append(names, name)
+	}
+	sort.Strings(names)
+	for _, name := range names {
+		wantSum := manifest.Files[name]
 		if filepath.IsAbs(name) || strings.Contains(name, "..") {
 			return rows, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
 		}
@@ -462,7 +476,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 			"normalized_name": entity.NormalizedName,
 			"name_pinyin":     entity.NamePinyin,
 			"name_initials":   entity.NameInitials,
-			"status":          entity.Status,
+			// 注意：更新路径不写 status——管理员隐藏的课程不能被重导静默复活。
 		}).Error; err != nil {
 			return fmt.Errorf("update course %s (id %d): %w", code, ref.LocalId, err)
 		}
@@ -480,7 +494,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 				"normalized_name": entity.NormalizedName,
 				"name_pinyin":     entity.NamePinyin,
 				"name_initials":   entity.NameInitials,
-				"status":          entity.Status,
+				// 更新路径不写 status，避免复活管理员隐藏的课程。
 			}).Error; err != nil {
 				return fmt.Errorf("update course %s: %w", code, err)
 			}
@@ -511,7 +525,20 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 				report.Quarantined++
 				continue
 			}
-			continue // 同课程已存在
+			// 同课程已存在：若此前被软删（唯一索引仍占位），恢复该行
+			// 并更新 value/source，避免后续重新创建时撞唯一键。
+			if existingAlias.DeletedAt.Valid {
+				if err := tx.Unscoped().Model(&course.AliasEntity{}).
+					Where("id = ?", existingAlias.Id).
+					Updates(map[string]any{
+						"value":      alias,
+						"source":     row.ID,
+						"deleted_at": nil,
+					}).Error; err != nil {
+					return fmt.Errorf("restore alias %q: %w", alias, err)
+				}
+			}
+			continue
 		}
 		if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return fmt.Errorf("lookup alias %q: %w", alias, err)
@@ -528,7 +555,9 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 		}
 	}
 	// 移除该来源行此前导入、本次已删除的别名（source 字段记录外部课程 ID）。
-	reconcile := tx.Model(&course.AliasEntity{}).
+	// 物理删除：软删行仍占据唯一索引 (kind, normalized_value)，后续 manifest
+	// 重新添加同一 alias 会撞唯一键；物理删除让 remove→re-add 生命周期可用。
+	reconcile := tx.Unscoped().Model(&course.AliasEntity{}).
 		Where("course_id = ? AND kind = ? AND source = ?", entity.Id, course.AliasKindName, row.ID)
 	if len(normSet) > 0 {
 		reconcile = reconcile.Where("normalized_value NOT IN ?", mapKeys(normSet))
@@ -550,7 +579,8 @@ func applyInstructorRow(tx *gorm.DB, runID uint64, source string, row importInst
 		return nil
 	}
 	checksum := rowChecksum(row)
-	if ref, err := sourceRefByExternal(tx, source, row.ID, course.EntityTypeInstructor); err == nil && ref.Checksum == checksum {
+	ref, refErr := sourceRefByExternal(tx, source, row.ID, course.EntityTypeInstructor)
+	if refErr == nil && ref.Checksum == checksum {
 		report.Skipped++
 		return nil
 	}
@@ -558,39 +588,66 @@ func applyInstructorRow(tx *gorm.DB, runID uint64, source string, row importInst
 	pinyin, initials := searchservice.PinyinFields(name)
 	norm := Normalize(name)
 	dept := row.Department
-	existing, err := course.FindInstructorByNameDeptTx(tx, norm, dept)
-	if err == nil {
-		updates := map[string]any{
-			"name":            name,
-			"normalized_name": norm,
-			"name_pinyin":     pinyin,
-			"name_initials":   initials,
-			"department":      dept,
-			"title":           row.Title,
-		}
-		if err := tx.Model(&course.InstructorEntity{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
-			return fmt.Errorf("update instructor %s: %w", name, err)
+	updates := map[string]any{
+		"name":            name,
+		"normalized_name": norm,
+		"name_pinyin":     pinyin,
+		"name_initials":   initials,
+		"department":      dept,
+		"title":           row.Title,
+	}
+	var instructorID uint64
+	switch {
+	case refErr == nil:
+		// source_ref 提供稳定 external id：教师改名/转院时优先按 LocalId 更新，
+		// 避免按 (name, dept) 自然键找不到而创建新教师、旧教师成孤儿。
+		instructorID = ref.LocalId
+		if err := tx.Model(&course.InstructorEntity{}).Where("id = ?", instructorID).Updates(updates).Error; err != nil {
+			return fmt.Errorf("update instructor %s (id %d): %w", name, instructorID, err)
 		}
 		report.Updated++
-		return touchSourceRef(tx, runID, source, row.ID, existing.Id, course.EntityTypeInstructor, checksum)
+	case errors.Is(refErr, gorm.ErrRecordNotFound):
+		// 兼容旧导入数据：按自然键查找；找不到则创建。
+		existing, err := course.FindInstructorByNameDeptTx(tx, norm, dept)
+		if err == nil {
+			instructorID = existing.Id
+			if err := tx.Model(&course.InstructorEntity{}).Where("id = ?", instructorID).Updates(updates).Error; err != nil {
+				return fmt.Errorf("update instructor %s: %w", name, err)
+			}
+			report.Updated++
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return fmt.Errorf("lookup instructor %s: %w", name, err)
+		} else {
+			entity := course.InstructorEntity{
+				Name:           name,
+				NormalizedName: norm,
+				NamePinyin:     pinyin,
+				NameInitials:   initials,
+				Department:     dept,
+				Title:          row.Title,
+				Status:         0,
+			}
+			if err := tx.Model(&course.InstructorEntity{}).Create(&entity).Error; err != nil {
+				return fmt.Errorf("create instructor %s: %w", name, err)
+			}
+			instructorID = entity.Id
+			report.Inserted++
+		}
+	default:
+		return fmt.Errorf("lookup instructor source ref %s: %w", row.ID, refErr)
 	}
-	if !errors.Is(err, gorm.ErrRecordNotFound) {
-		return fmt.Errorf("lookup instructor %s: %w", name, err)
+	// 教师变更（改名/转院）会改变课程搜索文档的 instructors 字段：
+	// fan-out 到所有引用该教师的可见 offering 所属课程，同事务入队重建。
+	courseIDs, err := course.ListCourseIDsByInstructorTx(tx, instructorID)
+	if err != nil {
+		return fmt.Errorf("list courses of instructor %d: %w", instructorID, err)
 	}
-	entity := course.InstructorEntity{
-		Name:           name,
-		NormalizedName: norm,
-		NamePinyin:     pinyin,
-		NameInitials:   initials,
-		Department:     dept,
-		Title:          row.Title,
-		Status:         0,
+	for _, cid := range courseIDs {
+		if err := searchservice.EnqueueCourseSearchTask(tx, cid); err != nil {
+			return fmt.Errorf("enqueue course search task %d: %w", cid, err)
+		}
 	}
-	if err := tx.Model(&course.InstructorEntity{}).Create(&entity).Error; err != nil {
-		return fmt.Errorf("create instructor %s: %w", name, err)
-	}
-	report.Inserted++
-	return touchSourceRef(tx, runID, source, row.ID, entity.Id, course.EntityTypeInstructor, checksum)
+	return touchSourceRef(tx, runID, source, row.ID, instructorID, course.EntityTypeInstructor, checksum)
 }
 
 func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferingRow, report *CatalogImportReport) error {
@@ -627,18 +684,28 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 			return fmt.Errorf("load existing offering %d: %w", existingRef.LocalId, err)
 		}
 		// 课程修正也一并更新，防止 offering 挂在旧课程上。
+		// 注意：更新路径不写 status——管理员隐藏的 offering 不能被重导静默复活。
 		updates := map[string]any{
 			"course_id": courseLocalID,
 			"term_id":   termEntity.Id,
 			"campus":    row.Campus,
 			"faculty":   row.Faculty,
-			"status":    course.OfferingStatusVisible,
 		}
 		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
 			return fmt.Errorf("update offering %d: %w", offering.Id, err)
 		}
 		if err := replaceOfferingInstructorsTx(tx, offering.Id, instructorLocalIDs); err != nil {
 			return err
+		}
+		// offering 的 term/campus/教师/所属课程变化会改变课程搜索文档的
+		// terms/campus/instructors 字段：新旧课程都入队重建。
+		if offering.CourseId != courseLocalID {
+			if err := searchservice.EnqueueCourseSearchTask(tx, offering.CourseId); err != nil {
+				return fmt.Errorf("enqueue old course search task %d: %w", offering.CourseId, err)
+			}
+		}
+		if err := searchservice.EnqueueCourseSearchTask(tx, courseLocalID); err != nil {
+			return fmt.Errorf("enqueue course search task %d: %w", courseLocalID, err)
 		}
 		report.Updated++
 		return touchSourceRef(tx, runID, source, row.ID, offering.Id, course.EntityTypeOffering, checksum)
@@ -743,4 +810,13 @@ func touchSourceRef(tx *gorm.DB, runID uint64, source, externalID string, localI
 		Checksum:    checksum,
 	}
 	return tx.Model(&course.SourceRefEntity{}).Create(&entity).Error
+}
+
+// importRunStale 判断 running 态 run 是否已超时（进程崩溃残留）。
+// 超过 1 小时视为 stale，可安全复用；未超时视为另一进程正在跑。
+func importRunStale(run course.ImportRunEntity) bool {
+	if run.StartedAt == nil {
+		return true // 无开始时间视为残留
+	}
+	return time.Since(*run.StartedAt) > time.Hour
 }

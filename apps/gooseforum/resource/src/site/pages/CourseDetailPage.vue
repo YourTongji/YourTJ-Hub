@@ -87,7 +87,9 @@ function startEdit(review: ReviewPayload) {
   editingReviewId.value = review.id
   formOfferingId.value = review.offeringId
   formRating.value = review.rating ?? 0
-  formContent.value = ''
+  // 预填原始 Markdown 正文：列表 DTO 携带 content 字段（服务端返回），
+  // 用户只改评分/匿名时不会因正文为空而被迫重写或不可逆覆盖原文。
+  formContent.value = review.content ?? ''
   formAnonymous.value = review.author.kind === 'anonymous'
   formError.value = ''
   formVisible.value = true
@@ -458,6 +460,7 @@ onMounted(loadReviews)
               {{ t('courseDetailPage.delete') }}
             </button>
             <button
+              v-if="page.layout.viewer.isAuthenticated && !review.viewer.canEdit"
               type="button"
               class="gf-button gf-button-sm gf-button-ghost ml-auto"
               @click="openReport(review)"

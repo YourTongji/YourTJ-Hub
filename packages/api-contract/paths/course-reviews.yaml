@@ -595,6 +595,18 @@ moderationCourseReviewReveal:
                 externalValue: ../fixtures/course-review-permission-denied.json
               notFound:
                 externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Identity-reveal rate limit exceeded (1h window).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

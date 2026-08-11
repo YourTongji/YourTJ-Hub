@@ -1030,6 +1030,7 @@ export interface ReviewPayload {
   id: number
   offeringId: number
   rating: number | null
+  content: string
   contentHtml: string
   author: ReviewAuthorPayload
   viewer: ReviewViewerPayload

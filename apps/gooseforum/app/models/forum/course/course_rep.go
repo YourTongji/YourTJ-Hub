@@ -177,7 +177,7 @@ func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err erro
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.Eq("course_offering.course_id", courseId)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("COALESCE(course_term.starts_on, course_term.code) DESC, course_offering.id ASC").
+		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
@@ -192,7 +192,7 @@ func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err 
 		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
 		Where(queryopt.In("course_offering.course_id", courseIds)).
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
-		Order("course_offering.course_id ASC, COALESCE(course_term.starts_on, course_term.code) DESC, course_offering.id ASC").
+		Order("course_offering.course_id ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
 		Find(&entities).Error
 	return
 }
