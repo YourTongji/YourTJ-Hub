@@ -15,7 +15,6 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 )
 
@@ -87,9 +86,10 @@ func Decrypt(encoded string) (string, error) {
 // invalidate TOTP secrets mid-flight.
 func deriveKey() ([]byte, error) {
 	keyOnce.Do(func() {
-		// 兜底统一引用 jwtopt.DefaultSigningKey，避免两处重复的公开常量漂移；
-		// serve 启动检查已拒绝默认密钥，生产环境实际使用的是用户配置的密钥。
-		signingKey := preferences.GetString("app.signingKey", jwtopt.DefaultSigningKey)
+		// fail-closed: 不再回退到 jwtopt.DefaultSigningKey。serve 启动守卫已
+		// 拒绝空值与已知坏值，进程进入到这里时 app.signingKey 必定有效；
+		// 兜底再校验一次空值，防御性编程。
+		signingKey := preferences.GetString("app.signingKey")
 		if signingKey == "" {
 			keyErr = errors.New("securestore: empty signing key")
 			return

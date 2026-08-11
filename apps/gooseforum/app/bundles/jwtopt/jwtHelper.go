@@ -17,19 +17,48 @@ import (
 var (
 	once       sync.Once
 	std        *JWT
-	signingKey = preferences.Get("app.signingKey", DefaultSigningKey)
+	signingKey = preferences.GetString("app.signingKey")
 	validTime  = time.Duration(preferences.GetInt64("jwtopt.validTime", 86400*7)) * time.Second
 )
 
-// DefaultSigningKey is the built-in fallback when app.signingKey is missing.
-// It must never be used in production: it is public in the source tree, so an
-// attacker could forge JWTs and decrypt TOTP secrets with it.
+// DefaultSigningKey is the legacy built-in fallback that was used when
+// app.signingKey was missing. It is kept here ONLY as a known-bad value to
+// reject: it is public in the source tree, so any deployment still using it
+// lets an attacker forge JWTs and decrypt TOTP secrets. The fail-closed
+// startup guard refuses to serve with this value (see SigningKeyProblem).
 const DefaultSigningKey = "mq+ZeGafL+b1xdC0u9vSVg=="
 
-// IsSigningKeyDefault reports whether the configured signing key is still the
-// built-in fallback. Callers should refuse to serve when this is true.
-func IsSigningKeyDefault() bool {
-	return signingKey == DefaultSigningKey
+// knownBadSigningKeys lists values the JWT signing key must NEVER take: the
+// legacy built-in default (public in the source tree) and the deploy template
+// placeholder shipped in deploy/config.toml.example. serve refuses to start
+// with any of them.
+var knownBadSigningKeys = map[string]string{
+	DefaultSigningKey:     "built-in default signing key",
+	"REPLACE_SIGNING_KEY": "deploy template placeholder signing key",
+}
+
+// SigningKeyProblem returns a human-readable reason when the configured JWT
+// signing key is unsafe to use, or "" when it is acceptable. It validates the
+// exact value captured at process start (the same value Std() signs with):
+// empty / whitespace-only keys and known-bad values are rejected. Callers
+// (the serve startup guard) must refuse to start when this returns non-empty.
+func SigningKeyProblem() string {
+	return SigningKeyProblemFor(signingKey)
+}
+
+// SigningKeyProblemFor applies the same weak-key policy as SigningKeyProblem
+// to an arbitrary candidate value. It is exported so other packages that derive
+// secrets from app.signingKey (tokenservice reset/activation tokens,
+// securestore TOTP key) can share one fail-closed policy instead of each
+// re-implementing the known-bad list. Returns "" when key is acceptable.
+func SigningKeyProblemFor(key string) string {
+	if strings.TrimSpace(key) == "" {
+		return "empty signing key"
+	}
+	if reason, bad := knownBadSigningKeys[key]; bad {
+		return reason
+	}
+	return ""
 }
 
 // Purpose values for scoped tokens.

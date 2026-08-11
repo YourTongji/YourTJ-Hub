@@ -133,7 +133,7 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
-	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
+	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
 

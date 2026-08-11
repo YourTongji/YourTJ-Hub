@@ -77,6 +77,16 @@
   opaque access tokens at the userinfo endpoint). Ordinary logout deletes the current session row as
   well, and fails loudly when the revoke errors (no silently surviving token).
 - Password change: `TokenVersion` bumps, invalidating old tokens and OIDC access tokens.
+- Password reset (forgot/reset password): `Current`. The reset link is a short-lived
+  signed JWT whose claims bind `userId + email + TokenVersion` at issue time; the reset
+  endpoint re-checks all three against the live user row, so a link stops working the
+  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Both
+  `forgot-password` (token issuance) and `reset-password` (token confirmation) are
+  IP-rate-limited; `forgot-password` additionally enforces captcha and a 24-hour
+  email-change cooldown, and a link minted under a previous signing key cannot validate
+  after a key rotation. The signing key is fail-closed: `serve` refuses to boot with an
+  empty, built-in default, or `REPLACE_SIGNING_KEY` value, and password-reset/activation
+  tokens refuse to sign or parse under such a key (issue #106).
 - Email change: `Current` for password accounts; the current password is verified before any write,
   the old address receives a notification, and password reset is suppressed for 24 hours after the
   change. OAuth-only self-service email change is `Partial`: the API and Web/Mobile clients return a
