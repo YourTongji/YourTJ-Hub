@@ -1,0 +1,67 @@
+name: sync-project-board
+
+# 把 issue / PR 自动同步到 GitHub Projects v2 看板（RPD 状态机）。
+# 配置依赖见 docs/development/project-board.md：
+#   - secret:   YOURTJ_PROJECT_TOKEN   具备 read:project / write:project 的 token
+#   - variable: YOURTJ_PROJECT_NUMBER  看板项目号（必填）
+#   - variable: YOURTJ_PROJECT_OWNER   看板属主（可选，默认 YourTongji）
+# 未配置 token 时 job 自动跳过，不产生失败噪音。
+
+on:
+  issues:
+    types: [opened, reopened, labeled, closed]
+  pull_request:
+    types: [opened, reopened, ready_for_review, labeled, closed]
+  # 手动同步入口：填 issue/PR 号即可把它加入看板并设置状态。
+  workflow_dispatch:
+    inputs:
+      item_kind:
+        description: "要同步的条目类型"
+        required: true
+        default: "issue"
+        type: choice
+        options:
+          - issue
+          - pr
+      item_number:
+        description: "issue / PR 编号"
+        required: true
+        type: string
+      event:
+        description: "模拟的事件（决定状态列）：closed 表示已完成，其余走默认状态机"
+        required: false
+        default: "manual"
+        type: choice
+        options:
+          - manual
+          - opened
+          - closed
+          - ready_for_review
+
+permissions:
+  contents: read
+
+concurrency:
+  group: project-board-sync
+  cancel-in-progress: false
+
+jobs:
+  sync:
+    name: Sync to project board
+    runs-on: ubuntu-latest
+    env:
+      GH_TOKEN: ${{ secrets.YOURTJ_PROJECT_TOKEN }}
+      PROJECT_OWNER: ${{ vars.YOURTJ_PROJECT_OWNER || 'YourTongji' }}
+      PROJECT_NUMBER: ${{ vars.YOURTJ_PROJECT_NUMBER }}
+      ITEM_KIND: ${{ (github.event_name == 'pull_request' && 'pr') || (github.event_name == 'issues' && 'issue') || inputs.item_kind }}
+      ITEM_NUMBER: ${{ (github.event_name == 'pull_request' && github.event.number) || (github.event_name == 'issues' && github.event.issue.number) || inputs.item_number }}
+      EVENT: ${{ github.event.action || inputs.event }}
+      LABELS: ${{ (github.event_name == 'issues' && join(github.event.issue.labels.*.name, ',')) || (github.event_name == 'pull_request' && join(github.event.pull_request.labels.*.name, ',')) || '' }}
+    steps:
+      - uses: actions/checkout@v4
+        # fork PR 默认拿不到 secret 会自跳；此守卫是纵深防御：即便仓库配置了
+        # "send secrets to fork PRs"，也绝不执行来自 fork 的脚本。
+        if: ${{ env.GH_TOKEN != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+      - name: Run project board sync
+        if: ${{ env.GH_TOKEN != '' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository) }}
+        run: bash .github/scripts/sync-project-board.sh
