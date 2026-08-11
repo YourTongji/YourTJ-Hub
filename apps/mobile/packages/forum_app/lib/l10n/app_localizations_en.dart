@@ -187,6 +187,10 @@ class AppLocalizationsEn extends AppLocalizations {
       'Failed to clear the previous account\'s offline data. Please retry.';
 
   @override
+  String get authSessionSaveFailed =>
+      'Failed to save the new session securely. Please retry.';
+
+  @override
   String get loginWelcome => 'Welcome back to yourtj';
 
   @override

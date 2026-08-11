@@ -422,6 +422,12 @@ abstract class AppLocalizations {
   /// **'Failed to clear the previous account\'s offline data. Please retry.'**
   String get authCacheClearFailed;
 
+  /// No description provided for @authSessionSaveFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to save the new session securely. Please retry.'**
+  String get authSessionSaveFailed;
+
   /// No description provided for @loginWelcome.
   ///
   /// In en, this message translates to:

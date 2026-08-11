@@ -45,18 +45,17 @@ class MemTokenStorage implements TokenStorage {
   Future<void> clear() async => _token = null;
 }
 
-/// clear() 抛异常的 TokenStorage(登录失败路径的 fail-closed 断言)。
-class ThrowingClearTokenStorage implements TokenStorage {
-  String? _token;
+/// write() 抛异常的真实 TokenStorage(安全存储提交失败断言)。
+class ThrowingWriteTokenStorage implements TokenStorage {
+  @override
+  Future<String?> read() async => null;
 
   @override
-  Future<String?> read() async => _token;
+  Future<void> write(String token) async =>
+      throw StateError('secure storage unavailable');
 
   @override
-  Future<void> write(String token) async => _token = token;
-
-  @override
-  Future<void> clear() async => throw StateError('secure storage unavailable');
+  Future<void> clear() async {}
 }
 
 /// 构造携带指定 UserId 的伪 JWT(header.payload.sig,payload 为 base64url JSON)。
@@ -174,6 +173,37 @@ class ThrowingCache implements OfflineTopicCache, OfflineChatCache {
 
   @override
   Future<void> close() async {}
+}
+
+/// clear() 等待测试放行的缓存,用于证明真实 token 只能在清库完成后提交。
+class GatedClearCache extends NoopCache {
+  final clearStarted = Completer<void>();
+  final allowClear = Completer<void>();
+
+  @override
+  Future<void> clear() async {
+    if (!clearStarted.isCompleted) clearStarted.complete();
+    await allowClear.future;
+  }
+}
+
+/// fetch 总是失败(无令牌离线回退门槛断言)。
+class FailingPageRepository extends PageRepository {
+  FailingPageRepository(super.client);
+
+  @override
+  Future<PagePayload> fetch(String path) async =>
+      throw StateError('network down');
+}
+
+/// getConversations 返回预置数据的会话缓存(无令牌回退门槛断言)。
+class SeededConversationCache extends NoopCache {
+  SeededConversationCache(this.conversations);
+
+  final List<ChatItemPayload> conversations;
+
+  @override
+  Future<List<ChatItemPayload>> getConversations() async => conversations;
 }
 
 /// 记录 putConversations 调用次数的会话缓存(在途写回断言)。
@@ -1124,8 +1154,9 @@ void main() {
     OfflineTopicCache? topicCache,
     OfflineChatCache? chatCache,
     int? currentUserId,
+    TokenStorage? tokenStorage,
   }) async {
-    final storage = MemTokenStorage()..write('token');
+    final storage = tokenStorage ?? (MemTokenStorage()..write('token'));
     final client = GfApiClient(
       dio: Dio(),
       tokenStorage: storage,
@@ -2550,19 +2581,20 @@ void main() {
     testWidgets('缓存清理失败时登录被阻止并提示重试', (tester) async {
       final topicCache = ThrowingCache();
       final chatCache = ThrowingCache();
-      final storage = MemTokenStorage();
+      final realStorage = MemTokenStorage();
+      final stagedStorage = MemTokenStorage();
       final client = GfApiClient(
         dio: Dio(),
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
         baseUrl: 'http://fake.local',
       );
       final controller = InstantLoginController(
         apiClient: client,
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
       );
       final container = ProviderContainer(
         overrides: [
-          tokenStorageProvider.overrideWithValue(storage),
+          tokenStorageProvider.overrideWithValue(realStorage),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -2573,7 +2605,10 @@ void main() {
         routes: [
           GoRoute(
             path: '/login',
-            builder: (_, _) => LoginPage(authController: controller),
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
           ),
           GoRoute(
             path: '/',
@@ -2601,7 +2636,8 @@ void main() {
 
       expect(router.state.uri.path, '/login', reason: '上一账号缓存清理失败时不得放行登录');
       expect(find.text('清除上一账号离线数据失败,请重试'), findsOneWidget);
-      expect(await storage.read(), isNull, reason: '缓存清理失败应丢弃已持久化的新令牌');
+      expect(await realStorage.read(), isNull, reason: '缓存清理失败前新令牌从未进入真实安全存储');
+      expect(await stagedStorage.read(), isNull, reason: '失败后应丢弃内存中的暂存令牌');
       // 返回按钮被拦截,无法回到 401 保留的旧 shell。
       await tester.tap(find.byTooltip('返回'));
       await tester.pumpAndSettle();
@@ -2611,19 +2647,20 @@ void main() {
     testWidgets('缓存清理成功后登录放行并离开登录页', (tester) async {
       final topicCache = RecordingCache();
       final chatCache = RecordingCache();
-      final storage = MemTokenStorage();
+      final realStorage = MemTokenStorage();
+      final stagedStorage = MemTokenStorage();
       final client = GfApiClient(
         dio: Dio(),
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
         baseUrl: 'http://fake.local',
       );
       final controller = InstantLoginController(
         apiClient: client,
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
       );
       final container = ProviderContainer(
         overrides: [
-          tokenStorageProvider.overrideWithValue(storage),
+          tokenStorageProvider.overrideWithValue(realStorage),
           offlineTopicCacheProvider.overrideWithValue(topicCache),
           offlineChatCacheProvider.overrideWithValue(chatCache),
         ],
@@ -2634,7 +2671,10 @@ void main() {
         routes: [
           GoRoute(
             path: '/login',
-            builder: (_, _) => LoginPage(authController: controller),
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
           ),
           GoRoute(
             path: '/',
@@ -2661,11 +2701,73 @@ void main() {
       await tester.pumpAndSettle();
 
       expect(router.state.uri.path, '/', reason: '清理成功应放行登录');
+      expect(await realStorage.read(), 'session-token', reason: '清库成功后才提交真实会话');
+      expect(await stagedStorage.read(), isNull, reason: '提交后清除暂存令牌');
       expect(
         topicCache.clears + chatCache.clears,
         2,
         reason: '登录页应清空话题与私信离线缓存',
       );
+    });
+
+    testWidgets('缓存清理完成前新令牌不会进入真实安全存储', (tester) async {
+      final gatedCache = GatedClearCache();
+      final realStorage = MemTokenStorage();
+      final stagedStorage = MemTokenStorage();
+      final authClient = GfApiClient(
+        dio: Dio(),
+        tokenStorage: stagedStorage,
+        baseUrl: 'http://fake.local',
+      );
+      final controller = InstantLoginController(
+        apiClient: authClient,
+        tokenStorage: stagedStorage,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(realStorage),
+          offlineTopicCacheProvider.overrideWithValue(gatedCache),
+          offlineChatCacheProvider.overrideWithValue(NoopCache()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/login',
+        routes: [
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
+          ),
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('home-page'))),
+          ),
+        ],
+      );
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pump();
+      await gatedCache.clearStarted.future;
+
+      await tester.enterText(find.byType(TextField).at(0), 'alice');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pump();
+
+      expect(await realStorage.read(), isNull, reason: '旧缓存仍未清完时不得持久化新会话');
+      expect(router.state.uri.path, '/login');
+      final GfButton submitButton = tester.widget<GfButton>(
+        find.widgetWithText(GfButton, '登录账号'),
+      );
+      expect(submitButton.loading, isTrue, reason: '缓存清理/会话提交期间按钮应禁用,防止重复提交');
+
+      gatedCache.allowClear.complete();
+      await tester.pumpAndSettle();
+      expect(await realStorage.read(), 'session-token');
+      expect(router.state.uri.path, '/');
     });
 
     testWidgets('会话失效后在途的会话列表响应不写回离线缓存', (tester) async {
@@ -2700,21 +2802,27 @@ void main() {
     });
 
     testWidgets('A 加载消息→401→B 登录→B 刷新失败:不可见 A 数据', (tester) async {
+      final realStorage = MemTokenStorage()..write('a-token');
+      final stagedStorage = MemTokenStorage();
       final client = GfApiClient(
         dio: Dio(),
-        tokenStorage: MemTokenStorage(),
+        tokenStorage: realStorage,
         baseUrl: 'http://fake.local',
       );
       final pageRepo = FailAfterFirstMessagesRepository(client);
-      final storage = MemTokenStorage()..write('a-token');
       final controller = InstantLoginController(
-        apiClient: client,
-        tokenStorage: storage,
+        apiClient: GfApiClient(
+          dio: Dio(),
+          tokenStorage: stagedStorage,
+          baseUrl: 'http://fake.local',
+        ),
+        tokenStorage: stagedStorage,
       );
       final container = await makeContainer(
         pageRepo: pageRepo,
         chatCache: RecordingCache(),
         topicCache: RecordingCache(),
+        tokenStorage: realStorage,
       );
       final router = GoRouter(
         initialLocation: '/',
@@ -2762,7 +2870,10 @@ void main() {
           ),
           GoRoute(
             path: '/login',
-            builder: (_, _) => LoginPage(authController: controller),
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
           ),
         ],
       );
@@ -2799,24 +2910,22 @@ void main() {
       await tester.pumpWidget(const SizedBox.shrink());
     });
 
-    testWidgets('TokenStorage.clear() 抛异常时登录仍被阻止(fail-closed)', (tester) async {
-      final topicCache = ThrowingCache();
-      final chatCache = ThrowingCache();
-      final storage = ThrowingClearTokenStorage();
+    testWidgets('真实安全存储写入失败时不进入 shell', (tester) async {
+      final stagedStorage = MemTokenStorage();
       final client = GfApiClient(
         dio: Dio(),
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
         baseUrl: 'http://fake.local',
       );
       final controller = InstantLoginController(
         apiClient: client,
-        tokenStorage: storage,
+        tokenStorage: stagedStorage,
       );
       final container = ProviderContainer(
         overrides: [
-          tokenStorageProvider.overrideWithValue(storage),
-          offlineTopicCacheProvider.overrideWithValue(topicCache),
-          offlineChatCacheProvider.overrideWithValue(chatCache),
+          tokenStorageProvider.overrideWithValue(ThrowingWriteTokenStorage()),
+          offlineTopicCacheProvider.overrideWithValue(RecordingCache()),
+          offlineChatCacheProvider.overrideWithValue(RecordingCache()),
         ],
       );
       addTearDown(container.dispose);
@@ -2825,7 +2934,10 @@ void main() {
         routes: [
           GoRoute(
             path: '/login',
-            builder: (_, _) => LoginPage(authController: controller),
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
           ),
           GoRoute(
             path: '/',
@@ -2834,100 +2946,111 @@ void main() {
           ),
         ],
       );
-      await tester.pumpWidget(
-        UncontrolledProviderScope(
-          container: container,
-          child: MaterialApp.router(
-            routerConfig: router,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            supportedLocales: AppLocalizations.supportedLocales,
-            locale: const Locale('zh'),
-          ),
-        ),
-      );
+      await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
       await tester.enterText(find.byType(TextField).at(0), 'alice');
       await tester.enterText(find.byType(TextField).at(1), 'secret');
       await tester.tap(find.widgetWithText(GfButton, '登录账号'));
       await tester.pumpAndSettle();
 
-      // clear() 抛异常:仍必须 fail-closed,不得带着新令牌进入应用。
-      expect(
-        router.state.uri.path,
-        '/login',
-        reason: 'TokenStorage.clear() 抛异常时不得放行登录',
-      );
-      expect(find.text('清除上一账号离线数据失败,请重试'), findsOneWidget);
+      expect(router.state.uri.path, '/login');
+      expect(find.text('安全保存新会话失败,请重试'), findsOneWidget);
+      expect(await stagedStorage.read(), isNull, reason: '提交失败后不得保留暂存令牌');
       await tester.tap(find.byTooltip('返回'));
       await tester.pumpAndSettle();
-      expect(
-        router.state.uri.path,
-        '/login',
-        reason: 'TokenStorage.clear() 抛异常时禁止返回旧 shell',
-      );
+      expect(router.state.uri.path, '/login', reason: '提交结果不确定时禁止返回旧 shell');
     });
 
-    testWidgets('跨重启门禁:标记存在时启动/导航均被强制留在登录页', (tester) async {
-      // 模拟上次会话缓存清理失败且令牌残留:持久化标记已置位,
-      // 且本次进入登录页的清理仍失败(ThrowingCache),标记保持。
-      SharedPreferences.setMockInitialValues(<String, Object>{
-        pendingCacheClearKey: true,
-      });
-      await initStartupGate();
-      addTearDown(() async {
-        SharedPreferences.setMockInitialValues(<String, Object>{});
-        await initStartupGate();
-      });
-
-      final storage = MemTokenStorage()..write(_jwtForUser(1));
+    testWidgets('无令牌时离线回退不渲染上一账号残留会话', (tester) async {
       final client = GfApiClient(
         dio: Dio(),
-        tokenStorage: storage,
+        tokenStorage: MemTokenStorage(),
         baseUrl: 'http://fake.local',
       );
-      final container = ProviderContainer(
-        overrides: [
-          tokenStorageProvider.overrideWithValue(storage),
-          pageRepositoryProvider.overrideWithValue(
-            CountingPageRepository(client),
+      final chatCache = SeededConversationCache(<ChatItemPayload>[
+        ChatItemPayload(
+          id: 0,
+          peerId: 99,
+          peerUsername: 'old-peer',
+          peerAvatar: '',
+          lastMsg: '私密消息',
+          lastMsgTime: '',
+          unreadCount: 0,
+          convId: 1,
+          peerUrl: '/u/99',
+        ),
+      ]);
+      // 无令牌:模拟上次 401 清库被进程中断后的重启状态。
+      final container = await makeContainer(
+        pageRepo: FailingPageRepository(client),
+        chatCache: chatCache,
+        tokenStorage: MemTokenStorage(),
+      );
+      await tester.pumpWidget(app(container, const MessagesPage()));
+      await tester.pumpAndSettle();
+
+      expect(
+        find.byType(GfErrorRetry),
+        findsOneWidget,
+        reason: '无令牌时网络失败应显示错误态而非离线缓存',
+      );
+      expect(find.text('old-peer'), findsNothing, reason: '无令牌时不得渲染上一账号残留会话');
+      expect(find.text('私密消息'), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+      await tester.pump(const Duration(milliseconds: 600));
+    });
+
+    testWidgets('启动无令牌时清空上一账号残留离线缓存', (tester) async {
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      // 无令牌:模拟 401 后进程被杀、清库未完成的重启状态。
+      final container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        topicCache: topicCache,
+        chatCache: chatCache,
+        tokenStorage: MemTokenStorage(),
+      );
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: <RouteBase>[
+          StatefulShellRoute.indexedStack(
+            builder:
+                (
+                  BuildContext context,
+                  GoRouterState state,
+                  StatefulNavigationShell navigationShell,
+                ) {
+                  return GfShell(navigationShell: navigationShell);
+                },
+            branches: <StatefulShellBranch>[
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(path: '/', builder: (_, _) => const HomePage()),
+                ],
+              ),
+            ],
           ),
-          topicRepositoryProvider.overrideWithValue(
-            PagingTopicRepository(client),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('login-page'))),
           ),
-          postRepositoryProvider.overrideWithValue(PostRepository(client)),
-          notificationRepositoryProvider.overrideWithValue(
-            FilteringNotificationRepository(client),
-          ),
-          authRepositoryProvider.overrideWithValue(
-            LogoutAuthRepository(client),
-          ),
-          userRepositoryProvider.overrideWithValue(
-            EmptySessionsUserRepository(client),
-          ),
-          // 清理失败:跨重启标记不会被登录页清除,门禁保持生效。
-          offlineTopicCacheProvider.overrideWithValue(ThrowingCache()),
-          offlineChatCacheProvider.overrideWithValue(ThrowingCache()),
         ],
       );
-      addTearDown(container.dispose);
-
-      // 重建 App:初始路径 / 被门禁重定向到登录页,残留令牌与旧缓存
-      // 无法进入 shell。
-      await tester.pumpWidget(routerApp(container, appRouter));
+      await tester.pumpWidget(routerApp(container, router));
       await tester.pumpAndSettle();
-      expect(appRouter.state.uri.path, '/login', reason: '门禁标记存在时启动必须落在登录页');
-      expect(find.byType(LoginPage), findsOneWidget);
-      expect(find.byType(HomePage), findsNothing, reason: '不得进入 shell');
 
-      // 即使显式导航到其它路径,仍被强制留在登录页。
-      appRouter.go('/messages');
-      await tester.pumpAndSettle();
       expect(
-        appRouter.state.uri.path,
-        '/login',
-        reason: '门禁标记存在时任何导航都被重定向到登录页',
+        topicCache.clears + chatCache.clears,
+        2,
+        reason: '启动无令牌时应清空上一账号残留离线缓存',
       );
-      expect(find.byType(HomePage), findsNothing);
 
       await tester.pumpWidget(const SizedBox.shrink());
     });
@@ -2939,16 +3062,21 @@ void main() {
         baseUrl: 'http://fake.local',
       );
       final pageRepo = CountingPageRepository(client);
+      final realStorage = MemTokenStorage()..write(_jwtForUser(1));
+      final stagedStorage = MemTokenStorage();
       // A 的令牌携带 UserId=1;currentUserProvider 走真实 JWT 解析(不 override)。
-      final storage = MemTokenStorage()..write(_jwtForUser(1));
       final controller = TokenWritingLoginController(
-        apiClient: client,
-        tokenStorage: storage,
-        userId: 2, // B 登录写入 UserId=2 的 JWT。
+        apiClient: GfApiClient(
+          dio: Dio(),
+          tokenStorage: stagedStorage,
+          baseUrl: 'http://fake.local',
+        ),
+        tokenStorage: stagedStorage,
+        userId: 2, // B 登录把 UserId=2 的 JWT 暂存到内存。
       );
       final container = ProviderContainer(
         overrides: [
-          tokenStorageProvider.overrideWithValue(storage),
+          tokenStorageProvider.overrideWithValue(realStorage),
           pageRepositoryProvider.overrideWithValue(pageRepo),
           topicRepositoryProvider.overrideWithValue(
             PagingTopicRepository(client),
@@ -3014,7 +3142,10 @@ void main() {
           ),
           GoRoute(
             path: '/login',
-            builder: (_, _) => LoginPage(authController: controller),
+            builder: (_, _) => LoginPage(
+              authController: controller,
+              authTokenStorage: stagedStorage,
+            ),
           ),
         ],
       );

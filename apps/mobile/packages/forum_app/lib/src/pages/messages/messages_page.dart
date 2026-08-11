@@ -131,6 +131,13 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
     } catch (e, st) {
       // 网络失败:回退离线缓存的会话列表。
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
+      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
+        if (!silent && mounted) {
+          setState(() => _conversations = AsyncValue.error(e, st));
+        }
+        return;
+      }
       try {
         final cached = await ref
             .read(offlineChatCacheProvider)
@@ -454,6 +461,11 @@ class _ConversationPageState extends ConsumerState<_ConversationPage> {
     } catch (_) {
       // 网络失败:回退离线缓存消息。
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
+      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
+        if (mounted && !silent) setState(() => _loading = false);
+        return;
+      }
       try {
         final cached = await ref
             .read(offlineChatCacheProvider)

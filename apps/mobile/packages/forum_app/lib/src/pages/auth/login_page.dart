@@ -17,16 +17,33 @@ import '../../theme_mode.dart';
 /// 登录页模式。
 enum _AuthMode { login, register, forgotPassword }
 
-/// 登录/注册/找回密码页(web auth.login 的移动端形态)。
+/// 登录流程专用的内存令牌暂存区。
 ///
-/// 密码登录:公钥 → RSA-OAEP 加密 → 登录 → (验证码/TOTP 挑战)。
-/// 统一身份：论坛内建 OIDC Provider 经 AppAuth + 后端 exchange 兑换。
-/// 注册/找回密码:复用 AuthController 的 register/forgotPassword。
+/// Password/TOTP 的 `New-Token` 与 OIDC exchange 返回的论坛 JWT 在旧账号
+/// 离线缓存清理成功前只写入这里，绝不提前进入 Keychain/Keystore。这样即使
+/// 清库失败或进程被杀，也不存在“新账号持久化令牌 + 旧账号离线缓存”的组合。
+class _StagedTokenStorage implements TokenStorage {
+  String? _token;
+
+  @override
+  Future<String?> read() async => _token;
+
+  @override
+  Future<void> write(String token) async => _token = token;
+
+  @override
+  Future<void> clear() async => _token = null;
+}
+
 class LoginPage extends ConsumerStatefulWidget {
-  const LoginPage({super.key, this.authController});
+  const LoginPage({super.key, this.authController, this.authTokenStorage})
+    : assert(authController == null || authTokenStorage != null);
 
   /// 测试注入:默认 null 时页面内部构造 [AuthController]。
   final AuthController? authController;
+
+  /// 测试注入:认证成功令牌的内存暂存区,必须与 [authController] 使用同一实例。
+  final TokenStorage? authTokenStorage;
   @override
   ConsumerState<LoginPage> createState() => _LoginPageState();
 }
@@ -40,6 +57,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
   _AuthMode _mode = _AuthMode.login;
   bool _oidcBusy = false;
+  bool _finishingAuthentication = false;
   String _oidcError = '';
   // 登录放行前缓存清理失败的错误(清理成功或重试成功后清空)。
   String _cacheError = '';
@@ -47,6 +65,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   bool _authBlocked = false;
 
   late final AuthController _authController;
+  late final GfApiClient _authClient;
+  late final TokenStorage _authTokenStorage;
 
   // 进入登录页时启动的缓存清理;登录放行前必须成功。
   Future<bool>? _cacheClearFuture;
@@ -54,13 +74,23 @@ class _LoginPageState extends ConsumerState<LoginPage> {
   @override
   void initState() {
     super.initState();
+    _authTokenStorage = widget.authTokenStorage ?? _StagedTokenStorage();
+    _authClient = GfApiClient(
+      dio: ref.read(authDioProvider),
+      tokenStorage: _authTokenStorage,
+      baseUrl: AppConfig.apiBaseUrl.isNotEmpty
+          ? AppConfig.apiBaseUrl
+          : GfApiClient.defaultBaseUrl,
+      onTokenRenewed: _authTokenStorage.write,
+    );
     _authController =
         widget.authController ??
         AuthController(
-          authRepository: AuthRepository(ref.read(apiClientProvider)),
-          apiClient: ref.read(apiClientProvider),
-          tokenStorage: ref.read(tokenStorageProvider),
+          authRepository: AuthRepository(_authClient),
+          apiClient: _authClient,
+          tokenStorage: _authTokenStorage,
         );
+
     // 进入登录页即进入新会话边界:先使旧会话在途写入失效,再清空缓存。
     // 两者都延迟到首帧后执行(避免在 widget 构建期修改 provider),且
     // 世代失效必须先于清库,保证不变量:
@@ -72,15 +102,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // 进入登录页即会话边界:使缓存的当前用户身份失效(旧账号 id 不再
       // 被后续新 shell 读取)。
       ref.invalidate(currentUserProvider);
-      _cacheClearFuture = _clearOfflineCacheOnce().then((bool ok) async {
-        if (!mounted) return ok;
-        // 进入登录页即重新执行缓存清理:成功后清除跨重启门禁标记,
-        // 让后续登录能正常放行(即使上次进程被杀时标记仍残留)。
-        if (ok) {
-          await ref.read(pendingCacheClearProvider.notifier).clear();
-        }
-        return ok;
-      });
+      _cacheClearFuture = _clearOfflineCacheOnce();
     });
   }
 
@@ -177,8 +199,8 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       _oidcError = '';
     });
     final controller = OidcController(
-      authRepository: AuthRepository(ref.read(apiClientProvider)),
-      tokenStorage: ref.read(tokenStorageProvider),
+      authRepository: AuthRepository(_authClient),
+      tokenStorage: _authTokenStorage,
       issuer: AppConfig.oidcIssuer,
       clientId: AppConfig.oidcClientId,
     );
@@ -196,48 +218,65 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
   }
 
-  /// 认证成功后的收尾:确保旧账号缓存已清空再放行;清理失败则丢弃新会话
-  /// 并留在登录页提示重试,防止新账号读到上一账号的离线/内存数据。
+  /// 认证成功后的收尾:先确保旧账号缓存已清空,再把暂存的新会话提交到
+  /// 安全存储。清理失败时新 token 从未持久化,因此重启也无法以新账号读取
+  /// 旧账号离线数据。
   Future<void> _finishAuthentication() async {
-    if (!mounted) return;
-    if (!await _ensureCacheCleared()) {
-      // 新 token 已在登录流程中持久化,这里必须丢弃,否则用户可带着
-      // 新会话返回 401 保留的旧 shell(内存态含上一账号数据)。
-      // clear() 自身也可能抛异常(secure storage 多次删除),必须
-      // fail-closed:无论令牌是否清除成功都进入 blocked 状态,并置位
-      // 跨重启门禁标记——即使进程被杀后重启,残留令牌与未清空的旧
-      // 账号离线缓存也无法进入 shell(由 appRouter redirect 强制回登录页)。
-      try {
-        await ref.read(tokenStorageProvider).clear();
-      } catch (_) {
-        // 令牌清除失败:仍保持 blocked,用户无法带着新令牌进入应用。
+    if (!mounted || _finishingAuthentication) return;
+    setState(() => _finishingAuthentication = true);
+    try {
+      if (!await _ensureCacheCleared()) {
+        await _authTokenStorage.clear();
+        if (!mounted) return;
+        setState(() {
+          _authBlocked = true;
+          _cacheError = AppLocalizations.of(context).authCacheClearFailed;
+        });
+        return;
       }
-      // 置位持久化门禁(缓存未清空,重启后也必须留在登录页重试)。
-      await ref.read(pendingCacheClearProvider.notifier).set();
+
+      final String? token = await _authTokenStorage.read();
+      if (token == null || token.isEmpty) {
+        if (!mounted) return;
+        setState(() {
+          _authBlocked = true;
+          _cacheError = AppLocalizations.of(context).authSessionSaveFailed;
+        });
+        return;
+      }
+
+      try {
+        await ref.read(tokenStorageProvider).write(token);
+      } catch (_) {
+        // 安全存储写入可能在落盘后抛错,结果不确定。缓存已经清空,所以重启
+        // 不会泄漏旧数据;当前进程仍禁止返回旧 shell,避免其内存态被新令牌复用。
+        await _authTokenStorage.clear();
+        if (!mounted) return;
+        setState(() {
+          _authBlocked = true;
+          _cacheError = AppLocalizations.of(context).authSessionSaveFailed;
+        });
+        return;
+      }
+      await _authTokenStorage.clear();
       if (!mounted) return;
-      setState(() {
-        _authBlocked = true;
-        _cacheError = AppLocalizations.of(context).authCacheClearFailed;
-      });
-      return;
+      _authBlocked = false;
+      _cacheError = '';
+      // 新 token 已接受:使缓存的当前用户身份失效,新 shell 重新从
+      // 新令牌解析账号 id,避免 ProfilePage 仍用上一账号的 id 请求数据。
+      ref.invalidate(currentUserProvider);
+      // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
+      // 避免新账号返回后看到上一账号的会话/消息数据。
+      context.go('/');
+    } finally {
+      if (mounted) setState(() => _finishingAuthentication = false);
     }
-    if (!mounted) return;
-    _authBlocked = false;
-    // 缓存清理成功:清除跨重启门禁标记。
-    await ref.read(pendingCacheClearProvider.notifier).clear();
-    if (!mounted) return;
-    // 新 token 已接受:使缓存的当前用户身份失效,新 shell 重新从
-    // 新令牌解析账号 id,避免 ProfilePage 仍用上一账号的 id 请求数据。
-    ref.invalidate(currentUserProvider);
-    // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
-    // 避免新账号返回后看到上一账号的会话/消息数据。
-    context.go('/');
   }
 
   void _leaveAuth() {
     // 缓存清理失败后会话已丢弃:禁止返回旧 shell(内存态可能含上一账号
     // 数据),只能重试登录。
-    if (_authBlocked) return;
+    if (_authBlocked || _finishingAuthentication) return;
     final NavigatorState navigator = Navigator.of(context);
     if (navigator.canPop()) {
       navigator.pop();
@@ -274,7 +313,7 @@ class _LoginPageState extends ConsumerState<LoginPage> {
 
     // 缓存清理失败后禁止任何返回(含系统返回手势),只能重试登录。
     return PopScope(
-      canPop: !_authBlocked,
+      canPop: !_authBlocked && !_finishingAuthentication,
       child: Scaffold(
         backgroundColor: colors.base200,
         body: Stack(
@@ -479,8 +518,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
           variant: GfButtonVariant.primary,
           size: GfButtonSize.extraLarge,
           expanded: true,
-          loading: _authController.busy,
-          onPressed: _authController.busy || _oidcBusy ? null : _submit,
+          loading: _authController.busy || _finishingAuthentication,
+          onPressed:
+              _authController.busy || _oidcBusy || _finishingAuthentication
+              ? null
+              : _submit,
         ),
         if (_mode == _AuthMode.login) ...<Widget>[
           const SizedBox(height: 12),
@@ -489,8 +531,11 @@ class _LoginPageState extends ConsumerState<LoginPage> {
             variant: GfButtonVariant.outline,
             size: GfButtonSize.extraLarge,
             expanded: true,
-            loading: _oidcBusy,
-            onPressed: _authController.busy || _oidcBusy ? null : _loginOidc,
+            loading: _oidcBusy || _finishingAuthentication,
+            onPressed:
+                _authController.busy || _oidcBusy || _finishingAuthentication
+                ? null
+                : _loginOidc,
           ),
         ],
         if (_mode == _AuthMode.forgotPassword) ...<Widget>[

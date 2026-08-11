@@ -106,6 +106,12 @@ class _TopicPageState extends ConsumerState<TopicPage> {
     } catch (e, st) {
       // 网络失败:回退 drift 离线缓存(已浏览话题离线可读)。
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;
+      // 无会话令牌(如 401 后进程被杀重启)时不得回退上一账号残留缓存。
+      if (!await hasSessionToken(ref.read(tokenStorageProvider))) {
+        // 静默刷新失败时保留当前内容,不打断阅读。
+        if (!silent) setState(() => _page = AsyncValue.error(e, st));
+        return;
+      }
       final PagePayload? cached = await _cacheGet(widget.topicId);
       // 读缓存期间会话可能已切换,再次校验世代再更新 UI。
       if (!mounted || epoch != ref.read(offlineCacheEpochProvider)) return;

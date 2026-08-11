@@ -21,24 +21,6 @@ import 'pages/topic/topic_page.dart';
 import 'providers.dart';
 import 'current_user.dart';
 
-/// 启动门禁状态:缓存清理失败且令牌可能残留时为 true,强制重定向到登录页。
-/// 由 [initStartupGate] 在启动时从持久化标记装载(跨重启防线)。
-bool _startupGateBlocked = false;
-
-/// 启动时读取持久化"待清缓存"门禁标记;必须在构造/使用 [appRouter] 前调用。
-///
-/// 进程被杀后重启时,残留令牌与未清空的旧账号离线缓存不得进入 shell,
-/// 否则断网回退会以新账号身份展示旧账号私信(跨账号数据泄漏)。
-Future<void> initStartupGate() async {
-  _startupGateBlocked = await readPendingCacheClearFlag();
-}
-
-/// 门禁重定向:标记存在时,除登录页外一律强制跳转登录页。
-String? _pendingCacheRedirect(BuildContext context, GoRouterState state) {
-  if (!_startupGateBlocked) return null;
-  return state.uri.path == '/login' ? null : '/login';
-}
-
 extension on GfShellDestination {
   IconData get icon => switch (this) {
     GfShellDestination.home => Icons.home_outlined,
@@ -82,6 +64,7 @@ class _GfShellState extends ConsumerState<GfShell> {
   @override
   void initState() {
     super.initState();
+    unawaited(_purgeStaleOfflineCacheOnBoot());
     _pollUnread();
     _unreadTimer = Timer.periodic(
       const Duration(seconds: 30),
@@ -93,6 +76,20 @@ class _GfShellState extends ConsumerState<GfShell> {
   void dispose() {
     _unreadTimer?.cancel();
     super.dispose();
+  }
+
+  /// 启动兜底:无令牌(上次 401 清库可能被进程中断)时清空离线缓存,
+  /// 防止未登录态读取上一账号残留的私信/话题。清理失败不影响启动。
+  Future<void> _purgeStaleOfflineCacheOnBoot() async {
+    try {
+      if (await hasSessionToken(ref.read(tokenStorageProvider))) return;
+      await clearOfflineCacheQuietly(
+        ref.read(offlineTopicCacheProvider),
+        ref.read(offlineChatCacheProvider),
+      );
+    } catch (_) {
+      // 兜底清理失败(缓存不可用)不阻塞启动。
+    }
   }
 
   Future<void> _pollUnread() async {
@@ -182,7 +179,6 @@ int? publishTopicIdFromUri(Uri uri) {
 
 final GoRouter appRouter = GoRouter(
   initialLocation: '/',
-  redirect: _pendingCacheRedirect,
   routes: <RouteBase>[
     StatefulShellRoute.indexedStack(
       builder:

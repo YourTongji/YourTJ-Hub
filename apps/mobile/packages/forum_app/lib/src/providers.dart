@@ -5,7 +5,6 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
-import 'package:shared_preferences/shared_preferences.dart';
 import 'offline/drift_cache.dart';
 import 'app_config.dart';
 
@@ -39,52 +38,21 @@ class OfflineCacheEpoch extends Notifier<int> {
 
   /// 使所有在途缓存写入失效(自增世代)。
   void invalidate() => state++;
+
+  /// 判断回调是否仍属于当前会话。
+  bool isCurrent(int epoch) => state == epoch;
 }
 
 final offlineCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
   OfflineCacheEpoch.new,
 );
 
-/// 跨重启"待清缓存"门禁标记键(SharedPreferences,与 token/离线库独立)。
-const String pendingCacheClearKey = 'yourtj.auth.pendingCacheClear';
-
-/// 读取持久化的待清缓存标记(启动门禁用,不依赖 Riverpod 状态)。
-Future<bool> readPendingCacheClearFlag() async {
-  final SharedPreferences prefs = await SharedPreferences.getInstance();
-  return prefs.getBool(pendingCacheClearKey) ?? false;
-}
-
-/// 跨重启的会话缓存边界门禁。
-///
-/// 缓存清理失败且令牌可能残留时置位;登录页缓存清理成功后清除。
-/// 标记存在时 [appRouter] 强制重定向到登录页:即使进程被杀后重启,
-/// 残留的令牌与未清空的旧账号离线缓存也无法进入 shell 展示
-/// (跨账号数据泄漏的最后防线)。
-class PendingCacheClear extends Notifier<bool> {
-  @override
-  bool build() => false;
-
-  /// 置位门禁(缓存清理失败,令牌可能残留)。
-  Future<void> set() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.setBool(pendingCacheClearKey, true);
-    state = true;
-  }
-
-  /// 清除门禁(缓存清理成功)。
-  Future<void> clear() async {
-    final SharedPreferences prefs = await SharedPreferences.getInstance();
-    await prefs.remove(pendingCacheClearKey);
-    state = false;
-  }
-}
-
-final pendingCacheClearProvider = NotifierProvider<PendingCacheClear, bool>(
-  PendingCacheClear.new,
-);
-
 /// Dio 实例(测试可 override 注入 mock adapter)。
 final dioProvider = Provider<Dio>((ref) => Dio());
+
+/// 登录流程专用 Dio:不复用 [dioProvider],避免主客户端安装的旧会话
+/// Bearer interceptor 污染 password/TOTP/OIDC 认证请求。
+final authDioProvider = Provider<Dio>((ref) => Dio());
 
 /// drift 数据库单例(话题 + IM 会话缓存共用)。
 final offlineDatabaseProvider = Provider<AppDatabase>((ref) {
@@ -128,8 +96,26 @@ Future<void> clearOfflineCacheQuietly(
   }
 }
 
+/// 是否持有会话令牌。
+///
+/// 离线回退读取前的认证门槛:无令牌(如启动时上一会话已失效但离线缓存
+/// 残留)时不得读取缓存,防止未登录态渲染上一账号的私信/话题。
+Future<bool> hasSessionToken(TokenStorage storage) async {
+  try {
+    final String? token = await storage.read();
+    return token != null && token.isNotEmpty;
+  } catch (_) {
+    return false;
+  }
+}
+
 final apiClientProvider = Provider<GfApiClient>((ref) {
   final storage = ref.watch(tokenStorageProvider);
+  // 只读捕获创建时的会话世代:该 client 固定属于此会话,边界变化后其
+  // 续期/401 回调一律失效。不能 watch,否则每次边界都会重建 client。
+  final int sessionEpoch = ref.read(offlineCacheEpochProvider);
+  final epochNotifier = ref.read(offlineCacheEpochProvider.notifier);
+  final unauthorizedNotifier = ref.read(unauthorizedEventsProvider.notifier);
   return GfApiClient(
     dio: ref.watch(dioProvider),
     tokenStorage: storage,
@@ -139,21 +125,30 @@ final apiClientProvider = Provider<GfApiClient>((ref) {
     baseUrl: AppConfig.apiBaseUrl.isNotEmpty
         ? AppConfig.apiBaseUrl
         : GfApiClient.defaultBaseUrl,
-    // New-Token 滑动续期:写回 tokenStorage 持久化新令牌。
-    onTokenRenewed: (newToken) => storage.write(newToken),
-    // 401 会话失效:清空令牌、使旧会话在途写入失效、清离线缓存并通知 UI 跳转登录页。
+    // 旧会话请求可能在新账号登录后才带着 New-Token 返回。client 创建时
+    // 捕获会话世代,边界变化后直接丢弃续期,避免覆盖新账号 token。
+    onTokenRenewed: (newToken) async {
+      if (!epochNotifier.isCurrent(sessionEpoch)) return;
+      await storage.write(newToken);
+    },
+    // 仅当前会话的首个 401 可启动 teardown。同步自增世代后,同一旧
+    // client 的重复 401 与迟到 New-Token 都立即失效。离线缓存按需读取,
+    // 避免 client 构造时初始化 drift 数据库。
     onUnauthorized: () {
-      storage.clear();
-      ref.read(unauthorizedEventsProvider.notifier).trigger();
-      // 先自增世代,让已发出的旧会话请求在返回后丢弃 setState 与缓存写入;
-      // 再异步清库(清库入队晚于已在途写入的提交,不产生交错)。
-      ref.read(offlineCacheEpochProvider.notifier).invalidate();
-      unawaited(
-        clearOfflineCacheQuietly(
+      if (!epochNotifier.isCurrent(sessionEpoch)) return;
+      epochNotifier.invalidate();
+      unawaited(() async {
+        try {
+          await storage.clear();
+        } catch (_) {
+          // 清理失败仍进入登录页;新登录会在缓存清理成功后覆盖旧 token。
+        }
+        await clearOfflineCacheQuietly(
           ref.read(offlineTopicCacheProvider),
           ref.read(offlineChatCacheProvider),
-        ),
-      );
+        );
+        unauthorizedNotifier.trigger();
+      }());
     },
   );
 });
