@@ -33,9 +33,9 @@ GitHub 事件 (issue/PR 打开·重开·打标签·关闭) 或手动触发
 sync-project-board.yml  ──►  sync-project-board.sh（幂等）
                                    ├─ 校验 token / 项目号 / 目标条目
                                    ├─ gh project view     定位项目
-                                   ├─ gh project item-list 幂等查重（已存在则复用，不重复添加）
-                                   ├─ gh project item-add  首次添加
-                                   └─ gh project item-edit 设置 Status 字段
+                                   ├─ gh api graphql      幂等查重（按 URL 查 item，已存在则复用）
+                                   ├─ gh api graphql      首次添加（addProjectV2ItemById）
+                                   └─ gh api graphql      设置 Status 字段（updateProjectV2ItemFieldValue）
 ```
 
 - 使用 `gh` CLI（GitHub Actions 自带的 GitHub CLI，版本 ≥ 2.45）。
@@ -101,6 +101,6 @@ GitHub Projects 自带 Workflows（看板 Settings → Workflows），可叠加�
 
 ## 8. 边界与已知限制
 
-- 幂等查重依赖 `gh project item-list`（脚本用 `--limit 100`）；项目条目超过 100 时重复添加可能回退为"已存在"报错，届时改用 `--query` 过滤或 GraphQL 分页。
+- 幂等查重通过 GraphQL 分页遍历项目条目（每页 100，按 `content.url` 匹配）；项目条目很多时分页会自动续取，不会漏匹配。
 - 关闭的 PR/issue 重新打开（`reopened`）会回到对应状态列。
 - 删除看板条目不会反向关闭 issue/PR（单向同步）。

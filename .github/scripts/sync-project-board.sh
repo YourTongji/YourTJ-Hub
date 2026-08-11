@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+# shellcheck disable=SC2016  # GraphQL 模板里的 $var 是 GraphQL 变量，不是 shell 展开
 #
 # sync-project-board.sh — 把当前 issue / PR 幂等同步到 GitHub Projects v2 看板（RPD 状态机）。
 #
@@ -46,6 +47,97 @@ fail() { printf '::error:: %s\n' "$*" >&2; exit 1; }
 warn() { printf '::warning:: %s\n' "$*" >&2; }
 
 # ---------------------------------------------------------------------------
+# GraphQL 辅助：用最小查询与 Projects v2 交互。
+# 不用 `gh project item-list / item-add / item-edit`：它们的响应会拉取条目
+# 的全部字段值（含 reviewers 字段），组织项目下 token 权限不足时整个请求失败
+# （GraphQL: Resource not accessible ... reviewers ...）。
+# ---------------------------------------------------------------------------
+
+# 幂等查重：按条目 URL 在项目中查找 item id（分页遍历，只取 content.url / id）。
+graphql_item_id() {
+  local url="$1" cursor="" resp proj id q
+  q='query($login: String!, $number: Int!, $after: String) {
+    organization(login: $login) {
+      projectV2(number: $number) {
+        items(first: 100, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            content {
+              ... on Issue { url }
+              ... on PullRequest { url }
+            }
+          }
+        }
+      }
+    }
+    user(login: $login) {
+      projectV2(number: $number) {
+        items(first: 100, after: $after) {
+          pageInfo { hasNextPage endCursor }
+          nodes {
+            id
+            content {
+              ... on Issue { url }
+              ... on PullRequest { url }
+            }
+          }
+        }
+      }
+    }
+  }'
+  while :; do
+    # bash 3.2 兼容：不用空数组展开（set -u 下会 unbound variable），改用 set -- 条件组参。
+    if [ -n "$cursor" ]; then
+      set -- -f "query=$q" -f "login=$PROJECT_OWNER" -F "number=$PROJECT_NUMBER" -f "after=$cursor"
+    else
+      set -- -f "query=$q" -f "login=$PROJECT_OWNER" -F "number=$PROJECT_NUMBER"
+    fi
+    resp="$(gh api graphql "$@")" \
+      || fail "无法读取项目条目：请确认 GH_TOKEN 具备 read:project 权限、项目号正确"
+    proj="$(jq -r '(.data.organization.projectV2 // .data.user.projectV2) // empty' <<<"$resp")"
+    [ -n "$proj" ] || fail "无法定位项目 $PROJECT_OWNER/projects/$PROJECT_NUMBER：请确认 PROJECT_OWNER / PROJECT_NUMBER 正确"
+    id="$(jq -r --arg url "$url" '[.items.nodes[]? | select(.content.url == $url) | .id][0] // empty' <<<"$proj")"
+    if [ -n "$id" ]; then
+      printf '%s' "$id"
+      return 0
+    fi
+    [ "$(jq -r '.items.pageInfo.hasNextPage' <<<"$proj")" = "true" ] || break
+    cursor="$(jq -r '.items.pageInfo.endCursor' <<<"$proj")"
+  done
+  return 0
+}
+
+# 把 issue / PR URL 解析为全局节点 id。
+graphql_content_id() {
+  gh api graphql \
+    -f query='query($url: URI!) {
+      resource(url: $url) {
+        ... on Issue { id }
+        ... on PullRequest { id }
+      }
+    }' \
+    -f url="$ITEM_URL" 2>/dev/null \
+    | jq -r '.data.resource.id // empty'
+}
+
+# 添加条目（返回新 item id）。
+graphql_add_item() {
+  local content_id
+  content_id="$(graphql_content_id)" \
+    || fail "无法解析条目 URL（仅支持 issue / PR）：$ITEM_URL"
+  [ -n "$content_id" ] || fail "无法解析条目 URL（仅支持 issue / PR）：$ITEM_URL"
+  gh api graphql \
+    -f query='mutation($projectId: ID!, $contentId: ID!) {
+      addProjectV2ItemById(input: {projectId: $projectId, contentId: $contentId}) {
+        item { id }
+      }
+    }' \
+    -f projectId="$PROJECT_ID" -f contentId="$content_id" 2>/dev/null \
+    | jq -r '.data.addProjectV2ItemById.item.id // empty'
+}
+
+# ---------------------------------------------------------------------------
 # 0) 必填校验
 # ---------------------------------------------------------------------------
 [ -n "${GH_TOKEN:-}" ] || fail "GH_TOKEN 未设置：请先在仓库配置具备项目读写权限的 secret（见 docs/development/project-board.md）"
@@ -71,15 +163,15 @@ log "已定位项目 $PROJECT_OWNER/projects/$PROJECT_NUMBER ($PROJECT_ID)"
 # ---------------------------------------------------------------------------
 # 2) 幂等添加：已存在则复用 item id，否则添加
 # ---------------------------------------------------------------------------
-existing_item="$(gh project item-list "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --limit 100 --format json \
-  | jq -r --arg url "$ITEM_URL" '[.items[] | select(.content.url == $url) | .id][0] // empty')"
+existing_item="$(graphql_item_id "$ITEM_URL")"
 
 if [ -n "$existing_item" ]; then
   ITEM_ID="$existing_item"
   ITEM_REUSED=1
   log "条目已在项目中，复用 item $ITEM_ID"
 else
-  ITEM_ID="$(gh project item-add "$PROJECT_NUMBER" --owner "$PROJECT_OWNER" --url "$ITEM_URL" --format json --jq '.id')"
+  ITEM_ID="$(graphql_add_item)"
+  [ -n "$ITEM_ID" ] || fail "无法添加条目：请确认 GH_TOKEN 具备 write:project 权限、条目 URL 正确"
   ITEM_REUSED=0
   log "已添加条目 → item $ITEM_ID"
 fi
@@ -145,6 +237,16 @@ fi
 # 5) 设置状态字段
 # ---------------------------------------------------------------------------
 field_id="$(jq -r '.id' <<<"$field")"
-gh project item-edit --id "$ITEM_ID" --project-id "$PROJECT_ID" \
-  --field-id "$field_id" --single-select-option-id "$option_id" >/dev/null
+gh api graphql \
+  -f query='mutation($projectId: ID!, $itemId: ID!, $fieldId: ID!, $optionId: String!) {
+    updateProjectV2ItemFieldValue(input: {
+      projectId: $projectId
+      itemId: $itemId
+      fieldId: $fieldId
+      value: { singleSelectOptionId: $optionId }
+    }) { projectV2Item { id } }
+  }' \
+  -f projectId="$PROJECT_ID" -f itemId="$ITEM_ID" \
+  -f fieldId="$field_id" -f optionId="$option_id" >/dev/null \
+  || fail "无法设置状态字段：请确认 GH_TOKEN 具备 write:project 权限"
 log "已设置状态 → \"$target_value\""
