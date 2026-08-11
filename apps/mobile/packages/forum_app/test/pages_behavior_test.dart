@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 
 import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
@@ -42,6 +43,27 @@ class MemTokenStorage implements TokenStorage {
 
   @override
   Future<void> clear() async => _token = null;
+}
+
+/// clear() 抛异常的 TokenStorage(登录失败路径的 fail-closed 断言)。
+class ThrowingClearTokenStorage implements TokenStorage {
+  String? _token;
+
+  @override
+  Future<String?> read() async => _token;
+
+  @override
+  Future<void> write(String token) async => _token = token;
+
+  @override
+  Future<void> clear() async => throw StateError('secure storage unavailable');
+}
+
+/// 构造携带指定 UserId 的伪 JWT(header.payload.sig,payload 为 base64url JSON)。
+String _jwtForUser(int userId) {
+  String b64url(String json) =>
+      base64UrlEncode(utf8.encode(json)).replaceAll('=', '');
+  return '${b64url('{"alg":"none"}')}.${b64url('{"UserId":$userId}')}.sig';
 }
 
 /// no-op 离线缓存。
@@ -187,6 +209,35 @@ class InstantLoginController extends AuthController {
     String? captchaCode,
   }) async {
     await _storage.write('session-token');
+    await init();
+  }
+}
+
+/// 登录时写入携带指定 UserId 伪 JWT 的 AuthController 替身(不触网)。
+class TokenWritingLoginController extends AuthController {
+  // ignore: use_super_parameters — authRepository 依赖 apiClient,无法用 super 参数。
+  TokenWritingLoginController({
+    required GfApiClient apiClient,
+    required TokenStorage tokenStorage,
+    required this.userId,
+  }) : _storage = tokenStorage,
+       super(
+         authRepository: AuthRepository(apiClient),
+         apiClient: apiClient,
+         tokenStorage: tokenStorage,
+       );
+
+  final TokenStorage _storage;
+  final int userId;
+
+  @override
+  Future<void> login({
+    required String username,
+    required String password,
+    String? captchaId,
+    String? captchaCode,
+  }) async {
+    await _storage.write(_jwtForUser(userId));
     await init();
   }
 }
@@ -2744,6 +2795,193 @@ void main() {
       expect(router.state.uri.path, '/messages');
       expect(find.text('bob'), findsNothing, reason: 'B 看不到 A 的会话');
       expect(find.byType(GfErrorRetry), findsOneWidget);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
+    testWidgets('TokenStorage.clear() 抛异常时登录仍被阻止(fail-closed)', (tester) async {
+      final topicCache = ThrowingCache();
+      final chatCache = ThrowingCache();
+      final storage = ThrowingClearTokenStorage();
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final controller = InstantLoginController(
+        apiClient: client,
+        tokenStorage: storage,
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/login',
+        routes: [
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(authController: controller),
+          ),
+          GoRoute(
+            path: '/',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('home-page'))),
+          ),
+        ],
+      );
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField).at(0), 'alice');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pumpAndSettle();
+
+      // clear() 抛异常:仍必须 fail-closed,不得带着新令牌进入应用。
+      expect(
+        router.state.uri.path,
+        '/login',
+        reason: 'TokenStorage.clear() 抛异常时不得放行登录',
+      );
+      expect(find.text('清除上一账号离线数据失败,请重试'), findsOneWidget);
+      await tester.tap(find.byTooltip('返回'));
+      await tester.pumpAndSettle();
+      expect(
+        router.state.uri.path,
+        '/login',
+        reason: 'TokenStorage.clear() 抛异常时禁止返回旧 shell',
+      );
+    });
+
+    testWidgets('A profile→401→B 登录:shell profile 使用 B 的 id', (tester) async {
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final pageRepo = CountingPageRepository(client);
+      // A 的令牌携带 UserId=1;currentUserProvider 走真实 JWT 解析(不 override)。
+      final storage = MemTokenStorage()..write(_jwtForUser(1));
+      final controller = TokenWritingLoginController(
+        apiClient: client,
+        tokenStorage: storage,
+        userId: 2, // B 登录写入 UserId=2 的 JWT。
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          pageRepositoryProvider.overrideWithValue(pageRepo),
+          topicRepositoryProvider.overrideWithValue(
+            PagingTopicRepository(client),
+          ),
+          postRepositoryProvider.overrideWithValue(PostRepository(client)),
+          notificationRepositoryProvider.overrideWithValue(
+            FilteringNotificationRepository(client),
+          ),
+          authRepositoryProvider.overrideWithValue(
+            LogoutAuthRepository(client),
+          ),
+          userRepositoryProvider.overrideWithValue(
+            EmptySessionsUserRepository(client),
+          ),
+          offlineTopicCacheProvider.overrideWithValue(NoopCache()),
+          offlineChatCacheProvider.overrideWithValue(NoopCache()),
+        ],
+      );
+      addTearDown(container.dispose);
+      final router = GoRouter(
+        initialLocation: '/',
+        routes: <RouteBase>[
+          StatefulShellRoute.indexedStack(
+            builder:
+                (
+                  BuildContext context,
+                  GoRouterState state,
+                  StatefulNavigationShell navigationShell,
+                ) {
+                  return GfShell(navigationShell: navigationShell);
+                },
+            branches: <StatefulShellBranch>[
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(path: '/', builder: (_, _) => const HomePage()),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/search',
+                    builder: (_, _) => const SearchPage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/messages',
+                    builder: (_, _) => const MessagesPage(),
+                  ),
+                ],
+              ),
+              StatefulShellBranch(
+                routes: <RouteBase>[
+                  GoRoute(
+                    path: '/profile',
+                    builder: (_, _) => const ProfilePage(),
+                  ),
+                ],
+              ),
+            ],
+          ),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) => LoginPage(authController: controller),
+          ),
+        ],
+      );
+      await tester.pumpWidget(routerApp(container, router));
+      await tester.pumpAndSettle();
+
+      // A 打开 profile:从 A 的令牌解析 id=1,显示 Alice。
+      router.go('/profile');
+      await tester.pumpAndSettle();
+      expect(
+        find.text('Alice'),
+        findsOneWidget,
+        reason: 'A 的 profile 应显示 Alice',
+      );
+
+      // 401 → 登录页(同时使 currentUserProvider 失效)。
+      container.read(unauthorizedEventsProvider.notifier).trigger();
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/login');
+
+      // B 登录:写入 UserId=2 的 JWT。
+      await tester.enterText(find.byType(TextField).at(0), 'bob');
+      await tester.enterText(find.byType(TextField).at(1), 'secret');
+      await tester.tap(find.widgetWithText(GfButton, '登录账号'));
+      await tester.pumpAndSettle();
+      expect(router.state.uri.path, '/', reason: 'B 登录后进入全新 shell');
+
+      // B 打开 profile:必须用 B 的 id(=2)请求,显示 Bob,而非缓存的 A。
+      router.go('/profile');
+      await tester.pumpAndSettle();
+      expect(find.text('Bob'), findsOneWidget, reason: 'B 的 profile 应显示 Bob');
+      expect(find.text('Alice'), findsNothing, reason: '不得残留 A 的 profile');
 
       await tester.pumpWidget(const SizedBox.shrink());
     });

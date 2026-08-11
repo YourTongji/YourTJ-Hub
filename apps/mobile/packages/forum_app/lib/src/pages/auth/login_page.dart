@@ -11,6 +11,7 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../app_config.dart';
 import '../../providers.dart';
+import '../../current_user.dart';
 import '../../theme_mode.dart';
 
 /// 登录页模式。
@@ -68,6 +69,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (!mounted) return;
       ref.read(offlineCacheEpochProvider.notifier).invalidate();
+      // 进入登录页即会话边界:使缓存的当前用户身份失效(旧账号 id 不再
+      // 被后续新 shell 读取)。
+      ref.invalidate(currentUserProvider);
       _cacheClearFuture = _clearOfflineCacheOnce();
     });
   }
@@ -191,9 +195,14 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     if (!await _ensureCacheCleared()) {
       // 新 token 已在登录流程中持久化,这里必须丢弃,否则用户可带着
       // 新会话返回 401 保留的旧 shell(内存态含上一账号数据)。
-      // 直接清本地令牌即可:登录刚完成,服务端会话尚无使用价值,
-      // 失败后重试登录会重新认证。
-      await ref.read(tokenStorageProvider).clear();
+      // clear() 自身也可能抛异常(secure storage 多次删除),必须
+      // fail-closed:无论令牌是否清除成功都进入 blocked 状态,禁止
+      // 离开登录页;重试登录会重新认证覆盖旧令牌。
+      try {
+        await ref.read(tokenStorageProvider).clear();
+      } catch (_) {
+        // 令牌清除失败:仍保持 blocked,用户无法带着新令牌进入应用。
+      }
       if (!mounted) return;
       setState(() {
         _authBlocked = true;
@@ -203,6 +212,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
     if (!mounted) return;
     _authBlocked = false;
+    // 新 token 已接受:使缓存的当前用户身份失效,新 shell 重新从
+    // 新令牌解析账号 id,避免 ProfilePage 仍用上一账号的 id 请求数据。
+    ref.invalidate(currentUserProvider);
     // 用 go('/') 替换整个导航栈,销毁 401 保留的旧 shell(及其内存态),
     // 避免新账号返回后看到上一账号的会话/消息数据。
     context.go('/');
