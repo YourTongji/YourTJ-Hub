@@ -8,6 +8,7 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
 	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
@@ -388,7 +389,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 	}
 
 	topicEntity := topics.GetSimple(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -562,7 +563,7 @@ type LikeTopicReq struct {
 
 func LikeTopic(req component.BetterRequest[LikeTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 	state := topicUserAction.GetByTopicId(req.UserId, topicEntity.Id)
@@ -609,7 +610,7 @@ type BookmarkTopicReq struct {
 
 func BookmarkTopic(req component.BetterRequest[BookmarkTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -644,7 +645,7 @@ type WatchTopicReq struct {
 
 func WatchTopic(req component.BetterRequest[WatchTopicReq]) component.Response {
 	topicEntity := topics.Get(req.Params.TopicId)
-	if topicEntity.Id == 0 {
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -672,6 +673,10 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
 
 	state := postUserAction.GetByPostId(req.UserId, postEntity.Id)
 	targetLiked := req.Params.Action == 1
@@ -688,7 +693,6 @@ func LikePost(req component.BetterRequest[LikePostReq]) component.Response {
 			userStatistics.GivenLike(req.UserId)
 			// 楼层点赞计入作者"获赞"统计，并发布点赞事件（动态/徽章/通知）
 			userStatistics.LikeTopic(postEntity.UserId)
-			topicEntity := topics.Get(postEntity.TopicId)
 			eventbus.Publish(context.Background(), &eventhandlers.PostLikedEvent{
 				UserId:     postEntity.UserId,
 				PostId:     postEntity.Id,
@@ -715,6 +719,10 @@ type BookmarkPostReq struct {
 func BookmarkPost(req component.BetterRequest[BookmarkPostReq]) component.Response {
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 

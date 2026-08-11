@@ -164,3 +164,126 @@ func TestTopicActionsUseTopicUserAction(t *testing.T) {
 		t.Fatalf("like count = %d, want 1", topic.LikeCount)
 	}
 }
+
+// visibilityRejectionFixture sets up two users (author + actor) and a topic in
+// the requested visibility state. It returns the topic id, its first post id
+// (created manually so posts.Get works in the post-level endpoints), and a
+// cleanup is via t.Cleanup.
+func visibilityRejectionFixture(t *testing.T, conn *gorm.DB, status int8, authorID, actorID, topicID, firstPostID uint64) (uint64, uint64) {
+	t.Helper()
+	now := time.Now().Add(-time.Hour)
+	createTopicWriteUser(t, conn, authorID, "author")
+	createTopicWriteUser(t, conn, actorID, "actor")
+	topic := topics.Entity{Id: topicID, Title: "hidden", UserId: authorID, Status: status, PostCount: 1, PostSeq: 1, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic (status=%d): %v", status, err)
+	}
+	firstPost := posts.Entity{Id: firstPostID, TopicId: topic.Id, PostNo: 1, UserId: authorID, Content: "first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create first post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("first_post_id", firstPost.Id).Error; err != nil {
+		t.Fatalf("set first_post_id: %v", err)
+	}
+	return topic.Id, firstPost.Id
+}
+
+func TestCreatePostRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, firstPostID := visibilityRejectionFixture(t, conn, 0, 1311, 1312, 5010, 6000)
+	res := CreatePost(component.BetterRequest[CreatePostReq]{
+		UserId: 1312,
+		Params: CreatePostReq{TopicId: topicID, Content: "reply with enough words", ReplyToPostId: firstPostID},
+	})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("CreatePost on hidden topic = code=%v msg=%v, want FAIL/MessageTopicNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := topics.Get(topicID); got.PostCount != 1 || got.ReplyCount != 0 {
+		t.Fatalf("hidden topic stats mutated = %#v", got)
+	}
+}
+
+func TestCreatePostRejectsBannedTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, firstPostID := visibilityRejectionFixture(t, conn, 1, 1331, 1332, 5030, 6020)
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topicID).Update("process_status", topics.ProcessStatusBlocked).Error; err != nil {
+		t.Fatalf("set process_status: %v", err)
+	}
+	res := CreatePost(component.BetterRequest[CreatePostReq]{
+		UserId: 1332,
+		Params: CreatePostReq{TopicId: topicID, Content: "reply with enough words", ReplyToPostId: firstPostID},
+	})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("CreatePost on banned topic = code=%v msg=%v, want FAIL/MessageTopicNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+func TestLikeTopicRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1341, 1342, 5040, 6030)
+	res := LikeTopic(component.BetterRequest[LikeTopicReq]{UserId: 1342, Params: LikeTopicReq{TopicId: topicID, Action: 1}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("LikeTopic on hidden topic = code=%v msg=%v", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := topics.Get(topicID); got.LikeCount != 0 {
+		t.Fatalf("hidden topic like_count = %d, want 0", got.LikeCount)
+	}
+}
+
+func TestBookmarkTopicRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1351, 1352, 5050, 6040)
+	res := BookmarkTopic(component.BetterRequest[BookmarkTopicReq]{UserId: 1352, Params: BookmarkTopicReq{TopicId: topicID, Action: 1}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("BookmarkTopic on hidden topic = code=%v msg=%v", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := topicUserAction.GetByTopicId(1352, topicID); action.Id != 0 {
+		t.Fatalf("hidden topic bookmark action persisted = %#v", action)
+	}
+}
+
+func TestWatchTopicRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, _ := visibilityRejectionFixture(t, conn, 0, 1361, 1362, 5060, 6050)
+	res := WatchTopic(component.BetterRequest[WatchTopicReq]{UserId: 1362, Params: WatchTopicReq{TopicId: topicID, Action: 1}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicNotFound {
+		t.Fatalf("WatchTopic on hidden topic = code=%v msg=%v", res.Data.Code, res.Data.MessageCode)
+	}
+	if action := topicUserAction.GetByTopicId(1362, topicID); action.Id != 0 {
+		t.Fatalf("hidden topic watch action persisted = %#v", action)
+	}
+}
+
+func TestLikePostRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	_, firstPostID := visibilityRejectionFixture(t, conn, 0, 1371, 1372, 5070, 6060)
+	res := LikePost(component.BetterRequest[LikePostReq]{UserId: 1372, Params: LikePostReq{PostId: firstPostID, Action: 1}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("LikePost on hidden topic = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+func TestBookmarkPostRejectsHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	_, firstPostID := visibilityRejectionFixture(t, conn, 0, 1381, 1382, 5080, 6070)
+	res := BookmarkPost(component.BetterRequest[BookmarkPostReq]{UserId: 1382, Params: BookmarkPostReq{PostId: firstPostID, Action: 1}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessagePostNotFound {
+		t.Fatalf("BookmarkPost on hidden topic = code=%v msg=%v, want FAIL/MessagePostNotFound", res.Data.Code, res.Data.MessageCode)
+	}
+}
+
+func TestWriteEndpointsAllowAuthorOnOwnHiddenTopic(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	topicID, firstPostID := visibilityRejectionFixture(t, conn, 0, 1391, 1392, 5090, 6080)
+	res := LikeTopic(component.BetterRequest[LikeTopicReq]{UserId: 1391, Params: LikeTopicReq{TopicId: topicID, Action: 1}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("author LikeTopic own hidden topic = code=%v, want SUCCESS", res.Data.Code)
+	}
+	if got := topics.Get(topicID); got.LikeCount != 1 {
+		t.Fatalf("author like count = %d, want 1", got.LikeCount)
+	}
+	res2 := LikePost(component.BetterRequest[LikePostReq]{UserId: 1391, Params: LikePostReq{PostId: firstPostID, Action: 1}})
+	if res2.Data.Code != component.SUCCESS {
+		t.Fatalf("author LikePost own hidden topic = code=%v, want SUCCESS", res2.Data.Code)
+	}
+}
