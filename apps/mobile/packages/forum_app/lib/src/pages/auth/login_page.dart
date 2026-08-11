@@ -72,7 +72,15 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // 进入登录页即会话边界:使缓存的当前用户身份失效(旧账号 id 不再
       // 被后续新 shell 读取)。
       ref.invalidate(currentUserProvider);
-      _cacheClearFuture = _clearOfflineCacheOnce();
+      _cacheClearFuture = _clearOfflineCacheOnce().then((bool ok) async {
+        if (!mounted) return ok;
+        // 进入登录页即重新执行缓存清理:成功后清除跨重启门禁标记,
+        // 让后续登录能正常放行(即使上次进程被杀时标记仍残留)。
+        if (ok) {
+          await ref.read(pendingCacheClearProvider.notifier).clear();
+        }
+        return ok;
+      });
     });
   }
 
@@ -196,13 +204,16 @@ class _LoginPageState extends ConsumerState<LoginPage> {
       // 新 token 已在登录流程中持久化,这里必须丢弃,否则用户可带着
       // 新会话返回 401 保留的旧 shell(内存态含上一账号数据)。
       // clear() 自身也可能抛异常(secure storage 多次删除),必须
-      // fail-closed:无论令牌是否清除成功都进入 blocked 状态,禁止
-      // 离开登录页;重试登录会重新认证覆盖旧令牌。
+      // fail-closed:无论令牌是否清除成功都进入 blocked 状态,并置位
+      // 跨重启门禁标记——即使进程被杀后重启,残留令牌与未清空的旧
+      // 账号离线缓存也无法进入 shell(由 appRouter redirect 强制回登录页)。
       try {
         await ref.read(tokenStorageProvider).clear();
       } catch (_) {
         // 令牌清除失败:仍保持 blocked,用户无法带着新令牌进入应用。
       }
+      // 置位持久化门禁(缓存未清空,重启后也必须留在登录页重试)。
+      await ref.read(pendingCacheClearProvider.notifier).set();
       if (!mounted) return;
       setState(() {
         _authBlocked = true;
@@ -212,6 +223,9 @@ class _LoginPageState extends ConsumerState<LoginPage> {
     }
     if (!mounted) return;
     _authBlocked = false;
+    // 缓存清理成功:清除跨重启门禁标记。
+    await ref.read(pendingCacheClearProvider.notifier).clear();
+    if (!mounted) return;
     // 新 token 已接受:使缓存的当前用户身份失效,新 shell 重新从
     // 新令牌解析账号 id,避免 ProfilePage 仍用上一账号的 id 请求数据。
     ref.invalidate(currentUserProvider);

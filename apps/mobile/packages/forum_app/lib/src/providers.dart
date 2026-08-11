@@ -5,6 +5,7 @@ import 'package:core/core.dart';
 import 'package:dio/dio.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 
+import 'package:shared_preferences/shared_preferences.dart';
 import 'offline/drift_cache.dart';
 import 'app_config.dart';
 
@@ -42,6 +43,44 @@ class OfflineCacheEpoch extends Notifier<int> {
 
 final offlineCacheEpochProvider = NotifierProvider<OfflineCacheEpoch, int>(
   OfflineCacheEpoch.new,
+);
+
+/// 跨重启"待清缓存"门禁标记键(SharedPreferences,与 token/离线库独立)。
+const String pendingCacheClearKey = 'yourtj.auth.pendingCacheClear';
+
+/// 读取持久化的待清缓存标记(启动门禁用,不依赖 Riverpod 状态)。
+Future<bool> readPendingCacheClearFlag() async {
+  final SharedPreferences prefs = await SharedPreferences.getInstance();
+  return prefs.getBool(pendingCacheClearKey) ?? false;
+}
+
+/// 跨重启的会话缓存边界门禁。
+///
+/// 缓存清理失败且令牌可能残留时置位;登录页缓存清理成功后清除。
+/// 标记存在时 [appRouter] 强制重定向到登录页:即使进程被杀后重启,
+/// 残留的令牌与未清空的旧账号离线缓存也无法进入 shell 展示
+/// (跨账号数据泄漏的最后防线)。
+class PendingCacheClear extends Notifier<bool> {
+  @override
+  bool build() => false;
+
+  /// 置位门禁(缓存清理失败,令牌可能残留)。
+  Future<void> set() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.setBool(pendingCacheClearKey, true);
+    state = true;
+  }
+
+  /// 清除门禁(缓存清理成功)。
+  Future<void> clear() async {
+    final SharedPreferences prefs = await SharedPreferences.getInstance();
+    await prefs.remove(pendingCacheClearKey);
+    state = false;
+  }
+}
+
+final pendingCacheClearProvider = NotifierProvider<PendingCacheClear, bool>(
+  PendingCacheClear.new,
 );
 
 /// Dio 实例(测试可 override 注入 mock adapter)。

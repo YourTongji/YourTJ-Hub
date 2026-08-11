@@ -2867,6 +2867,71 @@ void main() {
       );
     });
 
+    testWidgets('跨重启门禁:标记存在时启动/导航均被强制留在登录页', (tester) async {
+      // 模拟上次会话缓存清理失败且令牌残留:持久化标记已置位,
+      // 且本次进入登录页的清理仍失败(ThrowingCache),标记保持。
+      SharedPreferences.setMockInitialValues(<String, Object>{
+        pendingCacheClearKey: true,
+      });
+      await initStartupGate();
+      addTearDown(() async {
+        SharedPreferences.setMockInitialValues(<String, Object>{});
+        await initStartupGate();
+      });
+
+      final storage = MemTokenStorage()..write(_jwtForUser(1));
+      final client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: storage,
+        baseUrl: 'http://fake.local',
+      );
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          pageRepositoryProvider.overrideWithValue(
+            CountingPageRepository(client),
+          ),
+          topicRepositoryProvider.overrideWithValue(
+            PagingTopicRepository(client),
+          ),
+          postRepositoryProvider.overrideWithValue(PostRepository(client)),
+          notificationRepositoryProvider.overrideWithValue(
+            FilteringNotificationRepository(client),
+          ),
+          authRepositoryProvider.overrideWithValue(
+            LogoutAuthRepository(client),
+          ),
+          userRepositoryProvider.overrideWithValue(
+            EmptySessionsUserRepository(client),
+          ),
+          // 清理失败:跨重启标记不会被登录页清除,门禁保持生效。
+          offlineTopicCacheProvider.overrideWithValue(ThrowingCache()),
+          offlineChatCacheProvider.overrideWithValue(ThrowingCache()),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      // 重建 App:初始路径 / 被门禁重定向到登录页,残留令牌与旧缓存
+      // 无法进入 shell。
+      await tester.pumpWidget(routerApp(container, appRouter));
+      await tester.pumpAndSettle();
+      expect(appRouter.state.uri.path, '/login', reason: '门禁标记存在时启动必须落在登录页');
+      expect(find.byType(LoginPage), findsOneWidget);
+      expect(find.byType(HomePage), findsNothing, reason: '不得进入 shell');
+
+      // 即使显式导航到其它路径,仍被强制留在登录页。
+      appRouter.go('/messages');
+      await tester.pumpAndSettle();
+      expect(
+        appRouter.state.uri.path,
+        '/login',
+        reason: '门禁标记存在时任何导航都被重定向到登录页',
+      );
+      expect(find.byType(HomePage), findsNothing);
+
+      await tester.pumpWidget(const SizedBox.shrink());
+    });
+
     testWidgets('A profile→401→B 登录:shell profile 使用 B 的 id', (tester) async {
       final client = GfApiClient(
         dio: Dio(),
