@@ -208,7 +208,7 @@ func reverseMessages(msgs []messages.Entity) {
 	}
 }
 
-// MarkRead clears unread state for a conversation.
+// MarkRead 清除指定会话的未读状态。
 //
 // 必须先校验调用方是否为该会话成员，否则任意已认证用户可枚举连续的 convId
 // 越权翻转他人私聊会话的已读状态（issue #111，CWE-639）。校验失败时返回
