@@ -524,7 +524,7 @@ UserSession:
       minimum: 1
     ipMasked:
       type: string
-      description: Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are currently echoed as-is (tracked in issue #79).
+      description: Privacy-masked client IP (the last IPv4 octet or the IPv6 interface ID is hidden); unparseable stored values are returned as an empty string.
     userAgent:
       type: string
       description: Truncated raw user agent; clients render a parsed device label.
