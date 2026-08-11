@@ -522,6 +522,7 @@ export interface UserCardPayload {
   wornBadge?: UserBadgePayload | null
   lastActiveTime: string
   createdAt: string
+  isAccountClosed: boolean
 }
 
 export interface UserProfileProps {

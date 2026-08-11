@@ -350,6 +350,9 @@ export default {
   },
   userCard: {
     unavailable: '用户资料暂时不可用',
+    accountClosedBadge: '已注销',
+    accountClosedTitle: '已注销用户',
+    accountClosedDescription: '该账号已注销，历史内容保留展示，主页不再开放。',
     online: '在线',
     activeAt: '活跃于 {time}',
     loading: '加载用户资料',

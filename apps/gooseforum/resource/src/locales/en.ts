@@ -350,6 +350,9 @@ export default {
   },
   userCard: {
     unavailable: 'User profile is temporarily unavailable',
+    accountClosedBadge: 'Deactivated',
+    accountClosedTitle: 'Account deactivated',
+    accountClosedDescription: 'This account has been deactivated. Historical content stays visible, but the profile is no longer accessible.',
     online: 'Online',
     activeAt: 'Active {time}',
     loading: 'Loading user profile',

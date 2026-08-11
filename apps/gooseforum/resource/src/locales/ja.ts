@@ -350,6 +350,9 @@ export default {
   },
   userCard: {
     unavailable: 'ユーザー情報は一時的に利用できません',
+    accountClosedBadge: '退会済み',
+    accountClosedTitle: '退会済みアカウント',
+    accountClosedDescription: 'このアカウントは退会済みです。過去の投稿は表示されますが、プロフィールは利用できません。',
     online: 'オンライン',
     activeAt: '{time} にアクティブ',
     loading: 'ユーザー情報を読み込み中',

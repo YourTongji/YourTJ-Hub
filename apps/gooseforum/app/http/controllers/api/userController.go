@@ -18,6 +18,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
 	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
 	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
@@ -51,6 +52,14 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	userId := req.Params.UserId
 	card, ok := userservice.GetUserCard(userId)
 	if !ok {
+		// 已注销（软删）账号仍可能保留历史内容，渲染专门的注销用户卡片（PRD R10）。
+		if users.IsAccountClosed(userId) {
+			return component.SuccessResponse(&vo.UserCard{
+				UserId:          userId,
+				AvatarUrl:       urlconfig.GetDefaultAvatar(),
+				IsAccountClosed: true,
+			})
+		}
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
 	}
 	currentUserId := req.UserId

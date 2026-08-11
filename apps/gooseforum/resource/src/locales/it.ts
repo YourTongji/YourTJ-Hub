@@ -350,6 +350,9 @@ export default {
   },
   userCard: {
     unavailable: 'Il profilo utente è temporaneamente non disponibile',
+    accountClosedBadge: 'Disattivato',
+    accountClosedTitle: 'Account disattivato',
+    accountClosedDescription: 'Questo account è stato disattivato. I contenuti storici restano visibili, ma il profilo non è più accessibile.',
     online: 'Online',
     activeAt: 'Attivo {time}',
     loading: 'Caricamento del profilo utente',

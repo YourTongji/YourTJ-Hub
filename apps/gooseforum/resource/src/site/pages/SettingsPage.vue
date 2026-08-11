@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
+  AlertTriangle,
   Archive,
   ArrowLeft,
   Ban,
@@ -12,6 +13,7 @@ import {
   KeyRound,
   Link as LinkIcon,
   Loader2,
+  Lock,
   Mail,
   Pencil,
   Feather,
@@ -1824,80 +1826,146 @@ async function toggleBinding(provider: string) {
               </button>
             </form>
 
-            <div class="mx-4 mb-4 max-w-xl rounded-lg border border-error/20 bg-error/5 p-4">
-              <h3 class="text-sm font-semibold text-error">{{ t('settings.account.closeTitle') }}</h3>
-              <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
-              <button type="button" class="gf-button gf-button-sm gf-button-danger mt-3" @click="openAccountCloseDialog">
-                <UserRound class="h-4 w-4" />
-                {{ t('settings.account.closeAction') }}
-              </button>
+            <div class="mx-4 mb-4 max-w-xl rounded-[var(--gf-radius-box)] border border-error/20 bg-error/10 p-4">
+              <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/15 text-error ring-1 ring-inset ring-error/20">
+                  <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-sm font-semibold text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                  <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                </div>
+              </div>
+              <div class="mt-3 flex justify-end">
+                <button type="button" class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]" @click="openAccountCloseDialog">
+                  <UserRound class="h-4 w-4" aria-hidden="true" />
+                  {{ t('settings.account.closeAction') }}
+                </button>
+              </div>
             </div>
           </section>
 
           <Teleport to="body">
-            <div v-if="accountCloseOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="closeAccountCloseDialog">
-              <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
-                <h3 class="text-base font-semibold text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+            <Transition name="gf-modal">
+              <div
+                v-if="accountCloseOpen"
+                class="fixed inset-0 z-[110] flex items-center justify-center bg-neutral/45 px-4 py-6 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="account-close-title"
+                @click.self="closeAccountCloseDialog"
+              >
+                <div class="gf-menu-surface w-full max-w-md p-4 sm:p-5">
+                  <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/10 text-error ring-1 ring-inset ring-error/15">
+                      <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <h3 id="account-close-title" class="text-base font-semibold leading-6 text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                      <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content"
+                      :disabled="accountCloseSubmitting"
+                      :aria-label="t('common.close')"
+                      @click="closeAccountCloseDialog"
+                    >
+                      <X class="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
 
-                <div class="mt-3 space-y-2">
-                  <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 transition hover:bg-base-200/60">
+                  <div class="mt-4 space-y-2">
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'anonymize' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="anonymize"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeAnonymize') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeAnonymizeDescription') }}</span>
+                      </span>
+                    </label>
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'delete' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="delete"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeDelete') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeDeleteDescription') }}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closeConfirmLabel') }}</span>
                     <input
-                      v-model="accountCloseMode"
-                      type="radio"
-                      value="anonymize"
-                      class="mt-1 h-4 w-4 accent-primary"
+                      v-model="accountCloseConfirmText"
+                      type="text"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :aria-invalid="Boolean(accountCloseError)"
+                      placeholder="注销"
                     />
-                    <span>
-                      <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeAnonymize') }}</span>
-                      <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeAnonymizeDescription') }}</span>
-                    </span>
                   </label>
-                  <label class="flex cursor-pointer items-start gap-3 rounded-lg border border-line p-3 transition hover:bg-base-200/60">
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closePasswordLabel') }}</span>
                     <input
-                      v-model="accountCloseMode"
-                      type="radio"
-                      value="delete"
-                      class="mt-1 h-4 w-4 accent-primary"
+                      v-model="accountClosePassword"
+                      type="password"
+                      autocomplete="current-password"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :placeholder="t('settings.account.closePasswordPlaceholder')"
+                      :disabled="accountCloseSubmitting"
+                      @keydown.enter="submitAccountClose"
                     />
-                    <span>
-                      <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeDelete') }}</span>
-                      <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeDeleteDescription') }}</span>
-                    </span>
                   </label>
-                </div>
 
-                <label class="mt-4 block">
-                  <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closeConfirmLabel') }}</span>
-                  <input v-model="accountCloseConfirmText" type="text" class="gf-input mt-1" placeholder="注销" />
-                </label>
+                  <div class="mt-2.5 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-line/80 bg-base-200/40 px-3 py-2.5">
+                    <Lock class="mt-0.5 h-3.5 w-3.5 shrink-0 text-base-content/45" aria-hidden="true" />
+                    <p class="text-xs leading-5 text-base-content/55">{{ t('settings.account.closePasswordHint') }}</p>
+                  </div>
 
-                <label class="mt-4 block">
-                  <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closePasswordLabel') }}</span>
-                  <input
-                    v-model="accountClosePassword"
-                    type="password"
-                    autocomplete="current-password"
-                    class="gf-input mt-1"
-                    :placeholder="t('settings.account.closePasswordPlaceholder')"
-                    :disabled="accountCloseSubmitting"
-                    @keydown.enter="submitAccountClose"
-                  />
-                </label>
-                <p class="mt-1.5 text-xs leading-5 text-base-content/50">{{ t('settings.account.closePasswordHint') }}</p>
+                  <p
+                    v-if="accountCloseError"
+                    class="mt-3 rounded-[var(--gf-radius-field)] border border-error/20 bg-error/10 px-3 py-2 text-sm leading-5 text-error"
+                    role="alert"
+                  >
+                    {{ accountCloseError }}
+                  </p>
 
-                <p v-if="accountCloseError" class="mt-2 text-sm text-error">{{ accountCloseError }}</p>
-
-                <div class="mt-4 flex justify-end gap-2">
-                  <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
-                    {{ t('common.cancel') }}
-                  </button>
-                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="accountCloseSubmitting || !accountClosePassword || !accountCloseConfirmText" @click="submitAccountClose">
-                    <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" />
-                    {{ t('settings.account.closeConfirmButton') }}
-                  </button>
+                  <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted active:scale-[0.96]" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
+                      {{ t('common.cancel') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]"
+                      :disabled="accountCloseSubmitting || !accountClosePassword || !accountCloseConfirmText"
+                      :aria-busy="accountCloseSubmitting"
+                      @click="submitAccountClose"
+                    >
+                      <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <UserRound v-else class="h-4 w-4" aria-hidden="true" />
+                      {{ t('settings.account.closeConfirmButton') }}
+                    </button>
+                  </div>
                 </div>
               </div>
-            </div>
+            </Transition>
           </Teleport>
 
           <section v-show="activeTab === 'privacy'">

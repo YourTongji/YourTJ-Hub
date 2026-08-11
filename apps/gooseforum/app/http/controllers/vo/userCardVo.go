@@ -36,4 +36,6 @@ type UserCard struct {
 	WornBadge      *badgeservice.UserBadge   `json:"wornBadge,omitempty"`
 	LastActiveTime time.Time                 `json:"lastActiveTime"`
 	CreatedAt      time.Time                 `json:"createdAt"`
+	// IsAccountClosed 标识该账号已注销（软删），前端渲染专门的注销用户卡片。
+	IsAccountClosed bool `json:"isAccountClosed"`
 }
