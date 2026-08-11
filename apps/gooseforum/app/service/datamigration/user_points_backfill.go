@@ -7,6 +7,7 @@ import (
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 
@@ -30,11 +31,11 @@ func BackfillMissingUserPointsWithDB(conn *gorm.DB) UserPointsBackfillResult {
 
 	err := conn.Transaction(func(tx *gorm.DB) error {
 		var missingUserIDs []uint64
-		if err := tx.Table("users AS u").
-			Select("u.id").
-			Joins("LEFT JOIN user_points AS up ON up.user_id = u.id").
-			Where("up.user_id IS NULL AND u.deleted_at IS NULL").
-			Order("u.id").
+		if err := tx.Table("users AS e").
+			Select("e.id").
+			Joins("LEFT JOIN user_points AS up ON up.user_id = e.id").
+			Where("up.user_id IS NULL AND e.deleted_at IS NULL AND e.actor_type = ?", users.ActorTypeHuman).
+			Order("e.id").
 			Scan(&missingUserIDs).Error; err != nil {
 			return err
 		}

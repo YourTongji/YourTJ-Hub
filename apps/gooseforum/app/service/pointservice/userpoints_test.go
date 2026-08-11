@@ -1,6 +1,7 @@
 package pointservice
 
 import (
+	"errors"
 	"fmt"
 	"testing"
 	"time"
@@ -184,5 +185,111 @@ func assertNoSourceRecord(t *testing.T, conn *gorm.DB, sourceKey string) {
 	}
 	if count != 0 {
 		t.Errorf("source record %q count = %d, want 0", sourceKey, count)
+	}
+}
+
+func TestApplyPointsSkipsBotUsers(t *testing.T) {
+	conn := newPointsTestDB(t)
+	botID := uint64(42)
+	if err := conn.Create(&users.EntityComplete{Id: botID, Username: "bot", ActorType: users.ActorTypeBot}).Error; err != nil {
+		t.Fatalf("create bot user: %v", err)
+	}
+	createPointsTopic(t, conn, 50, botID, 1, topics.ProcessStatusNormal)
+
+	for _, tc := range []struct {
+		name      string
+		action    PointsAction
+		points    int64
+		sourceKey string
+	}{
+		{"topic reward", PointsActionTopicPublished, TopicPublishedReward, "topic:50"},
+		{"post reward", PointsActionPostCreated, PostCreatedReward, "post:50"},
+		{"post reverse", PointsActionPostDeleted, -PostCreatedReward, "post-deleted:50"},
+	} {
+		if err := conn.Transaction(func(tx *gorm.DB) error {
+			return applyPointsTx(tx, botID, tc.points, tc.action, tc.sourceKey, "")
+		}); err != nil {
+			t.Fatalf("%s: applyPointsTx for bot returned error: %v", tc.name, err)
+		}
+	}
+
+	assertNoSourceRecord(t, conn, "topic:50")
+	assertNoSourceRecord(t, conn, "post:50")
+	assertNoSourceRecord(t, conn, "post-deleted:50")
+	var botBalance userPoints.Entity
+	err := conn.Where("user_id = ?", botID).Take(&botBalance).Error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("bot should have no user_points row, got %v / %+v", err, botBalance)
+	}
+	var botUser users.EntityComplete
+	if err := conn.Where("id = ?", botID).Take(&botUser).Error; err != nil {
+		t.Fatalf("load bot user: %v", err)
+	}
+	if botUser.Prestige != 0 {
+		t.Errorf("bot prestige = %d, want 0 (no reward, no reversal)", botUser.Prestige)
+	}
+}
+
+func TestApplyPointsLazyCreatesMissingUserPointsRow(t *testing.T) {
+	conn := newPointsTestDB(t)
+	// Human user without a user_points row — simulates a legacy deployment whose
+	// users table predates the points feature and has not yet run backfill v14.
+	if err := conn.Create(&users.EntityComplete{Id: 7, Username: "legacy-human"}).Error; err != nil {
+		t.Fatalf("create legacy human: %v", err)
+	}
+	createPointsTopic(t, conn, 70, 7, 7, topics.ProcessStatusNormal)
+
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyPointsTx(tx, 7, TopicPublishedReward, PointsActionTopicPublished, "topic:70", "")
+	}); err != nil {
+		t.Fatalf("reward legacy user without user_points row: %v", err)
+	}
+
+	assertPointsState(t, conn, 7, TopicPublishedReward, TopicPublishedReward)
+	var balance userPoints.Entity
+	if err := conn.Where("user_id = ?", 7).Take(&balance).Error; err != nil {
+		t.Fatalf("lazy-created user_points row not found: %v", err)
+	}
+	if balance.CurrentPoints != TopicPublishedReward {
+		t.Errorf("legacy user_points current_points = %d, want %d", balance.CurrentPoints, TopicPublishedReward)
+	}
+}
+
+func TestReversePostRewardIsIdempotent(t *testing.T) {
+	conn := newPointsTestDB(t)
+	createPointsUser(t, conn, 1, 100)
+	createPointsTopic(t, conn, 80, 1, 1, topics.ProcessStatusNormal)
+	createPointsPost(t, conn, 81, 80, 1, posts.ProcessStatusNormal)
+
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyPointsTx(tx, 1, PostCreatedReward, PointsActionPostCreated, "post:81", "")
+	}); err != nil {
+		t.Fatalf("reward post: %v", err)
+	}
+	assertPointsState(t, conn, 1, 100+PostCreatedReward, PostCreatedReward)
+
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyPointsTx(tx, 1, -PostCreatedReward, PointsActionPostDeleted, "post-deleted:81", "post:81")
+	}); err != nil {
+		t.Fatalf("reverse post reward: %v", err)
+	}
+	assertPointsState(t, conn, 1, 100, 0)
+
+	// Second reverse attempt for the same post is a no-op: the unique source_key
+	// tombstone forces ErrDuplicatedKey → rollback to savepoint → nil, leaving the
+	// balance and prestige from the first reversal untouched.
+	if err := conn.Transaction(func(tx *gorm.DB) error {
+		return applyPointsTx(tx, 1, -PostCreatedReward, PointsActionPostDeleted, "post-deleted:81", "post:81")
+	}); err != nil {
+		t.Fatalf("duplicate reverse post reward: %v", err)
+	}
+	assertPointsState(t, conn, 1, 100, 0)
+
+	var tombstoneCount int64
+	if err := conn.Model(&pointsRecord.Entity{}).Where("source_key = ?", "post-deleted:81").Count(&tombstoneCount).Error; err != nil {
+		t.Fatalf("count tombstone records: %v", err)
+	}
+	if tombstoneCount != 1 {
+		t.Errorf("post-deleted:81 record count = %d, want 1 (reverse applied exactly once)", tombstoneCount)
 	}
 }

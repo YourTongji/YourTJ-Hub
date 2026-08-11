@@ -10,6 +10,7 @@ import (
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
@@ -63,6 +64,25 @@ func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, or
 }
 
 func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
+	if userId == 0 || sourceKey == "" {
+		return nil
+	}
+	// Bot personas do not participate in the points ledger: they have no user_points
+	// row (agentservice.Create intentionally skips InitUserPointsTx) and the forum
+	// reward model is scoped to humans. Skipping here covers RewardPoints from both
+	// topic/reply event handlers and ReversePostRewardTx from the delete path, so
+	// bot content neither earns nor reverses points and never errors into the
+	// eventbus retry/drop loop.
+	var actorType int8
+	if err := tx.Table("users").Select("actor_type").Where("id = ?", userId).Take(&actorType).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil
+		}
+		return err
+	}
+	if actorType == users.ActorTypeBot {
+		return nil
+	}
 	locking := clause.Locking{Strength: "UPDATE"}
 	// Publication handlers receive events only after the write path has accepted the
 	// content. Rechecking mutable moderation state here would make rewards depend on
@@ -160,8 +180,25 @@ func applyPointsTx(tx *gorm.DB, userId uint64, points int64, action PointsAction
 	if result.Error != nil {
 		return result.Error
 	}
-	if result.RowsAffected != 1 {
-		return fmt.Errorf("user points row missing for user %d", userId)
+	if result.RowsAffected == 0 && points > 0 {
+		// Legacy user whose `users` row predates the points feature, or was imported
+		// without InitUserPointsTx, has no user_points row. BackfillMissingUserPoints
+		// (migration v14) is the primary repair; this lazy create keeps the in-flight
+		// reward from being lost before the backfill runs. Reversals (points < 0)
+		// skip this path: the balance was already lost, the ledger tombstone records
+		// the reversal, and backfill reconstructs from the ledger SUM. A concurrent
+		// creator wins the insert and the loser retries the increment.
+		createResult := tx.Create(&userPoints.Entity{UserId: userId, CurrentPoints: points})
+		if createResult.Error != nil {
+			if !errors.Is(createResult.Error, gorm.ErrDuplicatedKey) {
+				return createResult.Error
+			}
+			retry := tx.Table("user_points").Where("user_id = ?", userId).
+				Update("current_points", gorm.Expr("current_points + ?", points))
+			if retry.Error != nil {
+				return retry.Error
+			}
+		}
 	}
 	if err := tx.Table("users").Where("id = ?", userId).
 		Update("prestige", gorm.Expr("prestige + ?", points)).Error; err != nil {

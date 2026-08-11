@@ -1,6 +1,7 @@
 package datamigration
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/glebarez/sqlite"
@@ -23,6 +24,7 @@ func TestBackfillMissingUserPointsPreservesExistingBalances(t *testing.T) {
 		{Id: 2, Username: "missing-points"},
 		{Id: 3, Username: "missing-with-rewards"},
 		{Id: 4, Username: "missing-with-ledger-init"},
+		{Id: 5, Username: "bot-persona", ActorType: users.ActorTypeBot},
 	} {
 		if err := conn.Create(&user).Error; err != nil {
 			t.Fatalf("create user %d: %v", user.Id, err)
@@ -42,7 +44,7 @@ func TestBackfillMissingUserPointsPreservesExistingBalances(t *testing.T) {
 
 	result := BackfillMissingUserPointsWithDB(conn)
 	if result.Failed != 0 || result.Backfilled != 3 {
-		t.Fatalf("backfill result = %+v, want three successes", result)
+		t.Fatalf("backfill result = %+v, want three successes (bot excluded)", result)
 	}
 	var balances []userPoints.Entity
 	if err := conn.Order("user_id").Find(&balances).Error; err != nil {
@@ -53,7 +55,12 @@ func TestBackfillMissingUserPointsPreservesExistingBalances(t *testing.T) {
 		balances[1].CurrentPoints != 100 ||
 		balances[2].CurrentPoints != 112 ||
 		balances[3].CurrentPoints != 102 {
-		t.Fatalf("balances = %+v, want 345, 100, 112, 102", balances)
+		t.Fatalf("balances = %+v, want 345, 100, 112, 102 (bot 5 excluded)", balances)
+	}
+	var botBalance userPoints.Entity
+	err = conn.Where("user_id = ?", 5).Take(&botBalance).Error
+	if !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("bot user 5 should have no user_points row, got %v / %+v", err, botBalance)
 	}
 	var initRecords []pointsRecord.Entity
 	if err := conn.Where("action = ?", "init").Order("user_id").Find(&initRecords).Error; err != nil {

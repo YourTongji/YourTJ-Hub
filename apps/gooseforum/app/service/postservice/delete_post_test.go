@@ -46,20 +46,37 @@ func TestDeleteTopicPostWithoutOriginalRewardDoesNotDeduct(t *testing.T) {
 	assertDeletePoints(t, conn, 100, 0, 0)
 }
 
-func TestDeleteTopicPostRollsBackWhenReversalFails(t *testing.T) {
+func TestDeleteTopicPostReversesPrestigeWithoutBalanceRow(t *testing.T) {
 	conn := newDeletePostTestDB(t)
 	seedDeletePost(t, conn, true, false)
 
-	if _, err := deleteTopicPost(conn, 20, 1); err == nil {
-		t.Fatal("delete topic post succeeded without a user_points row")
+	deleted, err := deleteTopicPost(conn, 20, 1)
+	if err != nil {
+		t.Fatalf("delete topic post without user_points row: %v", err)
 	}
-	assertPostDeleted(t, conn, 20, false)
-	var reversalCount int64
-	if err := conn.Model(&pointsRecord.Entity{}).Where("source_key = ?", "post-deleted:20").Count(&reversalCount).Error; err != nil {
-		t.Fatalf("count rollback reversal: %v", err)
+	if deleted.Id != 20 {
+		t.Fatalf("deleted post id = %d, want 20", deleted.Id)
 	}
-	if reversalCount != 0 {
-		t.Fatalf("reversal count after rollback = %d, want 0", reversalCount)
+	assertPostDeleted(t, conn, 20, true)
+	// Prestige lives on the users table and reverses even when the balance row is
+	// missing; the lost balance is left for backfill v14 to reconstruct from the ledger.
+	var user users.EntityComplete
+	if err := conn.Where("id = ?", 1).Take(&user).Error; err != nil {
+		t.Fatalf("load user: %v", err)
+	}
+	if user.Prestige != 0 {
+		t.Errorf("prestige = %d, want 0 (reversal applied to users table)", user.Prestige)
+	}
+	var reversal pointsRecord.Entity
+	if err := conn.Where("source_key = ?", "post-deleted:20").Take(&reversal).Error; err != nil {
+		t.Fatalf("load reversal tombstone: %v", err)
+	}
+	if reversal.PointsChange != -2 {
+		t.Errorf("reversal tombstone points = %d, want -2", reversal.PointsChange)
+	}
+	var balance userPoints.Entity
+	if err := conn.Where("user_id = ?", 1).Take(&balance).Error; !errors.Is(err, gorm.ErrRecordNotFound) {
+		t.Fatalf("user_points row should still be absent for backfill to reconstruct, got %v / %+v", err, balance)
 	}
 }
 
