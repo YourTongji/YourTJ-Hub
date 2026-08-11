@@ -54,25 +54,12 @@ warn() { printf '::warning:: %s\n' "$*" >&2; }
 # ---------------------------------------------------------------------------
 
 # 幂等查重：按条目 URL 在项目中查找 item id（分页遍历，只取 content.url / id）。
+# 用 node(id:) 全局查询，无需知道项目属主是组织还是用户。
 graphql_item_id() {
   local url="$1" cursor="" resp proj id q
-  q='query($login: String!, $number: Int!, $after: String) {
-    organization(login: $login) {
-      projectV2(number: $number) {
-        items(first: 100, after: $after) {
-          pageInfo { hasNextPage endCursor }
-          nodes {
-            id
-            content {
-              ... on Issue { url }
-              ... on PullRequest { url }
-            }
-          }
-        }
-      }
-    }
-    user(login: $login) {
-      projectV2(number: $number) {
+  q='query($projectId: ID!, $after: String) {
+    node(id: $projectId) {
+      ... on ProjectV2 {
         items(first: 100, after: $after) {
           pageInfo { hasNextPage endCursor }
           nodes {
@@ -89,14 +76,14 @@ graphql_item_id() {
   while :; do
     # bash 3.2 兼容：不用空数组展开（set -u 下会 unbound variable），改用 set -- 条件组参。
     if [ -n "$cursor" ]; then
-      set -- -f "query=$q" -f "login=$PROJECT_OWNER" -F "number=$PROJECT_NUMBER" -f "after=$cursor"
+      set -- -f "query=$q" -f "projectId=$PROJECT_ID" -f "after=$cursor"
     else
-      set -- -f "query=$q" -f "login=$PROJECT_OWNER" -F "number=$PROJECT_NUMBER"
+      set -- -f "query=$q" -f "projectId=$PROJECT_ID"
     fi
     resp="$(gh api graphql "$@")" \
-      || fail "无法读取项目条目：请确认 GH_TOKEN 具备 read:project 权限、项目号正确"
-    proj="$(jq -r '(.data.organization.projectV2 // .data.user.projectV2) // empty' <<<"$resp")"
-    [ -n "$proj" ] || fail "无法定位项目 $PROJECT_OWNER/projects/$PROJECT_NUMBER：请确认 PROJECT_OWNER / PROJECT_NUMBER 正确"
+      || fail "无法读取项目条目：请确认 GH_TOKEN 具备 read:project 权限"
+    proj="$(jq -r '.data.node // empty' <<<"$resp")"
+    [ -n "$proj" ] || fail "无法定位项目（PROJECT_ID 无效）"
     id="$(jq -r --arg url "$url" '[.items.nodes[]? | select(.content.url == $url) | .id][0] // empty' <<<"$proj")"
     if [ -n "$id" ]; then
       printf '%s' "$id"
