@@ -378,8 +378,9 @@ export interface paths {
         /**
          * Delete the caller's own course review
          * @description Authenticated write. Only the author can delete a review (403 `review.notOwned`); the review
-         *     enters a deletion quarantine window and stops being listed. Unknown, hidden, or already
-         *     deleted reviews report 404 `review.notFound`.
+         *     enters a deletion quarantine window and stops being listed. Deleting is idempotent: repeating
+         *     DELETE on an already deleted review returns 200 with no further effect, and the author can
+         *     delete a review hidden by moderation (200). Unknown reviews report 404 `review.notFound`.
          */
         delete: operations["deleteCourseReview"];
         options?: never;

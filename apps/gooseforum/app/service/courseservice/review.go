@@ -66,9 +66,9 @@ type CreateReviewInput struct {
 // Content 为指针以区分"缺省（nil，保留原正文）"与"显式空串（清空正文）"，
 // 与 OpenAPI 契约的 PATCH 部分更新语义一致。
 type UpdateReviewInput struct {
-	Rating      *int   `json:"rating"`
+	Rating      *int    `json:"rating"`
 	Content     *string `json:"content"`
-	IsAnonymous *bool  `json:"isAnonymous"`
+	IsAnonymous *bool   `json:"isAnonymous"`
 }
 
 // CreateReview 登录用户为 offering 写评价；与 stats delta 同事务提交。
@@ -250,8 +250,11 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 		}
 		if helpful {
 			if err := course.CreateHelpfulTx(tx, &course.HelpfulEntity{ReviewId: reviewId, UserId: userId}); err != nil {
-				// 唯一约束冲突视为已标记（幂等）
-				return nil
+				// 仅唯一约束冲突视为已标记（幂等）；其余错误如实上报，避免吞掉 DB 故障。
+				if errors.Is(err, gorm.ErrDuplicatedKey) {
+					return nil
+				}
+				return err
 			}
 			return nil
 		}

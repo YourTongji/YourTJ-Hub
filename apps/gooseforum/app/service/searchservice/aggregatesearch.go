@@ -279,20 +279,26 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 		})
 		resp.CategoriesTotal = searchResp.EstimatedTotalHits
 	case CourseIndex:
+		// Meili hit 的 DisplayedAttributes 已包含 aliases/instructors/terms/campus，
+		// 直接从 hit 解码展示字段，避免前端这些展示位恒为空。
 		type courseHit struct {
-			ID uint64 `json:"id"`
+			ID          uint64   `json:"id"`
+			Aliases     []string `json:"aliases"`
+			Instructors []string `json:"instructors"`
+			Terms       []string `json:"terms"`
+			Campus      []string `json:"campus"`
 		}
-		ids := lo.FilterMap(searchResp.Hits, func(hit meilisearch.Hit, _ int) (uint64, bool) {
+		hits := lo.FilterMap(searchResp.Hits, func(hit meilisearch.Hit, _ int) (courseHit, bool) {
 			item := courseHit{}
 			if err := hit.Decode(&item); err != nil {
 				slog.Error("failed to decode course search hit", "err", err)
-				return 0, false
+				return courseHit{}, false
 			}
-			return item.ID, item.ID > 0
+			return item, item.ID > 0
 		})
-		courseMap := course.GetMapByIds(ids)
-		resp.Courses = lo.FilterMap(ids, func(id uint64, _ int) (CourseSearchResult, bool) {
-			c, ok := courseMap[id]
+		courseMap := course.GetMapByIds(lo.Map(hits, func(h courseHit, _ int) uint64 { return h.ID }))
+		resp.Courses = lo.FilterMap(hits, func(h courseHit, _ int) (CourseSearchResult, bool) {
+			c, ok := courseMap[h.ID]
 			if !ok || c == nil || c.Status != course.StatusVisible {
 				return CourseSearchResult{}, false
 			}
@@ -302,6 +308,10 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 				Name:        c.Name,
 				Department:  c.Department,
 				CreditX10:   c.CreditX10,
+				Aliases:     h.Aliases,
+				Instructors: h.Instructors,
+				Terms:       h.Terms,
+				Campus:      h.Campus,
 			}, true
 		})
 		resp.CoursesTotal = searchResp.EstimatedTotalHits
