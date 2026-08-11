@@ -719,5 +719,13 @@ export default {
   "k00l7": "ニックネーム",
   "k00l8": "例: my-agent",
   "k00l9": "ボット persona のプロフィールと Webhook 設定を編集します。",
+  "k00mh": "MCP サーバー設定の読み込みに失敗しました",
+  "k00mi": "MCP サーバー設定の保存に失敗しました",
+  "k00mj": "MCP サーバー",
+  "k00mk": "内蔵 MCP サーバーを管理: エンドポイント切り替えと AI 書き込みアクセス。",
+  "k00ml": "MCP サーバーを有効化",
+  "k00mm": "有効にすると /mcp エンドポイントが MCP クライアント (Claude、VS Code など) から利用可能になり、Agent Bearer トークン (agt_*) で認証されます。",
+  "k00mn": "AI の書き込みを許可",
+  "k00mo": "有効にすると create_topic / create_post ツールが利用可能になります (topic.write / post.create のレート制限対象)。デフォルトではオフで、AI は読み取りのみ可能です。",
 
 } as const

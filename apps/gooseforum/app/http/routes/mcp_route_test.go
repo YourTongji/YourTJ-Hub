@@ -2,17 +2,50 @@ package routes
 
 import (
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
+	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 )
 
-// TestMcpRouteRegistered asserts the MCP endpoint is mounted when RegisterByGin
-// is used (the production assembly), independent of the apiRoute-only router
-// the agent tests drive.
-func TestMcpRouteRegistered(t *testing.T) {
-	preferences.Set("mcp.enabled", true)
+// setupMcpRouteTestDB migrates the page_config table the MCP settings live in
+// and clears both the table and the hotdataserve cache so each test starts
+// from a clean admin-panel configuration.
+func setupMcpRouteTestDB(t *testing.T) {
+	t.Helper()
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate page_config: %v", err)
+	}
+	conn.Where("page_type = ?", pageConfig.MCPSettings).Delete(&pageConfig.Entity{})
+	hotdataserve.ClearMCPSettingsConfigCache()
+	t.Cleanup(func() {
+		conn.Where("page_type = ?", pageConfig.MCPSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearMCPSettingsConfigCache()
+	})
+}
+
+func writeMCPSettings(t *testing.T, cfg pageConfig.MCPSettingsConfig) {
+	t.Helper()
+	conn := db.Connect()
+	conn.Where("page_type = ?", pageConfig.MCPSettings).Delete(&pageConfig.Entity{})
+	if err := conn.Create(&pageConfig.Entity{PageType: pageConfig.MCPSettings, Config: jsonopt.Encode(cfg)}).Error; err != nil {
+		t.Fatalf("write mcp settings: %v", err)
+	}
+	hotdataserve.ClearMCPSettingsConfigCache()
+}
+
+// TestMcpRouteAlwaysRegistered asserts the MCP endpoint is always registered
+// when RegisterByGin is used (the production assembly), independent of the
+// apiRoute-only router the agent tests drive. The gin route tree is immutable
+// at runtime, so enabled/disabled is enforced per request (404) instead of at
+// registration time.
+func TestMcpRouteAlwaysRegistered(t *testing.T) {
+	setupMcpRouteTestDB(t)
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterByGin(router)
@@ -28,20 +61,40 @@ func TestMcpRouteRegistered(t *testing.T) {
 	}
 }
 
-// TestMcpRouteDisabledHonorsPreference asserts the endpoint is not mounted when
-// mcp.enabled is false.
-func TestMcpRouteDisabledHonorsPreference(t *testing.T) {
-	preferences.Set("mcp.enabled", false)
+// TestMcpRouteDisabledReturns404 asserts that when the admin-panel MCP
+// setting has enabled=false, the always-registered /mcp endpoint answers 404
+// and exposes no MCP surface.
+func TestMcpRouteDisabledReturns404(t *testing.T) {
+	setupMcpRouteTestDB(t)
+	writeMCPSettings(t, pageConfig.MCPSettingsConfig{Enabled: false, Writes: false})
 	gin.SetMode(gin.TestMode)
 	router := gin.New()
 	RegisterByGin(router)
 
-	registered := map[string]bool{}
-	for _, route := range router.Routes() {
-		registered[route.Method+" "+route.Path] = true
+	for _, method := range []string{http.MethodGet, http.MethodPost} {
+		req := httptest.NewRequest(method, "/mcp", nil)
+		rec := httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusNotFound {
+			t.Errorf("%s /mcp with enabled=false: status = %d, want 404", method, rec.Code)
+		}
 	}
-	if registered[http.MethodGet+" /mcp"] || registered[http.MethodPost+" /mcp"] {
-		t.Fatal("/mcp should not be mounted when mcp.enabled=false")
+}
+
+// TestMcpRouteEnabledServes asserts that with enabled=true the /mcp endpoint
+// is reachable: an unauthenticated request must be answered by the MCP
+// bearer-auth layer (401) rather than the 404 disabled guard.
+func TestMcpRouteEnabledServes(t *testing.T) {
+	setupMcpRouteTestDB(t)
+	writeMCPSettings(t, pageConfig.MCPSettingsConfig{Enabled: true, Writes: false})
+	gin.SetMode(gin.TestMode)
+	router := gin.New()
+	RegisterByGin(router)
+
+	req := httptest.NewRequest(http.MethodPost, "/mcp", nil)
+	rec := httptest.NewRecorder()
+	router.ServeHTTP(rec, req)
+	if rec.Code != http.StatusUnauthorized {
+		t.Errorf("POST /mcp with enabled=true (no token): status = %d, want 401 from bearer auth", rec.Code)
 	}
-	preferences.Set("mcp.enabled", true)
 }

@@ -23,7 +23,7 @@ func init() {
 		Args:  cobra.NoArgs,
 		RunE:  runMcpStdio,
 	}
-	cmd.Flags().Bool("writes", false, "enable write tools (create_topic/create_post) for this session, independent of the global mcp.writes preference")
+	cmd.Flags().Bool("writes", false, "enable write tools (create_topic/create_post) for this session, independent of the admin-panel mcp.writes setting")
 	appendCommand(cmd)
 }
 

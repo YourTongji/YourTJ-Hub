@@ -47,6 +47,7 @@ const (
 	SiteTheme           = `siteTheme`
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
+	MCPSettings         = `mcpSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -308,6 +309,12 @@ type RateLimitConfig struct {
 type HttpNotifyConfig struct {
 	Enabled   bool                 `json:"enabled"`
 	Endpoints []HttpNotifyEndpoint `json:"endpoints"`
+}
+
+// MCPSettingsConfig 内置 MCP server 配置，可在管理面板热修改。
+type MCPSettingsConfig struct {
+	Enabled bool `json:"enabled"` // /mcp 端点总开关
+	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
 }
 
 type HttpNotifyEndpoint struct {

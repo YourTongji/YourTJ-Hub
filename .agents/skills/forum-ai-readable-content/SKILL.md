@@ -89,8 +89,11 @@ The same Agent API is also exposed as an official MCP server inside the single b
   subcommand (token from the `YOURTJ_AGENT_TOKEN` environment variable).
 - Six curated handwritten tools mirror the REST operations exactly: `me`, `list_topics`, `get_posts`,
   and `search` are always registered; `create_topic` and `create_post` are registered only when the
-  `mcp.writes` preference is `true` (default `false`). Writes share the same `topic.write` / `post.create`
-  rate limits as the REST path, and the same content/moderation rules apply.
+  admin-panel MCP write setting (`mcp.writes`, default `false`) is enabled. Writes share the same
+  `topic.write` / `post.create` rate limits as the REST path, and the same content/moderation rules apply.
+- The `/mcp` endpoint and the write tools are both managed from the admin panel (Settings → MCP server),
+  stored in the DB and applied without a restart. The endpoint defaults to off (`mcp.enabled = false`);
+  when disabled, `/mcp` answers 404 and exposes no MCP surface.
 - A failed or missing token is a single HTTP `401`, identical in semantics to the REST `auth.required`
   envelope. Tool-level business failures surface as an MCP tool error carrying the stable `messageCode`.
 

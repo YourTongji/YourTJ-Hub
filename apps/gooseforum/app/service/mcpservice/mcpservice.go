@@ -5,7 +5,7 @@
 //   - thin wrapper, never reimplements business logic: every tool handler
 //     calls the same controller/service functions the REST Agent API uses;
 //   - read operations available by default, write operations opt-in via the
-//     mcp.writes preference (mirrors Discourse MCP's --allow_writes);
+//     writes setting in the admin panel (mirrors Discourse MCP's --allow_writes);
 //   - authentication reuses agentservice.ResolveByToken so the agt_ token is
 //     the single credential, with the same "all failures collapse to 401"
 //     policy as the REST middleware;
@@ -29,8 +29,8 @@ import (
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"github.com/modelcontextprotocol/go-sdk/auth"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -45,7 +45,7 @@ type Service struct {
 	fixedUserID uint64
 
 	// writesOverride, when non-nil, pins the write-tool availability for this
-	// service instead of reading the global mcp.writes preference. This lets
+	// service instead of reading the admin-panel mcp.writes setting. This lets
 	// the mcp-stdio subcommand decide write access independently of the public
 	// /mcp endpoint.
 	writesOverride *bool
@@ -81,8 +81,9 @@ func NewService() *Service {
 
 // NewStdioService returns a Service bound to a single agent identity,
 // resolved once at startup from an agt_ token. Used by the mcp-stdio
-// subcommand for local CLI clients. writes, if non-nil, overrides the global
-// mcp.writes preference for this service (independent of the public endpoint).
+// subcommand for local CLI clients. writes, if non-nil, overrides the
+// admin-panel mcp.writes setting for this service (independent of the public
+// endpoint).
 func NewStdioService(agentUserID uint64, writes ...bool) *Service {
 	s := &Service{fixedUserID: agentUserID}
 	if len(writes) > 0 {
@@ -93,12 +94,14 @@ func NewStdioService(agentUserID uint64, writes ...bool) *Service {
 }
 
 // writesEnabled returns whether write tools should be registered for this
-// service, honoring the per-service override if set.
+// service, honoring the per-service override if set. Without an override the
+// admin-panel MCP write setting is used, so a panel toggle takes effect
+// without restarting the process.
 func (s *Service) writesEnabled() bool {
 	if s.writesOverride != nil {
 		return *s.writesOverride
 	}
-	return preferences.GetBool("mcp.writes", false)
+	return hotdataserve.GetMCPSettingsConfigCache().Writes
 }
 
 // userID resolves the authenticated agent's user id for a tool call.
@@ -159,10 +162,11 @@ func (s *Service) verifier(ctx context.Context, token string, req *http.Request)
 }
 
 // getServer returns the *mcp.Server appropriate for the current writes
-// preference. Read tools are always registered; write tools only when
-// mcp.writes is enabled. The preference is re-read on every new session so a
-// config.toml change takes effect without restarting the process. Built
-// servers are cached per writes value and reused across sessions.
+// setting. Read tools are always registered; write tools only when the
+// admin-panel MCP write setting is enabled. The setting is re-read on every
+// new session (with a 5s hotdataserve cache) so a panel change takes effect
+// without restarting the process. Built servers are cached per writes value
+// and reused across sessions.
 func (s *Service) getServer(*http.Request) *mcp.Server {
 	writes := s.writesEnabled()
 	s.buildMu.Lock()
@@ -233,6 +237,15 @@ func (s *Service) HTTPHandler() http.Handler {
 	handler := mcp.NewStreamableHTTPHandler(s.getServer, &mcp.StreamableHTTPOptions{
 		Logger:         slog.Default(),
 		SessionTimeout: timeout,
+		// The SDK's DNS-rebinding protection rejects requests arriving via a
+		// loopback address whose Host header is not loopback (403 "invalid
+		// Host header"). The documented production topology is exactly that:
+		// openresty forwards forum.yourtj.de → 127.0.0.1:5234 with a public
+		// Host. The protection targets unauthenticated local services; /mcp is
+		// bearer-authenticated and the gin layer already resolves the client IP
+		// through the same trusted-proxies policy as the REST stack, so we
+		// disable it explicitly.
+		DisableLocalhostProtection: true,
 	})
 	authed := auth.RequireBearerToken(s.verifier, nil)(handler)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

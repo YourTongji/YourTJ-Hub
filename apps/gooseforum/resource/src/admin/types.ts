@@ -263,6 +263,11 @@ export interface RateLimitSettings {
   minSubmitSeconds: number
 }
 
+export interface MCPSettings {
+  enabled: boolean
+  writes: boolean
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string

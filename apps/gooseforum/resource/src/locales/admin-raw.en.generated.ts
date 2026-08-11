@@ -719,5 +719,13 @@ export default {
   "k00l7": "Nickname",
   "k00l8": "e.g. my-agent",
   "k00l9": "Edit the bot persona profile and webhook configuration.",
+  "k00mh": "Failed to load MCP server settings",
+  "k00mi": "Failed to save MCP server settings",
+  "k00mj": "MCP server",
+  "k00mk": "Manage the built-in MCP server: endpoint toggle and AI write access.",
+  "k00ml": "Enable MCP server",
+  "k00mm": "When enabled, the /mcp endpoint is available to MCP clients (e.g. Claude, VS Code), authenticated with the Agent bearer token (agt_*).",
+  "k00mn": "Allow AI writes",
+  "k00mo": "When enabled, create_topic / create_post tools are available (subject to topic.write / post.create rate limits); off by default, so AI can only read.",
 
 } as const

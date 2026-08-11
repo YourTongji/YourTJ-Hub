@@ -3,9 +3,10 @@ package routes
 import (
 	"context"
 	"log/slog"
+	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/mcpservice"
 )
 
@@ -13,14 +14,13 @@ import (
 //
 // It is intentionally a separate registration from apiRoute: several route
 // tests call apiRoute(router) directly and must not instantiate the MCP
-// server. The endpoint honors the mcp.enabled preference (default off) so an
-// operator opts in explicitly by setting [mcp] enabled = true; the write tool
-// opt-in is mcp.writes (default off), read by the MCP server per session.
+// server. The endpoint is always registered (gin's route tree is immutable at
+// runtime) and the enabled flag is checked per request from the admin-panel
+// MCP settings (hotdataserve 5s cache), so toggling mcp.enabled in the panel
+// takes effect without restarting the process. When disabled the endpoint
+// answers 404 and exposes no MCP surface; the write-tool opt-in (mcp.writes,
+// default off) is read by the MCP server per session.
 func mcpRoute(ginApp *gin.Engine) {
-	if !preferences.GetBool("mcp.enabled", false) {
-		slog.Info("mcp endpoint disabled by preference mcp.enabled")
-		return
-	}
 	svc := mcpservice.NewService()
 	handler := svc.HTTPHandler()
 	// Streamable HTTP uses POST for JSON-RPC and GET for the SSE stream; the
@@ -30,8 +30,12 @@ func mcpRoute(ginApp *gin.Engine) {
 	// verifier, so a raw X-Forwarded-For header on a direct connection cannot
 	// spoof the IP dimension of the write rate limits.
 	ginApp.Any("/mcp", func(c *gin.Context) {
+		if !hotdataserve.GetMCPSettingsConfigCache().Enabled {
+			c.Status(http.StatusNotFound)
+			return
+		}
 		ctx := context.WithValue(c.Request.Context(), mcpservice.ClientIPContextKey{}, c.ClientIP())
 		handler.ServeHTTP(c.Writer, c.Request.WithContext(ctx))
 	})
-	slog.Info("mcp endpoint mounted", "path", "/mcp")
+	slog.Info("mcp endpoint registered", "path", "/mcp")
 }

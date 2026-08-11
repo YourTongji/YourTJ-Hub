@@ -11,16 +11,15 @@ import (
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -41,14 +40,17 @@ func setupMCPServiceTestDB(t *testing.T) *gorm.DB {
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
+		&pageConfig.Entity{},
 	); err != nil {
 		t.Fatalf("migrate mcp tables: %v", err)
 	}
 	cleanMCPServiceTables(conn)
 	hotdataserve.ClearRateLimitConfigCache()
+	hotdataserve.ClearMCPSettingsConfigCache()
 	t.Cleanup(func() {
 		ratelimit.Default().ResetAll()
 		hotdataserve.ClearRateLimitConfigCache()
+		hotdataserve.ClearMCPSettingsConfigCache()
 	})
 	return conn
 }
@@ -61,6 +63,18 @@ func cleanMCPServiceTables(conn *gorm.DB) {
 	conn.Where("1 = 1").Delete(&agents.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Where("page_type = ?", pageConfig.MCPSettings).Delete(&pageConfig.Entity{})
+}
+
+// setMCPSettings writes the admin-panel MCP settings row and clears the
+// hotdataserve cache so the next read observes the new value.
+func setMCPSettings(t *testing.T, conn *gorm.DB, cfg pageConfig.MCPSettingsConfig) {
+	t.Helper()
+	conn.Where("page_type = ?", pageConfig.MCPSettings).Delete(&pageConfig.Entity{})
+	if err := conn.Create(&pageConfig.Entity{PageType: pageConfig.MCPSettings, Config: jsonopt.Encode(cfg)}).Error; err != nil {
+		t.Fatalf("write mcp settings: %v", err)
+	}
+	hotdataserve.ClearMCPSettingsConfigCache()
 }
 
 func createMCPServiceAgent(t *testing.T, username string) (uint64, string) {
@@ -138,21 +152,21 @@ func TestToolSetWritesEnabled(t *testing.T) {
 }
 
 func TestGetServerHonorsWritesPreference(t *testing.T) {
-	setupMCPServiceTestDB(t)
+	conn := setupMCPServiceTestDB(t)
 	svc := NewService()
 
 	// Simulate a streamable session creation: getServer must pick the tool set
-	// from the mcp.writes preference (default off).
-	preferences.Set("mcp.writes", false)
+	// from the admin-panel MCP writes setting (default off).
+	setMCPSettings(t, conn, pageConfig.MCPSettingsConfig{Enabled: true, Writes: false})
 	names := toolNames(t, connectMCPServer(t, false))
 	if names["create_topic"] {
-		t.Fatal("create_topic present when preference writes=false")
+		t.Fatal("create_topic present when writes=false")
 	}
 
-	preferences.Set("mcp.writes", true)
+	setMCPSettings(t, conn, pageConfig.MCPSettingsConfig{Enabled: true, Writes: true})
 	names = toolNames(t, connectMCPServer(t, true))
 	if !names["create_topic"] || !names["create_post"] {
-		t.Fatal("write tools missing when preference writes=true")
+		t.Fatal("write tools missing when writes=true")
 	}
 	_ = svc
 }
@@ -583,7 +597,7 @@ func TestAsIntClampsOutOfRange(t *testing.T) {
 		t.Fatalf("asInt(42) = %d, want 42", got)
 	}
 	// A large but in-range int64 is preserved (no clamp triggered).
-	if got := asInt(int64(1<<40)); got != 1<<40 {
+	if got := asInt(int64(1 << 40)); got != 1<<40 {
 		t.Fatalf("asInt(1<<40) = %d, want %d", got, 1<<40)
 	}
 }
