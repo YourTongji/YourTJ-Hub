@@ -221,7 +221,6 @@ function submit() {
           <div
             v-if="open"
             role="dialog"
-            aria-modal="true"
             aria-labelledby="post-composer-title"
             class="gf-floating-surface pointer-events-auto relative flex max-h-[calc(100dvh-1rem)] w-[min(42rem,calc(100vw-1.5rem))] flex-col overflow-hidden p-3"
             :style="{
@@ -320,7 +319,6 @@ function submit() {
             </template>
             <div
               v-else
-              role="status"
               class="flex min-h-40 flex-1 flex-col items-center justify-center gap-5 px-6 py-8 text-center"
               :class="{ 'guest-lock-settled': lockSettled }"
             >

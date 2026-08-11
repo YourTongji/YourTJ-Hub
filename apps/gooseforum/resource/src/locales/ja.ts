@@ -401,7 +401,6 @@ export default {
     resizeComposer: '返信パネルの高さを調整',
     markdownSoon: 'Markdown 対応は後日追加予定です',
     publishReply: '返信を投稿',
-    loginToReply: 'ログインするとこのトピックに返信できます。',
     loginRequiredToComment: 'ログインユーザーのみコメントできます',
     loginRequiredToCommentHint: 'ログインするとディスカッションに参加し、他のユーザーと交流できます。',
     loginToComment: 'ログイン',

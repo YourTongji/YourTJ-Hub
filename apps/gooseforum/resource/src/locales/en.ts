@@ -401,7 +401,6 @@ export default {
     resizeComposer: 'Resize reply panel',
     markdownSoon: 'Markdown support is coming later',
     publishReply: 'Post reply',
-    loginToReply: 'Log in to reply to this topic.',
     loginRequiredToComment: 'Only logged-in users can comment',
     loginRequiredToCommentHint: 'Log in to join the discussion and interact with other members.',
     loginToComment: 'Log in',

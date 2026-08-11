@@ -401,7 +401,6 @@ export default {
     resizeComposer: '调整回复面板高度',
     markdownSoon: 'Markdown 支持稍后补齐',
     publishReply: '发布回复',
-    loginToReply: '登录后可以回复这个话题。',
     loginRequiredToComment: '仅登录用户可评论',
     loginRequiredToCommentHint: '登录后即可参与讨论，与其他用户交流。',
     loginToComment: '去登录',
