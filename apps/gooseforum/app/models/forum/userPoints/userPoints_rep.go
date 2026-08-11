@@ -10,6 +10,10 @@ func Create(entity *Entity) int64 {
 	return result.RowsAffected
 }
 
+func CreateError(entity *Entity) error {
+	return builder().Create(entity).Error
+}
+
 func Get(id any) (entity Entity) {
 	builder().First(&entity, id)
 	return

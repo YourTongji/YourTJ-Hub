@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"fmt"
 	"log/slog"
 	"strings"
 	"time"
@@ -22,6 +23,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/llmsservice"
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
+	"github.com/leancodebox/GooseForum/app/service/pointservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
 	"github.com/leancodebox/GooseForum/app/service/userservice"
@@ -544,7 +546,13 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
-	posts.DeleteEntity(&postEntity)
+	if posts.DeleteEntity(&postEntity) == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	if err := pointservice.ReversePoints(postEntity.UserId, 2, pointservice.PointsActionPostDeleted,
+		fmt.Sprintf("post-deleted:%d", postEntity.Id), fmt.Sprintf("post:%d", postEntity.Id)); err != nil {
+		slog.Error("reverse deleted post points failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
+	}
 	topicEntity := topics.GetSimple(postEntity.TopicId)
 	if topicEntity.Id > 0 {
 		postservice.SyncTopicPostStats(topicEntity, postEntity, true)

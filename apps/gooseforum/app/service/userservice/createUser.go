@@ -21,11 +21,11 @@ func CreateUser(username, password, email string, needValid bool, locale ...stri
 		userEntity.IsActivated = users.ActivationSuccess
 	}
 	userEntity.IsFrozen = users.StatusNormal
-	pointservice.InitUserPoints(userEntity.Id, 100)
 	err := users.Create(userEntity)
 	if err != nil {
 		return nil, err
 	}
+	_ = pointservice.InitUserPoints(userEntity.Id, 100)
 	userSt := userStatistics.Entity{UserId: userEntity.Id}
 	userStatistics.SaveOrCreateById(&userSt)
 	if userEntity.Id == 1 {
