@@ -209,7 +209,14 @@ func reverseMessages(msgs []messages.Entity) {
 }
 
 // MarkRead clears unread state for a conversation.
+//
+// 必须先校验调用方是否为该会话成员，否则任意已认证用户可枚举连续的 convId
+// 越权翻转他人私聊会话的已读状态（issue #111，CWE-639）。校验失败时返回
+// 与 GetMessages 一致的 "conversation not found" 错误语义，且不触碰任何状态。
 func MarkRead(userId, convId uint64) error {
+	if !imUserChatConfigs.CanAccessConversation(userId, convId) {
+		return errors.New("conversation not found")
+	}
 	imUserChatConfigs.ClearUnread(convId, userId)
 	messages.MarkMessagesRead(convId, userId)
 	unreadservice.Invalidate(userId)
