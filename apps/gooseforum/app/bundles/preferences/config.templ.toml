@@ -108,8 +108,11 @@ redirect_uris = ["yourtj://callback"]
 
 # 内置 MCP server（可选；将 /api/v1/agent/* 六操作暴露为标准 MCP 工具）
 # 认证复用 Agent Bearer token（agt_*），读操作默认可用
+# 默认关闭：存量部署的旧 config.toml 无 [mcp] 段，enabled 取默认值 false，
+# /mcp 端点不会自动上线。需要时在已有 config.toml 中手动添加
+# [mcp] enabled = true（本模板仅用于首次生成 config.toml）。
 [mcp]
-enabled = true
+enabled = false
 # 写操作（create_topic / create_post）默认不注册；设为 true 后显式开启，
 # 并复用现有 topic.write / post.create 限流配额（与 REST 写路径共享）
 writes = false

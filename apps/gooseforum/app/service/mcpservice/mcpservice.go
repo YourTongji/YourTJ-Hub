@@ -50,6 +50,12 @@ type Service struct {
 	// /mcp endpoint.
 	writesOverride *bool
 
+	// sessionTimeout, when non-zero, overrides the idle-session cleanup timeout
+	// applied by HTTPHandler. Production uses defaultMCPSessionTimeout (15m);
+	// tests set it to a short value to observe session reclamation without
+	// waiting.
+	sessionTimeout time.Duration
+
 	// buildMu guards the cached per-writes *mcp.Server instances. Building a
 	// server registers tools and reflects their schemas, so the result is
 	// cached and reused across sessions until the writes preference flips.
@@ -57,6 +63,15 @@ type Service struct {
 	readOnly  *mcp.Server // writes=false tool set
 	readWrite *mcp.Server // writes=true tool set
 }
+
+// defaultMCPSessionTimeout is how long an idle streamable-HTTP session may
+// hold no active requests before the SDK closes it. Sessions are created on
+// the first POST (initialize) and only removed on a client DELETE or timeout;
+// without a timeout, an idle client that never sends DELETE would pin its
+// session + connection + read-loop goroutine in memory forever, and repeated
+// initialize calls would accumulate unboundedly. 15 minutes of inactivity is
+// far beyond any real MCP interaction and lets us reap those sessions.
+const defaultMCPSessionTimeout = 15 * time.Minute
 
 // NewService returns a Service that authenticates every request via the
 // agt_ bearer token (fixedUserID == 0).
@@ -168,6 +183,15 @@ func (s *Service) getServer(*http.Request) *mcp.Server {
 // definitions are handwritten (see tools.go) rather than generated from
 // OpenAPI: the set is deliberately minimal so an LLM sees only what it can
 // use, and no hallucinated endpoints leak into its context.
+//
+// Every tool handler is wrapped by recoverToolHandler: the go-sdk runs tool
+// handlers on its own goroutines (internal/jsonrpc2 conn.handleAsync spawns
+// `go func(){ handler.Handle(...) }()` and the SDK never recovers), so a panic
+// inside a handler chain (a reused REST controller, resultToMap's json.Marshal,
+// a future nil dereference) would crash the whole process. The gin
+// middleware.Recovery() only protects HTTP request goroutines and cannot see
+// these. Converting the panic to a tool error keeps the process alive and
+// surfaces it to the MCP client instead.
 func (s *Service) buildServer(writes bool) *mcp.Server {
 	server := mcp.NewServer(&mcp.Implementation{
 		Name:    "yourtj-hub",
@@ -193,19 +217,27 @@ func (s *Service) buildServer(writes bool) *mcp.Server {
 // on. Per request we therefore lift the write deadline back to "no timeout";
 // this only affects /mcp and leaves the 10s slow-writer protection in place
 // for every other endpoint.
+//
+// Both the SSE stream (GET) and the JSON-RPC response (POST) are long-lived or
+// slow writes: the SDK writes the POST response body (text/event-stream by
+// default) only after the tool handler has finished, so a slow handler
+// (e.g. search over meilisearch, or a write tool hitting the DB) would hit the
+// 10s deadline and be cut off — the client would see a truncated response and
+// could retry a write tool, duplicating the post. So the deadline is lifted
+// for every /mcp request, not just GET.
 func (s *Service) HTTPHandler() http.Handler {
+	timeout := defaultMCPSessionTimeout
+	if s.sessionTimeout > 0 {
+		timeout = s.sessionTimeout
+	}
 	handler := mcp.NewStreamableHTTPHandler(s.getServer, &mcp.StreamableHTTPOptions{
-		Logger: slog.Default(),
+		Logger:         slog.Default(),
+		SessionTimeout: timeout,
 	})
 	authed := auth.RequireBearerToken(s.verifier, nil)(handler)
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// Only the SSE stream (GET) is a long-lived connection that the 10s
-		// server WriteTimeout would kill. JSON-RPC POSTs are request/response
-		// and keep the slow-writer protection.
-		if r.Method == http.MethodGet {
-			if rc := http.NewResponseController(w); rc != nil {
-				_ = rc.SetWriteDeadline(time.Time{})
-			}
+		if rc := http.NewResponseController(w); rc != nil {
+			_ = rc.SetWriteDeadline(time.Time{})
 		}
 		authed.ServeHTTP(w, r)
 	})

@@ -13,11 +13,11 @@ import (
 //
 // It is intentionally a separate registration from apiRoute: several route
 // tests call apiRoute(router) directly and must not instantiate the MCP
-// server. The endpoint honors the mcp.enabled preference (default on) so an
-// operator can switch it off without a code change; the write tool opt-in is
-// mcp.writes (default off), read by the MCP server per session.
+// server. The endpoint honors the mcp.enabled preference (default off) so an
+// operator opts in explicitly by setting [mcp] enabled = true; the write tool
+// opt-in is mcp.writes (default off), read by the MCP server per session.
 func mcpRoute(ginApp *gin.Engine) {
-	if !preferences.GetBool("mcp.enabled", true) {
+	if !preferences.GetBool("mcp.enabled", false) {
 		slog.Info("mcp endpoint disabled by preference mcp.enabled")
 		return
 	}

@@ -10,6 +10,7 @@ import (
 	"time"
 
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
 	"github.com/leancodebox/GooseForum/app/models/forum/agents"
@@ -19,6 +20,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/agentservice"
 	"github.com/modelcontextprotocol/go-sdk/mcp"
@@ -463,4 +465,186 @@ func TestResultToMapPreservesLargeIDs(t *testing.T) {
 func mustJSON(v any) string {
 	b, _ := json.Marshal(v)
 	return string(b)
+}
+
+// TestSessionTimeoutReclaimsIdleSession asserts an idle streamable-HTTP session
+// is closed by the SDK after the configured SessionTimeout, so repeated
+// initialize calls without DELETE do not accumulate sessions/goroutines
+// forever. A short sessionTimeout is injected; after waiting past it, a
+// request carrying the old session ID must no longer be accepted.
+func TestSessionTimeoutReclaimsIdleSession(t *testing.T) {
+	setupMCPServiceTestDB(t)
+	_, token := createMCPServiceAgent(t, "mcp-timeout")
+
+	svc := NewService()
+	svc.sessionTimeout = 200 * time.Millisecond
+	srv := httptest.NewServer(svc.HTTPHandler())
+	defer srv.Close()
+
+	base := http.DefaultTransport
+	rt := roundTripperFunc(func(req *http.Request) (*http.Response, error) {
+		req = req.Clone(req.Context())
+		req.Header.Set("Authorization", "Bearer "+token)
+		return base.RoundTrip(req)
+	})
+	client := &http.Client{Transport: rt}
+
+	// initialize -> captures the Mcp-Session-Id the server assigned.
+	initBody := `{"jsonrpc":"2.0","id":1,"method":"initialize","params":{"protocolVersion":"2025-06-18","capabilities":{},"clientInfo":{"name":"t","version":"0"}}}`
+	initReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/mcp", strings.NewReader(initBody))
+	initReq.Header.Set("Content-Type", "application/json")
+	initReq.Header.Set("Accept", "application/json, text/event-stream")
+	initResp, err := client.Do(initReq)
+	if err != nil {
+		t.Fatalf("initialize: %v", err)
+	}
+	initResp.Body.Close()
+	sessionID := initResp.Header.Get("Mcp-Session-Id")
+	if sessionID == "" {
+		t.Fatal("initialize returned no Mcp-Session-Id")
+	}
+
+	// Wait past the session timeout, then reuse the same session ID: the SDK
+	// must have reaped the session, so the request is answered with 404 rather
+	// than being routed to the (now-closed) session.
+	time.Sleep(500 * time.Millisecond)
+
+	ping := `{"jsonrpc":"2.0","id":2,"method":"ping","params":{}}`
+	pingReq, _ := http.NewRequest(http.MethodPost, srv.URL+"/mcp", strings.NewReader(ping))
+	pingReq.Header.Set("Content-Type", "application/json")
+	pingReq.Header.Set("Accept", "application/json, text/event-stream")
+	pingReq.Header.Set("Mcp-Session-Id", sessionID)
+	pingResp, err := client.Do(pingReq)
+	if err != nil {
+		t.Fatalf("ping after timeout: %v", err)
+	}
+	defer pingResp.Body.Close()
+	if pingResp.StatusCode != http.StatusNotFound {
+		t.Fatalf("request with stale session ID after timeout: status = %d, want 404 (session reclaimed)", pingResp.StatusCode)
+	}
+}
+
+// TestRecoverToolHandlerConvertsPanic asserts a panic inside a tool handler is
+// converted to a tool error instead of crashing the process. The go-sdk runs
+// handlers on its own goroutines with no recover(); without the wrapper the
+// whole process (including the REST server) would die.
+func TestRecoverToolHandlerConvertsPanic(t *testing.T) {
+	server := mcp.NewServer(&mcp.Implementation{Name: "test", Version: "0"}, nil)
+	mcp.AddTool(server, &mcp.Tool{
+		Name:        "boom",
+		Description: "panics",
+		InputSchema: objectSchema(nil, nil),
+	}, recoverToolHandler("boom", func(_ context.Context, _ *mcp.CallToolRequest, _ map[string]any) (*mcp.CallToolResult, map[string]any, error) {
+		panic("simulated nil dereference")
+	}))
+
+	ctx := context.Background()
+	cs, err := mcp.NewClient(&mcp.Implementation{Name: "test-client", Version: "0"}, nil).
+		Connect(ctx, mustInMemoryTransport(t, server), nil)
+	if err != nil {
+		t.Fatalf("connect client: %v", err)
+	}
+	defer cs.Close()
+
+	res, err := cs.CallTool(ctx, &mcp.CallToolParams{Name: "boom", Arguments: map[string]any{}})
+	if err != nil {
+		t.Fatalf("call boom: %v", err)
+	}
+	if !res.IsError {
+		t.Fatalf("boom returned success; want tool error after panic: %+v", res.Content)
+	}
+}
+
+func mustInMemoryTransport(t *testing.T, server *mcp.Server) *mcp.InMemoryTransport {
+	t.Helper()
+	t1, t2 := mcp.NewInMemoryTransports()
+	if _, err := server.Connect(context.Background(), t1, nil); err != nil {
+		t.Fatalf("connect server: %v", err)
+	}
+	return t2
+}
+
+// TestAsIntClampsOutOfRange asserts float64/int64 values outside the int range
+// are clamped rather than left to Go's implementation-defined float→int
+// overflow, which on amd64 would otherwise yield max-int64 and later wrap an
+// OFFSET computation negative.
+func TestAsIntClampsOutOfRange(t *testing.T) {
+	if got := asInt(1e30); got != intMax {
+		t.Fatalf("asInt(1e30) = %d, want clamped intMax %d", got, intMax)
+	}
+	if got := asInt(-1e30); got != intMin {
+		t.Fatalf("asInt(-1e30) = %d, want clamped intMin %d", got, intMin)
+	}
+	if got := asInt(json.Number("1e30")); got != intMax {
+		t.Fatalf("asInt(json.Number(\"1e30\")) = %d, want intMax %d", got, intMax)
+	}
+	// Normal values pass through untouched.
+	if got := asInt(42); got != 42 {
+		t.Fatalf("asInt(42) = %d, want 42", got)
+	}
+	// A large but in-range int64 is preserved (no clamp triggered).
+	if got := asInt(int64(1<<40)); got != 1<<40 {
+		t.Fatalf("asInt(1<<40) = %d, want %d", got, 1<<40)
+	}
+}
+
+// TestSchemaBindsPageBounds asserts page/pageSize carry a Maximum so out-of-range
+// pagination values are rejected by schema validation before reaching asInt.
+func TestSchemaBindsPageBounds(t *testing.T) {
+	cs := connectMCPServer(t, false)
+	// Ask the client to invoke list_topics with page far beyond any Maximum; the
+	// SDK's schema validation must reject it as an invalid argument, not pass it
+	// through to a wrapping OFFSET computation.
+	callRes, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "list_topics", Arguments: map[string]any{"page": 1e30}})
+	if err != nil {
+		t.Fatalf("call list_topics with page=1e30: %v", err)
+	}
+	if !callRes.IsError {
+		t.Fatalf("list_topics with page=1e30 succeeded; want schema rejection, got %+v", callRes.Content)
+	}
+}
+
+// TestStdioWriteRateLimitedWithIPOnlyConfig asserts that in the mcp-stdio
+// transport (no HTTP layer, no client IP) writes are still rate limited when
+// the config relies on the IP dimension alone (limitPerUser=0). The fix charges
+// the IP quota per-agent (action+":ip:agent:<id>") when ip is empty, so a
+// config that sets only limitPerIp does not leave stdio writes unlimited.
+func TestStdioWriteRateLimitedWithIPOnlyConfig(t *testing.T) {
+	conn := setupMCPServiceTestDB(t)
+	agentID, _ := createMCPServiceAgent(t, "mcp-rate-iponly")
+	conn.Create(&category.Entity{Id: 9104, Name: "rl2", Slug: "rl2"})
+
+	// Only the IP dimension is configured for topic.write; the per-user
+	// dimension is explicitly zero.
+	custom := pageConfig.RateLimitConfig{
+		Enabled:   true,
+		SkipAdmin: false,
+		Actions: []pageConfig.RateLimitRule{
+			{Action: "topic.write", WindowSeconds: 60, LimitPerIp: 1, LimitPerUser: 0},
+		},
+	}
+	conn.Where("page_type = ?", pageConfig.RateLimitSettings).Delete(&pageConfig.Entity{})
+	conn.Create(&pageConfig.Entity{PageType: pageConfig.RateLimitSettings, Config: jsonopt.Encode(custom)})
+	hotdataserve.ClearRateLimitConfigCache()
+	t.Cleanup(func() {
+		conn.Where("page_type = ?", pageConfig.RateLimitSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearRateLimitConfigCache()
+	})
+
+	cs := connectMCPServer(t, true, agentID)
+	args := map[string]any{"title": "Rate test", "content": "Body long enough for the default minimum length.", "categoryId": []any{9104}}
+	limited := false
+	for i := 0; i < 20; i++ {
+		res, err := cs.CallTool(context.Background(), &mcp.CallToolParams{Name: "create_topic", Arguments: args})
+		if err != nil {
+			t.Fatalf("call create_topic attempt %d: %v", i, err)
+		}
+		if res.IsError {
+			limited = true
+			break
+		}
+	}
+	if !limited {
+		t.Fatal("create_topic never hit rate limit with IP-only config; stdio writes should still be bounded")
+	}
 }
