@@ -569,6 +569,9 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 		if topic.Id == 0 || topic.UserId != userID {
 			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
 		}
+		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
+		}
 		if err := topics.MarkPrivacyErased(contentID, userID, reason); err != nil {
 			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
 		}
@@ -593,6 +596,9 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 		post := posts.UnscopedGet(contentID)
 		if post.Id == 0 || post.UserId != userID {
 			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+		}
+		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
 		}
 		if err := posts.MarkPrivacyErased(contentID, userID, reason); err != nil {
 			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
