@@ -1,14 +1,16 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, Building2, CalendarDays, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
+import { ArrowLeft, BookOpen, Building2, CalendarDays, ChevronDown, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
 import {
   createCourseReview,
   deleteCourseReview,
+  getCourseRelated,
   listCourseReviews,
   reportCourseReview,
   setReviewHelpful,
   updateCourseReview,
+  type CourseRelatedResult,
   type ReviewPayload,
 } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
@@ -36,6 +38,28 @@ function offeringLabel(id: number) {
   const offering = page.props.course.offerings?.find((item) => item.id === id)
   if (!offering) return `#${id}`
   return [offering.termCode, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
+}
+
+function formatRating(avg: number) {
+  return avg > 0 ? avg.toFixed(1) : '—'
+}
+
+// ---- 相关课程（同教师其他课 / 同课程其他教师）----
+const related = ref<CourseRelatedResult | null>(null)
+const relatedLoading = ref(false)
+const relatedError = ref('')
+const relatedMobileExpanded = ref(false)
+
+async function loadRelated() {
+  relatedLoading.value = true
+  relatedError.value = ''
+  try {
+    related.value = await getCourseRelated(page.props.course.id)
+  } catch (error) {
+    relatedError.value = error instanceof Error ? error.message : t('courseDetailPage.relatedLoadFailed')
+  } finally {
+    relatedLoading.value = false
+  }
 }
 
 // authorLabel 作者展示名：member 用服务端回填的用户名；anonymous/legacy 走本地 i18n，
@@ -214,7 +238,10 @@ async function submitReport() {
   }
 }
 
-onMounted(loadReviews)
+onMounted(() => {
+  loadReviews()
+  loadRelated()
+})
 </script>
 
 <template>
@@ -275,6 +302,102 @@ onMounted(loadReviews)
           </div>
         </li>
       </ul>
+    </section>
+
+    <!-- 相关课程：桌面（sm+）常显；移动端折叠展开 -->
+    <section class="mt-6">
+      <div class="mb-3 flex items-center justify-between gap-2">
+        <h2 class="text-base font-semibold text-base-content">
+          {{ t('courseDetailPage.relatedTitle') }}
+        </h2>
+        <button
+          type="button"
+          class="gf-button gf-button-sm gf-button-ghost sm:hidden"
+          :aria-expanded="relatedMobileExpanded"
+          @click="relatedMobileExpanded = !relatedMobileExpanded"
+        >
+          <ChevronDown class="h-4 w-4 transition" :class="relatedMobileExpanded ? 'rotate-180' : ''" />
+          {{ relatedMobileExpanded ? t('courseDetailPage.relatedCollapse') : t('courseDetailPage.relatedExpand') }}
+        </button>
+      </div>
+
+      <p v-if="relatedError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
+        {{ relatedError }}
+      </p>
+
+      <div v-if="relatedLoading" class="gf-panel">
+        <EmptyState :icon="BookOpen" :title="t('common.loading')" loading />
+      </div>
+
+      <div
+        v-else
+        :class="['sm:grid sm:grid-cols-2 sm:gap-4', relatedMobileExpanded ? 'block' : 'hidden']"
+      >
+        <div class="gf-panel p-4">
+          <h3 class="mb-3 text-sm font-semibold text-base-content">
+            {{ t('courseDetailPage.relatedTeacherCoursesTitle') }}
+          </h3>
+          <EmptyState
+            v-if="!related?.teacherOtherCourses.length"
+            :icon="BookOpen"
+            :title="t('courseDetailPage.relatedEmpty')"
+          />
+          <ul v-else class="space-y-2">
+            <li v-for="item in related.teacherOtherCourses" :key="item.id">
+              <a
+                :href="`/courses/${item.id}`"
+                class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
+                  <span class="block truncate text-[12px] text-base-content/50">
+                    {{ item.primaryCode }}<template v-if="item.instructors?.length"> · {{ item.instructors.join('、') }}</template>
+                  </span>
+                </span>
+                <span class="shrink-0 text-right">
+                  <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
+                  <span class="block text-[11px] tabular-nums text-base-content/45">
+                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }) }}
+                  </span>
+                </span>
+              </a>
+            </li>
+          </ul>
+        </div>
+
+        <div class="gf-panel p-4">
+          <h3 class="mb-3 text-sm font-semibold text-base-content">
+            {{ t('courseDetailPage.relatedOtherTeachersTitle') }}
+          </h3>
+          <EmptyState
+            v-if="!related?.sameCourseOtherTeachers.length"
+            :icon="UsersRound"
+            :title="t('courseDetailPage.relatedEmpty')"
+          />
+          <ul v-else class="space-y-2">
+            <li
+              v-for="item in related.sameCourseOtherTeachers"
+              :key="item.offeringId"
+              class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2"
+            >
+              <span class="min-w-0">
+                <span class="block truncate text-sm font-medium text-base-content">
+                  {{ item.instructors?.join('、') || t('courseDetailPage.instructors') }}
+                </span>
+                <span class="block truncate text-[12px] text-base-content/50">
+                  {{ [item.termCode, item.campus].filter(Boolean).join(' · ') }}
+                </span>
+              </span>
+              <span class="shrink-0 text-right">
+                <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
+                <span class="block text-[11px] tabular-nums text-base-content/45">
+                  {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }) }}
+                </span>
+              </span>
+            </li>
+          </ul>
+        </div>
+      </div>
     </section>
 
     <section class="mt-6">

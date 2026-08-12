@@ -1280,6 +1280,42 @@ export interface CourseReviewAuthorRevealPayload {
   source: string
 }
 
+export interface RelatedCourseItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  instructors?: string[]
+  ratingAvg: number
+  ratingCount: number
+  reviewCount: number
+}
+
+export interface RelatedTeacherOfferingItem {
+  offeringId: number
+  termCode?: string
+  termName?: string
+  campus?: string
+  instructors?: string[]
+  ratingAvg: number
+  ratingCount: number
+  reviewCount: number
+}
+
+export interface CourseRelatedResult {
+  teacherOtherCourses: RelatedCourseItem[]
+  sameCourseOtherTeachers: RelatedTeacherOfferingItem[]
+}
+
+export async function getCourseRelated(courseId: number): Promise<CourseRelatedResult> {
+  const response = await fetch(`/api/forum/courses/${courseId}/related`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<CourseRelatedResult>(response, t('api.courseRelatedLoadFailed'))
+}
+
 export async function listCourseReviews(courseId: number, offeringId = 0): Promise<ReviewPayload[]> {
   const params = new URLSearchParams()
   if (offeringId > 0) params.set('offeringId', String(offeringId))
