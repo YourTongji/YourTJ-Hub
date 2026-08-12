@@ -481,6 +481,11 @@ export interface components {
             messageCode: "common.operation.success";
         };
         TotpStatusResponse: components["schemas"]["TotpStatusSuccess"] | components["schemas"]["ApiFailure"];
+        /**
+         * @description Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+         *     the server currently binds this request loosely and silently ignores unknown fields, unlike
+         *     the strictly decoded sibling /api/auth/totp/verify.
+         */
         TotpSetupRequest: {
             /** @description Current account password used for re-authentication before provisioning TOTP. */
             password: string;
@@ -497,8 +502,17 @@ export interface components {
             messageCode: "common.operation.success";
         };
         TotpSetupResponse: components["schemas"]["TotpSetupSuccess"] | components["schemas"]["ApiFailure"];
+        /**
+         * @description Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+         *     the server currently binds this request loosely and silently ignores unknown fields, unlike
+         *     the strictly decoded sibling /api/auth/totp/verify.
+         */
         TotpEnableRequest: {
-            /** @description Current six-digit TOTP code proving authenticator setup before enabling 2FA. */
+            /**
+             * @description Current six-digit TOTP code proving authenticator setup before enabling 2FA. The pattern is a
+             *     client-side format constraint; the server trims surrounding whitespace before validation, so a
+             *     six-digit code with stray whitespace is still accepted server-side.
+             */
             code: string;
         };
         TotpEnableResult: {
@@ -510,13 +524,18 @@ export interface components {
             messageCode: "common.operation.success";
         };
         TotpEnableResponse: components["schemas"]["TotpEnableSuccess"] | components["schemas"]["ApiFailure"];
+        /**
+         * @description Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+         *     the server currently binds this request loosely and silently ignores unknown fields, unlike
+         *     the strictly decoded sibling /api/auth/totp/verify.
+         */
         TotpDisableRequest: {
             /** @description Current TOTP code or account password used to disable 2FA. */
             code: string;
         };
         TotpDisableSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @constant */
-            result: "两步验证已关闭";
+            /** @description Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must not branch on it. */
+            result: string;
             /** @constant */
             messageCode: "common.operation.success";
         };
@@ -899,6 +918,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description TOTP setup rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     enableTotp: {
@@ -932,6 +961,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description TOTP enable rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     disableTotp: {
@@ -963,6 +1002,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description TOTP disable rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

@@ -64,6 +64,8 @@ setup:
                 externalValue: ../fixtures/totp-settings-invalid-params.json
               invalidCredentials:
                 externalValue: ../fixtures/totp-setup-invalid-credentials.json
+              alreadyEnabled:
+                externalValue: ../fixtures/totp-already-enabled.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -73,6 +75,21 @@ setup:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '429':
+        description: TOTP setup rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/totp-setup-rate-limited.json
 
 enable:
   post:
@@ -107,6 +124,8 @@ enable:
                 externalValue: ../fixtures/totp-code-invalid.json
               notSetup:
                 externalValue: ../fixtures/totp-not-enabled.json
+              alreadyEnabled:
+                externalValue: ../fixtures/totp-already-enabled.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -116,6 +135,21 @@ enable:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '429':
+        description: TOTP enable rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/totp-enable-rate-limited.json
 
 disable:
   post:
@@ -158,3 +192,18 @@ disable:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/totp-settings-unauthenticated.json
+      '429':
+        description: TOTP disable rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/totp-disable-rate-limited.json

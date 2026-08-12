@@ -185,6 +185,10 @@ TotpStatusResponse:
 
 TotpSetupRequest:
   type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
   required: [password]
   properties:
     password:
@@ -225,12 +229,20 @@ TotpSetupResponse:
 
 TotpEnableRequest:
   type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
   required: [code]
   properties:
     code:
       type: string
       minLength: 1
-      description: Current six-digit TOTP code proving authenticator setup before enabling 2FA.
+      pattern: '^\d{6}$'
+      description: |
+        Current six-digit TOTP code proving authenticator setup before enabling 2FA. The pattern is a
+        client-side format constraint; the server trims surrounding whitespace before validation, so a
+        six-digit code with stray whitespace is still accepted server-side.
   additionalProperties: false
 
 TotpEnableResult:
@@ -264,6 +276,10 @@ TotpEnableResponse:
 
 TotpDisableRequest:
   type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
   required: [code]
   properties:
     code:
@@ -280,7 +296,8 @@ TotpDisableSuccess:
       properties:
         result:
           type: string
-          const: 两步验证已关闭
+          minLength: 1
+          description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must not branch on it.
         messageCode:
           const: common.operation.success
 

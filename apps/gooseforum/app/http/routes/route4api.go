@@ -175,9 +175,11 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
-	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
-	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
-	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
+	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
+	// status 只读 enabled 标志、不验证任何凭据，无需限流。
+	loginApi.POST("user/totp/setup", middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
 
 	forumApi := baseApi.Group("forum")

@@ -490,7 +490,10 @@ void main() {
       );
 
       expect(response.isSuccess, isTrue);
-      expect(response.result, '两步验证已关闭');
+      // 契约已把 disable 成功文案从 const 解耦为自由字符串（S3），这里只断言
+      // result 是存在且非空的人类可读文案，不绑定具体值。
+      expect(response.result, isNotNull);
+      expect(response.result, isNotEmpty);
       expect(response.messageCode, 'common.operation.success');
     });
   });
