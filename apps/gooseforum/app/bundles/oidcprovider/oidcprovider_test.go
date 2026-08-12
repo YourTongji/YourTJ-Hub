@@ -7,6 +7,7 @@ import (
 	"encoding/pem"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"testing"
 
@@ -29,13 +30,15 @@ func TestLoadGeneratesAndPersistsKey(t *testing.T) {
 		t.Fatal("KeyID() = empty")
 	}
 
-	// 文件必须存在且权限为 0600
+	// 文件必须存在；POSIX 权限断言为 Unix 专属（Windows 无 mode 语义）
 	info, err := os.Stat(keyFile)
 	if err != nil {
 		t.Fatalf("key file not persisted: %v", err)
 	}
-	if perm := info.Mode().Perm(); perm != 0o600 {
-		t.Fatalf("key file perm = %o, want 600", perm)
+	if runtime.GOOS != "windows" {
+		if perm := info.Mode().Perm(); perm != 0o600 {
+			t.Fatalf("key file perm = %o, want 600", perm)
+		}
 	}
 
 	// 再次加载必须得到同一把密钥（重启后 kid 不变）
