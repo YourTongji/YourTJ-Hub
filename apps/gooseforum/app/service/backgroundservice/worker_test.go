@@ -282,3 +282,60 @@ func TestRecoverStaleRunningOnlyReclaimsExpiredLeases(t *testing.T) {
 		t.Fatalf("fresh task wrongly reclaimed: status = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
 	}
 }
+
+// TestRecoverStaleEmailTasksReclaimsExpiredLegacyLeases 验证邮件回收与领取侧
+// 使用同一类型谓词（review P1）：存量无前缀 activation/reset_password 行
+// 崩溃（租约过期）后同样能被回收为 Pending，不会永久卡在 Running；
+// 非邮件类型（export）与租约未过期的邮件行不被误回收。
+func TestRecoverStaleEmailTasksReclaimsExpiredLegacyLeases(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	createTask := func(typ string) *taskQueue.Entity {
+		t.Helper()
+		task := &taskQueue.Entity{Type: typ, Status: taskQueue.StatusPending, TaskJson: `{}`}
+		if err := taskQueue.Create(task); err != nil {
+			t.Fatalf("create %q task: %v", typ, err)
+		}
+		return task
+	}
+
+	prefixed := createTask("email.activation")
+	legacyActivation := createTask("activation")
+	legacyReset := createTask("reset_password")
+	nonEmail := createTask("export")
+	freshEmail := createTask("email.reset_password")
+
+	for _, task := range []*taskQueue.Entity{prefixed, legacyActivation, legacyReset, nonEmail, freshEmail} {
+		if _, claimed, err := taskQueue.ClaimTask(task.Id); err != nil || !claimed {
+			t.Fatalf("claim %q (id %d): claimed=%v err=%v", task.Type, task.Id, claimed, err)
+		}
+	}
+
+	conn := dbconnect.Connect()
+	age := func(task *taskQueue.Entity) {
+		t.Helper()
+		if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), task.Id).Error; err != nil {
+			t.Fatalf("age lease of %q: %v", task.Type, err)
+		}
+	}
+	// 模拟崩溃残留：三个邮件行租约过期；export 与 freshEmail 保持新鲜
+	age(prefixed)
+	age(legacyActivation)
+	age(legacyReset)
+
+	if err := taskQueue.RecoverStaleEmailTasks(taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale email tasks: %v", err)
+	}
+
+	for _, task := range []*taskQueue.Entity{prefixed, legacyActivation, legacyReset} {
+		if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusPending {
+			t.Fatalf("expired %q task status = %d, want %d (pending)", task.Type, updated.Status, taskQueue.StatusPending)
+		}
+	}
+	if updated := mustGetTask(t, nonEmail.Id); updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("non-email %q task wrongly reclaimed: status = %d, want %d (running)", nonEmail.Type, updated.Status, taskQueue.StatusRunning)
+	}
+	if updated := mustGetTask(t, freshEmail.Id); updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("fresh %q task wrongly reclaimed: status = %d, want %d (running)", freshEmail.Type, updated.Status, taskQueue.StatusRunning)
+	}
+}

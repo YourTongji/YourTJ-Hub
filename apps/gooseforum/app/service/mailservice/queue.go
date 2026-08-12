@@ -111,8 +111,9 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 
 		// 周期回收租约过期的 Running 任务（issue #138）：崩溃 worker 的
 		// 任务在 LeaseDuration 后回到 Pending 重新领取；运行中任务靠心跳
-		// 续租，不会被误回收。
-		if err := taskQueue.RecoverStaleRunning(emailTaskTypePrefix, taskQueue.LeaseDuration); err != nil {
+		// 续租，不会被误回收。与领取侧共用同一类型谓词，存量历史邮件行
+		// 崩溃后同样能被回收。
+		if err := taskQueue.RecoverStaleEmailTasks(taskQueue.LeaseDuration); err != nil {
 			slog.Error("恢复过期邮件任务失败", "error", err)
 		}
 
@@ -124,53 +125,65 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 
 		for _, task := range tasks {
 			slog.Debug("邮件队列开始处理任务", "id", task.Id, "type", task.Type, "status", task.Status, "retryCount", task.RetryCount)
-
-			// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
-			// 多 worker 并发时只有一个成功，其余跳过，避免重复发送邮件。
-			running, claimed, err := taskQueue.ClaimTask(task.Id)
-			if err != nil {
-				slog.Error("领取任务失败", "id", task.Id, "error", err)
-				continue
-			}
-			if !claimed {
-				slog.Debug("任务已被其他 worker 领取", "id", task.Id)
-				continue
-			}
-
-			// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx 终止处理。
-			guard := backgroundservice.NewLeaseGuard(running.ProcessedAt)
-			ctx, cancel := context.WithCancel(context.Background())
-			heartbeatDone := backgroundservice.StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
-
-			emailTask, outcome, sendErr := executeClaimedEmail(task)
-
-			// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；后续状态
-			// 写入以它为 CAS 前置条件（fencing）。若心跳退出瞬间与最后一次
-			// 续租交叠，guard 中的租约值可能滞后于 DB，最终续租负责收敛；
-			// 续租失败说明租约已被回收，跳过终态写入，避免覆盖新持有者导致
-			// 重复发送。
-			cancel()
-			<-heartbeatDone
-			lease := guard.Get()
-			if ok, renewed, renewErr := taskQueue.RenewLease(task.Id, lease); renewErr != nil {
-				slog.Error("邮件任务最终续租失败", "id", task.Id, "error", renewErr)
-			} else if ok {
-				lease = renewed
-			} else {
-				slog.Warn("邮件任务租约已丢失，跳过终态写入", "id", task.Id)
-				continue
-			}
-
-			retrying := writeEmailTaskOutcome(task, emailTask, outcome, sendErr, lease)
-			if retrying {
-				select {
-				case <-time.After(RetryInterval):
-				case <-stopCh:
-					return false
-				}
+			if stop := processClaimedEmailTask(stopCh, task); stop {
+				return false
 			}
 		}
 	}
+}
+
+// processClaimedEmailTask 处理单个邮件任务：原子领取（CAS）、处理期间心跳
+// 续租、执行、收敛租约值并以 fencing 写入终态。返回 stop 表示 stopCh 已
+// 关闭，worker 应退出。与 generic worker 的 processTask 结构对齐。
+func processClaimedEmailTask(stopCh <-chan struct{}, task *taskQueue.Entity) (stop bool) {
+	// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
+	// 多 worker 并发时只有一个成功，其余跳过，避免重复发送邮件。
+	running, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil {
+		slog.Error("领取任务失败", "id", task.Id, "error", err)
+		return false
+	}
+	if !claimed {
+		slog.Debug("任务已被其他 worker 领取", "id", task.Id)
+		return false
+	}
+
+	// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx 终止处理。
+	guard := backgroundservice.NewLeaseGuard(running.ProcessedAt)
+	ctx, cancel := context.WithCancel(context.Background())
+	// 即使 executeClaimedEmail panic（review P1），defer 也会在栈展开时取消
+	// ctx：心跳 goroutine 退出，不再续租，任务租约正常过期后可被回收，
+	// 避免心跳泄漏导致任务永久卡在 Running。
+	defer cancel()
+	heartbeatDone := backgroundservice.StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
+
+	emailTask, outcome, sendErr := executeClaimedEmail(task)
+
+	// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；后续状态
+	// 写入以它为 CAS 前置条件（fencing）。若心跳退出瞬间与最后一次
+	// 续租交叠，guard 中的租约值可能滞后于 DB，最终续租负责收敛；
+	// 续租失败说明租约已被回收，跳过终态写入，避免覆盖新持有者导致
+	// 重复发送。
+	cancel()
+	<-heartbeatDone
+	lease := guard.Get()
+	if ok, renewed, renewErr := taskQueue.RenewLease(task.Id, lease); renewErr != nil {
+		slog.Error("邮件任务最终续租失败", "id", task.Id, "error", renewErr)
+	} else if ok {
+		lease = renewed
+	} else {
+		slog.Warn("邮件任务租约已丢失，跳过终态写入", "id", task.Id)
+		return false
+	}
+
+	if retrying := writeEmailTaskOutcome(task, emailTask, outcome, sendErr, lease); retrying {
+		select {
+		case <-time.After(RetryInterval):
+		case <-stopCh:
+			return true
+		}
+	}
+	return false
 }
 
 // emailTaskOutcome 描述一次邮件任务执行的业务结果，供终态写入决策。
@@ -278,7 +291,8 @@ func processEmailTask(task EmailTask) error {
 	}
 }
 
-// RecoverStaleTasks 启动时恢复邮件 worker 类型前缀下崩溃遗留的 Running 任务。
+// RecoverStaleTasks 启动时恢复邮件 worker 名下崩溃遗留的 Running 任务
+// （含存量历史邮件行，与领取侧谓词一致）。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(emailTaskTypePrefix, taskQueue.LeaseDuration)
+	return taskQueue.RecoverStaleEmailTasks(taskQueue.LeaseDuration)
 }

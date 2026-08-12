@@ -54,3 +54,37 @@ func TestPendingNoopTaskDeletedAfterConsumption(t *testing.T) {
 		t.Fatalf("noop 任务应被删除而非保留为 Success，task_queue 剩余 %d 行", count)
 	}
 }
+
+// TestProcessClaimedEmailTaskNoopDeleted 验证重构后的单任务处理入口
+// processClaimedEmailTask（review P1：提取独立函数以持有 defer cancel()）：
+// noop 任务被原子领取、处理、并以租约 fencing 删除行，且不触发停止。
+func TestProcessClaimedEmailTaskNoopDeleted(t *testing.T) {
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatalf("migrate task_queue: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
+	})
+
+	if err := AddToQueue(EmailTask{To: "nobody@example.com", Type: "noop"}); err != nil {
+		t.Fatalf("enqueue noop: %v", err)
+	}
+	task := taskQueue.GetPendingEmailTasks(10)
+	if len(task) != 1 {
+		t.Fatalf("pending email tasks = %d, want 1", len(task))
+	}
+
+	if stop := processClaimedEmailTask(make(chan struct{}), task[0]); stop {
+		t.Fatal("processClaimedEmailTask 返回 stop=true，want false（队列未关闭）")
+	}
+
+	var count int64
+	if err := conn.Model(&taskQueue.Entity{}).Count(&count).Error; err != nil {
+		t.Fatalf("count task_queue: %v", err)
+	}
+	if count != 0 {
+		t.Fatalf("noop 任务应被删除，task_queue 剩余 %d 行", count)
+	}
+}

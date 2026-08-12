@@ -50,12 +50,21 @@ func GetPendingTasksByType(typePrefix string, limit int) (tasks []*Entity) {
 	return
 }
 
+// emailTypeQuery 返回邮件 worker 的类型匹配条件（email.* 前缀 + 存量
+// activation/reset_password 白名单）。GetPendingEmailTasks 与
+// RecoverStaleEmailTasks 共用，保证"领取"与"回收"两侧谓词一致：存量历史
+// 邮件行崩溃后同样能被回收，不会因类型不匹配而永久卡在 Running。
+func emailTypeQuery() (clause string, args []any) {
+	return "(type LIKE ? OR type IN (?, ?))", []any{"email.%", "activation", "reset_password"}
+}
+
 // GetPendingEmailTasks 获取邮件 worker 专属的待处理任务。
 // 新任务 type 带 "email." 前缀；存量任务仅 activation/reset_password 两种
 // （历史邮件任务），显式白名单避免 export/file-migrate 等无前缀任务被误消费。
 func GetPendingEmailTasks(limit int) (tasks []*Entity) {
+	clause, args := emailTypeQuery()
 	builder().
-		Where("(type LIKE 'email.%' OR type IN (?, ?))", "activation", "reset_password").
+		Where(clause, args...).
 		Where(queryopt.In("status", []int{StatusPending, StatusRetrying})).
 		Order("id asc").
 		Limit(limit).
@@ -169,6 +178,24 @@ func RecoverStaleRunning(typePrefix string, staleAfter time.Duration) error {
 	cutoff := time.Now().Add(-staleAfter)
 	return builder().
 		Where("type LIKE ?", typePrefix+"%").
+		Where("status = ?", StatusRunning).
+		Where("processed_at < ?", cutoff).
+		Updates(map[string]any{
+			"status":       StatusPending,
+			"last_error":   "recovered stale running task (lease expired)",
+			"processed_at": time.Now(),
+		}).Error
+}
+
+// RecoverStaleEmailTasks 将邮件 worker 名下租约过期的 Running 任务恢复为
+// Pending。与 GetPendingEmailTasks 使用同一类型谓词（email.* 前缀 +
+// activation/reset_password 白名单），因此存量历史邮件行崩溃后同样能被
+// 回收重领，不会像仅按前缀回收那样永久卡在 Running。
+func RecoverStaleEmailTasks(staleAfter time.Duration) error {
+	clause, args := emailTypeQuery()
+	cutoff := time.Now().Add(-staleAfter)
+	return builder().
+		Where(clause, args...).
 		Where("status = ?", StatusRunning).
 		Where("processed_at < ?", cutoff).
 		Updates(map[string]any{
