@@ -890,3 +890,49 @@ func TestCourseReviewPaginationHTTPContract(t *testing.T) {
 		}
 	}
 }
+
+// TestCourseReviewPaginationHiddenOfferingExcluded 验证 PR #201 security F1：
+// 隐藏 offering 后，其评价不出现在课程级分页的 list 与 total 中。
+func TestCourseReviewPaginationHiddenOfferingExcluded(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 901)
+	// 第二个 offering（course 42）
+	if err := conn.Create(&course.OfferingEntity{Id: 903, CourseId: 42, TermId: 101, Status: course.OfferingStatusVisible}).Error; err != nil {
+		t.Fatalf("create offering 903: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	seedCourseReview(t, conn, 1, 901, 1, nil, "可见", true, "", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 2, 903, 2, nil, "隐藏开课", true, "", course.ReviewStatusVisible)
+
+	// 初始：2 条（两个 offering 都可见）
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=50", "", "")
+	response := decodeContractEnvelope(t, rec)
+	var page struct {
+		List  []map[string]any `json:"list"`
+		Total float64          `json:"total"`
+	}
+	_ = json.Unmarshal(response.Result, &page)
+	if page.Total != 2 || len(page.List) != 2 {
+		t.Fatalf("initial total=%v len=%d, want 2/2", page.Total, len(page.List))
+	}
+
+	// 隐藏 offering 903 → 其评价（id=2）从 list + total 消失
+	if err := conn.Model(&course.OfferingEntity{}).Where("id = ?", 903).Update("status", course.OfferingStatusHidden).Error; err != nil {
+		t.Fatalf("hide offering 903: %v", err)
+	}
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=50", "", "")
+	response = decodeContractEnvelope(t, rec)
+	_ = json.Unmarshal(response.Result, &page)
+	if page.Total != 1 {
+		t.Fatalf("total after hide = %v, want 1 (hidden offering excluded)", page.Total)
+	}
+	if len(page.List) != 1 || page.List[0]["id"] != float64(1) {
+		t.Fatalf("list after hide = %#v, want only review 1", page.List)
+	}
+
+	// offering 过滤路径仍可读隐藏 offering 前的可见评价？不——offering 过滤需 offering 可见（404）
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=903", "", "")
+	if rec.Code != http.StatusNotFound {
+		t.Fatalf("hidden offering scoped list status = %d, want 404", rec.Code)
+	}
+}

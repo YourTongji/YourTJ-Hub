@@ -340,6 +340,9 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 }
 
 // ReviewListMaxItems 评价列表单次返回上限（防止热门课程响应无界；分页由后续 slice 增强）。
+// 注意：B2 分页（issue #174）上线后 HTTP 列表走 ListReviewsPage，旧路径
+// ListReviewsByOffering/ListReviewsByCourse 仅供内部调用（如无 HTTP 调用方时
+// 待后续清理，PR #201 security F3）。
 const ReviewListMaxItems = 200
 
 // ---- B2: cursor 分页（issue #174） ----

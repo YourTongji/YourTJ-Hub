@@ -263,9 +263,11 @@ func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
 		}
 		build = build.Order("id DESC")
 	} else {
+		// course 级：仅统计可见 offering——隐藏 offering 的评价不出现，
+		// 与 ListOfferingsByCourse/详情页可见性一致（PR #201 security F1）。
 		build = build.Where(
-			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL)",
-			q.CourseId,
+			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)",
+			q.CourseId, OfferingStatusVisible,
 		)
 		if q.CursorOfferingId > 0 || q.CursorReviewId > 0 {
 			build = build.Where(
@@ -283,10 +285,12 @@ func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
 }
 
 // CountVisibleReviewsByCourse 课程下可见评价总数（分页 total）。
+// 与 ListReviewsPage course 级口径一致：仅统计可见 offering
+// （PR #201 security F1：隐藏 offering 的评价不计入 total）。
 func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
 	var count int64
 	err := reviewBuilder().
-		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL)", courseId).
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
 		Where(queryopt.Eq("status", ReviewStatusVisible)).
 		Count(&count).Error
 	return count, err
