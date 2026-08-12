@@ -1,6 +1,7 @@
 package course
 
 import (
+	"errors"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -177,6 +178,59 @@ func DeleteHelpful(reviewId, userId uint64) error {
 		Where(queryopt.Eq("review_id", reviewId)).
 		Where(queryopt.Eq("user_id", userId)).
 		Delete(&HelpfulEntity{}).Error
+}
+
+// CleanupExpiredDeletedReviewsTx 清理删除隔离窗口（issue #175 B3，隐私合规）：
+// 将 status=deleted 且 updated_at（删除动作时间，deleted 行删除后不再被修改，
+// gorm autoUpdateTime 保证）早于 cutoff 的课程评价行脱敏——
+//   - content 清空：正文（含用户隐私）不再保留；
+//   - author_user_id 逐行置 0：断开与用户的关联，释放 (offering_id,
+//     author_user_id) 唯一索引占位。同一 offering 的多条 deleted 行不能同时
+//     置 0（唯一索引每 offering 至多一条 author=0 行，与 legacy 导入行共享），
+//     置 0 撞唯一索引的行保留原 author（content 已清空，正文隐私已消除；
+//     作者保留使 ReactivateReviewTx 复用路径仍可用）；
+//   - 行本身保留（status 仍为 deleted）：审计可追溯，不会破坏引用。
+//
+// 窗口起点说明：ReviewEntity.DeletedAt 是 gorm 软删字段（置值会被查询自动
+// 过滤，不能复用为删除时间戳）；业务删除（DeleteReview）只改 status，deleted
+// 行的 updated_at 即删除时间（删除后无其他写路径），故以 updated_at 判窗。
+// 返回受影响行数（清空正文的行数）。
+func CleanupExpiredDeletedReviewsTx(tx *gorm.DB, cutoff time.Time) (int64, error) {
+	// 1) 批量清空正文（无唯一约束冲突）
+	res := tx.Table(reviewTableName).
+		Where("status = ?", ReviewStatusDeleted).
+		Where("updated_at <= ?", cutoff).
+		Update("content", "")
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	cleaned := res.RowsAffected
+
+	// 2) 逐行断开作者关联：置 0 撞唯一索引的行跳过（保留原 author）。
+	var rows []struct {
+		Id uint64
+	}
+	if err := tx.Table(reviewTableName).
+		Select("id").
+		Where("status = ?", ReviewStatusDeleted).
+		Where("updated_at <= ?", cutoff).
+		Scan(&rows).Error; err != nil {
+		return cleaned, err
+	}
+	for _, row := range rows {
+		err := tx.Table(reviewTableName).
+			Where("id = ? AND author_user_id <> 0", row.Id).
+			Update("author_user_id", 0).Error
+		if err != nil {
+			// 唯一索引冲突：该 offering 已有 author=0 行（legacy 或本次
+			// 其他行），保留原 author；content 已清空，隐私目标已达成。
+			if errors.Is(err, gorm.ErrDuplicatedKey) {
+				continue
+			}
+			return cleaned, err
+		}
+	}
+	return cleaned, nil
 }
 
 // ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID
