@@ -731,4 +731,6 @@ export default {
   "k00mm": "有効にすると /mcp エンドポイントが MCP クライアント (Claude、VS Code など) から利用可能になり、Agent Bearer トークン (agt_*) で認証されます。",
   "k00mn": "AI の書き込みを許可",
   "k00mo": "有効にすると create_topic / create_post ツールが利用可能になります (topic.write / post.create のレート制限対象)。デフォルトではオフで、AI は読み取りのみ可能です。",
+  "k00ms": "移行済み {processed} / {total}",
+  "k00mt": "失敗: {failed}",
 } as const
