@@ -4,7 +4,7 @@ import (
 	"encoding/json"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func TestFailDataCodeSerializesMessageCodeAndParams(t *testing.T) {

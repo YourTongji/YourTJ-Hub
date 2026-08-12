@@ -5,8 +5,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/service/kvstore"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/kvstore"
 )
 
 func TestMain(m *testing.M) {

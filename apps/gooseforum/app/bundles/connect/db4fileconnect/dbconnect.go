@@ -4,9 +4,9 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/sqlconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/sqlconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 
 	"gorm.io/gorm"
 )

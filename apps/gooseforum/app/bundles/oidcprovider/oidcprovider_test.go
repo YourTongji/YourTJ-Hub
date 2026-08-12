@@ -12,7 +12,7 @@ import (
 
 	jose "github.com/go-jose/go-jose/v4"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 func TestLoadGeneratesAndPersistsKey(t *testing.T) {

@@ -4,11 +4,11 @@ import (
 	"context"
 	"errors"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"gorm.io/gorm"
 )
 

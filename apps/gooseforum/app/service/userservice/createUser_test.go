@@ -3,11 +3,11 @@ package userservice
 import (
 	"testing"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func setupCreateUserTestDB(t *testing.T) {

@@ -5,10 +5,10 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
@@ -53,7 +53,18 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 	var task *meilisearch.TaskInfo
 	var err error
 	pk := "id"
-	if topic.Status == 1 && topic.ProcessStatus == 0 {
+	// 仅"已发布、未封禁、未软删、可见性正常"的主题进入索引；其余一律删除文档。
+	// 用户删除（visibility_status=USER_DELETED）与封禁（process_status=1）都走删除分支。
+	isIndexable := topic.Status == 1 &&
+		topic.ProcessStatus == 0 &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive &&
+		firstPost != nil &&
+		firstPost.Id > 0 &&
+		!firstPost.DeletedAt.Valid &&
+		firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		firstPost.VisibilityStatus == posts.VisibilityActive
+	if isIndexable {
 		doc := convertTopicToSearchDocument(topic, firstPost)
 		task, err = index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {

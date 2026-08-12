@@ -446,7 +446,7 @@ export default {
   "k00cd": "Failed to delete post",
   "k00ce": "Post deleted",
   "k00cf": "Delete post?",
-  "k00cg": "Confirm deleting \"{title}\"? It will no longer be accessible publicly.",
+  "k00cg": "Confirm deleting \"{title}\"? It will no longer be publicly accessible, and a moderation reason is required.",
   "k00ch": "Failed to load HTTP notification settings",
   "k00ci": "Failed to save HTTP notification settings",
   "k00cj": "HTTP notifications",
@@ -719,6 +719,10 @@ export default {
   "k00l7": "Nickname",
   "k00l8": "e.g. my-agent",
   "k00l9": "Edit the bot persona profile and webhook configuration.",
+  "k00la": "Deletion reason",
+  "k00lb": "Please enter a deletion reason",
+  "k00lc": "e.g. policy violation, inappropriate content…",
+  "k00ld": "The reason is recorded in the moderation log; authors cannot restore this content.",
   "k00mh": "Failed to load MCP server settings",
   "k00mi": "Failed to save MCP server settings",
   "k00mj": "MCP server",
@@ -729,5 +733,4 @@ export default {
   "k00mo": "When enabled, create_topic / create_post tools are available (subject to topic.write / post.create rate limits); off by default, so AI can only read.",
   "k00ms": "Migrated {processed} / {total}",
   "k00mt": "Failed: {failed}",
-
 } as const

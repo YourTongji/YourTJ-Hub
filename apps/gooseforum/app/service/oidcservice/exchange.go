@@ -8,12 +8,12 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/authsessionservice"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )

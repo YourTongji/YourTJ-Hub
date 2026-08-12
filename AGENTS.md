@@ -17,8 +17,8 @@ GooseForum, keeping the single-binary deployment**. Unified auth (built-in OIDC 
 points (credit, phase 2) are shared infrastructure subdomains. Database, search, and structure may all
 be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" deployment shape is kept.
 
-- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; keeps the
-  `github.com/leancodebox/GooseForum` module name so upstream can be merged in).
+- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; module path
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum`, diverged from upstream's `github.com/leancodebox/GooseForum`).
 - Backend layers (upstream structure): `app/bundles` (utilities) → `app/models` (GORM models) →
   `app/service` (business) → `app/http/controllers/{api,forum}` (JSON API + GoHTML three-mode rendering).
 - Frontend: `apps/gooseforum/resource` (Vue 3 + Vite, site/admin dual entry), built output
@@ -43,7 +43,7 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 
 ```
 apps/
-  gooseforum/  The forum itself (upstream fork; module name github.com/leancodebox/GooseForum preserved)
+  gooseforum/  The forum itself (upstream fork; module path github.com/YourTongji/YourTJ-Hub/apps/gooseforum)
     main.go            Entry point (cobra: serve / mock / rebuild-search-index subcommands)
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
@@ -68,7 +68,9 @@ docs/        Docs center (product/architecture/development/operations)
   single binary in production.
 - `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
   off-the-shelf components; Casdoor is archived and not enabled).
-- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
+- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it. After
+  merging, rewrite upstream's `github.com/leancodebox/GooseForum` import prefix to
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum` (upstream files keep the old prefix), then run `go mod tidy`.
 
 ## 3. Hard constraints
 

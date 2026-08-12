@@ -5,11 +5,11 @@ import (
 	"log/slog"
 	"net/http"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/service/agentservice"
-	"github.com/leancodebox/GooseForum/app/service/optlogger"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 )
 
 // AgentItem is the admin-facing view of one agent. The token hash never leaves

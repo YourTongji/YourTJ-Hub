@@ -10,10 +10,10 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	otptotp "github.com/pquerna/otp/totp"
 	"gorm.io/gorm"
 )

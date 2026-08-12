@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	"github.com/glebarez/sqlite"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"gorm.io/gorm"
 )
 

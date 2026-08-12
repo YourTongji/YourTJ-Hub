@@ -3,8 +3,8 @@ package migration
 import (
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/service/datamigration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
 
 func runVersionedDataMigrations() {
@@ -151,6 +151,7 @@ func runVersionedDataMigrations() {
 		currentVersion = 13
 	}
 	if currentVersion < 14 {
+		// 积分回填（dev 合并,PR #110 防滥用）
 		result := datamigration.BackfillMissingUserPoints()
 		slog.Info("app migration user points backfill done", "backfilled", result.Backfilled, "failed", result.Failed, "lastFailed", result.LastFailed)
 		if result.Failed > 0 {
@@ -159,6 +160,29 @@ func runVersionedDataMigrations() {
 		}
 		pageConfig.SyncMigrationVersion(14)
 		currentVersion = 14
+	}
+	if currentVersion < 15 {
+		// 删除生命周期回填（Issue #94）：dev 的 v14 已被积分回填占用，
+		// 删除回填必须用独立版本号，否则已跑过 v14 的线上实例会永远跳过。
+		deleteResult := datamigration.BackfillDeleteLifecycle()
+		slog.Info("app migration delete lifecycle backfill done", "topics", deleteResult.TopicsBackfilled, "posts", deleteResult.PostsBackfilled, "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
+		if deleteResult.Failed > 0 {
+			slog.Error("app migration delete lifecycle backfill has failures", "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(15)
+		currentVersion = 15
+	}
+	if currentVersion < 16 {
+		// 移除 GitHub OAuth 明文 token 持久化并清理历史列（issue #131,PR #150）
+		result := datamigration.DropUserOAuthTokenColumns()
+		slog.Info("app migration user oauth credentials drop done", "dropped", result.Dropped, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user oauth credentials drop has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(16)
+		currentVersion = 16
 	}
 	slog.Info("app migration end", "version", currentVersion)
 }

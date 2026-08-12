@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/leancodebox/GooseForum/app/service/pointservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 )
 
 // handlePointTopicPublished 发帖获得积分

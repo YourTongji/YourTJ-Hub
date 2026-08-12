@@ -8,9 +8,9 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/spf13/cobra"
 )
 

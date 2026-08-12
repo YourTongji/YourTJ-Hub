@@ -3,11 +3,11 @@ package transform
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 )
 
 func Topics2Vo(data []*topics.Entity, categoryMap map[uint64]*category.Entity) []*vo.TopicsSimpleVo {

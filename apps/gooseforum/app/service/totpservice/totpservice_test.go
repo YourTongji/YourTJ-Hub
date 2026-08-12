@@ -8,11 +8,11 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotp"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpChallenges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpRecoveryCodes"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/pquerna/otp"
 	"github.com/pquerna/otp/totp"
 )

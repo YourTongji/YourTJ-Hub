@@ -2,8 +2,8 @@ package middleware
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
-	"github.com/leancodebox/GooseForum/app/http/httputil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
 )
 
 // BrowserCache applies long public cache headers in production.

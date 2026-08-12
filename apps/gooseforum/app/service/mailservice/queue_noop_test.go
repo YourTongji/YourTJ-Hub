@@ -3,8 +3,8 @@ package mailservice
 import (
 	"testing"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
 // TestProcessEmailTaskNoopSilentlySucceeds 验证 noop 类型任务被静默消费：

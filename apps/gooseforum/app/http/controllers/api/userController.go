@@ -13,24 +13,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/oauthservice"
-	"github.com/leancodebox/GooseForum/app/service/tokenservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,6 +52,14 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	userId := req.Params.UserId
 	card, ok := userservice.GetUserCard(userId)
 	if !ok {
+		// 已注销（软删）账号仍可能保留历史内容，渲染专门的注销用户卡片（PRD R10）。
+		if users.IsAccountClosed(userId) {
+			return component.SuccessResponse(&vo.UserCard{
+				UserId:          userId,
+				AvatarUrl:       urlconfig.GetDefaultAvatar(),
+				IsAccountClosed: true,
+			})
+		}
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
 	}
 	currentUserId := req.UserId

@@ -9,12 +9,12 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"gorm.io/gorm"
 )
 

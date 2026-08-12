@@ -6,17 +6,17 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/app/service/postservice"
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/topicviewservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicviewservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/spf13/cast"
 )
 
@@ -31,7 +31,15 @@ func TopicDetail(c *gin.Context) {
 
 	topic := topics.Get(id)
 	if topic.Id == 0 {
+		topic = topics.UnscopedGet(id)
+	}
+	if topic.Id == 0 {
 		renderNotFound(c)
+		return
+	}
+	// 彻底删除（PURGED）的内容对 SEO 返回 410 Gone（PRD R12）。
+	if topic.RetentionStatus == topics.RetentionPurged {
+		renderGone(c)
 		return
 	}
 	loginUser := component.GetLoginUser(c)
@@ -45,6 +53,9 @@ func TopicDetail(c *gin.Context) {
 	}
 
 	firstPost := posts.Get(topic.FirstPostId)
+	if firstPost.Id == 0 && topic.VisibilityStatus != topics.VisibilityActive {
+		firstPost = posts.UnscopedGet(topic.FirstPostId)
+	}
 	if firstPost.Id == 0 {
 		firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
 	}
@@ -85,6 +96,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	}
 
 	topicEntity := topics.GetSimple(topicID)
+	if topicEntity.Id == 0 {
+		topicEntity = topics.UnscopedGet(topicID)
+	}
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
@@ -127,6 +141,9 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 		postEntities = append(postEntities, afterPosts...)
 	case req.Params.AnchorPostID > 0:
 		anchor := posts.Get(req.Params.AnchorPostID)
+		if anchor.Id == 0 {
+			anchor = posts.UnscopedGet(req.Params.AnchorPostID)
+		}
 		if anchor.Id == 0 || anchor.TopicId != topicID || anchor.PostNo < 1 {
 			return component.FailResponseCode(component.MessagePostNotFound, nil)
 		}
@@ -218,6 +235,9 @@ func canViewTopic(entity *topics.Entity, userID uint64) bool {
 // (ProcessStatus != 0) topics are rejected with the same shape callers see on
 // the read path, see issue #112 (CWE-862).
 func CanViewTopicSimple(entity *topics.Entity, userID uint64) bool {
+	if entity.VisibilityStatus != topics.VisibilityActive {
+		return canViewDeletedTopic(entity, userID)
+	}
 	if entity.Status != 1 {
 		return userID != 0 && userID == entity.UserId
 	}
@@ -225,6 +245,28 @@ func CanViewTopicSimple(entity *topics.Entity, userID uint64) bool {
 		return false
 	}
 	return true
+}
+
+func canViewDeletedTopic(entity *topics.Entity, userID uint64) bool {
+	if entity.RetentionStatus == topics.RetentionPurged {
+		return false
+	}
+	// 隐私擦除的内容对普通用户一律 404，但保留版主在作用域内的只读通道，
+	// 供举报取证/审计查阅；版主仍不能恢复或对外暴露该内容。
+	if entity.VisibilityStatus == topics.VisibilityAccountAnonymized {
+		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
+	}
+	if entity.VisibilityStatus == topics.VisibilityModeratorRemoved {
+		return moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds)
+	}
+	if userID > 0 && userID == entity.UserId {
+		return true
+	}
+	if moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
+		return true
+	}
+	// 话题作者删除首帖后，仍有正常回复时保留讨论上下文；没有回复的内容只在作者的最近删除中可见。
+	return len(posts.GetByTopicPostNoAfter(entity.Id, 1, 1)) > 0
 }
 
 func currentUserCanViewProcessedTopic(userID uint64) bool {
@@ -236,11 +278,29 @@ func currentUserCanViewProcessedTopic(userID uint64) bool {
 }
 
 func shouldCountTopicView(entity *topics.Entity) bool {
-	return entity.Status == 1 && entity.ProcessStatus == 0
+	return entity.Status == 1 && entity.ProcessStatus == 0 && entity.VisibilityStatus == topics.VisibilityActive
 }
 
 func renderNotFound(c *gin.Context) {
 	renderNotFoundWithMessage(c, component.MessagePageNotFound)
+}
+
+// renderGone 内容已被永久删除（PURGED），对 SEO 返回 410 Gone（PRD R12）。
+func renderGone(c *gin.Context) {
+	payload := PagePayload{
+		Component: PageComponentError,
+		Props: ErrorPageProps{
+			Code:  "410",
+			Title: i18n.T(requestLang(c), "meta.contentGone"),
+		},
+		Meta: PageMeta{
+			Title: pageTitle(i18n.T(requestLang(c), "meta.contentGone")),
+		},
+		Layout:  buildLayout(c, "topics"),
+		URL:     buildPageURL(c),
+		Version: payloadVersion,
+	}
+	renderPageWithStatus(c, http.StatusGone, "error.gohtml", payload)
 }
 
 func renderNotFoundWithMessage(c *gin.Context, messageCode component.MessageCode) {

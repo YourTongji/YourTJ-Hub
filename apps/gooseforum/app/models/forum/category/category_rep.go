@@ -1,6 +1,6 @@
 package category
 
-import "github.com/leancodebox/GooseForum/app/bundles/queryopt"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 
 func SaveOrCreateById(entity *Entity) int64 {
 	if entity.Id == 0 {

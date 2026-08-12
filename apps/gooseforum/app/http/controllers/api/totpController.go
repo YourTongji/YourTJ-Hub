@@ -8,13 +8,13 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/totpservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 // TotpSetupReq 获取两步验证设置，需登录密码二次确认。

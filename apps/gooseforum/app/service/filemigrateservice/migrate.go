@@ -12,9 +12,9 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // TaskTypeFileMigrate is the taskQueue type prefix for file migration tasks.

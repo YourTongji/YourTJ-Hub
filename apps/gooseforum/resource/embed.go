@@ -8,7 +8,7 @@ import (
 	"path"
 	"path/filepath"
 
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 )
 
 // ThemeConfig describes the front-end resource bundle metadata.

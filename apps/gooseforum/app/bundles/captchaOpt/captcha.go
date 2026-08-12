@@ -6,8 +6,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/mojocn/base64Captcha"
 )
 

@@ -6,9 +6,9 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"gorm.io/gorm"
 )
 

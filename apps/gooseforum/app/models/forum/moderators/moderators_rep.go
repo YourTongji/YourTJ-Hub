@@ -1,6 +1,6 @@
 package moderators
 
-import "github.com/leancodebox/GooseForum/app/bundles/queryopt"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 
 func Save(entity *Entity) error {
 	return builder().Save(entity).Error

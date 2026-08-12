@@ -5,11 +5,6 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
-// Update 更新OAuth记录
-func Update(entity *Entity) error {
-	return builder().Save(entity).Error
-}
-
 // Delete 删除OAuth记录
 func Delete(id uint64) error {
 	return builder().Delete(&Entity{}, id).Error

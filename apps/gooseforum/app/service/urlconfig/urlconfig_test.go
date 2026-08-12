@@ -3,7 +3,7 @@ package urlconfig
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 func TestDefaultAvatarUsesCDNWhenConfigured(t *testing.T) {

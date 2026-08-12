@@ -3,7 +3,7 @@ package filedata
 import (
 	"context"
 
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // localProvider stores file bytes in the SQLite BLOB column, which is the

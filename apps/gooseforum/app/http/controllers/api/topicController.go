@@ -2,31 +2,31 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
-	"github.com/leancodebox/GooseForum/app/service/llmsservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/postservice"
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 // checkContentPolicy 检查内容是否命中敏感词。
@@ -472,7 +472,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 }
 
 type DeletePostReq struct {
-	PostId uint64 `json:"postId"`
+	PostId   uint64 `json:"postId"`
+	Force    bool   `json:"force"`
+	Password string `json:"password"`
 }
 
 type UpdatePostReq struct {
@@ -547,6 +549,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
@@ -554,25 +559,18 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 回复删除沿用读路径可见性守卫，避免隐藏或封禁话题中的回复继续被写操作探测。
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止删除读路径不可见（隐藏/封禁）话题中的回复
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	deletedPost, err := postservice.DeleteTopicPost(postEntity.Id, req.UserId)
+
+	// PR #99 删除生命周期：软删 + 墓碑态（保留讨论树），替代 dev 的物理删除实现。
+	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
 	if err != nil {
-		if errors.Is(err, postservice.ErrPostNotFound) {
-			return component.FailResponseCode(component.MessagePostNotFound, nil)
-		}
-		slog.Error("delete post failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
+		return component.FailResponseError(err)
 	}
-	postEntity = deletedPost
-	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-	hotdataserve.ClearTopicListCache()
-	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
-	llmsservice.ClearCache()
-	return component.SuccessResponse(true)
+	return component.SuccessResponse(result)
 }
 
 type LikeTopicReq struct {

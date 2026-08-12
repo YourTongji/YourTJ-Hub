@@ -2,8 +2,8 @@
 package main
 
 import (
-	_ "github.com/leancodebox/GooseForum/app/bundles/logging"
-	"github.com/leancodebox/GooseForum/app/console"
+	_ "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/logging"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console"
 )
 
 // --go:generate go run generatetool/generatetool.go

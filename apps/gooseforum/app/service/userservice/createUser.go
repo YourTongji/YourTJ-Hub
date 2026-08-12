@@ -7,11 +7,11 @@ import (
 	"strings"
 	"time"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/pointservice"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pointservice"
 	"gorm.io/gorm"
 )
 

@@ -1,11 +1,11 @@
 package console
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/console/cmd"
-	"github.com/leancodebox/GooseForum/app/migration"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/cmd"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/migration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/spf13/cobra"
 )
 

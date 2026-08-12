@@ -4,9 +4,9 @@ import (
 	"log/slog"
 	"os"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/service/agentservice"
-	"github.com/leancodebox/GooseForum/app/service/mcpservice"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mcpservice"
 	"github.com/spf13/cobra"
 )
 

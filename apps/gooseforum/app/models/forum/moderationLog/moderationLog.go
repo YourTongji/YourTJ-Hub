@@ -28,6 +28,13 @@ const (
 	ActionSensitiveReview       = "contentSensitiveReview"
 	ActionCourseReviewBlocked   = "courseReviewBlocked"
 	ActionCourseReviewUnblocked = "courseReviewUnblocked"
+
+	// 删除生命周期动作（Issue #94）
+	ActionTopicDeleted    = "topicDeleted"
+	ActionPostDeleted     = "postDeleted"
+	ActionContentRestored = "contentRestored"
+	ActionContentPurged   = "contentPurged"
+	ActionEvidenceViewed  = "evidenceViewed"
 )
 
 const (

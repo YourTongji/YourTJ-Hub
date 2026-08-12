@@ -8,13 +8,13 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 func setupOIDCRoutes(t *testing.T, limit int) *gin.Engine {

@@ -37,7 +37,7 @@ function releaseTime(value: string) {
       </div>
       <Button variant="ghost" size="sm" as-child>
         <a
-          href="https://github.com/leancodebox/GooseForum/releases"
+          href="https://github.com/YourTongji/YourTJ-Hub/releases"
           target="_blank"
           rel="noopener noreferrer"
           class="flex items-center gap-1"

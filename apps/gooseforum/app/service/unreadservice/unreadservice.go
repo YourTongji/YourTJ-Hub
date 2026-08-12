@@ -4,10 +4,10 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
-	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 )
 
 const statusTTL = 2 * time.Minute

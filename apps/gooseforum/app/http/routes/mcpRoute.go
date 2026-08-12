@@ -6,9 +6,9 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/mcpservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mcpservice"
 )
 
 // mcpRoute mounts the MCP streamable HTTP endpoint at /mcp.

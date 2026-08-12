@@ -7,10 +7,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/wneessen/go-mail"
 )
 

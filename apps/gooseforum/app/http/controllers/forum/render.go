@@ -12,9 +12,9 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
 type templateRegistry struct {

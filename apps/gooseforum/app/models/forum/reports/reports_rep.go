@@ -4,7 +4,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
 )
 
@@ -35,6 +35,16 @@ func Get(id uint64) (entity Entity) {
 	}
 	builder().First(&entity, id)
 	return
+}
+
+// HasOpenForTopic reports whether retention must preserve an active moderation case.
+func HasOpenForTopic(topicID uint64) bool {
+	if topicID == 0 {
+		return false
+	}
+	var count int64
+	builder().Where(queryopt.Eq("topic_id", topicID)).Where(queryopt.Eq(fieldStatus, StatusOpen)).Count(&count)
+	return count > 0
 }
 
 type CursorPageQuery struct {
@@ -82,6 +92,78 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 		"handler_id": handlerId,
 		"handled_at": &now,
 	}).Error
+}
+
+// ClearExpiredEvidenceSnapshots clears evidence_snapshot on closed reports older than before.
+// Skips rows whose topic has LEGAL_HOLD or EVIDENCE_HOLD retention (hold overrides TTL).
+// Open reports are never cleared. Returns number of rows updated.
+//
+// 跨库注意：evidence_snapshot 是 json 列。不要在 SQL 里直接与字符串比较
+// （PostgreSQL 对 json 列的 `!= ''` 会报 `42883 json <> unknown`，MySQL 行为也不同），
+// 因此"空快照"过滤放在 Go 层用 evidenceSnapshotIsEmpty 完成（NULL/`{}` 反序列化后
+// 均为零值快照，会被跳过）。
+func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {
+	return clearExpiredEvidenceSnapshots(builder(), before, limit)
+}
+
+// clearExpiredEvidenceSnapshots 接受显式 *gorm.DB，便于跨库测试（PostgreSQL）。
+// 注意：UPDATE 用 NewDB 会话重建语句，避免复用同一 *gorm.DB 时上次 SELECT 的
+// clauses（含 NOT EXISTS 子查询）被带入 UPDATE，导致 `ambiguous column name:
+// status`（SQLite 实测）。
+func clearExpiredEvidenceSnapshots(db *gorm.DB, before time.Time, limit int) (int, error) {
+	if limit <= 0 {
+		limit = 200
+	}
+
+	var candidates []Entity
+	err := db.
+		Where("status IN ?", []string{StatusResolved, StatusRejected}).
+		Where("handled_at IS NOT NULL").
+		Where("handled_at < ?", before).
+		Where(`NOT EXISTS (
+			SELECT 1 FROM topics
+			WHERE topics.id = reports.topic_id
+			  AND topics.retention_status IN (?, ?)
+		)`, "LEGAL_HOLD", "EVIDENCE_HOLD").
+		Order("handled_at ASC").
+		Limit(limit).
+		Find(&candidates).Error
+	if err != nil {
+		return 0, err
+	}
+	if len(candidates) == 0 {
+		return 0, nil
+	}
+
+	ids := make([]uint64, 0, len(candidates))
+	for _, candidate := range candidates {
+		if evidenceSnapshotIsEmpty(candidate.EvidenceSnapshot) {
+			continue
+		}
+		ids = append(ids, candidate.Id)
+	}
+	if len(ids) == 0 {
+		return 0, nil
+	}
+
+	// Clear to empty JSON object. Raw "{}" matches the zero-value snapshot shape
+	// without relying on GORM's struct serializer in map-style updates.
+	result := db.Session(&gorm.Session{NewDB: true}).Table(tableName).
+		Where("id IN ?", ids).
+		Update("evidence_snapshot", "{}")
+	return int(result.RowsAffected), result.Error
+}
+
+func evidenceSnapshotIsEmpty(snapshot EvidenceSnapshotData) bool {
+	return snapshot.TargetType == "" &&
+		snapshot.TargetID == 0 &&
+		snapshot.TopicID == 0 &&
+		snapshot.Title == "" &&
+		snapshot.Excerpt == "" &&
+		snapshot.AuthorID == 0 &&
+		snapshot.AuthorName == "" &&
+		len(snapshot.CategoryIDs) == 0 &&
+		snapshot.TargetURL == ""
 }
 
 // CountByTargetIds 统计每个 target_id 的举报总数（跨全部状态），

@@ -6,11 +6,11 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/validate"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 )
 
 // OidcExchangeRequest is the JSON body for the mobile OIDC exchange endpoint.

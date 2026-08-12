@@ -2,8 +2,8 @@ package routes
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 )
 
 func RegisterByGin(ginApp *gin.Engine) {

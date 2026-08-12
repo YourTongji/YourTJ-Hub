@@ -6,8 +6,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
 
 func setupUserIsolationTestDB(t *testing.T) {

@@ -12,44 +12,45 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/buildinfo"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/bundles/randopt"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/datastruct"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/badges"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
-	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/role"
-	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
-	"github.com/leancodebox/GooseForum/app/service/dataservice"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
-	"github.com/leancodebox/GooseForum/app/service/llmsservice"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/optlogger"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
-	"github.com/leancodebox/GooseForum/app/service/themeservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/samber/lo"
 )
 
@@ -528,6 +529,22 @@ type EditTopicCategoriesReq struct {
 
 type DeleteTopicReq struct {
 	TopicId uint64 `json:"topicId" validate:"required"`
+	Reason  string `json:"reason" validate:"required,min=1,max=500"`
+}
+
+// DeletePostAsModeratorReq 管理端删除单个回复的请求。
+type DeletePostAsModeratorReq struct {
+	PostId uint64 `json:"postId" validate:"required"`
+	Reason string `json:"reason" validate:"required,min=1,max=500"`
+}
+
+// DeletePostAsModerator 管理端治理删除单个回复：作者不可自行恢复，
+// 记录审计日志与删除原因，并同步清理搜索/缓存/通知/附件。
+func DeletePostAsModerator(req component.BetterRequest[DeletePostAsModeratorReq]) component.Response {
+	if err := contentdeleteservice.DeletePostAsModerator(req.UserId, req.Params.PostId, req.Params.Reason); err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
 // EditTopic updates topic moderation status.
@@ -566,22 +583,44 @@ func EditTopic(req component.BetterRequest[EditTopicReq]) component.Response {
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
+// RestoreTopicReq 管理端恢复被治理删除话题的请求。
+type RestoreTopicReq struct {
+	TopicId uint64 `json:"topicId" validate:"required"`
+}
+
+// RestoreTopic 管理端恢复被治理删除（MODERATOR_REMOVED）的话题（review MEDIUM-2）。
+// 管理端是治理删除的唯一恢复通道：作者不可恢复管理端删除；恢复后重建搜索索引、
+// 清缓存、恢复附件可见性并写审计日志与埋点。
+func RestoreTopic(req component.BetterRequest[RestoreTopicReq]) component.Response {
+	if err := contentdeleteservice.RestoreTopicAsModerator(req.UserId, req.Params.TopicId); err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponseCode("操作成功", component.MessageContentRestoreSuccess, nil)
+}
+
 func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response {
-	topic := topics.Get(req.Params.TopicId)
+	// 用 UnscopedGet 读取：被管理端删除的话题 deleted_at 已置位，
+	// 软删过滤的 Get 会返回空行，导致下方的幂等分支永远不可达（死代码）。
+	// 必须先读到已删除行才能判断"重复删除直接成功"。
+	topic := topics.UnscopedGet(req.Params.TopicId)
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-
-	topic.ProcessStatus = 1
-	topicCategoryIndex.DeleteByTopicId(topic.Id)
-	if rows := topics.Delete(&topic); rows == 0 {
-		return component.FailResponseCode(component.MessageAdminTopicDeleteFailed, nil)
+	// 幂等：已处于管理端删除状态时直接成功，避免重复删除重置 deleted_at / 重复广播。
+	if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
+		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 	}
-	eventbus.Publish(context.Background(), &eventhandlers.TopicDeletedEvent{Topic: &topic})
-	hotdataserve.ClearTopicListCache()
-	optlogger.UserOptCode(req.UserId, optlogger.EditTopic, topic.Id, "admin.opt.topic.deleted", optlogger.MessageParams{
-		"title": topic.Title,
-	})
+
+	reason := strings.TrimSpace(req.Params.Reason)
+	if reason == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+	// 管理端治理删除：双状态机 MODERATOR_REMOVED + ContentDeletedEvent。
+	// 不硬删 topic_category_index：版主日志/举报的按分类作用域查询依赖该索引定位话题，
+	// 且公开列表已按 visibility_status=ACTIVE 过滤，删除话题不会因此出现在分类页。
+	if err := contentdeleteservice.DeleteTopicAs(topic, req.UserId, topics.VisibilityModeratorRemoved, reason); err != nil {
+		return component.FailResponseError(err)
+	}
 	return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
 }
 
@@ -1783,6 +1822,12 @@ func GetTermsOfService(req component.BetterRequest[component.Null]) component.Re
 	return component.SuccessResponse(config)
 }
 
+// GetPrivacyPolicy 获取隐私政策配置
+func GetPrivacyPolicy(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, defaultconfig.GetDefaultPrivacyPolicyConfig())
+	return component.SuccessResponse(config)
+}
+
 type SaveTermsOfServiceReq struct {
 	Settings pageConfig.TermsOfServiceConfig `json:"settings" validate:"required"`
 }
@@ -1791,4 +1836,14 @@ type SaveTermsOfServiceReq struct {
 func SaveTermsOfService(req component.BetterRequest[SaveTermsOfServiceReq]) component.Response {
 	req.Params.Settings.HtmlContent = ""
 	return savePageConfig(pageConfig.TermsOfService, req.Params.Settings, hotdataserve.ClearTermsOfServiceConfigCache)
+}
+
+type SavePrivacyPolicyReq struct {
+	Settings pageConfig.PrivacyPolicyConfig `json:"settings" validate:"required"`
+}
+
+// SavePrivacyPolicy 保存隐私政策配置
+func SavePrivacyPolicy(req component.BetterRequest[SavePrivacyPolicyReq]) component.Response {
+	req.Params.Settings.HtmlContent = ""
+	return savePageConfig(pageConfig.PrivacyPolicy, req.Params.Settings, hotdataserve.ClearPrivacyPolicyConfigCache)
 }

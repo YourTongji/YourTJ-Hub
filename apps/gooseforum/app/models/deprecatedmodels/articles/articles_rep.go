@@ -3,9 +3,9 @@ package articles
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
-	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )

@@ -3,7 +3,7 @@ package searchservice
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 

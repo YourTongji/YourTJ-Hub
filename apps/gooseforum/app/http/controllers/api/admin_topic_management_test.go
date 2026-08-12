@@ -5,15 +5,15 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
-	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 
@@ -132,4 +132,148 @@ func TestAdminEditTopicMutatesTopic(t *testing.T) {
 	if active[categoryID] != 0 || active[922999] != 1 {
 		t.Fatalf("category index active map = %#v", active)
 	}
+}
+
+func TestAdminDeleteTopicRequiresReasonAndMarksModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, categoryID := seedAdminTopic(t, conn, 923001)
+
+	// reason 为空应拒绝。
+	emptyRes := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 1,
+		Params: DeleteTopicReq{TopicId: 923001, Reason: "   "},
+	})
+	if emptyRes.Data.Code == component.SUCCESS {
+		t.Fatalf("expected failure for empty reason, got %#v", emptyRes)
+	}
+	if emptyRes.Data.MessageCode != component.MessageRequestInvalidParams {
+		t.Fatalf("empty reason messageCode = %s", emptyRes.Data.MessageCode)
+	}
+
+	res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923001, Reason: "policy violation"},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("DeleteTopic failed: %#v", res)
+	}
+
+	if visible := topics.Get(923001); visible.Id != 0 {
+		t.Fatalf("topic still visible via scoped Get: %#v", visible)
+	}
+	topic := topics.UnscopedGet(923001)
+	if topic.VisibilityStatus != topics.VisibilityModeratorRemoved {
+		t.Fatalf("visibility = %s, want MODERATOR_REMOVED", topic.VisibilityStatus)
+	}
+	if topic.RetentionStatus != topics.RetentionRecoverable {
+		t.Fatalf("retention = %s, want RECOVERABLE", topic.RetentionStatus)
+	}
+	if topic.DeleteReason != "policy violation" {
+		t.Fatalf("reason = %q", topic.DeleteReason)
+	}
+	if topic.DeletedBy != 77 {
+		t.Fatalf("deletedBy = %d, want 77", topic.DeletedBy)
+	}
+
+	// 分类索引应保留：版主日志/举报的按分类作用域查询依赖该索引定位话题，
+	// 删除话题的可见性由列表查询的 visibility_status=ACTIVE 过滤保证，不依赖硬删索引。
+	indexes := topicCategoryIndex.GetByTopicId(923001)
+	foundCategory := false
+	for _, item := range indexes {
+		if item.CategoryId == categoryID && item.Effective == 1 {
+			foundCategory = true
+		}
+	}
+	if !foundCategory {
+		t.Fatalf("category index should remain effective for moderation scoping: %#v", indexes)
+	}
+
+	// 同时验证已删除话题不再进入公开分类列表。
+	pageData := topics.Page(topics.PageQuery{Page: 1, PageSize: 20, FilterStatus: true, CategoryId: categoryID})
+	for _, item := range pageData.Data {
+		if item.Id == 923001 {
+			t.Fatalf("deleted topic still appears in public category list: %#v", item)
+		}
+	}
+}
+
+// 管理员删除幂等：对已处于 MODERATOR_REMOVED 的话题重复删除应直接成功，
+// 且不得重置 deleted_at / 覆盖删除原因。
+func TestAdminDeleteTopicIdempotentOnAlreadyRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923002)
+
+	first := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923002, Reason: "policy violation"},
+	})
+	if first.Data.Code != component.SUCCESS {
+		t.Fatalf("first DeleteTopic failed: %#v", first)
+	}
+
+	before := topics.UnscopedGet(923002)
+	second := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923002, Reason: "again"},
+	})
+	if second.Data.Code != component.SUCCESS {
+		t.Fatalf("second DeleteTopic should be idempotent success: %#v", second)
+	}
+	after := topics.UnscopedGet(923002)
+	if after.DeleteReason != before.DeleteReason {
+		t.Fatalf("idempotent delete overwrote reason: before=%q after=%q", before.DeleteReason, after.DeleteReason)
+	}
+	if after.VisibilityStatus != topics.VisibilityModeratorRemoved {
+		t.Fatalf("visibility = %s, want MODERATOR_REMOVED", after.VisibilityStatus)
+	}
+}
+
+// review MEDIUM-2：管理端恢复端点 admin/topics/restore 恢复被治理删除的话题。
+func TestAdminRestoreTopicRestoresModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923003)
+
+	if res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: 923003, Reason: "policy violation"},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("DeleteTopic failed: %#v", res)
+	}
+
+	if res := RestoreTopic(component.BetterRequest[RestoreTopicReq]{
+		UserId: 77,
+		Params: RestoreTopicReq{TopicId: 923003},
+	}); res.Data.Code != component.SUCCESS {
+		t.Fatalf("RestoreTopic failed: %#v", res)
+	}
+
+	restored := topics.UnscopedGet(923003)
+	if restored.VisibilityStatus != topics.VisibilityActive || restored.RetentionStatus != topics.RetentionNormal {
+		t.Fatalf("restored state = %s/%s, want ACTIVE/NORMAL", restored.VisibilityStatus, restored.RetentionStatus)
+	}
+
+	var restoredCount int64
+	conn.Model(&moderationLog.Entity{}).
+		Where("action = ? AND subject_type = ? AND subject_id = ?", moderationLog.ActionContentRestored, moderationLog.SubjectTopic, 923003).
+		Count(&restoredCount)
+	if restoredCount != 1 {
+		t.Fatalf("content restored logs = %d, want 1", restoredCount)
+	}
+}
+
+// review MEDIUM-2：管理端恢复端点对未删除/作者删除的话题拒绝，避免越权恢复。
+func TestAdminRestoreTopicRejectsNonModeratorRemoved(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	_, _ = seedAdminTopic(t, conn, 923004)
+
+	// 活跃话题不可通过恢复端点操作。
+	if res := RestoreTopic(component.BetterRequest[RestoreTopicReq]{
+		UserId: 77,
+		Params: RestoreTopicReq{TopicId: 923004},
+	}); res.Data.Code == component.SUCCESS {
+		t.Fatalf("RestoreTopic of active topic should fail: %#v", res)
+	}
+
+	// 作者删除（USER_DELETED）话题不可由管理端恢复端点接管。
+	_ = conn
 }
