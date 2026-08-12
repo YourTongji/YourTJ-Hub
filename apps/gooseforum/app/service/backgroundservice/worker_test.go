@@ -3,6 +3,7 @@ package backgroundservice
 import (
 	"context"
 	"errors"
+	"strings"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -323,6 +324,71 @@ func TestLeaseFencingSameLeaseCollision(t *testing.T) {
 	}
 	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusRunning {
 		t.Fatalf("fenced write leaked: status = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
+	}
+}
+
+// TestLeaseFencingPayloadWriteRejectedAfterReclaim 验证进度 payload 写入的
+// fencing（review P1）：UpdateTaskJsonOwned 的 CAS 谓词是
+// status=Running AND lease_token=token。worker A 租约过期被回收、任务被
+// worker B 重新领取后，A 用旧 token 写 task_json 必须不命中（0 行受影响），
+// B 的游标/文件名不被覆盖；A 用新 token（B 的）则正常写入。
+func TestLeaseFencingPayloadWriteRejectedAfterReclaim(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{"progress":0}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	// worker A 领取，持有 token A
+	first, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("first claim failed: claimed=%v err=%v", claimed, err)
+	}
+	oldToken := first.LeaseToken
+
+	// A 的租约过期 → 回收为 Pending → B 重新领取（token B）
+	conn := dbconnect.Connect()
+	if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), task.Id).Error; err != nil {
+		t.Fatalf("age lease: %v", err)
+	}
+	if err := taskQueue.RecoverStaleRunning("export", taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale: %v", err)
+	}
+	second, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("second claim failed: claimed=%v err=%v", claimed, err)
+	}
+	newToken := second.LeaseToken
+	if newToken == "" || newToken == oldToken {
+		t.Fatalf("second claim token = %q, want non-empty and different from old %q", newToken, oldToken)
+	}
+
+	// B 先写入自己的进度（正常命中）
+	if err := taskQueue.UpdateTaskJsonOwned(task.Id, newToken, `{"progress":50,"fileName":"export_b.csv"}`); err != nil {
+		t.Fatalf("new owner progress write error = %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); !strings.Contains(updated.TaskJson, "export_b.csv") {
+		t.Fatalf("new owner progress not persisted: task_json = %s", updated.TaskJson)
+	}
+
+	// 旧 owner A 用旧 token 写进度必须不命中（0 行受影响），B 的 payload 保留
+	if err := taskQueue.UpdateTaskJsonOwned(task.Id, oldToken, `{"progress":100,"fileName":"export_a.csv"}`); err != nil {
+		t.Fatalf("stale owner progress write error = %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); !strings.Contains(updated.TaskJson, "export_b.csv") {
+		t.Fatalf("stale owner overwrote new owner payload: task_json = %s", updated.TaskJson)
+	}
+
+	// 旧 owner A 用旧 token 在任务终态后写进度同样必须不命中
+	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, newToken, nil); err != nil {
+		t.Fatalf("UpdateStatusOwned error = %v", err)
+	}
+	if err := taskQueue.UpdateTaskJsonOwned(task.Id, oldToken, `{"progress":100}`); err != nil {
+		t.Fatalf("stale owner post-terminal progress write error = %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusSuccess {
+		t.Fatalf("fenced payload write flipped terminal state: status = %d, want %d", updated.Status, taskQueue.StatusSuccess)
 	}
 }
 

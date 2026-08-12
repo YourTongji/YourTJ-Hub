@@ -83,14 +83,18 @@ func RunMigrateTask(ctx context.Context, task *taskQueue.Entity) error {
 	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
 		return fmt.Errorf("decode migrate task: %w", err)
 	}
+	// 持有者 fencing token（ClaimTask 领取时生成）：进度写回必须是
+	// status=Running AND lease_token=? 的 CAS，任务被回收重领后旧 worker
+	// 的进度更新不再命中（fencing，review P1）。
+	token := task.LeaseToken
 	processed, failed, err := MigrateFiles(ctx, payload.LastID, payload.ClearAfterMigrate, func(lastID uint64, proc, fail int64) {
 		payload.LastID = lastID
 		payload.Processed = proc
 		payload.Failed = fail
-		updateTaskProgress(task.Id, payload)
+		updateTaskProgress(task.Id, token, payload)
 	})
 	if err != nil {
-		updateTaskProgress(task.Id, payload)
+		updateTaskProgress(task.Id, token, payload)
 		return err
 	}
 	slog.Info("file migration finished", "taskId", task.Id, "processed", processed, "failed", failed)
@@ -143,12 +147,12 @@ func MigrateFiles(ctx context.Context, startID uint64, clearAfterMigrate bool, o
 	return processed, failed, nil
 }
 
-func updateTaskProgress(taskID uint64, payload MigrateTask) {
+func updateTaskProgress(taskID uint64, token string, payload MigrateTask) {
 	taskJSON, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
-	if err := taskQueue.UpdateTaskJson(taskID, string(taskJSON)); err != nil {
+	if err := taskQueue.UpdateTaskJsonOwned(taskID, token, string(taskJSON)); err != nil {
 		slog.Error("update migrate task progress failed", "taskId", taskID, "err", err)
 	}
 }

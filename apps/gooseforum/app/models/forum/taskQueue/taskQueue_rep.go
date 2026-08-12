@@ -164,9 +164,15 @@ func QueryByTypeDesc(typePrefix string, limit int) *gorm.DB {
 		Limit(limit)
 }
 
-// UpdateTaskJson updates a task's payload without touching its status.
-func UpdateTaskJson(id uint64, taskJSON string) error {
-	return builder().Where("id = ?", id).Update("task_json", taskJSON).Error
+// UpdateTaskJsonOwned 在仍持有租约（status=Running 且 lease_token=token）时
+// 更新任务 payload（进度游标等），供长任务 handler 每批写回进度使用；租约
+// 已被回收重领时 CAS 不命中（0 行受影响），防止过期 worker 用陈旧游标覆盖
+// 新持有者的 task_json（fencing，review P1）。错误仅记录不返回，进度写回
+// 不应中断任务本体。
+func UpdateTaskJsonOwned(id uint64, token string, taskJSON string) error {
+	return builder().
+		Where("id = ? AND status = ? AND lease_token = ?", id, StatusRunning, token).
+		Update("task_json", taskJSON).Error
 }
 
 // GetByID returns a single task by id.

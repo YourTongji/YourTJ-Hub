@@ -120,6 +120,10 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
 		return fmt.Errorf("解码导出任务失败: %w", err)
 	}
+	// 持有者 fencing token（ClaimTask 领取时生成）：进度写回必须是
+	// status=Running AND lease_token=? 的 CAS，任务被回收重领后旧 worker
+	// 的进度更新不再命中（fencing，review P1）。
+	token := task.LeaseToken
 	if err := os.MkdirAll(exportDir, 0o755); err != nil {
 		return fmt.Errorf("创建导出目录失败: %w", err)
 	}
@@ -199,12 +203,12 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 				if payload.Progress > 100 {
 					payload.Progress = 100
 				}
-				updateExportProgress(task.Id, payload)
+				updateExportProgress(task.Id, token, payload)
 			}
 		})
 		if err != nil {
 			payload.ErrorCount++
-			updateExportProgress(task.Id, payload)
+			updateExportProgress(task.Id, token, payload)
 			return err
 		}
 		processed += count
@@ -234,7 +238,7 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 		return fmt.Errorf("导出文件落盘失败: %w", err)
 	}
 	payload.Progress = 100
-	updateExportProgress(task.Id, payload)
+	updateExportProgress(task.Id, token, payload)
 	return nil
 }
 
@@ -387,12 +391,12 @@ func csvValue(v any) string {
 	}
 }
 
-func updateExportProgress(taskID uint64, payload ExportTask) {
+func updateExportProgress(taskID uint64, token string, payload ExportTask) {
 	taskJSON, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
-	_ = taskQueue.UpdateTaskJson(taskID, string(taskJSON))
+	_ = taskQueue.UpdateTaskJsonOwned(taskID, token, string(taskJSON))
 }
 
 // categoryExists reports whether a category id exists.

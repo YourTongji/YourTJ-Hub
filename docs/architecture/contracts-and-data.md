@@ -126,10 +126,13 @@ than a hand-maintained duplicate baseline.
   - `file-migrate` (BLOB → object storage migration)
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
   (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes can never
-  double-execute the same task. The claim stores the lease start in `processed_at`; the worker renews
-  it by heartbeat while executing, and every write back (success/failed/retrying) is fenced on the
-  lease value. Workers periodically reclaim `running` tasks whose lease expired (crashed process),
-  so no task stays stuck in `running` forever.
+  double-execute the same task. Each claim generates a fresh, non-reusable fencing token
+  (`lease_token`); `processed_at` only tracks the lease start for expiry-based reclaim. Every write
+  back — terminal state (`success/failed/retrying`), retry counter, deletion, and progress payload
+  (`task_json`) — is fenced on the fencing token (`status = running AND lease_token = ?`), so a
+  worker whose lease was reclaimed can neither overwrite the new owner's cursor nor flip its state.
+  Workers periodically reclaim `running` tasks whose lease expired (crashed process), so no task
+  stays stuck in `running` forever.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
