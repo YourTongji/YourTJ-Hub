@@ -286,6 +286,15 @@ func GetCourseStats(courseId uint64) (entity CourseStatsEntity, err error) {
 	return
 }
 
+// ListCourseStatsByIDs 批量按课程 id 查课程级统计（PK P13 课评摘要用）。
+func ListCourseStatsByIDs(ids []uint64) (entities []CourseStatsEntity, err error) {
+	if len(ids) == 0 {
+		return []CourseStatsEntity{}, nil
+	}
+	err = courseStatsBuilder().Where("course_id IN ?", ids).Find(&entities).Error
+	return
+}
+
 // GetOfferingStats offering 级统计。
 func GetOfferingStats(offeringId uint64) (entity OfferingStatsEntity, err error) {
 	err = offeringStatsBuilder().Where("offering_id = ?", offeringId).First(&entity).Error

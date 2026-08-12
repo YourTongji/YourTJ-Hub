@@ -1468,3 +1468,474 @@ ReportHandlerPayload:
       type: string
   additionalProperties: false
   description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.
+
+# ================= PK 排课器（Issue #187）=================
+
+PkSuccess:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      const: 0
+      description: PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
+    msg:
+      type: string
+      description: 可读的中文说明。
+    data: {}
+  additionalProperties: false
+
+PkFailure:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      minimum: 1
+      description: 非零错误码，与 HTTP 状态码对齐（400/404/500）。
+    msg:
+      type: string
+      description: 可读的中文错误说明。
+    data:
+      type: object
+      additionalProperties: true
+  additionalProperties: false
+
+PkCalendarItem:
+  type: object
+  required: [calendarId, calendarName]
+  properties:
+    calendarId:
+      type: integer
+    calendarName:
+      type: string
+  additionalProperties: false
+
+PkCampusItem:
+  type: object
+  required: [campusId, campusName]
+  properties:
+    campusId:
+      type: string
+    campusName:
+      type: string
+  additionalProperties: false
+
+PkFacultyItem:
+  type: object
+  required: [facultyId, facultyName]
+  properties:
+    facultyId:
+      type: string
+    facultyName:
+      type: string
+  additionalProperties: false
+
+PkGradesResult:
+  type: object
+  required: [gradeList]
+  properties:
+    gradeList:
+      type: array
+      items:
+        type: integer
+  additionalProperties: false
+
+PkMajorItem:
+  type: object
+  required: [code, name]
+  properties:
+    code:
+      type: string
+    name:
+      type: string
+  additionalProperties: false
+
+PkTeacherRef:
+  type: object
+  required: [teacherCode, teacherName]
+  properties:
+    teacherCode:
+      type: string
+    teacherName:
+      type: string
+  additionalProperties: false
+
+PkArrangementInfo:
+  type: object
+  required: [arrangementText]
+  properties:
+    arrangementText:
+      type: string
+      description: 原始安排文本（不含教师名与代码前缀）。
+    occupyDay:
+      type: [integer, 'null']
+      description: 星期（1-7）。
+    occupyTime:
+      type: [array, 'null']
+      items:
+        type: integer
+      description: 节次集合。
+    occupyWeek:
+      type: [array, 'null']
+      items:
+        type: integer
+      description: 周次集合。
+    occupyRoom:
+      type: [string, 'null']
+    teacherAndCode:
+      type: [string, 'null']
+      description: 教师名与代码前缀（如 "张伟(T001)"）。
+  additionalProperties: false
+
+PkCourseClassItem:
+  type: object
+  required: [code, teachers, campus, teachingLanguage, arrangementInfo, isExclusive]
+  properties:
+    code:
+      type: string
+      description: 教学班内部编号。
+    teachers:
+      type: array
+      items:
+        $ref: '#/PkTeacherRef'
+    campus:
+      type: string
+    teachingLanguage:
+      type: string
+    arrangementInfo:
+      type: array
+      items:
+        $ref: '#/PkArrangementInfo'
+    isExclusive:
+      type: boolean
+      description: 是否当前年级专业的专属课程。
+  additionalProperties: false
+
+PkCourseByMajorItem:
+  type: object
+  required: [courseCode, courseName, faculty, facultyI18n, credit, grade, courseNature, courses]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    credit:
+      type: number
+    grade:
+      type: integer
+    courseNature:
+      type: array
+      items:
+        type: string
+    courses:
+      type: array
+      items:
+        $ref: '#/PkCourseClassItem'
+  additionalProperties: false
+
+PkOptionalTypeItem:
+  type: object
+  required: [courseLabelId, courseLabelName]
+  properties:
+    courseLabelId:
+      type: integer
+    courseLabelName:
+      type: string
+  additionalProperties: false
+
+PkNatureCourseItem:
+  type: object
+  required: [campus, courseCode, courseName, faculty, facultyI18n, credit, courseLabelName, crossDiscipline]
+  properties:
+    campus:
+      type: array
+      items:
+        type: string
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    credit:
+      type: number
+    courseLabelName:
+      type: string
+    crossDiscipline:
+      type: boolean
+  additionalProperties: false
+
+PkCourseByNatureItem:
+  type: object
+  required: [courseLabelId, courseLabelIds, courseLabelName, crossDiscipline, courses]
+  properties:
+    courseLabelId:
+      type: integer
+    courseLabelIds:
+      type: array
+      items:
+        type: integer
+    courseLabelName:
+      type: string
+    crossDiscipline:
+      type: boolean
+    courses:
+      type: array
+      items:
+        $ref: '#/PkNatureCourseItem'
+  additionalProperties: false
+
+PkCourseDetailBrief:
+  type: object
+  required: [code, teachers, campus, teachingLanguage, arrangementInfo]
+  properties:
+    code:
+      type: string
+    teachers:
+      type: array
+      items:
+        $ref: '#/PkTeacherRef'
+    campus:
+      type: string
+    teachingLanguage:
+      type: string
+    arrangementInfo:
+      type: array
+      items:
+        $ref: '#/PkArrangementInfo'
+    isExclusive:
+      type: boolean
+      description: 仅 course-info-sync 的 major 课程带该字段。
+  additionalProperties: false
+
+PkSearchCourseItem:
+  type: object
+  required: [courseCode, courseName, faculty, facultyI18n, courseNature, campus, campus_list, credit]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    courseNature:
+      type: array
+      items:
+        type: string
+    campus:
+      type: array
+      items:
+        type: string
+    campus_list:
+      type: array
+      items:
+        type: string
+      description: 与 campus 相同的兼容字段（对齐上游）。
+    credit:
+      type: number
+  additionalProperties: false
+
+PkSearchResult:
+  type: object
+  required: [courses, sizeLimit]
+  properties:
+    courses:
+      type: array
+      items:
+        $ref: '#/PkSearchCourseItem'
+    sizeLimit:
+      type: integer
+  additionalProperties: false
+
+PkCoursesByTimeResult:
+  type: object
+  required: [auxiliaryReady, courses]
+  properties:
+    auxiliaryReady:
+      type: boolean
+      description: teacher_timeslots 辅助表是否就绪；未就绪时本次为降级 LIKE 结果并已触发后台构建。
+    courses:
+      type: array
+      items:
+        $ref: '#/PkSearchCourseItem'
+  additionalProperties: false
+
+PkReviewBrief:
+  type: object
+  required: [courseCode, teacherName, reviewCount]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    teacherName:
+      type: string
+    ratingAvg:
+      type: [number, 'null']
+    reviewCount:
+      type: integer
+  additionalProperties: false
+
+PkCalendarListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCalendarItem'
+
+PkCampusListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCampusItem'
+
+PkFacultyListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkFacultyItem'
+
+PkGradesResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkGradesResult'
+
+PkMajorsResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkMajorItem'
+
+PkCoursesByMajorResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCourseByMajorItem'
+
+PkOptionalTypesResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkOptionalTypeItem'
+
+PkCoursesByNatureResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCourseByNatureItem'
+
+PkCourseDetailsResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - type: array
+              description: 单 courseCode 查询时的教学班数组。
+              items:
+                $ref: '#/PkCourseDetailBrief'
+            - type: object
+              description: 批量 courseCodes 查询时的字典（courseCode -> 教学班数组）。
+              additionalProperties:
+                type: array
+                items:
+                  $ref: '#/PkCourseDetailBrief'
+
+PkCourseSearchResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkSearchResult'
+
+PkCoursesByTimeResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkCoursesByTimeResult'
+
+PkLatestUpdateResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: [string, 'null']
+          description: 最近同步日期 YYYY-MM-DD；无记录为 null。
+
+PkCourseInfoSyncResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/PkCourseDetailBrief'
+
+PkReviewBriefResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkReviewBrief'

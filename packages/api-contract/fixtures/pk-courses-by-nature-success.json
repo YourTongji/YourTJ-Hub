@@ -1,0 +1,50 @@
+{
+  "code": 0,
+  "msg": "查询成功",
+  "data": [
+    {
+      "courseLabelId": 2,
+      "courseLabelIds": [
+        2
+      ],
+      "courseLabelName": "通识选修课",
+      "crossDiscipline": false,
+      "courses": [
+        {
+          "campus": [
+            "嘉定校区"
+          ],
+          "courseCode": "TJCS201",
+          "courseName": "数据结构与算法",
+          "faculty": "计算机科学与技术系",
+          "facultyI18n": "计算机科学与技术系",
+          "credit": 4,
+          "courseLabelName": "通识选修课",
+          "crossDiscipline": false
+        }
+      ]
+    },
+    {
+      "courseLabelId": 1,
+      "courseLabelIds": [
+        1
+      ],
+      "courseLabelName": "专业必修",
+      "crossDiscipline": false,
+      "courses": [
+        {
+          "campus": [
+            "四平路校区"
+          ],
+          "courseCode": "TJCS101",
+          "courseName": "计算机程序设计",
+          "faculty": "计算机科学与技术系",
+          "facultyI18n": "计算机科学与技术系",
+          "credit": 3,
+          "courseLabelName": "专业必修",
+          "crossDiscipline": false
+        }
+      ]
+    }
+  ]
+}

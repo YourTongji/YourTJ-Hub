@@ -29,6 +29,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
@@ -144,6 +145,20 @@ func SchemaModels() []any {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		// PK 排课数据域（Issue #187 / PRD §5.4.2）：12 表 + 元数据列。
+		&pk.CalendarEntity{},
+		&pk.CampusEntity{},
+		&pk.FacultyEntity{},
+		&pk.LanguageEntity{},
+		&pk.AssessmentEntity{},
+		&pk.CourseNatureEntity{},
+		&pk.MajorEntity{},
+		&pk.MajorCourseEntity{},
+		&pk.CourseDetailEntity{},
+		&pk.TeacherEntity{},
+		&pk.TeacherTimeslotEntity{},
+		&pk.FetchLogEntity{},
+		&pk.SettingEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},

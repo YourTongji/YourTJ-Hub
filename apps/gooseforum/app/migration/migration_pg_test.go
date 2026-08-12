@@ -54,6 +54,20 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"oidc_access_tokens",
 		"users",
 		"agents",
+		// PK 排课数据域（Issue #187）：12 表。
+		"pk_calendar",
+		"pk_campus",
+		"pk_faculty",
+		"pk_language",
+		"pk_assessment",
+		"pk_course_nature",
+		"pk_major",
+		"pk_major_course",
+		"pk_course_detail",
+		"pk_teacher",
+		"pk_teacher_timeslot",
+		"pk_fetch_log",
+		"pk_setting",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)

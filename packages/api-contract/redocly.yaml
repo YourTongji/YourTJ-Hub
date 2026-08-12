@@ -7,3 +7,6 @@ rules:
 # both routes have no auth middleware and are contractually always-200 (see paths/auth-sessions.yaml
 # and paths/auth-security.yaml). Do not "fix" the warnings by inventing 4XX responses; keep the rule
 # enabled so future coverage keeps the safety net.
+# Same for the parameterless PK GET endpoints (`pkListCalendars` / `pkListCampuses` /
+# `pkListFaculties` / `pkGetLatestUpdate`): they take no input and only fail with 500 on internal
+# error, so they intentionally keep the `operation-4xx-response` warning.

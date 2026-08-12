@@ -24,6 +24,15 @@ func GetCourseByPrimaryCodeTx(tx *gorm.DB, code string) (entity Entity, err erro
 	return
 }
 
+// ListCoursesByPrimaryCodes 按主课号批量查找课程（PK P13 课评摘要匹配用）。
+func ListCoursesByPrimaryCodes(codes []string) (entities []Entity, err error) {
+	if len(codes) == 0 {
+		return []Entity{}, nil
+	}
+	err = courseBuilder().Where(queryopt.In("primary_code", codes)).Find(&entities).Error
+	return
+}
+
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
 	Keyword    string // 名称/课号/别名/教师（归一化前缀或包含）

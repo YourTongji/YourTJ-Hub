@@ -15,6 +15,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
@@ -185,6 +186,25 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.POST("user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
 	loginApi.POST("user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
+
+	// PK 排课器 13 端点（Issue #187）：公开只读，统一 {code,msg,data} 信封，
+	// 与现有 /api/forum 的 {result,code,messageCode,params} 信封并列。
+	// 限流复用课程目录配额（只读目录类访问）。
+	pkApi := baseApi.Group("pk")
+	pkApi.GET("calendars", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListCalendars))
+	pkApi.GET("campuses", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListCampuses))
+	pkApi.GET("faculties", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListFaculties))
+	pkApi.POST("grades", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.Grades))
+	pkApi.POST("majors", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.Majors))
+	pkApi.POST("courses-by-major", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByMajor))
+	pkApi.POST("optional-types", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.OptionalTypes))
+	pkApi.POST("courses-by-nature", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByNature))
+	pkApi.POST("course-details", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseDetails))
+	pkApi.POST("course-search", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseSearch))
+	pkApi.POST("courses-by-time", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByTime))
+	pkApi.GET("latest-update", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.LatestUpdate))
+	pkApi.POST("course-info-sync", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseInfoSync))
+	pkApi.GET("course-review-brief", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkQueryReq(pkcontroller.CourseReviewBrief))
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
