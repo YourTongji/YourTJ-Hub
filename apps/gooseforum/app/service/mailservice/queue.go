@@ -129,6 +129,16 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 				continue
 			}
 
+			// noop 是 forgot-password 等时化 dummy 任务（#124）：静默消费并删除行，
+			// 不保留 Success 状态、不发送邮件、不打"邮件发送成功"日志，避免未认证
+			// 请求通过未知邮箱路径让 task_queue 无界增长。
+			if emailTask.Type == "noop" {
+				if delErr := taskQueue.Delete(task.Id); delErr != nil {
+					slog.Error("删除 noop 任务失败", "id", task.Id, "error", delErr)
+				}
+				continue
+			}
+
 			err := processEmailTask(emailTask)
 			if err != nil {
 				slog.Error("处理邮件任务失败",
@@ -182,6 +192,9 @@ func processEmailTask(task EmailTask) error {
 		return SendPasswordResetEmail(task.To, task.Username, task.Token, task.Locale)
 	case "email_changed":
 		return SendEmailChangedEmail(task.To, task.Username, task.NewEmail, task.Locale)
+	case "noop":
+		// 等时化 dummy 任务：静默消费，不发送任何邮件（账号枚举防护 #124）。
+		return nil
 	default:
 		return fmt.Errorf("未知的邮件类型: %s", task.Type)
 	}

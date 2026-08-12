@@ -99,13 +99,14 @@ func Register(c *gin.Context) {
 		return
 	}
 
-	if users.ExistUsername(r.Username) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthUsernameExists, nil))
-		return
-	}
-
-	if users.ExistEmail(r.Email) {
-		c.JSON(200, component.FailDataCode(component.MessageAuthEmailExists, nil))
+	// 账号枚举防护（CWE-208）：用户名/邮箱已占用时返回与其他注册失败一致的
+	// auth.register.failed 错误体，不再区分 auth.username.exists / auth.email.exists。
+	// 否则一次请求即可确定性枚举邮箱注册状态（PII 级身份关联信息）。
+	// 两次存在性查询无条件执行，查询次数不随账号状态变化，消除查询次数侧信道。
+	usernameExists := users.ExistUsername(r.Username)
+	emailExists := users.ExistEmail(r.Email)
+	if usernameExists || emailExists {
+		c.JSON(200, component.FailDataCode(component.MessageAuthRegisterFailed, nil))
 		return
 	}
 
