@@ -564,6 +564,8 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+
+	// PR #99 删除生命周期：软删 + 墓碑态（保留讨论树），替代 dev 的物理删除实现。
 	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
 	if err != nil {
 		return component.FailResponseError(err)

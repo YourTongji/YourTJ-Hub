@@ -540,13 +540,23 @@ func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
 
 // Restore 恢复主题：清除软删标记并回到正常生命周期。
 func Restore(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        gorm.Expr("NULL"),
-		"visibility_status": VisibilityActive,
-		"retention_status":  RetentionNormal,
-		"deleted_by":        0,
-		"delete_reason":     "",
-	}).Error
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": VisibilityActive,
+			"retention_status":  RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。

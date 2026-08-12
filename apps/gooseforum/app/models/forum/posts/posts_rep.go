@@ -114,7 +114,7 @@ func HasChildren(postId uint64) bool {
 func GetUserDeletedPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
 	b := builder().Unscoped().
 		Where(queryopt.Eq("user_id", userId)).
-		Where(queryopt.Eq("visibility_status", VisibilityUserDeleted)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
 		Where(queryopt.Ne("retention_status", RetentionPurged))
 	if cursorID != 0 {
 		b = b.Where(queryopt.Lt("id", cursorID))
@@ -230,13 +230,23 @@ func SoftDeleteByIDs(ids []uint64, deletedBy uint64, reason string, visibility s
 
 // Restore 恢复回复：清除软删标记并回到正常生命周期。
 func Restore(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        gorm.Expr("NULL"),
-		"visibility_status": VisibilityActive,
-		"retention_status":  RetentionNormal,
-		"deleted_by":        0,
-		"delete_reason":     "",
-	}).Error
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": VisibilityActive,
+			"retention_status":  RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
@@ -375,6 +385,7 @@ func RestoreCascadeDeletedByTopicIDWithVisibility(topicID uint64, deletedBy uint
 		Where(queryopt.Eq("topic_id", topicID)).
 		Where("deleted_at IS NOT NULL").
 		Where(queryopt.Eq("visibility_status", visibility)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
 		Where(queryopt.Eq("deleted_by", deletedBy)).
 		Where(queryopt.Eq("delete_reason", deleteReason)).
 		Updates(map[string]any{

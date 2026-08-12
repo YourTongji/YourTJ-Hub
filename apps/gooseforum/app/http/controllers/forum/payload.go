@@ -1419,11 +1419,11 @@ func categoryPayloads(ids []uint64) []TopicCategoryPayload {
 func userPayload(userID uint64, userMap map[uint64]*users.EntityComplete) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		// userID=0 表示"未处理/系统占位"，保持 dev 语义显示「匿名用户」；
-		// userID>0 但查不到（用户不存在或已注销软删）时显示「已注销用户」（PRD R10）。
 		if userID == 0 {
-			return TopicAuthorPayload{ID: 0, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+			// 无关联（如未分配的 handler）回退为「匿名用户」。
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 		}
+		// 用户不存在或已注销（软删）时回退为「已注销用户」（PRD R10）。
 		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return userPayloadWithWornBadge(userID, userMap, badgeservice.GetWornBadge(userID, user.WornBadgeCode))
@@ -1443,7 +1443,7 @@ func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityCom
 	user, ok := userMap[userID]
 	if !ok || user == nil {
 		if userID == 0 {
-			return TopicAuthorPayload{ID: 0, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 		}
 		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}

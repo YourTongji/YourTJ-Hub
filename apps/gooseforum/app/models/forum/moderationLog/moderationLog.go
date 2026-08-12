@@ -15,17 +15,19 @@ const (
 )
 
 const (
-	ActionTopicBlocked     = "topicBlocked"
-	ActionTopicUnblocked   = "topicUnblocked"
-	ActionPostBlocked      = "postBlocked"
-	ActionPostUnblocked    = "postUnblocked"
-	ActionReportResolved   = "reportResolved"
-	ActionReportRejected   = "reportRejected"
-	ActionUserFrozen       = "userFrozen"
-	ActionExport           = "dataExported"
-	ActionImport           = "dataImported"
-	ActionSensitiveBlocked = "contentSensitiveBlocked"
-	ActionSensitiveReview  = "contentSensitiveReview"
+	ActionTopicBlocked          = "topicBlocked"
+	ActionTopicUnblocked        = "topicUnblocked"
+	ActionPostBlocked           = "postBlocked"
+	ActionPostUnblocked         = "postUnblocked"
+	ActionReportResolved        = "reportResolved"
+	ActionReportRejected        = "reportRejected"
+	ActionUserFrozen            = "userFrozen"
+	ActionExport                = "dataExported"
+	ActionImport                = "dataImported"
+	ActionSensitiveBlocked      = "contentSensitiveBlocked"
+	ActionSensitiveReview       = "contentSensitiveReview"
+	ActionCourseReviewBlocked   = "courseReviewBlocked"
+	ActionCourseReviewUnblocked = "courseReviewUnblocked"
 
 	// 删除生命周期动作（Issue #94）
 	ActionTopicDeleted    = "topicDeleted"
@@ -33,9 +35,6 @@ const (
 	ActionContentRestored = "contentRestored"
 	ActionContentPurged   = "contentPurged"
 	ActionEvidenceViewed  = "evidenceViewed"
-
-	ActionCourseReviewBlocked   = "courseReviewBlocked"
-	ActionCourseReviewUnblocked = "courseReviewUnblocked"
 )
 
 const (
