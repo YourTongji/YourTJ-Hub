@@ -1,0 +1,30 @@
+{
+  "result": {
+    "items": [
+      {
+        "id": 5001,
+        "reviewId": 303,
+        "reason": "spam",
+        "note": "广告内容",
+        "status": "open",
+        "resolution": "",
+        "excerpt": "历史评价",
+        "reporter": {
+          "id": 7001,
+          "username": "charlie",
+          "avatarUrl": "/static/pic/1.webp"
+        },
+        "handler": {
+          "id": 0,
+          "username": "匿名用户",
+          "avatarUrl": "/static/pic/default-avatar.webp"
+        },
+        "createdAt": "2026-08-02 10:00:00",
+        "reportCount": 1
+      }
+    ],
+    "nextCursor": 0,
+    "hasNext": false
+  },
+  "code": 0
+}

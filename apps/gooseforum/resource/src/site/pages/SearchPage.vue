@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { FolderOpen, Search, UsersRound } from '@lucide/vue'
+import { BookOpen, FolderOpen, Search, UsersRound } from '@lucide/vue'
 import { formatNumber } from '@/runtime/format'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -20,11 +20,13 @@ const scope = computed(() => page.props.scope || 'all')
 const topics = computed(() => page.props.topics || [])
 const users = computed(() => page.props.users || [])
 const categories = computed(() => page.props.categories || [])
+const courses = computed(() => page.props.courses || [])
 const hasQuery = computed(() => (page.props.query || '').trim().length > 0)
-const hasResults = computed(() => topics.value.length > 0 || users.value.length > 0 || categories.value.length > 0)
+const hasResults = computed(() => topics.value.length > 0 || users.value.length > 0 || categories.value.length > 0 || courses.value.length > 0)
 const hasTopicResults = computed(() => topics.value.length > 0)
 const hasUserResults = computed(() => users.value.length > 0)
 const hasCategoryResults = computed(() => categories.value.length > 0)
+const hasCourseResults = computed(() => courses.value.length > 0)
 const searchUnavailable = computed(() => page.props.searchUnavailable === true)
 const failedScopes = computed(() => page.props.failedScopes || [])
 const hasPartialFailure = computed(() => failedScopes.value.length > 0 && !searchUnavailable.value)
@@ -32,11 +34,12 @@ const scopeLabelMap: Record<string, string> = {
   topics: 'scopeTopics',
   users: 'scopeUsers',
   categories: 'scopeCategories',
+  courses: 'scopeCourses',
 }
 const scopeLabels = computed(() => failedScopes.value.map((s) => (scopeLabelMap[s] ? t(`searchPage.${scopeLabelMap[s]}`) : s)).join(', '))
 const searchDescription = computed(() => {
   if (!hasQuery.value) return t('searchPage.emptyPrompt')
-  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : page.props.total
+  const count = scope.value === 'users' ? page.props.usersTotal : scope.value === 'categories' ? page.props.categoriesTotal : scope.value === 'courses' ? page.props.coursesTotal : page.props.total
   return `${page.props.query} · ${t('searchPage.resultCount', { count: formatNumber(count) })}`
 })
 
@@ -48,6 +51,7 @@ const scopeTabs = computed(() => {
     { key: 'topics', label: t('searchPage.scopeTopics'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('topics')}`, active: scope.value === 'topics', count: page.props.total },
     { key: 'users', label: t('searchPage.scopeUsers'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('users')}`, active: scope.value === 'users', count: page.props.usersTotal },
     { key: 'categories', label: t('searchPage.scopeCategories'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('categories')}`, active: scope.value === 'categories', count: page.props.categoriesTotal },
+    { key: 'courses', label: t('searchPage.scopeCourses'), url: `${base}?q=${encodeURIComponent(page.props.query)}${scopeParam('courses')}`, active: scope.value === 'courses', count: page.props.coursesTotal },
   ]
 })
 
@@ -66,6 +70,9 @@ function userUrl(user: { id: number }) {
 }
 function categoryUrl(cat: { slug: string; id: number }) {
   return `/c/${cat.slug}/${cat.id}`
+}
+function courseUrl(course: { id: number }) {
+  return `/courses/${course.id}`
 }
 
 watch(
@@ -192,6 +199,33 @@ watch(
                 <div class="min-w-0">
                   <p class="truncate text-sm font-semibold text-base-content">{{ cat.name }}</p>
                   <p v-if="cat.desc" class="mt-0.5 truncate text-xs text-base-content/55">{{ cat.desc }}</p>
+                </div>
+              </a>
+            </div>
+          </div>
+
+          <div v-if="hasCourseResults && (scope === 'all' || scope === 'courses')" class="border-b border-line">
+            <h2 class="flex items-center gap-2 px-4 pt-3 text-sm font-semibold text-base-content/70">
+              <BookOpen class="h-4 w-4" />
+              {{ t('searchPage.coursesSection') }}
+              <span class="text-xs font-normal text-base-content/45">{{ t('searchPage.coursesCount', { count: formatNumber(page.props.coursesTotal) }) }}</span>
+            </h2>
+            <div class="grid gap-2 p-3 sm:grid-cols-2">
+              <a
+                v-for="course in courses"
+                :key="course.id"
+                :href="courseUrl(course)"
+                class="flex min-w-0 items-start gap-2.5 rounded-field border border-line bg-base-100 p-3 transition hover:border-primary/40 hover:bg-base-200/60"
+              >
+                <span class="flex h-9 w-9 shrink-0 items-center justify-center rounded-field bg-primary/10 text-lg text-primary">
+                  <BookOpen class="h-4 w-4" />
+                </span>
+                <div class="min-w-0">
+                  <p class="truncate text-sm font-semibold text-base-content">{{ course.name }}</p>
+                  <p class="mt-0.5 truncate text-xs text-base-content/55">{{ course.primaryCode }} · {{ course.department }}</p>
+                  <p v-if="course.instructors?.length" class="mt-0.5 truncate text-xs text-base-content/45">
+                    {{ course.instructors.join('、') }}
+                  </p>
                 </div>
               </a>
             </div>

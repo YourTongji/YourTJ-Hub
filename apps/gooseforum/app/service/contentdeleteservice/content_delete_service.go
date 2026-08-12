@@ -15,6 +15,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
@@ -29,6 +30,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/notificationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
+	"github.com/leancodebox/GooseForum/app/service/pointservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"gorm.io/gorm"
@@ -226,6 +228,8 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 	}
 	// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
 	_ = posts.ResetPendingReview(postID)
+	// 回滚创建奖励（对齐 dev 删除路径的积分语义）。
+	reversePostReward(post.UserId, postID)
 
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
@@ -275,6 +279,8 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	}
 	// 作废待审状态：被删回复不应继续停留在管理审核队列（PRD R1）。
 	_ = posts.ResetPendingReview(postID)
+	// 回滚创建奖励（治理删除同样撤销积分）。
+	reversePostReward(post.UserId, postID)
 	fileusageservice.HardenTargetFiles(postsTarget(postID), time.Now().Add(RecoveryWindow))
 	topicEntity := topics.GetSimple(post.TopicId)
 	if topicEntity.Id > 0 {
@@ -344,6 +350,8 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		if err := posts.Restore(contentID); err != nil {
 			return component.NewMessageError(component.MessageContentRestoreFailed, "恢复回复失败", component.MessageParams{"error": err.Error()})
 		}
+		// 恢复回补创建奖励（先清除删除回滚墓碑，否则积分永久丢失）。
+		reapplyPostReward(post.UserId, post.Id)
 		topicEntity := topics.GetSimple(post.TopicId)
 		if topicEntity.Id > 0 {
 			var activePosts []*posts.Entity
@@ -725,6 +733,34 @@ func topicsTarget(topicID uint64) fileusageservice.TargetRef {
 
 func postsTarget(postID uint64) fileusageservice.TargetRef {
 	return fileusageservice.TargetRef{TargetType: "post", TargetID: postID}
+}
+
+// reversePostReward 删除回复时回滚其创建奖励（与 dev 物理删除路径一致）。
+// ReversePostRewardTx 幂等：无对应奖励记录时只写回滚墓碑、不动余额。
+func reversePostReward(userId, postID uint64) {
+	if userId == 0 || postID == 0 {
+		return
+	}
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		return pointservice.ReversePostRewardTx(tx, userId, postID)
+	}); err != nil {
+		slog.Error("reverse post reward on delete failed", "userId", userId, "postId", postID, "err", err)
+	}
+}
+
+// reapplyPostReward 恢复回复时回补创建奖励。先清除删除回滚墓碑（post-deleted:ID），
+// 否则 applyPointsTx 对已回滚过的 sourceKey 会跳过加分，导致"删除→恢复"积分永久丢失。
+func reapplyPostReward(userId, postID uint64) {
+	if userId == 0 || postID == 0 {
+		return
+	}
+	if err := pointservice.ClearPostDeletedTombstone(postID); err != nil {
+		slog.Error("clear post-deleted tombstone on restore failed", "userId", userId, "postId", postID, "err", err)
+	}
+	if err := pointservice.RewardPoints(userId, pointservice.PostCreatedReward, pointservice.PointsActionPostCreated,
+		fmt.Sprintf("post:%d", postID)); err != nil {
+		slog.Error("reapply post reward on restore failed", "userId", userId, "postId", postID, "err", err)
+	}
 }
 
 // DeleteAllUserContent 注销账号时删除该用户全部话题与回复（PRD R10 mode=delete）。

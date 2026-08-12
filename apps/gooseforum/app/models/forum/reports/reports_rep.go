@@ -99,7 +99,7 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 // Open reports are never cleared. Returns number of rows updated.
 //
 // 跨库注意：evidence_snapshot 是 json 列。不要在 SQL 里直接与字符串比较
-// （PostgreSQL 对 json 列的 `!= ”` 会报 `42883 json <> unknown`，MySQL 行为也不同），
+// （PostgreSQL 对 json 列的 `!= ''` 会报 `42883 json <> unknown`，MySQL 行为也不同），
 // 因此"空快照"过滤放在 Go 层用 evidenceSnapshotIsEmpty 完成（NULL/`{}` 反序列化后
 // 均为零值快照，会被跳过）。
 func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {
@@ -154,4 +154,28 @@ func evidenceSnapshotIsEmpty(snapshot EvidenceSnapshotData) bool {
 		snapshot.AuthorName == "" &&
 		len(snapshot.CategoryIDs) == 0 &&
 		snapshot.TargetURL == ""
+}
+
+// CountByTargetIds 统计每个 target_id 的举报总数（跨全部状态），
+// 供审核队列展示"该对象累计被举报次数"（不限于当前分页/状态）。
+func CountByTargetIds(targetType string, targetIds []uint64) map[uint64]int {
+	result := make(map[uint64]int, len(targetIds))
+	if len(targetIds) == 0 {
+		return result
+	}
+	type row struct {
+		TargetId uint64
+		Cnt      int
+	}
+	var rows []row
+	builder().
+		Select("target_id, COUNT(*) AS cnt").
+		Where(queryopt.Eq(fieldTargetType, targetType)).
+		Where(queryopt.In(fieldTargetId, targetIds)).
+		Group("target_id").
+		Scan(&rows)
+	for _, r := range rows {
+		result[r.TargetId] = r.Cnt
+	}
+	return result
 }

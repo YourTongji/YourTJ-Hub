@@ -54,12 +54,17 @@
   1. Build single binary (frontend + go build) on GitHub Actions.
   2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
      or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback.
+  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback;
+     after a successful deploy the script prunes old images (keeps the newest
+     `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
+     rollback tag) and build cache older than 72h.
+     The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
-     auto-rollback to previous image tag on failure.
+     auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
+     (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -68,6 +73,9 @@
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- Deploy workflows checkout the repo and upload `deploy/scripts/deploy.sh` to
+  `/opt/yourtj/scripts/deploy.sh` before running it, so script fixes reach the server without a
+  manual `init-server.sh` re-run.
 
 ## GitHub Actions secrets
 
@@ -115,13 +123,18 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
-### Upgrade note: `app.signingKey` is now mandatory
+### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
 Since the issue #8 build, `serve` refuses to start with the built-in default
-signing key (it exits with code 1 instead of silently continuing). Existing
-`config.toml` files created before this change may omit `app.signingKey`;
-**before upgrading an existing instance, add a random signing key** to
-`main/config.toml` and `dev/config.toml`:
+signing key (it exits with code 1 instead of silently continuing). The
+issue #106 build tightens the guard to **fail-closed**: `serve` now also
+refuses any **empty / whitespace-only** value and the deploy template
+placeholder `REPLACE_SIGNING_KEY`, because each of them lets an attacker
+forge password-reset tokens and take over arbitrary accounts (including
+admin). A missing or weak `app.signingKey` is rejected every boot — there is
+no fallback key. Existing `config.toml` files created before this change may
+omit `app.signingKey`; **before upgrading an existing instance, add a random
+signing key** to `main/config.toml` and `dev/config.toml`:
 
 ```toml
 [app]
@@ -131,6 +144,44 @@ signingKey = "<random 32+ byte base64 string>"
 Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
+
+**Rotation after a known/empty-key exposure:** if an instance ever ran with
+the built-in default, the `REPLACE_SIGNING_KEY` placeholder, or an empty
+`app.signingKey`, treat the signing key as compromised and rotate it. The
+symmetric key is shared across three surfaces, so rotation invalidates all of
+them at once: forum JWT sessions (users must sign in again), TOTP secret
+encryption (AES-GCM key is derived from `app.signingKey`; re-encrypt or
+re-enroll TOTP so existing secrets remain decryptable), and any outstanding
+password-reset / activation links. Rotating the key is the only way to retire
+tokens that were minted under the old key.
+
+**Rotation requires a process restart — hot reload is not supported.** The
+signing key feeds more surfaces than the three listed above — it also derives
+the session-cookie signing key (sessionstore) and the OIDC opaque-token key
+(oidcservice). The surfaces capture it at different points: JWT signing and
+session cookies at process start / first use, TOTP encryption on first use, and
+reset/activation and OIDC tokens on every call (fail-closed so a weak key is
+never accepted). With viper's config watcher enabled, editing `app.signingKey`
+at runtime does not rotate them together: the real-time surfaces switch to the
+new key immediately, the captured surfaces keep the old value, and TOTP secrets
+encrypted under the old key can become undecryptable if the key is swapped
+before the first TOTP use. Rotate the key and **restart the process** so all
+surfaces rotate consistently.
+
+### Upgrade note: session Cookie `Secure` is now fail-closed by environment
+
+Before issue #113, the `access_token` and goth session cookies decided the
+`Secure` flag from the `server.url` scheme: anything `http://` dropped `Secure`
+even under `app.env = "production"`. The template default
+`server.url = "http://localhost"` thus produced a session cookie without
+`Secure` on a production build (CWE-614). Since the issue #113 build, the flag
+is fail-closed by environment via `setting.CookieSecure()`: **any `app.env`
+other than `"local"` forces `Secure` regardless of `server.url`**, and the
+binary logs a startup warning when a non-local `server.url` is non-https and
+non-loopback. No `config.toml` change is required for existing instances, but
+operators who relied on plain-http production access (e.g. 0.0.0.0 without a
+TLS-terminating proxy) should switch `server.url` to the https reverse-proxy
+address so browsers actually return the now-`Secure` cookies.
 
 ### Unique-index preflight (user_o_auth provider_uid)
 

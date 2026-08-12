@@ -152,6 +152,9 @@ func configureHTTPContractTestSettings(t *testing.T, conn *gorm.DB) {
 		Actions: []pageConfig.RateLimitRule{
 			{Action: middleware.RateLimitLogin, WindowSeconds: 60, LimitPerIp: 5},
 			{Action: middleware.RateLimitTopicWrite, WindowSeconds: 60, LimitPerIp: 5},
+			{Action: middleware.RateLimitTotpSetup, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpEnable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpDisable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
 		},
 	})
 	hotdataserve.ClearRateLimitConfigCache()
@@ -317,6 +320,13 @@ func assertFixtureParams(t *testing.T, actual map[string]any, fixture map[string
 		}
 		if !reflect.DeepEqual(actualValue, fixtureValue) {
 			t.Fatalf("params.%s = %#v, want fixture value %#v", name, actualValue, fixtureValue)
+		}
+	}
+	// 断言实际响应不包含 fixture 未声明的额外参数，防止原始解析错误串等敏感信息泄漏回归
+	// （例如 course-parse-failed.json 声明 params:{}，若 400 又带上 params.error 应在此失败）。
+	for name := range actual {
+		if _, declared := fixture[name]; !declared {
+			t.Fatalf("params.%s = %#v is present but not declared in fixture", name, actual[name])
 		}
 	}
 }

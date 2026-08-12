@@ -2159,3 +2159,1676 @@ abstract class _TermsPageProps implements TermsPageProps {
   _$$TermsPagePropsImplCopyWith<_$TermsPagePropsImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
+
+CourseSummaryPayload _$CourseSummaryPayloadFromJson(Map<String, dynamic> json) {
+  return _CourseSummaryPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseSummaryPayload {
+  int get id => throw _privateConstructorUsedError;
+  String get primaryCode => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  String get department => throw _privateConstructorUsedError;
+  int get creditX10 => throw _privateConstructorUsedError;
+  List<String>? get aliases => throw _privateConstructorUsedError;
+  List<String>? get instructors => throw _privateConstructorUsedError;
+  List<String>? get recentTerms => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseSummaryPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseSummaryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseSummaryPayloadCopyWith<CourseSummaryPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseSummaryPayloadCopyWith<$Res> {
+  factory $CourseSummaryPayloadCopyWith(
+    CourseSummaryPayload value,
+    $Res Function(CourseSummaryPayload) then,
+  ) = _$CourseSummaryPayloadCopyWithImpl<$Res, CourseSummaryPayload>;
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? recentTerms,
+  });
+}
+
+/// @nodoc
+class _$CourseSummaryPayloadCopyWithImpl<
+  $Res,
+  $Val extends CourseSummaryPayload
+>
+    implements $CourseSummaryPayloadCopyWith<$Res> {
+  _$CourseSummaryPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseSummaryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? instructors = freezed,
+    Object? recentTerms = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            primaryCode: null == primaryCode
+                ? _value.primaryCode
+                : primaryCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            name: null == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            department: null == department
+                ? _value.department
+                : department // ignore: cast_nullable_to_non_nullable
+                      as String,
+            creditX10: null == creditX10
+                ? _value.creditX10
+                : creditX10 // ignore: cast_nullable_to_non_nullable
+                      as int,
+            aliases: freezed == aliases
+                ? _value.aliases
+                : aliases // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            instructors: freezed == instructors
+                ? _value.instructors
+                : instructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            recentTerms: freezed == recentTerms
+                ? _value.recentTerms
+                : recentTerms // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseSummaryPayloadImplCopyWith<$Res>
+    implements $CourseSummaryPayloadCopyWith<$Res> {
+  factory _$$CourseSummaryPayloadImplCopyWith(
+    _$CourseSummaryPayloadImpl value,
+    $Res Function(_$CourseSummaryPayloadImpl) then,
+  ) = __$$CourseSummaryPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? recentTerms,
+  });
+}
+
+/// @nodoc
+class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
+    extends _$CourseSummaryPayloadCopyWithImpl<$Res, _$CourseSummaryPayloadImpl>
+    implements _$$CourseSummaryPayloadImplCopyWith<$Res> {
+  __$$CourseSummaryPayloadImplCopyWithImpl(
+    _$CourseSummaryPayloadImpl _value,
+    $Res Function(_$CourseSummaryPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseSummaryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? instructors = freezed,
+    Object? recentTerms = freezed,
+  }) {
+    return _then(
+      _$CourseSummaryPayloadImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        primaryCode: null == primaryCode
+            ? _value.primaryCode
+            : primaryCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        name: null == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        department: null == department
+            ? _value.department
+            : department // ignore: cast_nullable_to_non_nullable
+                  as String,
+        creditX10: null == creditX10
+            ? _value.creditX10
+            : creditX10 // ignore: cast_nullable_to_non_nullable
+                  as int,
+        aliases: freezed == aliases
+            ? _value._aliases
+            : aliases // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        instructors: freezed == instructors
+            ? _value._instructors
+            : instructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        recentTerms: freezed == recentTerms
+            ? _value._recentTerms
+            : recentTerms // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
+  const _$CourseSummaryPayloadImpl({
+    required this.id,
+    required this.primaryCode,
+    required this.name,
+    required this.department,
+    required this.creditX10,
+    final List<String>? aliases,
+    final List<String>? instructors,
+    final List<String>? recentTerms,
+  }) : _aliases = aliases,
+       _instructors = instructors,
+       _recentTerms = recentTerms;
+
+  factory _$CourseSummaryPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseSummaryPayloadImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final String primaryCode;
+  @override
+  final String name;
+  @override
+  final String department;
+  @override
+  final int creditX10;
+  final List<String>? _aliases;
+  @override
+  List<String>? get aliases {
+    final value = _aliases;
+    if (value == null) return null;
+    if (_aliases is EqualUnmodifiableListView) return _aliases;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _instructors;
+  @override
+  List<String>? get instructors {
+    final value = _instructors;
+    if (value == null) return null;
+    if (_instructors is EqualUnmodifiableListView) return _instructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _recentTerms;
+  @override
+  List<String>? get recentTerms {
+    final value = _recentTerms;
+    if (value == null) return null;
+    if (_recentTerms is EqualUnmodifiableListView) return _recentTerms;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  String toString() {
+    return 'CourseSummaryPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, recentTerms: $recentTerms)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseSummaryPayloadImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.primaryCode, primaryCode) ||
+                other.primaryCode == primaryCode) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.department, department) ||
+                other.department == department) &&
+            (identical(other.creditX10, creditX10) ||
+                other.creditX10 == creditX10) &&
+            const DeepCollectionEquality().equals(other._aliases, _aliases) &&
+            const DeepCollectionEquality().equals(
+              other._instructors,
+              _instructors,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._recentTerms,
+              _recentTerms,
+            ));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    primaryCode,
+    name,
+    department,
+    creditX10,
+    const DeepCollectionEquality().hash(_aliases),
+    const DeepCollectionEquality().hash(_instructors),
+    const DeepCollectionEquality().hash(_recentTerms),
+  );
+
+  /// Create a copy of CourseSummaryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseSummaryPayloadImplCopyWith<_$CourseSummaryPayloadImpl>
+  get copyWith =>
+      __$$CourseSummaryPayloadImplCopyWithImpl<_$CourseSummaryPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseSummaryPayloadImplToJson(this);
+  }
+}
+
+abstract class _CourseSummaryPayload implements CourseSummaryPayload {
+  const factory _CourseSummaryPayload({
+    required final int id,
+    required final String primaryCode,
+    required final String name,
+    required final String department,
+    required final int creditX10,
+    final List<String>? aliases,
+    final List<String>? instructors,
+    final List<String>? recentTerms,
+  }) = _$CourseSummaryPayloadImpl;
+
+  factory _CourseSummaryPayload.fromJson(Map<String, dynamic> json) =
+      _$CourseSummaryPayloadImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  String get primaryCode;
+  @override
+  String get name;
+  @override
+  String get department;
+  @override
+  int get creditX10;
+  @override
+  List<String>? get aliases;
+  @override
+  List<String>? get instructors;
+  @override
+  List<String>? get recentTerms;
+
+  /// Create a copy of CourseSummaryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseSummaryPayloadImplCopyWith<_$CourseSummaryPayloadImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseCatalogPageProps _$CourseCatalogPagePropsFromJson(
+  Map<String, dynamic> json,
+) {
+  return _CourseCatalogPageProps.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseCatalogPageProps {
+  CourseCatalogQueryPayload get query => throw _privateConstructorUsedError;
+  List<CourseSummaryPayload> get courses => throw _privateConstructorUsedError;
+  PaginationPayload get pagination => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseCatalogPageProps to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseCatalogPagePropsCopyWith<CourseCatalogPageProps> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseCatalogPagePropsCopyWith<$Res> {
+  factory $CourseCatalogPagePropsCopyWith(
+    CourseCatalogPageProps value,
+    $Res Function(CourseCatalogPageProps) then,
+  ) = _$CourseCatalogPagePropsCopyWithImpl<$Res, CourseCatalogPageProps>;
+  @useResult
+  $Res call({
+    CourseCatalogQueryPayload query,
+    List<CourseSummaryPayload> courses,
+    PaginationPayload pagination,
+  });
+
+  $CourseCatalogQueryPayloadCopyWith<$Res> get query;
+  $PaginationPayloadCopyWith<$Res> get pagination;
+}
+
+/// @nodoc
+class _$CourseCatalogPagePropsCopyWithImpl<
+  $Res,
+  $Val extends CourseCatalogPageProps
+>
+    implements $CourseCatalogPagePropsCopyWith<$Res> {
+  _$CourseCatalogPagePropsCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? query = null,
+    Object? courses = null,
+    Object? pagination = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            query: null == query
+                ? _value.query
+                : query // ignore: cast_nullable_to_non_nullable
+                      as CourseCatalogQueryPayload,
+            courses: null == courses
+                ? _value.courses
+                : courses // ignore: cast_nullable_to_non_nullable
+                      as List<CourseSummaryPayload>,
+            pagination: null == pagination
+                ? _value.pagination
+                : pagination // ignore: cast_nullable_to_non_nullable
+                      as PaginationPayload,
+          )
+          as $Val,
+    );
+  }
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CourseCatalogQueryPayloadCopyWith<$Res> get query {
+    return $CourseCatalogQueryPayloadCopyWith<$Res>(_value.query, (value) {
+      return _then(_value.copyWith(query: value) as $Val);
+    });
+  }
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $PaginationPayloadCopyWith<$Res> get pagination {
+    return $PaginationPayloadCopyWith<$Res>(_value.pagination, (value) {
+      return _then(_value.copyWith(pagination: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseCatalogPagePropsImplCopyWith<$Res>
+    implements $CourseCatalogPagePropsCopyWith<$Res> {
+  factory _$$CourseCatalogPagePropsImplCopyWith(
+    _$CourseCatalogPagePropsImpl value,
+    $Res Function(_$CourseCatalogPagePropsImpl) then,
+  ) = __$$CourseCatalogPagePropsImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    CourseCatalogQueryPayload query,
+    List<CourseSummaryPayload> courses,
+    PaginationPayload pagination,
+  });
+
+  @override
+  $CourseCatalogQueryPayloadCopyWith<$Res> get query;
+  @override
+  $PaginationPayloadCopyWith<$Res> get pagination;
+}
+
+/// @nodoc
+class __$$CourseCatalogPagePropsImplCopyWithImpl<$Res>
+    extends
+        _$CourseCatalogPagePropsCopyWithImpl<$Res, _$CourseCatalogPagePropsImpl>
+    implements _$$CourseCatalogPagePropsImplCopyWith<$Res> {
+  __$$CourseCatalogPagePropsImplCopyWithImpl(
+    _$CourseCatalogPagePropsImpl _value,
+    $Res Function(_$CourseCatalogPagePropsImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? query = null,
+    Object? courses = null,
+    Object? pagination = null,
+  }) {
+    return _then(
+      _$CourseCatalogPagePropsImpl(
+        query: null == query
+            ? _value.query
+            : query // ignore: cast_nullable_to_non_nullable
+                  as CourseCatalogQueryPayload,
+        courses: null == courses
+            ? _value._courses
+            : courses // ignore: cast_nullable_to_non_nullable
+                  as List<CourseSummaryPayload>,
+        pagination: null == pagination
+            ? _value.pagination
+            : pagination // ignore: cast_nullable_to_non_nullable
+                  as PaginationPayload,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseCatalogPagePropsImpl implements _CourseCatalogPageProps {
+  const _$CourseCatalogPagePropsImpl({
+    required this.query,
+    required final List<CourseSummaryPayload> courses,
+    required this.pagination,
+  }) : _courses = courses;
+
+  factory _$CourseCatalogPagePropsImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseCatalogPagePropsImplFromJson(json);
+
+  @override
+  final CourseCatalogQueryPayload query;
+  final List<CourseSummaryPayload> _courses;
+  @override
+  List<CourseSummaryPayload> get courses {
+    if (_courses is EqualUnmodifiableListView) return _courses;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_courses);
+  }
+
+  @override
+  final PaginationPayload pagination;
+
+  @override
+  String toString() {
+    return 'CourseCatalogPageProps(query: $query, courses: $courses, pagination: $pagination)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseCatalogPagePropsImpl &&
+            (identical(other.query, query) || other.query == query) &&
+            const DeepCollectionEquality().equals(other._courses, _courses) &&
+            (identical(other.pagination, pagination) ||
+                other.pagination == pagination));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    query,
+    const DeepCollectionEquality().hash(_courses),
+    pagination,
+  );
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseCatalogPagePropsImplCopyWith<_$CourseCatalogPagePropsImpl>
+  get copyWith =>
+      __$$CourseCatalogPagePropsImplCopyWithImpl<_$CourseCatalogPagePropsImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseCatalogPagePropsImplToJson(this);
+  }
+}
+
+abstract class _CourseCatalogPageProps implements CourseCatalogPageProps {
+  const factory _CourseCatalogPageProps({
+    required final CourseCatalogQueryPayload query,
+    required final List<CourseSummaryPayload> courses,
+    required final PaginationPayload pagination,
+  }) = _$CourseCatalogPagePropsImpl;
+
+  factory _CourseCatalogPageProps.fromJson(Map<String, dynamic> json) =
+      _$CourseCatalogPagePropsImpl.fromJson;
+
+  @override
+  CourseCatalogQueryPayload get query;
+  @override
+  List<CourseSummaryPayload> get courses;
+  @override
+  PaginationPayload get pagination;
+
+  /// Create a copy of CourseCatalogPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseCatalogPagePropsImplCopyWith<_$CourseCatalogPagePropsImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseCatalogQueryPayload _$CourseCatalogQueryPayloadFromJson(
+  Map<String, dynamic> json,
+) {
+  return _CourseCatalogQueryPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseCatalogQueryPayload {
+  String? get keyword => throw _privateConstructorUsedError;
+  String? get department => throw _privateConstructorUsedError;
+  String? get term => throw _privateConstructorUsedError;
+  String? get campus => throw _privateConstructorUsedError;
+  int get page => throw _privateConstructorUsedError;
+  int get size => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseCatalogQueryPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseCatalogQueryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseCatalogQueryPayloadCopyWith<CourseCatalogQueryPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseCatalogQueryPayloadCopyWith<$Res> {
+  factory $CourseCatalogQueryPayloadCopyWith(
+    CourseCatalogQueryPayload value,
+    $Res Function(CourseCatalogQueryPayload) then,
+  ) = _$CourseCatalogQueryPayloadCopyWithImpl<$Res, CourseCatalogQueryPayload>;
+  @useResult
+  $Res call({
+    String? keyword,
+    String? department,
+    String? term,
+    String? campus,
+    int page,
+    int size,
+  });
+}
+
+/// @nodoc
+class _$CourseCatalogQueryPayloadCopyWithImpl<
+  $Res,
+  $Val extends CourseCatalogQueryPayload
+>
+    implements $CourseCatalogQueryPayloadCopyWith<$Res> {
+  _$CourseCatalogQueryPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseCatalogQueryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? keyword = freezed,
+    Object? department = freezed,
+    Object? term = freezed,
+    Object? campus = freezed,
+    Object? page = null,
+    Object? size = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            keyword: freezed == keyword
+                ? _value.keyword
+                : keyword // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            department: freezed == department
+                ? _value.department
+                : department // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            term: freezed == term
+                ? _value.term
+                : term // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            campus: freezed == campus
+                ? _value.campus
+                : campus // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            page: null == page
+                ? _value.page
+                : page // ignore: cast_nullable_to_non_nullable
+                      as int,
+            size: null == size
+                ? _value.size
+                : size // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseCatalogQueryPayloadImplCopyWith<$Res>
+    implements $CourseCatalogQueryPayloadCopyWith<$Res> {
+  factory _$$CourseCatalogQueryPayloadImplCopyWith(
+    _$CourseCatalogQueryPayloadImpl value,
+    $Res Function(_$CourseCatalogQueryPayloadImpl) then,
+  ) = __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    String? keyword,
+    String? department,
+    String? term,
+    String? campus,
+    int page,
+    int size,
+  });
+}
+
+/// @nodoc
+class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
+    extends
+        _$CourseCatalogQueryPayloadCopyWithImpl<
+          $Res,
+          _$CourseCatalogQueryPayloadImpl
+        >
+    implements _$$CourseCatalogQueryPayloadImplCopyWith<$Res> {
+  __$$CourseCatalogQueryPayloadImplCopyWithImpl(
+    _$CourseCatalogQueryPayloadImpl _value,
+    $Res Function(_$CourseCatalogQueryPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseCatalogQueryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? keyword = freezed,
+    Object? department = freezed,
+    Object? term = freezed,
+    Object? campus = freezed,
+    Object? page = null,
+    Object? size = null,
+  }) {
+    return _then(
+      _$CourseCatalogQueryPayloadImpl(
+        keyword: freezed == keyword
+            ? _value.keyword
+            : keyword // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        department: freezed == department
+            ? _value.department
+            : department // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        term: freezed == term
+            ? _value.term
+            : term // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        campus: freezed == campus
+            ? _value.campus
+            : campus // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        page: null == page
+            ? _value.page
+            : page // ignore: cast_nullable_to_non_nullable
+                  as int,
+        size: null == size
+            ? _value.size
+            : size // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
+  const _$CourseCatalogQueryPayloadImpl({
+    this.keyword,
+    this.department,
+    this.term,
+    this.campus,
+    required this.page,
+    required this.size,
+  });
+
+  factory _$CourseCatalogQueryPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseCatalogQueryPayloadImplFromJson(json);
+
+  @override
+  final String? keyword;
+  @override
+  final String? department;
+  @override
+  final String? term;
+  @override
+  final String? campus;
+  @override
+  final int page;
+  @override
+  final int size;
+
+  @override
+  String toString() {
+    return 'CourseCatalogQueryPayload(keyword: $keyword, department: $department, term: $term, campus: $campus, page: $page, size: $size)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseCatalogQueryPayloadImpl &&
+            (identical(other.keyword, keyword) || other.keyword == keyword) &&
+            (identical(other.department, department) ||
+                other.department == department) &&
+            (identical(other.term, term) || other.term == term) &&
+            (identical(other.campus, campus) || other.campus == campus) &&
+            (identical(other.page, page) || other.page == page) &&
+            (identical(other.size, size) || other.size == size));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode =>
+      Object.hash(runtimeType, keyword, department, term, campus, page, size);
+
+  /// Create a copy of CourseCatalogQueryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseCatalogQueryPayloadImplCopyWith<_$CourseCatalogQueryPayloadImpl>
+  get copyWith =>
+      __$$CourseCatalogQueryPayloadImplCopyWithImpl<
+        _$CourseCatalogQueryPayloadImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseCatalogQueryPayloadImplToJson(this);
+  }
+}
+
+abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
+  const factory _CourseCatalogQueryPayload({
+    final String? keyword,
+    final String? department,
+    final String? term,
+    final String? campus,
+    required final int page,
+    required final int size,
+  }) = _$CourseCatalogQueryPayloadImpl;
+
+  factory _CourseCatalogQueryPayload.fromJson(Map<String, dynamic> json) =
+      _$CourseCatalogQueryPayloadImpl.fromJson;
+
+  @override
+  String? get keyword;
+  @override
+  String? get department;
+  @override
+  String? get term;
+  @override
+  String? get campus;
+  @override
+  int get page;
+  @override
+  int get size;
+
+  /// Create a copy of CourseCatalogQueryPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseCatalogQueryPayloadImplCopyWith<_$CourseCatalogQueryPayloadImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseOfferingPayload _$CourseOfferingPayloadFromJson(
+  Map<String, dynamic> json,
+) {
+  return _CourseOfferingPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseOfferingPayload {
+  int get id => throw _privateConstructorUsedError;
+  String get termCode => throw _privateConstructorUsedError;
+  String? get termName => throw _privateConstructorUsedError;
+  String? get campus => throw _privateConstructorUsedError;
+  String? get faculty => throw _privateConstructorUsedError;
+  List<String>? get instructors => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseOfferingPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseOfferingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseOfferingPayloadCopyWith<CourseOfferingPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseOfferingPayloadCopyWith<$Res> {
+  factory $CourseOfferingPayloadCopyWith(
+    CourseOfferingPayload value,
+    $Res Function(CourseOfferingPayload) then,
+  ) = _$CourseOfferingPayloadCopyWithImpl<$Res, CourseOfferingPayload>;
+  @useResult
+  $Res call({
+    int id,
+    String termCode,
+    String? termName,
+    String? campus,
+    String? faculty,
+    List<String>? instructors,
+  });
+}
+
+/// @nodoc
+class _$CourseOfferingPayloadCopyWithImpl<
+  $Res,
+  $Val extends CourseOfferingPayload
+>
+    implements $CourseOfferingPayloadCopyWith<$Res> {
+  _$CourseOfferingPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseOfferingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? termCode = null,
+    Object? termName = freezed,
+    Object? campus = freezed,
+    Object? faculty = freezed,
+    Object? instructors = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            termCode: null == termCode
+                ? _value.termCode
+                : termCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            termName: freezed == termName
+                ? _value.termName
+                : termName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            campus: freezed == campus
+                ? _value.campus
+                : campus // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            faculty: freezed == faculty
+                ? _value.faculty
+                : faculty // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            instructors: freezed == instructors
+                ? _value.instructors
+                : instructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseOfferingPayloadImplCopyWith<$Res>
+    implements $CourseOfferingPayloadCopyWith<$Res> {
+  factory _$$CourseOfferingPayloadImplCopyWith(
+    _$CourseOfferingPayloadImpl value,
+    $Res Function(_$CourseOfferingPayloadImpl) then,
+  ) = __$$CourseOfferingPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    String termCode,
+    String? termName,
+    String? campus,
+    String? faculty,
+    List<String>? instructors,
+  });
+}
+
+/// @nodoc
+class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
+    extends
+        _$CourseOfferingPayloadCopyWithImpl<$Res, _$CourseOfferingPayloadImpl>
+    implements _$$CourseOfferingPayloadImplCopyWith<$Res> {
+  __$$CourseOfferingPayloadImplCopyWithImpl(
+    _$CourseOfferingPayloadImpl _value,
+    $Res Function(_$CourseOfferingPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseOfferingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? termCode = null,
+    Object? termName = freezed,
+    Object? campus = freezed,
+    Object? faculty = freezed,
+    Object? instructors = freezed,
+  }) {
+    return _then(
+      _$CourseOfferingPayloadImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        termCode: null == termCode
+            ? _value.termCode
+            : termCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        termName: freezed == termName
+            ? _value.termName
+            : termName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        campus: freezed == campus
+            ? _value.campus
+            : campus // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        faculty: freezed == faculty
+            ? _value.faculty
+            : faculty // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        instructors: freezed == instructors
+            ? _value._instructors
+            : instructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
+  const _$CourseOfferingPayloadImpl({
+    required this.id,
+    required this.termCode,
+    this.termName,
+    this.campus,
+    this.faculty,
+    final List<String>? instructors,
+  }) : _instructors = instructors;
+
+  factory _$CourseOfferingPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseOfferingPayloadImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final String termCode;
+  @override
+  final String? termName;
+  @override
+  final String? campus;
+  @override
+  final String? faculty;
+  final List<String>? _instructors;
+  @override
+  List<String>? get instructors {
+    final value = _instructors;
+    if (value == null) return null;
+    if (_instructors is EqualUnmodifiableListView) return _instructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  String toString() {
+    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, instructors: $instructors)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseOfferingPayloadImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.termCode, termCode) ||
+                other.termCode == termCode) &&
+            (identical(other.termName, termName) ||
+                other.termName == termName) &&
+            (identical(other.campus, campus) || other.campus == campus) &&
+            (identical(other.faculty, faculty) || other.faculty == faculty) &&
+            const DeepCollectionEquality().equals(
+              other._instructors,
+              _instructors,
+            ));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    termCode,
+    termName,
+    campus,
+    faculty,
+    const DeepCollectionEquality().hash(_instructors),
+  );
+
+  /// Create a copy of CourseOfferingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseOfferingPayloadImplCopyWith<_$CourseOfferingPayloadImpl>
+  get copyWith =>
+      __$$CourseOfferingPayloadImplCopyWithImpl<_$CourseOfferingPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseOfferingPayloadImplToJson(this);
+  }
+}
+
+abstract class _CourseOfferingPayload implements CourseOfferingPayload {
+  const factory _CourseOfferingPayload({
+    required final int id,
+    required final String termCode,
+    final String? termName,
+    final String? campus,
+    final String? faculty,
+    final List<String>? instructors,
+  }) = _$CourseOfferingPayloadImpl;
+
+  factory _CourseOfferingPayload.fromJson(Map<String, dynamic> json) =
+      _$CourseOfferingPayloadImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  String get termCode;
+  @override
+  String? get termName;
+  @override
+  String? get campus;
+  @override
+  String? get faculty;
+  @override
+  List<String>? get instructors;
+
+  /// Create a copy of CourseOfferingPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseOfferingPayloadImplCopyWith<_$CourseOfferingPayloadImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseDetailPageProps _$CourseDetailPagePropsFromJson(
+  Map<String, dynamic> json,
+) {
+  return _CourseDetailPageProps.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseDetailPageProps {
+  CourseDetailPayload get course => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseDetailPageProps to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseDetailPagePropsCopyWith<CourseDetailPageProps> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseDetailPagePropsCopyWith<$Res> {
+  factory $CourseDetailPagePropsCopyWith(
+    CourseDetailPageProps value,
+    $Res Function(CourseDetailPageProps) then,
+  ) = _$CourseDetailPagePropsCopyWithImpl<$Res, CourseDetailPageProps>;
+  @useResult
+  $Res call({CourseDetailPayload course});
+
+  $CourseDetailPayloadCopyWith<$Res> get course;
+}
+
+/// @nodoc
+class _$CourseDetailPagePropsCopyWithImpl<
+  $Res,
+  $Val extends CourseDetailPageProps
+>
+    implements $CourseDetailPagePropsCopyWith<$Res> {
+  _$CourseDetailPagePropsCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? course = null}) {
+    return _then(
+      _value.copyWith(
+            course: null == course
+                ? _value.course
+                : course // ignore: cast_nullable_to_non_nullable
+                      as CourseDetailPayload,
+          )
+          as $Val,
+    );
+  }
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $CourseDetailPayloadCopyWith<$Res> get course {
+    return $CourseDetailPayloadCopyWith<$Res>(_value.course, (value) {
+      return _then(_value.copyWith(course: value) as $Val);
+    });
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseDetailPagePropsImplCopyWith<$Res>
+    implements $CourseDetailPagePropsCopyWith<$Res> {
+  factory _$$CourseDetailPagePropsImplCopyWith(
+    _$CourseDetailPagePropsImpl value,
+    $Res Function(_$CourseDetailPagePropsImpl) then,
+  ) = __$$CourseDetailPagePropsImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({CourseDetailPayload course});
+
+  @override
+  $CourseDetailPayloadCopyWith<$Res> get course;
+}
+
+/// @nodoc
+class __$$CourseDetailPagePropsImplCopyWithImpl<$Res>
+    extends
+        _$CourseDetailPagePropsCopyWithImpl<$Res, _$CourseDetailPagePropsImpl>
+    implements _$$CourseDetailPagePropsImplCopyWith<$Res> {
+  __$$CourseDetailPagePropsImplCopyWithImpl(
+    _$CourseDetailPagePropsImpl _value,
+    $Res Function(_$CourseDetailPagePropsImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({Object? course = null}) {
+    return _then(
+      _$CourseDetailPagePropsImpl(
+        course: null == course
+            ? _value.course
+            : course // ignore: cast_nullable_to_non_nullable
+                  as CourseDetailPayload,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseDetailPagePropsImpl implements _CourseDetailPageProps {
+  const _$CourseDetailPagePropsImpl({required this.course});
+
+  factory _$CourseDetailPagePropsImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseDetailPagePropsImplFromJson(json);
+
+  @override
+  final CourseDetailPayload course;
+
+  @override
+  String toString() {
+    return 'CourseDetailPageProps(course: $course)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseDetailPagePropsImpl &&
+            (identical(other.course, course) || other.course == course));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(runtimeType, course);
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseDetailPagePropsImplCopyWith<_$CourseDetailPagePropsImpl>
+  get copyWith =>
+      __$$CourseDetailPagePropsImplCopyWithImpl<_$CourseDetailPagePropsImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseDetailPagePropsImplToJson(this);
+  }
+}
+
+abstract class _CourseDetailPageProps implements CourseDetailPageProps {
+  const factory _CourseDetailPageProps({
+    required final CourseDetailPayload course,
+  }) = _$CourseDetailPagePropsImpl;
+
+  factory _CourseDetailPageProps.fromJson(Map<String, dynamic> json) =
+      _$CourseDetailPagePropsImpl.fromJson;
+
+  @override
+  CourseDetailPayload get course;
+
+  /// Create a copy of CourseDetailPageProps
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseDetailPagePropsImplCopyWith<_$CourseDetailPagePropsImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseDetailPayload _$CourseDetailPayloadFromJson(Map<String, dynamic> json) {
+  return _CourseDetailPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseDetailPayload {
+  int get id => throw _privateConstructorUsedError;
+  String get primaryCode => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  String get department => throw _privateConstructorUsedError;
+  int get creditX10 => throw _privateConstructorUsedError;
+  List<String>? get aliases => throw _privateConstructorUsedError;
+  List<CourseOfferingPayload>? get offerings =>
+      throw _privateConstructorUsedError;
+
+  /// Serializes this CourseDetailPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseDetailPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseDetailPayloadCopyWith<CourseDetailPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseDetailPayloadCopyWith<$Res> {
+  factory $CourseDetailPayloadCopyWith(
+    CourseDetailPayload value,
+    $Res Function(CourseDetailPayload) then,
+  ) = _$CourseDetailPayloadCopyWithImpl<$Res, CourseDetailPayload>;
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<CourseOfferingPayload>? offerings,
+  });
+}
+
+/// @nodoc
+class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
+    implements $CourseDetailPayloadCopyWith<$Res> {
+  _$CourseDetailPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseDetailPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? offerings = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            primaryCode: null == primaryCode
+                ? _value.primaryCode
+                : primaryCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            name: null == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            department: null == department
+                ? _value.department
+                : department // ignore: cast_nullable_to_non_nullable
+                      as String,
+            creditX10: null == creditX10
+                ? _value.creditX10
+                : creditX10 // ignore: cast_nullable_to_non_nullable
+                      as int,
+            aliases: freezed == aliases
+                ? _value.aliases
+                : aliases // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            offerings: freezed == offerings
+                ? _value.offerings
+                : offerings // ignore: cast_nullable_to_non_nullable
+                      as List<CourseOfferingPayload>?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseDetailPayloadImplCopyWith<$Res>
+    implements $CourseDetailPayloadCopyWith<$Res> {
+  factory _$$CourseDetailPayloadImplCopyWith(
+    _$CourseDetailPayloadImpl value,
+    $Res Function(_$CourseDetailPayloadImpl) then,
+  ) = __$$CourseDetailPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<CourseOfferingPayload>? offerings,
+  });
+}
+
+/// @nodoc
+class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
+    extends _$CourseDetailPayloadCopyWithImpl<$Res, _$CourseDetailPayloadImpl>
+    implements _$$CourseDetailPayloadImplCopyWith<$Res> {
+  __$$CourseDetailPayloadImplCopyWithImpl(
+    _$CourseDetailPayloadImpl _value,
+    $Res Function(_$CourseDetailPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseDetailPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? offerings = freezed,
+  }) {
+    return _then(
+      _$CourseDetailPayloadImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        primaryCode: null == primaryCode
+            ? _value.primaryCode
+            : primaryCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        name: null == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        department: null == department
+            ? _value.department
+            : department // ignore: cast_nullable_to_non_nullable
+                  as String,
+        creditX10: null == creditX10
+            ? _value.creditX10
+            : creditX10 // ignore: cast_nullable_to_non_nullable
+                  as int,
+        aliases: freezed == aliases
+            ? _value._aliases
+            : aliases // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        offerings: freezed == offerings
+            ? _value._offerings
+            : offerings // ignore: cast_nullable_to_non_nullable
+                  as List<CourseOfferingPayload>?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
+  const _$CourseDetailPayloadImpl({
+    required this.id,
+    required this.primaryCode,
+    required this.name,
+    required this.department,
+    required this.creditX10,
+    final List<String>? aliases,
+    final List<CourseOfferingPayload>? offerings,
+  }) : _aliases = aliases,
+       _offerings = offerings;
+
+  factory _$CourseDetailPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseDetailPayloadImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final String primaryCode;
+  @override
+  final String name;
+  @override
+  final String department;
+  @override
+  final int creditX10;
+  final List<String>? _aliases;
+  @override
+  List<String>? get aliases {
+    final value = _aliases;
+    if (value == null) return null;
+    if (_aliases is EqualUnmodifiableListView) return _aliases;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<CourseOfferingPayload>? _offerings;
+  @override
+  List<CourseOfferingPayload>? get offerings {
+    final value = _offerings;
+    if (value == null) return null;
+    if (_offerings is EqualUnmodifiableListView) return _offerings;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  String toString() {
+    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, offerings: $offerings)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseDetailPayloadImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.primaryCode, primaryCode) ||
+                other.primaryCode == primaryCode) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.department, department) ||
+                other.department == department) &&
+            (identical(other.creditX10, creditX10) ||
+                other.creditX10 == creditX10) &&
+            const DeepCollectionEquality().equals(other._aliases, _aliases) &&
+            const DeepCollectionEquality().equals(
+              other._offerings,
+              _offerings,
+            ));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    primaryCode,
+    name,
+    department,
+    creditX10,
+    const DeepCollectionEquality().hash(_aliases),
+    const DeepCollectionEquality().hash(_offerings),
+  );
+
+  /// Create a copy of CourseDetailPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseDetailPayloadImplCopyWith<_$CourseDetailPayloadImpl> get copyWith =>
+      __$$CourseDetailPayloadImplCopyWithImpl<_$CourseDetailPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseDetailPayloadImplToJson(this);
+  }
+}
+
+abstract class _CourseDetailPayload implements CourseDetailPayload {
+  const factory _CourseDetailPayload({
+    required final int id,
+    required final String primaryCode,
+    required final String name,
+    required final String department,
+    required final int creditX10,
+    final List<String>? aliases,
+    final List<CourseOfferingPayload>? offerings,
+  }) = _$CourseDetailPayloadImpl;
+
+  factory _CourseDetailPayload.fromJson(Map<String, dynamic> json) =
+      _$CourseDetailPayloadImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  String get primaryCode;
+  @override
+  String get name;
+  @override
+  String get department;
+  @override
+  int get creditX10;
+  @override
+  List<String>? get aliases;
+  @override
+  List<CourseOfferingPayload>? get offerings;
+
+  /// Create a copy of CourseDetailPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseDetailPayloadImplCopyWith<_$CourseDetailPayloadImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}

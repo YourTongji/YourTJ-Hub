@@ -12,6 +12,8 @@ import (
 
 	"github.com/Masterminds/sprig/v3"
 	"github.com/gin-gonic/gin"
+	"github.com/leancodebox/GooseForum/app/bundles/i18n"
+	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/resource"
 )
 
@@ -113,6 +115,24 @@ func renderAppShell(c *gin.Context, payload PagePayload) {
 	renderPage(c, "app_shell.gohtml", payload)
 }
 
+// renderInternalError 渲染 500 错误页（区别于 404，避免把存储故障伪装成内容不存在）。
+func renderInternalError(c *gin.Context) {
+	payload := PagePayload{
+		Component: PageComponentError,
+		Props: ErrorPageProps{
+			Code:        "500",
+			Title:       i18n.T(requestLang(c), "meta.internalError"),
+			MessageCode: component.MessageOperationFailed,
+		},
+		Meta: PageMeta{
+			Title: pageTitle(i18n.T(requestLang(c), "meta.internalError")),
+		},
+		Layout:  buildLayout(c, "topics"),
+		URL:     buildPageURL(c),
+		Version: payloadVersion,
+	}
+	renderPageWithStatus(c, http.StatusInternalServerError, "error.gohtml", payload)
+}
 func renderPageWithStatus(c *gin.Context, status int, templateName string, payload PagePayload) {
 	c.Status(status)
 	c.Header("Vary", "X-Goose-Page, Accept")
