@@ -3,3 +3,8 @@ node_modules/
 .vitepress/cache/
 docs/feishu/*.md
 !docs/feishu/index.md
+
+# 本地凭据（飞书同步用，不入 git）
+.env
+.env.local
+.env.*.local
