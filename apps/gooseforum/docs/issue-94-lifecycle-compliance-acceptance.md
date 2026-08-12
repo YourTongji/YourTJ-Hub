@@ -1,7 +1,7 @@
 # Issue #94 — Lifecycle + Compliance Gaps Acceptance
 
-Date: 2026-08-12  
-Worktree: `.worktrees/topic-delete-issue-94/apps/gooseforum`  
+Date: 2026-08-12
+Worktree: `.worktrees/topic-delete-issue-94/apps/gooseforum`
 Scope: evidence snapshot TTL, Terms/Privacy disclosure, network access logs retention
 
 ## Gap 1 — Evidence snapshot TTL auto-cleanup (180 days)
