@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
 
 // UserSearchDocument 用户搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
@@ -102,8 +104,14 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 
 	processedCount := 0
 	failedCount := 0
+	expectedIDs := make(map[string]struct{})
 	userList := users.All()
 	for _, user := range userList {
+		// 先登记应存在于索引的文档 ID：即使本次写入失败，幽灵清理也不得
+		// 删除数据库仍要求保留的文档（写入失败由 failedCount 暴露）。
+		if shouldIndexUser(user) {
+			expectedIDs[cast.ToString(user.Id)] = struct{}{}
+		}
 		if _, err := BuildSingleUserSearchDocument(user); err != nil {
 			failedCount++
 			slog.Warn("failed to build user search document", "userId", user.Id, "err", err)
@@ -113,15 +121,54 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 			processedCount++
 		}
 	}
+
+	// 幽灵清理删除候选在入队前按数据库最新状态复核，跳过 snapshot 之后
+	// 新注册或恢复为可索引的用户（PR #151 review P1 竞态）。
+	revalidateUserGhost := func(id string) (bool, error) {
+		user, err := users.Get(id)
+		if err != nil {
+			// 记录不存在 → 确实是幽灵；其他错误（如 DB 瞬时故障）→ 保守保留。
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return true, err
+		}
+		return shouldIndexUser(&user), nil
+	}
+	deletedIDs, err := cleanupGhostDocuments(index, expectedIDs, revalidateUserGhost)
+	if err != nil {
+		return nil, fmt.Errorf("清理用户索引幽灵文档失败: %w", err)
+	}
+	ghostRemoved := len(deletedIDs)
+
+	// replay：删除任务入队后、执行前重新变为可索引的用户重新入队 upsert，
+	// 排在 delete 之后执行，确保有效文档最终不丢失。
+	replayedCount := 0
+	for _, id := range deletedIDs {
+		user, err := users.Get(id)
+		if err != nil || !shouldIndexUser(&user) {
+			continue
+		}
+		if _, err := BuildSingleUserSearchDocument(&user); err != nil {
+			failedCount++
+			slog.Warn("failed to restore user search document after ghost cleanup", "userId", user.Id, "err", err)
+			continue
+		}
+		replayedCount++
+	}
+
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,
 		FailedCount:    failedCount,
 		TotalBatches:   1,
 		IndexName:      UserIndex,
+		GhostRemoved:   ghostRemoved,
 	}
 	fmt.Printf("\n=== Meilisearch 用户索引构建完成 ===\n")
 	fmt.Printf("成功索引: %d 个用户\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个用户\n", result.FailedCount)
+	fmt.Printf("提交幽灵文档删除任务: %d 个\n", result.GhostRemoved)
+	fmt.Printf("清理期间恢复索引文档: %d 个\n", replayedCount)
 	return result, nil
 }
 
