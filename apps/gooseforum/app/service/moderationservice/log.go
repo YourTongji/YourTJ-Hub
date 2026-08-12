@@ -151,3 +151,26 @@ func SensitiveContentReview(actorUserId uint64, subjectType string, subjectId ui
 		},
 	})
 }
+
+// ReviewStatusChanged 记录课评隐藏/恢复的审核操作（独立 course 审核日志）。
+func ReviewStatusChanged(actorUserId, reviewId uint64, hidden bool) {
+	action := moderationLog.ActionCourseReviewUnblocked
+	status := "shown"
+	if hidden {
+		action = moderationLog.ActionCourseReviewBlocked
+		status = "hidden"
+	}
+	create(moderationLog.Entity{
+		ActorUserId: actorUserId,
+		Action:      action,
+		SubjectType: moderationLog.SubjectCourseReview,
+		SubjectId:   reviewId,
+		Payload: moderationLog.Payload{
+			MessageCode: "moderation.log.courseReview.statusChanged",
+			Params: map[string]any{
+				"reviewId": reviewId,
+				"status":   status,
+			},
+		},
+	})
+}

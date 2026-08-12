@@ -186,3 +186,8 @@ func processEmailTask(task EmailTask) error {
 		return fmt.Errorf("未知的邮件类型: %s", task.Type)
 	}
 }
+
+// RecoverStaleTasks 启动时恢复邮件 worker 类型前缀下崩溃遗留的 Running 任务。
+func RecoverStaleTasks() error {
+	return taskQueue.RecoverStaleRunning(emailTaskTypePrefix, 10*time.Minute)
+}

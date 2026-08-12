@@ -856,9 +856,11 @@ export interface SearchPageProps {
   topics: TopicPayload[]
   users: UserSearchPayload[]
   categories: CategorySearchPayload[]
+  courses: CourseSearchPayload[]
   total: number
   usersTotal: number
   categoriesTotal: number
+  coursesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -868,4 +870,68 @@ export interface SearchPageProps {
   }
   failedScopes?: string[]
   searchUnavailable?: boolean
+}
+
+export interface CourseSearchPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  terms?: string[]
+  campus?: string[]
+}
+
+export interface CourseCatalogPageProps {
+  query: {
+    keyword?: string
+    department?: string
+    term?: string
+    campus?: string
+    page: number
+    size: number
+  }
+  courses: CourseSummaryPayload[]
+  pagination: {
+    page: number
+    nextPage: number
+    hasNext: boolean
+    nextUrl: string
+  }
+}
+
+export interface CourseSummaryPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  recentTerms?: string[]
+}
+
+export interface CourseDetailPageProps {
+  course: {
+    id: number
+    primaryCode: string
+    name: string
+    department: string
+    creditX10: number
+    aliases?: string[]
+    offerings?: Array<{
+      id: number
+      termCode: string
+      termName?: string
+      campus?: string
+      faculty?: string
+      instructors?: string[]
+    }>
+  }
+}
+
+export interface CourseReviewModerationPageProps {
+  // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
 }

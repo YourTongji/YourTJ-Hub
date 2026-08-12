@@ -1,0 +1,21 @@
+{
+  "result": {
+    "id": 42,
+    "primaryCode": "100001",
+    "name": "高等数学(A)上",
+    "department": "数学科学学院",
+    "creditX10": 50,
+    "aliases": ["高数"],
+    "offerings": [
+      {
+        "id": 901,
+        "termCode": "2025-2026-1",
+        "termName": "2025-2026 第一学期",
+        "campus": "四平路校区",
+        "faculty": "数学科学学院",
+        "instructors": ["张三", "李四"]
+      }
+    ]
+  },
+  "code": 0
+}

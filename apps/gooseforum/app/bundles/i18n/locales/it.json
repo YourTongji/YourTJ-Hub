@@ -68,6 +68,7 @@
   "permission.pageManager": "Gestione pagine",
   "permission.roleManager": "Gestione ruoli",
   "permission.siteManager": "Gestione sito",
+  "permission.courseManager": "Gestione recensioni corsi",
   "meta.notifications": "Notifiche",
   "meta.messages": "Messaggi",
   "meta.drafts": "Bozze",
@@ -78,6 +79,7 @@
   "meta.admin": "Amministrazione",
   "meta.moderation": "Moderazione",
   "meta.moderationDesc": "Gestisci i ban e gli sban dei post di tua competenza.",
+  "meta.internalError": "Servizio temporaneamente non disponibile",
   "meta.notFound": "Pagina non trovata",
   "meta.publish": "Nuovo argomento",
   "meta.editTopic": "Modifica argomento",
@@ -88,8 +90,12 @@
   "meta.communityDesc": "Partecipa alla discussione della community su {site}.",
   "meta.userDesc": "Scopri argomenti, attività e connessioni di {username} su {site}.",
   "meta.categoryDesc": "Sfoglia gli argomenti nella categoria {category}.",
+  "course": "Corsi",
+  "meta.courseDesc": "Sfoglia il catalogo dei corsi e le recensioni su {site}.",
   "terms": "Termini di servizio",
   "meta.termsDesc": "Leggi i Termini di servizio di {site}.",
   "common.rateLimited": "Troppi tentativi. Riprova tra {retryAfterSeconds} secondi.",
-  "common.captchaRequired": "Completa il captcha prima di inviare."
+  "common.captchaRequired": "Completa il captcha prima di inviare.",
+  "meta.courseReviewModeration": "Moderazione recensioni corsi",
+  "meta.courseReviewModerationDesc": "Gestisci le segnalazioni delle recensioni e nascondi/ripristina le recensioni."
 }

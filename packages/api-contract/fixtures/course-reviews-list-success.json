@@ -1,0 +1,62 @@
+{
+  "result": [
+    {
+      "id": 3,
+      "offeringId": 901,
+      "rating": null,
+      "content": "历史评价",
+      "contentHtml": "<p>历史评价</p>\n",
+      "author": {
+        "kind": "legacy",
+        "label": "历史匿名评价"
+      },
+      "viewer": {
+        "canEdit": false,
+        "canDelete": false,
+        "isHelpful": false
+      },
+      "helpfulCount": 0,
+      "createdAt": "2026-08-01T10:00:00+08:00",
+      "updatedAt": "2026-08-01T10:00:00+08:00"
+    },
+    {
+      "id": 2,
+      "offeringId": 901,
+      "rating": 4,
+      "content": "匿名评价",
+      "contentHtml": "<p>匿名评价</p>\n",
+      "author": {
+        "kind": "anonymous",
+        "label": "匿名同学"
+      },
+      "viewer": {
+        "canEdit": false,
+        "canDelete": false,
+        "isHelpful": false
+      },
+      "helpfulCount": 0,
+      "createdAt": "2026-08-01T09:00:00+08:00",
+      "updatedAt": "2026-08-01T09:00:00+08:00"
+    },
+    {
+      "id": 1,
+      "offeringId": 901,
+      "rating": 5,
+      "content": "好课",
+      "contentHtml": "<p>好课</p>\n",
+      "author": {
+        "kind": "member",
+        "label": "bob"
+      },
+      "viewer": {
+        "canEdit": false,
+        "canDelete": false,
+        "isHelpful": false
+      },
+      "helpfulCount": 0,
+      "createdAt": "2026-08-01T08:00:00+08:00",
+      "updatedAt": "2026-08-01T08:00:00+08:00"
+    }
+  ],
+  "code": 0
+}

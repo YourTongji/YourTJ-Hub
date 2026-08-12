@@ -48,6 +48,38 @@ Map<String, dynamic> _$$CategorySearchPayloadImplToJson(
   'desc': instance.desc,
 };
 
+_$CourseSearchPayloadImpl _$$CourseSearchPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseSearchPayloadImpl(
+  id: (json['id'] as num).toInt(),
+  primaryCode: json['primaryCode'] as String,
+  name: json['name'] as String,
+  department: json['department'] as String,
+  creditX10: (json['creditX10'] as num).toInt(),
+  aliases: (json['aliases'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  instructors: (json['instructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  terms: (json['terms'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  campus: (json['campus'] as List<dynamic>?)?.map((e) => e as String).toList(),
+);
+
+Map<String, dynamic> _$$CourseSearchPayloadImplToJson(
+  _$CourseSearchPayloadImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'primaryCode': instance.primaryCode,
+  'name': instance.name,
+  'department': instance.department,
+  'creditX10': instance.creditX10,
+  'aliases': instance.aliases,
+  'instructors': instance.instructors,
+  'terms': instance.terms,
+  'campus': instance.campus,
+};
+
 _$SearchPagePropsImpl _$$SearchPagePropsImplFromJson(
   Map<String, dynamic> json,
 ) => _$SearchPagePropsImpl(
@@ -62,9 +94,13 @@ _$SearchPagePropsImpl _$$SearchPagePropsImplFromJson(
   categories: (json['categories'] as List<dynamic>)
       .map((e) => CategorySearchPayload.fromJson(e as Map<String, dynamic>))
       .toList(),
+  courses: (json['courses'] as List<dynamic>)
+      .map((e) => CourseSearchPayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
   total: (json['total'] as num).toInt(),
   usersTotal: (json['usersTotal'] as num).toInt(),
   categoriesTotal: (json['categoriesTotal'] as num).toInt(),
+  coursesTotal: (json['coursesTotal'] as num).toInt(),
   totalPages: (json['totalPages'] as num).toInt(),
   pagination: PaginationPayload.fromJson(
     json['pagination'] as Map<String, dynamic>,
@@ -83,9 +119,11 @@ Map<String, dynamic> _$$SearchPagePropsImplToJson(
   'topics': instance.topics,
   'users': instance.users,
   'categories': instance.categories,
+  'courses': instance.courses,
   'total': instance.total,
   'usersTotal': instance.usersTotal,
   'categoriesTotal': instance.categoriesTotal,
+  'coursesTotal': instance.coursesTotal,
   'totalPages': instance.totalPages,
   'pagination': instance.pagination,
   'failedScopes': instance.failedScopes,

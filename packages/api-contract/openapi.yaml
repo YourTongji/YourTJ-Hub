@@ -59,6 +59,40 @@ paths:
       $ref: ./paths/agent.yaml#/agentCreatePost/post
   /api/v1/agent/search:
     $ref: ./paths/agent.yaml#/agentSearch
+  /api/forum/courses:
+    get:
+      $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/{courseId}:
+    get:
+      $ref: ./paths/courses.yaml#/getCourse/get
+  /api/forum/courses/{courseId}/reviews:
+    get:
+      $ref: ./paths/course-reviews.yaml#/listCourseReviews/get
+  /api/forum/course-reviews:
+    post:
+      $ref: ./paths/course-reviews.yaml#/createCourseReview/post
+  /api/forum/course-reviews/{reviewId}:
+    patch:
+      $ref: ./paths/course-reviews.yaml#/updateCourseReview/patch
+    delete:
+      $ref: ./paths/course-reviews.yaml#/deleteCourseReview/delete
+  /api/forum/course-reviews/{reviewId}/helpful:
+    put:
+      $ref: ./paths/course-reviews.yaml#/markReviewHelpful/put
+    delete:
+      $ref: ./paths/course-reviews.yaml#/unmarkReviewHelpful/delete
+  /api/forum/course-reviews/{reviewId}/reports:
+    post:
+      $ref: ./paths/course-reviews.yaml#/reportCourseReview/post
+  /api/forum/moderation/course-review-status:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewStatus/post
+  /api/forum/moderation/course-review-reports:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewReportList/post
+  /api/forum/moderation/course-review-reveal:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewReveal/post
 components:
   securitySchemes:
     bearerAuth:
@@ -169,6 +203,58 @@ components:
       $ref: ./components/schemas.yaml#/AgentCreatePostResponse
     AgentSearchResponse:
       $ref: ./components/schemas.yaml#/AgentSearchResponse
+    CourseSummary:
+      $ref: ./components/schemas.yaml#/CourseSummary
+    CourseListResult:
+      $ref: ./components/schemas.yaml#/CourseListResult
+    CourseListResponse:
+      $ref: ./components/schemas.yaml#/CourseListResponse
+    OfferingSummary:
+      $ref: ./components/schemas.yaml#/OfferingSummary
+    CourseDetail:
+      $ref: ./components/schemas.yaml#/CourseDetail
+    CourseDetailResponse:
+      $ref: ./components/schemas.yaml#/CourseDetailResponse
+    ReviewAuthorPayload:
+      $ref: ./components/schemas.yaml#/ReviewAuthorPayload
+    ReviewViewerPayload:
+      $ref: ./components/schemas.yaml#/ReviewViewerPayload
+    ReviewPayload:
+      $ref: ./components/schemas.yaml#/ReviewPayload
+    ReviewListResult:
+      $ref: ./components/schemas.yaml#/ReviewListResult
+    ReviewListResponse:
+      $ref: ./components/schemas.yaml#/ReviewListResponse
+    ReviewWriteRequest:
+      $ref: ./components/schemas.yaml#/ReviewWriteRequest
+    ReviewWriteSuccess:
+      $ref: ./components/schemas.yaml#/ReviewWriteSuccess
+    ReviewWriteResponse:
+      $ref: ./components/schemas.yaml#/ReviewWriteResponse
+    ReviewUpdateRequest:
+      $ref: ./components/schemas.yaml#/ReviewUpdateRequest
+    ReviewActionResponse:
+      $ref: ./components/schemas.yaml#/ReviewActionResponse
+    ReviewReportRequest:
+      $ref: ./components/schemas.yaml#/ReviewReportRequest
+    ModerationCourseReviewStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewStatusRequest
+    ModerationCourseReviewReportListRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListRequest
+    ModerationCourseReviewReportItem:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportItem
+    ModerationCourseReviewReportListResult:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListResult
+    ModerationCourseReviewReportListResponse:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListResponse
+    ModerationCourseReviewRevealRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealRequest
+    CourseReviewAuthorRevealPayload:
+      $ref: ./components/schemas.yaml#/CourseReviewAuthorRevealPayload
+    ModerationCourseReviewRevealResponse:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealResponse
+    TopicAuthorPayload:
+      $ref: ./components/schemas.yaml#/TopicAuthorPayload
     RevokeSessionRequest:
       $ref: ./components/schemas.yaml#/RevokeSessionRequest
     SessionListResponse:

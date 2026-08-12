@@ -83,3 +83,27 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 		"handled_at": &now,
 	}).Error
 }
+
+// CountByTargetIds 统计每个 target_id 的举报总数（跨全部状态），
+// 供审核队列展示"该对象累计被举报次数"（不限于当前分页/状态）。
+func CountByTargetIds(targetType string, targetIds []uint64) map[uint64]int {
+	result := make(map[uint64]int, len(targetIds))
+	if len(targetIds) == 0 {
+		return result
+	}
+	type row struct {
+		TargetId uint64
+		Cnt      int
+	}
+	var rows []row
+	builder().
+		Select("target_id, COUNT(*) AS cnt").
+		Where(queryopt.Eq(fieldTargetType, targetType)).
+		Where(queryopt.In(fieldTargetId, targetIds)).
+		Group("target_id").
+		Scan(&rows)
+	for _, r := range rows {
+		result[r.TargetId] = r.Cnt
+	}
+	return result
+}
