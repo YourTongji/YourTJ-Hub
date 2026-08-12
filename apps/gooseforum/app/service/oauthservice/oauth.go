@@ -111,7 +111,6 @@ func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 		if user.IsBot() {
 			return nil, fmt.Errorf("机器人账号不允许 OAuth 登录")
 		}
-		updateOAuthRecord(existingOAuth, gothUser)
 		return &user, nil
 	}
 
@@ -125,7 +124,7 @@ func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 		Username: newUser.Username,
 	})
 
-	err = createOAuthRecord(newUser.Id, gothUser, userInfo)
+	err = createOAuthRecord(newUser.Id, userInfo)
 	if err != nil {
 		return nil, err
 	}
@@ -199,45 +198,16 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	return userEntity, nil
 }
 
-// createOAuthRecord stores a provider account binding.
-func createOAuthRecord(userID uint64, gothUser goth.User, userInfo OAuthUserInfo) error {
+// createOAuthRecord stores a provider account binding. Only the identity
+// linkage (user/provider/provider_uid) is persisted; third-party OAuth tokens
+// are never written to the database (Issue #131).
+func createOAuthRecord(userID uint64, userInfo OAuthUserInfo) error {
 	oauthEntity := &userOAuth.Entity{
-		UserId:       userID,
-		Provider:     userInfo.Provider,
-		ProviderUid:  userInfo.ID,
-		AccessToken:  gothUser.AccessToken,
-		RefreshToken: gothUser.RefreshToken,
-		Scopes:       gothUser.AccessTokenSecret,
-		RawUserData:  "",
+		UserId:      userID,
+		Provider:    userInfo.Provider,
+		ProviderUid: userInfo.ID,
 	}
-
-	if !gothUser.ExpiresAt.IsZero() {
-		oauthEntity.TokenExpiry = gothUser.ExpiresAt
-	} else {
-		oauthEntity.TokenExpiry = time.Now().AddDate(1, 0, 0)
-	}
-
 	return userOAuth.Create(oauthEntity)
-}
-
-// updateOAuthRecord refreshes stored provider token data.
-func updateOAuthRecord(oauthEntity *userOAuth.Entity, gothUser goth.User) {
-	oauthEntity.AccessToken = gothUser.AccessToken
-	oauthEntity.RefreshToken = gothUser.RefreshToken
-	oauthEntity.RawUserData = ""
-
-	if !gothUser.ExpiresAt.IsZero() {
-		oauthEntity.TokenExpiry = gothUser.ExpiresAt
-	}
-
-	if err := userOAuth.Update(oauthEntity); err != nil {
-		slog.Error("failed to update OAuth record", "userId", oauthEntity.UserId, "provider", oauthEntity.Provider, "err", err)
-	}
-}
-
-// GetOAuthByUserID returns a user's OAuth binding for a provider.
-func GetOAuthByUserID(userID uint64, provider string) *userOAuth.Entity {
-	return userOAuth.GetByUserIDAndProvider(userID, provider)
 }
 
 // UnbindOAuth removes one OAuth binding after safety checks.
@@ -290,7 +260,6 @@ func ProcessOAuthBind(userID uint64, gothUser goth.User) error {
 		if existingOAuth.UserId != userID {
 			return errors.New("该OAuth账户已被其他用户绑定")
 		}
-		updateOAuthRecord(existingOAuth, gothUser)
 		return nil
 	}
 
@@ -299,7 +268,7 @@ func ProcessOAuthBind(userID uint64, gothUser goth.User) error {
 		return errors.New("您已绑定该平台账户")
 	}
 
-	return createOAuthRecord(userID, gothUser, userInfo)
+	return createOAuthRecord(userID, userInfo)
 }
 
 // rejectBotUser returns an error when the user is a bot (agent) persona.

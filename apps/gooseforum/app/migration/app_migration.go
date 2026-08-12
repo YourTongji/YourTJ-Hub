@@ -160,5 +160,15 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(14)
 		currentVersion = 14
 	}
+	if currentVersion < 15 {
+		result := datamigration.DropUserOAuthTokenColumns()
+		slog.Info("app migration user oauth credentials drop done", "dropped", result.Dropped, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user oauth credentials drop has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(15)
+		currentVersion = 15
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }
