@@ -95,6 +95,8 @@
   "authRegisterSuccess": "Registered successfully, please sign in",
   "authResetEmailSent": "Reset email sent, please check your inbox",
   "authLoading": "Processing…",
+  "authCacheClearFailed": "Failed to clear the previous account's offline data. Please retry.",
+  "authSessionSaveFailed": "Failed to save the new session securely. Please retry.",
   "loginWelcome": "Welcome back to yourtj",
   "loginModeLogin": "Sign in",
   "loginModeRegister": "Sign up",

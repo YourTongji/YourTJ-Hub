@@ -19,6 +19,7 @@ abstract class OfflineChatCache {
   Future<List<ChatItemPayload>> getConversations();
   Future<void> putMessages(int convId, List<ChatMessagePayload> messages);
   Future<List<ChatMessagePayload>> getMessages(int convId);
+  Future<void> clear();
 }
 
 /// 已浏览话题/会话的 drift 离线缓存。
@@ -181,25 +182,28 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
     }
   }
 
-  /// 保存单会话消息列表。
+  /// 保存单会话消息列表(单事务提交,避免与清库语句交错)。
   @override
   Future<void> putMessages(
     int convId,
     List<ChatMessagePayload> messages,
   ) async {
-    for (final m in messages) {
-      await _db.customStatement(
-        'INSERT OR REPLACE INTO cached_messages (conv_id, msg_id, payload, cached_at) '
-        'VALUES (?, ?, ?, ?)',
-        [
-          convId,
-          m.id,
-          jsonEncode(m.toJson()),
-          DateTime.now().toUtc().toIso8601String(),
-        ],
-      );
-    }
-    await _trimMessages(convId);
+    if (messages.isEmpty) return;
+    await _db.transaction(() async {
+      for (final m in messages) {
+        await _db.customStatement(
+          'INSERT OR REPLACE INTO cached_messages (conv_id, msg_id, payload, cached_at) '
+          'VALUES (?, ?, ?, ?)',
+          [
+            convId,
+            m.id,
+            jsonEncode(m.toJson()),
+            DateTime.now().toUtc().toIso8601String(),
+          ],
+        );
+      }
+      await _trimMessages(convId);
+    });
   }
 
   /// 读取单会话已缓存消息(按消息 id 升序)。
@@ -245,12 +249,15 @@ class DriftOfflineCache implements OfflineTopicCache, OfflineChatCache {
     }
   }
 
-  /// 清除全部缓存(登出/清理)。
+  /// 清除全部缓存(登出/清理),三条 DELETE 单事务提交,
+  /// 与页面写入互斥,避免清库与写入交错产生残留。
   @override
   Future<void> clear() async {
-    await _db.customStatement('DELETE FROM cached_topics');
-    await _db.customStatement('DELETE FROM cached_conversations');
-    await _db.customStatement('DELETE FROM cached_messages');
+    await _db.transaction(() async {
+      await _db.customStatement('DELETE FROM cached_topics');
+      await _db.customStatement('DELETE FROM cached_conversations');
+      await _db.customStatement('DELETE FROM cached_messages');
+    });
   }
 
   @override

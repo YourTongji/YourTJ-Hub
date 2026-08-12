@@ -18,6 +18,7 @@ jobs:
     timeout-minutes: 20
     environment: production
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: yourtj-hub
@@ -32,6 +33,16 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
+      - name: Upload deploy script to prod host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/scripts/deploy.sh"
+          target: "/tmp"
+          strip_components: 2
       - name: Deploy to main (backup db + build image + restart + smoke + rollback)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -41,7 +52,10 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
+            # 0. 同步仓库最新 deploy.sh 到服务器(install 保证可执行位)
+            install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
-            /opt/yourtj/scripts/deploy.sh main /tmp/yourtj-hub main-${{ github.sha }} 5234
+            #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
+            IMAGE_KEEP_N=5 /opt/yourtj/scripts/deploy.sh main /tmp/yourtj-hub main-${{ github.sha }} 5234

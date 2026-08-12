@@ -10,6 +10,7 @@ import (
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/leancodebox/GooseForum/app/bundles/setting"
 	"github.com/spf13/cast"
 )
 
@@ -190,7 +191,7 @@ func TokenSettingWithMaxAge(c *gin.Context, newToken string, maxAge time.Duratio
 		cast.ToInt(maxAge/time.Second),
 		"/",
 		"",
-		cookieSecure(),
+		setting.CookieSecure(),
 		true,
 	)
 }
@@ -204,20 +205,7 @@ func TokenClean(c *gin.Context) {
 		-1,
 		"/",
 		"",
-		cookieSecure(),
+		setting.CookieSecure(),
 		true,
 	)
-}
-
-// cookieSecure mirrors sessionstore's secure-cookie decision: HTTPS sites get
-// Secure cookies; local (http://) dev stays usable.
-func cookieSecure() bool {
-	normalizedURL := strings.ToLower(strings.TrimSpace(preferences.GetString("server.url", "")))
-	if strings.HasPrefix(normalizedURL, "https://") {
-		return true
-	}
-	if strings.HasPrefix(normalizedURL, "http://") {
-		return false
-	}
-	return !strings.EqualFold(strings.TrimSpace(preferences.GetString("app.env", "production")), "local")
 }
