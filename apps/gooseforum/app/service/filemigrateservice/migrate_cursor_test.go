@@ -122,7 +122,7 @@ func TestMigrateFilesRetriesFailedObject(t *testing.T) {
 	var cursors []uint64
 	onProgress := func(id uint64, _, _ int64) { cursors = append(cursors, id) }
 
-	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, onProgress)
+	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil, onProgress)
 	if err != nil {
 		t.Fatalf("migrateFiles() error = %v, want nil", err)
 	}
@@ -157,7 +157,7 @@ func TestMigrateFilesAbortsOnPersistentFailure(t *testing.T) {
 	provider := newFakeProvider()
 	provider.failures["b.png"] = 1 << 30 // permanently failing
 
-	_, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil)
+	_, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil, nil)
 	if err == nil {
 		t.Fatal("migrateFiles() error = nil with persistent failure, want abort error")
 	}
@@ -192,7 +192,7 @@ func TestMigrateFilesResumeFromPersistedCursor(t *testing.T) {
 	provider.failures["b.png"] = 1 << 30 // storage broken during run 1
 
 	var cursor uint64
-	_, _, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, func(id uint64, _, _ int64) { cursor = id })
+	_, _, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil, func(id uint64, _, _ int64) { cursor = id })
 	if err == nil {
 		t.Fatal("run 1 error = nil, want abort")
 	}
@@ -202,7 +202,7 @@ func TestMigrateFilesResumeFromPersistedCursor(t *testing.T) {
 
 	// The storage issue is fixed; a new task resumes from the persisted cursor.
 	provider.failures["b.png"] = 0
-	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, cursor, true, nil)
+	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, cursor, true, nil, nil)
 	if err != nil {
 		t.Fatalf("run 2 error = %v, want nil", err)
 	}
@@ -225,7 +225,7 @@ func TestMigrateFilesSkipsAlreadyMigratedRows(t *testing.T) {
 	}}
 	provider := newFakeProvider()
 
-	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil)
+	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, nil, nil)
 	if err != nil {
 		t.Fatalf("migrateFiles() error = %v, want nil", err)
 	}
@@ -250,7 +250,7 @@ func TestMigrateFilesPropagatesContextCancellation(t *testing.T) {
 	ctx, cancel := context.WithCancel(context.Background())
 	cancel()
 
-	_, _, err := migrateFiles(ctx, newFakeProvider(), table.queryByID, table.clearContent, 0, true, nil)
+	_, _, err := migrateFiles(ctx, newFakeProvider(), table.queryByID, table.clearContent, 0, true, nil, nil)
 	if !errors.Is(err, context.Canceled) {
 		t.Fatalf("migrateFiles() error = %v, want context.Canceled", err)
 	}
@@ -268,7 +268,7 @@ func TestMigrateFilesDoesNotReuploadTrailingRowsOnStall(t *testing.T) {
 	provider := newFakeProvider()
 	provider.failures["b.png"] = 1 << 30 // permanently failing, clearAfterMigrate=false
 
-	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, false, nil)
+	gotP, gotF, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, false, nil, nil)
 	if err == nil {
 		t.Fatal("migrateFiles() error = nil with persistent failure, want abort error")
 	}
@@ -310,7 +310,7 @@ func TestMigrateFilesFailsFastOnProviderOutage(t *testing.T) {
 	provider := newFakeProvider()
 	provider.failAll = true
 
-	_, _, err := migrateFiles(context.Background(), provider, (&fakeTable{rows: rows}).queryByID, (&fakeTable{rows: rows}).clearContent, 0, true, nil)
+	_, _, err := migrateFiles(context.Background(), provider, (&fakeTable{rows: rows}).queryByID, (&fakeTable{rows: rows}).clearContent, 0, true, nil, nil)
 	if err == nil {
 		t.Fatal("migrateFiles() error = nil under full outage, want abort error")
 	}
@@ -349,7 +349,7 @@ func TestMigrateFilesAbortsReportsProgress(t *testing.T) {
 		lastCursor, lastProcessed, lastFailed = id, processed, failed
 	}
 
-	gotP, gotF, err := migrateFiles(context.Background(), provider, (&fakeTable{rows: rows}).queryByID, (&fakeTable{rows: rows}).clearContent, 0, true, onProgress)
+	gotP, gotF, err := migrateFiles(context.Background(), provider, (&fakeTable{rows: rows}).queryByID, (&fakeTable{rows: rows}).clearContent, 0, true, nil, onProgress)
 	if err == nil {
 		t.Fatal("migrateFiles() error = nil under full outage, want abort error")
 	}
@@ -366,5 +366,116 @@ func TestMigrateFilesAbortsReportsProgress(t *testing.T) {
 	}
 	if gotP != 0 {
 		t.Fatalf("migrateFiles() processed = %d, want 0 under full outage", gotP)
+	}
+}
+
+// TestMigrateFilesCumulativeProgressAcrossRetries is the regression for review
+// #152 P2: a worker retry must not overwrite the task-level cumulative progress
+// with a single run's local counters. Run 1 migrates a, freezes the cursor on b
+// (still migrating c after it); run 2 resumes from the frozen cursor once b
+// recovers. Because processed is derived from the persisted cursor via
+// countUpTo, the final report is the cumulative 3/3 — not run 2's local count
+// of 2, which would make a fully-migrated task display "2/3".
+func TestMigrateFilesCumulativeProgressAcrossRetries(t *testing.T) {
+	table := &fakeTable{rows: []*filedata.Entity{
+		entity(1, "a.png", []byte("aaa")),
+		entity(2, "b.png", []byte("bbb")),
+		entity(3, "c.png", []byte("ccc")),
+	}}
+	provider := newFakeProvider()
+	provider.failures["b.png"] = 1 << 30 // b permanently fails during run 1
+
+	// Mirrors filedata.CountFilesUpTo: rows with id <= cursor are migrated.
+	countUpTo := func(cursor uint64) int64 {
+		var n int64
+		for _, r := range table.rows {
+			if r.Id <= cursor {
+				n++
+			}
+		}
+		return n
+	}
+
+	var run1Cursor uint64
+	var run1Processed int64
+	_, _, err := migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, 0, true, countUpTo, func(id uint64, processed, _ int64) {
+		run1Cursor, run1Processed = id, processed
+	})
+	if err == nil {
+		t.Fatal("run 1 error = nil, want abort (b.png keeps failing)")
+	}
+	if run1Cursor != 1 || run1Processed != 1 {
+		t.Fatalf("run 1 reported cursor=%d processed=%d, want (1, 1) frozen before b.png", run1Cursor, run1Processed)
+	}
+
+	// b recovers; run 2 resumes from the frozen cursor.
+	provider.failures["b.png"] = 0
+	var run2Cursor uint64
+	var run2Processed, run2Failed int64
+	_, _, err = migrateFiles(context.Background(), provider, table.queryByID, table.clearContent, run1Cursor, true, countUpTo, func(id uint64, processed, failed int64) {
+		run2Cursor, run2Processed, run2Failed = id, processed, failed
+	})
+	if err != nil {
+		t.Fatalf("run 2 error = %v, want nil after b recovers", err)
+	}
+	// The cumulative progress must reach 3/3 — not run 2's local count of 2 —
+	// so a fully migrated task never displays "2/3".
+	if run2Cursor != 3 || run2Processed != 3 || run2Failed != 0 {
+		t.Fatalf("run 2 reported cursor=%d processed=%d failed=%d, want (3, 3, 0) cumulative", run2Cursor, run2Processed, run2Failed)
+	}
+}
+
+// cancelOnSaveN wraps fakeProvider and cancels the context right before the
+// Nth Save, simulating a shutdown mid-batch.
+type cancelOnSaveN struct {
+	*fakeProvider
+	cancel context.CancelFunc
+	n      int
+	count  int
+}
+
+func (p *cancelOnSaveN) Save(ctx context.Context, name string, data []byte, typ string) error {
+	p.count++
+	if p.count == p.n {
+		p.cancel()
+	}
+	return p.fakeProvider.Save(ctx, name, data, typ)
+}
+
+// TestMigrateFilesMidBatchCancelDoesNotCountAsFailure verifies that a context
+// cancellation in the middle of a batch is propagated as the cancel error and
+// is not counted as a storage failure (which would inflate failed and could
+// trigger a misleading fail-fast abort).
+func TestMigrateFilesMidBatchCancelDoesNotCountAsFailure(t *testing.T) {
+	table := &fakeTable{rows: []*filedata.Entity{
+		entity(1, "a.png", []byte("aaa")),
+		entity(2, "b.png", []byte("bbb")),
+		entity(3, "c.png", []byte("ccc")),
+	}}
+	// a.png succeeds, then the context is cancelled before b.png is saved.
+	ctx, cancel := context.WithCancel(context.Background())
+	provider := &cancelOnSaveN{fakeProvider: newFakeProvider(), cancel: cancel, n: 2}
+
+	var lastCursor uint64
+	var lastProcessed, lastFailed int64
+	onProgress := func(id uint64, processed, failed int64) {
+		lastCursor, lastProcessed, lastFailed = id, processed, failed
+	}
+
+	gotP, gotF, err := migrateFiles(ctx, provider, table.queryByID, table.clearContent, 0, true, nil, onProgress)
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("migrateFiles() error = %v, want context.Canceled", err)
+	}
+	// The cancelled Save must not be counted as a failed object.
+	if gotF != 0 {
+		t.Fatalf("migrateFiles() failed = %d, want 0 (cancel is not a storage failure)", gotF)
+	}
+	if gotP != 1 {
+		t.Fatalf("migrateFiles() processed = %d, want 1 (only a.png succeeded before cancel)", gotP)
+	}
+	// Progress is reported up to the cancel point so the persisted cursor is
+	// not stale and a retry resumes from where the run actually stopped.
+	if lastCursor != 1 || lastProcessed != 1 || lastFailed != 0 {
+		t.Fatalf("onProgress reported cursor=%d processed=%d failed=%d, want (1, 1, 0)", lastCursor, lastProcessed, lastFailed)
 	}
 }
