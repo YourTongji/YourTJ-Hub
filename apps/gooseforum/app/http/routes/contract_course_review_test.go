@@ -778,6 +778,11 @@ func TestCourseReviewModerationRateLimit(t *testing.T) {
 	token := contractSessionToken(t, manager)
 	seedCourseReview(t, conn, 304, 902, 1, intPtr(5), "限流目标", false, "", course.ReviewStatusVisible)
 
+	// 清除前置测试在 course.review.moderate:ip 上的累计计数（spec review S1）：
+	// 中间件先查 IP 再查 user，本测试 30 次 + 前置测试数次同走同一 IP key；
+	// 前置测试若再增加请求会提前触发 IP 维度（per-IP 60）使本测试 flaky。
+	ratelimit.Default().ResetAll()
+
 	const moderateUserLimit = 30
 	for i := 0; i < moderateUserLimit; i++ {
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
@@ -794,8 +799,14 @@ func TestCourseReviewModerationRateLimit(t *testing.T) {
 	if rec.Code != http.StatusTooManyRequests {
 		t.Fatalf("31st status = %d, want 429: %s", rec.Code, rec.Body.String())
 	}
-	if retry := rec.Header().Get("Retry-After"); retry == "" || retry == "0" {
-		t.Fatalf("Retry-After header = %q, want positive integer", retry)
+	// O2（spec review）：Retry-After 必须是 1..60 的正整数（窗口 60s，
+	// store 语义 retryAfter ∈ (0,60s]，Ceil 后 1..60）。
+	retryAfter, err := strconv.Atoi(rec.Header().Get("Retry-After"))
+	if err != nil {
+		t.Fatalf("Retry-After header = %q, want integer: %v", rec.Header().Get("Retry-After"), err)
+	}
+	if retryAfter < 1 || retryAfter > 60 {
+		t.Fatalf("Retry-After = %d, want in [1,60]", retryAfter)
 	}
 }
 

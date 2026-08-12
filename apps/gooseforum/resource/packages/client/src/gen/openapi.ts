@@ -2553,9 +2553,11 @@ export interface operations {
         responses: {
             /**
              * @description The created review payload. Request-level validation failures (rating outside 1..5,
-             *     empty or over-long content, missing fields) are returned as a legacy HTTP 200 envelope
+             *     empty content, missing fields) are returned as a legacy HTTP 200 envelope
              *     with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
-             *     route behavior). Service-level errors use their own status codes below.
+             *     route behavior). Over-long content is NOT a request-level failure: it passes the
+             *     request validator and is rejected by the service layer as 400 `review.content.tooLong`
+             *     (see below). Service-level errors use their own status codes below.
              */
             200: {
                 headers: {
@@ -2565,7 +2567,12 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewWriteResponse"];
                 };
             };
-            /** @description Malformed JSON request body (binding failure). */
+            /**
+             * @description Malformed JSON request body (binding failure), or a service-level validation failure
+             *     such as over-long content (`review.content.tooLong`). The request-level validator only
+             *     requires `content` to be present, so content longer than the service limit
+             *     (50000 chars) is rejected here, not in the legacy 200 envelope.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -2929,6 +2936,16 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     moderationCourseReviewReportList: {
@@ -2960,6 +2977,16 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };
