@@ -102,8 +102,14 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 
 	processedCount := 0
 	failedCount := 0
+	expectedIDs := make(map[string]struct{})
 	userList := users.All()
 	for _, user := range userList {
+		// 先登记应存在于索引的文档 ID：即使本次写入失败，幽灵清理也不得
+		// 删除数据库仍要求保留的文档（写入失败由 failedCount 暴露）。
+		if shouldIndexUser(user) {
+			expectedIDs[cast.ToString(user.Id)] = struct{}{}
+		}
 		if _, err := BuildSingleUserSearchDocument(user); err != nil {
 			failedCount++
 			slog.Warn("failed to build user search document", "userId", user.Id, "err", err)
@@ -113,15 +119,23 @@ func BuildUserIndex() (*IndexBuildResult, error) {
 			processedCount++
 		}
 	}
+
+	ghostRemoved, err := cleanupGhostDocuments(index, expectedIDs)
+	if err != nil {
+		return nil, fmt.Errorf("清理用户索引幽灵文档失败: %w", err)
+	}
+
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,
 		FailedCount:    failedCount,
 		TotalBatches:   1,
 		IndexName:      UserIndex,
+		GhostRemoved:   ghostRemoved,
 	}
 	fmt.Printf("\n=== Meilisearch 用户索引构建完成 ===\n")
 	fmt.Printf("成功索引: %d 个用户\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个用户\n", result.FailedCount)
+	fmt.Printf("删除幽灵文档: %d 个\n", result.GhostRemoved)
 	return result, nil
 }
 

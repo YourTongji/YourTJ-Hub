@@ -20,6 +20,7 @@ type IndexBuildResult struct {
 	FailedCount    int    `json:"failedCount"`
 	TotalBatches   int    `json:"totalBatches"`
 	IndexName      string `json:"indexName"`
+	GhostRemoved   int    `json:"ghostRemoved"`
 }
 
 // convertTopicToSearchDocument maps a topic and its first post to a search document.
@@ -106,6 +107,7 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 	processedCount := 0
 	failedCount := 0
 	totalBatches := 0
+	expectedIDs := make(map[string]struct{})
 
 	for {
 		topicList := topics.QueryById(topicStartID, limit)
@@ -116,6 +118,11 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 			firstPost := posts.Get(topic.FirstPostId)
 			if firstPost.Id == 0 {
 				firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+			}
+			// 先登记应存在于索引的文档 ID：即使本次写入失败，幽灵清理也不得
+			// 删除数据库仍要求保留的文档（写入失败由 failedCount 暴露）。
+			if topic.Status == 1 && topic.ProcessStatus == 0 {
+				expectedIDs[cast.ToString(topic.Id)] = struct{}{}
 			}
 			task, err := BuildSingleTopicSearchDocument(topic, &firstPost)
 			if err != nil {
@@ -134,17 +141,24 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 		}
 	}
 
+	ghostRemoved, err := cleanupGhostDocuments(index, expectedIDs)
+	if err != nil {
+		return nil, fmt.Errorf("清理主题索引幽灵文档失败: %w", err)
+	}
+
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,
 		FailedCount:    failedCount,
 		TotalBatches:   totalBatches,
 		IndexName:      indexName,
+		GhostRemoved:   ghostRemoved,
 	}
 
 	fmt.Printf("\n=== Meilisearch 索引构建完成 ===\n")
 	fmt.Printf("处理批次: %d\n", result.TotalBatches)
 	fmt.Printf("成功索引: %d 个主题\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个主题\n", result.FailedCount)
+	fmt.Printf("删除幽灵文档: %d 个\n", result.GhostRemoved)
 	fmt.Printf("索引名称: %s\n", result.IndexName)
 
 	return result, nil

@@ -141,7 +141,7 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 
 | Projection | Source | Rebuildable |
 |---|---|---|
-| Search index | Meilisearch | ✅ full rebuild (rebuild-search-index CLI) |
+| Search index | Meilisearch | ✅ full rebuild (rebuild-search-index CLI; reconciles with DB by removing documents missing from DB) |
 | Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
 | Hot lists / feeds | derived queries | ✅ |
 | Notification read/unread | user pointer table | ✅ |
