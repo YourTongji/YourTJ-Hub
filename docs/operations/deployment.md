@@ -73,6 +73,10 @@
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
+- `sync-db-from-main.sh` hard-fails when `main`/`dev` primary DB modes differ (e.g. main already
+  migrated to PG while dev is still SQLite): the sync cannot proceed, and the script refuses to
+  stop the dev container in that state (parse-before-stop guarantee, issue #134). During the PG
+  migration window both instances must be on the same mode before deploying dev.
 - Deploy workflows checkout the repo and upload the deploy scripts (`deploy.sh` plus the ones they
   depend on: `backup-db.sh` / `sync-db-from-main.sh` and their shared DSN parser `pgdsn.sh`) to
   `/opt/yourtj/scripts/` before running them, so script fixes reach the server without a

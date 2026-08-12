@@ -68,8 +68,10 @@ assert_eq "URL %XX 编码 dbname 解码" "my db" "$(pg_dsn_dbname 'postgres://u@
 assert_eq "URL %40 编码 dbname 解码" "a@b" "$(pg_dsn_dbname 'postgres://u@h/a%40b')"
 
 ## --- review P1 回归: 单引号密码(旧 eval 实现下命令注入+解析损坏) ---
-assert_eq "URL 密码含单引号(注入防护)" "db" "$(pg_dsn_dbname "postgres://user:pa'; touch /tmp/pwned2; echo 'ss@host/db")"
-assert_eq "URL 密码含单引号 无路径仅 query" "dbq" "$(pg_dsn_dbname "postgres://user:pa'; touch /tmp/pwned2; echo 'ss@h?dbname=dbq")"
+assert_eq "URL 密码含单引号(注入防护)" "db" "$(pg_dsn_dbname "postgres://user:pa';echo x;ss@host/db")"
+assert_eq "URL 密码含单引号 无路径仅 query" "dbq" "$(pg_dsn_dbname "postgres://user:pa';echo x;ss@h?dbname=dbq")"
+# 畸形 URL(密码含裸 / 使端口段非数字): 必须拒绝而非静默返回脏 dbname
+assert_run "URL 密码含裸 / 畸形拒绝" 1 pg_dsn_dbname "postgres://user:pa'; touch /tmp/pwned2; echo 'ss@host/db"
 # 确认 PoC 的任意命令未被执行(注入防护生效)
 if [ -e /tmp/pwned2 ]; then
   FAIL=$((FAIL + 1))
@@ -80,7 +82,7 @@ else
 fi
 # 密码含单引号时 normalize 不逃逸破坏
 assert_eq "URL normalize 单引号密码脱敏" "postgres://user:***@host/db" \
-  "$(pg_dsn_normalize "postgres://user:pa'; touch /tmp/pwned2; echo 'ss@host/db")"
+  "$(pg_dsn_normalize "postgres://user:pa';echo x;ss@host/db")"
 
 ## --- review P1 回归: 密码含裸 @(按最后一个 @ 切分 host) ---
 assert_eq "URL 密码含裸 @ host 解析" "db" "$(pg_dsn_dbname 'postgres://user:pa@ss@host/db')"
@@ -135,6 +137,45 @@ assert_eq "KV normalize 密码含 dbname= 子串" "user=u password=*** dbname=fo
   "$(pg_dsn_normalize 'user=u password=xdbname=y dbname=forum')"
 assert_eq "URL normalize 大写 scheme" "postgres://u:***@h/forum" \
   "$(pg_dsn_normalize 'POSTGRES://u:p@h/forum')"
+
+## --- review S1 回归: KV 密码脱敏补全(明文不得进日志) ---
+assert_eq "S1 KV 密码含空格脱敏" "host=h user=u password=*** dbname=forum" \
+  "$(pg_dsn_normalize 'host=h user=u password="my secret pass" dbname=forum')"
+assert_eq "S1 KV = 两侧空格脱敏" "host=h user=u password=*** dbname=forum" \
+  "$(pg_dsn_normalize 'host=h user=u password = xyz dbname=forum')"
+assert_eq "S1 KV 单引号密码含空格脱敏" "host=h user=u password=*** dbname=forum" \
+  "$(pg_dsn_normalize "host=h user=u password='my secret pass' dbname=forum")"
+# 错误路径也不得泄漏: 含空格密码的 KV DSN 解析失败时 stderr 无明文
+assert_stderr_no "S1 KV 错误路径不泄漏含空格密码" "my secret pass" pg_dsn_dbname "this is not a dsn password=\"my secret pass\""
+assert_stderr_no "S1 KV 错误路径不泄漏两侧空格密码" "xyz" pg_dsn_dbname "this is not a dsn password = xyz"
+
+## --- review S2 回归: TOML 单引号 literal string url ---
+S2_CFG="$(mktemp)"
+trap 'rm -f "$S2_CFG"' EXIT
+cat > "$S2_CFG" <<'EOF'
+[db.default]
+url = 'postgres://u:SECRETPW@h/db'
+EOF
+assert_eq "S2 单引号 TOML url 提取" "postgres://u:SECRETPW@h/db" "$(pg_toml_url "$S2_CFG")"
+assert_eq "S2 单引号 TOML url dbname" "db" "$(pg_dsn_dbname "$(pg_toml_url "$S2_CFG")")"
+rm -f "$S2_CFG"
+assert_eq "S2 单引号 URL normalize 脱敏" "postgres://u:***@h/db" \
+  "$(pg_dsn_normalize "postgres://u:SECRETPW@h/db")"
+# 端口非数字(畸形 URL)错误路径不泄漏密码
+assert_stderr_no "S2 畸形 URL 错误不泄漏密码" "SECRETPW" pg_dsn_dbname "postgres://u:SECRETPW@h:port/db"
+
+## --- review S4 回归: URL dbname 路径段裸 @ 不被误切 ---
+assert_eq "S4 URL dbname 含裸 @ 完整保留" "db@x/other" "$(pg_dsn_dbname 'postgres://h/db@x/other')"
+assert_eq "S4 URL 无 userinfo 裸 @ 保留" "my@db" "$(pg_dsn_dbname 'postgres://h/my@db')"
+assert_eq "S4 URL 密码裸 @ 仍正确" "db" "$(pg_dsn_dbname 'postgres://user:pa@ss@host/db')"
+assert_eq "S4 URL 密码裸 @ + dbname 裸 @" "my@db" "$(pg_dsn_dbname 'postgres://user:pa@ss@host/my@db')"
+assert_eq "S4 URL query dbname 含 @ 保留" "db@q" "$(pg_dsn_dbname 'postgres://u@h/?dbname=db@q')"
+
+## --- review S5 回归: KV 引号未闭合视为解析失败 ---
+assert_run "S5 KV 双引号未闭合报错" 1 pg_dsn_dbname 'host=h dbname="my forum user=u'
+assert_run "S5 KV 单引号未闭合报错" 1 pg_dsn_dbname "host=h dbname='my forum user=u"
+assert_stderr_no "S5 未闭合错误不泄漏密码" "SUPERSECRET" pg_dsn_dbname "host=h password=SUPERSECRET dbname=\"my forum user=u"
+assert_eq "S5 正常闭合引号值仍工作" "my forum" "$(pg_dsn_dbname 'host=h dbname="my forum" user=u')"
 
 ## --- review W1 回归: TOML 行尾内联注释不破坏 DSN 解析 ---
 W1_CFG="$(mktemp)"

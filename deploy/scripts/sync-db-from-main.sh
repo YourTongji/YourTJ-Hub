@@ -82,9 +82,18 @@ if [ "$MAIN_MODE" = "postgres" ] && [ "$DEV_MODE" = "postgres" ]; then
     mkdir -p "$ROOT/snapshots/dev-prev"
     cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
   fi
-  docker exec yourtj-postgres psql -U yourtj -d postgres \
-    -c "DROP DATABASE IF EXISTS \"$DEV_PG\";" -c "CREATE DATABASE \"$DEV_PG\";" >/dev/null
-  docker exec yourtj-postgres sh -c "pg_dump -U yourtj -d \"$MAIN_PG\" | psql -U yourtj -d \"$DEV_PG\"" >/dev/null
+  # 参数化(review S3): dbname 经 psql -v 变量传递, :"devpg" 由 psql 做
+  # SQL 标识符引用(内部引号转义), 消除 dbname 插值进 SQL 字符串的注入面。
+  docker exec -e DEV_PG="$DEV_PG" yourtj-postgres psql -U yourtj -d postgres \
+    -v devpg="$DEV_PG" \
+    -c 'DROP DATABASE IF EXISTS :"devpg";' \
+    -c 'CREATE DATABASE :"devpg";' >/dev/null
+  # 命令注入防护(review S3): dbname 经环境变量(-e)传入容器, 内层 sh -c
+  # 只做变量展开不做语法解析, 恶意 dbname(如 %22%3B touch /tmp/PWN %3B)
+  # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
+  # shell 从环境变量读取, 而非拼接进命令字符串。
+  docker exec -e MAIN_PG="$MAIN_PG" -e DEV_PG="$DEV_PG" yourtj-postgres sh -c \
+    'pg_dump -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
   echo "sync-db: dev PG db synced from main"
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
