@@ -271,6 +271,82 @@ func TestCourseReviewListMalformedCourseIDHTTPContract(t *testing.T) {
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
 }
 
+// TestCourseReviewOfferingStatsHTTPContract 验证 spec-reviewer N1（PR #195）：
+// reviews?offeringId= 响应的 offeringRatingAvg / offeringReviewCount 统计字段有契约断言锁定。
+//  1. offering 901：3 条评价（5 星 + 4 星 + NULL rating）→ offeringRatingAvg=4.5
+//     （非 NULL 均分）、offeringReviewCount=3（含 NULL 行，与 reviewCount 语义一致）；
+//  2. offering 902：仅 1 条 NULL 评分评价 → offeringRatingAvg 省略（omitempty），
+//     offeringReviewCount=1（无评分评价仍计入评论数）。
+func TestCourseReviewOfferingStatsHTTPContract(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 901)
+	// 追加第二个 offering（seedCourseReviewCatalog 固定 course/term 主键，不能重复调用）
+	if err := conn.Create(&course.OfferingEntity{
+		Id: 902, CourseId: 42, TermId: 101, Status: course.OfferingStatusVisible,
+	}).Error; err != nil {
+		t.Fatalf("create contract offering 902: %v", err)
+	}
+
+	// offering 901：rating 5、4、NULL（legacy 无评分）
+	seedCourseReview(t, conn, 11, 901, 1, intPtr(5), "五星", false, "contract", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 12, 901, 2, intPtr(4), "四星", false, "contract", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 13, 901, 3, nil, "无评分", false, "contract", course.ReviewStatusVisible)
+	// offering 902：仅 1 条 NULL 评分评价
+	seedCourseReview(t, conn, 21, 902, 4, nil, "无评分评价", false, "contract", course.ReviewStatusVisible)
+
+	// 同步统计投影（生产路径由 Upsert 维护；测试直接调用重建）
+	if err := course.RebuildAllCourseStats(); err != nil {
+		t.Fatalf("rebuild stats: %v", err)
+	}
+
+	// --- 场景 1：有评分 offering → avg 正确、count 含 NULL 行 ---
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=901", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("review list status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	response := decodeContractEnvelope(t, rec)
+	if response.Code != 0 {
+		t.Fatalf("review list code = %d, want 0: %s", rec.Code, rec.Body.String())
+	}
+	var items []map[string]any
+	if err := json.Unmarshal(response.Result, &items); err != nil {
+		t.Fatalf("decode review list result %q: %v", response.Result, err)
+	}
+	if len(items) != 3 {
+		t.Fatalf("review list length = %d, want 3", len(items))
+	}
+	for _, item := range items {
+		if got := item["offeringRatingAvg"]; got != 4.5 {
+			t.Fatalf("item %v offeringRatingAvg = %#v, want 4.5 (非 NULL 均分)", item["id"], got)
+		}
+		if got := item["offeringReviewCount"]; got != float64(3) {
+			t.Fatalf("item %v offeringReviewCount = %#v, want 3 (含 NULL 行)", item["id"], got)
+		}
+	}
+
+	// --- 场景 2：无评分评价的 offering → avg 省略（omitempty）、count 仍计数 ---
+	// 注意：必须先置 nil 再 Unmarshal——否则 Go 复用场景 1 的底层 map，
+	// JSON 未出现的 offeringRatingAvg 键会残留旧值造成假阳性。
+	items = nil
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("no-rating review list status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	response = decodeContractEnvelope(t, rec)
+	if err := json.Unmarshal(response.Result, &items); err != nil {
+		t.Fatalf("decode no-rating review list result %q: %v", response.Result, err)
+	}
+	if len(items) != 1 {
+		t.Fatalf("no-rating review list length = %d, want 1", len(items))
+	}
+	if _, ok := items[0]["offeringRatingAvg"]; ok {
+		t.Fatalf("item %v offeringRatingAvg present, want omitted (RatingCount=0 omitempty); full item: %#v", items[0]["id"], items[0])
+	}
+	if got := items[0]["offeringReviewCount"]; got != float64(1) {
+		t.Fatalf("item %v offeringReviewCount = %#v, want 1 (无评分评价仍计入)", items[0]["id"], got)
+	}
+}
+
 func TestCourseReviewCreateHTTPContract(t *testing.T) {
 	conn, router := setupCourseReviewContractTest(t)
 	seedCourseReviewCatalog(t, conn, 902)
