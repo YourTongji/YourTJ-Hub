@@ -2,14 +2,15 @@ package routes
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
+	"net/url"
 	"reflect"
 	"sort"
 	"strings"
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -21,6 +22,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -161,6 +163,18 @@ func assertNoReviewIdentityKeys(t *testing.T, value any) {
 	}
 }
 
+// decodeReviewPageList 解析评价列表分页响应的 list 数组（B2 分页对象结构）。
+func decodeReviewPageList(t *testing.T, response contractEnvelope) []map[string]any {
+	t.Helper()
+	var page struct {
+		List []map[string]any `json:"list"`
+	}
+	if err := json.Unmarshal(response.Result, &page); err != nil {
+		t.Fatalf("decode review page list %q: %v", response.Result, err)
+	}
+	return page.List
+}
+
 func isRFC3339(raw string) bool {
 	_, err := time.Parse(time.RFC3339, raw)
 	return err == nil
@@ -239,10 +253,17 @@ func TestCourseReviewListHTTPContract(t *testing.T) {
 	if response.Code != 0 {
 		t.Fatalf("course review list code = %d, want 0: %s", response.Code, rec.Body.String())
 	}
-	var items []map[string]any
-	if err := json.Unmarshal(response.Result, &items); err != nil {
+	var page struct {
+		List  []map[string]any `json:"list"`
+		Total float64          `json:"total"`
+	}
+	if err := json.Unmarshal(response.Result, &page); err != nil {
 		t.Fatalf("decode course review list result %q: %v", response.Result, err)
 	}
+	if page.Total != 3 {
+		t.Fatalf("course review list total = %v, want 3", page.Total)
+	}
+	items := page.List
 	if len(items) != 3 {
 		t.Fatalf("course review list length = %d, want 3", len(items))
 	}
@@ -253,10 +274,13 @@ func TestCourseReviewListHTTPContract(t *testing.T) {
 		assertNoReviewIdentityKeys(t, items[i])
 	}
 	fixture := contractFixture(t, "course-reviews-list-success.json")
-	var fixtureItems []map[string]any
-	if err := json.Unmarshal(fixture.Result, &fixtureItems); err != nil {
+	var fixturePage struct {
+		List []map[string]any `json:"list"`
+	}
+	if err := json.Unmarshal(fixture.Result, &fixturePage); err != nil {
 		t.Fatalf("decode course review list fixture %q: %v", fixture.Result, err)
 	}
+	fixtureItems := fixturePage.List
 	for i := range items {
 		assertReviewItemShape(t, items[i], fixtureItems[i])
 	}
@@ -434,10 +458,7 @@ func TestCourseReviewUpdateDeleteHTTPContract(t *testing.T) {
 		if list.Code != http.StatusOK {
 			t.Fatalf("post-delete list status = %d, want 200: %s", list.Code, list.Body.String())
 		}
-		var items []map[string]any
-		if err := json.Unmarshal(decodeContractEnvelope(t, list).Result, &items); err != nil {
-			t.Fatalf("decode post-delete list result: %v", err)
-		}
+		items := decodeReviewPageList(t, decodeContractEnvelope(t, list))
 		if len(items) != 0 {
 			t.Fatalf("deleted review still listed: %#v", items)
 		}
@@ -467,10 +488,7 @@ func TestCourseReviewHelpfulHTTPContract(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("marked list status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		var items []map[string]any
-		if err := json.Unmarshal(decodeContractEnvelope(t, rec).Result, &items); err != nil {
-			t.Fatalf("decode marked list result: %v", err)
-		}
+		items := decodeReviewPageList(t, decodeContractEnvelope(t, rec))
 		if len(items) != 1 || items[0]["id"] != float64(301) {
 			t.Fatalf("marked list = %#v, want exactly review 301", items)
 		}
@@ -493,10 +511,7 @@ func TestCourseReviewHelpfulHTTPContract(t *testing.T) {
 		if list.Code != http.StatusOK {
 			t.Fatalf("unmarked list status = %d, want 200: %s", list.Code, list.Body.String())
 		}
-		var items []map[string]any
-		if err := json.Unmarshal(decodeContractEnvelope(t, list).Result, &items); err != nil {
-			t.Fatalf("decode unmarked list result: %v", err)
-		}
+		items := decodeReviewPageList(t, decodeContractEnvelope(t, list))
 		if len(items) != 1 {
 			t.Fatalf("unmarked list = %#v, want exactly one review", items)
 		}
@@ -601,10 +616,7 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 		if list.Code != http.StatusOK {
 			t.Fatalf("hidden list status = %d, want 200: %s", list.Code, list.Body.String())
 		}
-		var hiddenItems []map[string]any
-		if err := json.Unmarshal(decodeContractEnvelope(t, list).Result, &hiddenItems); err != nil {
-			t.Fatalf("decode hidden list result: %v", err)
-		}
+		hiddenItems := decodeReviewPageList(t, decodeContractEnvelope(t, list))
 		if len(hiddenItems) != 0 {
 			t.Fatalf("hidden review still listed: %#v", hiddenItems)
 		}
@@ -619,10 +631,7 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 		if listed.Code != http.StatusOK {
 			t.Fatalf("shown list status = %d, want 200: %s", listed.Code, listed.Body.String())
 		}
-		var shownItems []map[string]any
-		if err := json.Unmarshal(decodeContractEnvelope(t, listed).Result, &shownItems); err != nil {
-			t.Fatalf("decode shown list result: %v", err)
-		}
+		shownItems := decodeReviewPageList(t, decodeContractEnvelope(t, listed))
 		if len(shownItems) != 1 || shownItems[0]["id"] != float64(303) {
 			t.Fatalf("shown list = %#v, want exactly review 303", shownItems)
 		}
@@ -747,14 +756,137 @@ func TestCourseReviewLegacyHelpfulCountHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusOK {
 		t.Fatalf("list status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
-	var items []map[string]any
-	if err := json.Unmarshal(decodeContractEnvelope(t, rec).Result, &items); err != nil {
-		t.Fatalf("decode list result: %v", err)
-	}
+	items := decodeReviewPageList(t, decodeContractEnvelope(t, rec))
 	if len(items) != 1 {
 		t.Fatalf("expected 1 review, got %d", len(items))
 	}
 	if items[0]["helpfulCount"] != float64(7) {
 		t.Fatalf("helpfulCount = %#v, want 7 (legacy count exposed)", items[0]["helpfulCount"])
+	}
+}
+
+// TestCourseReviewPaginationHTTPContract 验证 B2 cursor 分页（issue #174 验收）：
+//  1. 250 条评价 pageSize=20 → 13 页，无重复无遗漏（集合比对一致）；
+//  2. 非法 cursor / pageSize>50 → 400 + common.request.invalidParams；
+//  3. 删除一条评价（隔离窗口）后续页 cursor 稳定不跳页。
+func TestCourseReviewPaginationHTTPContract(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 901)
+
+	// 清空并插入 250 条评价（offering 901；id 1..250，按 id DESC 排序）
+	// 注意：必须硬删（Unscoped），软删行会与显式主键 Create 冲突。
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	// authorID 用唯一值（(offering_id, author_user_id) 唯一约束）
+	for i := uint64(1); i <= 250; i++ {
+		seedCourseReview(t, conn, i, 901, i, nil, fmt.Sprintf("评价 %d", i), true, course.ReviewSourceLegacyImport, course.ReviewStatusVisible)
+	}
+
+	// --- 验收 1：pageSize=20 共 13 页，无重复无遗漏 ---
+	seen := map[float64]bool{}
+	pageCount := 0
+	cursor := ""
+	expectTotal := float64(250)
+	for {
+		path := fmt.Sprintf("/api/forum/courses/42/reviews?pageSize=20&cursor=%s", url.QueryEscape(cursor))
+		rec := serveAuthSecurityJSON(router, http.MethodGet, path, "", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("page %d status = %d, want 200: %s", pageCount+1, rec.Code, rec.Body.String())
+		}
+		response := decodeContractEnvelope(t, rec)
+		var page struct {
+			List       []map[string]any `json:"list"`
+			NextCursor string           `json:"nextCursor"`
+			Total      float64          `json:"total"`
+		}
+		if err := json.Unmarshal(response.Result, &page); err != nil {
+			t.Fatalf("decode page %d: %v", pageCount+1, err)
+		}
+		if page.Total != expectTotal {
+			t.Fatalf("page %d total = %v, want %v", pageCount+1, page.Total, expectTotal)
+		}
+		if len(page.List) > 20 {
+			t.Fatalf("page %d length = %d, want <= 20", pageCount+1, len(page.List))
+		}
+		for _, item := range page.List {
+			id := item["id"].(float64)
+			if seen[id] {
+				t.Fatalf("duplicate review id %v on page %d", id, pageCount+1)
+			}
+			seen[id] = true
+		}
+		pageCount++
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	if pageCount != 13 {
+		t.Fatalf("page count = %d, want 13", pageCount)
+	}
+	if len(seen) != 250 {
+		t.Fatalf("collected %d unique reviews, want 250", len(seen))
+	}
+
+	// --- 验收 2：非法 cursor / pageSize 超限 → 400 ---
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?cursor=not-a-cursor", "", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("invalid cursor status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-invalid-params.json"))
+
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=999", "", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("oversized pageSize status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-invalid-params.json"))
+
+	// --- 验收 3：删除一条（隔离窗口）后翻页不跳页 ---
+	// 第一页取前 20 条（id 250..231），删除其中一条（id 240），
+	// 从第一页 cursor 继续翻页：后续集合 = 全集 - 已见 - 被删。
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=20", "", "")
+	response := decodeContractEnvelope(t, rec)
+	var page struct {
+		List       []map[string]any `json:"list"`
+		NextCursor string           `json:"nextCursor"`
+	}
+	_ = json.Unmarshal(response.Result, &page)
+	if len(page.List) != 20 {
+		t.Fatalf("first page length = %d, want 20", len(page.List))
+	}
+	firstPageIDs := map[float64]bool{}
+	for _, item := range page.List {
+		firstPageIDs[item["id"].(float64)] = true
+	}
+	// 删除 id=240（隔离窗口内软删）
+	if err := conn.Where("id = ?", 240).Delete(&course.ReviewEntity{}).Error; err != nil {
+		t.Fatalf("delete review 240: %v", err)
+	}
+	// 从第一页 cursor 继续：只应看到 id < 231 的剩余评价，无跳页无重复
+	rec = serveAuthSecurityJSON(router, http.MethodGet,
+		"/api/forum/courses/42/reviews?pageSize=20&cursor="+url.QueryEscape(page.NextCursor), "", "")
+	response = decodeContractEnvelope(t, rec)
+	var page2 struct {
+		List       []map[string]any `json:"list"`
+		NextCursor string           `json:"nextCursor"`
+	}
+	_ = json.Unmarshal(response.Result, &page2)
+	seenAfter := map[float64]bool{}
+	for _, item := range page2.List {
+		id := item["id"].(float64)
+		if firstPageIDs[id] {
+			t.Fatalf("review %v reappeared after cursor (skip/jump)", id)
+		}
+		if seenAfter[id] {
+			t.Fatalf("duplicate review %v in page 2", id)
+		}
+		seenAfter[id] = true
+	}
+	if len(page2.List) != 20 {
+		t.Fatalf("page 2 length = %d, want 20 (no skipped page due to deletion)", len(page2.List))
+	}
+	for _, item := range page2.List {
+		if item["id"].(float64) == 240 {
+			t.Fatalf("deleted review 240 should not appear")
+		}
 	}
 }

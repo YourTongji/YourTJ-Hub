@@ -239,6 +239,69 @@ func ListReviewsByOfferings(offeringIds []uint64) (entities []ReviewEntity, err 
 	return
 }
 
+// ---- B2: cursor 分页（issue #174） ----
+
+// ReviewPageQuery cursor 分页查询条件。排序：course 级按
+// (offering_id DESC, id DESC)，offering 级按 id DESC（时间倒序）。
+// Cursor 语义：返回 (offering_id, id) 严格小于 cursor 的可见评价
+// （位置游标——删除/隐藏行不影响后续页游标稳定性）。
+type ReviewPageQuery struct {
+	CourseId         uint64
+	OfferingId       uint64 // 0 = 课程级全部 offering
+	CursorOfferingId uint64 // cursor 中的 offering_id（offering 级时为 0）
+	CursorReviewId   uint64 // cursor 中的 review_id（无 cursor 时为 0）
+	Limit            int
+}
+
+// ListReviewsPage 按 cursor 分页列出可见评价（时间倒序）。
+func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
+	build := reviewBuilder().Where(queryopt.Eq("status", ReviewStatusVisible))
+	if q.OfferingId > 0 {
+		build = build.Where(queryopt.Eq("offering_id", q.OfferingId))
+		if q.CursorReviewId > 0 {
+			build = build.Where("id < ?", q.CursorReviewId)
+		}
+		build = build.Order("id DESC")
+	} else {
+		build = build.Where(
+			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL)",
+			q.CourseId,
+		)
+		if q.CursorOfferingId > 0 || q.CursorReviewId > 0 {
+			build = build.Where(
+				"(offering_id < ? OR (offering_id = ? AND id < ?))",
+				q.CursorOfferingId, q.CursorOfferingId, q.CursorReviewId,
+			)
+		}
+		build = build.Order("offering_id DESC, id DESC")
+	}
+	if q.Limit > 0 {
+		build = build.Limit(q.Limit)
+	}
+	err = build.Find(&entities).Error
+	return
+}
+
+// CountVisibleReviewsByCourse 课程下可见评价总数（分页 total）。
+func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL)", courseId).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Count(&count).Error
+	return count, err
+}
+
+// CountVisibleReviewsByOffering offering 下可见评价总数（分页 total）。
+func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Count(&count).Error
+	return count, err
+}
+
 // ---- Helpful ----
 
 // CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。

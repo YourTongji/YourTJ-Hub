@@ -436,6 +436,7 @@ export default {
     noOfferings: '暂无开课记录。',
     reviewsTitle: '课程评价',
     reviewsLoading: '正在加载评价…',
+    loadMoreReviews: '加载更多评价',
     reviewsEmpty: '暂无评价',
     reviewsEmptyDescription: '还没有同学评价这门课，来写第一条吧。',
     reviewsLoadFailed: '评价加载失败，请稍后重试。',

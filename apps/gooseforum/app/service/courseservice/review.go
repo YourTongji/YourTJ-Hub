@@ -2,6 +2,9 @@ package courseservice
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -338,6 +341,103 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 
 // ReviewListMaxItems 评价列表单次返回上限（防止热门课程响应无界；分页由后续 slice 增强）。
 const ReviewListMaxItems = 200
+
+// ---- B2: cursor 分页（issue #174） ----
+
+// DefaultReviewPageSize 评价列表默认页大小；MaxReviewPageSize 上限。
+const (
+	DefaultReviewPageSize = 20
+	MaxReviewPageSize     = 50
+)
+
+// ErrReviewInvalidCursor 非法 cursor（格式/取值错误，控制器映射 400）。
+var ErrReviewInvalidCursor = errors.New("invalid review cursor")
+
+// ReviewPageResult cursor 分页结果。
+type ReviewPageResult struct {
+	List       []ReviewPayload `json:"list"`
+	NextCursor string          `json:"nextCursor,omitempty"`
+	Total      int64           `json:"total"`
+}
+
+// ReviewCursor 复合游标（offering_id, review_id）。
+// Course 级列表按 (offering_id DESC, id DESC) 排序，cursor 是上一页
+// 最后一条的 (offeringId, id)；offering 级列表只用 reviewId。
+type ReviewCursor struct {
+	OfferingId uint64
+	ReviewId   uint64
+}
+
+// EncodeCursor 编码 cursor 为明文 "offeringId:reviewId"。
+func EncodeCursor(c ReviewCursor) string {
+	return fmt.Sprintf("%d:%d", c.OfferingId, c.ReviewId)
+}
+
+// DecodeCursor 解析 cursor；非法格式返回 ErrReviewInvalidCursor。
+func DecodeCursor(raw string) (ReviewCursor, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ReviewCursor{}, nil
+	}
+	parts := strings.Split(raw, ":")
+	if len(parts) != 2 {
+		return ReviewCursor{}, ErrReviewInvalidCursor
+	}
+	oid, err1 := strconv.ParseUint(parts[0], 10, 64)
+	rid, err2 := strconv.ParseUint(parts[1], 10, 64)
+	if err1 != nil || err2 != nil {
+		return ReviewCursor{}, ErrReviewInvalidCursor
+	}
+	return ReviewCursor{OfferingId: oid, ReviewId: rid}, nil
+}
+
+// ListReviewsPage 按 cursor 分页返回课程（或指定 offering）的可见评价。
+// pageSize 默认 20、上限 50；结果多取一条判断 hasNext（无重复无遗漏）。
+// total 为当前筛选下的可见评价总数（offering 过滤时同口径）。
+func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor, pageSize int) (ReviewPageResult, error) {
+	if pageSize <= 0 {
+		pageSize = DefaultReviewPageSize
+	}
+	if pageSize > MaxReviewPageSize {
+		pageSize = MaxReviewPageSize
+	}
+	query := course.ReviewPageQuery{
+		CourseId:         courseId,
+		OfferingId:       offeringId,
+		CursorOfferingId: cursor.OfferingId,
+		CursorReviewId:   cursor.ReviewId,
+		Limit:            pageSize + 1,
+	}
+	entities, err := course.ListReviewsPage(query)
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	hasNext := len(entities) > pageSize
+	if hasNext {
+		entities = entities[:pageSize]
+	}
+	payloads, err := listReviewPayloads(entities, viewerId)
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	result := ReviewPageResult{
+		List:  payloads,
+		Total: 0,
+	}
+	if offeringId > 0 {
+		result.Total, err = course.CountVisibleReviewsByOffering(offeringId)
+	} else {
+		result.Total, err = course.CountVisibleReviewsByCourse(courseId)
+	}
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	if hasNext {
+		last := entities[len(entities)-1]
+		result.NextCursor = EncodeCursor(ReviewCursor{OfferingId: last.OfferingId, ReviewId: last.Id})
+	}
+	return result, nil
+}
 
 // ListReviewsByOffering 返回 offering 的可见评价列表（匿名 DTO，最多 ReviewListMaxItems 条）。
 func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error) {

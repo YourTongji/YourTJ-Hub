@@ -1232,8 +1232,21 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @description The raw review array; an empty listing is an empty array, never null. */
-        ReviewListResult: components["schemas"]["ReviewPayload"][];
+        ReviewListResult: {
+            /** @description The current page of visible reviews; an empty listing is an empty array, never null. */
+            list: components["schemas"]["ReviewPayload"][];
+            /**
+             * @description Cursor for the next page, present only when more reviews exist.
+             *     Format is "offeringId:reviewId" of the last item of the current page
+             *     (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+             */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Total number of visible reviews matching the current scope (course or offering filter).
+             */
+            total: number;
+        };
         ReviewListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ReviewListResult"];
         }) | components["schemas"]["ApiFailure"];
@@ -2600,6 +2613,8 @@ export interface operations {
         parameters: {
             query?: {
                 offeringId?: number;
+                cursor?: string;
+                pageSize?: number;
             };
             header?: never;
             path: {

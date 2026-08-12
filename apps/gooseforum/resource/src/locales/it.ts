@@ -436,6 +436,7 @@ export default {
     noOfferings: 'Ancora nessuna offerta.',
     reviewsTitle: 'Recensioni del corso',
     reviewsLoading: 'Caricamento delle recensioni…',
+    loadMoreReviews: 'Carica altre recensioni',
     reviewsEmpty: 'Ancora nessuna recensione',
     reviewsEmptyDescription: 'Nessuno ha ancora recensito questo corso. Scrivi la prima recensione.',
     reviewsLoadFailed: 'Caricamento delle recensioni non riuscito. Riprova più tardi.',

@@ -436,6 +436,7 @@ export default {
     noOfferings: 'No offerings yet.',
     reviewsTitle: 'Course reviews',
     reviewsLoading: 'Loading reviews…',
+    loadMoreReviews: 'Load more reviews',
     reviewsEmpty: 'No reviews yet',
     reviewsEmptyDescription: 'No one has reviewed this course yet. Be the first.',
     reviewsLoadFailed: 'Failed to load reviews. Please try again later.',

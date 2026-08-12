@@ -436,6 +436,7 @@ export default {
     noOfferings: '開講記録はまだありません。',
     reviewsTitle: 'コース評価',
     reviewsLoading: '評価を読み込み中…',
+    loadMoreReviews: 'さらに評価を読み込む',
     reviewsEmpty: 'まだ評価はありません',
     reviewsEmptyDescription: 'このコースの評価はまだありません。最初の評価を書きましょう。',
     reviewsLoadFailed: '評価の読み込みに失敗しました。あとでもう一度お試しください。',

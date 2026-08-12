@@ -73,6 +73,9 @@ function authorLabel(author: ReviewPayload['author']) {
 
 // ---- 评价列表 ----
 const reviews = ref<ReviewPayload[]>([])
+const reviewTotal = ref(0)
+const reviewNextCursor = ref('')
+const reviewLoadingMore = ref(false)
 const reviewLoading = ref(false)
 const reviewError = ref('')
 const reviewLoaded = ref(false)
@@ -82,12 +85,30 @@ async function loadReviews() {
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    reviews.value = await listCourseReviews(page.props.course.id)
+    const reviewPage = await listCourseReviews(page.props.course.id)
+    reviews.value = reviewPage.list
+    reviewTotal.value = reviewPage.total
+    reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
     reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
     reviewLoading.value = false
     reviewLoaded.value = true
+  }
+}
+
+// 加载更多（B2 cursor 分页，issue #174）
+async function loadMoreReviews() {
+  if (!reviewNextCursor.value || reviewLoadingMore.value) return
+  reviewLoadingMore.value = true
+  try {
+    const reviewPage = await listCourseReviews(page.props.course.id, 0, reviewNextCursor.value)
+    reviews.value = reviews.value.concat(reviewPage.list)
+    reviewNextCursor.value = reviewPage.nextCursor ?? ''
+  } catch (error) {
+    reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
+  } finally {
+    reviewLoadingMore.value = false
   }
 }
 
@@ -605,6 +626,16 @@ onMounted(() => {
           </div>
         </li>
       </ul>
+      <div v-if="reviewNextCursor" class="mt-4 flex justify-center">
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost"
+          :disabled="reviewLoadingMore"
+          @click="loadMoreReviews"
+        >
+          {{ reviewLoadingMore ? t('courseDetailPage.reviewsLoading') : t('courseDetailPage.loadMoreReviews') }}
+        </button>
+      </div>
     </section>
 
     <!-- 举报弹窗 -->
