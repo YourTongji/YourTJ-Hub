@@ -107,6 +107,101 @@ void main() {
       expect(controller.phase, LoginPhase.authenticated);
     });
 
+    test('TOTP invalid-code 保留 needsTotp 且可重试成功', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const ApiException(
+          fallbackMessage: 'Request failed',
+          messageCode: 'totp.code.invalid',
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+
+      await controller.submitTotp('000000');
+      // 关键:phase 保持 needsTotp,输入框不消失,可重试。
+      expect(controller.phase, LoginPhase.needsTotp);
+      expect(controller.error, 'Invalid two-factor code, please try again');
+
+      // 第二次提交成功(模拟用户重试)。
+      await controller.submitTotp('123456');
+      expect(controller.phase, LoginPhase.authenticated);
+    });
+
+    test('TOTP rate-limited 保留 needsTotp 并展示限流文案', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const ApiException(
+          fallbackMessage: 'Request failed',
+          messageCode: 'totp.rateLimited',
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      await controller.submitTotp('111111');
+
+      expect(controller.phase, LoginPhase.needsTotp);
+      expect(controller.error, 'Too many attempts, please try again later');
+    });
+
+    test('TOTP 未知业务错误保留 needsTotp 并透出 messageKey', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const ApiException(
+          fallbackMessage: 'Request failed',
+          messageCode: 'auth.login.failed',
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      await controller.submitTotp('222222');
+
+      expect(controller.phase, LoginPhase.needsTotp);
+      expect(controller.error, 'server.auth.login.failed');
+    });
+
+    test('TOTP 网络异常保留 needsTotp 可重试', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: Exception('connection reset'),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      await controller.submitTotp('333333');
+
+      expect(controller.phase, LoginPhase.needsTotp);
+      expect(controller.error, contains('TOTP verification failed'));
+    });
+
+    test('TOTP 401 过期挑战进入 failed 并提示重新登录', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const UnauthorizedException(),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+
+      await controller.submitTotp('444444');
+
+      expect(controller.phase, LoginPhase.failed);
+      expect(
+        controller.error,
+        'Two-factor challenge expired, please sign in again',
+      );
+    });
+
     test('401 登录失败进入 failed 并带错误消息', () async {
       final controller = _buildController(
         storage: MemoryTokenStorage(),
@@ -217,6 +312,8 @@ AuthController _buildController({
   String? loginMessageCode,
   bool registerCaptchaRequired = false,
   bool forgotCaptchaRequired = false,
+  Object? totpVerifyError,
+  bool totpVerifySucceeds = true,
 }) {
   final storageAdapter = storage;
   final client = GfApiClient(
@@ -231,6 +328,8 @@ AuthController _buildController({
     loginMessageCode: loginMessageCode,
     registerCaptchaRequired: registerCaptchaRequired,
     forgotCaptchaRequired: forgotCaptchaRequired,
+    totpVerifyError: totpVerifyError,
+    totpVerifySucceeds: totpVerifySucceeds,
   );
   return AuthController(
     authRepository: auth,
@@ -254,6 +353,8 @@ class FakeAuthRepository implements AuthRepository {
     this.loginMessageCode,
     this.registerCaptchaRequired = false,
     this.forgotCaptchaRequired = false,
+    this.totpVerifyError,
+    this.totpVerifySucceeds = true,
   });
 
   final bool twoFactorRequired;
@@ -262,6 +363,13 @@ class FakeAuthRepository implements AuthRepository {
   final String? loginMessageCode;
   final bool registerCaptchaRequired;
   final bool forgotCaptchaRequired;
+
+  /// totpVerify 注入的错误;非 null 时优先于 [totpVerifySucceeds]。
+  /// 抛错后自动清空,模拟"输错一次 → 重试成功"的真实链路。
+  Object? totpVerifyError;
+
+  /// totpVerify 是否成功返回;false 时返回 false(不抛错)。
+  final bool totpVerifySucceeds;
 
   @override
   Future<CaptchaPayload> getCaptcha() async {
@@ -304,8 +412,15 @@ class FakeAuthRepository implements AuthRepository {
   }
 
   @override
-  Future<bool> totpVerify({required String code, String? recoveryCode}) async =>
-      true;
+  Future<bool> totpVerify({required String code, String? recoveryCode}) async {
+    final error = totpVerifyError;
+    if (error != null) {
+      // 只失败一次:模拟"输错一次 → 重试成功"的真实链路。
+      totpVerifyError = null;
+      throw error;
+    }
+    return totpVerifySucceeds;
+  }
 
   @override
   Future<String> register({

@@ -123,6 +123,13 @@ class AuthController extends ChangeNotifier {
   }
 
   /// TOTP 二次验证。
+  ///
+  /// 错误语义(对齐后端 `totpController.go` 与 message_code.go):
+  /// - `totp.code.invalid` / `totp.rateLimited`:challenge 未消费,保留
+  ///   [LoginPhase.needsTotp],用户可继续重试;
+  /// - HTTP 401 `auth.required`:challenge token 已过期/被消费,清理后回到
+  ///   [LoginPhase.failed],用户需重新走密码登录;
+  /// - 其他未知错误同样保留 needsTotp,避免一次抖动丢失有效 challenge。
   Future<void> submitTotp(String code) async {
     _busy = true;
     _error = '';
@@ -132,11 +139,18 @@ class AuthController extends ChangeNotifier {
       if (ok) {
         await _completeLogin(username: _pendingUsername);
       } else {
-        _phase = LoginPhase.failed;
+        // 契约上 totpVerify 只有 throw 与 true 两种结果;防御性保留挑战。
         _error = 'Invalid two-factor code';
       }
-    } catch (e) {
+    } on UnauthorizedException {
+      // 401:challenge 已过期或失效,必须重新开始密码登录。
       _phase = LoginPhase.failed;
+      _error = 'Two-factor challenge expired, please sign in again';
+    } on ApiException catch (e) {
+      // 保留 needsTotp 挑战,可重试;仅展示错误消息。
+      _error = _mapTotpError(e);
+    } catch (e) {
+      // 网络抖动等:保留挑战,可重试。
       _error = 'TOTP verification failed: $e';
     } finally {
       _busy = false;
@@ -243,6 +257,20 @@ class AuthController extends ChangeNotifier {
     }
     _phase = LoginPhase.authenticated;
     _pendingUsername = username;
+  }
+
+  /// TOTP 错误消息映射。所有分支都保留 [LoginPhase.needsTotp],
+  /// 由调用方(login_page 的 `_submit`)决定是否清理挑战。
+  String _mapTotpError(ApiException e) {
+    switch (e.messageCode) {
+      case 'totp.code.invalid':
+        return 'Invalid two-factor code, please try again';
+      case 'totp.rateLimited':
+        return 'Too many attempts, please try again later';
+      default:
+        // 未知业务错误:同样保留挑战,展示稳定 messageCode 供上层本地化。
+        return e.messageKey;
+    }
   }
 
   String _mapAuthError(ApiException e, {required String fallback}) {
