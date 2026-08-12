@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 )
 
@@ -137,9 +138,11 @@ func TestClaimTaskAtomicity(t *testing.T) {
 	setupWorkerTestDB(t)
 
 	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+
 	if err := taskQueue.Create(task); err != nil {
 		t.Fatalf("create task: %v", err)
 	}
+
 
 	const workers = 8
 	var claimed atomic.Int32
@@ -648,3 +651,46 @@ func TestLeaseLossCancelsHandlerViaHeartbeat(t *testing.T) {
 	cancel()
 	<-heartbeatDone
 }
+
+// TestProcessTaskCleanupRetryThenFail 锁定 spec S2（验收 3）：course-review-cleanup
+// 任务的失败重试路径——handler 失败 → retrying（RetryCount+1），重试至
+// maxRetries 后 failed，LastError 记录错误。
+func TestProcessTaskCleanupRetryThenFail(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	// 无效 TaskJson：RunCleanupTask 解码失败 → handler 返回错误
+	task := &taskQueue.Entity{Type: "course-review-cleanup.run", Status: taskQueue.StatusPending, TaskJson: `{invalid json`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+
+	for i := 1; i <= maxRetries; i++ {
+		reload := mustGetTask(t, task.Id)
+		if !processTask(make(chan struct{}), "course-review-cleanup", &reload, courseservice.RunCleanupTask) {
+			t.Fatalf("processTask attempt %d returned stop=true, want continue", i)
+		}
+		updated := mustGetTask(t, task.Id)
+		if updated.Status != taskQueue.StatusRetrying {
+			t.Fatalf("attempt %d status = %d, want %d (retrying)", i, updated.Status, taskQueue.StatusRetrying)
+		}
+		if updated.RetryCount != uint8(i) {
+			t.Fatalf("attempt %d retryCount = %d, want %d", i, updated.RetryCount, i)
+		}
+		if updated.LastError == "" {
+			t.Fatalf("attempt %d LastError empty, want decode error logged", i)
+		}
+	}
+
+	// 第 4 次（超过 maxRetries）：failed + LastError
+	reload := mustGetTask(t, task.Id)
+	processTask(make(chan struct{}), "course-review-cleanup", &reload, courseservice.RunCleanupTask)
+	updated := mustGetTask(t, task.Id)
+	if updated.Status != taskQueue.StatusFailed {
+		t.Fatalf("final status = %d, want %d (failed)", updated.Status, taskQueue.StatusFailed)
+	}
+	if updated.LastError == "" {
+		t.Fatal("failed task LastError empty, want error logged")
+	}
+}
+

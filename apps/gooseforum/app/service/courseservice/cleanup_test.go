@@ -339,3 +339,58 @@ func TestCleanupPlaceholderReleasedStatsAccumulated(t *testing.T) {
 			offeringStats.ReviewCount, offeringStats.RatingCount, offeringStats.RatingSum)
 	}
 }
+
+// TestCleanupWindowStartIsDeleteTime 锁定 security/spec 双审 F2：窗口起点是
+// 删除时间（DeleteReview 显式写 updated_at=now），不是创建时间。真实路径：
+// 创建 100 天前的评价 → 今天经 DeleteReview 删除 → 清理运行 → 30 天窗口
+// 内不清该行（此前 updated_at≈created_at 导致窗口塌缩、老评价刚删即被清）。
+// 不手工伪造 updated_at（createDeletedReview 的测试假阳性根因）。
+func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	conn := dbconnect.Connect()
+
+	// 创建 100 天前的评价（真实 CreateReview）
+	payload, err := CreateReview(8001, CreateReviewInput{
+		OfferingId: offeringId,
+		Rating:     5,
+		Content:    "百天老评价",
+	})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	// 把 created_at 回拨 100 天（模拟老评价；不动 updated_at 语义路径）
+	if err := conn.Model(&course.ReviewEntity{}).Where("id = ?", payload.Id).
+		Update("created_at", time.Now().Add(-100*24*time.Hour)).Error; err != nil {
+		t.Fatalf("age created_at: %v", err)
+	}
+
+	// 今天经真实 DeleteReview 删除（窗口起点 = 今天）
+	if err := DeleteReview(8001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	// 关键断言：DeleteReview 后 updated_at 必须刷新到今天（F2 修复生效）
+	var afterDelete course.ReviewEntity
+	if err := conn.First(&afterDelete, payload.Id).Error; err != nil {
+		t.Fatalf("reload deleted review: %v", err)
+	}
+	if since := time.Since(afterDelete.UpdatedAt); since > 24*time.Hour {
+		t.Fatalf("DeleteReview did not refresh updated_at (window collapsed): updated_at=%v (since %v)",
+			afterDelete.UpdatedAt, since)
+	}
+
+	// 清理运行：30 天窗口内 → 不清
+	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if cleaned != 0 {
+		t.Fatalf("cleaned = %d, want 0 (deleted today, window not expired)", cleaned)
+	}
+	var row course.ReviewEntity
+	if err := conn.First(&row, payload.Id).Error; err != nil {
+		t.Fatalf("row missing: %v", err)
+	}
+	if row.Content != "百天老评价" || row.AuthorUserId != 8001 {
+		t.Fatalf("in-window review touched: content=%q author=%d", row.Content, row.AuthorUserId)
+	}
+}

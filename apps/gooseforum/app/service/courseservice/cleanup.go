@@ -79,7 +79,15 @@ func RunCleanupTask(ctx context.Context, task *taskQueue.Entity) error {
 	}
 	retentionDays := ReviewCleanupRetentionDays
 	if payload.RetentionDays > 0 {
+		// 兜底（security F5）：窗口 1..365 天，防 task JSON 异常值
+		// 导致窗口塌缩（0/负 → 清全部）或长到永不清理。
 		retentionDays = payload.RetentionDays
+		if retentionDays < 1 {
+			retentionDays = 1
+		}
+		if retentionDays > 365 {
+			retentionDays = 365
+		}
 	}
 	cleaned, err := CleanupDeletedReviews(time.Duration(retentionDays) * 24 * time.Hour)
 	if err != nil {
