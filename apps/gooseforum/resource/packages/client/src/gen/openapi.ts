@@ -84,12 +84,20 @@ export interface paths {
          *     honeypot field, email domain allowlist, username format/moderation, password
          *     complexity, and finally the captcha gate (when the site requires captcha).
          *
-         *     Account-enumeration hardening (CWE-208): a username or email that is already
-         *     taken returns the same generic `auth.register.failed` failure envelope as every
-         *     other registration failure. Neither the HTTP status, the envelope, `messageCode`,
-         *     response fields, nor the rate-limit protocol distinguishes "username exists" from
-         *     "email exists" from any other failure. The server unconditionally runs both
-         *     existence lookups so the query count does not vary with account state.
+         *     Account-enumeration hardening (CWE-208): when a username or an email is already
+         *     taken, the endpoint returns the same generic `auth.register.failed` failure
+         *     envelope as when account creation itself fails, and the two occupied cases are
+         *     indistinguishable from each other. Neither the HTTP status, the envelope,
+         *     `messageCode`, response fields, nor the rate-limit protocol distinguishes
+         *     "username exists" from "email exists" from "creation failed". The server
+         *     unconditionally runs both existence lookups so the query count does not vary
+         *     with account state.
+         *
+         *     This guarantee is scoped to the occupied/creation-failed cases only: requests
+         *     that fail validation before the existence checks (invalid username format,
+         *     disallowed email domain, weak password, captcha rejection, signup disabled)
+         *     return their own distinct `messageCode` per the validation-order list above,
+         *     and are intentionally not covered by the anti-enumeration envelope.
          *
          *     Honeypot: when the hidden `website` field is populated the server treats the
          *     request as bot traffic, silently returns a success envelope identical to a normal
