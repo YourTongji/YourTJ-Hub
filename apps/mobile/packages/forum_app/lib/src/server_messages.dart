@@ -41,21 +41,23 @@ const Map<String, Map<String, String>> _serverMessages = {
 
 /// 把 [error] 解析为用户可读的本地化文案。
 ///
-/// - [ApiException] 且携带 messageCode:flat lookup 本地化目录,未知码回退
-///   到其 fallbackMessage(不含原始 messageCode);
-/// - [ApiException] 无 messageCode(网络错误等):直接使用 fallbackMessage;
+/// - [ApiException] 且 messageCode 命中本地化目录:返回目录文案;
+/// - [ApiException] 但 messageCode 未知/缺失/未命中:统一回退
+///   [AppLocalizations.commonLoadFailed](zh: 加载失败 / en: Failed to load),
+///   绝不返回英文硬编码 fallbackMessage;
 /// - 其它错误(页面自身的业务错误文案等):保留原样。
 /// 任何情况下都不会把原始 messageCode 或 `ApiException: ...` 前缀展示给用户。
 String resolveErrorMessage(AppLocalizations l10n, Object error) {
   if (error is! ApiException) return error.toString();
 
   final String? code = error.messageCode?.trim();
-  if (code == null || code.isEmpty) {
-    return error.fallbackMessage;
+  if (code != null && code.isNotEmpty) {
+    final Map<String, String> catalog = _serverMessages[l10n.localeName] ??
+        _serverMessages['en'] ??
+        const <String, String>{};
+    final String? localized = catalog[code];
+    if (localized != null) return localized;
   }
 
-  final Map<String, String> catalog = _serverMessages[l10n.localeName] ??
-      _serverMessages['en'] ??
-      const <String, String>{};
-  return catalog[code] ?? error.fallbackMessage;
+  return l10n.commonLoadFailed;
 }
