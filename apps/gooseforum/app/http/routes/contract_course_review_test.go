@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -21,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -107,7 +107,7 @@ func seedCourseReview(t *testing.T, conn *gorm.DB, id, offeringID, authorID uint
 	entity := &course.ReviewEntity{
 		Id:           id,
 		OfferingId:   offeringID,
-		AuthorUserId: authorID,
+		AuthorUserId: &authorID,
 		Rating:       rating,
 		Content:      content,
 		IsAnonymous:  isAnonymous,
@@ -731,10 +731,11 @@ func TestCourseReviewModerationReportListHTTPContract(t *testing.T) {
 func TestCourseReviewLegacyHelpfulCountHTTPContract(t *testing.T) {
 	conn, router := setupCourseReviewContractTest(t)
 	seedCourseReviewCatalog(t, conn, 902)
+	zeroAuthor := uint64(0)
 	if err := conn.Create(&course.ReviewEntity{
 		Id:                 500,
 		OfferingId:         902,
-		AuthorUserId:       0,
+		AuthorUserId:       &zeroAuthor,
 		Content:            "历史评价",
 		IsAnonymous:        true,
 		Status:             course.ReviewStatusVisible,

@@ -323,7 +323,7 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 	case errors.Is(findErr, gorm.ErrRecordNotFound):
 		entity := course.ReviewEntity{
 			OfferingId:         offeringLocalID,
-			AuthorUserId:       0,
+			AuthorUserId:       uint64Ptr(0),
 			Rating:             rating,
 			Content:            content,
 			IsAnonymous:        true,

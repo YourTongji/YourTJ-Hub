@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
@@ -87,6 +88,14 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "9 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("10 3 * * *", upCmd(func() {
+		// 入队课评隔离窗口清理（隐私合规 B3）：worker 消费 taskQueue
+		// course-review-cleanup. 前缀任务，清理删除超过 30 天的课评。
+		if err := courseservice.EnqueueCourseReviewCleanupTask(); err != nil {
+			slog.Error("enqueue course review cleanup failed", "err", err)
+		}
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

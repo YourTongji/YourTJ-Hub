@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -18,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 )
 
 // ---- 写评 / 编辑 / 删除 / helpful / 举报 ----
@@ -284,12 +284,12 @@ func ModerationCourseReviewReveal(req component.BetterRequest[ModerationCourseRe
 	}
 	payload := CourseReviewAuthorRevealPayload{
 		ReviewId:     entity.Id,
-		AuthorUserId: entity.AuthorUserId,
+		AuthorUserId: entity.AuthorID(),
 		IsAnonymous:  entity.IsAnonymous,
 		Source:       entity.Source,
 	}
-	if entity.AuthorUserId > 0 {
-		if user, ok := userservice.GetUserInfo(entity.AuthorUserId); ok {
+	if entity.AuthorID() > 0 {
+		if user, ok := userservice.GetUserInfo(entity.AuthorID()); ok {
 			payload.Username = user.Username
 			payload.Nickname = user.Nickname
 		}
@@ -298,7 +298,7 @@ func ModerationCourseReviewReveal(req component.BetterRequest[ModerationCourseRe
 	optlogger.UserOptCode(req.UserId, optlogger.RevealCourseReviewAuthor, entity.Id,
 		"review.identityRevealed", optlogger.MessageParams{
 			"reviewId": entity.Id,
-			"authorId": entity.AuthorUserId,
+			"authorId": entity.AuthorID(),
 			"reason":   req.Params.Reason,
 		})
 	return component.SuccessResponse(payload)

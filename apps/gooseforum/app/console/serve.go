@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/job"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
@@ -155,12 +156,16 @@ func ginServe() {
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
 	searchservice.RecoverStaleTasks()
+	courseservice.RecoverCourseReviewCleanupStaleTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 课评隔离窗口清理 worker：消费 course-review-cleanup. 前缀任务，
+	// 清理删除超过 30 天的课评正文与作者关联（隐私合规 B3）
+	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCourseReviewCleanupTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

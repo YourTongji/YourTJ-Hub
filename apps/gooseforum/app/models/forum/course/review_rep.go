@@ -70,14 +70,21 @@ func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (enti
 // ReactivateReviewTx 事务内恢复并重写一条已删除（隔离窗口）的评价。
 // 唯一索引 (offering_id, author_user_id) 被软删行占用，重新评价必须复用该行；
 // 带 status 条件（CAS）防止并发事务重复恢复，RowsAffected=0 表示已被并发恢复。
-func ReactivateReviewTx(tx *gorm.DB, id uint64, rating *int, content string, isAnonymous bool) (bool, error) {
+// 恢复时一并回写作者关联并清除 deleted_at（隔离窗口标记）：行在窗口内
+// author_user_id 仍为用户本人，回写为幂等；若清理任务已断开作者（置 NULL，
+// 仅可能发生在行仍被占用前的边界），恢复后该用户重新占用唯一键，
+// 与"同 offering+用户至多一条"约束保持一致。
+func ReactivateReviewTx(tx *gorm.DB, id, authorUserId uint64, rating *int, content string, isAnonymous bool) (bool, error) {
 	res := tx.Table(reviewTableName).
 		Where("id = ? AND status = ?", id, ReviewStatusDeleted).
 		Updates(map[string]any{
-			"rating":       rating,
-			"content":      content,
-			"is_anonymous": isAnonymous,
-			"status":       ReviewStatusVisible,
+			"author_user_id": authorUserId,
+			"rating":         rating,
+			"content":        content,
+			"is_anonymous":   isAnonymous,
+			"status":         ReviewStatusVisible,
+			"deleted_at":     nil,
+			"updated_at":     time.Now(),
 		})
 	if res.Error != nil {
 		return false, res.Error
@@ -135,6 +142,26 @@ func UpdateReviewStatusFromTx(tx *gorm.DB, id uint64, from, to int8) (bool, erro
 	res := tx.Table(reviewTableName).
 		Where("id = ? AND status = ?", id, from).
 		Update("status", to)
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// MarkReviewDeletedFromTx 事务内带旧状态条件的 CAS 删除：置 status=deleted，
+// 并写入 deleted_at 作为隔离窗口起点（30 天，见 courseservice.ReviewCleanupWindow）。
+// Table 更新不会自动维护时间戳（GORM 仅对带 Schema 的更新自动处理），
+// 因此 deleted_at/updated_at 必须显式写入，否则窗口起点缺失、
+// 删除后立即进入可清理状态。
+func MarkReviewDeletedFromTx(tx *gorm.DB, id uint64, from int8) (bool, error) {
+	now := time.Now()
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]any{
+			"status":     ReviewStatusDeleted,
+			"deleted_at": now,
+			"updated_at": now,
+		})
 	if res.Error != nil {
 		return false, res.Error
 	}
