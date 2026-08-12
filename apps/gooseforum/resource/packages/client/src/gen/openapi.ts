@@ -1160,6 +1160,13 @@ export interface components {
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -1180,6 +1187,13 @@ export interface components {
             campus?: string;
             faculty?: string;
             instructors?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average for this offering; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews for this offering. */
+            reviewCount?: number;
         };
         CourseDetail: {
             /** Format: uint64 */
@@ -1190,6 +1204,15 @@ export interface components {
             creditX10: number;
             aliases?: string[];
             offerings?: components["schemas"]["OfferingSummary"][];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+            /** @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars. */
+            ratingDistribution?: number[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
@@ -1512,6 +1535,13 @@ export interface components {
             instructors: string[];
             terms: string[];
             campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         PaginationPayload: {
             page: number;

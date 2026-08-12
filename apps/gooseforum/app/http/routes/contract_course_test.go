@@ -1,6 +1,7 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -8,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
@@ -301,4 +303,129 @@ func TestCourseRelatedHiddenHTTPContract(t *testing.T) {
 		t.Fatalf("course related hidden status = %d, want 404: %s", rec.Code, rec.Body.String())
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-not-found.json"))
+
+// TestCourseStatsProjectionHTTPContract 验证 B1 统计投影对外暴露（issue #173 验收）：
+//  1. 3 条评价（5/4/NULL）→ ratingAvg=4.5、reviewCount=3（NULL 不计均分但计评论数）；
+//  2. ratingDistribution 各档与可见 course_review 行一致；
+//  3. 管理员隐藏一条 → 统计即时排除（与 SetReviewVisibility delta 同事务）。
+func TestCourseStatsProjectionHTTPContract(t *testing.T) {
+	conn, router := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+
+	// 迁移评价与统计投影表
+	if err := conn.AutoMigrate(&course.ReviewEntity{}, &course.CourseStatsEntity{}, &course.OfferingStatsEntity{}); err != nil {
+		t.Fatalf("migrate review/stats tables: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.CourseStatsEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.OfferingStatsEntity{})
+
+	// 3 条评价：rating 5、4、NULL（legacy 无评分）
+	r5, r4 := 5, 4
+	seedCourseReview(t, conn, 1001, 901, 1, &r5, "五星", false, "contract", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 1002, 901, 2, &r4, "四星", false, "contract", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 1003, 901, 3, nil, "无评分", false, "contract", course.ReviewStatusVisible)
+
+	// 同步统计投影（生产路径由 Upsert 维护；测试直接调用重建）
+	if err := course.RebuildAllCourseStats(); err != nil {
+		t.Fatalf("rebuild stats: %v", err)
+	}
+
+	// --- 验收 1 + 2：目录/详情带均分/计数/分布 ---
+	rec := serveCourseGet(router, "/api/forum/courses?page=1&size=20")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course list status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var listEnvelope struct {
+		Result struct {
+			List []map[string]any `json:"list"`
+		} `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &listEnvelope); err != nil {
+		t.Fatalf("decode course list: %v", err)
+	}
+	if len(listEnvelope.Result.List) != 1 {
+		t.Fatalf("course list length = %d, want 1", len(listEnvelope.Result.List))
+	}
+	item := listEnvelope.Result.List[0]
+	if got := item["ratingAvg"]; got != 4.5 {
+		t.Fatalf("list ratingAvg = %#v, want 4.5", got)
+	}
+	if got := item["reviewCount"]; got != float64(3) {
+		t.Fatalf("list reviewCount = %#v, want 3", got)
+	}
+
+	rec = serveCourseGet(router, "/api/forum/courses/42")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course detail status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	var detailEnvelope struct {
+		Result map[string]any `json:"result"`
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailEnvelope); err != nil {
+		t.Fatalf("decode course detail: %v", err)
+	}
+	detail := detailEnvelope.Result
+	if got := detail["ratingAvg"]; got != 4.5 {
+		t.Fatalf("detail ratingAvg = %#v, want 4.5", got)
+	}
+	if got := detail["reviewCount"]; got != float64(3) {
+		t.Fatalf("detail reviewCount = %#v, want 3", got)
+	}
+	dist, ok := detail["ratingDistribution"].([]any)
+	if !ok || len(dist) != 5 {
+		t.Fatalf("detail ratingDistribution = %#v, want [5]int array", detail["ratingDistribution"])
+	}
+	if dist[4] != float64(1) || dist[3] != float64(1) || dist[0] != float64(0) {
+		t.Fatalf("detail ratingDistribution = %v, want [0,0,0,1,1]", dist)
+	}
+	// offering 级统计（详情开课列表）
+	offerings, _ := detail["offerings"].([]any)
+	if len(offerings) != 1 {
+		t.Fatalf("detail offerings = %#v, want 1", offerings)
+	}
+	off := offerings[0].(map[string]any)
+	if got := off["ratingAvg"]; got != 4.5 {
+		t.Fatalf("offering ratingAvg = %#v, want 4.5", got)
+	}
+	if got := off["reviewCount"]; got != float64(3) {
+		t.Fatalf("offering reviewCount = %#v, want 3", got)
+	}
+
+	// --- 验收 3：隐藏一条评价 → 统计即时排除（SetReviewVisibility delta 同事务） ---
+	if err := courseservice.SetReviewVisibility(1003, true); err != nil { // 隐藏 NULL 评分评价
+		t.Fatalf("SetReviewVisibility: %v", err)
+	}
+	rec = serveCourseGet(router, "/api/forum/courses/42")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course detail after hide status = %d: %s", rec.Code, rec.Body.String())
+	}
+	if err := json.Unmarshal(rec.Body.Bytes(), &detailEnvelope); err != nil {
+		t.Fatalf("decode course detail after hide: %v", err)
+	}
+	detail = detailEnvelope.Result
+	if got := detail["reviewCount"]; got != float64(2) {
+		t.Fatalf("reviewCount after hide = %#v, want 2", got)
+	}
+	if got := detail["ratingAvg"]; got != 4.5 {
+		t.Fatalf("ratingAvg after hide (5+4) = %#v, want 4.5", got)
+	}
+	dist, _ = detail["ratingDistribution"].([]any)
+	if dist[4] != float64(1) || dist[3] != float64(1) {
+		t.Fatalf("ratingDistribution after hide = %v, want [0,0,0,1,1]", dist)
+	}
+
+	// 隐藏 5 星评价 → 均分变 4.0、分布只剩 4 星
+	if err := courseservice.SetReviewVisibility(1001, true); err != nil {
+		t.Fatalf("SetReviewVisibility(1001): %v", err)
+	}
+	rec = serveCourseGet(router, "/api/forum/courses/42")
+	_ = json.Unmarshal(rec.Body.Bytes(), &detailEnvelope)
+	detail = detailEnvelope.Result
+	if got := detail["ratingAvg"]; got != float64(4) {
+		t.Fatalf("ratingAvg after hide 5-star = %#v, want 4", got)
+	}
+	if got := detail["reviewCount"]; got != float64(1) {
+		t.Fatalf("reviewCount after hide 5-star = %#v, want 1", got)
+	}
 }
