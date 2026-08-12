@@ -16,6 +16,10 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `POST /api/login`;
 - `GET /api/login-public-key`;
 - `POST /api/auth/totp/verify`;
+- `GET /api/user/totp/status`;
+- `POST /api/user/totp/setup`;
+- `POST /api/user/totp/enable`;
+- `POST /api/user/totp/disable`;
 - `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`;

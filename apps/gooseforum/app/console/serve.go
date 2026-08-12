@@ -7,8 +7,10 @@ import (
 	"log/slog"
 	"net/http"
 	"net/http/pprof"
+	"net/url"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
@@ -48,8 +50,52 @@ func runWeb(_ *cobra.Command, _ []string) {
 	slog.Info("GooseForum:start")
 	slog.Info(fmt.Sprintf("GooseForum:useMem %d KB", m.Alloc/1024/8))
 
+	warnInsecureServerURL()
 	startDebugServices()
 	ginServe()
+}
+
+// warnInsecureServerURL logs a startup warning when a non-local deployment is
+// reachable over plain http (CWE-614). Cookies are already fail-closed by
+// setting.CookieSecure(), so this is a deployment hygiene notice, not a fatal
+// gate — template defaults are `production` + `http://localhost`, and browsers
+// treat `localhost` as a secure context that still accepts Secure cookies,
+// so we do not refuse to boot (issue #113).
+func warnInsecureServerURL() {
+	serverURL := strings.TrimSpace(preferences.GetString("server.url", ""))
+	if !shouldWarnInsecureServerURL() {
+		return
+	}
+	slog.Warn(fmt.Sprintf(
+		"server.url=%q 在非 local 环境下不是 https，会话 Cookie 已强制 Secure，浏览器不会在明文连接上回传它们；请将 server.url 改为 https:// 反向代理地址或显式配置 HTTPS 终结",
+		serverURL,
+	))
+}
+
+// shouldWarnInsecureServerURL is the pure decision predicate backing
+// warnInsecureServerURL. Returns true only when the deployment is non-local
+// and `server.url` points at a non-https, non-loopback host.
+func shouldWarnInsecureServerURL() bool {
+	if setting.IsLocal() {
+		return false
+	}
+	serverURL := strings.TrimSpace(preferences.GetString("server.url", ""))
+	if serverURL == "" {
+		return false
+	}
+	u, err := url.Parse(serverURL)
+	if err != nil {
+		return false
+	}
+	if strings.ToLower(u.Scheme) == "https" {
+		return false
+	}
+	host := strings.ToLower(strings.TrimSpace(u.Hostname()))
+	switch host {
+	case "localhost", "127.0.0.1", "::1", "":
+		return false
+	}
+	return true
 }
 
 func startDebugServices() {
@@ -86,12 +132,13 @@ func pprofMux() *http.ServeMux {
 }
 
 func ginServe() {
-	// 拒绝使用内置默认签名密钥启动：该密钥公开在源码中，攻击者可据此
-	// 伪造 JWT 并解密 TOTP 密钥（见 jwtopt.DefaultSigningKey）。
-	// 配置错误必须以非零退出码终止，否则 systemd/docker 会把
-	// "配置错误"误判为"正常退出"，重启策略与告警都不会生效。
-	if jwtopt.IsSigningKeyDefault() {
-		slog.Error("app.signingKey 未配置，仍在使用内置默认密钥。请配置一个随机密钥后重试。")
+	// fail-closed：拒绝在不安全的 JWT 签名密钥下启动。空值、内置公开默认值
+	// 与部署模板占位符都可使攻击者伪造密码重置令牌（见 issue #106），因此
+	// 配置错误必须以非零退出码终止——否则 systemd/docker 会把"配置错误"
+	// 误判为"正常退出"，重启策略与告警都不会生效。
+	if reason := jwtopt.SigningKeyProblem(); reason != "" {
+		slog.Error("app.signingKey 不可用，拒绝启动", "reason", reason,
+			"hint", "请配置一个随机密钥（例如 openssl rand -base64 32）后重试")
 		os.Exit(1)
 	}
 	preferences.OpenConfigChangeEvent()

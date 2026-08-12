@@ -152,6 +152,9 @@ func configureHTTPContractTestSettings(t *testing.T, conn *gorm.DB) {
 		Actions: []pageConfig.RateLimitRule{
 			{Action: middleware.RateLimitLogin, WindowSeconds: 60, LimitPerIp: 5},
 			{Action: middleware.RateLimitTopicWrite, WindowSeconds: 60, LimitPerIp: 5},
+			{Action: middleware.RateLimitTotpSetup, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpEnable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpDisable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
 		},
 	})
 	hotdataserve.ClearRateLimitConfigCache()

@@ -88,7 +88,7 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	if topicEntity.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
-	if !canViewTopicSimple(&topicEntity, req.UserId) {
+	if !CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
 
@@ -205,17 +205,19 @@ func PostWindow(req component.BetterRequest[PostWindowReq]) component.Response {
 	))
 }
 
+// canViewTopic 为历史别名，委托共享可见性谓词 CanViewTopicSimple，避免两处
+// 安全边界实现漂移。调用方：TopicDetail（读路径）。
 func canViewTopic(entity *topics.Entity, userID uint64) bool {
-	if entity.Status != 1 {
-		return userID != 0 && userID == entity.UserId
-	}
-	if entity.ProcessStatus != 0 && !currentUserCanViewProcessedTopic(userID) && !moderationservice.CanModerateAnyCategory(userID, entity.CategoryIds) {
-		return false
-	}
-	return true
+	return CanViewTopicSimple(entity, userID)
 }
 
-func canViewTopicSimple(entity *topics.Entity, userID uint64) bool {
+// CanViewTopicSimple is the shared read-path visibility predicate for topics
+// loaded via the simple projection (topics.GetSimple). It is used by read paths
+// (e.g. PostWindow, reportTargetInfo) and by topic write actions
+// (posts/create, topics/like, etc.) so that hidden (Status != 1) and moderated
+// (ProcessStatus != 0) topics are rejected with the same shape callers see on
+// the read path, see issue #112 (CWE-862).
+func CanViewTopicSimple(entity *topics.Entity, userID uint64) bool {
 	if entity.Status != 1 {
 		return userID != 0 && userID == entity.UserId
 	}
