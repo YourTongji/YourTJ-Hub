@@ -36,6 +36,10 @@ const (
 	ProviderTwitter  = "twitter"
 )
 
+// ErrAccountFrozen 表示账号被冻结，禁止通过 OAuth 重新获取论坛会话。
+// controller 依据该 sentinel error 渲染 403 冻结错误页（与 OIDC exchange 的冻结语义一致）。
+var ErrAccountFrozen = errors.New("账号已冻结，禁止 OAuth 登录")
+
 // InitOAuth configures available OAuth providers.
 func InitOAuth() {
 	gothic.Store = sessionstore.GetSession()
@@ -106,6 +110,10 @@ func ProcessOAuthCallback(gothUser goth.User) (*users.EntityComplete, error) {
 		user, err := users.Get(existingOAuth.UserId)
 		if err != nil {
 			return nil, fmt.Errorf("获取用户信息失败: %w", err)
+		}
+		// 冻结账号禁止通过 OAuth（goth）重新获取论坛会话。
+		if user.IsFrozen == users.StatusFrozen {
+			return nil, ErrAccountFrozen
 		}
 		// 机器人（Agent）账号禁止通过 OAuth（goth）登录。
 		if user.IsBot() {
