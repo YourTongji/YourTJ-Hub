@@ -111,8 +111,11 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		Errors:       []ImportError{},
 	}
 
-	rows, err := loadManifestFiles(filepath.Dir(manifestPath), manifest)
+	rows, fileCounts, err := loadManifestFiles(filepath.Dir(manifestPath), manifest)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateManifestCounts(manifest, fileCounts); err != nil {
 		return nil, err
 	}
 	report.TotalLines = len(rows.courses) + len(rows.instructors) + len(rows.offerings)
@@ -193,8 +196,10 @@ type importRows struct {
 
 // loadManifestFiles 读取并校验 manifest 列出的 JSONL 文件。
 // 文件路径相对 manifest 所在目录解析，拒绝绝对路径与父目录引用。
-func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows, error) {
+// 返回各文件的解析行数（文件名 -> 非空行数），供 manifest.counts 校验。
+func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows, map[string]int, error) {
 	var rows importRows
+	fileCounts := make(map[string]int, len(manifest.Files))
 	// manifest.Files 是 map，迭代顺序随机；按文件名排序保证多 JSONL 文件
 	// 的处理顺序确定（重复行"谁被隔离"在 dry-run 与真实导入间一致）。
 	names := make([]string, 0, len(manifest.Files))
@@ -205,41 +210,62 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 	for _, name := range names {
 		wantSum := manifest.Files[name]
 		if filepath.IsAbs(name) || strings.Contains(name, "..") {
-			return rows, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
+			return rows, nil, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
 		}
 		path := filepath.Join(manifestDir, name)
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return rows, fmt.Errorf("read %s: %w", path, err)
+			return rows, nil, fmt.Errorf("read %s: %w", path, err)
 		}
 		sum := sha256.Sum256(data)
 		if got := hex.EncodeToString(sum[:]); got != wantSum {
-			return rows, fmt.Errorf("checksum mismatch for %s: want %s got %s", name, wantSum, got)
+			return rows, nil, fmt.Errorf("checksum mismatch for %s: want %s got %s", name, wantSum, got)
 		}
+		var n int
 		switch {
 		case strings.HasPrefix(name, "courses"):
-			if err := parseJSONL(data, &rows.courses); err != nil {
-				return rows, fmt.Errorf("parse %s: %w", name, err)
-			}
+			n, err = parseJSONL(data, &rows.courses)
 		case strings.HasPrefix(name, "instructors"):
-			if err := parseJSONL(data, &rows.instructors); err != nil {
-				return rows, fmt.Errorf("parse %s: %w", name, err)
-			}
+			n, err = parseJSONL(data, &rows.instructors)
 		case strings.HasPrefix(name, "offerings"):
-			if err := parseJSONL(data, &rows.offerings); err != nil {
-				return rows, fmt.Errorf("parse %s: %w", name, err)
-			}
+			n, err = parseJSONL(data, &rows.offerings)
 		default:
-			return rows, fmt.Errorf("unexpected manifest file %s", name)
+			return rows, nil, fmt.Errorf("unexpected manifest file %s", name)
 		}
+		if err != nil {
+			return rows, nil, fmt.Errorf("parse %s: %w", name, err)
+		}
+		fileCounts[name] = n
 	}
-	return rows, nil
+	return rows, fileCounts, nil
 }
 
-func parseJSONL[T any](data []byte, out *[]T) error {
+// validateManifestCounts 校验 manifest.counts 与各 JSONL 文件实际解析行数一致。
+// 未声明 counts 的旧 manifest 不校验（向前兼容）；声明后逐文件强制一致，
+// 不一致说明包被截断/篡改（计数是 sha256 之外的第二道完整性防线），
+// 在 dry-run 阶段即拒绝，避免半包被静默导入。
+func validateManifestCounts(manifest ImportManifest, fileCounts map[string]int) error {
+	if len(manifest.Counts) == 0 {
+		return nil
+	}
+	for name, want := range manifest.Counts {
+		got, ok := fileCounts[name]
+		if !ok {
+			return fmt.Errorf("manifest counts: no rows parsed for %s", name)
+		}
+		if got != want {
+			return fmt.Errorf("manifest counts mismatch for %s: want %d got %d", name, want, got)
+		}
+	}
+	return nil
+}
+
+// parseJSONL 解析 JSONL 数据并追加到 out，返回非空行数。
+func parseJSONL[T any](data []byte, out *[]T) (int, error) {
 	scanner := bufio.NewScanner(strings.NewReader(string(data)))
 	scanner.Buffer(make([]byte, 1024*1024), 1024*1024)
 	line := 0
+	count := 0
 	for scanner.Scan() {
 		line++
 		text := strings.TrimSpace(scanner.Text())
@@ -248,11 +274,12 @@ func parseJSONL[T any](data []byte, out *[]T) error {
 		}
 		var row T
 		if err := json.Unmarshal([]byte(text), &row); err != nil {
-			return fmt.Errorf("line %d: %w", line, err)
+			return 0, fmt.Errorf("line %d: %w", line, err)
 		}
 		*out = append(*out, row)
+		count++
 	}
-	return scanner.Err()
+	return count, scanner.Err()
 }
 
 // validateRows 校验行间约束与依赖；dry-run 与真实导入共用，保证语义一致。

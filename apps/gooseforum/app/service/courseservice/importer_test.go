@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -42,6 +43,76 @@ func writeManifestFixtureWithSource(t *testing.T, source string, files map[strin
 		t.Fatalf("write manifest: %v", err)
 	}
 	return manifestPath
+}
+
+// writeManifestFixtureWithCounts 同 writeManifestFixture，但附加 manifest.counts
+// （文件名 -> 期望行数），用于计数一致性校验测试。
+func writeManifestFixtureWithCounts(t *testing.T, files map[string]string, counts map[string]int) string {
+	t.Helper()
+	dir := t.TempDir()
+	manifestFiles := make(map[string]string, len(files))
+	for name, content := range files {
+		path := filepath.Join(dir, name)
+		if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+			t.Fatalf("write %s: %v", name, err)
+		}
+		sum := sha256.Sum256([]byte(content))
+		manifestFiles[name] = hex.EncodeToString(sum[:])
+	}
+	manifest := fmt.Sprintf("schema_version: 1\nsource: test-fixture\ncounts:\n")
+	for name, count := range counts {
+		manifest += fmt.Sprintf("  %s: %d\n", name, count)
+	}
+	manifest += "files:\n"
+	for name, sum := range manifestFiles {
+		manifest += fmt.Sprintf("  %s: %s\n", name, sum)
+	}
+	manifestPath := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	return manifestPath
+}
+
+// TestImportCatalogValidatesManifestCounts manifest.counts 与实际解析行数一致时
+// dry-run 通过；不一致时（截断/篡改）在 dry-run 阶段即拒绝，不写库。
+func TestImportCatalogValidatesManifestCounts(t *testing.T) {
+	files := map[string]string{
+		"courses.jsonl":     `{"id":"c1","code":"100001","name":"高等数学(A)上"}` + "\n" + `{"id":"c2","code":"100002","name":"线性代数"}` + "\n",
+		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院"}` + "\n",
+		"offerings.jsonl":   `{"id":"o1","course_id":"c1","term":"2025-2026-1"}` + "\n",
+	}
+	// 计数一致：dry-run 通过。
+	ok := writeManifestFixtureWithCounts(t, files, map[string]int{
+		"courses.jsonl": 2, "instructors.jsonl": 1, "offerings.jsonl": 1,
+	})
+	report, err := ImportCatalog(context.Background(), ok, true)
+	if err != nil {
+		t.Fatalf("dry-run with matching counts: %v", err)
+	}
+	if report.TotalLines != 4 {
+		t.Fatalf("expected 4 total lines, got %d", report.TotalLines)
+	}
+	// 计数不一致：拒绝并给出文件级原因，且不写库。
+	bad := writeManifestFixtureWithCounts(t, files, map[string]int{
+		"courses.jsonl": 1, "instructors.jsonl": 1, "offerings.jsonl": 1,
+	})
+	if _, err := ImportCatalog(context.Background(), bad, true); err == nil {
+		t.Fatal("expected counts mismatch error on dry-run")
+	} else if !strings.Contains(err.Error(), "counts mismatch") {
+		t.Fatalf("expected counts mismatch error, got %v", err)
+	}
+	// 计数引用了 manifest 中不存在的文件：同样拒绝。
+	badFile := writeManifestFixtureWithCounts(t, files, map[string]int{
+		"courses.jsonl": 2, "instructors.jsonl": 1, "offerings.jsonl": 1, "reviews.jsonl": 1,
+	})
+	if _, err := ImportCatalog(context.Background(), badFile, true); err == nil {
+		t.Fatal("expected error for counts of unknown file")
+	}
+	// 真实导入同样拒绝，确保半包不会被静默导入。
+	if _, err := ImportCatalog(context.Background(), bad, false); err == nil {
+		t.Fatal("expected counts mismatch error on real import")
+	}
 }
 
 func TestValidateRowsQuarantinesDuplicateCodes(t *testing.T) {

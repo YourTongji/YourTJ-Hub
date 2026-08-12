@@ -8,6 +8,7 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 	"time"
 
@@ -58,6 +59,54 @@ func setupReviewsImportTest(t *testing.T) (courseId, offeringId uint64) {
 		t.Fatalf("create offering source ref: %v", err)
 	}
 	return courseId, offeringId
+}
+
+// writeReviewsManifestFixtureWithCounts 同 writeReviewsManifestFixture，但附加
+// manifest.counts（文件名 -> 期望行数），用于计数一致性校验测试。
+func writeReviewsManifestFixtureWithCounts(t *testing.T, content, rightsApprovalRef string, counts map[string]int) string {
+	t.Helper()
+	dir := t.TempDir()
+	path := filepath.Join(dir, "reviews.jsonl")
+	if err := os.WriteFile(path, []byte(content), 0o600); err != nil {
+		t.Fatalf("write reviews.jsonl: %v", err)
+	}
+	sum := sha256.Sum256([]byte(content))
+	manifest := fmt.Sprintf("schema_version: 1\nsource: test-fixture\nrights_approval_ref: %s\ncounts:\n", rightsApprovalRef)
+	for name, count := range counts {
+		manifest += fmt.Sprintf("  %s: %d\n", name, count)
+	}
+	manifest += fmt.Sprintf("files:\n  reviews.jsonl: %s\n", hex.EncodeToString(sum[:]))
+	manifestPath := filepath.Join(dir, "manifest.yaml")
+	if err := os.WriteFile(manifestPath, []byte(manifest), 0o600); err != nil {
+		t.Fatalf("write manifest: %v", err)
+	}
+	return manifestPath
+}
+
+// TestImportReviewsValidatesManifestCounts manifest.counts 与实际解析行数一致时
+// dry-run 通过；不一致时拒绝（含正式导入），计数是 sha256 之外的第二道防线。
+func TestImportReviewsValidatesManifestCounts(t *testing.T) {
+	setupReviewsImportTest(t)
+	content := `{"offering_external_id":"o1","rating":4,"content":"好","created_at":"2023-01-01T00:00:00Z"}` + "\n" +
+		`{"offering_external_id":"o2","rating":3,"content":"中","created_at":"2023-01-02T00:00:00Z"}` + "\n"
+	ok := writeReviewsManifestFixtureWithCounts(t, content, "approval-1", map[string]int{"reviews.jsonl": 2})
+	report, err := ImportReviews(context.Background(), ok, true)
+	if err != nil {
+		t.Fatalf("dry-run with matching counts: %v", err)
+	}
+	if report.TotalLines != 2 {
+		t.Fatalf("expected 2 total lines, got %d", report.TotalLines)
+	}
+	bad := writeReviewsManifestFixtureWithCounts(t, content, "approval-1", map[string]int{"reviews.jsonl": 1})
+	if _, err := ImportReviews(context.Background(), bad, true); err == nil {
+		t.Fatal("expected counts mismatch error on dry-run")
+	} else if !strings.Contains(err.Error(), "counts mismatch") {
+		t.Fatalf("expected counts mismatch error, got %v", err)
+	}
+	// 真实导入同样拒绝，确保截断的半包不会被静默导入。
+	if _, err := ImportReviews(context.Background(), bad, false); err == nil {
+		t.Fatal("expected counts mismatch error on real import")
+	}
 }
 
 // TestImportReviewsRequiresRightsApproval manifest 缺少 rights_approval_ref 时拒绝（含 dry-run）。
