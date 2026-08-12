@@ -749,3 +749,470 @@ LogoutResponse:
   oneOf:
     - $ref: '#/LogoutSuccess'
     - $ref: '#/ApiFailure'
+
+CourseSummary:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    recentTerms:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+CourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/CourseSummary'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+CourseListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseListResult'
+
+OfferingSummary:
+  type: object
+  required: [id, termCode]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    termCode:
+      type: string
+    termName:
+      type: string
+    campus:
+      type: string
+    faculty:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+CourseDetail:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+    aliases:
+      type: array
+      items:
+        type: string
+    offerings:
+      type: array
+      items:
+        $ref: '#/OfferingSummary'
+  additionalProperties: false
+
+CourseDetailResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseDetail'
+
+ReviewAuthorPayload:
+  type: object
+  required: [kind, label]
+  properties:
+    kind:
+      type: string
+      enum: [anonymous, member, legacy]
+      description: Anonymous and legacy reviews never carry identity fields.
+    label:
+      type: string
+      description: Display label (for example 匿名同学 for anonymous reviews).
+  additionalProperties: false
+  description: Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO.
+
+ReviewViewerPayload:
+  type: object
+  required: [canEdit, canDelete, isHelpful]
+  properties:
+    canEdit:
+      type: boolean
+      description: True when the caller is the review author.
+    canDelete:
+      type: boolean
+      description: True when the caller is the review author.
+    isHelpful:
+      type: boolean
+      description: True when the caller marked the review helpful (only meaningful with an optional JWT).
+  additionalProperties: false
+
+ReviewPayload:
+  type: object
+  required: [id, offeringId, rating, content, contentHtml, author, viewer, helpfulCount, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 5
+      description: Legacy imported reviews may have no rating (null); native reviews are 1..5.
+    content:
+      type: string
+      description: Raw markdown review content; the edit form pre-fills from this field.
+    contentHtml:
+      type: string
+      description: Rendered review content; never the raw markdown.
+    author:
+      $ref: '#/ReviewAuthorPayload'
+    viewer:
+      $ref: '#/ReviewViewerPayload'
+    helpfulCount:
+      type: integer
+      format: int64
+      minimum: 0
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+ReviewListResult:
+  type: array
+  items:
+    $ref: '#/ReviewPayload'
+  description: The raw review array; an empty listing is an empty array, never null.
+
+ReviewListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ReviewListResult'
+    - $ref: '#/ApiFailure'
+
+ReviewWriteRequest:
+  type: object
+  required: [offeringId, rating, content]
+  properties:
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+      minLength: 1
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); rendered into contentHtml by the server.
+    isAnonymous:
+      type: boolean
+      default: false
+      description: When true, the review is displayed without any author identity.
+  additionalProperties: false
+
+ReviewWriteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ReviewPayload'
+
+ReviewWriteResponse:
+  oneOf:
+    - $ref: '#/ReviewWriteSuccess'
+    - $ref: '#/ApiFailure'
+
+ReviewUpdateRequest:
+  type: object
+  properties:
+    rating:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 5
+      description: Omit (or send null) to keep the current rating.
+    content:
+      type: string
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); an empty string clears the body while keeping the review.
+    isAnonymous:
+      type: boolean
+      description: Omit to keep the current anonymity setting.
+  additionalProperties: false
+
+ReviewActionResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              type: boolean
+              const: true
+    - $ref: '#/ApiFailure'
+
+ReviewReportRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+      maxLength: 300
+      description: Optional context, trimmed to 300 runes by the server.
+  additionalProperties: false
+
+ModerationCourseReviewStatusRequest:
+  type: object
+  required: [reviewId, action]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    action:
+      type: string
+      enum: [hide, show]
+  additionalProperties: false
+
+ModerationCourseReviewReportListRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [open, resolved, rejected]
+      description: Defaults to open when omitted.
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Last seen report id for cursor pagination; 0 starts at the newest page.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+      description: Page size for the report queue. The server clamps values to 10..50; values below 10 (including 0) use 10, values above 50 use 50. The schema accepts 1..50 to reflect tolerated input.
+  additionalProperties: false
+
+ModerationCourseReviewReportItem:
+  type: object
+  required: [id, reviewId, reason, note, status, resolution, excerpt, reporter, handler, createdAt, reportCount]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+    status:
+      type: string
+      enum: [open, resolved, rejected]
+    resolution:
+      type: string
+      description: Empty while open.
+    excerpt:
+      type: string
+      description: Trimmed review content (120 runes) or a #id fallback.
+    reporter:
+      $ref: '#/TopicAuthorPayload'
+    handler:
+      $ref: '#/ReportHandlerPayload'
+    createdAt:
+      type: string
+      description: Report creation time in the server's `2006-01-02 15:04:05` format.
+    handledAt:
+      type: string
+      description: Handling time in the server's `2006-01-02 15:04:05` format; present only when the report has been handled.
+    reportCount:
+      type: integer
+      minimum: 1
+      description: Number of open reports aggregated for this review in the current page.
+  additionalProperties: false
+
+ModerationCourseReviewReportListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationCourseReviewReportItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+ModerationCourseReviewReportListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationCourseReviewReportListResult'
+    - $ref: '#/ApiFailure'
+
+ModerationCourseReviewRevealRequest:
+  type: object
+  required: [reviewId, reason]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      description: Mandatory justification; recorded in the restricted operation log.
+  additionalProperties: false
+
+CourseReviewAuthorRevealPayload:
+  type: object
+  required: [reviewId, isAnonymous, source]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    authorUserId:
+      type: integer
+      format: uint64
+      description: Present only for native reviews with a linked author.
+    username:
+      type: string
+      description: Present only for native reviews with a linked author.
+    nickname:
+      type: string
+      description: Present only for native reviews with a linked author.
+    isAnonymous:
+      type: boolean
+    source:
+      type: string
+      description: Empty for native reviews; legacy-import for imported reviews.
+  additionalProperties: false
+
+ModerationCourseReviewRevealResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/CourseReviewAuthorRevealPayload'
+    - $ref: '#/ApiFailure'
+
+TopicAuthorPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the user wears a badge.
+  additionalProperties: false
+
+ReportHandlerPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 while the report is still open (no handler assigned yet); a real user id once handled.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+  additionalProperties: false
+  description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.

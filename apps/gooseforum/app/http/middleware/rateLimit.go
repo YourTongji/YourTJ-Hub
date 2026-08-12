@@ -29,23 +29,27 @@ const (
 	// RateLimitTotpSetup/Enable/Disable 限流 TOTP 账户管理中的凭据校验入口：
 	// setup 校验账户密码、enable/disable 校验 6 位验证码（disable 也接受密码），
 	// 未限流时会话窃取者可无限暴力破解，配额对齐 password.change。
-	RateLimitTotpSetup   = "totp.setup"
-	RateLimitTotpEnable  = "totp.enable"
-	RateLimitTotpDisable = "totp.disable"
-	RateLimitTopicWrite  = "topic.write"
-	RateLimitTopicStatus = "topic.status"
-	RateLimitPostCreate  = "post.create"
-	RateLimitPostDelete  = "post.delete"
-	RateLimitMessageSend = "message.send"
-	RateLimitUpload      = "upload"
-	RateLimitInteract    = "interact"
-	RateLimitLLMSIndex   = "llms.index"
-	RateLimitLLMSFull    = "llms.full"
-	RateLimitLLMSTopic   = "llms.topic"
-	RateLimitMCPAuth     = "mcp.auth"
+	RateLimitTotpSetup     = "totp.setup"
+	RateLimitTotpEnable    = "totp.enable"
+	RateLimitTotpDisable   = "totp.disable"
+	RateLimitTopicWrite    = "topic.write"
+	RateLimitTopicStatus   = "topic.status"
+	RateLimitPostCreate    = "post.create"
+	RateLimitPostDelete    = "post.delete"
+	RateLimitMessageSend   = "message.send"
+	RateLimitUpload        = "upload"
+	RateLimitInteract      = "interact"
+	RateLimitLLMSIndex     = "llms.index"
+	RateLimitLLMSFull      = "llms.full"
+	RateLimitLLMSTopic     = "llms.topic"
+	RateLimitMCPAuth       = "mcp.auth"
+	RateLimitCourseCatalog = "course.catalog"
+	RateLimitReviewWrite   = "course.review.write"
+	RateLimitReviewHelpful = "course.review.helpful"
+	RateLimitReviewReport  = "course.review.report"
+	RateLimitReviewReveal  = "course.review.reveal"
 )
 
-// RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。
 func RateLimit(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {

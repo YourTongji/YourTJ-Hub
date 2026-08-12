@@ -371,9 +371,11 @@ void main() {
           'desc': '技术讨论',
         },
       ],
+      'courses': [],
       'total': 1,
       'usersTotal': 1,
       'categoriesTotal': 1,
+      'coursesTotal': 0,
       'totalPages': 1,
       'pagination': {'page': 1, 'nextPage': 1, 'hasNext': false, 'nextUrl': ''},
     });

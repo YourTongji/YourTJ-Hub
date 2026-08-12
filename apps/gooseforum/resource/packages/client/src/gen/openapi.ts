@@ -374,6 +374,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the course catalog with optional filters */
+        get: operations["listCourses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/courses/{courseId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get one canonical course with offerings, terms, and instructors */
+        get: operations["getCourse"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/courses/{courseId}/reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List visible course reviews for a course or a single offering
+         * @description Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes the
+         *     `viewer` state (canEdit/canDelete/isHelpful); anonymous callers receive the same reviews
+         *     with viewer flags false. Review payloads never contain author identity fields
+         *     (userId/username/avatar): anonymous and legacy reviews expose only a kind/label pair.
+         */
+        get: operations["listCourseReviews"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/course-reviews": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a course review for an offering
+         * @description Authenticated write. Each user can review an offering at most once; a second review for the
+         *     same offering fails with 409 `review.duplicate`. The offering must exist and be visible
+         *     (404 `review.offeringNotFound`). Anonymous reviews are stored and returned without any
+         *     author identity.
+         */
+        post: operations["createCourseReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/course-reviews/{reviewId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        post?: never;
+        /**
+         * Delete the caller's own course review
+         * @description Authenticated write. Only the author can delete a review (403 `review.notOwned`); the review
+         *     enters a deletion quarantine window and stops being listed. Deleting is idempotent: repeating
+         *     DELETE on an already deleted review returns 200 with no further effect, and the author can
+         *     delete a review hidden by moderation (200). Unknown reviews report 404 `review.notFound`.
+         */
+        delete: operations["deleteCourseReview"];
+        options?: never;
+        head?: never;
+        /**
+         * Update the caller's own course review
+         * @description Authenticated write. Only the author can update a review (403 `review.notOwned`); hidden or
+         *     deleted reviews are reported as 404 `review.notFound`. `rating` is optional and must stay in
+         *     1..5 when present. A review that does not exist is also 404 `review.notFound`.
+         */
+        patch: operations["updateCourseReview"];
+        trace?: never;
+    };
+    "/api/forum/course-reviews/{reviewId}/helpful": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /**
+         * Mark a course review as helpful
+         * @description Authenticated write, idempotent: marking an already-helpful review succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`.
+         */
+        put: operations["markReviewHelpful"];
+        post?: never;
+        /**
+         * Unmark a course review as helpful
+         * @description Authenticated write, idempotent: unmarking a review that is not helpful succeeds. Hidden or
+         *     deleted reviews report 404 `review.notFound`.
+         */
+        delete: operations["unmarkReviewHelpful"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/course-reviews/{reviewId}/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a course review
+         * @description Authenticated write. The caller cannot report their own review
+         *     (`report.ownContent`); a second open report for the same review is rejected as
+         *     `report.duplicate`. All report failures are legacy HTTP 200 business failures, matching the
+         *     existing forum report behavior.
+         */
+        post: operations["reportCourseReview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Hide or show a course review (CourseManager)
+         * @description CourseManager-scoped moderation. Permission failures and unknown reviews are legacy HTTP 200
+         *     business failures (`permission.denied`, `review.notFound`); the operation is idempotent and
+         *     adjusts course/offering stats projections.
+         */
+        post: operations["moderationCourseReviewStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List the course review report queue (CourseManager)
+         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are a
+         *     legacy HTTP 200 business failure (`permission.denied`). Items never expose the reviewed
+         *     author's identity; the reporter/handler author payloads are the standard forum author shape.
+         */
+        post: operations["moderationCourseReviewReportList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-reveal": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Reveal a course review author identity (Admin only)
+         * @description Admin-only identity reveal for anonymous course review authors. A reason is required and the
+         *     reveal is written to the restricted operation log. Permission failures and unknown reviews
+         *     are legacy HTTP 200 business failures (`permission.denied`, `review.notFound`).
+         */
+        post: operations["moderationCourseReviewReveal"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -685,6 +909,215 @@ export interface components {
                 searchUnavailable?: boolean;
             };
         };
+        CourseSummary: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
+            creditX10: number;
+            aliases?: string[];
+            instructors?: string[];
+            recentTerms?: string[];
+        };
+        CourseListResult: {
+            list: components["schemas"]["CourseSummary"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        CourseListResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseListResult"];
+        };
+        OfferingSummary: {
+            /** Format: uint64 */
+            id: number;
+            termCode: string;
+            termName?: string;
+            campus?: string;
+            faculty?: string;
+            instructors?: string[];
+        };
+        CourseDetail: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            creditX10: number;
+            aliases?: string[];
+            offerings?: components["schemas"]["OfferingSummary"][];
+        };
+        CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseDetail"];
+        };
+        /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
+        ReviewAuthorPayload: {
+            /**
+             * @description Anonymous and legacy reviews never carry identity fields.
+             * @enum {string}
+             */
+            kind: "anonymous" | "member" | "legacy";
+            /** @description Display label (for example 匿名同学 for anonymous reviews). */
+            label: string;
+        };
+        ReviewViewerPayload: {
+            /** @description True when the caller is the review author. */
+            canEdit: boolean;
+            /** @description True when the caller is the review author. */
+            canDelete: boolean;
+            /** @description True when the caller marked the review helpful (only meaningful with an optional JWT). */
+            isHelpful: boolean;
+        };
+        ReviewPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            offeringId: number;
+            /** @description Legacy imported reviews may have no rating (null); native reviews are 1..5. */
+            rating: number | null;
+            /** @description Raw markdown review content; the edit form pre-fills from this field. */
+            content: string;
+            /** @description Rendered review content; never the raw markdown. */
+            contentHtml: string;
+            author: components["schemas"]["ReviewAuthorPayload"];
+            viewer: components["schemas"]["ReviewViewerPayload"];
+            /** Format: int64 */
+            helpfulCount: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The raw review array; an empty listing is an empty array, never null. */
+        ReviewListResult: components["schemas"]["ReviewPayload"][];
+        ReviewListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ReviewListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        ReviewWriteRequest: {
+            /** Format: uint64 */
+            offeringId: number;
+            rating: number;
+            /** @description Markdown review content (max 50000 runes); rendered into contentHtml by the server. */
+            content: string;
+            /**
+             * @description When true, the review is displayed without any author identity.
+             * @default false
+             */
+            isAnonymous: boolean;
+        };
+        ReviewWriteSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ReviewPayload"];
+        };
+        ReviewWriteResponse: components["schemas"]["ReviewWriteSuccess"] | components["schemas"]["ApiFailure"];
+        ReviewUpdateRequest: {
+            /** @description Omit (or send null) to keep the current rating. */
+            rating?: number | null;
+            /** @description Markdown review content (max 50000 runes); an empty string clears the body while keeping the review. */
+            content?: string;
+            /** @description Omit to keep the current anonymity setting. */
+            isAnonymous?: boolean;
+        };
+        ReviewActionResponse: (components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        }) | components["schemas"]["ApiFailure"];
+        ReviewReportRequest: {
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            /** @description Optional context, trimmed to 300 runes by the server. */
+            note?: string;
+        };
+        ModerationCourseReviewStatusRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+            /** @enum {string} */
+            action: "hide" | "show";
+        };
+        ModerationCourseReviewReportListRequest: {
+            /**
+             * @description Defaults to open when omitted.
+             * @enum {string}
+             */
+            status?: "open" | "resolved" | "rejected";
+            /**
+             * Format: uint64
+             * @description Last seen report id for cursor pagination; 0 starts at the newest page.
+             */
+            cursor?: number;
+            /** @description Page size for the report queue. The server clamps values to 10..50; values below 10 (including 0) use 10, values above 50 use 50. The schema accepts 1..50 to reflect tolerated input. */
+            pageSize?: number;
+        };
+        ModerationCourseReviewReportItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            reviewId: number;
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            note: string;
+            /** @enum {string} */
+            status: "open" | "resolved" | "rejected";
+            /** @description Empty while open. */
+            resolution: string;
+            /** @description Trimmed review content (120 runes) or a */
+            excerpt: string;
+            reporter: components["schemas"]["TopicAuthorPayload"];
+            handler: components["schemas"]["ReportHandlerPayload"];
+            /** @description Report creation time in the server's `2006-01-02 15:04:05` format. */
+            createdAt: string;
+            /** @description Handling time in the server's `2006-01-02 15:04:05` format; present only when the report has been handled. */
+            handledAt?: string;
+            /** @description Number of open reports aggregated for this review in the current page. */
+            reportCount: number;
+        };
+        ModerationCourseReviewReportListResult: {
+            items: components["schemas"]["ModerationCourseReviewReportItem"][];
+            /** Format: uint64 */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        ModerationCourseReviewReportListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationCourseReviewReportListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        ModerationCourseReviewRevealRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+            /** @description Mandatory justification; recorded in the restricted operation log. */
+            reason: string;
+        };
+        CourseReviewAuthorRevealPayload: {
+            /** Format: uint64 */
+            reviewId: number;
+            /**
+             * Format: uint64
+             * @description Present only for native reviews with a linked author.
+             */
+            authorUserId?: number;
+            /** @description Present only for native reviews with a linked author. */
+            username?: string;
+            /** @description Present only for native reviews with a linked author. */
+            nickname?: string;
+            isAnonymous: boolean;
+            /** @description Empty for native reviews; legacy-import for imported reviews. */
+            source: string;
+        };
+        ModerationCourseReviewRevealResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseReviewAuthorRevealPayload"];
+        }) | components["schemas"]["ApiFailure"];
+        TopicAuthorPayload: {
+            /** Format: uint64 */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
+            /** @description Present only when the user wears a badge. */
+            wornBadge?: Record<string, never> | null;
+        };
         RevokeSessionRequest: {
             /**
              * Format: uint64
@@ -722,6 +1155,18 @@ export interface components {
             expiresAt: number;
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
+        };
+        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
+        ReportHandlerPayload: {
+            /**
+             * Format: uint64
+             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
+             */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
         };
     };
     responses: never;
@@ -1495,6 +1940,606 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listCourses: {
+        parameters: {
+            query?: {
+                keyword?: string;
+                department?: string;
+                term?: string;
+                campus?: string;
+                page?: number;
+                size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description One page of canonical courses with stable id-desc ordering. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Catalog query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getCourse: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Course detail with offerings grouped by term. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseDetailResponse"];
+                };
+            };
+            /** @description Malformed course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course detail query failed (aliases, offerings, instructors, or terms). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listCourseReviews: {
+        parameters: {
+            query?: {
+                offeringId?: number;
+            };
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Visible reviews ordered newest first. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewListResponse"];
+                };
+            };
+            /** @description Malformed course id or query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Review listing failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    createCourseReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewWriteRequest"];
+            };
+        };
+        responses: {
+            /** @description The created review payload, or a legacy business failure envelope for validation failures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewWriteResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (binding failure). Rating range and required-field failures are legacy HTTP 200 business failures. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The offering does not exist or is not visible. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller already reviewed this offering. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review write rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    deleteCourseReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not the review author, or the account is frozen. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review write rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateCourseReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated review payload, or a legacy business failure envelope for validation failures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewWriteResponse"];
+                };
+            };
+            /** @description Rating outside 1..5. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not the review author, or the account is frozen. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review write rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    markReviewHelpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Helpful rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    unmarkReviewHelpful: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success result, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The review does not exist, is hidden, or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Helpful rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    reportCourseReview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                reviewId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReviewReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result or a report business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Report rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    moderationCourseReviewStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationCourseReviewStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result or a moderation business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationCourseReviewReportList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationCourseReviewReportListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of open (or filtered) reports, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationCourseReviewReportListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationCourseReviewReveal: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationCourseReviewRevealRequest"];
+            };
+        };
+        responses: {
+            /** @description The revealed author identity, or a moderation business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationCourseReviewRevealResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Identity-reveal rate limit exceeded (1h window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

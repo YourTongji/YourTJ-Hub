@@ -431,3 +431,8 @@ func CleanupExpiredExports() {
 		}
 	}
 }
+
+// RecoverStaleTasks 启动时恢复数据导出 worker 类型前缀下崩溃遗留的 Running 任务。
+func RecoverStaleTasks() error {
+	return taskQueue.RecoverStaleRunning(TaskTypeExport, 10*time.Minute)
+}

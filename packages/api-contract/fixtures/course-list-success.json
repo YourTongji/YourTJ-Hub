@@ -1,0 +1,21 @@
+{
+  "result": {
+    "list": [
+      {
+        "id": 42,
+        "primaryCode": "100001",
+        "name": "高等数学(A)上",
+        "department": "数学科学学院",
+        "creditX10": 50,
+        "aliases": ["高数"],
+        "instructors": ["张三", "李四"],
+        "recentTerms": ["2025-2026-1"]
+      }
+    ],
+    "page": 1,
+    "size": 20,
+    "total": 1,
+    "hasNext": false
+  },
+  "code": 0
+}

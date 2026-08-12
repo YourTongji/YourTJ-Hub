@@ -1,0 +1,114 @@
+listCourses:
+  get:
+    tags: [Forum]
+    summary: List the course catalog with optional filters
+    security: []
+    operationId: listCourses
+    parameters:
+      - name: keyword
+        in: query
+        schema:
+          type: string
+          description: Free-text keyword matched against normalized name, primary code, aliases, pinyin, and initials.
+      - name: department
+        in: query
+        schema:
+          type: string
+      - name: term
+        in: query
+        schema:
+          type: string
+          description: Term code such as 2025-2026-1.
+      - name: campus
+        in: query
+        schema:
+          type: string
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+          description: 1-based page number. Out-of-range values are clamped to 1 rather than rejected.
+      - name: size
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+          description: Page size. Out-of-range values are clamped to 1..50 rather than rejected.
+    responses:
+      '200':
+        description: One page of canonical courses with stable id-desc ordering.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CourseListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-list-success.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/course-parse-failed.json
+      '500':
+        description: Catalog query failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+getCourse:
+  get:
+    tags: [Forum]
+    summary: Get one canonical course with offerings, terms, and instructors
+    security: []
+    operationId: getCourse
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Course detail with offerings grouped by term.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CourseDetailResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-detail-success.json
+      '400':
+        description: Malformed course id.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Course does not exist or is hidden.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-not-found.json
+      '500':
+        description: Course detail query failed (aliases, offerings, instructors, or terms).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              internalError:
+                externalValue: ../fixtures/course-internal-error.json

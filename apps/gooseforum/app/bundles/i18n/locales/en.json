@@ -68,6 +68,7 @@
   "permission.pageManager": "Page management",
   "permission.roleManager": "Role management",
   "permission.siteManager": "Site management",
+  "permission.courseManager": "Course review management",
   "meta.notifications": "Notifications",
   "meta.messages": "Messages",
   "meta.drafts": "Drafts",
@@ -78,6 +79,7 @@
   "meta.admin": "Admin",
   "meta.moderation": "Moderation",
   "meta.moderationDesc": "Handle post bans and unbans within your remit.",
+  "meta.internalError": "Service temporarily unavailable",
   "meta.notFound": "Page not found",
   "meta.publish": "New topic",
   "meta.editTopic": "Edit topic",
@@ -88,8 +90,12 @@
   "meta.communityDesc": "Join the community discussion on {site}.",
   "meta.userDesc": "See {username}’s topics, activity, and community connections on {site}.",
   "meta.categoryDesc": "Browse topics in the {category} category.",
+  "course": "Courses",
+  "meta.courseDesc": "Browse the course catalog and reviews on {site}.",
   "terms": "Terms of Service",
   "meta.termsDesc": "Read the Terms of Service of {site}.",
   "common.rateLimited": "Too many attempts. Please try again in {retryAfterSeconds} seconds.",
-  "common.captchaRequired": "Please complete the captcha before submitting."
+  "common.captchaRequired": "Please complete the captcha before submitting.",
+  "meta.courseReviewModeration": "Course review moderation",
+  "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews."
 }

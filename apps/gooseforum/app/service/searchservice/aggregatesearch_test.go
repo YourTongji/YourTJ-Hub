@@ -17,6 +17,7 @@ func TestNormalizeScope(t *testing.T) {
 		{"topics", "topics"},
 		{"users", "users"},
 		{"categories", "categories"},
+		{"courses", "courses"},
 		{"invalid", "all"},
 		{"Topics", "all"},
 	}
@@ -29,8 +30,8 @@ func TestNormalizeScope(t *testing.T) {
 
 func TestScopeQueries(t *testing.T) {
 	queries := scopeQueries(AggregateSearchRequest{Query: "hello", Scope: ScopeAll, Limit: 10})
-	if len(queries) != 3 {
-		t.Fatalf("scope all should produce 3 queries, got %d", len(queries))
+	if len(queries) != 4 {
+		t.Fatalf("scope all should produce 4 queries, got %d", len(queries))
 	}
 	if queries[0].IndexUID != TopicIndex || queries[0].Limit != 10 || queries[0].Offset != 0 {
 		t.Fatalf("topics query wrong: %+v", queries[0])
@@ -41,6 +42,9 @@ func TestScopeQueries(t *testing.T) {
 	if queries[2].IndexUID != CategoryIndex {
 		t.Fatalf("categories query wrong: %+v", queries[2])
 	}
+	if queries[3].IndexUID != CourseIndex {
+		t.Fatalf("courses query wrong: %+v", queries[3])
+	}
 
 	usersOnly := scopeQueries(AggregateSearchRequest{Query: "hello", Scope: ScopeUsers, Limit: 0})
 	if len(usersOnly) != 1 || usersOnly[0].IndexUID != UserIndex {
@@ -49,6 +53,11 @@ func TestScopeQueries(t *testing.T) {
 	if usersOnly[0].Limit != MaxAggregateLimit {
 		t.Fatalf("limit should be capped to MaxAggregateLimit, got %d", usersOnly[0].Limit)
 	}
+
+	coursesOnly := scopeQueries(AggregateSearchRequest{Query: "hello", Scope: ScopeCourses, Limit: 0})
+	if len(coursesOnly) != 1 || coursesOnly[0].IndexUID != CourseIndex {
+		t.Fatalf("courses scope should produce only courses query: %+v", coursesOnly)
+	}
 }
 
 func TestAggregateSearchEmptyQuery(t *testing.T) {
@@ -56,7 +65,7 @@ func TestAggregateSearchEmptyQuery(t *testing.T) {
 	if err != nil {
 		t.Fatalf("empty query should not error, got %v", err)
 	}
-	if resp == nil || resp.Topics == nil || resp.Users == nil || resp.Categories == nil {
+	if resp == nil || resp.Topics == nil || resp.Users == nil || resp.Categories == nil || resp.Courses == nil {
 		t.Fatalf("empty query should return empty slices, got %+v", resp)
 	}
 }
