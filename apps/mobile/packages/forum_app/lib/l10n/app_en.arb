@@ -425,6 +425,7 @@
   "settingsLogout": "Log out",
   "settingsLogoutConfirm": "Log out of yourtj?",
   "commonParseFailed": "Failed to parse page data",
+  "commonLoadFailed": "Failed to load",
   "topicEmpty": "No topics yet",
   "settingsAvatarUploaded": "Avatar uploaded: {url}",
   "@settingsAvatarUploaded": {

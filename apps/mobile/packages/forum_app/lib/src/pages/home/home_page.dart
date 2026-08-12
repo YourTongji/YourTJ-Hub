@@ -12,9 +12,10 @@ import '../../../l10n/app_localizations.dart';
 import '../../asset_url.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
+import '../../server_messages.dart';
 import '../../theme_mode.dart';
-import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
+import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 
 /// 首页:公告 + 话题流(web HomePage.vue 的移动端形态)。
@@ -203,7 +204,8 @@ class _HomePageState extends ConsumerState<HomePage> {
       ),
       body: _page.when(
         loading: () => const GfTopicFeedSkeleton(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) =>
+            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (props) {
           return Column(
             children: [

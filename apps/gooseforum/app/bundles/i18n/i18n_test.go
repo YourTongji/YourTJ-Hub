@@ -1,6 +1,9 @@
 package i18n
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestNormalize(t *testing.T) {
 	cases := map[string]string{
@@ -53,5 +56,79 @@ func TestFunc(t *testing.T) {
 	tr := Func("ja")
 	if got := tr("search"); got != "検索" {
 		t.Errorf(`Func("ja")("search") = %q, want "検索"`, got)
+	}
+}
+
+func TestServerMessage(t *testing.T) {
+	fallback := "Failed to load"
+	cases := []struct {
+		name     string
+		lang     string
+		code     string
+		params   map[string]any
+		want     string
+		contains string
+		notWant  string
+	}{
+		{
+			name: "flat serverMessages key",
+			lang: "en",
+			code: "topic.notFound",
+			want: "The topic does not exist or has been deleted.",
+		},
+		{
+			name: "dotted server key",
+			lang: "en",
+			code: "common.operation.failed",
+			want: "Operation failed. Please try again later.",
+		},
+		{
+			name: "unknown code falls back",
+			lang: "en",
+			code: "some.unknown.code",
+			want: fallback,
+		},
+		{
+			name: "empty code falls back",
+			lang: "en",
+			code: "",
+			want: fallback,
+		},
+		{
+			name:     "unknown code never leaks raw code",
+			lang:     "en",
+			code:     "some.unknown.code",
+			want:     fallback,
+			notWant:  "some.unknown.code",
+		},
+		{
+			name:     "unsupported lang falls back to zh",
+			lang:     "ko",
+			code:     "topic.notFound",
+			contains: "话题不存在",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := ServerMessage(tt.lang, tt.code, tt.params, fallback)
+			if tt.want != "" && got != tt.want {
+				t.Errorf("ServerMessage(%q, %q) = %q, want %q", tt.lang, tt.code, got, tt.want)
+			}
+			if tt.contains != "" && !strings.Contains(got, tt.contains) {
+				t.Errorf("ServerMessage(%q, %q) = %q, want it to contain %q", tt.lang, tt.code, got, tt.contains)
+			}
+			if tt.notWant != "" && strings.Contains(got, tt.notWant) {
+				t.Errorf("ServerMessage(%q, %q) = %q, must not contain %q", tt.lang, tt.code, got, tt.notWant)
+			}
+		})
+	}
+}
+
+func TestServerMessageInterpolation(t *testing.T) {
+	// common.rateLimited carries a {retryAfterSeconds} placeholder.
+	got := ServerMessage("en", "common.rateLimited", map[string]any{"retryAfterSeconds": 30}, "fallback")
+	want := "Too many attempts. Please try again in 30 seconds."
+	if got != want {
+		t.Errorf("ServerMessage interpolated = %q, want %q", got, want)
 	}
 }

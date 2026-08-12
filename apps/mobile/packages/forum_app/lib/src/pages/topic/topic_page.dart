@@ -10,6 +10,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
 import '../../images/image_upload.dart';
+import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
@@ -540,7 +541,8 @@ class _TopicPageState extends ConsumerState<TopicPage> {
       ),
       body: _page.when(
         loading: () => const GfTopicDetailSkeleton(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) =>
+            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (props) {
           final PostPayload? mainPost = _mainPost(_posts);
           final List<_PostGroup> groups = _postGroups(mainPost: mainPost);

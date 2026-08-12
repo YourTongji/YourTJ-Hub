@@ -96,6 +96,40 @@ func Func(lang string) func(key string, args ...any) string {
 	}
 }
 
+// ServerMessage resolves a backend messageCode (e.g. "topic.notFound") into a
+// localized, user-facing message, mirroring the frontend resolveApiMessage:
+// it looks up the flat "serverMessages.<code>" key first, then the dotted
+// "server.<code>" key, interpolates {name} placeholders with params and falls
+// back to the given translated fallback (typically a generic "load failed"
+// message) when nothing is found. The raw messageCode is never returned, so
+// unknown codes stay user-friendly instead of leaking onto the page.
+func ServerMessage(lang, code string, params map[string]any, fallback string) string {
+	lang = Normalize(lang)
+	if code == "" {
+		return fallback
+	}
+	for _, key := range []string{"serverMessages." + code, "server." + code} {
+		if template, ok := lookup(lang, key); ok {
+			return interpolate(template, mapArgs(params))
+		}
+		if template, ok := lookup(Fallback, key); ok {
+			return interpolate(template, mapArgs(params))
+		}
+	}
+	return fallback
+}
+
+func mapArgs(params map[string]any) []any {
+	if len(params) == 0 {
+		return nil
+	}
+	args := make([]any, 0, len(params)*2)
+	for name, value := range params {
+		args = append(args, name, value)
+	}
+	return args
+}
+
 func lookup(lang, key string) (string, bool) {
 	if dict, ok := dictionaries[lang]; ok {
 		if value, ok := dict[key]; ok {
