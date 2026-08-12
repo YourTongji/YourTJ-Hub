@@ -23,25 +23,55 @@ type ghostIndex interface {
 	DeleteDocuments(identifiers []string, opts *meilisearch.DocumentOptions) (*meilisearch.TaskInfo, error)
 }
 
+// ghostRevalidator 在删除幽灵文档前复核索引文档 ID 在数据库中的最新状态，
+// 用于关闭 rebuild snapshot 与线上事件处理器之间的竞态（PR #151 review P1）：
+// 返回 keep=true 表示该文档当前仍应存在于索引，不得删除。
+// 复核遇到错误时应返回 keep=true（宁可不删，也不误删有效文档）。
+type ghostRevalidator func(id string) (keep bool, err error)
+
 // cleanupGhostDocuments 删除索引中数据库已不存在的文档（幽灵文档），
-// 使 rebuild 后索引与数据库集合一致。want 为数据库当前应存在于
-// 索引中的文档 ID（字符串形式）集合；返回删除的幽灵文档数量。
-func cleanupGhostDocuments(index ghostIndex, want map[string]struct{}) (int, error) {
+// 使 rebuild 后索引与数据库集合一致。want 为 rebuild snapshot 阶段应存在于
+// 索引中的文档 ID（字符串形式）集合；revalidate 非 nil 时，每个删除候选在
+// 入队删除前都会按数据库最新状态复核，跳过 snapshot 之后新创建或恢复为
+// 可索引的文档（这些文档的事件处理器 upsert 可能晚于 snapshot 到达）。
+// 返回实际入队删除的文档 ID 列表；调用方应在其后对列表执行 replay 复核，
+// 恢复删除入队期间重新变为可索引的文档（见各 Build*Index 的实现）。
+func cleanupGhostDocuments(index ghostIndex, want map[string]struct{}, revalidate ghostRevalidator) ([]string, error) {
 	indexed, err := fetchIndexDocumentIDs(index)
 	if err != nil {
-		return 0, err
+		return nil, err
 	}
 	ghosts := diffGhostIDs(indexed, want)
+	var deleted []string
 	for start := 0; start < len(ghosts); start += ghostDeleteBatchSize {
 		end := start + ghostDeleteBatchSize
 		if end > len(ghosts) {
 			end = len(ghosts)
 		}
-		if _, err := index.DeleteDocuments(ghosts[start:end], nil); err != nil {
-			return 0, fmt.Errorf("delete ghost documents: %w", err)
+		batch := ghosts[start:end]
+		if revalidate != nil {
+			kept := batch[:0]
+			for _, id := range batch {
+				keep, err := revalidate(id)
+				if err != nil {
+					return nil, fmt.Errorf("revalidate ghost document %s: %w", id, err)
+				}
+				if keep {
+					continue
+				}
+				kept = append(kept, id)
+			}
+			batch = kept
 		}
+		if len(batch) == 0 {
+			continue
+		}
+		if _, err := index.DeleteDocuments(batch, nil); err != nil {
+			return nil, fmt.Errorf("delete ghost documents: %w", err)
+		}
+		deleted = append(deleted, batch...)
 	}
-	return len(ghosts), nil
+	return deleted, nil
 }
 
 // fetchIndexDocumentIDs 分页拉取索引中的全部文档 ID（字符串形式）。

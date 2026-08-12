@@ -46,12 +46,12 @@ func TestCleanupGhostDocumentsE2E(t *testing.T) {
 	waitIndexTasks(t, indexName)
 
 	// 3. 清理：只保留 2、4
-	removed, err := cleanupGhostDocuments(index, map[string]struct{}{"2": {}, "4": {}})
+	deleted, err := cleanupGhostDocuments(index, map[string]struct{}{"2": {}, "4": {}}, nil)
 	if err != nil {
 		t.Fatalf("cleanupGhostDocuments error: %v", err)
 	}
-	if removed != 2 {
-		t.Fatalf("removed = %d, want 2", removed)
+	if len(deleted) != 2 {
+		t.Fatalf("removed = %d, want 2", len(deleted))
 	}
 	waitIndexTasks(t, indexName)
 
@@ -73,12 +73,14 @@ func TestCleanupGhostDocumentsE2E(t *testing.T) {
 
 	// 5. 不存在的索引视为无文档可清理（不报错）
 	missingName := fmt.Sprintf("ghost-cleanup-missing-%d", unique%1000000)
-	if _, err := cleanupGhostDocuments(client.Index(missingName), map[string]struct{}{"1": {}}); err != nil {
+	if _, err := cleanupGhostDocuments(client.Index(missingName), map[string]struct{}{"1": {}}, nil); err != nil {
 		t.Fatalf("cleanup on missing index should not error: %v", err)
 	}
 }
 
 // waitIndexTasks 轮询指定索引的任务直到全部进入终态。
+// GetTasks 返回错误时立即失败（保留错误信息），避免连接/配置故障
+// 被静默重试掩盖到超时（PR #151 review 建议）。
 func waitIndexTasks(t *testing.T, indexUID string) {
 	t.Helper()
 	client := meiliconnect.GetClient()
@@ -86,8 +88,7 @@ func waitIndexTasks(t *testing.T, indexUID string) {
 	for time.Now().Before(deadline) {
 		tasks, err := client.GetTasks(&meilisearch.TasksQuery{IndexUIDS: []string{indexUID}})
 		if err != nil {
-			time.Sleep(100 * time.Millisecond)
-			continue
+			t.Fatalf("GetTasks(%s) error: %v", indexUID, err)
 		}
 		done := true
 		for _, task := range tasks.Results {

@@ -2,6 +2,7 @@ package searchservice
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"testing"
 
@@ -69,15 +70,18 @@ func TestCleanupGhostDocumentsRemovesOnlyGhosts(t *testing.T) {
 	}
 	want := map[string]struct{}{"2": {}, "4": {}}
 
-	removed, err := cleanupGhostDocuments(fake, want)
+	deleted, err := cleanupGhostDocuments(fake, want, nil)
 	if err != nil {
 		t.Fatalf("cleanupGhostDocuments error: %v", err)
 	}
-	if removed != 2 {
-		t.Fatalf("removed = %d, want 2", removed)
+	if len(deleted) != 2 {
+		t.Fatalf("removed = %d, want 2", len(deleted))
 	}
 	if len(fake.deleted) != 2 || fake.deleted[0] != "1" || fake.deleted[1] != "3" {
 		t.Fatalf("deleted = %v, want [1 3]", fake.deleted)
+	}
+	if len(deleted) != 2 || deleted[0] != "1" || deleted[1] != "3" {
+		t.Fatalf("returned deleted = %v, want [1 3]", deleted)
 	}
 }
 
@@ -88,12 +92,12 @@ func TestCleanupGhostDocumentsNoGhosts(t *testing.T) {
 	}
 	want := map[string]struct{}{"1": {}, "2": {}}
 
-	removed, err := cleanupGhostDocuments(fake, want)
+	deleted, err := cleanupGhostDocuments(fake, want, nil)
 	if err != nil {
 		t.Fatalf("cleanupGhostDocuments error: %v", err)
 	}
-	if removed != 0 {
-		t.Fatalf("removed = %d, want 0", removed)
+	if len(deleted) != 0 {
+		t.Fatalf("removed = %d, want 0", len(deleted))
 	}
 	if len(fake.deleted) != 0 {
 		t.Fatalf("deleted = %v, want none", fake.deleted)
@@ -103,19 +107,19 @@ func TestCleanupGhostDocumentsNoGhosts(t *testing.T) {
 func TestCleanupGhostDocumentsMissingIndex(t *testing.T) {
 	fake := &fakeGhostIndex{getErr: &meilisearch.Error{StatusCode: http.StatusNotFound}}
 
-	removed, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}})
+	deleted, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}}, nil)
 	if err != nil {
 		t.Fatalf("missing index should not error, got %v", err)
 	}
-	if removed != 0 {
-		t.Fatalf("removed = %d, want 0", removed)
+	if len(deleted) != 0 {
+		t.Fatalf("removed = %d, want 0", len(deleted))
 	}
 }
 
 func TestCleanupGhostDocumentsGetErrorFails(t *testing.T) {
 	fake := &fakeGhostIndex{getErr: &meilisearch.Error{StatusCode: http.StatusInternalServerError}}
 
-	if _, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}}); err == nil {
+	if _, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}}, nil); err == nil {
 		t.Fatal("non-404 fetch error should fail the rebuild")
 	}
 }
@@ -127,8 +131,43 @@ func TestCleanupGhostDocumentsDeleteErrorFails(t *testing.T) {
 		deleteErr: &meilisearch.Error{StatusCode: http.StatusInternalServerError},
 	}
 
-	if _, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}}); err == nil {
+	if _, err := cleanupGhostDocuments(fake, map[string]struct{}{"1": {}}, nil); err == nil {
 		t.Fatal("delete error should fail the rebuild")
+	}
+}
+
+func TestCleanupGhostDocumentsRevalidateSkipsKept(t *testing.T) {
+	fake := &fakeGhostIndex{
+		docs:  []meilisearch.Hit{numericHit(1), numericHit(2), numericHit(3)},
+		total: 3,
+	}
+	// 索引中有 1/2/3；want 为空；但 revalidate 认为 2、3 当前仍应保留
+	// （模拟 snapshot 之后被事件处理器 upsert 的文档），只有 1 是真正的幽灵。
+	revalidate := func(id string) (bool, error) {
+		return id == "2" || id == "3", nil
+	}
+	deleted, err := cleanupGhostDocuments(fake, map[string]struct{}{}, revalidate)
+	if err != nil {
+		t.Fatalf("cleanupGhostDocuments error: %v", err)
+	}
+	if len(deleted) != 1 || deleted[0] != "1" {
+		t.Fatalf("deleted = %v, want [1]", deleted)
+	}
+	if len(fake.deleted) != 1 || fake.deleted[0] != "1" {
+		t.Fatalf("fake.deleted = %v, want [1]", fake.deleted)
+	}
+}
+
+func TestCleanupGhostDocumentsRevalidateErrorFails(t *testing.T) {
+	fake := &fakeGhostIndex{
+		docs:  []meilisearch.Hit{numericHit(1)},
+		total: 1,
+	}
+	revalidate := func(id string) (bool, error) {
+		return false, fmt.Errorf("db unavailable")
+	}
+	if _, err := cleanupGhostDocuments(fake, map[string]struct{}{}, revalidate); err == nil {
+		t.Fatal("revalidate error should fail the rebuild")
 	}
 }
 

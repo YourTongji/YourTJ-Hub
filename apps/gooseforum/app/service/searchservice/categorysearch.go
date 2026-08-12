@@ -1,6 +1,7 @@
 package searchservice
 
 import (
+	"errors"
 	"fmt"
 	"log/slog"
 
@@ -8,6 +9,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
 
 // CategorySearchDocument 分类搜索文档结构（只含公开可搜字段 + 拼音辅助字段）
@@ -98,9 +100,47 @@ func BuildCategoryIndex() (*IndexBuildResult, error) {
 		processedCount++
 	}
 
-	ghostRemoved, err := cleanupGhostDocuments(index, expectedIDs)
+	// 幽灵清理删除候选在入队前按数据库最新状态复核，跳过 snapshot 之后
+	// 新增的分类（PR #151 review P1 竞态）。
+	revalidateCategoryGhost := func(id string) (bool, error) {
+		categoryID := cast.ToUint64(id)
+		if categoryID == 0 {
+			return false, nil
+		}
+		entity, err := category.GetWithError(categoryID)
+		if err != nil {
+			// 记录不存在 → 确实是幽灵；其他错误（如 DB 瞬时故障）→ 保守保留。
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return true, err
+		}
+		return entity.Id != 0, nil
+	}
+	deletedIDs, err := cleanupGhostDocuments(index, expectedIDs, revalidateCategoryGhost)
 	if err != nil {
 		return nil, fmt.Errorf("清理分类索引幽灵文档失败: %w", err)
+	}
+	ghostRemoved := len(deletedIDs)
+
+	// replay：删除任务入队后、执行前新增的分类重新入队 upsert，
+	// 排在 delete 之后执行，确保有效文档最终不丢失。
+	replayedCount := 0
+	for _, id := range deletedIDs {
+		categoryID := cast.ToUint64(id)
+		if categoryID == 0 {
+			continue
+		}
+		entity := category.Get(categoryID)
+		if entity.Id == 0 {
+			continue
+		}
+		if _, err := BuildSingleCategorySearchDocument(&entity); err != nil {
+			failedCount++
+			slog.Warn("failed to restore category search document after ghost cleanup", "categoryId", entity.Id, "err", err)
+			continue
+		}
+		replayedCount++
 	}
 
 	result := &IndexBuildResult{
@@ -113,7 +153,8 @@ func BuildCategoryIndex() (*IndexBuildResult, error) {
 	fmt.Printf("\n=== Meilisearch 分类索引构建完成 ===\n")
 	fmt.Printf("成功索引: %d 个分类\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个分类\n", result.FailedCount)
-	fmt.Printf("删除幽灵文档: %d 个\n", result.GhostRemoved)
+	fmt.Printf("提交幽灵文档删除任务: %d 个\n", result.GhostRemoved)
+	fmt.Printf("清理期间恢复索引文档: %d 个\n", replayedCount)
 	return result, nil
 }
 
