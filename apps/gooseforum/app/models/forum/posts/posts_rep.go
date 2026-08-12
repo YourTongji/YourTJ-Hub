@@ -150,8 +150,12 @@ func MarkUserDeleted(id uint64, deletedBy uint64, reason string) error {
 
 // MarkUserDeletedKeepVisible 标记回复为用户删除但保留行可见（墓碑态）：
 // 用于"存在子回复"的场景，讨论树需要保留该行以维持结构，正文由前端渲染为占位。
+// 墓碑态行不置 deleted_at（保持讨论树可见），以 updated_at 作为删除时刻的近似：
+// 必须显式写入 updated_at=now（builder() 走 Table()，GORM 的 Updates(map) 不会自动
+// 填充 autoUpdateTime），否则 30 天恢复窗口会按最后一次编辑时间判定而立即失效。
 func MarkUserDeletedKeepVisible(id uint64, deletedBy uint64, reason string) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"updated_at":        time.Now(),
 		"visibility_status": VisibilityUserDeleted,
 		"retention_status":  RetentionRecoverable,
 		"deleted_by":        deletedBy,
@@ -165,6 +169,7 @@ func MarkDeletedKeepVisible(id uint64, visibility string, deletedBy uint64, reas
 		visibility = VisibilityUserDeleted
 	}
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+		"updated_at":        time.Now(),
 		"visibility_status": visibility,
 		"retention_status":  RetentionRecoverable,
 		"deleted_by":        deletedBy,

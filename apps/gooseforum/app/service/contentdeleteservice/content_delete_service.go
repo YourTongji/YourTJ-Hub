@@ -224,11 +224,23 @@ func DeletePostAsModerator(moderatorID uint64, postID uint64, reason string) err
 	if strings.TrimSpace(reason) == "" {
 		return component.NewMessageError(component.MessageRequestInvalidParams, "管理员删除回复必须填写原因", nil)
 	}
-	post := posts.Get(postID)
+	// 用 UnscopedGet 读取含已软删行：作者自删（USER_DELETED）的回复也必须能
+	// 升级为治理删除，否则"自删+恢复"可绕过版主删除（review H1 逃罚）。
+	post := posts.UnscopedGet(postID)
 	if post.Id == 0 {
 		return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
 	}
-	if post.VisibilityStatus != posts.VisibilityActive || post.RetentionStatus != posts.RetentionNormal {
+	// 首楼守卫：治理删除话题应走 admin/topics/delete，不允许通过回复删除端点
+	// 删除话题首楼（否则话题渲染/搜索索引/统计错乱，review H3）。
+	if post.PostNo <= 1 {
+		return component.NewMessageError(component.MessageRequestInvalidParams, "不能删除话题首楼，请使用话题删除", nil)
+	}
+	// 幂等：已 PURGED 或隐私擦除（ACCOUNT_ANONYMIZED）的内容不再处理。
+	if post.RetentionStatus == posts.RetentionPurged {
+		return nil
+	}
+	// 幂等：已是治理删除态，直接成功（不覆盖原删除原因）。
+	if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
 		return nil
 	}
 	if err := posts.MarkModeratorRemoved(postID, moderatorID, reason); err != nil {
@@ -450,7 +462,7 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 			}
 			return component.NewMessageError(component.MessageContentPurgeFailed, "永久删除失败", component.MessageParams{"error": err.Error()})
 		}
-		purgeTopicPosts(contentID)
+		purgeTopicPosts(contentID, topic.UserId)
 		fileusageservice.PurgeTargetFiles(topicsTarget(contentID))
 		notificationservice.NullifyContentPreviews(contentID, 0)
 		clearTopicCaches(contentID)
@@ -557,25 +569,40 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 	}
 }
 
-func purgeTopicPosts(topicID uint64) {
+func purgeTopicPosts(topicID uint64, ownerID uint64) {
 	var topicPosts []*posts.Entity
 	if err := posts.ListUnscopedByTopicID(topicID, &topicPosts); err != nil {
 		slog.Error("failed to load topic posts for purge", "topicId", topicID, "error", err)
 		return
 	}
-	// 只清理已进入删除生命周期（作者级联删除/墓碑）的回复：
-	// 其他用户仍 ACTIVE 的回复属于他人内容，不得随作者永久删除被静默清除
-	// （PRD Out of Scope：不允许删除他人内容）。这些回复保留正文与附件，
-	// 等待管理端恢复或另行处置。
 	for _, post := range topicPosts {
-		if post == nil || post.VisibilityStatus == posts.VisibilityActive {
+		if post == nil {
 			continue
 		}
-		if err := posts.MarkPurged(post.Id); err != nil {
-			slog.Error("failed to purge topic post", "topicId", topicID, "postId", post.Id, "err", err)
+		// 话题作者本人的回复（含 ACTIVE 与已进入生命周期）随话题永久删除一起清空：
+		// 作者对本人内容的永久删除应彻底生效（PRD R4/R12），否则自回帖的正文与
+		// 附件会永远留在库中且附件仍可公开下载（review H2）。
+		if post.UserId == ownerID {
+			if err := posts.MarkPurged(post.Id); err != nil {
+				slog.Error("failed to purge owner topic post", "topicId", topicID, "postId", post.Id, "err", err)
+				continue
+			}
+			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
 			continue
 		}
-		fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+		// 其他用户已进入删除生命周期（级联软删/墓碑/独立软删）的回复：清空。
+		if post.VisibilityStatus != posts.VisibilityActive {
+			if err := posts.MarkPurged(post.Id); err != nil {
+				slog.Error("failed to purge topic post", "topicId", topicID, "postId", post.Id, "err", err)
+				continue
+			}
+			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+			continue
+		}
+		// 其他用户仍 ACTIVE 的回复属于他人内容，正文保留（PRD Out of Scope：
+		// 不允许删除他人内容），但话题已永久删除、回复不可达，其附件不得再
+		// 公开下载——转入 RECOVERING，由 retention 定时任务清理。
+		fileusageservice.HardenTargetFiles(postsTarget(post.Id), time.Now().Add(RecoveryWindow))
 	}
 }
 
@@ -614,7 +641,7 @@ func ExpireRecoverableBatch(limit int) error {
 	expiredTopics := topics.ExpireRecoverable(before, limit)
 	for _, topic := range expiredTopics {
 		_ = topics.MarkPurged(topic.Id)
-		purgeTopicPosts(topic.Id)
+		purgeTopicPosts(topic.Id, topic.UserId)
 		fileusageservice.PurgeTargetFiles(topicsTarget(topic.Id))
 		notificationservice.NullifyContentPreviews(topic.Id, 0)
 		hotdataserve.ClearTopicListCache()
@@ -656,11 +683,15 @@ func postsTarget(postID uint64) fileusageservice.TargetRef {
 
 // DeleteAllUserContent 注销账号时删除该用户全部话题与回复（PRD R10 mode=delete）。
 // 删除自己话题不会删除他人回复；删除回复只删自己的回复，他人内容不受影响。
+// 用 id 递减游标推进分页：即使个别删除持续失败（话题/回复保持 ACTIVE），
+// 游标也逐批推进，避免"从头再查 + 恒失败"导致的无限循环挂死（review M2）。
+// 失败项记录日志并跳过（注销尽力而为，不因单条失败阻断整个注销）。
 func DeleteAllUserContent(userID uint64) error {
 	const batchSize = 100
 	// 先删话题（级联删除该话题下所有回复，含他人回复——话题删除语义即整体移除讨论）。
+	var topicCursor uint64
 	for {
-		activeTopics := topics.GetActiveByUserPage(userID, 0, batchSize)
+		activeTopics := topics.GetActiveByUserPage(userID, topicCursor, batchSize)
 		if len(activeTopics) == 0 {
 			break
 		}
@@ -669,10 +700,15 @@ func DeleteAllUserContent(userID uint64) error {
 				slog.Warn("delete user topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
 			}
 		}
+		topicCursor = activeTopics[len(activeTopics)-1].Id
+		if topicCursor == 0 {
+			break
+		}
 	}
 	// 再删剩余未删除的本人回复（他人话题下的回复）。
+	var postCursor uint64
 	for {
-		activePosts := posts.GetActiveByUserPage(userID, 0, batchSize)
+		activePosts := posts.GetActiveByUserPage(userID, postCursor, batchSize)
 		if len(activePosts) == 0 {
 			break
 		}
@@ -680,6 +716,10 @@ func DeleteAllUserContent(userID uint64) error {
 			if _, err := DeletePostByUser(userID, post.Id); err != nil {
 				slog.Warn("delete user post on account close failed", "userId", userID, "postId", post.Id, "err", err)
 			}
+		}
+		postCursor = activePosts[len(activePosts)-1].Id
+		if postCursor == 0 {
+			break
 		}
 	}
 	return nil

@@ -12,6 +12,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
+	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 // DeleteTopicByUserReq 用户删除自己的话题请求。
@@ -264,6 +265,10 @@ func AccountClose(req component.BetterRequest[AccountCloseReq]) component.Respon
 		slog.Error("increment token version on account close failed", "userId", req.UserId, "err", err)
 		return component.FailResponseCode(component.MessageOperationFailed, nil)
 	}
+	// 失效 user-info 缓存：users.CloseAccount 只改 DB（软删），不清缓存的话
+	// authsessionservice.ValidateToken 会在缓存 TTL（2 分钟）内继续读到旧用户，
+	// 旧 token 仍被接受，注销即时性被破坏（review E）。
+	userservice.InvalidateUserInfoCache(req.UserId)
 	slog.Info("account closed", "userId", req.UserId, "mode", req.Params.Mode)
 	return component.SuccessResponse(true)
 }
