@@ -15,6 +15,22 @@ const (
 	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
 )
 
+// 可见性/保留状态常量，与 topics 包保持一致语义。
+const (
+	VisibilityActive            = "ACTIVE"
+	VisibilityUserDeleted       = "USER_DELETED"
+	VisibilityModeratorRemoved  = "MODERATOR_REMOVED"
+	VisibilityAccountAnonymized = "ACCOUNT_ANONYMIZED"
+)
+
+const (
+	RetentionNormal       = "NORMAL"
+	RetentionRecoverable  = "RECOVERABLE"
+	RetentionEvidenceHold = "EVIDENCE_HOLD"
+	RetentionLegalHold    = "LEGAL_HOLD"
+	RetentionPurged       = "PURGED"
+)
+
 type Entity struct {
 	Id              uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;index:idx_posts_topic_id,priority:2;" json:"id"`
 	TopicId         uint64         `gorm:"column:topic_id;not null;default:0;index:idx_posts_topic_created,priority:1;uniqueIndex:idx_posts_topic_no,priority:1;index:idx_posts_topic_id,priority:1;index:idx_posts_topic_process,priority:1;" json:"topicId"`
@@ -28,6 +44,12 @@ type Entity struct {
 	CreatedAt       time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;index:idx_posts_topic_created,priority:2;" json:"createdAt"`
 	UpdatedAt       time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt `json:"-"`
+
+	// 删除生命周期状态（visibility_status × retention_status）
+	VisibilityStatus string `gorm:"column:visibility_status;type:varchar(32);not null;default:'ACTIVE';index:idx_posts_visibility_retention,priority:1;" json:"-"`
+	RetentionStatus  string `gorm:"column:retention_status;type:varchar(32);not null;default:'NORMAL';index:idx_posts_visibility_retention,priority:2;" json:"-"`
+	DeletedBy        uint64 `gorm:"column:deleted_by;not null;default:0;" json:"-"`
+	DeleteReason     string `gorm:"column:delete_reason;type:varchar(512);not null;default:'';" json:"-"`
 }
 
 func (itself *Entity) TableName() string {

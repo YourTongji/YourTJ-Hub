@@ -2,7 +2,6 @@ package api
 
 import (
 	"context"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -20,6 +19,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
 	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/llmsservice"
@@ -472,7 +472,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 }
 
 type DeletePostReq struct {
-	PostId uint64 `json:"postId"`
+	PostId   uint64 `json:"postId"`
+	Force    bool   `json:"force"`
+	Password string `json:"password"`
 }
 
 type UpdatePostReq struct {
@@ -547,6 +549,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
@@ -554,25 +559,18 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 回复删除沿用读路径可见性守卫，避免隐藏或封禁话题中的回复继续被写操作探测。
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止删除读路径不可见（隐藏/封禁）话题中的回复
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	deletedPost, err := postservice.DeleteTopicPost(postEntity.Id, req.UserId)
+
+	// PR #99 删除生命周期：软删 + 墓碑态（保留讨论树），替代 dev 的物理删除实现。
+	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
 	if err != nil {
-		if errors.Is(err, postservice.ErrPostNotFound) {
-			return component.FailResponseCode(component.MessagePostNotFound, nil)
-		}
-		slog.Error("delete post failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
+		return component.FailResponseError(err)
 	}
-	postEntity = deletedPost
-	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-	hotdataserve.ClearTopicListCache()
-	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
-	llmsservice.ClearCache()
-	return component.SuccessResponse(true)
+	return component.SuccessResponse(result)
 }
 
 type LikeTopicReq struct {

@@ -108,6 +108,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
 	viewRouteApp.GET("/terms", forum.Terms)
+	viewRouteApp.GET("/privacy", forum.Privacy)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -201,6 +202,15 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
 	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
+	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
+	forumLoginApi.GET("user/deleted-content", middleware.NoUpdateUserActivity, UpQueryReq(api.DeletedContentList))
+	forumLoginApi.GET("user/my-content", middleware.NoUpdateUserActivity, UpQueryReq(api.MyContentList))
+	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
+	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
+	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
+	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
+	forumLoginApi.POST("user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
+	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
 	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
 	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostDelete), UpButterReq(api.DeletePost))
@@ -227,6 +237,7 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
+	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
 
@@ -260,6 +271,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("topics/source", UpButterReq(api.TopicSource)).
 		POST("topics/edit", UpButterReq(api.EditTopic)).
 		POST("topics/delete", UpButterReq(api.DeleteTopic)).
+		POST("topics/restore", UpButterReq(api.RestoreTopic)).
+		POST("posts/delete", UpButterReq(api.DeletePostAsModerator)).
 		POST("topics/pin-edit", UpButterReq(api.EditTopicPin)).
 		POST("topics/categories-edit", UpButterReq(api.EditTopicCategories)).
 		POST("category-list", UpButterReq(api.GetCategoryList)).
@@ -325,6 +338,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
+		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).
+		POST("save-privacy-policy", UpButterReq(api.SavePrivacyPolicy)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
 		POST("img-upload", api.SaveAdminImgByGinContext).
 		POST("data/export", UpButterReq(api.CreateExportTask)).

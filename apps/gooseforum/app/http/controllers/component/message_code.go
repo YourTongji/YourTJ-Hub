@@ -160,6 +160,18 @@ const (
 )
 
 const (
+	MessageContentDeleteFailed         MessageCode = "content.delete.failed"               // 删除失败。
+	MessageContentRestoreFailed        MessageCode = "content.restore.failed"              // 恢复失败。
+	MessageContentRestoreSuccess       MessageCode = "content.restore.success"             // 内容已恢复。
+	MessageContentPurgeFailed          MessageCode = "content.purge.failed"                // 永久删除失败。
+	MessageContentPurgeSuccess         MessageCode = "content.purge.success"               // 内容已永久删除。
+	MessageContentRecoveryExpired      MessageCode = "content.recovery.expired"            // 已超出恢复窗口，无法恢复。
+	MessageContentNotRecoverable       MessageCode = "content.notRecoverable"              // 该内容不可由作者恢复。
+	MessageContentPrivacyErased        MessageCode = "content.privacy.erased"              // 隐私内容已彻底删除。
+	MessageContentBatchConfirmRequired MessageCode = "content.batchDelete.confirmRequired" // 短时间内删除过多，需要二次确认，params.count。
+)
+
+const (
 	MessageNotificationMarkReadFailed  MessageCode = "notification.markRead.failed"     // 标记单条通知已读失败。
 	MessageNotificationMarkReadSuccess MessageCode = "notification.markRead.success"    // 标记单条通知已读成功。
 	MessageNotificationMarkAllFailed   MessageCode = "notification.markAllRead.failed"  // 标记全部通知已读失败。

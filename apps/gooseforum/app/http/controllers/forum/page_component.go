@@ -11,6 +11,7 @@ const (
 	PageComponentSponsors               PageComponent = "sponsors.index"
 	PageComponentNotifications          PageComponent = "notifications.index"
 	PageComponentTerms                  PageComponent = "terms.index"
+	PageComponentPrivacy                PageComponent = "privacy.index"
 	PageComponentMessages               PageComponent = "messages.index"
 	PageComponentDrafts                 PageComponent = "drafts.index"
 	PageComponentModeration             PageComponent = "moderation.index"
