@@ -1,0 +1,174 @@
+package api
+
+import (
+	"encoding/json"
+	"net/http"
+	"net/http/httptest"
+	"testing"
+
+	"github.com/gin-gonic/gin"
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
+	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
+	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/leancodebox/GooseForum/app/service/oauthservice"
+	"github.com/markbates/goth"
+	"github.com/markbates/goth/gothic"
+)
+
+func setupOAuthCallbackTestDB(t *testing.T) {
+	t.Helper()
+	conn := db.Connect()
+	for _, model := range []any{
+		&users.EntityComplete{},
+		&userOAuth.Entity{},
+		&userSessions.Entity{},
+	} {
+		if err := conn.AutoMigrate(model); err != nil {
+			t.Fatalf("migrate %T: %v", model, err)
+		}
+	}
+}
+
+// stubGothUser 替换 gothic.CompleteUserAuth，模拟第三方 OAuth 回调返回指定用户。
+func stubGothUser(t *testing.T, user goth.User) {
+	t.Helper()
+	original := gothic.CompleteUserAuth
+	gothic.CompleteUserAuth = func(_ http.ResponseWriter, _ *http.Request) (goth.User, error) {
+		return user, nil
+	}
+	t.Cleanup(func() { gothic.CompleteUserAuth = original })
+}
+
+// oauthCallbackRequest 构造 GitHub callback 请求（页面模式，错误页返回 JSON）。
+func oauthCallbackRequest(t *testing.T) (*httptest.ResponseRecorder, *gin.Context) {
+	t.Helper()
+	gin.SetMode(gin.TestMode)
+	recorder := httptest.NewRecorder()
+	c, _ := gin.CreateTestContext(recorder)
+	c.Params = gin.Params{{Key: "provider", Value: oauthservice.ProviderGitHub}}
+	c.Request = httptest.NewRequest(http.MethodGet, "/api/auth/github/callback", nil)
+	c.Request.Header.Set("X-Goose-Page", "true")
+	return recorder, c
+}
+
+func countSessions(t *testing.T, userID uint64) int64 {
+	t.Helper()
+	var count int64
+	if err := db.Connect().Model(&userSessions.Entity{}).Where("user_id = ?", userID).Count(&count).Error; err != nil {
+		t.Fatalf("count sessions: %v", err)
+	}
+	return count
+}
+
+func hasAccessTokenCookie(recorder *httptest.ResponseRecorder) bool {
+	for _, cookie := range recorder.Result().Cookies() {
+		if cookie.Name == "access_token" && cookie.Value != "" {
+			return true
+		}
+	}
+	return false
+}
+
+// TestOAuthCallbackLoginRejectsFrozenUser 复现 issue #130：已绑定 GitHub 的冻结账号
+// 通过 OAuth callback 登录时，必须返回 403、不创建 session、不设置认证 Cookie。
+func TestOAuthCallbackLoginRejectsFrozenUser(t *testing.T) {
+	setupOAuthCallbackTestDB(t)
+
+	user := &users.EntityComplete{
+		Username:    "oauthfrozen",
+		Email:       "oauthfrozen@example.com",
+		IsFrozen:    users.StatusFrozen,
+		IsActivated: users.ActivationSuccess,
+	}
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{
+		UserId:      user.Id,
+		Provider:    oauthservice.ProviderGitHub,
+		ProviderUid: "gh-uid-frozen",
+	}); err != nil {
+		t.Fatalf("create oauth binding: %v", err)
+	}
+
+	stubGothUser(t, goth.User{
+		Provider: oauthservice.ProviderGitHub,
+		UserID:   "gh-uid-frozen",
+		NickName: "oauthfrozen",
+		Email:    "oauthfrozen@example.com",
+	})
+
+	recorder, c := oauthCallbackRequest(t)
+	ProviderCallback(c)
+
+	if recorder.Code != http.StatusForbidden {
+		t.Fatalf("status = %d, want 403 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	var payload struct {
+		Props struct {
+			MessageCode component.MessageCode `json:"messageCode"`
+		} `json:"props"`
+	}
+	if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+		t.Fatalf("decode error page: %v", err)
+	}
+	if payload.Props.MessageCode != component.MessageOAuthAccountFrozen {
+		t.Fatalf("messageCode = %q, want %q", payload.Props.MessageCode, component.MessageOAuthAccountFrozen)
+	}
+	if hasAccessTokenCookie(recorder) {
+		t.Fatal("frozen user must not receive an access_token cookie")
+	}
+	if count := countSessions(t, user.Id); count != 0 {
+		t.Fatalf("frozen user session rows = %d, want 0", count)
+	}
+	if loc := recorder.Header().Get("Location"); loc != "" {
+		t.Fatalf("unexpected redirect for frozen user: %q", loc)
+	}
+}
+
+// TestOAuthCallbackLoginSuccessIssuesSession 守卫正常路径：非冻结用户 OAuth 登录
+// 仍应创建 session 并设置认证 Cookie。
+func TestOAuthCallbackLoginSuccessIssuesSession(t *testing.T) {
+	setupOAuthCallbackTestDB(t)
+
+	user := &users.EntityComplete{
+		Username:    "oauthlogin",
+		Email:       "oauthlogin@example.com",
+		IsActivated: users.ActivationSuccess,
+	}
+	if err := users.Create(user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := userOAuth.Create(&userOAuth.Entity{
+		UserId:      user.Id,
+		Provider:    oauthservice.ProviderGitHub,
+		ProviderUid: "gh-uid-login",
+	}); err != nil {
+		t.Fatalf("create oauth binding: %v", err)
+	}
+
+	stubGothUser(t, goth.User{
+		Provider: oauthservice.ProviderGitHub,
+		UserID:   "gh-uid-login",
+		NickName: "oauthlogin",
+		Email:    "oauthlogin@example.com",
+	})
+
+	recorder, c := oauthCallbackRequest(t)
+	ProviderCallback(c)
+
+	if recorder.Code != http.StatusFound {
+		t.Fatalf("status = %d, want 302 (body: %s)", recorder.Code, recorder.Body.String())
+	}
+	if loc := recorder.Header().Get("Location"); loc != "/" {
+		t.Fatalf("redirect location = %q, want /", loc)
+	}
+	if !hasAccessTokenCookie(recorder) {
+		t.Fatal("successful OAuth login must set access_token cookie")
+	}
+	if count := countSessions(t, user.Id); count != 1 {
+		t.Fatalf("session rows = %d, want 1", count)
+	}
+}

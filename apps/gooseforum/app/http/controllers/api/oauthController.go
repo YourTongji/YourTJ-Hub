@@ -65,6 +65,12 @@ func ProviderCallback(c *gin.Context) {
 			return
 		}
 
+		// 冻结账号禁止通过 OAuth 重新获取论坛会话（与绑定路径、OIDC exchange 的冻结检查一致）。
+		if user.IsFrozen == users.StatusFrozen || user.IsBot() {
+			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
+			return
+		}
+
 		if user.IsActivated == users.ActivationPending {
 			user.IsActivated = users.ActivationSuccess
 			// 更新用户状态
