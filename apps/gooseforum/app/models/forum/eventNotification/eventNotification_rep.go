@@ -1,6 +1,7 @@
 package eventNotification
 
 import (
+	"encoding/json"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
@@ -77,4 +78,53 @@ func MarkAllAsRead(userId uint64) error {
 			"is_read": true,
 			"read_at": now,
 		}).Error
+}
+
+// ClearPreviewsByTopic 将某话题/回复相关通知的正文预览置空（内容删除后联动）。
+// 通过冗余 topic_id 列（SQL 过滤）定位目标话题的通知，避免对全表做 JSON 解析；
+// 命中后再按 postId（0=话题级）过滤，并逐行写回（payload 各行不同，无法合并为
+// 单条 UPDATE）。游标分批处理，确保高通知量话题不会被固定上限截断。
+func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
+	if topicId == 0 {
+		return nil
+	}
+	const batchSize = 500
+	var cursorID uint64
+	for {
+		query := builder().Where(queryopt.Eq("topic_id", topicId)).Order(queryopt.Asc("id")).Limit(batchSize)
+		if cursorID != 0 {
+			query = query.Where(queryopt.Gt("id", cursorID))
+		}
+		var notifications []Entity
+		if err := query.Find(&notifications).Error; err != nil {
+			return err
+		}
+		if len(notifications) == 0 {
+			return nil
+		}
+		for _, item := range notifications {
+			cursorID = item.Id
+			if postId != 0 && item.Payload.PostId != postId {
+				continue
+			}
+			item.Payload.TemplateParams.Preview = ""
+			item.Payload.Content = ""
+			// 标题/话题标题同样置空：通知列表不应再展示被删内容的原文标题
+			// （PRD R11「该内容已被删除」），仅保留可用于定位的 topicId/postId。
+			item.Payload.Title = ""
+			item.Payload.TopicTitle = ""
+			// 显式序列化为 JSON 字节再写入：GORM 的 Updates(map[...]) 不会对值应用
+			// serializer:json，直接传结构体在三库驱动下都会报错。先 marshal 保证
+			// SQLite/MySQL/PostgreSQL 的 JSON 列都能正常写入。
+			payloadBytes, err := json.Marshal(item.Payload)
+			if err != nil {
+				return err
+			}
+			if err := builder().Model(&Entity{}).Where(queryopt.Eq("id", item.Id)).Updates(map[string]any{
+				"payload": payloadBytes,
+			}).Error; err != nil {
+				return err
+			}
+		}
+	}
 }

@@ -1,6 +1,8 @@
 package notificationservice
 
 import (
+	"log/slog"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/spf13/cast"
@@ -22,6 +24,7 @@ func SendCommentNotification(userId uint64, topicId uint64, commentContent strin
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeComment,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
@@ -48,6 +51,7 @@ func SendPostReplyNotification(userId uint64, postId uint64, topicId uint64, rep
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypePostReply,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
@@ -71,6 +75,7 @@ func SendTopicPostNotifications(userIds []uint64, topicId uint64, postId uint64,
 		notifications = append(notifications, &eventNotification.Entity{
 			UserId:    userId,
 			EventType: eventNotification.EventTypeTopicPost,
+			TopicID:   topicId,
 			Payload: eventNotification.NotificationPayload{
 				Content:     commentContent,
 				TemplateKey: eventNotification.TemplateTopicPost,
@@ -138,6 +143,7 @@ func SendLikeNotification(userId uint64, topicId uint64, topicTitle string, post
 	notification := &eventNotification.Entity{
 		UserId:    userId,
 		EventType: eventNotification.EventTypeLike,
+		TopicID:   topicId,
 		Payload:   payload,
 	}
 
@@ -170,4 +176,14 @@ func SendFollowNotification(userId uint64, followerId uint64, followerName strin
 		unreadservice.Invalidate(userId)
 	}
 	return err
+}
+
+// NullifyContentPreviews 内容删除后把相关通知的正文预览置空，避免泄露已删原文。
+func NullifyContentPreviews(topicId uint64, postId uint64) {
+	if topicId == 0 && postId == 0 {
+		return
+	}
+	if err := eventNotification.ClearPreviewsByTopic(topicId, postId); err != nil {
+		slog.Error("clear notification previews failed", "topicId", topicId, "postId", postId, "err", err)
+	}
 }

@@ -28,7 +28,7 @@ import { useI18n } from 'vue-i18n'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
-import { useSiteTheme } from '@/runtime/site-theme'
+import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import type { LayoutPayload } from '@gooseforum/client'
@@ -76,7 +76,7 @@ const closeTimers: Record<'lang' | 'user', number | undefined> = {
 }
 const { navigating } = useNavigationState()
 const { t, te, locale } = useI18n()
-const { isDark, toggleTheme } = useSiteTheme()
+const { isDark } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
@@ -248,6 +248,10 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
     url: item.url,
     active: activeSidebarKey.value === item.key,
   }))
+}
+
+function onToggleTheme(event: MouseEvent) {
+  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
 }
 
 function scrollToTop() {
@@ -436,7 +440,7 @@ async function loadUserCard() {
             class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
             :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
             :title="isDark ? 'Light' : 'Dark'"
-            @click="toggleTheme"
+            @click="onToggleTheme"
           >
             <Sun v-if="isDark" class="h-5 w-5" />
             <Moon v-else class="h-5 w-5" />

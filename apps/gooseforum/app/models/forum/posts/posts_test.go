@@ -65,6 +65,37 @@ func TestPostRepositoryWindows(t *testing.T) {
 	}
 }
 
+func TestHasChildrenCountsOnlyActiveChildren(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate posts: %v", err)
+	}
+
+	topicID := uint64(time.Now().UnixNano())
+	parent := Entity{TopicId: topicID, PostNo: 1, UserId: 1, Content: "parent"}
+	child := Entity{TopicId: topicID, PostNo: 2, UserId: 2, ReplyToPostId: 0, Content: "child"}
+	if err := conn.Create(&parent).Error; err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child.ReplyToPostId = parent.Id
+	if err := conn.Create(&child).Error; err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("topic_id = ?", topicID).Delete(&Entity{})
+	})
+
+	if !HasChildren(parent.Id) {
+		t.Fatal("HasChildren() = false for an active child")
+	}
+	if err := conn.Delete(&child).Error; err != nil {
+		t.Fatalf("soft-delete child: %v", err)
+	}
+	if HasChildren(parent.Id) {
+		t.Fatal("HasChildren() = true after the only child was soft-deleted")
+	}
+}
+
 func postNos(rows []*Entity) []uint64 {
 	res := make([]uint64, 0, len(rows))
 	for _, row := range rows {

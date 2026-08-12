@@ -42,6 +42,7 @@ const (
 	SecuritySettings    = `securitySettings`
 	StorageSettingsPage = `storageSettings`
 	TermsOfService      = `termsOfService`
+	PrivacyPolicy       = `privacyPolicy`
 	PostingSettings     = `postingSettings`
 	HttpNotify          = `httpNotify`
 	SiteTheme           = `siteTheme`
@@ -263,6 +264,9 @@ func (itself TermsOfServiceConfig) GetHtmlContent() string {
 	}
 	return markdown2html.MarkdownToHTML(itself.Content)
 }
+
+// PrivacyPolicyConfig 隐私政策配置（结构与服务条款一致）。
+type PrivacyPolicyConfig = TermsOfServiceConfig
 
 type PostingContent struct {
 	TextControl struct {

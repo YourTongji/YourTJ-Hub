@@ -169,8 +169,8 @@ func TestDraftTopicCanOnlyBeViewedByAuthor(t *testing.T) {
 
 func TestDraftTopicViewIsNotCounted(t *testing.T) {
 	draft := &topics.Entity{Id: 1, UserId: 10, Status: 0, ProcessStatus: 0}
-	published := &topics.Entity{Id: 2, UserId: 10, Status: 1, ProcessStatus: 0}
-	blocked := &topics.Entity{Id: 3, UserId: 10, Status: 1, ProcessStatus: 1}
+	published := &topics.Entity{Id: 2, UserId: 10, Status: 1, ProcessStatus: 0, VisibilityStatus: topics.VisibilityActive}
+	blocked := &topics.Entity{Id: 3, UserId: 10, Status: 1, ProcessStatus: 1, VisibilityStatus: topics.VisibilityActive}
 
 	if shouldCountTopicView(draft) {
 		t.Fatal("expected draft topic views to be ignored")

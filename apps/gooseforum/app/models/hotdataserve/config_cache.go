@@ -99,6 +99,20 @@ func ClearTermsOfServiceConfigCache() {
 	termsOfServiceConfigCache.Clear()
 }
 
+var privacyPolicyConfigCache = &localcache.Cache[pageConfig.PrivacyPolicyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetPrivacyPolicyConfigCache() pageConfig.PrivacyPolicyConfig {
+	return privacyPolicyConfigCache.GetOrLoad("", func() (pageConfig.PrivacyPolicyConfig, error) {
+		config := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, defaultconfig.GetDefaultPrivacyPolicyConfig())
+		config.PrepareHTML()
+		return config, nil
+	}, configFastCacheTTL)
+}
+
+func ClearPrivacyPolicyConfigCache() {
+	privacyPolicyConfigCache.Clear()
+}
+
 var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{MaxEntries: cacheconfig.Current().PageConfig}
 
 func GetPostingSettingsConfigCache() pageConfig.PostingContent {

@@ -230,8 +230,8 @@ export function editTopic(data: { topicId: number, processStatus: number }) {
   return postJson<unknown>('/api/admin/topics/edit', data, adminText('k0015'))
 }
 
-export function deleteTopic(id: number) {
-  return postJson<unknown>('/api/admin/topics/delete', { topicId: id }, adminText('k00cd'))
+export function deleteTopic(id: number, reason: string) {
+  return postJson<unknown>('/api/admin/topics/delete', { topicId: id, reason }, adminText('k00cd'))
 }
 
 export function updateTopicPin(data: { topicId: number, pinWeight: number }) {

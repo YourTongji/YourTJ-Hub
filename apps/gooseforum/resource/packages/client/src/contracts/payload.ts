@@ -302,6 +302,8 @@ export interface TopicDetailPayload {
   url: string
   topicStatus: number
   processStatus: number
+  authorDeleted: boolean
+  moderatorRemoved: boolean
   author: {
     id: number
     username: string
@@ -330,6 +332,8 @@ export interface PostPayload {
   renderedContent: string
   processStatus: number
   isHidden: boolean
+  isAuthorDeleted: boolean
+  isModeratorRemoved: boolean
   canModerate: boolean
   author: {
     id: number
@@ -360,6 +364,8 @@ export interface ReplyTargetPayload {
     wornBadge?: UserBadgePayload | null
   }
   renderedContent?: string
+  isAuthorDeleted?: boolean
+  isModeratorRemoved?: boolean
   unavailable?: boolean
 }
 
@@ -464,12 +470,29 @@ export interface ModerationReportItem {
   categories: Array<{ id: number; name: string; url: string; color: string }>
   createdAt: string
   handledAt?: string
+  targetDeleted?: boolean
 }
 
 export interface ModerationReportListResponse {
   items: ModerationReportItem[]
   nextCursor: number
   hasNext: boolean
+}
+
+export interface ModerationDeletedContentView {
+  contentType: 'topic' | 'post'
+  contentId: number
+  topicId?: number
+  title: string
+  content: string
+  authorId: number
+  authorName: string
+  categories: Array<{ id: number; name: string; url: string; color: string }>
+  deletedBy: number
+  deletedByWho: string
+  deletedAt: string
+  deleteReason: string
+  targetUrl: string
 }
 
 export interface UserCardPayload {
@@ -499,6 +522,7 @@ export interface UserCardPayload {
   wornBadge?: UserBadgePayload | null
   lastActiveTime: string
   createdAt: string
+  isAccountClosed: boolean
 }
 
 export interface UserProfileProps {
@@ -632,6 +656,11 @@ export interface SponsorsPageProps {
 }
 
 export interface TermsPageProps {
+  enabled: boolean
+  contentHtml: string
+}
+
+export interface PrivacyPageProps {
   enabled: boolean
   contentHtml: string
 }

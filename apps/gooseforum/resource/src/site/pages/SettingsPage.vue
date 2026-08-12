@@ -1,21 +1,27 @@
 <script setup lang="ts">
 import { computed, nextTick, onMounted, reactive, ref, watch } from 'vue'
 import {
+  AlertTriangle,
+  Archive,
   ArrowLeft,
   Ban,
   CalendarDays,
   Camera,
   Check,
+  FileText,
   ImagePlus,
   KeyRound,
   Link as LinkIcon,
   Loader2,
+  Lock,
   Mail,
   Pencil,
   Feather,
+  RotateCcw,
   Settings2,
   Shield,
   Sparkles,
+  Trash2,
   UserRound,
   X,
 } from '@lucide/vue'
@@ -30,6 +36,14 @@ import {
   resendActivationEmail,
   revokeAllSessions,
   revokeSession,
+  getDeletedContent,
+  purgeDeletedContent,
+  restoreDeletedContent,
+  privacyEraseContent,
+  getMyContent,
+  batchDeleteContent,
+  closeAccount,
+  logout,
   savePresetAvatar,
   saveUserEmail,
   saveUserInfo,
@@ -38,12 +52,17 @@ import {
   unbindOAuth,
   wearBadge,
   type OAuthBindingsPayload,
+  type DeletedContentItem,
+  type DeletedContentListResult,
+  type DeletedContentType,
+  type MyContentItem,
   type TotpEnablePayload,
   type TotpSetupPayload,
   type UserSessionPayload,
 } from '@/runtime/api'
 import { formatDate, formatNumber } from '@/runtime/format'
 import { useFlashMessages, type FlashMessageType } from '@/runtime/flash-message'
+import { ApiResponseError } from '@/runtime/api'
 import { toDataURL } from 'qrcode'
 import { useAvatarCropUpload } from '@/site/composables/useAvatarCropUpload'
 import { useCoverCropUpload, COVER_ASPECT_RATIO } from '@/site/composables/useCoverCropUpload'
@@ -76,7 +95,7 @@ const page = defineProps<{
 }>()
 
 const { t, locale } = useI18n()
-const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'general'] as const
+const tabKeys = ['profile', 'account', 'privacy', 'binding', 'security', 'content', 'deleted', 'general'] as const
 type TabKey = (typeof tabKeys)[number]
 
 const activeTab = ref<TabKey>('profile')
@@ -103,6 +122,33 @@ const totpSetupCode = ref('')
 const totpRecoveryCodes = ref<string[]>([])
 const totpDisableCode = ref('')
 const totpQrUrl = ref('')
+const deletedTopics = ref<DeletedContentItem[]>([])
+const deletedPosts = ref<DeletedContentItem[]>([])
+const loadingDeletedContent = ref(false)
+const deletedContentLoaded = ref(false)
+const deletedContentAction = ref('')
+const deletedTopicCursor = ref(0)
+const deletedPostCursor = ref(0)
+const hasMoreDeletedTopics = ref(false)
+const hasMoreDeletedPosts = ref(false)
+// 内容管理（PRD R9）：本人公开话题/回复，勾选批量删除 + 频率二次确认
+const myTopics = ref<MyContentItem[]>([])
+const myPosts = ref<MyContentItem[]>([])
+const loadingMyContent = ref(false)
+const myContentLoaded = ref(false)
+const myContentType = ref<DeletedContentType>('topic')
+const selectedMyContentIds = ref<number[]>([])
+const batchDeleting = ref(false)
+const batchDeleteConfirmOpen = ref(false)
+const batchDeletePassword = ref('')
+const batchDeleteError = ref('')
+// 注销账号（PRD R10）：密码二次认证 + 输入「注销」确认
+const accountCloseOpen = ref(false)
+const accountCloseMode = ref<'anonymize' | 'delete'>('anonymize')
+const accountClosePassword = ref('')
+const accountCloseConfirmText = ref('')
+const accountCloseSubmitting = ref(false)
+const accountCloseError = ref('')
 const editingUsername = ref(false)
 const editingEmail = ref(false)
 /** 签名单行展示的上限字数（信息栏与公开资料表单共用） */
@@ -292,6 +338,11 @@ onMounted(() => {
   void loadTotpStatus()
 })
 
+watch(activeTab, (tab) => {
+  if (tab === 'deleted' && !deletedContentLoaded.value) void loadDeletedContent()
+  if (tab === 'content' && !myContentLoaded.value) void loadMyContent()
+})
+
 function buildExternalInfo() {
   const info: Record<string, { link?: string }> = {}
   for (const key of socialKeys) {
@@ -314,8 +365,256 @@ function settingsTabLabel(key: string, fallback?: string) {
   if (key === 'privacy') return t('settings.tabs.privacy')
   if (key === 'binding') return t('settings.tabs.binding')
   if (key === 'security') return t('settings.tabs.security')
+  if (key === 'content') return t('settings.tabs.content')
+  if (key === 'deleted') return t('settings.tabs.deleted')
   if (key === 'general') return t('settings.tabs.general')
   return fallback || key
+}
+
+const deletedContentItems = computed(() => [
+  ...deletedTopics.value,
+  ...deletedPosts.value,
+].sort((left, right) => right.id - left.id))
+
+function deletedContentLabel(item: DeletedContentItem) {
+  return item.contentType === 'topic'
+    ? t('settings.deleted.topicLabel')
+    : t('settings.deleted.replyLabel', { no: item.postNo || item.id })
+}
+
+function deletedContentTitle(item: DeletedContentItem) {
+  return item.title || item.excerpt || t('settings.deleted.untitled')
+}
+
+function deletedContentActionKey(item: DeletedContentItem, action: 'restore' | 'purge' | 'privacy') {
+  return `${action}:${item.contentType}:${item.id}`
+}
+
+async function loadDeletedContent(reset = true) {
+  if (loadingDeletedContent.value) return
+  if (!reset && !hasMoreDeletedTopics.value && !hasMoreDeletedPosts.value) return
+  loadingDeletedContent.value = true
+  try {
+    if (reset) {
+      deletedTopicCursor.value = 0
+      deletedPostCursor.value = 0
+      hasMoreDeletedTopics.value = false
+      hasMoreDeletedPosts.value = false
+    }
+    const emptyResult = (nextCursorId: number): DeletedContentListResult => ({
+      items: [],
+      hasMore: false,
+      nextCursorId,
+    })
+    const [topicResult, postResult] = await Promise.all([
+      reset || hasMoreDeletedTopics.value
+        ? getDeletedContent('topic', deletedTopicCursor.value)
+        : Promise.resolve(emptyResult(deletedTopicCursor.value)),
+      reset || hasMoreDeletedPosts.value
+        ? getDeletedContent('post', deletedPostCursor.value)
+        : Promise.resolve(emptyResult(deletedPostCursor.value)),
+    ])
+    deletedTopics.value = reset ? topicResult.items : [...deletedTopics.value, ...topicResult.items]
+    deletedPosts.value = reset ? postResult.items : [...deletedPosts.value, ...postResult.items]
+    deletedTopicCursor.value = topicResult.nextCursorId
+    deletedPostCursor.value = postResult.nextCursorId
+    hasMoreDeletedTopics.value = topicResult.items.length > 0 && topicResult.nextCursorId > 0
+    hasMoreDeletedPosts.value = postResult.items.length > 0 && postResult.nextCursorId > 0
+    deletedContentLoaded.value = true
+  } catch (err) {
+    showError(err instanceof Error ? err.message : t('api.deletedContentLoadFailed'))
+  } finally {
+    loadingDeletedContent.value = false
+  }
+}
+
+async function loadMoreDeletedContent() {
+  await loadDeletedContent(false)
+}
+
+// 内容管理（PRD R9）：加载本人公开内容，支持批量删除
+const myContentItems = computed(() => myContentType.value === 'topic' ? myTopics.value : myPosts.value)
+
+function myContentItemKey(item: MyContentItem) {
+  return `${item.contentType}:${item.id}`
+}
+
+function isMyContentSelected(item: MyContentItem) {
+  return selectedMyContentIds.value.includes(item.id)
+}
+
+function toggleMyContent(item: MyContentItem) {
+  if (isMyContentSelected(item)) {
+    selectedMyContentIds.value = selectedMyContentIds.value.filter(id => id !== item.id)
+  } else {
+    selectedMyContentIds.value = [...selectedMyContentIds.value, item.id]
+  }
+}
+
+async function loadMyContent() {
+  if (loadingMyContent.value) return
+  loadingMyContent.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await getMyContent(myContentType.value)
+    if (myContentType.value === 'topic') {
+      myTopics.value = result.items
+    } else {
+      myPosts.value = result.items
+    }
+    myContentLoaded.value = true
+  } catch (error) {
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.deletedContentLoadFailed')
+  } finally {
+    loadingMyContent.value = false
+  }
+}
+
+function switchMyContentType(type: DeletedContentType) {
+  if (myContentType.value === type) return
+  myContentType.value = type
+  selectedMyContentIds.value = []
+  if (type === 'topic' && myTopics.value.length === 0 && myContentLoaded.value) void loadMyContent()
+  if (type === 'post' && myPosts.value.length === 0 && myContentLoaded.value) void loadMyContent()
+}
+
+async function runBatchDelete(force: boolean) {
+  if (batchDeleting.value || selectedMyContentIds.value.length === 0) return
+  batchDeleting.value = true
+  batchDeleteError.value = ''
+  try {
+    const result = await batchDeleteContent(myContentType.value, selectedMyContentIds.value, force, batchDeletePassword.value)
+    if (myContentType.value === 'topic') {
+      myTopics.value = myTopics.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    } else {
+      myPosts.value = myPosts.value.filter(item => !selectedMyContentIds.value.includes(item.id))
+    }
+    selectedMyContentIds.value = []
+    batchDeleteConfirmOpen.value = false
+    batchDeletePassword.value = ''
+    pushFlash(
+      result.failed > 0
+        ? t('settings.content.batchDeletePartial', { succeeded: result.succeeded, failed: result.failed })
+        : t('settings.content.batchDeleteSuccess', { count: result.succeeded }),
+      result.failed > 0 ? 'warning' : 'success',
+    )
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'content.batchDelete.confirmRequired') {
+      batchDeleteConfirmOpen.value = true
+      return
+    }
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      batchDeleteError.value = t('settings.content.batchPasswordMismatch')
+      return
+    }
+    batchDeleteError.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    batchDeleting.value = false
+  }
+}
+
+async function requestBatchDelete() {
+  if (selectedMyContentIds.value.length === 0 || batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
+  await runBatchDelete(false)
+}
+
+function confirmForceBatchDelete() {
+  if (batchDeleting.value) return
+  void runBatchDelete(true)
+}
+
+function cancelBatchDeleteConfirm() {
+  if (batchDeleting.value) return
+  batchDeleteConfirmOpen.value = false
+  batchDeletePassword.value = ''
+}
+
+// 注销账号（PRD R10）
+function openAccountCloseDialog() {
+  accountCloseOpen.value = true
+  accountCloseMode.value = 'anonymize'
+  accountClosePassword.value = ''
+  accountCloseConfirmText.value = ''
+  accountCloseError.value = ''
+}
+
+function closeAccountCloseDialog() {
+  if (accountCloseSubmitting.value) return
+  accountCloseOpen.value = false
+}
+
+async function submitAccountClose() {
+  if (accountCloseSubmitting.value) return
+  if (accountCloseConfirmText.value.trim() !== '注销') {
+    accountCloseError.value = t('settings.account.closeConfirmMismatch')
+    return
+  }
+  if (!accountClosePassword.value) {
+    accountCloseError.value = t('settings.account.closePasswordRequired')
+    return
+  }
+  accountCloseSubmitting.value = true
+  accountCloseError.value = ''
+  try {
+    await closeAccount(accountCloseMode.value, accountClosePassword.value)
+    await logout()
+    window.location.href = '/'
+  } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'auth.credentials.invalid') {
+      accountCloseError.value = t('settings.account.closePasswordMismatch')
+      return
+    }
+    accountCloseError.value = error instanceof Error ? error.message : t('api.operationFailed')
+  } finally {
+    accountCloseSubmitting.value = false
+  }
+}
+
+async function restoreDeletedItem(item: DeletedContentItem) {
+  if (!item.canRestore || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.restoreConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'restore')
+  try {
+    await restoreDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.restoreSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentRestoreFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
+}
+
+async function purgeDeletedItem(item: DeletedContentItem) {
+  if (!item.canPermanent || deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.purgeConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'purge')
+  try {
+    await purgeDeletedContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.purgeSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
+}
+
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+async function privacyEraseDeletedItem(item: DeletedContentItem) {
+  if (deletedContentAction.value) return
+  if (!window.confirm(t('settings.deleted.privacyEraseConfirm'))) return
+  deletedContentAction.value = deletedContentActionKey(item, 'privacy')
+  try {
+    await privacyEraseContent(item.contentType as DeletedContentType, item.id)
+    pushFlash(t('settings.deleted.privacyEraseSuccess'), 'success')
+    await loadDeletedContent()
+  } catch (err) {
+    pushFlash(err instanceof Error ? err.message : t('api.contentPurgeFailed'), 'error')
+  } finally {
+    deletedContentAction.value = ''
+  }
 }
 
 function triggerAvatarFlash() {
@@ -941,9 +1240,14 @@ async function toggleBinding(provider: string) {
 
 <template>
     <main class="min-w-0 pb-8">
-      <section class="gf-card" :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden'">
+      <section class="gf-card overflow-visible">
         <!-- 编辑资料页：封面右上角「设置封面」；选图后在封面区浮层编辑（非弹层） -->
-        <div class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60" :style="coverCropOpen ? undefined : profileCoverStyle">
+        <!-- overflow-visible 保持悬浮 tooltip 不被卡片裁剪；封面图由自身圆角裁剪，封面编辑浮层不裁剪 -->
+        <div
+          class="relative h-36 border-b border-line bg-base-300 bg-cover bg-center sm:h-60"
+          :class="coverCropOpen ? 'overflow-visible' : 'overflow-hidden rounded-t-[calc(var(--gf-radius-box)-1px)]'"
+          :style="coverCropOpen ? undefined : profileCoverStyle"
+        >
           <button
             v-if="!coverCropOpen"
             type="button"
@@ -1521,7 +1825,148 @@ async function toggleBinding(provider: string) {
                 {{ t('settings.account.changePassword') }}
               </button>
             </form>
+
+            <div class="mx-4 mb-4 max-w-xl rounded-[var(--gf-radius-box)] border border-error/20 bg-error/10 p-4">
+              <div class="flex items-start gap-3">
+                <div class="flex h-9 w-9 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/15 text-error ring-1 ring-inset ring-error/20">
+                  <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h3 class="text-sm font-semibold text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                  <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                </div>
+              </div>
+              <div class="mt-3 flex justify-end">
+                <button type="button" class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]" @click="openAccountCloseDialog">
+                  <UserRound class="h-4 w-4" aria-hidden="true" />
+                  {{ t('settings.account.closeAction') }}
+                </button>
+              </div>
+            </div>
           </section>
+
+          <Teleport to="body">
+            <Transition name="gf-modal">
+              <div
+                v-if="accountCloseOpen"
+                class="fixed inset-0 z-[110] flex items-center justify-center bg-neutral/45 px-4 py-6 backdrop-blur-sm"
+                role="dialog"
+                aria-modal="true"
+                aria-labelledby="account-close-title"
+                @click.self="closeAccountCloseDialog"
+              >
+                <div class="gf-menu-surface w-full max-w-md p-4 sm:p-5">
+                  <div class="flex items-start gap-3">
+                    <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/10 text-error ring-1 ring-inset ring-error/15">
+                      <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                    </div>
+                    <div class="min-w-0 flex-1">
+                      <h3 id="account-close-title" class="text-base font-semibold leading-6 text-base-content">{{ t('settings.account.closeTitle') }}</h3>
+                      <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.account.closeDescription') }}</p>
+                    </div>
+                    <button
+                      type="button"
+                      class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content"
+                      :disabled="accountCloseSubmitting"
+                      :aria-label="t('common.close')"
+                      @click="closeAccountCloseDialog"
+                    >
+                      <X class="h-4 w-4" aria-hidden="true" />
+                    </button>
+                  </div>
+
+                  <div class="mt-4 space-y-2">
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'anonymize' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="anonymize"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeAnonymize') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeAnonymizeDescription') }}</span>
+                      </span>
+                    </label>
+                    <label
+                      class="flex cursor-pointer items-start gap-3 rounded-[var(--gf-radius-field)] border p-3 transition-colors"
+                      :class="accountCloseMode === 'delete' ? 'border-primary/40 bg-primary/5 ring-1 ring-inset ring-primary/20' : 'border-line hover:bg-base-200/60'"
+                    >
+                      <input
+                        v-model="accountCloseMode"
+                        type="radio"
+                        value="delete"
+                        class="mt-1 h-4 w-4 accent-primary"
+                      />
+                      <span>
+                        <span class="block text-sm font-semibold text-base-content">{{ t('settings.account.closeModeDelete') }}</span>
+                        <span class="mt-0.5 block text-[13px] leading-5 text-base-content/55">{{ t('settings.account.closeModeDeleteDescription') }}</span>
+                      </span>
+                    </label>
+                  </div>
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closeConfirmLabel') }}</span>
+                    <input
+                      v-model="accountCloseConfirmText"
+                      type="text"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :aria-invalid="Boolean(accountCloseError)"
+                      placeholder="注销"
+                    />
+                  </label>
+
+                  <label class="mt-4 block">
+                    <span class="text-sm font-medium text-base-content/75">{{ t('settings.account.closePasswordLabel') }}</span>
+                    <input
+                      v-model="accountClosePassword"
+                      type="password"
+                      autocomplete="current-password"
+                      class="gf-input mt-1"
+                      :class="{ 'border-error/60 ring-1 ring-inset ring-error/30': accountCloseError }"
+                      :placeholder="t('settings.account.closePasswordPlaceholder')"
+                      :disabled="accountCloseSubmitting"
+                      @keydown.enter="submitAccountClose"
+                    />
+                  </label>
+
+                  <div class="mt-2.5 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-line/80 bg-base-200/40 px-3 py-2.5">
+                    <Lock class="mt-0.5 h-3.5 w-3.5 shrink-0 text-base-content/45" aria-hidden="true" />
+                    <p class="text-xs leading-5 text-base-content/55">{{ t('settings.account.closePasswordHint') }}</p>
+                  </div>
+
+                  <p
+                    v-if="accountCloseError"
+                    class="mt-3 rounded-[var(--gf-radius-field)] border border-error/20 bg-error/10 px-3 py-2 text-sm leading-5 text-error"
+                    role="alert"
+                  >
+                    {{ accountCloseError }}
+                  </p>
+
+                  <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                    <button type="button" class="gf-button gf-button-sm gf-button-muted active:scale-[0.96]" :disabled="accountCloseSubmitting" @click="closeAccountCloseDialog">
+                      {{ t('common.cancel') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-button gf-button-sm gf-button-danger active:scale-[0.96]"
+                      :disabled="accountCloseSubmitting || !accountClosePassword || !accountCloseConfirmText"
+                      :aria-busy="accountCloseSubmitting"
+                      @click="submitAccountClose"
+                    >
+                      <Loader2 v-if="accountCloseSubmitting" class="h-4 w-4 animate-spin" aria-hidden="true" />
+                      <UserRound v-else class="h-4 w-4" aria-hidden="true" />
+                      {{ t('settings.account.closeConfirmButton') }}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </Teleport>
 
           <section v-show="activeTab === 'privacy'">
             <SectionHeader :icon="Shield" :title="t('settings.privacy.title')" />
@@ -1765,6 +2210,205 @@ async function toggleBinding(provider: string) {
                 </button>
                 <p class="mt-2 text-xs text-base-content/45">{{ t('settings.security.revokeAllHint') }}</p>
               </div>
+            </div>
+          </section>
+
+          <section v-show="activeTab === 'content'">
+            <SectionHeader :icon="Settings2" :title="t('settings.content.title')" :description="t('settings.content.description')" />
+
+            <div class="gf-card overflow-hidden">
+              <div class="flex items-center gap-1 border-b border-line bg-base-200/60 p-2">
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'topic' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('topic')"
+                >
+                  {{ t('settings.content.topicTab') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-tab"
+                  :class="myContentType === 'post' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+                  @click="switchMyContentType('post')"
+                >
+                  {{ t('settings.content.replyTab') }}
+                </button>
+                <div class="ml-auto flex items-center gap-2">
+                  <span v-if="selectedMyContentIds.length" class="text-xs text-base-content/55">
+                    {{ t('settings.content.selectedCount', { count: selectedMyContentIds.length }) }}
+                  </span>
+                  <button
+                    type="button"
+                    class="gf-button gf-button-sm gf-button-danger"
+                    :disabled="selectedMyContentIds.length === 0 || batchDeleting"
+                    @click="requestBatchDelete"
+                  >
+                    <Loader2 v-if="batchDeleting" class="h-3.5 w-3.5 animate-spin" />
+                    <Trash2 v-else class="h-3.5 w-3.5" />
+                    {{ t('settings.content.batchDelete') }}
+                  </button>
+                </div>
+              </div>
+
+              <p v-if="batchDeleteError" class="border-b border-line bg-error/10 px-3 py-2 text-sm text-error">{{ batchDeleteError }}</p>
+
+              <div v-if="loadingMyContent && myContentItems.length === 0" class="p-4 py-10 text-center text-sm text-base-content/55">
+                <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+                {{ t('settings.deleted.loading') }}
+              </div>
+              <div v-else-if="myContentItems.length === 0" class="p-6 text-center">
+                <FileText class="mx-auto h-8 w-8 text-base-content/30" />
+                <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.content.emptyTitle') }}</h3>
+                <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.content.emptyDescription') }}</p>
+              </div>
+              <div v-else class="divide-y divide-line">
+                <label
+                  v-for="item in myContentItems"
+                  :key="myContentItemKey(item)"
+                  class="flex cursor-pointer items-start gap-3 px-4 py-3 transition hover:bg-base-200/60"
+                >
+                  <input
+                    type="checkbox"
+                    class="mt-1 h-4 w-4 shrink-0 rounded border-line accent-primary"
+                    :checked="isMyContentSelected(item)"
+                    @change="toggleMyContent(item)"
+                  />
+                  <span class="min-w-0">
+                    <span class="block truncate text-sm font-semibold text-base-content">{{ item.title }}</span>
+                    <span v-if="item.excerpt" class="mt-0.5 block truncate text-[13px] leading-5 text-base-content/55">{{ item.excerpt }}</span>
+                    <span class="mt-0.5 block text-xs text-base-content/45">{{ formatDate(item.createdAt) }}</span>
+                  </span>
+                </label>
+              </div>
+            </div>
+          </section>
+
+          <!-- 批量删除频率二次确认（PRD R9） -->
+          <Teleport to="body">
+            <div v-if="batchDeleteConfirmOpen" class="fixed inset-0 z-50 flex items-center justify-center bg-black/40 p-4" @click.self="cancelBatchDeleteConfirm">
+              <div class="w-full max-w-md rounded-xl border border-line bg-base-100 p-5 shadow-xl">
+                <h3 class="text-base font-semibold text-base-content">{{ t('settings.content.batchConfirmTitle') }}</h3>
+                <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('settings.content.batchConfirmDescription', { count: selectedMyContentIds.length }) }}</p>
+                <label class="mt-4 block">
+                  <span class="mb-1 block text-xs font-semibold text-base-content/70">{{ t('settings.content.batchPasswordLabel') }}</span>
+                  <input
+                    v-model="batchDeletePassword"
+                    type="password"
+                    autocomplete="current-password"
+                    class="gf-input h-9 w-full text-sm"
+                    :placeholder="t('settings.content.batchPasswordPlaceholder')"
+                    :disabled="batchDeleting"
+                    @keydown.enter="confirmForceBatchDelete"
+                  />
+                </label>
+                <p class="mt-2 text-xs leading-5 text-base-content/50">{{ t('settings.content.batchPasswordHint') }}</p>
+                <div class="mt-4 flex justify-end gap-2">
+                  <button type="button" class="gf-button gf-button-sm gf-button-muted" :disabled="batchDeleting" @click="cancelBatchDeleteConfirm">
+                    {{ t('common.cancel') }}
+                  </button>
+                  <button type="button" class="gf-button gf-button-sm gf-button-danger" :disabled="batchDeleting || !batchDeletePassword" @click="confirmForceBatchDelete">
+                    <Loader2 v-if="batchDeleting" class="h-4 w-4 animate-spin" />
+                    {{ t('settings.content.batchConfirmContinue') }}
+                  </button>
+                </div>
+              </div>
+            </div>
+          </Teleport>
+
+          <section v-show="activeTab === 'deleted'">
+            <SectionHeader :icon="Archive" :title="t('settings.deleted.title')" :description="t('settings.deleted.description')">
+              <template #actions>
+                <button
+                  type="button"
+                  class="text-xs font-medium text-primary hover:text-primary disabled:cursor-wait disabled:opacity-60"
+                  :disabled="loadingDeletedContent"
+                  @click="() => loadDeletedContent(true)"
+                >
+                  {{ t('settings.deleted.refresh') }}
+                </button>
+              </template>
+            </SectionHeader>
+
+            <div v-if="loadingDeletedContent" class="p-4 py-10 text-center text-sm text-base-content/55">
+              <Loader2 class="mx-auto mb-2 h-5 w-5 animate-spin" />
+              {{ t('settings.deleted.loading') }}
+            </div>
+            <div v-else-if="deletedContentItems.length === 0" class="p-6 text-center">
+              <Archive class="mx-auto h-8 w-8 text-base-content/30" />
+              <h3 class="mt-3 text-sm font-semibold text-base-content/75">{{ t('settings.deleted.emptyTitle') }}</h3>
+              <p class="mx-auto mt-1 max-w-md text-sm leading-6 text-base-content/50">{{ t('settings.deleted.emptyDescription') }}</p>
+            </div>
+            <div v-else class="space-y-3 p-4">
+              <article
+                v-for="item in deletedContentItems"
+                :key="`${item.contentType}:${item.id}`"
+                class="rounded-lg border border-line bg-base-100 p-4"
+              >
+                <div class="flex flex-col gap-4 sm:flex-row sm:items-start sm:justify-between">
+                  <div class="min-w-0">
+                    <div class="flex flex-wrap items-center gap-2 text-xs font-semibold text-base-content/50">
+                      <span class="gf-badge gf-badge-info rounded">{{ deletedContentLabel(item) }}</span>
+                      <span>{{ t('settings.deleted.deletedAt', { time: formatDate(item.deletedAt) }) }}</span>
+                    </div>
+                    <h3 class="mt-2 break-words text-sm font-semibold text-base-content">{{ deletedContentTitle(item) }}</h3>
+                    <p v-if="item.contentType === 'topic'" class="mt-1 text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.topicFallback') }}
+                    </p>
+                    <p v-else class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-base-content/55">
+                      {{ item.excerpt || t('settings.deleted.replyFallback') }}
+                    </p>
+                    <p class="mt-2 text-xs text-base-content/45">{{ t('settings.deleted.retentionHint') }}</p>
+                  </div>
+                  <div class="flex shrink-0 flex-wrap gap-2 sm:justify-end">
+                    <button
+                      v-if="item.canRestore"
+                      type="button"
+                      class="gf-tip gf-button gf-button-sm gf-button-primary"
+                      :data-tip="t('settings.deleted.restoreHint')"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="restoreDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'restore')" class="h-3.5 w-3.5 animate-spin" />
+                      <RotateCcw v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.restore') }}
+                    </button>
+                    <button
+                      v-if="item.canPermanent"
+                      type="button"
+                      class="gf-tip gf-button gf-button-sm gf-button-danger"
+                      :data-tip="t('settings.deleted.purgeHint')"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="purgeDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'purge')" class="h-3.5 w-3.5 animate-spin" />
+                      <Trash2 v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.purge') }}
+                    </button>
+                    <button
+                      type="button"
+                      class="gf-tip gf-button gf-button-sm gf-button-secondary"
+                      :data-tip="t('settings.deleted.privacyEraseHint')"
+                      :disabled="Boolean(deletedContentAction)"
+                      @click="privacyEraseDeletedItem(item)"
+                    >
+                      <Loader2 v-if="deletedContentAction === deletedContentActionKey(item, 'privacy')" class="h-3.5 w-3.5 animate-spin" />
+                      <Shield v-else class="h-3.5 w-3.5" />
+                      {{ t('settings.deleted.privacyErase') }}
+                    </button>
+                  </div>
+                </div>
+              </article>
+              <button
+                v-if="hasMoreDeletedTopics || hasMoreDeletedPosts"
+                type="button"
+                class="gf-button gf-button-sm gf-button-secondary mx-auto"
+                :disabled="loadingDeletedContent"
+                @click="loadMoreDeletedContent"
+              >
+                <Loader2 v-if="loadingDeletedContent" class="h-3.5 w-3.5 animate-spin" />
+                {{ t('common.loadMore') }}
+              </button>
             </div>
           </section>
 

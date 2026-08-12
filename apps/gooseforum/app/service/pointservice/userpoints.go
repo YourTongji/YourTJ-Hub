@@ -54,6 +54,22 @@ func ReversePostRewardTx(tx *gorm.DB, userId, postID uint64) error {
 		fmt.Sprintf("post-deleted:%d", postID), fmt.Sprintf("post:%d", postID))
 }
 
+// ReversePostReward 撤销回复发布积分（非事务调用方入口，自身开启事务）。
+// 供软删生命周期删除路径使用：与 ReversePostRewardTx 共享 applyPointsTx 的
+// 幂等语义（points_record.source_key 唯一 + 既有 tombstone 检查）。
+func ReversePostReward(userId, postID uint64) error {
+	return applyPoints(userId, -PostCreatedReward, PointsActionPostDeleted,
+		fmt.Sprintf("post-deleted:%d", postID), fmt.Sprintf("post:%d", postID))
+}
+
+// ClearPostDeletedTombstone 恢复内容时清除删除回滚墓碑（post-deleted:ID）。
+// applyPointsTx 对 PointsActionPostCreated 会因已存在删除墓碑而跳过加分，
+// 恢复路径必须先清除墓碑才能回补创建奖励，否则"删除→恢复"积分永久丢失。
+func ClearPostDeletedTombstone(postID uint64) error {
+	return db.Connect().Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).
+		Delete(&pointsRecord.Entity{}).Error
+}
+
 func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
 	if userId == 0 || sourceKey == "" {
 		return nil

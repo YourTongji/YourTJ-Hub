@@ -13,6 +13,8 @@ func Handlers() []cqrs.EventHandler {
 		cqrs.NewEventHandler("TopicPublishedHandler", handleTopicPublished),
 		cqrs.NewEventHandler("TopicUpdatedHandler", handleTopicUpdated),
 		cqrs.NewEventHandler("TopicDeletedHandler", handleTopicDeleted),
+		cqrs.NewEventHandler("ContentDeletedHandler", handleContentDeleted),
+		cqrs.NewEventHandler("ContentRestoredHandler", handleContentRestored),
 		cqrs.NewEventHandler("LLMSTopicPublishedHandler", handleLLMSTopicPublished),
 		cqrs.NewEventHandler("LLMSTopicUpdatedHandler", handleLLMSTopicUpdated),
 		cqrs.NewEventHandler("LLMSTopicDeletedHandler", handleLLMSTopicDeleted),
