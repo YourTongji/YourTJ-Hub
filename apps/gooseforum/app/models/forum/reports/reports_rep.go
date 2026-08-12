@@ -103,12 +103,20 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 // 因此"空快照"过滤放在 Go 层用 evidenceSnapshotIsEmpty 完成（NULL/`{}` 反序列化后
 // 均为零值快照，会被跳过）。
 func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {
+	return clearExpiredEvidenceSnapshots(builder(), before, limit)
+}
+
+// clearExpiredEvidenceSnapshots 接受显式 *gorm.DB，便于跨库测试（PostgreSQL）。
+// 注意：UPDATE 用 NewDB 会话重建语句，避免复用同一 *gorm.DB 时上次 SELECT 的
+// clauses（含 NOT EXISTS 子查询）被带入 UPDATE，导致 `ambiguous column name:
+// status`（SQLite 实测）。
+func clearExpiredEvidenceSnapshots(db *gorm.DB, before time.Time, limit int) (int, error) {
 	if limit <= 0 {
 		limit = 200
 	}
 
 	var candidates []Entity
-	err := builder().
+	err := db.
 		Where("status IN ?", []string{StatusResolved, StatusRejected}).
 		Where("handled_at IS NOT NULL").
 		Where("handled_at < ?", before).
@@ -140,7 +148,9 @@ func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {
 
 	// Clear to empty JSON object. Raw "{}" matches the zero-value snapshot shape
 	// without relying on GORM's struct serializer in map-style updates.
-	result := builder().Where("id IN ?", ids).Update("evidence_snapshot", "{}")
+	result := db.Session(&gorm.Session{NewDB: true}).Table(tableName).
+		Where("id IN ?", ids).
+		Update("evidence_snapshot", "{}")
 	return int(result.RowsAffected), result.Error
 }
 
