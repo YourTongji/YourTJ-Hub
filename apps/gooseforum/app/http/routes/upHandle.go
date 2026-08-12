@@ -3,8 +3,8 @@ package routes
 import (
 	"net/http"
 
-	"github.com/leancodebox/GooseForum/app/bundles/validate"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/validate"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 
 	"github.com/gin-gonic/gin"
 )

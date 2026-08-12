@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 )
 
 // 回归 H1：作者先自删墓碑态回复（有子回复），版主治理删除后应升级为

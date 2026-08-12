@@ -5,7 +5,7 @@ import (
 	"reflect"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/fileopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/fileopt"
 )
 
 func TestReadLine(t *testing.T) {

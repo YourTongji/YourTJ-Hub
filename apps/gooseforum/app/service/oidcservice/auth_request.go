@@ -5,7 +5,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 

@@ -4,8 +4,8 @@ import (
 	"errors"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
 )
 

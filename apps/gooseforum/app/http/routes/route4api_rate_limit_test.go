@@ -3,8 +3,8 @@ package routes
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 )
 
 // TestResetPasswordRateLimitWired 验证 issue #106 point 2 的限流兜底已就位：

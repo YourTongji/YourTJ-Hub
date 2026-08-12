@@ -3,7 +3,7 @@ package eventhandlers
 import (
 	"context"
 
-	"github.com/leancodebox/GooseForum/app/service/llmsservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 )
 
 func handleLLMSTopicPublished(context.Context, *TopicPublishedEvent) error {

@@ -3,7 +3,7 @@ package datamigration
 import (
 	"log/slog"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
 
 type ReplySequenceResult struct {

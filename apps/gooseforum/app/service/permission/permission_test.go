@@ -3,7 +3,7 @@ package permission
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/datastruct"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct"
 )
 
 func TestEnum(t *testing.T) {

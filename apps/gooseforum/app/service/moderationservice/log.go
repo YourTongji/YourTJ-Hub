@@ -3,7 +3,7 @@ package moderationservice
 import (
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 )
 
 func TopicStatusChanged(actorUserId uint64, topicId uint64, title string, blocked bool) {

@@ -3,7 +3,7 @@ package networkAccessLog
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
 // Record 写入一条访问日志。调用方应吞掉错误，避免影响主请求。

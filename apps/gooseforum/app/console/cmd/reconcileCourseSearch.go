@@ -4,7 +4,7 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/spf13/cobra"
 )
 

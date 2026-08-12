@@ -133,7 +133,7 @@ export async function getServerVersion(): Promise<ServerVersion> {
 }
 
 export async function getGithubReleases(): Promise<GithubRelease[]> {
-  const response = await fetch('https://api.github.com/repos/leancodebox/GooseForum/releases', {
+  const response = await fetch('https://api.github.com/repos/YourTongji/YourTJ-Hub/releases', {
     headers: { Accept: 'application/vnd.github+json' },
   })
   if (!response.ok) {

@@ -1,7 +1,7 @@
 package role
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
 func create(entity *Entity) error {

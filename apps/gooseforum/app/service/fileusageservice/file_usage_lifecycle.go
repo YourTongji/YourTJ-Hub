@@ -4,8 +4,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 )
 
 // TargetRef 标识一个内容目标（话题/回复），用于附件生命周期管理。
