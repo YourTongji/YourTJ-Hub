@@ -33,8 +33,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   (`jti` + `user_sessions`) in place. Casdoor is not enabled.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
   password login, login public-key retrieval, TOTP login verification and account management, logout,
-  mobile OIDC exchange, session management (list/revoke/revoke-all), and topic writing, with lint/bundle,
-  generated TypeScript types, fixtures, and route-level HTTP tests;
+  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, and account
+  registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
+  with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
   paths are split per domain under `paths/`; broader route coverage still needs manual or
   annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.

@@ -500,6 +500,63 @@ void main() {
     });
   });
 
+  group('账号注册与找回密码受控契约', () {
+    test('解析注册成功 fixture（自动登录，带会话）', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('register-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '登录成功');
+      expect(response.messageCode, 'auth.login.success');
+    });
+
+    test('解析注册业务失败 fixture（result 为 null）', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('register-failed.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'auth.register.failed');
+      expect(response.result, isNull);
+    });
+
+    test('解析找回密码成功 fixture（防枚举统一消息）', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('forgot-password-mail-queued.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, contains('密码重置邮件'));
+      expect(response.messageCode, 'auth.passwordReset.mailQueued');
+    });
+
+    test('解析重置密码成功 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('reset-password-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result, '密码重置成功');
+      expect(response.messageCode, 'auth.passwordReset.success');
+    });
+
+    test('解析重置密码 token 失效 fixture（result 为 null 不抛 TypeError）', () {
+      final response = GfResponse<Object?>.fromJson(
+        _contractFixture('reset-password-token-invalid.json'),
+        (json) => json,
+      );
+
+      expect(response.isSuccess, isFalse);
+      expect(response.messageCode, 'auth.passwordReset.tokenInvalid');
+      expect(response.result, isNull);
+    });
+  });
+
   group('GfResponse 响应包装', () {
     test('code == 0 成功', () {
       final response = GfResponse<int>.fromJson({
