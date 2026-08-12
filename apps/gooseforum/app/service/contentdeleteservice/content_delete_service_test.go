@@ -10,8 +10,10 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
+	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"gorm.io/gorm"
 )
@@ -26,6 +28,8 @@ func setupContentDeleteTestDB(t *testing.T) *gorm.DB {
 		&optRecord.Entity{},
 		&moderationLog.Entity{},
 		&contentDeleteEvent.Entity{},
+		&pointsRecord.Entity{},
+		&userPoints.Entity{},
 	); err != nil {
 		t.Fatalf("migrate content delete tables: %v", err)
 	}

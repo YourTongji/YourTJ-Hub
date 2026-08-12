@@ -29,6 +29,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/service/moderationservice"
 	"github.com/leancodebox/GooseForum/app/service/notificationservice"
 	"github.com/leancodebox/GooseForum/app/service/optlogger"
+	"github.com/leancodebox/GooseForum/app/service/pointservice"
 	"github.com/leancodebox/GooseForum/app/service/postservice"
 	"github.com/leancodebox/GooseForum/app/service/searchservice"
 	"gorm.io/gorm"
@@ -214,6 +215,12 @@ func DeletePostByUser(userID uint64, postID uint64) (DeletePostResult, error) {
 			return DeletePostResult{HasChildren: hasChildren}, nil
 		}
 		return DeletePostResult{}, component.NewMessageError(component.MessageTopicOperationDenied, "该回复已被处理", nil)
+	}
+	// 撤销发帖积分（dev 合并语义：删除回复即撤销 PostCreated 奖励，防刷分）。
+	// 幂等：重复撤销由 points_record.source_key 唯一索引 + 既有 tombstone 保证；
+	// 失败则中止删除（帖子保持 ACTIVE，用户可重试）。
+	if err := pointservice.ReversePostReward(post.UserId, postID); err != nil {
+		return DeletePostResult{}, component.NewMessageError(component.MessageContentDeleteFailed, "删除回复失败", component.MessageParams{"error": err.Error()})
 	}
 	if hasChildren {
 		if err := posts.MarkUserDeletedKeepVisible(postID, userID, ""); err != nil {

@@ -11,6 +11,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
 	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
@@ -270,6 +271,7 @@ func setupLLMSCacheTestDB(t *testing.T) *gorm.DB {
 		&topicCategoryIndex.Entity{},
 		&users.EntityComplete{},
 		&fileUsage.Entity{},
+		&contentDeleteEvent.Entity{},
 	)
 	if err != nil {
 		t.Fatalf("migrate llms cache tables: %v", err)

@@ -443,7 +443,6 @@ export default {
       other: 'Altro',
     },
   },
-  },
   sponsors: {
     defaultMessage: 'Grazie per il supporto a YourTJHub.',
     emptyTitle: 'Ancora nessuno sponsor',
