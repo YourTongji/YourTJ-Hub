@@ -42,6 +42,20 @@ func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity)
 	}
 }
 
+// isTopicPubliclySearchable 判断话题当前是否应出现在公共搜索：
+// 已发布、未封禁/待审、未软删、可见性正常。
+// 供索引构建（isIndexable）与聚合搜索防御过滤（issue #132）复用，
+// 保证"索引事件未落地"的窗口期也不泄露非公开话题。
+func isTopicPubliclySearchable(topic *topics.Entity) bool {
+	if topic == nil {
+		return false
+	}
+	return topic.Status == 1 &&
+		topic.ProcessStatus == topics.ProcessStatusNormal &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive
+}
+
 func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entity) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil

@@ -1764,10 +1764,16 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 			_ = posts.UpdateProcessStatus(topic.FirstPostId, targetStatus)
 		}
 		hotdataserve.ClearTopicListCache()
+		// 审核后无条件重建搜索索引（issue #132）：拒绝（ProcessStatus→blocked）
+		// 时 BuildSingleTopicSearchDocument 会把文档从索引删除，避免被拒话题
+		// 残留在公共搜索；批准时 upsert 恢复（下方事件也会重建，幂等）。
+		firstPost := posts.Get(topic.FirstPostId)
+		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
+		}
 		// 批准后补发事件：新建主题发完整发布事件（搜索索引/统计/积分/活动/通知），
 		// 编辑主题仅重建索引与通知，避免重复积分。
 		if req.Params.Approve && topic.Status == 1 {
-			firstPost := posts.Get(topic.FirstPostId)
 			if userActivities.HasRecord(userActivities.ActionPost, userActivities.SubjectTopic, topic.Id) {
 				eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 			} else {

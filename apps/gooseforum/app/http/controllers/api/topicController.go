@@ -25,6 +25,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
@@ -217,10 +218,15 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		}
 		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		hotdataserve.ClearTopicListCache()
-		// 编辑分支：下架（TopicStatus=0）或转入待审不发 TopicUpdatedEvent，
-		// 需同步清理 LLMS 投影缓存，避免下架内容在 10s 窗口内继续导出。
+		// 编辑分支：无条件重建搜索索引——下架（TopicStatus=0）或转入待审
+		// （ProcessStatus=Pending）时 BuildSingleTopicSearchDocument 会把文档
+		// 从索引删除，避免非公开内容残留在公共搜索（issue #132）。
+		// LLMS 投影缓存同步失效，避免下架内容在 10s 窗口内继续导出。
 		llmsservice.ClearCache()
-		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
+		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
+		}
+		// 待审（pendingReview）内容未上线，跳过业务事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
@@ -303,9 +309,14 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
-	// 无条件清理：下架（1→0）不发事件，此处同步失效 LLMS 投影缓存；0→1 复发的
-	// TopicPublishedEvent 也会清一次，幂等无害。
+	// 无条件重建搜索索引（issue #132）：1→0（取消发布）时
+	// BuildSingleTopicSearchDocument 会把文档从索引删除，避免已下架话题
+	// 残留在公共搜索；0→1（重新发布）时 upsert 恢复，幂等无害。
+	// 不发布 TopicUpdatedEvent：下架属用户隐私操作，不触发 webhook 通知。
 	llmsservice.ClearCache()
+	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
+	}
 	if topic.Status == 1 {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
