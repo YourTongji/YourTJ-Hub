@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 //go:embed pageconfig/*.json
@@ -165,8 +165,8 @@ func GetDefaultSiteChromeConfig() pageConfig.SiteChromeConfig {
 		FooterInfo: pageConfig.FooterInfo{
 			Primary: []pageConfig.PItem{{Content: "Providing reliable tech since 2025"}},
 			List: []pageConfig.FooterItem{
-				{Name: "Github", Url: "https://github.com/leancodebox/GooseForum"},
-				{Name: "License", Url: "https://github.com/leancodebox/GooseForum/blob/main/LICENSE"},
+				{Name: "Github", Url: "https://github.com/YourTongji/YourTJ-Hub/apps/gooseforum"},
+				{Name: "License", Url: "https://github.com/YourTongji/YourTJ-Hub/apps/gooseforum/blob/main/LICENSE"},
 				{Name: "LeanCodeBox", Url: "https://github.com/leancodebox"},
 			},
 		},

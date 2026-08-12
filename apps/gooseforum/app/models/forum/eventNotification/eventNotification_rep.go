@@ -3,7 +3,7 @@ package eventNotification
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
 // Create 创建通知

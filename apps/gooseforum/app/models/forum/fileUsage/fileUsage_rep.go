@@ -1,7 +1,7 @@
 package fileUsage
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
 func Create(entity *Entity) error {

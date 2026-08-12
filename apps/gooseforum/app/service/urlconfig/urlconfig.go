@@ -6,7 +6,7 @@ import (
 	"net/url"
 	"path"
 
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 )
 
 // GetDefaultAvatar returns the default avatar URL, using the CDN URL when configured.

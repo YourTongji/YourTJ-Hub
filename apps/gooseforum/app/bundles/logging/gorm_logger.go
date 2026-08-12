@@ -7,8 +7,8 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 	gormLogger "gorm.io/gorm/logger"
 	"gorm.io/gorm/utils"
 )

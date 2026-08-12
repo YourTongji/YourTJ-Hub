@@ -17,9 +17,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Version={{ .Version }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Commit={{ .Commit }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.BuildDate={{ .Date }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Version={{ .Version }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Commit={{ .Commit }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.BuildDate={{ .Date }}
     goos:
       - linux
       - darwin
@@ -33,9 +33,9 @@ builds:
       - -trimpath
     ldflags:
       - -s -w
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Version={{ .Version }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.Commit={{ .Commit }}
-      - -X github.com/leancodebox/GooseForum/app/bundles/buildinfo.BuildDate={{ .Date }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Version={{ .Version }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.Commit={{ .Commit }}
+      - -X github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo.BuildDate={{ .Date }}
     goos:
       - windows
     goarch:

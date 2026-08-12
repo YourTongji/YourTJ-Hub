@@ -4,7 +4,7 @@ package tokenservice
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 
 	"github.com/golang-jwt/jwt/v5"
 )

@@ -3,7 +3,7 @@ package filedata
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 const tableName = "file_data"

@@ -1,6 +1,6 @@
 package moderationLog
 
-import "github.com/leancodebox/GooseForum/app/bundles/queryopt"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 
 func Create(entity *Entity) error {
 	return builder().Create(entity).Error

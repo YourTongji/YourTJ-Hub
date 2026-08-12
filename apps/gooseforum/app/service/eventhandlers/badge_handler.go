@@ -3,8 +3,8 @@ package eventhandlers
 import (
 	"context"
 
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 func handleBadgePost(ctx context.Context, event *TopicPublishedEvent) error {
