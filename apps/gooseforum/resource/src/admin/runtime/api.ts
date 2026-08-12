@@ -133,7 +133,7 @@ export async function getServerVersion(): Promise<ServerVersion> {
 }
 
 export async function getGithubReleases(): Promise<GithubRelease[]> {
-  const response = await fetch('https://api.github.com/repos/leancodebox/GooseForum/releases', {
+  const response = await fetch('https://api.github.com/repos/YourTongji/YourTJ-Hub/releases', {
     headers: { Accept: 'application/vnd.github+json' },
   })
   if (!response.ok) {
@@ -230,8 +230,8 @@ export function editTopic(data: { topicId: number, processStatus: number }) {
   return postJson<unknown>('/api/admin/topics/edit', data, adminText('k0015'))
 }
 
-export function deleteTopic(id: number) {
-  return postJson<unknown>('/api/admin/topics/delete', { topicId: id }, adminText('k00cd'))
+export function deleteTopic(id: number, reason: string) {
+  return postJson<unknown>('/api/admin/topics/delete', { topicId: id, reason }, adminText('k00cd'))
 }
 
 export function updateTopicPin(data: { topicId: number, pinWeight: number }) {

@@ -1,4 +1,4 @@
-module github.com/leancodebox/GooseForum
+module github.com/YourTongji/YourTJ-Hub/apps/gooseforum
 
 go 1.26.0
 

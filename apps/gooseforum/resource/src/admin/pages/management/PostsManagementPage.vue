@@ -4,13 +4,13 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { computed, onMounted, ref } from 'vue'
 import { Ban, Eye, FileText, Heart, MessageSquare, Pin, RefreshCw, Search, Tags, Trash2, Undo2 } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
-import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
 import { Badge } from '@/admin/components/ui/badge'
 import { Input } from '@/admin/components/ui/input'
+import { Textarea } from '@/admin/components/ui/textarea'
 import {
   Dialog,
   DialogContent,
@@ -60,6 +60,7 @@ const sourceDialogRow = ref<AdminTopic | null>(null)
 const source = ref<TopicSource | null>(null)
 const actionRow = ref<AdminTopic | null>(null)
 const deleteRow = ref<AdminTopic | null>(null)
+const deleteReason = ref('')
 const pinDialogRow = ref<AdminTopic | null>(null)
 const pinWeightInput = ref(0)
 
@@ -269,10 +270,16 @@ async function toggleProcessStatus() {
 
 async function confirmDeleteTopic() {
   if (!deleteRow.value) return
+  const reason = deleteReason.value.trim()
+  if (!reason) {
+    adminToast.warning(adminText('k00lb'))
+    return
+  }
   saving.value = true
   try {
-    await deleteTopic(deleteRow.value.id)
+    await deleteTopic(deleteRow.value.id, reason)
     deleteRow.value = null
+    deleteReason.value = ''
     await loadPosts()
     adminToast.success(adminText('k00ce'))
   } catch (err) {
@@ -571,13 +578,51 @@ onMounted(() => {
         </DialogContent>
       </Dialog>
 
-      <AdminConfirmDialog
+      <Dialog
         :open="deleteRow !== null"
-        :title="adminText('k00cf')"
-        :description="adminText('k00cg', { title: deleteRow?.title || '' })"
-        :loading="saving"
-        @update:open="(open) => !open && (deleteRow = null)"
-        @confirm="confirmDeleteTopic"
-      />
+        @update:open="(open) => {
+          if (!open) {
+            deleteRow = null
+            deleteReason = ''
+          }
+        }"
+      >
+        <DialogContent class="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>{{ adminText('k00cf') }}</DialogTitle>
+            <DialogDescription>
+              {{ adminText('k00cg', { title: deleteRow?.title || '' }) }}
+            </DialogDescription>
+          </DialogHeader>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00la') }}
+            <Textarea
+              v-model="deleteReason"
+              class="min-h-24"
+              :placeholder="adminText('k00lc')"
+              :disabled="saving"
+            />
+          </label>
+          <p class="text-xs text-muted-foreground">{{ adminText('k00ld') }}</p>
+          <DialogFooter>
+            <Button
+              variant="outline"
+              type="button"
+              :disabled="saving"
+              @click="deleteRow = null; deleteReason = ''"
+            >
+              {{ adminText('k009q') }}
+            </Button>
+            <Button
+              variant="destructive"
+              type="button"
+              :disabled="saving || !deleteReason.trim()"
+              @click="confirmDeleteTopic"
+            >
+              {{ saving ? adminText('k005h') : adminText('k005i') }}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </BasicPage>
 </template>

@@ -1,6 +1,6 @@
 package forum
 
-import "github.com/leancodebox/GooseForum/app/service/courseservice"
+import "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 
 // CourseCatalogProps 课程目录页 props（对应 course.index）。
 type CourseCatalogProps struct {

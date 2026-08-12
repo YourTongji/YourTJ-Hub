@@ -3,10 +3,10 @@ package hotdataserve
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 const (
@@ -97,6 +97,20 @@ func ClearStorageSettingsConfigCache() {
 
 func ClearTermsOfServiceConfigCache() {
 	termsOfServiceConfigCache.Clear()
+}
+
+var privacyPolicyConfigCache = &localcache.Cache[pageConfig.PrivacyPolicyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetPrivacyPolicyConfigCache() pageConfig.PrivacyPolicyConfig {
+	return privacyPolicyConfigCache.GetOrLoad("", func() (pageConfig.PrivacyPolicyConfig, error) {
+		config := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, defaultconfig.GetDefaultPrivacyPolicyConfig())
+		config.PrepareHTML()
+		return config, nil
+	}, configFastCacheTTL)
+}
+
+func ClearPrivacyPolicyConfigCache() {
+	privacyPolicyConfigCache.Clear()
 }
 
 var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{MaxEntries: cacheconfig.Current().PageConfig}

@@ -7,9 +7,9 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/spf13/cast"
 	"gorm.io/gorm"

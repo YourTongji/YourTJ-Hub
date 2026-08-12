@@ -4,7 +4,7 @@ import (
 	"errors"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 )
 
 func TestMigrateAggregateSearchIndexesSkipsWhenUnavailable(t *testing.T) {

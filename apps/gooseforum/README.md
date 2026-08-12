@@ -4,31 +4,31 @@
   <p>🚀 Modern Go + Vue 3 Forum System</p>
 
   <p>
-    <a href="https://github.com/leancodebox/GooseForum/releases"><img src="https://img.shields.io/github/release/leancodebox/GooseForum.svg" alt="GitHub release"></a>
-    <a href="https://pkg.go.dev/github.com/leancodebox/GooseForum"><img src="https://pkg.go.dev/badge/github.com/leancodebox/GooseForum.svg" alt="pkg.go.dev"></a>
-    <a href="https://goreportcard.com/report/github.com/leancodebox/GooseForum"><img src="https://goreportcard.com/badge/github.com/leancodebox/GooseForum" alt="Go Report Card"></a>
+    <a href="https://github.com/YourTongji/YourTJ-Hub/releases"><img src="https://img.shields.io/github/release/YourTongji/YourTJ-Hub.svg" alt="GitHub release"></a>
     <a href="https://github.com/avelino/awesome-go"><img src="https://awesome.re/mentioned-badge-flat.svg" alt="Mentioned in Awesome Go"></a>
     <a href="https://golang.org"><img src="https://img.shields.io/badge/Go-1.26+-blue.svg" alt="Go version"></a>
     <a href="https://tailwindcss.com"><img src="https://img.shields.io/badge/TailwindCSS-4-blue.svg" alt="TailwindCSS"></a>
-    <a href="LICENSE"><img src="https://img.shields.io/github/license/leancodebox/GooseForum.svg" alt="License"></a>
-    <a href="https://github.com/leancodebox/GooseForum/stargazers"><img src="https://img.shields.io/github/stars/leancodebox/GooseForum.svg?style=social" alt="GitHub stars"></a>
+    <a href="LICENSE"><img src="https://img.shields.io/github/license/YourTongji/YourTJ-Hub.svg" alt="License"></a>
+    <a href="https://github.com/YourTongji/YourTJ-Hub/stargazers"><img src="https://img.shields.io/github/stars/YourTongji/YourTJ-Hub.svg?style=social" alt="GitHub stars"></a>
   </p>
 
   <p><a href="README_ZH.md">中文</a> | <a href="README.md">English</a></p>
 </div>
 
-![GooseForum interface preview](https://github.com/leancodebox/assert/blob/main/gooseforum-readme-poster.webp?raw=true)
+> **Note**: this directory hosts the GooseForum fork inside the [YourTJ Hub](https://github.com/YourTongji/YourTJ-Hub) monorepo. It keeps the "Go + Vue in one binary" deployment shape while product, auth, search, data, mobile, and operations capabilities continuously evolve beyond upstream.
+
+![GooseForum interface preview](../../screenshots/web/home.png)
 
 ## Quick Start
 
 ### Download and Run
 
-Download the latest prebuilt binary from [GitHub Releases](https://github.com/leancodebox/GooseForum/releases), then start it:
+Download the latest prebuilt binary from [GitHub Releases](https://github.com/YourTongji/YourTJ-Hub/releases), then start it:
 
 ```bash
-tar -zxvf GooseForum_Linux_x86_64.tar.gz
-chmod +x ./GooseForum
-./GooseForum serve
+tar -zxvf yourtj-hub_*.tar.gz
+chmod +x ./yourtj-hub
+./yourtj-hub serve
 ```
 
 Open `http://localhost:5234`. The first registered user automatically becomes the administrator.
@@ -42,15 +42,17 @@ Requirements:
 - pnpm
 
 ```bash
-git clone https://github.com/leancodebox/GooseForum.git
-cd GooseForum
+git clone https://github.com/YourTongji/YourTJ-Hub.git
+cd YourTJ-Hub/apps/gooseforum
 
 cd resource && pnpm install && pnpm build && cd ..
 go mod tidy
-go build -ldflags="-w -s" .
+go build -o yourtj-hub -ldflags="-w -s" .
 
-./GooseForum serve
+./yourtj-hub serve
 ```
+
+Or from the monorepo root: `make build` produces the single binary at `bin/yourtj-hub`.
 
 ### Configuration
 
@@ -69,21 +71,19 @@ connection = "sqlite"
 path = "./storage/database/sqlite.db"
 ```
 
-See [configuration documentation](docs/user/configuration.md) for MySQL, mail, backup, security, and site settings.
+See [configuration documentation](docs/user/configuration.md) for MySQL, PostgreSQL, mail, backup, security, and site settings.
 
 ### Admin Commands
 
 ```bash
-./GooseForum set-user-admin <userId>
-./GooseForum set-user-email <userId> <email>
-./GooseForum set-user-password <userId> <password>
+./yourtj-hub set-user-admin <userId>
+./yourtj-hub set-user-email <userId> <email>
+./yourtj-hub set-user-password <userId> <password>
 ```
 
 ## What Is GooseForum?
 
-GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, TypeScript, Vite, and TailwindCSS. It ships as a single executable, supports SQLite/MySQL, and provides a payload-driven SPA experience with server-rendered fallback pages for SEO and no-js access.
-
-Live demo: [gooseforum.online](https://gooseforum.online/)
+GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, TypeScript, Vite, and TailwindCSS. It ships as a single executable, supports SQLite/MySQL/PostgreSQL, and provides a payload-driven SPA experience with server-rendered fallback pages for SEO and no-js access.
 
 ## Features
 
@@ -91,7 +91,7 @@ Live demo: [gooseforum.online](https://gooseforum.online/)
 - Role and permission management with a full admin console.
 - Responsive public UI for desktop and mobile.
 - Theme workbench for light/dark theme preview and publishing.
-- SQLite by default, optional MySQL, scheduled backups.
+- SQLite by default, optional MySQL/PostgreSQL, scheduled backups.
 - Payload-driven navigation with no-js GoHTML templates.
 - Brand customization for logo, text, footer, and site assets.
 
@@ -136,13 +136,13 @@ Minimal container image:
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY GooseForum .
-CMD ["./GooseForum", "serve"]
+COPY yourtj-hub .
+CMD ["./yourtj-hub", "serve"]
 ```
 
 ## Documentation
 
-- [Documentation Index](docs/README.md)
+- [Monorepo docs center](../../docs/README.md)
 - [Configuration](docs/user/configuration.md)
 - [Frontend Architecture](docs/architecture/resource-frontend.md)
 - [UI Specification](docs/frontend/ui-spec.md)

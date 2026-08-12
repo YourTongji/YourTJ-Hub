@@ -1,7 +1,7 @@
 package reports
 
 import (
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"gorm.io/gorm"
 )
 

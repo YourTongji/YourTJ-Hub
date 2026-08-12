@@ -3,7 +3,7 @@ package courseservice
 import (
 	"errors"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 )
 
 // ErrCourseNotFound 课程不存在或已隐藏（与存储层错误区分，控制器映射为 404）。

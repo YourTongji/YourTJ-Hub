@@ -1,8 +1,8 @@
 package userFollow
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 )
 
 func create(entity *Entity) int64 {

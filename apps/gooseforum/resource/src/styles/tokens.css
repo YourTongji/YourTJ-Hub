@@ -23,6 +23,9 @@
   --gf-color-warning-content: oklch(98.7% 0.022 95.277);
   --gf-color-error: oklch(57.7% 0.245 27.325);
   --gf-color-error-content: oklch(97.1% 0.013 17.38);
+  /* Tooltip：浅色/深色主题统一深灰底 + 近白字（对齐编辑器 vditor-tooltipped 配色） */
+  --gf-color-tooltip-bg: oklch(30.5% 0.007 250);
+  --gf-color-tooltip-content: oklch(97% 0 0);
   --gf-radius-selector: 0.5rem;
   --gf-radius-field: 0.5rem;
   --gf-radius-box: 0.5rem;

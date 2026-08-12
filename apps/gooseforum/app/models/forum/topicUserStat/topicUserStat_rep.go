@@ -52,3 +52,8 @@ func SyncTopicPosters(topicId uint64) []uint64 {
 		Pluck("user_id", &activeUserIDs)
 	return activeUserIDs
 }
+
+// DeleteByTopicID clears derived participant counts before a full rebuild.
+func DeleteByTopicID(topicID uint64) error {
+	return builder().Where("topic_id = ?", topicID).Delete(&Entity{}).Error
+}

@@ -3,7 +3,7 @@ package filedata
 import (
 	"testing"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/db4fileconnect"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
 )
 
 func setupFileDataTestDB(t *testing.T) {

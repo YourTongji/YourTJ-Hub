@@ -6,8 +6,8 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
 // TestServerTemplatesParse ensures every server-rendered template parses with

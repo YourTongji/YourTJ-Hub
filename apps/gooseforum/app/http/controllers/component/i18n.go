@@ -2,7 +2,7 @@ package component
 
 import (
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 )
 
 const requestLangContextKey = "goose:request-lang"

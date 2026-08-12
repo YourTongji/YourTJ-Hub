@@ -446,7 +446,7 @@ export default {
   "k00cd": "删除帖子失败",
   "k00ce": "帖子已删除",
   "k00cf": "删除帖子？",
-  "k00cg": "确认删除「{title}」吗？删除后前台将不可访问。",
+  "k00cg": "确认删除「{title}」吗？删除后前台将不可访问，且需填写治理原因。",
   "k00ch": "加载 HTTP 通知设置失败",
   "k00ci": "保存 HTTP 通知设置失败",
   "k00cj": "HTTP 通知",
@@ -719,6 +719,10 @@ export default {
   "k00l7": "昵称",
   "k00l8": "例如 my-agent",
   "k00l9": "修改机器人 persona 资料与 Webhook 配置。",
+  "k00la": "删除原因",
+  "k00lb": "请填写删除原因",
+  "k00lc": "例如：违反社区规范、包含不当内容…",
+  "k00ld": "删除原因会写入治理日志，作者不可自行恢复。",
   "k00mh": "加载 MCP server 设置失败",
   "k00mi": "保存 MCP server 设置失败",
   "k00mj": "MCP server",
@@ -727,5 +731,4 @@ export default {
   "k00mm": "开启后 /mcp 端点可供 MCP 客户端（如 Claude、VS Code）连接，认证复用 Agent Bearer token（agt_*）。",
   "k00mn": "允许 AI 写操作",
   "k00mo": "开启后 create_topic / create_post 工具可用（受 topic.write / post.create 限流约束）；默认关闭，AI 只能读取。",
-
 } as const

@@ -6,7 +6,7 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 //go:embed pageconfig/*.json
@@ -23,6 +23,7 @@ type pageConfigDefaults struct {
 	Sponsors     pageConfig.SponsorsConfig
 	Storage      pageConfig.StorageSettings
 	Terms        pageConfig.TermsOfServiceConfig
+	Privacy      pageConfig.PrivacyPolicyConfig
 	RateLimit    pageConfig.RateLimitConfig
 	MCP          pageConfig.MCPSettingsConfig
 }
@@ -68,6 +69,10 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("terms.json", &pageConfigDefaultsValue.Terms)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("privacy.json", &pageConfigDefaultsValue.Privacy)
 		if errPageConfigDefaults != nil {
 			return
 		}
@@ -142,6 +147,10 @@ func GetDefaultTermsOfServiceConfig() pageConfig.TermsOfServiceConfig {
 	return mustPageConfigDefaults().Terms
 }
 
+func GetDefaultPrivacyPolicyConfig() pageConfig.PrivacyPolicyConfig {
+	return mustPageConfigDefaults().Privacy
+}
+
 func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 	config := mustPageConfigDefaults().RateLimit
 	config.Actions = append([]pageConfig.RateLimitRule(nil), config.Actions...)
@@ -165,8 +174,8 @@ func GetDefaultSiteChromeConfig() pageConfig.SiteChromeConfig {
 		FooterInfo: pageConfig.FooterInfo{
 			Primary: []pageConfig.PItem{{Content: "Providing reliable tech since 2025"}},
 			List: []pageConfig.FooterItem{
-				{Name: "Github", Url: "https://github.com/leancodebox/GooseForum"},
-				{Name: "License", Url: "https://github.com/leancodebox/GooseForum/blob/main/LICENSE"},
+				{Name: "Github", Url: "https://github.com/YourTongji/YourTJ-Hub/apps/gooseforum"},
+				{Name: "License", Url: "https://github.com/YourTongji/YourTJ-Hub/apps/gooseforum/blob/main/LICENSE"},
 				{Name: "LeanCodeBox", Url: "https://github.com/leancodebox"},
 			},
 		},

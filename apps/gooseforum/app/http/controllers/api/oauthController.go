@@ -1,17 +1,18 @@
 package api
 
 import (
+	"errors"
 	"log/slog"
 	"net/http"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/oauthservice"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/markbates/goth/gothic"
 )
 
@@ -60,6 +61,14 @@ func ProviderCallback(c *gin.Context) {
 		// 登录模式：处理OAuth登录
 		user, err := oauthservice.ProcessOAuthCallback(gothUser)
 		if err != nil {
+			// 冻结账号：service 层返回 ErrAccountFrozen，禁止通过 OAuth 重新获取会话，
+			// 这里渲染 403 冻结错误页，与 OIDC exchange 的冻结语义保持一致。
+			// 冻结拒绝是用户可预期触发的路径，用 Warn 记录，避免日志噪音。
+			if errors.Is(err, oauthservice.ErrAccountFrozen) {
+				slog.Warn("OAuth callback rejected frozen account", "error", err)
+				forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageOAuthAccountFrozen)
+				return
+			}
 			slog.Error("Process OAuth callback failed", "error", err)
 			forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthProcessFailed)
 			return

@@ -12,8 +12,8 @@ import (
 	"sync"
 	"text/template"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/fileopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/fileopt"
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/spf13/cast"

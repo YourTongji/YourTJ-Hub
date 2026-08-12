@@ -11,22 +11,24 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/reports"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/llmsservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"gorm.io/gorm"
 )
 
 const moderationPageSize = 20
@@ -157,6 +159,9 @@ type ModerationReportItem struct {
 	Categories []TopicCategoryPayload `json:"categories"`
 	CreatedAt  string                 `json:"createdAt"`
 	HandledAt  string                 `json:"handledAt,omitempty"`
+	// TargetDeleted 标记目标已被作者/管理端删除，前端展示"该内容已被删除"，
+	// 审核仍基于举报时刻快照进行（R6）。
+	TargetDeleted bool `json:"targetDeleted,omitempty"`
 }
 
 type ModerationLogItem struct {
@@ -217,12 +222,13 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		return component.FailResponseCode(component.MessageReportOwnContent, nil)
 	}
 	report, created, err := reports.CreateOpen(reports.Entity{
-		TargetType: req.Params.TargetType,
-		TargetId:   req.Params.TargetId,
-		TopicId:    target.TopicID,
-		ReporterId: req.UserId,
-		Reason:     req.Params.Reason,
-		Note:       trimReportNote(req.Params.Note),
+		TargetType:       req.Params.TargetType,
+		TargetId:         req.Params.TargetId,
+		TopicId:          target.TopicID,
+		ReporterId:       req.UserId,
+		Reason:           req.Params.Reason,
+		Note:             trimReportNote(req.Params.Note),
+		EvidenceSnapshot: buildReportEvidenceSnapshot(req.Params.TargetType, req.Params.TargetId, target.TopicID, target.UserID),
 	})
 	if err != nil {
 		return component.FailResponseCode(component.MessageReportCreateFailed, nil)
@@ -240,6 +246,50 @@ func CreateReport(req component.BetterRequest[CreateReportReq]) component.Respon
 		Reason:     report.Reason,
 	})
 	return component.SuccessResponse(true)
+}
+
+// buildReportEvidenceSnapshot 在举报创建时刻定格目标内容（Issue #94 R6）。
+// 目标随后被作者删除时，审核仍能基于快照继续，避免"删帖逃罚"。
+func buildReportEvidenceSnapshot(targetType string, targetID uint64, topicID uint64, authorID uint64) reports.EvidenceSnapshotData {
+	snapshot := reports.EvidenceSnapshotData{
+		TargetType: targetType,
+		TargetID:   targetID,
+		TopicID:    topicID,
+		AuthorID:   authorID,
+		CreatedAt:  time.Now(),
+	}
+	if authorID > 0 {
+		if author, err := users.Get(authorID); err == nil && author.Id > 0 {
+			snapshot.AuthorName = author.Username
+		}
+	}
+	switch targetType {
+	case reports.TargetTopic:
+		topic := topics.GetSimple(targetID)
+		if topic.Id > 0 {
+			snapshot.Title = topic.Title
+			snapshot.Excerpt = moderationExcerpt(topic.Excerpt)
+			snapshot.CategoryIDs = topic.CategoryIds
+			snapshot.TopicID = topic.Id
+			snapshot.TargetURL = urlconfig.PostDetail(topic.Id)
+		}
+	case reports.TargetPost:
+		post := posts.Get(targetID)
+		if post.Id > 0 {
+			snapshot.Title = fmt.Sprintf("回复 #%d", post.PostNo)
+			snapshot.Excerpt = moderationExcerpt(post.Content)
+			snapshot.TopicID = post.TopicId
+			snapshot.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id)
+			topic := topics.GetSimple(post.TopicId)
+			if topic.Id > 0 {
+				snapshot.CategoryIDs = topic.CategoryIds
+				if snapshot.Title == "" {
+					snapshot.Title = topic.Title
+				}
+			}
+		}
+	}
+	return snapshot
 }
 
 func UpdateModerationPostStatus(req component.BetterRequest[ModerationPostStatusReq]) component.Response {
@@ -321,9 +371,17 @@ func ModerationLogList(req component.BetterRequest[ModerationLogListReq]) compon
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
 	pageSize := component.BoundPageSizeWithRange(req.Params.PageSize, 10, 50)
+	global, categoryIDs := moderationservice.ScopeForUser(req.UserId)
+	if !global && len(categoryIDs) == 0 {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	if global {
+		categoryIDs = nil
+	}
 	records := moderationLog.CursorPage(moderationLog.CursorPageQuery{
-		Cursor:   req.Params.Cursor,
-		PageSize: uint64(pageSize + 1),
+		Cursor:           req.Params.Cursor,
+		PageSize:         uint64(pageSize + 1),
+		ScopeCategoryIDs: categoryIDs,
 	})
 	hasNext := len(records) > pageSize
 	if hasNext {
@@ -338,6 +396,124 @@ func ModerationLogList(req component.BetterRequest[ModerationLogListReq]) compon
 		NextCursor: nextCursor,
 		HasNext:    hasNext,
 	})
+}
+
+// ViewDeletedContentReq 查看已删除内容原文的请求（PRD R7）。
+// 查看必须提供理由，每次查看都会写入 moderation_log（EvidenceViewed）与埋点，
+// 满足"查看已删内容需理由 + 审计"的最小权限要求。
+type ViewDeletedContentReq struct {
+	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
+	ContentID   uint64 `json:"contentId" validate:"required"`
+	Reason      string `json:"reason" validate:"required,min=1,max=300"`
+}
+
+// ModerationDeletedContentView 已删除内容原文视图（仅版主查看，含删除元数据）。
+type ModerationDeletedContentView struct {
+	ContentType  string                 `json:"contentType"`
+	ContentID    uint64                 `json:"contentId"`
+	TopicID      uint64                 `json:"topicId,omitempty"`
+	Title        string                 `json:"title"`
+	Content      string                 `json:"content"`
+	AuthorID     uint64                 `json:"authorId"`
+	AuthorName   string                 `json:"authorName"`
+	Categories   []TopicCategoryPayload `json:"categories"`
+	DeletedBy    uint64                 `json:"deletedBy"`
+	DeletedByWho string                 `json:"deletedByWho"`
+	DeletedAt    string                 `json:"deletedAt"`
+	DeleteReason string                 `json:"deleteReason"`
+	TargetURL    string                 `json:"targetUrl"`
+}
+
+// ViewDeletedContent 版主查看已删除内容原文：必须提供理由，写审计日志（R7）。
+// 全局版主/管理员可查看其作用域内的已删内容；分类版主仅可查看其分类内的内容。
+func ViewDeletedContent(req component.BetterRequest[ViewDeletedContentReq]) component.Response {
+	if !moderationservice.CanAccessModeration(req.UserId) {
+		return component.FailResponseCode(component.MessagePermissionDenied, nil)
+	}
+	reason := strings.TrimSpace(req.Params.Reason)
+	if reason == "" {
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+
+	var view ModerationDeletedContentView
+	switch req.Params.ContentType {
+	case reports.TargetTopic:
+		topic := topics.UnscopedGet(req.Params.ContentID)
+		if topic.Id == 0 || topic.VisibilityStatus == topics.VisibilityActive || topic.RetentionStatus == topics.RetentionPurged {
+			return component.FailResponseCode(component.MessageTopicNotFound, nil)
+		}
+		if !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
+		}
+		view = ModerationDeletedContentView{
+			ContentType:  reports.TargetTopic,
+			ContentID:    topic.Id,
+			TopicID:      topic.Id,
+			Title:        topic.Title,
+			AuthorID:     topic.UserId,
+			DeletedBy:    topic.DeletedBy,
+			DeletedAt:    formatDeletedTime(topic.DeletedAt),
+			DeleteReason: topic.DeleteReason,
+			TargetURL:    urlconfig.PostDetail(topic.Id),
+			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+		firstPost := posts.UnscopedGet(topic.FirstPostId)
+		if firstPost.Id > 0 {
+			view.Content = firstPost.Content
+		}
+	case reports.TargetPost:
+		post := posts.UnscopedGet(req.Params.ContentID)
+		if post.Id == 0 || post.VisibilityStatus == posts.VisibilityActive || post.RetentionStatus == posts.RetentionPurged {
+			return component.FailResponseCode(component.MessagePostNotFound, nil)
+		}
+		topic := topics.UnscopedGet(post.TopicId)
+		if topic.Id == 0 || !moderationservice.CanModerateAnyCategory(req.UserId, topic.CategoryIds) {
+			return component.FailResponseCode(component.MessagePermissionDenied, nil)
+		}
+		view = ModerationDeletedContentView{
+			ContentType:  reports.TargetPost,
+			ContentID:    post.Id,
+			TopicID:      post.TopicId,
+			Title:        fmt.Sprintf("回复 #%d", post.PostNo),
+			Content:      post.Content,
+			AuthorID:     post.UserId,
+			DeletedBy:    post.DeletedBy,
+			DeletedAt:    formatDeletedTime(post.DeletedAt),
+			DeleteReason: post.DeleteReason,
+			TargetURL:    fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(post.TopicId), post.Id),
+			Categories:   categoryPayloads(topic.CategoryIds),
+		}
+	default:
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+	}
+
+	if author, err := users.Get(view.AuthorID); err == nil && author.Id > 0 {
+		view.AuthorName = author.Username
+	}
+	if view.DeletedBy > 0 {
+		if operator, err := users.Get(view.DeletedBy); err == nil && operator.Id > 0 {
+			view.DeletedByWho = operator.Username
+		}
+	}
+
+	moderationservice.EvidenceViewed(req.UserId, view.ContentType, view.ContentID, view.Title, reason)
+	if err := contentDeleteEvent.Record(contentDeleteEvent.Entity{
+		EventType:   string(contentDeleteEvent.EventModerationViewed),
+		ContentType: view.ContentType,
+		ContentID:   view.ContentID,
+		TopicID:     view.TopicID,
+		ActorID:     req.UserId,
+	}); err != nil {
+		slog.Error("record moderation deleted content viewed failed", "contentType", view.ContentType, "contentId", view.ContentID, "err", err)
+	}
+	return component.SuccessResponse(view)
+}
+
+func formatDeletedTime(d gorm.DeletedAt) string {
+	if !d.Valid || d.Time.IsZero() {
+		return ""
+	}
+	return d.Time.Format(time.DateTime)
 }
 
 func moderationTargetStatus(actionType string) int8 {
@@ -465,13 +641,23 @@ func reportTargetCategories(targetType string, targetID uint64) ([]uint64, bool)
 	switch targetType {
 	case reports.TargetTopic:
 		topic := topics.Get(targetID)
+		if topic.Id == 0 {
+			// 目标已删：回退 Unscoped，让有作用域权限的版主仍能基于快照审核（R6）。
+			topic = topics.UnscopedGet(targetID)
+		}
 		return topic.CategoryIds, topic.Id > 0
 	case reports.TargetPost:
 		post := posts.Get(targetID)
 		if post.Id == 0 {
+			post = posts.UnscopedGet(targetID)
+		}
+		if post.Id == 0 {
 			return nil, false
 		}
 		topic := topics.Get(post.TopicId)
+		if topic.Id == 0 {
+			topic = topics.UnscopedGet(post.TopicId)
+		}
 		return topic.CategoryIds, topic.Id > 0
 	default:
 		return nil, false
@@ -766,26 +952,17 @@ func reportBatchMaps(records []reports.Entity) moderationReportBatchMaps {
 			postIDs = appendUniqueUint64(postIDs, record.TargetId)
 		}
 	}
-	postMap := postMapByIDs(postIDs)
+	// 举报目标可能已被作者删除（软删）。为了仍能基于快照审核并保持分类作用域
+	// 过滤，这里用 Unscoped 加载含已删行在内的目标数据（Issue #94 R6）。
+	postMap := posts.GetMapByIdsUnscoped(postIDs)
 	for _, post := range postMap {
 		topicIDs = appendUniqueUint64(topicIDs, post.TopicId)
 	}
 	return moderationReportBatchMaps{
-		TopicMap: topics.GetMapByIds(topicIDs),
+		TopicMap: topics.GetMapByIdsUnscoped(topicIDs),
 		PostMap:  postMap,
 		UserMap:  users.GetMapByIds(userIDs),
 	}
-}
-
-func postMapByIDs(ids []uint64) map[uint64]*posts.Entity {
-	rows := posts.GetByIds(ids)
-	res := make(map[uint64]*posts.Entity, len(rows))
-	for _, row := range rows {
-		if row != nil {
-			res[row.Id] = row
-		}
-	}
-	return res
 }
 
 func reportCategoriesFromMaps(record reports.Entity, batchMaps moderationReportBatchMaps) ([]uint64, bool) {
@@ -793,7 +970,8 @@ func reportCategoriesFromMaps(record reports.Entity, batchMaps moderationReportB
 	case reports.TargetTopic:
 		topic := batchMaps.TopicMap[record.TargetId]
 		if topic.Id == 0 {
-			return nil, false
+			// 目标已删：回退到举报时刻快照中的分类，保持分类作用域过滤可用（R6）。
+			return record.EvidenceSnapshot.CategoryIDs, len(record.EvidenceSnapshot.CategoryIDs) > 0
 		}
 		return topic.CategoryIds, true
 	case reports.TargetPost:
@@ -801,13 +979,14 @@ func reportCategoriesFromMaps(record reports.Entity, batchMaps moderationReportB
 		if topicID == 0 {
 			post := batchMaps.PostMap[record.TargetId]
 			if post == nil {
-				return nil, false
+				return record.EvidenceSnapshot.CategoryIDs, len(record.EvidenceSnapshot.CategoryIDs) > 0
 			}
 			topicID = post.TopicId
 		}
 		topic := batchMaps.TopicMap[topicID]
 		if topic.Id == 0 {
-			return nil, false
+			// 目标所在话题已删：同样回退到快照分类。
+			return record.EvidenceSnapshot.CategoryIDs, len(record.EvidenceSnapshot.CategoryIDs) > 0
 		}
 		return topic.CategoryIds, true
 	default:
@@ -846,27 +1025,39 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 	switch record.TargetType {
 	case reports.TargetTopic:
 		topic := batchMaps.TopicMap[record.TargetId]
-		if topic.Id == 0 {
-			return ModerationReportItem{}, false
+		if topic.Id == 0 || topic.VisibilityStatus != topics.VisibilityActive {
+			// 目标已删：用举报时刻快照渲染，标注删除态，审核仍可继续（R6）。
+			item.TargetDeleted = true
+			item.Title = record.EvidenceSnapshot.Title
+			item.Excerpt = record.EvidenceSnapshot.Excerpt
+			item.TargetURL = record.EvidenceSnapshot.TargetURL
+		} else {
+			item.Title = topic.Title
+			item.TargetURL = urlconfig.PostDetail(topic.Id)
 		}
-		item.Title = topic.Title
-		item.TargetURL = urlconfig.PostDetail(topic.Id)
 	case reports.TargetPost:
 		post := batchMaps.PostMap[record.TargetId]
-		if post == nil {
-			return ModerationReportItem{}, false
-		}
 		topicID := record.TopicId
-		if topicID == 0 {
-			topicID = post.TopicId
+		if post == nil {
+			// 目标回复已删：用快照渲染（R6）。
+			item.TargetDeleted = true
+			item.Title = record.EvidenceSnapshot.Title
+			item.Excerpt = record.EvidenceSnapshot.Excerpt
+			item.TargetURL = record.EvidenceSnapshot.TargetURL
+		} else {
+			if topicID == 0 {
+				topicID = post.TopicId
+			}
+			topic := batchMaps.TopicMap[topicID]
+			if topic.Id > 0 {
+				item.Title = topic.Title
+			}
+			item.Excerpt = moderationExcerpt(post.Content)
+			item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
+			if topic.Id == 0 || topic.VisibilityStatus != topics.VisibilityActive || post.VisibilityStatus != posts.VisibilityActive {
+				item.TargetDeleted = true
+			}
 		}
-		topic := batchMaps.TopicMap[topicID]
-		if topic.Id == 0 {
-			return ModerationReportItem{}, false
-		}
-		item.Title = topic.Title
-		item.Excerpt = post.Content
-		item.TargetURL = fmt.Sprintf("%s#post-%d", urlconfig.PostDetail(topicID), post.Id)
 	}
 	if item.Title == "" {
 		item.Title = fmt.Sprintf("#%d", record.TargetId)

@@ -4,7 +4,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
 
 func TestPostRepositoryWindows(t *testing.T) {
@@ -62,6 +62,37 @@ func TestPostRepositoryWindows(t *testing.T) {
 	}
 	if got := postNos(normal); len(got) != 2 || got[0] != 1 || got[1] != 3 {
 		t.Fatalf("GetNormalByTopicPostNoAfter() = %#v, want [1 3]", got)
+	}
+}
+
+func TestHasChildrenCountsOnlyActiveChildren(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate posts: %v", err)
+	}
+
+	topicID := uint64(time.Now().UnixNano())
+	parent := Entity{TopicId: topicID, PostNo: 1, UserId: 1, Content: "parent"}
+	child := Entity{TopicId: topicID, PostNo: 2, UserId: 2, ReplyToPostId: 0, Content: "child"}
+	if err := conn.Create(&parent).Error; err != nil {
+		t.Fatalf("create parent: %v", err)
+	}
+	child.ReplyToPostId = parent.Id
+	if err := conn.Create(&child).Error; err != nil {
+		t.Fatalf("create child: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("topic_id = ?", topicID).Delete(&Entity{})
+	})
+
+	if !HasChildren(parent.Id) {
+		t.Fatal("HasChildren() = false for an active child")
+	}
+	if err := conn.Delete(&child).Error; err != nil {
+		t.Fatalf("soft-delete child: %v", err)
+	}
+	if HasChildren(parent.Id) {
+		t.Fatal("HasChildren() = true after the only child was soft-deleted")
 	}
 }
 
