@@ -320,24 +320,28 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 	}
 
 	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
-	// 存储邮箱：verified 邮箱优先；无 verified 邮箱时降级存 goth 的公开邮箱（如有）。
-	email := userInfo.VerifiedEmail
-	if email == "" {
-		email = userInfo.Email
-	}
-	email = strings.ToLower(strings.TrimSpace(email))
+	// 存储邮箱：只存 provider 已确认真实的邮箱（GitHub verified 邮箱）。
+	// 无 verified 邮箱时保持存 ""（与旧行为一致），不降级存 goth 公开邮箱——
+	// 未验证邮箱若被 OIDC userinfo 推导为 email_verified=true 会造成信任越界
+	// （PR #167 review, medium）。
+	email := strings.ToLower(strings.TrimSpace(userInfo.VerifiedEmail))
 
 	// 信任判定：仅 verified 邮箱命中信任域名才免验证。
 	trusted := userInfo.EmailVerified && email != "" && emailInTrustedDomains(email)
-	needValid := !trusted && securityConfig.EnableEmailVerification
+	// 无 verified 邮箱时保持旧行为免验证（needValid=false）：
+	// 该场景没有可用的激活邮箱，若进入 ActivationPending 将形成无恢复路径的
+	// 永久死账号（PR #167 review, blocking）。开关开启且未命中信任域名时，
+	// 仅当存在 verified 邮箱才要求邮箱激活。
+	needValid := !trusted && securityConfig.EnableEmailVerification && userInfo.EmailVerified
 
 	userEntity, err := userservice.CreateUser(username, randopt.RandomString(32), email, needValid)
 	if err != nil {
 		return nil, fmt.Errorf("创建用户失败: %w", err)
 	}
 
-	// 需要邮箱激活（开关开且未命中信任域名）：补发激活邮件（OAuth 路径原本不发）。
-	if needValid && email != "" {
+	// 需要邮箱激活（开关开且未命中信任域名、且有 verified 邮箱）：
+	// 补发激活邮件（OAuth 路径原本不发）。needValid=true 时 email 必非空。
+	if needValid {
 		if err := emailactivationservice.SendActivationEmail(userEntity); err != nil {
 			slog.Warn("OAuth 用户激活邮件入队失败", "userId", userEntity.Id, "email", email, "err", err)
 		} else {
@@ -370,7 +374,11 @@ func createUserFromOAuth(userInfo OAuthUserInfo) (*users.EntityComplete, error) 
 // createOAuthRecord stores a provider account binding. Only the identity
 // linkage (user/provider/provider_uid) is persisted; third-party OAuth tokens
 // are never written to the database (Issue #131).
+// 同 (user_id, provider) 已有绑定时不重复创建（幂等，PR #167 review minor）。
 func createOAuthRecord(userID uint64, userInfo OAuthUserInfo) error {
+	if existing := userOAuth.GetByUserIDAndProvider(userID, userInfo.Provider); existing != nil {
+		return nil
+	}
 	oauthEntity := &userOAuth.Entity{
 		UserId:      userID,
 		Provider:    userInfo.Provider,

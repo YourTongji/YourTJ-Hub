@@ -163,7 +163,9 @@ func TestCreateUserFromOAuthUnmatchedDomainFollowsSwitch(t *testing.T) {
 	}
 }
 
-// TestCreateUserFromOAuthNoEmailFollowsSwitch 无 verified 邮箱跟随开关。
+// TestCreateUserFromOAuthNoEmailFollowsSwitch 无 verified 邮箱保持免验证激活
+// （PR #167 review, blocking：无 verified 邮箱时无激活邮件可发，进入 pending
+// 将形成无恢复路径的死账号；保持旧行为免验证）。
 func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 	setupOAuthTestDB(t)
 
@@ -183,7 +185,7 @@ func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 		t.Fatalf("no email with verification off should activate: %v", user.IsActivated)
 	}
 
-	// 开关开 → pending
+	// 开关开 + 无 verified 邮箱 → 仍免验证激活（不死账号）
 	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
 		EnableEmailVerification: true,
 		AllowedDomains:          []string{"tongji.edu.cn"},
@@ -195,8 +197,22 @@ func TestCreateUserFromOAuthNoEmailFollowsSwitch(t *testing.T) {
 	if err != nil {
 		t.Fatalf("createUserFromOAuth() error = %v", err)
 	}
-	if user2.IsActivated != users.ActivationPending {
-		t.Fatalf("no email with verification on: activation = %v, want pending", user2.IsActivated)
+	if user2.IsActivated != users.ActivationSuccess {
+		t.Fatalf("no verified email with verification on should still activate (no dead account): %v", user2.IsActivated)
+	}
+
+	// 无 verified 邮箱时不降级存 goth 公开邮箱（PR #167 review, medium：
+	// 未验证邮箱经 OIDC 会被推导为 email_verified=true，造成信任越界）。
+	user3, err := createUserFromOAuth(OAuthUserInfo{
+		ID: "3", Login: "public-only", Provider: ProviderGitHub,
+		Email:         "public@example.com", // goth 公开邮箱，未验证
+		EmailVerified: false,
+	})
+	if err != nil {
+		t.Fatalf("createUserFromOAuth() error = %v", err)
+	}
+	if user3.Email != "" {
+		t.Fatalf("unverified goth public email should NOT be stored, got %q", user3.Email)
 	}
 }
 
@@ -337,5 +353,26 @@ func TestProcessOAuthCallbackNoAccessToken(t *testing.T) {
 	}
 	if user.Email != "" {
 		t.Fatalf("no verified email should not store email, got %q", user.Email)
+	}
+}
+
+// TestEmailInTrustedDomainsCaseInsensitive 域名匹配大小写不敏感（PR #167 review）：
+// 与注册白名单 ValidateEmailDomain 语义统一（均 EqualFold）。
+func TestEmailInTrustedDomainsCaseInsensitive(t *testing.T) {
+	setSecurityConfigForTest(t, pageConfig.SecurityAndRegistration{
+		AllowedDomains: []string{"Tongji.Edu.Cn"},
+	})
+
+	if !emailInTrustedDomains("alice@tongji.edu.cn") {
+		t.Fatal("lowercase domain should match mixed-case allowlist entry")
+	}
+	if !emailInTrustedDomains("alice@TONGJI.EDU.CN") {
+		t.Fatal("uppercase domain should match mixed-case allowlist entry")
+	}
+	if emailInTrustedDomains("alice@tongji.edu.cn.evil.com") {
+		t.Fatal("subdomain suffix must not match (no suffix relaxation)")
+	}
+	if emailInTrustedDomains("not-an-email") {
+		t.Fatal("malformed email must not match")
 	}
 }
