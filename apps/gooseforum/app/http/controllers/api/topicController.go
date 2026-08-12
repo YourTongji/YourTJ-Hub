@@ -469,7 +469,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 }
 
 type DeletePostReq struct {
-	PostId uint64 `json:"postId"`
+	PostId   uint64 `json:"postId"`
+	Force    bool   `json:"force"`
+	Password string `json:"password"`
 }
 
 type UpdatePostReq struct {
@@ -544,6 +546,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)

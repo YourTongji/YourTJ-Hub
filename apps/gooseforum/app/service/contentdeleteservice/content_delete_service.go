@@ -18,8 +18,8 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
-	"github.com/leancodebox/GooseForum/app/models/forum/reports"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
+	"github.com/leancodebox/GooseForum/app/models/forum/reports"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
@@ -40,6 +40,33 @@ const RecoveryWindow = 30 * 24 * time.Hour
 // EvidenceSnapshotRetention 已结案举报证据快照的默认保留期（Issue #94 合规）。
 // Legal/Evidence Hold 目标在清理时被跳过，可覆盖本 TTL。
 const EvidenceSnapshotRetention = 180 * 24 * time.Hour
+
+const deleteConfirmWindow = 10 * time.Minute
+const deleteConfirmLimit = int64(20)
+
+// CheckDeleteRate centralizes the confirmation gate for all destructive entry points.
+func CheckDeleteRate(userID uint64, count int, force bool, password string) error {
+	recent, err := contentDeleteEvent.CountRecentByActorEvents(userID, []string{
+		string(contentDeleteEvent.EventDeleted), string(contentDeleteEvent.EventPrivacyDelete),
+	}, time.Now().Add(-deleteConfirmWindow))
+	if err != nil {
+		return component.NewMessageError(component.MessageOperationFailed, "删除频率检查失败", nil)
+	}
+	if recent+int64(count) <= deleteConfirmLimit {
+		return nil
+	}
+	if !force {
+		return component.NewMessageError(component.MessageContentBatchConfirmRequired, "短时间内删除过多，需要二次确认", component.MessageParams{"count": recent + int64(count)})
+	}
+	user, err := users.Get(userID)
+	if err != nil || user.Id == 0 {
+		return component.NewMessageError(component.MessageUserFetchFailed, "用户不存在", nil)
+	}
+	if _, err := users.Verify(user.Username, password); err != nil {
+		return component.NewMessageError(component.MessageAuthInvalidCredentials, "密码错误", nil)
+	}
+	return nil
+}
 
 // ContentType 表示删除目标类型。
 type ContentType string
@@ -299,6 +326,13 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 		if post.Id == 0 || post.UserId != userID {
 			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
 		}
+		if post.PostNo <= 1 {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "话题首楼不能单独恢复", nil)
+		}
+		topic := topics.UnscopedGet(post.TopicId)
+		if topic.VisibilityStatus != topics.VisibilityActive || topic.RetentionStatus != topics.RetentionNormal {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "话题仍处于删除状态，不能单独恢复首楼", nil)
+		}
 		// 墓碑态行 deleted_at 为空，以 updated_at 作为删除时刻的近似。
 		deletedAt := post.DeletedAt.Time
 		if !post.DeletedAt.Valid {
@@ -453,6 +487,9 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		if topic.Id == 0 || topic.UserId != userID {
 			return component.NewMessageError(component.MessageTopicNotFound, "话题不存在", nil)
 		}
+		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
+		}
 		if err := checkPurgeable(topic.VisibilityStatus, topic.RetentionStatus); err != nil {
 			return err
 		}
@@ -479,6 +516,9 @@ func PurgeContent(userID uint64, contentType ContentType, contentID uint64, reas
 		post := posts.UnscopedGet(contentID)
 		if post.Id == 0 || post.UserId != userID {
 			return component.NewMessageError(component.MessagePostNotFound, "回复不存在", nil)
+		}
+		if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
+			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
 		}
 		if err := checkPurgeable(post.VisibilityStatus, post.RetentionStatus); err != nil {
 			return err
@@ -583,7 +623,7 @@ func purgeTopicPosts(topicID uint64, ownerID uint64) {
 		// 作者对本人内容的永久删除应彻底生效（PRD R4/R12），否则自回帖的正文与
 		// 附件会永远留在库中且附件仍可公开下载（review H2）。
 		if post.UserId == ownerID {
-			if err := posts.MarkPurged(post.Id); err != nil {
+			if err := posts.MarkPurgedOwned(post.Id, ownerID); err != nil {
 				slog.Error("failed to purge owner topic post", "topicId", topicID, "postId", post.Id, "err", err)
 				continue
 			}
@@ -640,6 +680,9 @@ func ExpireRecoverableBatch(limit int) error {
 
 	expiredTopics := topics.ExpireRecoverable(before, limit)
 	for _, topic := range expiredTopics {
+		if reports.HasOpenForTopic(topic.Id) {
+			continue
+		}
 		_ = topics.MarkPurged(topic.Id)
 		purgeTopicPosts(topic.Id, topic.UserId)
 		fileusageservice.PurgeTargetFiles(topicsTarget(topic.Id))
@@ -651,6 +694,9 @@ func ExpireRecoverableBatch(limit int) error {
 
 	expiredPosts := posts.ExpireRecoverable(before, limit)
 	for _, post := range expiredPosts {
+		if reports.HasOpenForTopic(post.TopicId) {
+			continue
+		}
 		_ = posts.MarkPurged(post.Id)
 		fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
 		notificationservice.NullifyContentPreviews(post.TopicId, post.Id)

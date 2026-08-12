@@ -242,12 +242,45 @@ func Restore(id uint64) error {
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
 // 同时清空正文，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
 func MarkPurged(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":       time.Now(),
-		"retention_status": RetentionPurged,
-		"content":          "",
-		"rendered_html":    "",
-	}).Error
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+			"content":          "",
+			"rendered_html":    "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
+}
+
+// MarkPurgedOwned permits the topic owner purge path to erase an ACTIVE reply
+// while still requiring ownership and a lifecycle state that has not already
+// been purged.
+func MarkPurgedOwned(id uint64, ownerID uint64) error {
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("user_id", ownerID)).
+		Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where(queryopt.Ne("retention_status", RetentionPurged)).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+			"content":          "",
+			"rendered_html":    "",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkPrivacyErased immediately hides and blanks a user's reply.
@@ -269,7 +302,8 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 func MarkPurgedByTopicID(topicID uint64) int64 {
 	return builder().Unscoped().
 		Where(queryopt.Eq("topic_id", topicID)).
-		Where(queryopt.Ne("visibility_status", VisibilityActive)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
 		Updates(map[string]any{
 			"deleted_at":       time.Now(),
 			"retention_status": RetentionPurged,
@@ -379,6 +413,7 @@ func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) 
 	err = builder().
 		Where(queryopt.Eq("topic_id", topicID)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
 		Where(queryopt.Gt("post_no", afterPostNo)).
 		Order(queryopt.Asc("post_no")).
 		Order(queryopt.Asc("id")).

@@ -552,14 +552,24 @@ func Restore(id uint64) error {
 // MarkPurged 标记主题为已永久删除（不再可恢复，仅审计可查）。
 // 同时清空标题、正文摘录与图片引用，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
 func MarkPurged(id uint64) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":       time.Now(),
-		"retention_status": RetentionPurged,
-		"title":            "",
-		"excerpt":          "",
-		"first_image_url":  "",
-		"image_urls":       "[]",
-	}).Error
+	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
+		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+		Updates(map[string]any{
+			"deleted_at":       time.Now(),
+			"retention_status": RetentionPurged,
+			"title":            "",
+			"excerpt":          "",
+			"first_image_url":  "",
+			"image_urls":       "[]",
+		})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return gorm.ErrRecordNotFound
+	}
+	return nil
 }
 
 // MarkPrivacyErased immediately hides a user's content and makes it unrecoverable.

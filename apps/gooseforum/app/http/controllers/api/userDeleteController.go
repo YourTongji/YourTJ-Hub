@@ -17,11 +17,16 @@ import (
 
 // DeleteTopicByUserReq 用户删除自己的话题请求。
 type DeleteTopicByUserReq struct {
-	TopicId uint64 `json:"topicId" validate:"required"`
+	TopicId  uint64 `json:"topicId" validate:"required"`
+	Force    bool   `json:"force"`
+	Password string `json:"password"`
 }
 
 // DeleteTopicByUser 用户删除自己的话题（R1）。
 func DeleteTopicByUser(req component.BetterRequest[DeleteTopicByUserReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	if err := contentdeleteservice.DeleteTopicByUser(req.UserId, req.Params.TopicId); err != nil {
 		return component.FailResponseError(err)
 	}
@@ -159,27 +164,8 @@ func BatchDeleteContent(req component.BetterRequest[BatchDeleteContentReq]) comp
 		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	}
 	// 频率窗口同时计入普通删除与隐私紧急删除（PRD R9），避免通过隐私删除绕过限速。
-	recent, err := contentDeleteEvent.CountRecentByActorEvents(req.UserId, []string{
-		string(contentDeleteEvent.EventDeleted),
-		string(contentDeleteEvent.EventPrivacyDelete),
-	}, time.Now().Add(-batchDeleteWindow))
-	if err != nil {
-		slog.Error("count recent content deletes failed", "userId", req.UserId, "err", err)
-		return component.FailResponseCode(component.MessageOperationFailed, nil)
-	}
-	if recent+int64(len(req.Params.ContentIDs)) > batchDeleteLimit {
-		if !req.Params.Force {
-			return component.FailResponseCode(component.MessageContentBatchConfirmRequired,
-				component.MessageParams{"count": recent + int64(len(req.Params.ContentIDs))})
-		}
-		// force 必须通过密码二次认证，防止攻击者仅凭被盗会话绕过限速清空内容。
-		user, userErr := users.Get(req.UserId)
-		if userErr != nil || user.Id == 0 {
-			return component.FailResponseCode(component.MessageUserFetchFailed, nil)
-		}
-		if _, verifyErr := users.Verify(user.Username, req.Params.Password); verifyErr != nil {
-			return component.FailResponseCode(component.MessageAuthInvalidCredentials, nil)
-		}
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, len(req.Params.ContentIDs), req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
 	}
 
 	results := make([]BatchDeleteResultItem, 0, len(req.Params.ContentIDs))
@@ -383,10 +369,15 @@ type PurgeContentReq struct {
 	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
 	ContentID   uint64 `json:"contentId" validate:"required"`
 	Reason      string `json:"reason"`
+	Force       bool   `json:"force"`
+	Password    string `json:"password"`
 }
 
 // PurgeContent 永久删除（R4），跳过恢复窗口，保留治理证据与审计日志。
 func PurgeContent(req component.BetterRequest[PurgeContentReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	if err := contentdeleteservice.PurgeContent(req.UserId, contentdeleteservice.ContentType(req.Params.ContentType), req.Params.ContentID, req.Params.Reason); err != nil {
 		return component.FailResponseError(err)
 	}
@@ -397,10 +388,15 @@ func PurgeContent(req component.BetterRequest[PurgeContentReq]) component.Respon
 type PrivacyEraseReq struct {
 	ContentType string `json:"contentType" validate:"required,oneof=topic post"`
 	ContentID   uint64 `json:"contentId" validate:"required"`
+	Force       bool   `json:"force"`
+	Password    string `json:"password"`
 }
 
 // PrivacyErase 隐私紧急删除（R8）：与永久删除等价，但更强调全渠道立即清除。
 func PrivacyErase(req component.BetterRequest[PrivacyEraseReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	if err := contentdeleteservice.PrivacyEraseContent(req.UserId, contentdeleteservice.ContentType(req.Params.ContentType), req.Params.ContentID); err != nil {
 		return component.FailResponseError(err)
 	}
