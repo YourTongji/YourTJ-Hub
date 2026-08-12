@@ -603,21 +603,31 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 	return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 }
 
+// dummyTimingUsername 是 forgot-password 等时化 noop 任务中与真实用户名同量的
+// 固定占位值（用户名上限 32 字符），使 dummy 任务的序列化与 DB 写入负载与
+// 已注册路径的 reset_password 任务一致（review #129 P2）。
+const dummyTimingUsername = "timing-dummy-username-0123456789"
+
 // forgotPasswordSilentSuccess 在"未知邮箱/机器人账号/邮箱变更冷静期"路径返回与
 // 已注册路径一致的响应：先执行等量 dummy 工作（一次 HMAC 令牌签名 + 一次同步
 // task_queue 写入 email.noop 任务，由邮件 worker 静默消费、不发邮件），抹平响应
 // 时间差，避免通过响应时间枚举邮箱注册状态（CWE-208，与 #109/#119 的等时化
-// 模式一致）。dummy 工作失败时返回与已注册路径相同的失败码（令牌生成失败 →
+// 模式一致）。noop 任务携带与真实 reset_password 任务同量的负载（复用刚生成的
+// dummy token 填充 Token、Username 用固定占位），确保序列化与 DB 写入负载一致。
+// dummy 工作失败时返回与已注册路径相同的失败码（令牌生成失败 →
 // auth.passwordReset.tokenCreateFailed、队列写入失败 → auth.passwordReset.mailSendFailed），
 // 使两条路径在任何状态下响应逐字节一致，不残留系统级故障窗口内的枚举信号。
 func forgotPasswordSilentSuccess(email string) component.Response {
-	if _, err := tokenservice.GeneratePasswordResetToken(0, email, 0); err != nil {
+	dummyToken, err := tokenservice.GeneratePasswordResetToken(0, email, 0)
+	if err != nil {
 		slog.Error("forgot-password 等时化令牌生成失败", "email", email, "error", err)
 		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
 	}
 	if err := mailservice.AddToQueue(mailservice.EmailTask{
-		To:   email,
-		Type: "noop",
+		To:       email,
+		Username: dummyTimingUsername,
+		Token:    dummyToken,
+		Type:     "noop",
 	}); err != nil {
 		slog.Error("forgot-password 等时化队列写入失败", "email", email, "error", err)
 		return component.FailResponseCode(component.MessageAuthResetMailSendFailed, nil)

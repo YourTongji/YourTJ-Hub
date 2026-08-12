@@ -146,13 +146,17 @@
   template default `server.url = "http://localhost"` is left untouched — issue #113).
 - Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
   unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
-  reveal whether a username/email is registered. Registration returns the generic
-  `auth.register.failed` body for username/email-taken (never `auth.username.exists` /
-  `auth.email.exists`) and always runs both existence queries, so neither the error body nor the
-  query count varies with account state. Forgot-password answers unknown emails, bots, and the
-  24-hour email-change cooldown with the same success message after equal dummy work (one HMAC
-  token signing plus a synchronous `email.noop` task, silently consumed and dropped by the mail worker so it never accumulates), so response time
-  does not reveal whether an email is registered (issue #124).
+  reveal whether a username/email is registered. Registration collapses username/email-taken into
+  the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
+  `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
+  which field is taken. The registration protocol itself (immediate account creation + session vs.
+  failure) still inherently distinguishes an already-registered email from a fresh one; removing
+  that residual signal would require an async email-verification flow (product decision, issue #124
+  acceptance item 1). Forgot-password answers unknown emails, bots, and the 24-hour email-change
+  cooldown with the same success message after equal dummy work (one HMAC token signing plus a
+  synchronous `email.noop` task carrying an equal-size token, silently consumed and dropped by the
+  mail worker so it never accumulates), so response time does not reveal whether an email is
+  registered (issue #124).
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,

@@ -5,12 +5,14 @@ import (
 	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
 	"github.com/gin-gonic/gin"
 	"github.com/leancodebox/GooseForum/app/http/controllers/api"
 	"github.com/leancodebox/GooseForum/app/http/controllers/component"
+	"github.com/leancodebox/GooseForum/app/service/mailservice"
 )
 
 // postRegister 通过 gin.CreateTestContext 直调 api.Register，返回 recorder 与
@@ -111,6 +113,26 @@ func TestForgotPasswordUnknownEmailEnqueuesNoopOnly(t *testing.T) {
 	}
 	if count := countEmailTaskByType(t, "reset_password"); count != 0 {
 		t.Fatalf("unknown-email forgot-password must not enqueue reset mail (count = %d)", count)
+	}
+
+	// 等量负载断言（review #129 P2）：noop 任务必须携带与真实 reset_password 任务同量的
+	// 载荷（非空 Token 签名、非空 Username 占位），保证 JSON 序列化与 DB 写入负载一致。
+	var noopTask *mailservice.EmailTask
+	tasks := getEmailTasks(t)
+	for i := range tasks {
+		if tasks[i].Type == "noop" {
+			noopTask = &tasks[i]
+			break
+		}
+	}
+	if noopTask == nil {
+		t.Fatal("no noop task found in queue")
+	}
+	if strings.TrimSpace(noopTask.Token) == "" {
+		t.Fatal("noop task must carry an equal-size dummy reset token (P2)")
+	}
+	if len(noopTask.Username) < 6 {
+		t.Fatalf("noop task Username placeholder too short: %q", noopTask.Username)
 	}
 }
 
