@@ -545,11 +545,11 @@ AgentPostListResponse:
             posts:
               type: array
               items:
-                type: object
+                $ref: '#/PostPayload'
             replyTargets:
               type: array
               items:
-                type: object
+                $ref: '#/ReplyTargetPayload'
             anchorPostId:
               type: integer
               format: uint64
@@ -621,7 +621,7 @@ AgentSearchResponse:
       properties:
         result:
           type: object
-          required: [query, scope, topics, users, categories, total, usersTotal, categoriesTotal, totalPages, pagination]
+          required: [query, scope, topics, users, categories, courses, total, usersTotal, categoriesTotal, coursesTotal, totalPages, pagination]
           properties:
             query:
               type: string
@@ -630,15 +630,19 @@ AgentSearchResponse:
             topics:
               type: array
               items:
-                type: object
+                $ref: '#/TopicPayload'
             users:
               type: array
               items:
-                type: object
+                $ref: '#/UserSearchPayload'
             categories:
               type: array
               items:
-                type: object
+                $ref: '#/CategorySearchPayload'
+            courses:
+              type: array
+              items:
+                $ref: '#/CourseSearchPayload'
             total:
               type: integer
               format: int64
@@ -648,10 +652,13 @@ AgentSearchResponse:
             categoriesTotal:
               type: integer
               format: int64
+            coursesTotal:
+              type: integer
+              format: int64
             totalPages:
               type: integer
             pagination:
-              type: object
+              $ref: '#/PaginationPayload'
             failedScopes:
               type: array
               items:
@@ -659,7 +666,252 @@ AgentSearchResponse:
             searchUnavailable:
               type: boolean
           additionalProperties: false
-  description: Mirrors the forum SearchJSON payload, including searchUnavailable and failedScopes.
+  description: Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes.
+
+# Shared forum payloads reused by the Agent endpoints. Each mirrors the Go DTO
+# serialized by the corresponding forum controller so consumers can type-safely
+# access the real fields (post/topic/user/category/course) instead of an empty
+# record.
+PostPayload:
+  type: object
+  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, likeCount, isLiked, isBookmarked]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 1
+    content:
+      type: string
+      description: Raw post content; emptied for hidden or removed posts.
+    renderedContent:
+      type: string
+      description: Rendered HTML; emptied for hidden or removed posts.
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 normal, 1 blocked, 2 pending moderation.
+    isHidden:
+      type: boolean
+    isAuthorDeleted:
+      type: boolean
+    isModeratorRemoved:
+      type: boolean
+    canModerate:
+      type: boolean
+    author:
+      $ref: '#/TopicAuthorPayload'
+    createdAt:
+      type: string
+      description: Post creation time in the server's `2006-01-02 15:04:05` format.
+    replyToPostId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Present only when the post replies to an in-window post.
+    replyToUserId:
+      type: integer
+      format: uint64
+      minimum: 0
+    replyToUsername:
+      type: string
+    isOwnPost:
+      type: boolean
+    updatedAt:
+      type: string
+      description: Post update time in the server's `2006-01-02 15:04:05` format.
+    likeCount:
+      type: integer
+      format: uint64
+    isLiked:
+      type: boolean
+    isBookmarked:
+      type: boolean
+  additionalProperties: false
+
+ReplyTargetPayload:
+  type: object
+  required: [id, author]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Present only when the target post is available.
+    author:
+      $ref: '#/TopicAuthorPayload'
+      description: The zero author payload when unavailable is true.
+    renderedContent:
+      type: string
+      description: Present only when the target post is available and not author or moderator removed.
+    isAuthorDeleted:
+      type: boolean
+    isModeratorRemoved:
+      type: boolean
+    unavailable:
+      type: boolean
+      description: True when the replied-to post is outside the window, purged, or pending moderation.
+  additionalProperties: false
+
+TopicCategoryPayload:
+  type: object
+  required: [id, name, url, color]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    name:
+      type: string
+    url:
+      type: string
+    color:
+      type: string
+  additionalProperties: false
+
+TopicPayload:
+  type: object
+  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, activityText, lastUpdateTime]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    title:
+      type: string
+    description:
+      type: string
+    firstImageUrl:
+      type: string
+      description: Present only when the topic has a cover image.
+    images:
+      type: array
+      items:
+        type: string
+    url:
+      type: string
+    pinWeight:
+      type: integer
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+    author:
+      $ref: '#/TopicAuthorPayload'
+    participants:
+      type: array
+      items:
+        $ref: '#/TopicAuthorPayload'
+    categories:
+      type: array
+      items:
+        $ref: '#/TopicCategoryPayload'
+    replyCount:
+      type: integer
+      format: uint64
+    viewCount:
+      type: integer
+      format: uint64
+    activityText:
+      type: string
+    lastUpdateTime:
+      type: string
+    unseen:
+      type: boolean
+      description: Present only for authenticated viewers with unseen tracking.
+  additionalProperties: false
+
+UserSearchPayload:
+  type: object
+  required: [id, username, nickname, avatarUrl, bio]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    username:
+      type: string
+    nickname:
+      type: string
+    avatarUrl:
+      type: string
+    bio:
+      type: string
+  additionalProperties: false
+
+CategorySearchPayload:
+  type: object
+  required: [id, name, slug, icon, color, desc]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    name:
+      type: string
+    slug:
+      type: string
+    icon:
+      type: string
+    color:
+      type: string
+    desc:
+      type: string
+  additionalProperties: false
+
+CourseSearchPayload:
+  type: object
+  required: [id, primaryCode, name, department, creditX10, aliases, instructors, terms, campus]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    terms:
+      type: array
+      items:
+        type: string
+    campus:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+PaginationPayload:
+  type: object
+  required: [page, nextPage, hasNext, nextUrl]
+  properties:
+    page:
+      type: integer
+    nextPage:
+      type: integer
+    hasNext:
+      type: boolean
+    nextUrl:
+      type: string
+  additionalProperties: false
 
 UserSession:
   type: object

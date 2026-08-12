@@ -857,8 +857,8 @@ export interface components {
         /** @description Mirrors the forum PostWindow payload shape. */
         AgentPostListResponse: components["schemas"]["ApiSuccess"] & {
             result: {
-                posts: Record<string, never>[];
-                replyTargets: Record<string, never>[];
+                posts: components["schemas"]["PostPayload"][];
+                replyTargets: components["schemas"]["ReplyTargetPayload"][];
                 /** Format: uint64 */
                 anchorPostId?: number;
                 /** Format: uint64 */
@@ -889,22 +889,25 @@ export interface components {
         AgentCreatePostResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["AgentCreatePostResult"];
         }) | components["schemas"]["ApiFailure"];
-        /** @description Mirrors the forum SearchJSON payload, including searchUnavailable and failedScopes. */
+        /** @description Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes. */
         AgentSearchResponse: components["schemas"]["ApiSuccess"] & {
             result: {
                 query: string;
                 scope: string;
-                topics: Record<string, never>[];
-                users: Record<string, never>[];
-                categories: Record<string, never>[];
+                topics: components["schemas"]["TopicPayload"][];
+                users: components["schemas"]["UserSearchPayload"][];
+                categories: components["schemas"]["CategorySearchPayload"][];
+                courses: components["schemas"]["CourseSearchPayload"][];
                 /** Format: int64 */
                 total: number;
                 /** Format: int64 */
                 usersTotal: number;
                 /** Format: int64 */
                 categoriesTotal: number;
+                /** Format: int64 */
+                coursesTotal: number;
                 totalPages: number;
-                pagination: Record<string, never>;
+                pagination: components["schemas"]["PaginationPayload"];
                 failedScopes?: string[];
                 searchUnavailable?: boolean;
             };
@@ -1155,6 +1158,129 @@ export interface components {
             expiresAt: number;
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
+        };
+        PostPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postNo: number;
+            /** @description Raw post content; emptied for hidden or removed posts. */
+            content: string;
+            /** @description Rendered HTML; emptied for hidden or removed posts. */
+            renderedContent: string;
+            /**
+             * @description 0 normal, 1 blocked, 2 pending moderation.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            isHidden: boolean;
+            isAuthorDeleted: boolean;
+            isModeratorRemoved: boolean;
+            canModerate: boolean;
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Post creation time in the server's `2006-01-02 15:04:05` format. */
+            createdAt: string;
+            /**
+             * Format: uint64
+             * @description Present only when the post replies to an in-window post.
+             */
+            replyToPostId?: number;
+            /** Format: uint64 */
+            replyToUserId?: number;
+            replyToUsername?: string;
+            isOwnPost: boolean;
+            /** @description Post update time in the server's `2006-01-02 15:04:05` format. */
+            updatedAt: string;
+            /** Format: uint64 */
+            likeCount: number;
+            isLiked: boolean;
+            isBookmarked: boolean;
+        };
+        ReplyTargetPayload: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Present only when the target post is available.
+             */
+            postNo?: number;
+            /** @description The zero author payload when unavailable is true. */
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Present only when the target post is available and not author or moderator removed. */
+            renderedContent?: string;
+            isAuthorDeleted?: boolean;
+            isModeratorRemoved?: boolean;
+            /** @description True when the replied-to post is outside the window, purged, or pending moderation. */
+            unavailable?: boolean;
+        };
+        TopicCategoryPayload: {
+            /** Format: uint64 */
+            id: number;
+            name: string;
+            url: string;
+            color: string;
+        };
+        TopicPayload: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            description: string;
+            /** @description Present only when the topic has a cover image. */
+            firstImageUrl?: string;
+            images?: string[];
+            url: string;
+            pinWeight: number;
+            /** @enum {integer} */
+            processStatus: 0 | 1 | 2;
+            author: components["schemas"]["TopicAuthorPayload"];
+            participants: components["schemas"]["TopicAuthorPayload"][];
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /** Format: uint64 */
+            replyCount: number;
+            /** Format: uint64 */
+            viewCount: number;
+            activityText: string;
+            lastUpdateTime: string;
+            /** @description Present only for authenticated viewers with unseen tracking. */
+            unseen?: boolean;
+        };
+        UserSearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            bio: string;
+        };
+        CategorySearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            name: string;
+            slug: string;
+            icon: string;
+            color: string;
+            desc: string;
+        };
+        CourseSearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
+            creditX10: number;
+            aliases: string[];
+            instructors: string[];
+            terms: string[];
+            campus: string[];
+        };
+        PaginationPayload: {
+            page: number;
+            nextPage: number;
+            hasNext: boolean;
+            nextUrl: string;
         };
         /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
         ReportHandlerPayload: {
