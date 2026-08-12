@@ -75,14 +75,14 @@ func ProviderCallback(c *gin.Context) {
 		}
 
 		if user.IsActivated == users.ActivationPending {
-			user.IsActivated = users.ActivationSuccess
-			// 更新用户状态
-			err = userservice.SaveUser(user)
-			if err != nil {
-				slog.Error("Update user activation status failed", "error", err)
-				forum.RenderInternalOAuthErrorPage(c, component.MessageOAuthActivationUpdateFailed)
-				return
-			}
+			// issue #155：OAuth 用户处于待激活状态（verified 邮箱未命中信任域名且
+			// 全局 EnableEmailVerification 开启）时，不发放会话——与密码登录对
+			// pending 用户的拒绝语义一致（authController 返回 auth.email.unverified）。
+			// 用户需通过激活邮件完成验证后重新登录。
+			slog.Info("OAuth callback rejected pending activation user",
+				"userId", user.Id, "provider", gothUser.Provider)
+			forum.RenderOAuthErrorPage(c, http.StatusForbidden, component.MessageAuthEmailUnverified)
+			return
 		}
 
 		// 生成JWT token（会话凭证，写会话记录）
