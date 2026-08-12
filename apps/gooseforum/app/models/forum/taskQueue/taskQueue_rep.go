@@ -11,6 +11,12 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+// Delete 删除任务行。仅用于 noop 等时化 dummy 任务（账号枚举防护 #124）消费后
+// 清理，避免 task_queue 无界增长；真实邮件任务仍保留为 Success 以留存审计痕迹。
+func Delete(id uint64) error {
+	return builder().Where("id = ?", id).Delete(&Entity{}).Error
+}
+
 // CreateTx 在业务事务内入队（transaction-bound outbox）：
 // 任务行与业务写入同事务提交，崩溃前不提交 ⇒ 不产生任务；提交后 ⇒ worker 可消费。
 func CreateTx(tx *gorm.DB, entity *Entity) error {
