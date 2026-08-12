@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -21,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -71,8 +71,8 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
 	forumLoginAPI.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
 	forumLoginAPI.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
-	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewStatus))
-	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationCourseReviewReportList))
+	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
+	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
 	forumLoginAPI.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewReveal))
 	return conn, router
 }
@@ -756,5 +756,75 @@ func TestCourseReviewLegacyHelpfulCountHTTPContract(t *testing.T) {
 	}
 	if items[0]["helpfulCount"] != float64(7) {
 		t.Fatalf("helpfulCount = %#v, want 7 (legacy count exposed)", items[0]["helpfulCount"])
+	}
+}
+
+// TestCourseReviewModerationRateLimit 验收 1（issue #176 B4）：course.review.moderate
+// 限流（60s 窗口 per-User 30）——同一管理账号第 31 次审核操作返回 429 + Retry-After。
+// 注意：hotdataserve 的限流配置缓存来自 ratelimit.json 默认值，测试用同一账号
+// 触发 user 维度（per-IP 60 未超）。
+func TestCourseReviewModerationRateLimit(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 902)
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	token := contractSessionToken(t, manager)
+	seedCourseReview(t, conn, 304, 902, 1, intPtr(5), "限流目标", false, "", course.ReviewStatusVisible)
+
+	const moderateUserLimit = 30
+	for i := 0; i < moderateUserLimit; i++ {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
+			`{"reviewId":304,"action":"hide"}`, token)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("hit #%d status = %d, want 200 within limit: %s", i+1, rec.Code, rec.Body.String())
+		}
+		// hide/show 交替避免状态副作用影响后续请求
+	}
+	// 第 31 次：429 + Retry-After
+	rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
+		`{"reviewId":304,"action":"hide"}`, token)
+	if rec.Code != http.StatusTooManyRequests {
+		t.Fatalf("31st status = %d, want 429: %s", rec.Code, rec.Body.String())
+	}
+	if retry := rec.Header().Get("Retry-After"); retry == "" || retry == "0" {
+		t.Fatalf("Retry-After header = %q, want positive integer", retry)
+	}
+}
+
+// TestCourseReviewListOfferingOwnership404 验收 2（issue #176 B4）：
+// 跨课程 offering 与隐藏 offering 的评价列表返回 404（offering 归属校验）。
+func TestCourseReviewListOfferingOwnership404(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 902)
+	// 造另一个课程 43 的 offering 903（不属于 course 42），以及隐藏的 offering 904
+	if err := conn.Create(&course.Entity{
+		Id: 43, PrimaryCode: "100002", Name: "线性代数", Department: "数学科学学院",
+		Status: course.StatusVisible,
+	}).Error; err != nil {
+		t.Fatalf("create course 43: %v", err)
+	}
+	if err := conn.Create(&course.OfferingEntity{Id: 903, CourseId: 43, TermId: 101, Status: course.OfferingStatusVisible}).Error; err != nil {
+		t.Fatalf("create cross-course offering: %v", err)
+	}
+	if err := conn.Create(&course.OfferingEntity{Id: 904, CourseId: 42, TermId: 101, Status: course.OfferingStatusHidden}).Error; err != nil {
+		t.Fatalf("create hidden offering: %v", err)
+	}
+
+	cases := []struct {
+		name string
+		path string
+	}{
+		{"cross-course offering", "/api/forum/courses/42/reviews?offeringId=903"},
+		{"hidden offering", "/api/forum/courses/42/reviews?offeringId=904"},
+		{"unknown offering", "/api/forum/courses/42/reviews?offeringId=99999"},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			rec := serveAuthSecurityJSON(router, http.MethodGet, tc.path, "", "")
+			if rec.Code != http.StatusNotFound {
+				t.Fatalf("%s status = %d, want 404: %s", tc.name, rec.Code, rec.Body.String())
+			}
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-offering-not-found.json"))
+		})
 	}
 }

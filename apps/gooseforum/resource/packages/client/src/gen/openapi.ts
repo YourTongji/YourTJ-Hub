@@ -2514,6 +2514,19 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /**
+             * @description The offering does not exist, does not belong to the given course, or is not visible.
+             *     The server validates offering ownership before listing (issue #176 B4), so a caller
+             *     cannot enumerate reviews of a hidden offering or an offering of another course.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Review listing failed. */
             500: {
                 headers: {
@@ -2538,7 +2551,12 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The created review payload, or a legacy business failure envelope for validation failures. */
+            /**
+             * @description The created review payload. Request-level validation failures (rating outside 1..5,
+             *     empty or over-long content, missing fields) are returned as a legacy HTTP 200 envelope
+             *     with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
+             *     route behavior). Service-level errors use their own status codes below.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2547,7 +2565,7 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewWriteResponse"];
                 };
             };
-            /** @description Malformed JSON request body (binding failure). Rating range and required-field failures are legacy HTTP 200 business failures. */
+            /** @description Malformed JSON request body (binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
