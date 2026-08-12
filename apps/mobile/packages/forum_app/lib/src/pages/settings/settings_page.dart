@@ -1080,9 +1080,14 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     showGfToast(context, message);
   }
 
-  String _formatTs(int tsSeconds) {
+  /// 会话创建时间渲染为 `YYYY-MM-DD`。
+  ///
+  /// 契约(`components/schemas.yaml#/UserSession` 与后端
+  /// `toSessionVO` 的 `UnixMilli()`)规定 createdAt 为 Unix **毫秒**,
+  /// 直接使用,不得再乘 1000(否则会变成微秒级,日期溢出)。
+  String _formatTs(int createdAtMs) {
     final DateTime t = DateTime.fromMillisecondsSinceEpoch(
-      tsSeconds * 1000,
+      createdAtMs,
     ).toLocal();
     return '${t.year}-${t.month.toString().padLeft(2, '0')}-${t.day.toString().padLeft(2, '0')}';
   }
