@@ -76,22 +76,45 @@ async function getTenantToken() {
 async function getDocumentMeta(token, docId) {
   try {
     const data = await feishuFetch(`/docx/v1/documents/${docId}`, { token })
-    return (data.document || {}).title || ''
+    return (data.data?.document || {}).title || ''
   } catch {
     return '' // 拿不到标题就退回用 token 命名
   }
 }
 
-/** 分页拉取文档全部块（按文档顺序返回）。 */
+/**
+ * 递归分页拉取文档全部块（含子块，如表格单元格/嵌套列表）。
+ * 飞书 docx API 的 /blocks 只返回顶层块；子块须按
+ * /blocks/:id/children 逐层拉取。块顺序 = 文档顺序（先父后子）。
+ */
 async function fetchAllBlocks(token, docId) {
   const blocks = []
-  let pageToken = ''
-  do {
-    const qs = `?page_size=500${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`
-    const data = await feishuFetch(`/docx/v1/documents/${docId}/blocks${qs}`, { token })
-    blocks.push(...(data.items || []))
-    pageToken = data.has_more ? data.page_token : ''
-  } while (pageToken)
+  const fetched = new Set()
+
+  async function fetchChildren(parentId) {
+    if (fetched.has(parentId)) return
+    fetched.add(parentId)
+    let pageToken = ''
+    do {
+      const qs = `?page_size=500${pageToken ? `&page_token=${encodeURIComponent(pageToken)}` : ''}`
+      const data = await feishuFetch(
+        `/docx/v1/documents/${docId}/blocks/${parentId}/children${qs}`,
+        { token },
+      )
+      const items = data.data?.items || []
+      for (const b of items) {
+        blocks.push(b)
+        // 递归拉取该块的子块（表格单元格、嵌套列表等）
+        if (b.children && b.children.length > 0) {
+          await fetchChildren(b.block_id)
+        }
+      }
+      pageToken = data.data?.has_more ? data.data.page_token : ''
+    } while (pageToken)
+  }
+
+  // 根块即文档本身（PAGE 块，block_id = document_id）
+  await fetchChildren(docId)
   return blocks
 }
 
@@ -278,7 +301,8 @@ async function docxToMarkdown(token, docId) {
     if (!blocksByParent.has(pid)) blocksByParent.set(pid, [])
     blocksByParent.get(pid).push(b)
   }
-  const lines = renderBlocks(blocksByParent, '')
+  // 根：文档的 PAGE 块（block_id = document_id），其子块 parent_id = docId
+  const lines = renderBlocks(blocksByParent, docId)
   // 去掉首尾多余空行
   while (lines.length && lines[0] === '') lines.shift()
   while (lines.length && lines[lines.length - 1] === '') lines.pop()
@@ -312,8 +336,8 @@ async function fetchBitableRecords(token) {
       `/bitable/v1/apps/${BITABLE_APP_TOKEN}/tables/${BITABLE_TABLE_ID}/records${qs}`,
       { token },
     )
-    records.push(...(data.items || []))
-    pageToken = data.has_more ? data.page_token : ''
+    records.push(...(data.data?.items || []))
+    pageToken = data.data?.has_more ? data.data.page_token : ''
   } while (pageToken)
   return records
 }
