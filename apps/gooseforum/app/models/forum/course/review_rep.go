@@ -212,8 +212,9 @@ func DeleteHelpful(reviewId, userId uint64) error {
 // 冲突（回滚到 savepoint 后事务可继续），不依赖驱动错误映射
 // （gorm.ErrDuplicatedKey 在 PG 下不可靠）。SQLite 同样支持 SAVEPOINT。
 //
-// 分块（security F4）：每批次最多处理 reviewCleanupBatchSize 行，避免首启
-// 积压多年删除行时单大事务长持锁。
+// 分块（security F4）：每批次最多处理 500 行，避免首启积压多年删除行时
+// 单大事务长持锁。排水率约 500 行/次（每日 cron 触发）；积压量大时多日
+// 收敛，符合后台任务节奏（spec N3）。
 func CleanupExpiredDeletedReviewsTx(tx *gorm.DB, cutoff time.Time) (int64, error) {
 	const batchSize = 500
 	// 1) 批量清空正文（无唯一约束冲突；按行数分块）

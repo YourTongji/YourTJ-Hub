@@ -342,14 +342,19 @@ func TestCleanupPlaceholderReleasedStatsAccumulated(t *testing.T) {
 
 // TestCleanupWindowStartIsDeleteTime 锁定 security/spec 双审 F2：窗口起点是
 // 删除时间（DeleteReview 显式写 updated_at=now），不是创建时间。真实路径：
-// 创建 100 天前的评价 → 今天经 DeleteReview 删除 → 清理运行 → 30 天窗口
-// 内不清该行（此前 updated_at≈created_at 导致窗口塌缩、老评价刚删即被清）。
-// 不手工伪造 updated_at（createDeletedReview 的测试假阳性根因）。
+// 评价创建于 100 天前（created_at/updated_at 均回拨）→ 今天经 DeleteReview
+// 删除 → 清理运行 → 30 天窗口内不清该行（此前 updated_at≈created_at 导致
+// 窗口塌缩、老评价刚删即被清）。
+// 判别性（spec N1）：回拨必须用裸 Table().Update——Model(entity).Update
+// 走 schema，created_at 的 <-:create 标签使赋值被跳过（静默 no-op）且
+// autoUpdateTime 会把 updated_at 撞到 now，测试在 buggy 代码上同样全绿
+// （假阳性回归盾）。裸 Table() 无 schema、无 autoUpdateTime，两列都真实回拨，
+// 测试才具判别性：buggy（不写 updated_at）→ 红；修复 → 绿。
 func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
 	_, offeringId := setupReviewTest(t)
 	conn := dbconnect.Connect()
 
-	// 创建 100 天前的评价（真实 CreateReview）
+	// 创建评价（真实 CreateReview）
 	payload, err := CreateReview(8001, CreateReviewInput{
 		OfferingId: offeringId,
 		Rating:     5,
@@ -358,10 +363,20 @@ func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create review: %v", err)
 	}
-	// 把 created_at 回拨 100 天（模拟老评价；不动 updated_at 语义路径）
-	if err := conn.Model(&course.ReviewEntity{}).Where("id = ?", payload.Id).
-		Update("created_at", time.Now().Add(-100*24*time.Hour)).Error; err != nil {
-		t.Fatalf("age created_at: %v", err)
+	// 裸 Table().Update 同时把 created_at 与 updated_at 回拨 100 天前
+	// （模拟老评价；无 schema 无 autoUpdateTime，两列均真实写入）
+	oldTime := time.Now().Add(-100 * 24 * time.Hour)
+	if err := conn.Table("course_review").Where("id = ?", payload.Id).
+		Updates(map[string]any{"created_at": oldTime, "updated_at": oldTime}).Error; err != nil {
+		t.Fatalf("age review timestamps: %v", err)
+	}
+	// 确认回拨真实生效（若被 schema 拦截，此断言直接红）
+	var preDelete course.ReviewEntity
+	if err := conn.First(&preDelete, payload.Id).Error; err != nil {
+		t.Fatalf("reload aged review: %v", err)
+	}
+	if time.Since(preDelete.UpdatedAt) < 90*24*time.Hour {
+		t.Fatalf("timestamp rollback was a no-op (schema intercepted): updated_at=%v", preDelete.UpdatedAt)
 	}
 
 	// 今天经真实 DeleteReview 删除（窗口起点 = 今天）
