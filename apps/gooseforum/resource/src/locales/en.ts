@@ -352,6 +352,7 @@ export default {
     instructors: 'Instructors: {names}',
     terms: 'Terms',
     noResult: 'No matching courses found.',
+    pageLabel: 'Page {page}',
   },
   courseDetailPage: {
     backToList: 'Back to course catalog',
@@ -377,6 +378,7 @@ export default {
     rating: 'Rating',
     ratingRequired: 'Please choose a 1–5 star rating.',
     stars: 'star(s)',
+    ratingUnselected: 'No rating selected',
     content: 'Review',
     contentPlaceholder: 'Share your experience with the course, teaching quality, or grading…',
     contentRequired: 'Review content cannot be empty.',
@@ -396,6 +398,7 @@ export default {
     reportTitle: 'Report this review',
     submitReport: 'Submit report',
     reportNotePlaceholder: 'Optional details',
+    reportNoteLabel: 'Additional details',
     reviewReportFailed: 'Failed to submit report. Please try again later.',
     reportReasons: {
       spam: 'Spam',
@@ -410,7 +413,7 @@ export default {
     description: 'Handle course review reports and hide rule-violating content.',
     statusTabs: {
       open: 'Open',
-      resolved: 'Hidden',
+      resolved: 'Handled',
       rejected: 'Rejected',
     },
     reviewLabel: 'Review',
@@ -430,6 +433,7 @@ export default {
     revealTitle: 'Reveal anonymous author',
     revealDescription: 'Identity reveal is admin-only, requires a reason, and is recorded in the audit log.',
     revealReasonPlaceholder: 'Reason for revealing identity (required)',
+    revealReasonLabel: 'Reason for revealing identity',
     revealReasonRequired: 'Please provide a reason to reveal the anonymous author.',
     confirmReveal: 'Reveal',
     revealResultAnonymous: 'Author: {author} (anonymous review)',

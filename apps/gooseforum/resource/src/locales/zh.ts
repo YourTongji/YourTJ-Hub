@@ -352,6 +352,7 @@ export default {
     instructors: '教师：{names}',
     terms: '开课学期',
     noResult: '没有找到匹配的课程。',
+    pageLabel: '第 {page} 页',
   },
   courseDetailPage: {
     backToList: '返回课程目录',
@@ -377,6 +378,7 @@ export default {
     rating: '评分',
     ratingRequired: '请选择 1–5 星评分。',
     stars: '星',
+    ratingUnselected: '未选择评分',
     content: '评价内容',
     contentPlaceholder: '写下你的学习体验、课程质量或给分情况…',
     contentRequired: '评价内容不能为空。',
@@ -396,6 +398,7 @@ export default {
     reportTitle: '举报这条评价',
     submitReport: '提交举报',
     reportNotePlaceholder: '补充说明，可选',
+    reportNoteLabel: '补充说明',
     reviewReportFailed: '举报提交失败，请稍后重试。',
     reportReasons: {
       spam: '垃圾广告',
@@ -410,7 +413,7 @@ export default {
     description: '处理课程评价的举报，隐藏违规内容。',
     statusTabs: {
       open: '待处理',
-      resolved: '已隐藏',
+      resolved: '已处理',
       rejected: '已驳回',
     },
     reviewLabel: '评价',
@@ -430,6 +433,7 @@ export default {
     revealTitle: '查看匿名作者',
     revealDescription: '身份揭示仅限管理员，且必须填写理由，操作会记录审计日志。',
     revealReasonPlaceholder: '填写查看身份的理由（必填）',
+    revealReasonLabel: '查看身份的理由',
     revealReasonRequired: '请填写查看匿名作者的理由。',
     confirmReveal: '确认查看',
     revealResultAnonymous: '作者：{author}（匿名评价）',

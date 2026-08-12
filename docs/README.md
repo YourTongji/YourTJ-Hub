@@ -61,6 +61,10 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [System overview & domain boundaries](architecture/system-overview.md)
 - [Contracts, data & derived projections](architecture/contracts-and-data.md)
 
+### Frontend
+
+- [Course review interface audit baseline](frontend/course-review-interface-audit.md)
+
 ### Development
 
 - [Development entry](development/README.md)

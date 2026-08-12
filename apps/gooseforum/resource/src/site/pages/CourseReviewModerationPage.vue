@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Ban, Eye, Flag, Loader2, X, XCircle } from '@lucide/vue'
 import {
@@ -13,6 +13,7 @@ import { formatDateTime } from '@/runtime/format'
 import EmptyState from '@/site/components/EmptyState.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import UserAvatar from '@/site/components/UserAvatar.vue'
+import { useModalDialog } from '@/site/composables/useModalDialog'
 import type { CourseReviewModerationPageProps, LayoutPayload } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -126,6 +127,11 @@ const revealReason = ref('')
 const revealSubmitting = ref(false)
 const revealError = ref('')
 const revealResult = ref('')
+// F1: 揭示弹窗焦点管理（focus trap / Escape / 焦点还原 / 背景 inert）。
+const { bindRoot: bindRevealRoot } = useModalDialog(
+  computed(() => revealTarget.value !== null),
+  closeReveal,
+)
 
 function openReveal(item: ModerationCourseReviewReportItem) {
   if (!isAdmin) return
@@ -174,7 +180,7 @@ onMounted(() => {
 </script>
 
 <template>
-  <main class="min-w-0 pb-8">
+  <div class="min-w-0 pb-8">
     <PageHeader
       :title="t('courseReviewModeration.title')"
       :description="t('courseReviewModeration.description')"
@@ -183,7 +189,7 @@ onMounted(() => {
     />
 
     <section class="space-y-3">
-      <p v-if="reportError" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
+      <p v-if="reportError" role="alert" class="rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
         {{ reportError }}
       </p>
 
@@ -193,6 +199,7 @@ onMounted(() => {
             type="button"
             class="gf-tab"
             :class="reportStatus === 'open' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+            :aria-pressed="reportStatus === 'open'"
             @click="switchReportStatus('open')"
           >
             {{ t('courseReviewModeration.statusTabs.open') }}
@@ -201,6 +208,7 @@ onMounted(() => {
             type="button"
             class="gf-tab"
             :class="reportStatus === 'resolved' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+            :aria-pressed="reportStatus === 'resolved'"
             @click="switchReportStatus('resolved')"
           >
             {{ t('courseReviewModeration.statusTabs.resolved') }}
@@ -209,6 +217,7 @@ onMounted(() => {
             type="button"
             class="gf-tab"
             :class="reportStatus === 'rejected' ? 'bg-base-100 text-base-content shadow-sm ring-1 ring-line' : 'text-base-content/55 hover:bg-base-100/70 hover:text-base-content'"
+            :aria-pressed="reportStatus === 'rejected'"
             @click="switchReportStatus('rejected')"
           >
             {{ t('courseReviewModeration.statusTabs.rejected') }}
@@ -345,17 +354,20 @@ onMounted(() => {
     <Teleport to="body">
       <div
         v-if="revealTarget"
+        ref="bindRevealRoot"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="course-review-reveal-title"
         @click.self="closeReveal"
       >
         <div class="w-full max-w-md rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
           <div class="flex items-start justify-between gap-3">
-            <h2 class="text-base font-bold text-base-content">{{ t('courseReviewModeration.revealTitle') }}</h2>
+            <h2 id="course-review-reveal-title" class="text-base font-bold text-base-content">{{ t('courseReviewModeration.revealTitle') }}</h2>
             <button
               type="button"
               class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+              :aria-label="t('common.close')"
               @click="closeReveal"
             >
               <X class="h-4 w-4" />
@@ -368,12 +380,14 @@ onMounted(() => {
               v-model="revealReason"
               class="gf-textarea min-h-24"
               maxlength="500"
+              :aria-label="t('courseReviewModeration.revealReasonLabel')"
+              :aria-invalid="revealError ? 'true' : undefined"
               :placeholder="t('courseReviewModeration.revealReasonPlaceholder')"
             />
           </div>
 
-          <p v-if="revealError" class="mt-3 text-sm text-error">{{ revealError }}</p>
-          <p v-if="revealResult" class="mt-3 rounded border border-success/25 bg-success/10 px-3 py-2 text-sm text-base-content/75">
+          <p v-if="revealError" role="alert" class="mt-3 text-sm text-error">{{ revealError }}</p>
+          <p v-if="revealResult" role="status" class="mt-3 rounded border border-success/25 bg-success/10 px-3 py-2 text-sm text-base-content/75">
             {{ revealResult }}
           </p>
 
@@ -399,5 +413,5 @@ onMounted(() => {
         </div>
       </div>
     </Teleport>
-  </main>
+  </div>
 </template>

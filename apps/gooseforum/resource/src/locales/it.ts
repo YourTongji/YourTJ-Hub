@@ -352,6 +352,7 @@ export default {
     instructors: 'Docenti: {names}',
     terms: 'Semestri',
     noResult: 'Nessun corso corrispondente trovato.',
+    pageLabel: 'Pagina {page}',
   },
   courseDetailPage: {
     backToList: 'Torna al catalogo corsi',
@@ -377,6 +378,7 @@ export default {
     rating: 'Valutazione',
     ratingRequired: 'Scegli una valutazione da 1 a 5 stelle.',
     stars: 'stella(e)',
+    ratingUnselected: 'Nessuna valutazione selezionata',
     content: 'Recensione',
     contentPlaceholder: 'Condividi la tua esperienza sul corso, la qualità dell’insegnamento o i voti…',
     contentRequired: 'Il contenuto della recensione non può essere vuoto.',
@@ -396,6 +398,7 @@ export default {
     reportTitle: 'Segnala questa recensione',
     submitReport: 'Invia segnalazione',
     reportNotePlaceholder: 'Dettagli facoltativi',
+    reportNoteLabel: 'Dettagli aggiuntivi',
     reviewReportFailed: 'Invio della segnalazione non riuscito. Riprova più tardi.',
     reportReasons: {
       spam: 'Spam',
@@ -410,7 +413,7 @@ export default {
     description: 'Gestisci le segnalazioni delle recensioni dei corsi e nascondi i contenuti che violano le regole.',
     statusTabs: {
       open: 'Aperte',
-      resolved: 'Nascoste',
+      resolved: 'Gestite',
       rejected: 'Respinte',
     },
     reviewLabel: 'Recensione',
@@ -430,6 +433,7 @@ export default {
     revealTitle: 'Rivela autore anonimo',
     revealDescription: 'La rivelazione dell’identità è riservata agli amministratori, richiede un motivo ed è registrata nel log di controllo.',
     revealReasonPlaceholder: 'Motivo della rivelazione (obbligatorio)',
+    revealReasonLabel: 'Motivo della rivelazione',
     revealReasonRequired: 'Fornisci un motivo per rivelare l’autore anonimo.',
     confirmReveal: 'Rivela',
     revealResultAnonymous: 'Autore: {author} (recensione anonima)',

@@ -352,6 +352,7 @@ export default {
     instructors: '教員：{names}',
     terms: '開講学期',
     noResult: '一致するコースが見つかりません。',
+    pageLabel: '{page} ページ',
   },
   courseDetailPage: {
     backToList: 'コースカタログに戻る',
@@ -377,6 +378,7 @@ export default {
     rating: '評価',
     ratingRequired: '1〜5 の星評価を選択してください。',
     stars: '星',
+    ratingUnselected: '評価が選択されていません',
     content: '評価内容',
     contentPlaceholder: '講義の内容、授業の質、成績評価などを書きましょう…',
     contentRequired: '評価内容を入力してください。',
@@ -396,6 +398,7 @@ export default {
     reportTitle: 'この評価を通報',
     submitReport: '通報を送信',
     reportNotePlaceholder: '補足説明（任意）',
+    reportNoteLabel: '補足説明',
     reviewReportFailed: '通報の送信に失敗しました。あとでもう一度お試しください。',
     reportReasons: {
       spam: 'スパム・広告',
@@ -410,7 +413,7 @@ export default {
     description: 'コース評価の通報を処理し、ルール違反の内容を非表示にします。',
     statusTabs: {
       open: '未処理',
-      resolved: '非表示済み',
+      resolved: '処理済み',
       rejected: '却下済み',
     },
     reviewLabel: '評価',
@@ -430,6 +433,7 @@ export default {
     revealTitle: '匿名作者を確認',
     revealDescription: '身元の開示は管理者のみ可能です。理由の入力が必要で、監査ログに記録されます。',
     revealReasonPlaceholder: '身元を確認する理由（必須）',
+    revealReasonLabel: '身元を確認する理由',
     revealReasonRequired: '匿名作者を確認する理由を入力してください。',
     confirmReveal: '確認する',
     revealResultAnonymous: '作者：{author}（匿名評価）',

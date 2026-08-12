@@ -16,7 +16,10 @@ const { t } = useI18n()
   <div class="pb-12">
     <PageHeader :title="t('coursesPage.title')" :description="t('coursesPage.subtitle')">
       <template #badge>
-        <span class="gf-badge gf-badge-muted">{{ props.pagination.page }}</span>
+        <span class="gf-badge gf-badge-muted">
+          <span class="sr-only">{{ t('coursesPage.pageLabel', { page: props.pagination.page }) }}</span>
+          <span aria-hidden="true">{{ props.pagination.page }}</span>
+        </span>
       </template>
     </PageHeader>
 
@@ -98,16 +101,16 @@ const { t } = useI18n()
             class="group block rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
           >
             <div class="flex items-start justify-between gap-2">
-              <h2 class="min-w-0 truncate text-[15px] font-semibold text-base-content group-hover:text-primary">
+              <h2 :title="course.name" class="min-w-0 truncate text-[15px] font-semibold text-base-content group-hover:text-primary">
                 {{ course.name }}
               </h2>
               <span class="gf-badge gf-badge-muted shrink-0 text-[11px]">{{ course.primaryCode }}</span>
             </div>
-            <p class="mt-1 truncate text-[12px] text-base-content/55">{{ course.department }}</p>
-            <div v-if="course.instructors?.length" class="mt-2 truncate text-[12px] text-base-content/75">
+            <p :title="course.department" class="mt-1 truncate text-[12px] text-base-content/55">{{ course.department }}</p>
+            <div v-if="course.instructors?.length" :title="course.instructors.join('、')" class="mt-2 truncate text-[12px] text-base-content/75">
               {{ t('coursesPage.instructors', { names: course.instructors.join('、') }) }}
             </div>
-            <div v-if="course.recentTerms?.length" class="mt-1 truncate text-[11px] text-base-content/45">
+            <div v-if="course.recentTerms?.length" :title="course.recentTerms.join(' / ')" class="mt-1 truncate text-[11px] text-base-content/45">
               {{ t('coursesPage.terms') }}：{{ course.recentTerms.join(' / ') }}
             </div>
             <div class="mt-2 flex flex-wrap items-center gap-1.5">

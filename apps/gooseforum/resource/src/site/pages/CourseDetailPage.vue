@@ -1,7 +1,8 @@
 <script setup lang="ts">
-import { computed, onMounted, ref } from 'vue'
+import { computed, nextTick, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { ArrowLeft, Building2, CalendarDays, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
+import { useModalDialog } from '@/site/composables/useModalDialog'
 import {
   createCourseReview,
   deleteCourseReview,
@@ -80,6 +81,17 @@ const formAnonymous = ref(true)
 const formSubmitting = ref(false)
 const formError = ref('')
 const editingReviewId = ref<number | null>(null)
+// F3: 记录校验失败字段，用于 aria-invalid / aria-describedby 与错误聚焦。
+const formErrorField = ref<'offering' | 'rating' | 'content' | null>(null)
+const offeringGroupRef = ref<HTMLFieldSetElement | null>(null)
+const ratingGroupRef = ref<HTMLDivElement | null>(null)
+const contentInputRef = ref<HTMLTextAreaElement | null>(null)
+
+function focusFirstField() {
+  void nextTick(() => {
+    offeringGroupRef.value?.querySelector<HTMLElement>('input')?.focus()
+  })
+}
 
 function openCreateForm() {
   editingReviewId.value = null
@@ -88,7 +100,9 @@ function openCreateForm() {
   formContent.value = ''
   formAnonymous.value = true
   formError.value = ''
+  formErrorField.value = null
   formVisible.value = true
+  focusFirstField()
 }
 
 function startEdit(review: ReviewPayload) {
@@ -100,27 +114,37 @@ function startEdit(review: ReviewPayload) {
   formContent.value = review.content ?? ''
   formAnonymous.value = review.author.kind === 'anonymous'
   formError.value = ''
+  formErrorField.value = null
   formVisible.value = true
+  focusFirstField()
 }
 
 function cancelForm() {
   formVisible.value = false
   editingReviewId.value = null
   formError.value = ''
+  formErrorField.value = null
 }
 
 async function submitForm() {
   formError.value = ''
+  formErrorField.value = null
   if (!formOfferingId.value) {
     formError.value = t('courseDetailPage.selectOfferingRequired')
+    formErrorField.value = 'offering'
+    offeringGroupRef.value?.querySelector<HTMLElement>('input')?.focus()
     return
   }
   if (formRating.value < 1 || formRating.value > 5) {
     formError.value = t('courseDetailPage.ratingRequired')
+    formErrorField.value = 'rating'
+    ratingGroupRef.value?.querySelector<HTMLElement>('button')?.focus()
     return
   }
   if (!formContent.value.trim()) {
     formError.value = t('courseDetailPage.contentRequired')
+    formErrorField.value = 'content'
+    contentInputRef.value?.focus()
     return
   }
   formSubmitting.value = true
@@ -144,7 +168,9 @@ async function submitForm() {
     formVisible.value = false
     editingReviewId.value = null
   } catch (error) {
+    // 服务端/网络错误：不指向具体字段（保留 role="alert" 播报）。
     formError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewSaveFailed')
+    formErrorField.value = null
   } finally {
     formSubmitting.value = false
   }
@@ -187,6 +213,11 @@ const reportReason = ref('spam')
 const reportNote = ref('')
 const reportSubmitting = ref(false)
 const reportError = ref('')
+// F1: 举报弹窗焦点管理（focus trap / Escape / 焦点还原 / 背景 inert）。
+const { bindRoot: bindReportRoot } = useModalDialog(
+  computed(() => pendingReport.value !== null),
+  closeReport,
+)
 
 function openReport(review: ReviewPayload) {
   pendingReport.value = review
@@ -301,7 +332,7 @@ onMounted(loadReviews)
         </a>
       </div>
 
-      <p v-if="reviewError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
+      <p v-if="reviewError" role="alert" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
         {{ reviewError }}
       </p>
 
@@ -316,7 +347,11 @@ onMounted(loadReviews)
         </h3>
 
         <div class="space-y-3">
-          <fieldset>
+          <fieldset
+            ref="offeringGroupRef"
+            :aria-invalid="formErrorField === 'offering' || undefined"
+            :aria-describedby="formErrorField === 'offering' ? 'course-review-form-error' : undefined"
+          >
             <legend class="mb-1.5 text-[13px] text-base-content/70">{{ t('courseDetailPage.selectOffering') }}</legend>
             <div class="max-h-44 space-y-1.5 overflow-y-auto pr-1">
               <label
@@ -336,15 +371,22 @@ onMounted(loadReviews)
             </div>
           </fieldset>
 
-          <div>
+          <div
+            ref="ratingGroupRef"
+            role="group"
+            :aria-label="t('courseDetailPage.rating')"
+            :aria-invalid="formErrorField === 'rating' || undefined"
+            :aria-describedby="formErrorField === 'rating' ? 'course-review-form-error' : undefined"
+          >
             <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.rating') }}</span>
             <div class="flex items-center gap-1">
               <button
                 v-for="star in 5"
                 :key="star"
                 type="button"
-                class="rounded p-0.5 transition hover:scale-110"
+                class="rounded p-0.5 transition hover:scale-110 motion-reduce:transform-none"
                 :aria-label="`${star} ${t('courseDetailPage.stars')}`"
+                :aria-pressed="formRating === star"
                 @click="formRating = star"
               >
                 <Star
@@ -353,6 +395,7 @@ onMounted(loadReviews)
                 />
               </button>
               <span v-if="formRating" class="ml-2 text-sm font-semibold tabular-nums text-base-content/70">{{ formRating }}.0</span>
+              <span v-else class="sr-only">{{ t('courseDetailPage.ratingUnselected') }}</span>
             </div>
           </div>
 
@@ -362,9 +405,12 @@ onMounted(loadReviews)
             </label>
             <textarea
               id="review-content"
+              ref="contentInputRef"
               v-model="formContent"
               class="gf-textarea min-h-28"
               maxlength="50000"
+              :aria-invalid="formErrorField === 'content' || undefined"
+              :aria-describedby="formErrorField === 'content' ? 'course-review-form-error' : undefined"
               :placeholder="t('courseDetailPage.contentPlaceholder')"
             />
           </div>
@@ -375,7 +421,7 @@ onMounted(loadReviews)
           </label>
         </div>
 
-        <p v-if="formError" class="mt-3 text-sm text-error">{{ formError }}</p>
+        <p v-if="formError" id="course-review-form-error" role="alert" class="mt-3 text-sm text-error">{{ formError }}</p>
 
         <div class="mt-4 flex justify-end gap-2">
           <button
@@ -485,17 +531,20 @@ onMounted(loadReviews)
     <Teleport to="body">
       <div
         v-if="pendingReport"
+        ref="bindReportRoot"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
         role="dialog"
         aria-modal="true"
+        aria-labelledby="course-review-report-title"
         @click.self="closeReport"
       >
         <div class="w-full max-w-md rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
           <div class="flex items-start justify-between gap-3">
-            <h2 class="text-base font-bold text-base-content">{{ t('courseDetailPage.reportTitle') }}</h2>
+            <h2 id="course-review-report-title" class="text-base font-bold text-base-content">{{ t('courseDetailPage.reportTitle') }}</h2>
             <button
               type="button"
               class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+              :aria-label="t('common.close')"
               @click="closeReport"
             >
               <X class="h-4 w-4" />
@@ -511,11 +560,12 @@ onMounted(loadReviews)
               v-model="reportNote"
               class="gf-textarea min-h-24"
               maxlength="300"
+              :aria-label="t('courseDetailPage.reportNoteLabel')"
               :placeholder="t('courseDetailPage.reportNotePlaceholder')"
             />
           </div>
 
-          <p v-if="reportError" class="mt-3 text-sm text-error">{{ reportError }}</p>
+          <p v-if="reportError" role="alert" class="mt-3 text-sm text-error">{{ reportError }}</p>
 
           <div class="mt-4 flex justify-end gap-2">
             <button
