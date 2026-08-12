@@ -11,7 +11,10 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/logging"
 	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
+	"github.com/leancodebox/GooseForum/app/models/forum/networkAccessLog"
+	"github.com/leancodebox/GooseForum/app/service/contentdeleteservice"
 	"github.com/leancodebox/GooseForum/app/service/dataservice"
+	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
 	"github.com/leancodebox/GooseForum/app/service/oidcservice"
 	"github.com/leancodebox/GooseForum/app/service/totpservice"
 	"github.com/robfig/cron/v3"
@@ -62,6 +65,28 @@ func Run() {
 		oidcservice.CleanupExpired()
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "6 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("7 3 * * *", upCmd(func() {
+		// 删除恢复窗口结束的用户内容，并同步清理其附件引用。
+		if err := contentdeleteservice.ExpireRecoverableBatch(200); err != nil {
+			slog.Error("expire recoverable content failed", "err", err)
+		}
+		fileusageservice.ExpireRecoveringFiles(200)
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "7 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("8 3 * * *", upCmd(func() {
+		// 清理超过 180 天保留期的已结案举报证据快照（hold 话题除外）。
+		if err := contentdeleteservice.ExpireEvidenceSnapshotsBatch(200); err != nil {
+			slog.Error("expire evidence snapshots failed", "err", err)
+		}
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "8 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("9 3 * * *", upCmd(func() {
+		// 清理超过 6 个月（183 天）保留期的网络访问日志。
+		if _, err := networkAccessLog.ExpireBefore(time.Now().Add(-networkAccessLog.Retention), 500); err != nil {
+			slog.Error("expire network access logs failed", "err", err)
+		}
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "9 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

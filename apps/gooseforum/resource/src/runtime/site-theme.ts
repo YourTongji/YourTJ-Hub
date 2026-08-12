@@ -73,7 +73,21 @@ function applySiteThemeLink(href?: string) {
 }
 
 export function toggleTheme() {
-  setTheme(currentTheme.value === 'gf-dark' ? 'gf-light' : 'gf-dark')
+  toggleThemeFromElement()
+}
+
+/**
+ * 主题切换（带 View Transitions 圆形模糊扩散动画）。
+ * 从页面中心向外扩散（circle SVG mask + blur，参考 theme-toggle.rdsx.dev），
+ * 旧层垫底被圆形边缘逐步覆盖。无 startViewTransition 时直接切换。
+ */
+export function toggleThemeFromElement(_trigger?: Element | null) {
+  applyThemeWithTransition(currentTheme.value === 'gf-dark' ? 'gf-light' : 'gf-dark')
+}
+
+export function setThemeFromElement(theme: SiteTheme, _trigger?: Element | null) {
+  if (theme === currentTheme.value) return
+  applyThemeWithTransition(theme)
 }
 
 export function setTheme(theme: SiteTheme) {
@@ -84,6 +98,15 @@ export function setTheme(theme: SiteTheme) {
     window.localStorage.setItem(STORAGE_KEY, theme)
   } catch {
     // Ignore storage failures in private or restricted browsing contexts.
+  }
+}
+
+function applyThemeWithTransition(theme: SiteTheme) {
+  const apply = () => setTheme(theme)
+  if (typeof document.startViewTransition === 'function') {
+    document.startViewTransition(apply)
+  } else {
+    apply()
   }
 }
 

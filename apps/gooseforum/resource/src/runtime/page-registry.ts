@@ -10,6 +10,7 @@ export const pageLoaders = {
   'sponsors.index': () => import('@/site/pages/SponsorsPage.vue'),
   'notifications.index': () => import('@/site/pages/NotificationsPage.vue'),
   'terms.index': () => import('@/site/pages/TermsPage.vue'),
+  'privacy.index': () => import('@/site/pages/PrivacyPage.vue'),
   'messages.index': () => import('@/site/pages/MessagesPage.vue'),
   'drafts.index': () => import('@/site/pages/DraftsPage.vue'),
   'moderation.index': () => import('@/site/pages/ModerationPage.vue'),

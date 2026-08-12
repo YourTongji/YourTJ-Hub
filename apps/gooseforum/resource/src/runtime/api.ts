@@ -1,4 +1,4 @@
-import type { ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -102,7 +102,11 @@ export async function updatePost(postId: number, content: string): Promise<Updat
   return readApiResponse<UpdatePostResult>(response, t('api.replyUpdateFailed'))
 }
 
-export async function deletePost(postId: number): Promise<boolean> {
+export interface DeletePostResult {
+  hasChildren: boolean
+}
+
+export async function deletePost(postId: number): Promise<DeletePostResult> {
   const response = await fetch('/api/forum/posts/delete', {
     method: 'POST',
     headers: {
@@ -112,7 +116,189 @@ export async function deletePost(postId: number): Promise<boolean> {
       postId,
     }),
   })
-  return readApiResponse<boolean>(response, t('api.replyDeleteFailed'))
+  return readApiResponse<DeletePostResult>(response, t('api.replyDeleteFailed'))
+}
+
+export async function deleteTopic(topicId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/topics/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topicId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.topicDeleteFailed'))
+}
+
+export type DeletedContentType = 'topic' | 'post'
+
+export interface DeletedContentItem {
+  id: number
+  contentType: DeletedContentType
+  title?: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  visibility: string
+  retention: string
+  deletedAt: string
+  canRestore: boolean
+  canPermanent: boolean
+  hasReplies?: boolean
+}
+
+export interface DeletedContentListResult {
+  items: DeletedContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+export async function getDeletedContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<DeletedContentListResult> {
+  const params = new URLSearchParams({
+    contentType,
+    limit: String(limit),
+  })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+
+  const response = await fetch(`/api/forum/user/deleted-content?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<DeletedContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export async function restoreDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-restore', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentRestoreFailed'))
+}
+
+export async function purgeDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-purge', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+      reason: 'user_purge',
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
+}
+
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+export async function privacyEraseContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-privacy-erase', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
+}
+
+/** 删除生命周期埋点（PRD R14）：前端点击/确认类事件上报。 */
+export async function reportContentEvent(eventType: 'content_delete_clicked' | 'content_delete_confirmed', contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-event', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      eventType,
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
+export interface MyContentItem {
+  id: number
+  contentType: DeletedContentType
+  title: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  createdAt: string
+}
+
+export interface MyContentListResult {
+  items: MyContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
+  const params = new URLSearchParams({ contentType, limit: String(limit) })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+  const response = await fetch(`/api/forum/user/my-content?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<MyContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export interface BatchDeleteResultItem {
+  contentId: number
+  success: boolean
+  message?: string
+}
+
+export interface BatchDeleteContentResult {
+  succeeded: number
+  failed: number
+  results: BatchDeleteResultItem[]
+}
+
+/** 批量删除本人内容（PRD R9）：超过频率阈值时后端要求二次确认。
+ * force=true 时后端强制校验当前用户密码，防止账号被盗后无脑清空内容。 */
+export async function batchDeleteContent(
+  contentType: DeletedContentType,
+  contentIds: number[],
+  force = false,
+  password = '',
+): Promise<BatchDeleteContentResult> {
+  const response = await fetch('/api/forum/user/content-batch-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType, contentIds, force, password }),
+  })
+  return readApiResponse<BatchDeleteContentResult>(response, t('api.topicDeleteFailed'))
+}
+
+/** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。
+ * 注销不可逆，后端强制校验当前密码。 */
+export async function closeAccount(mode: 'anonymize' | 'delete', password: string): Promise<boolean> {
+  const response = await fetch('/api/forum/user/account-close', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, password }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
+/** 退出登录并吊销当前会话。 */
+export async function logout(): Promise<boolean> {
+  const response = await fetch('/api/logout', { method: 'POST' })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
 
 export interface PostWindowInput {
@@ -290,6 +476,18 @@ export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<Mo
     body: JSON.stringify({ cursor, pageSize }),
   })
   return readApiResponse<ModerationLogListResponse>(response, t('api.moderationLogsFailed'))
+}
+
+/** 版主查看已删除内容原文（PRD R7）：必须提供理由，每次查看都会记审计日志。 */
+export async function viewDeletedContent(contentType: 'topic' | 'post', contentId: number, reason: string): Promise<ModerationDeletedContentView> {
+  const response = await fetch('/api/forum/moderation/view-deleted-content', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ contentType, contentId, reason }),
+  })
+  return readApiResponse<ModerationDeletedContentView>(response, t('api.moderationActionFailed'))
 }
 
 export async function markAllNotificationsRead(): Promise<boolean> {

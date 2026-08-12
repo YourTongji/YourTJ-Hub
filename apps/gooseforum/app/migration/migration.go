@@ -17,6 +17,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/badges"
 
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
+	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
 	"github.com/leancodebox/GooseForum/app/models/forum/course"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
@@ -24,6 +25,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/migrationMapping"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
+	"github.com/leancodebox/GooseForum/app/models/forum/networkAccessLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
 	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
@@ -159,7 +161,9 @@ func SchemaModels() []any {
 		&topicUserAction.Entity{},
 		&postUserAction.Entity{},
 		&topicUserStat.Entity{},
+		&contentDeleteEvent.Entity{},
 		&role.Entity{},
+		&networkAccessLog.Entity{},
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
 		&userFollow.Entity{},

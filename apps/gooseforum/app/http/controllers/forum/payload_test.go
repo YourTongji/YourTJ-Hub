@@ -44,6 +44,8 @@ func TestSettingsTabs(t *testing.T) {
 		{Key: "privacy", URL: "/settings?tab=privacy"},
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}
 	if len(got) != len(want) {

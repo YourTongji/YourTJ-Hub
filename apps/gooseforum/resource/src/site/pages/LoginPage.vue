@@ -5,7 +5,7 @@ import { useI18n } from 'vue-i18n'
 import { forgotPassword, getCaptcha, login, register, verifyTotp } from '@/runtime/api'
 import { queueFlashMessage } from '@/runtime/flash-message'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
-import { useSiteTheme } from '@/runtime/site-theme'
+import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
 import type { LayoutPayload, LoginPageProps } from '@gooseforum/client'
 
 const page = defineProps<{
@@ -16,7 +16,7 @@ const page = defineProps<{
 type Mode = 'login' | 'register' | 'forgot'
 
 const { t, locale } = useI18n()
-const { isDark, toggleTheme } = useSiteTheme()
+const { isDark } = useSiteTheme()
 const mode = ref<Mode>(page.props.initialMode || 'login')
 const langMenuOpen = ref(false)
 let langCloseTimer: number | undefined
@@ -224,6 +224,10 @@ function setLang(lang: Locale) {
 function errorMessage(err: unknown, fallback: string) {
   return err instanceof Error && err.message ? err.message : fallback
 }
+
+function onToggleTheme(event: MouseEvent) {
+  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
+}
 </script>
 
 <template>
@@ -273,7 +277,7 @@ function errorMessage(err: unknown, fallback: string) {
         class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
         :aria-label="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
         :title="t(isDark ? 'auth.switchToLight' : 'auth.switchToDark')"
-        @click="toggleTheme"
+        @click="onToggleTheme"
       >
         <Sun v-if="isDark" class="h-5 w-5" />
         <Moon v-else class="h-5 w-5" />
@@ -415,6 +419,8 @@ function errorMessage(err: unknown, fallback: string) {
               <span>
                 {{ t('auth.agreeTerms') }}
                 <a href="/terms" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.termsLink') }}</a>
+                <span class="mx-1 text-base-content/40">·</span>
+                <a href="/privacy" target="_blank" rel="noopener noreferrer" class="font-medium text-primary hover:text-primary">{{ t('auth.privacyLink') }}</a>
               </span>
             </label>
             <input v-model="registerForm.website" type="text" class="hidden" tabindex="-1" autocomplete="off" aria-hidden="true" />
