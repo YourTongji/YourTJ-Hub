@@ -5,7 +5,8 @@ info:
   description: |
     The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
     login public-key retrieval, TOTP login verification and account management, logout,
-    session management (list/revoke/revoke-all), mobile OIDC code exchange, topic writing,
+    session management (list/revoke/revoke-all), mobile OIDC code exchange, account
+    registration, password recovery (forgot/reset), topic writing,
     and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
@@ -25,6 +26,12 @@ paths:
     $ref: ./paths/auth-security.yaml#/loginPublicKey
   /api/logout:
     $ref: ./paths/auth-sessions.yaml#/logout
+  /api/register:
+    $ref: ./paths/auth-account-recovery.yaml#/register
+  /api/forgot-password:
+    $ref: ./paths/auth-account-recovery.yaml#/forgotPassword
+  /api/reset-password:
+    $ref: ./paths/auth-account-recovery.yaml#/resetPassword
   /api/auth/totp/verify:
     $ref: ./paths/auth-security.yaml#/verifyTotp
   /api/user/totp/status:
@@ -115,6 +122,24 @@ components:
       $ref: ./components/schemas.yaml#/ApiFailure
     ApiSuccess:
       $ref: ./components/schemas.yaml#/ApiSuccess
+    RegisterRequest:
+      $ref: ./components/schemas.yaml#/RegisterRequest
+    RegisterSuccess:
+      $ref: ./components/schemas.yaml#/RegisterSuccess
+    RegisterResponse:
+      $ref: ./components/schemas.yaml#/RegisterResponse
+    ForgotPasswordRequest:
+      $ref: ./components/schemas.yaml#/ForgotPasswordRequest
+    ForgotPasswordSuccess:
+      $ref: ./components/schemas.yaml#/ForgotPasswordSuccess
+    ForgotPasswordResponse:
+      $ref: ./components/schemas.yaml#/ForgotPasswordResponse
+    ResetPasswordRequest:
+      $ref: ./components/schemas.yaml#/ResetPasswordRequest
+    ResetPasswordSuccess:
+      $ref: ./components/schemas.yaml#/ResetPasswordSuccess
+    ResetPasswordResponse:
+      $ref: ./components/schemas.yaml#/ResetPasswordResponse
     LoginRequest:
       $ref: ./components/schemas.yaml#/LoginRequest
     LoginSuccess:

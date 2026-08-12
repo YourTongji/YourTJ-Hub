@@ -1468,3 +1468,145 @@ ReportHandlerPayload:
       type: string
   additionalProperties: false
   description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.
+
+RegisterRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/register. The server binds the body
+    loosely and silently ignores unknown fields; `additionalProperties: false` is a
+    consumer constraint, not a server rejection. Field names use the legacy
+    `userName`/`passWord` casing and must not be normalized client-side.
+  required: [email, userName, passWord]
+  properties:
+    email:
+      type: string
+      minLength: 1
+      format: email
+      description: Email address; the server lowercases and trims it before validation and applies the site email-domain allowlist when configured.
+    userName:
+      type: string
+      minLength: 1
+      description: Username, 6-32 characters of letters, digits, `_` or `-` (server regex `^[a-zA-Z0-9_-]{6,32}$`); the server trims surrounding whitespace.
+    passWord:
+      type: string
+      minLength: 1
+      description: Password, 6-64 characters, must contain both letters and digits.
+    locale:
+      type: string
+      description: Optional BCP-47 style locale hint; normalized server-side.
+    invitationCode:
+      type: string
+      description: Optional invitation code; currently accepted but not enforced by the server.
+    captchaId:
+      type: string
+      description: Captcha id from GET /api/get-captcha; required only when the site requires captcha.
+    captchaCode:
+      type: string
+      description: Captcha answer for `captchaId`; required only when the site requires captcha.
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without creating an account.
+  additionalProperties: false
+
+RegisterSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must branch on `messageCode`.
+        messageCode:
+          type: string
+          enum: [auth.login.success, auth.register.emailVerify]
+          description: |
+            `auth.login.success` when the account is created and a session is issued
+            immediately (email verification disabled); `auth.register.emailVerify` when
+            the site requires email verification before the session is usable. The
+            honeypot path returns the same `auth.login.success` envelope without
+            creating an account.
+
+RegisterResponse:
+  oneOf:
+    - $ref: '#/RegisterSuccess'
+    - $ref: '#/ApiFailure'
+
+ForgotPasswordRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/forgot-password. The server binds
+    the body loosely and silently ignores unknown fields; `additionalProperties: false`
+    is a consumer constraint, not a server rejection.
+  required: [email]
+  properties:
+    email:
+      type: string
+      minLength: 1
+      format: email
+      description: Email address to send the reset link to. The response never reveals whether this email is registered.
+    captchaId:
+      type: string
+      description: Captcha id from GET /api/get-captcha; required only when the site requires captcha.
+    captchaCode:
+      type: string
+      description: Captcha answer for `captchaId`; required only when the site requires captcha.
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without enqueuing any mail.
+  additionalProperties: false
+
+ForgotPasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable confirmation message; the wording is UI copy and not a stable machine contract value.
+        messageCode:
+          type: string
+          const: auth.passwordReset.mailQueued
+          description: Returned identically for registered, unknown, bot, and email-change-cooldown addresses (anti-enumeration).
+
+ForgotPasswordResponse:
+  oneOf:
+    - $ref: '#/ForgotPasswordSuccess'
+    - $ref: '#/ApiFailure'
+
+ResetPasswordRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/reset-password. The server binds
+    the body loosely and silently ignores unknown fields; `additionalProperties: false`
+    is a consumer constraint, not a server rejection.
+  required: [token, newPassword]
+  properties:
+    token:
+      type: string
+      minLength: 1
+      description: Reset token from the password reset email (30-minute lifetime).
+    newPassword:
+      type: string
+      minLength: 1
+      description: New password, 6-64 characters, must contain both letters and digits.
+  additionalProperties: false
+
+ResetPasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable confirmation message; the wording is UI copy and not a stable machine contract value.
+        messageCode:
+          type: string
+          const: auth.passwordReset.success
+
+ResetPasswordResponse:
+  oneOf:
+    - $ref: '#/ResetPasswordSuccess'
+    - $ref: '#/ApiFailure'

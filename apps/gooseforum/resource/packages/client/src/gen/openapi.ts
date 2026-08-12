@@ -68,6 +68,132 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/register": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a new forum account
+         * @description Public account registration. The request is validated in the same order as the
+         *     server: JSON shape, then generic request validation, then the signup switch, the
+         *     honeypot field, email domain allowlist, username format/moderation, password
+         *     complexity, and finally the captcha gate (when the site requires captcha).
+         *
+         *     Account-enumeration hardening (CWE-208): when a username or an email is already
+         *     taken, the endpoint returns the same generic `auth.register.failed` failure
+         *     envelope as when account creation itself fails, and the two occupied cases are
+         *     indistinguishable from each other. Neither the HTTP status, the envelope,
+         *     `messageCode`, response fields, nor the rate-limit protocol distinguishes
+         *     "username exists" from "email exists" from "creation failed". The server
+         *     unconditionally runs both existence lookups so the query count does not vary
+         *     with account state.
+         *
+         *     This guarantee is scoped to the occupied/creation-failed cases only: requests
+         *     that fail validation before the existence checks (invalid username format,
+         *     disallowed email domain, weak password, captcha rejection, signup disabled)
+         *     return their own distinct `messageCode` per the validation-order list above,
+         *     and are intentionally not covered by the anti-enumeration envelope.
+         *
+         *     Honeypot: when the hidden `website` field is populated the server treats the
+         *     request as bot traffic, silently returns a success envelope identical to a normal
+         *     successful registration, and creates no account.
+         *
+         *     On success the server creates the account, enqueues an activation email task when
+         *     the site enables email verification, and immediately issues a session (Set-Cookie
+         *     `access_token` + `New-Token` header). Consumers must still inspect the envelope:
+         *     the residual observable difference between "account created" and "creation
+         *     failed" is intrinsic to the protocol and is not part of this contract's failure
+         *     taxonomy.
+         *
+         *     The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+         *     20 requests per hour per IP.
+         */
+        post: operations["register"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forgot-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Request a password reset email
+         * @description Public password-reset request. The server never reveals whether an email is
+         *     registered: an unknown email, a bot (Agent) account, and an account inside the
+         *     24-hour email-change cooldown all return the exact same success envelope
+         *     (`auth.passwordReset.mailQueued`) and run the same class of work (token signing
+         *     plus a queue write; unknown/cooldown paths enqueue a noop task that is silently
+         *     consumed by the mail worker without sending anything). Mail delivery itself is a
+         *     server-side implementation detail and never exposes account state.
+         *
+         *     Honeypot: when the hidden `website` field is populated the request is treated as
+         *     bot traffic and silently returns the same success envelope without enqueuing any
+         *     reset mail.
+         *
+         *     The captcha gate (when the site requires captcha) is the only failure that
+         *     differs, and it does not depend on account state.
+         *
+         *     The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+         *     10 requests per hour per IP.
+         */
+        post: operations["forgotPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/reset-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a new password with a reset token
+         * @description Completes the password reset with the token received by email. The token is a
+         *     short-lived (30-minute) HMAC-signed JWT bound to the user id, the email it was
+         *     issued for, and the token_version at issuance time.
+         *
+         *     Invalid, expired, or replayed tokens are rejected with the same
+         *     `auth.passwordReset.tokenInvalid` failure envelope: the token check fails for a
+         *     bad signature, an expired token, a bot account, a mismatched email, and a
+         *     token_version that no longer matches the account (any password change or revoke
+         *     bumps token_version, so an old reset link can never be replayed after a
+         *     successful reset). Frozen accounts are rejected with `permission.userFrozen` and
+         *     `params.action`/`params.actionCode` without consuming the token. The new password
+         *     must pass the same complexity rules as registration (minimum 6 characters,
+         *     contains letters and digits, at most 64 characters).
+         *
+         *     On success the password hash and token_version are updated; the reset token
+         *     becomes permanently unusable.
+         *
+         *     The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+         *     10 requests per hour per IP.
+         */
+        post: operations["resetPassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/auth/totp/verify": {
         parameters: {
             query?: never;
@@ -625,6 +751,93 @@ export interface components {
                 [key: string]: unknown;
             };
         };
+        /**
+         * @description Client-side strict request shape for POST /api/register. The server binds the body
+         *     loosely and silently ignores unknown fields; `additionalProperties: false` is a
+         *     consumer constraint, not a server rejection. Field names use the legacy
+         *     `userName`/`passWord` casing and must not be normalized client-side.
+         */
+        RegisterRequest: {
+            /**
+             * Format: email
+             * @description Email address; the server lowercases and trims it before validation and applies the site email-domain allowlist when configured.
+             */
+            email: string;
+            /** @description Username, 6-32 characters of letters, digits, `_` or `-` (server regex `^[a-zA-Z0-9_-]{6,32}$`); the server trims surrounding whitespace. */
+            userName: string;
+            /** @description Password, 6-64 characters, must contain both letters and digits. */
+            passWord: string;
+            /** @description Optional BCP-47 style locale hint; normalized server-side. */
+            locale?: string;
+            /** @description Optional invitation code; currently accepted but not enforced by the server. */
+            invitationCode?: string;
+            /** @description Captcha id from GET /api/get-captcha; required only when the site requires captcha. */
+            captchaId?: string;
+            /** @description Captcha answer for `captchaId`; required only when the site requires captcha. */
+            captchaCode?: string;
+            /** @description Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without creating an account. */
+            website?: string;
+        };
+        RegisterSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must branch on `messageCode`. */
+            result: string;
+            /**
+             * @description `auth.login.success` when the account is created and a session is issued
+             *     immediately (email verification disabled); `auth.register.emailVerify` when
+             *     the site requires email verification before the session is usable. The
+             *     honeypot path returns the same `auth.login.success` envelope without
+             *     creating an account.
+             * @enum {string}
+             */
+            messageCode: "auth.login.success" | "auth.register.emailVerify";
+        };
+        RegisterResponse: components["schemas"]["RegisterSuccess"] | components["schemas"]["ApiFailure"];
+        /**
+         * @description Client-side strict request shape for POST /api/forgot-password. The server binds
+         *     the body loosely and silently ignores unknown fields; `additionalProperties: false`
+         *     is a consumer constraint, not a server rejection.
+         */
+        ForgotPasswordRequest: {
+            /**
+             * Format: email
+             * @description Email address to send the reset link to. The response never reveals whether this email is registered.
+             */
+            email: string;
+            /** @description Captcha id from GET /api/get-captcha; required only when the site requires captcha. */
+            captchaId?: string;
+            /** @description Captcha answer for `captchaId`; required only when the site requires captcha. */
+            captchaCode?: string;
+            /** @description Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without enqueuing any mail. */
+            website?: string;
+        };
+        ForgotPasswordSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Human-readable confirmation message; the wording is UI copy and not a stable machine contract value. */
+            result: string;
+            /**
+             * @description Returned identically for registered, unknown, bot, and email-change-cooldown addresses (anti-enumeration).
+             * @constant
+             */
+            messageCode: "auth.passwordReset.mailQueued";
+        };
+        ForgotPasswordResponse: components["schemas"]["ForgotPasswordSuccess"] | components["schemas"]["ApiFailure"];
+        /**
+         * @description Client-side strict request shape for POST /api/reset-password. The server binds
+         *     the body loosely and silently ignores unknown fields; `additionalProperties: false`
+         *     is a consumer constraint, not a server rejection.
+         */
+        ResetPasswordRequest: {
+            /** @description Reset token from the password reset email (30-minute lifetime). */
+            token: string;
+            /** @description New password, 6-64 characters, must contain both letters and digits. */
+            newPassword: string;
+        };
+        ResetPasswordSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description Human-readable confirmation message; the wording is UI copy and not a stable machine contract value. */
+            result: string;
+            /** @constant */
+            messageCode: "auth.passwordReset.success";
+        };
+        ResetPasswordResponse: components["schemas"]["ResetPasswordSuccess"] | components["schemas"]["ApiFailure"];
         LoginRequest: {
             /** @description Username or email address. Leading and trailing whitespace is ignored by the server. */
             username: string;
@@ -1379,6 +1592,112 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["LogoutResponse"];
+                };
+            };
+        };
+    };
+    register: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RegisterRequest"];
+            };
+        };
+        responses: {
+            /** @description Registration succeeded (with an auto-issued session), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    /** @description On success, HTTP-only `access_token` session cookie. */
+                    "Set-Cookie"?: string;
+                    /** @description On success, the newly issued forum session JWT. */
+                    "New-Token"?: string;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RegisterResponse"];
+                };
+            };
+            /** @description Register rate limit exceeded (default 20 requests/hour/IP). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    forgotPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ForgotPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Request accepted, or a legacy business failure envelope. The same success envelope is returned for registered, unknown, bot, and cooldown emails. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForgotPasswordResponse"];
+                };
+            };
+            /** @description Forgot-password rate limit exceeded (default 10 requests/hour/IP). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    resetPassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ResetPasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password reset succeeded, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResetPasswordResponse"];
+                };
+            };
+            /** @description Reset-password rate limit exceeded (default 10 requests/hour/IP). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

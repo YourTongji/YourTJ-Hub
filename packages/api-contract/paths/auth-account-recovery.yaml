@@ -1,0 +1,227 @@
+register:
+  post:
+    tags: [Authentication]
+    summary: Create a new forum account
+    operationId: register
+    security: []
+    description: |
+      Public account registration. The request is validated in the same order as the
+      server: JSON shape, then generic request validation, then the signup switch, the
+      honeypot field, email domain allowlist, username format/moderation, password
+      complexity, and finally the captcha gate (when the site requires captcha).
+
+      Account-enumeration hardening (CWE-208): when a username or an email is already
+      taken, the endpoint returns the same generic `auth.register.failed` failure
+      envelope as when account creation itself fails, and the two occupied cases are
+      indistinguishable from each other. Neither the HTTP status, the envelope,
+      `messageCode`, response fields, nor the rate-limit protocol distinguishes
+      "username exists" from "email exists" from "creation failed". The server
+      unconditionally runs both existence lookups so the query count does not vary
+      with account state.
+
+      This guarantee is scoped to the occupied/creation-failed cases only: requests
+      that fail validation before the existence checks (invalid username format,
+      disallowed email domain, weak password, captcha rejection, signup disabled)
+      return their own distinct `messageCode` per the validation-order list above,
+      and are intentionally not covered by the anti-enumeration envelope.
+
+      Honeypot: when the hidden `website` field is populated the server treats the
+      request as bot traffic, silently returns a success envelope identical to a normal
+      successful registration, and creates no account.
+
+      On success the server creates the account, enqueues an activation email task when
+      the site enables email verification, and immediately issues a session (Set-Cookie
+      `access_token` + `New-Token` header). Consumers must still inspect the envelope:
+      the residual observable difference between "account created" and "creation
+      failed" is intrinsic to the protocol and is not part of this contract's failure
+      taxonomy.
+
+      The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+      20 requests per hour per IP.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/RegisterRequest
+    responses:
+      '200':
+        description: Registration succeeded (with an auto-issued session), or a legacy business failure envelope.
+        headers:
+          Set-Cookie:
+            description: On success, HTTP-only `access_token` session cookie.
+            schema:
+              type: string
+          New-Token:
+            description: On success, the newly issued forum session JWT.
+            schema:
+              type: string
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RegisterResponse
+            examples:
+              success:
+                summary: Account created and session issued (email verification disabled).
+                externalValue: ../fixtures/register-success.json
+              emailVerify:
+                summary: Account created; the site requires email verification before the session is usable.
+                externalValue: ../fixtures/register-email-verify.json
+              honeypot:
+                summary: Bot traffic silently accepted without creating an account; the envelope is byte-identical to a normal success.
+                externalValue: ../fixtures/register-success.json
+              genericFailure:
+                summary: Username or email already taken, or account creation failed; the same envelope is used for the occupied and creation-failed cases so account state is never distinguishable.
+                externalValue: ../fixtures/register-failed.json
+              signupDisabled:
+                summary: Registration is disabled on this site.
+                externalValue: ../fixtures/register-signup-disabled.json
+              captchaRequired:
+                summary: The site requires captcha and the request did not carry one; clients should present the captcha challenge for the `register` action.
+                externalValue: ../fixtures/register-captcha-required.json
+      '429':
+        description: Register rate limit exceeded (default 20 requests/hour/IP).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/register-rate-limited.json
+
+forgotPassword:
+  post:
+    tags: [Authentication]
+    summary: Request a password reset email
+    operationId: forgotPassword
+    security: []
+    description: |
+      Public password-reset request. The server never reveals whether an email is
+      registered: an unknown email, a bot (Agent) account, and an account inside the
+      24-hour email-change cooldown all return the exact same success envelope
+      (`auth.passwordReset.mailQueued`) and run the same class of work (token signing
+      plus a queue write; unknown/cooldown paths enqueue a noop task that is silently
+      consumed by the mail worker without sending anything). Mail delivery itself is a
+      server-side implementation detail and never exposes account state.
+
+      Honeypot: when the hidden `website` field is populated the request is treated as
+      bot traffic and silently returns the same success envelope without enqueuing any
+      reset mail.
+
+      The captcha gate (when the site requires captcha) is the only failure that
+      differs, and it does not depend on account state.
+
+      The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+      10 requests per hour per IP.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ForgotPasswordRequest
+    responses:
+      '200':
+        description: Request accepted, or a legacy business failure envelope. The same success envelope is returned for registered, unknown, bot, and cooldown emails.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForgotPasswordResponse
+            examples:
+              mailQueued:
+                summary: Indistinguishable success for registered, unknown, bot, and cooldown emails.
+                externalValue: ../fixtures/forgot-password-mail-queued.json
+              captchaRequired:
+                summary: The site requires captcha and the request did not carry one; clients should present the captcha challenge for the `forgot-password` action.
+                externalValue: ../fixtures/forgot-password-captcha-required.json
+      '429':
+        description: Forgot-password rate limit exceeded (default 10 requests/hour/IP).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/forgot-password-rate-limited.json
+
+resetPassword:
+  post:
+    tags: [Authentication]
+    summary: Set a new password with a reset token
+    operationId: resetPassword
+    security: []
+    description: |
+      Completes the password reset with the token received by email. The token is a
+      short-lived (30-minute) HMAC-signed JWT bound to the user id, the email it was
+      issued for, and the token_version at issuance time.
+
+      Invalid, expired, or replayed tokens are rejected with the same
+      `auth.passwordReset.tokenInvalid` failure envelope: the token check fails for a
+      bad signature, an expired token, a bot account, a mismatched email, and a
+      token_version that no longer matches the account (any password change or revoke
+      bumps token_version, so an old reset link can never be replayed after a
+      successful reset). Frozen accounts are rejected with `permission.userFrozen` and
+      `params.action`/`params.actionCode` without consuming the token. The new password
+      must pass the same complexity rules as registration (minimum 6 characters,
+      contains letters and digits, at most 64 characters).
+
+      On success the password hash and token_version are updated; the reset token
+      becomes permanently unusable.
+
+      The endpoint is IP rate limited (HTTP 429 + `Retry-After`); the default quota is
+      10 requests per hour per IP.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ResetPasswordRequest
+    responses:
+      '200':
+        description: Password reset succeeded, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ResetPasswordResponse
+            examples:
+              success:
+                summary: Password changed; the reset token is consumed by the token_version bump.
+                externalValue: ../fixtures/reset-password-success.json
+              invalidToken:
+                summary: Invalid, expired, wrong-email, wrong-version, or already-replayed token; also returned for bot accounts.
+                externalValue: ../fixtures/reset-password-token-invalid.json
+              accountFrozen:
+                summary: The account is frozen; the token is not consumed.
+                externalValue: ../fixtures/reset-password-account-frozen.json
+              passwordInvalid:
+                summary: The new password does not meet the complexity rules.
+                externalValue: ../fixtures/reset-password-password-invalid.json
+              userNotFound:
+                summary: The token is well-formed but its user no longer exists.
+                externalValue: ../fixtures/reset-password-user-not-found.json
+      '429':
+        description: Reset-password rate limit exceeded (default 10 requests/hour/IP).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/reset-password-rate-limited.json
