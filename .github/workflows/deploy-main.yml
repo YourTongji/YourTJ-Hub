@@ -40,10 +40,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: |
-            deploy/scripts/deploy.sh
-            deploy/scripts/backup-db.sh
-            deploy/scripts/pgdsn.sh
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh"
           target: "/tmp"
           strip_components: 2
       - name: Deploy to main (backup db + build image + restart + smoke + rollback)

@@ -64,7 +64,8 @@ assert_eq "URL query 多参数" "yourtj" "$(pg_dsn_dbname 'postgres://u:p@h:5432
 assert_eq "URL 大写 scheme" "forum" "$(pg_dsn_dbname 'POSTGRES://u:p@h/forum')"
 assert_eq "URL query-only dbname 无路径" "dbq" "$(pg_dsn_dbname 'postgres://u@h/?dbname=dbq')"
 assert_eq "URL query-only dbname 无路径斜杠" "dbq" "$(pg_dsn_dbname 'postgres://u@h?dbname=dbq')"
-assert_eq "URL %XX 编码 dbname" "my%20db" "$(pg_dsn_dbname 'postgres://u@h/my%20db')"
+assert_eq "URL %XX 编码 dbname 解码" "my db" "$(pg_dsn_dbname 'postgres://u@h/my%20db')"
+assert_eq "URL %40 编码 dbname 解码" "a@b" "$(pg_dsn_dbname 'postgres://u@h/a%40b')"
 
 ## --- review P1 回归: 单引号密码(旧 eval 实现下命令注入+解析损坏) ---
 assert_eq "URL 密码含单引号(注入防护)" "db" "$(pg_dsn_dbname "postgres://user:pa'; touch /tmp/pwned2; echo 'ss@host/db")"
@@ -97,6 +98,19 @@ assert_eq "KV 单引号值" "forum" "$(pg_dsn_dbname "host=h dbname='forum' user
 assert_eq "KV 密码含 dbname= 子串" "forum" "$(pg_dsn_dbname 'user=u password=xdbname=y dbname=forum')"
 assert_eq "KV 密码含 dbname= 子串且 dbname 在前" "forum" "$(pg_dsn_dbname 'dbname=forum user=u password=xdbname=y')"
 assert_eq "KV 多 dbname token 取最后一个" "last" "$(pg_dsn_dbname 'dbname=first dbname=last user=u')"
+
+## --- review LOW3 回归: KV 引号值含空格(拼接引号内全部 token) ---
+assert_eq "KV 双引号值含空格" "my forum" "$(pg_dsn_dbname 'host=h dbname="my forum" user=u')"
+assert_eq "KV 单引号值含空格" "my forum" "$(pg_dsn_dbname "host=h dbname='my forum' user=u")"
+
+## --- review LOW2 回归: URL 显式空 dbname 报错(不静默回退路径段) ---
+assert_run "URL query 空 dbname 报错" 1 pg_dsn_dbname "postgres://u@h/pathdb?dbname="
+assert_run "URL 空路径空 query 报错" 1 pg_dsn_dbname "postgres://u@h/?dbname="
+assert_stderr_no "URL 空 dbname 错误不泄露密码" "SUPERSECRET" pg_dsn_dbname "postgres://u:SUPERSECRET@h/?dbname="
+
+## --- review INFO 回归: IPv6 host 字面量 ---
+assert_eq "URL IPv6 host 无端口" "forum" "$(pg_dsn_dbname 'postgres://u@[::1]/forum')"
+assert_eq "URL IPv6 host 带端口" "forum" "$(pg_dsn_dbname 'postgres://u@[::1]:5432/forum')"
 
 ## --- 非法 DSN ---
 assert_run "空 DSN 报错" 1 pg_dsn_dbname ""

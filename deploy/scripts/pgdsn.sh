@@ -14,6 +14,28 @@
 #   - 不依赖 psql/外部工具, 纯 bash 实现, 便于在无 PG 客户端的主机上测试。
 #   - 不使用 eval 拼接 DSN 内容(review P1 命令注入): 赋值一律走 printf -v。
 
+# pg_percent_decode <s> — 将 URL percent-encoding(%XX)解码为字符。
+# libpq 对 dbname 路径段做 percent-decode, 解析库保持一致(review LOW1),
+# 避免 pg_dump -d "my%20db" 连错库。
+pg_percent_decode() {
+  local s="$1" out="" ch hex
+  while [ -n "$s" ]; do
+    case "$s" in
+      %[0-9a-fA-F][0-9a-fA-F]*)
+        hex="${s:1:2}"
+        printf -v ch "\\x$hex"
+        out="$out$ch"
+        s="${s:3}"
+        ;;
+      *)
+        out="$out${s:0:1}"
+        s="${s:1}"
+        ;;
+    esac
+  done
+  printf '%s' "$out"
+}
+
 # pg_uri_split <uri> <var> — 从 postgres:// URL 提取组件。
 # 支持: postgres://user:pass@host:port/db?sslmode=disable&param=v
 #       postgresql://user@host/db
@@ -66,8 +88,16 @@ pg_uri_split() {
     printf -v "${var}_db" '%s' "$pathquery"
     printf -v "${var}_params" '%s' ""
   fi
-  # host[:port]
-  if [[ "$hostport" == *":"* ]]; then
+  # host[:port] — IPv6 字面量 [::1] 或 [::1]:5432 按括号整体识别(review INFO),
+  # 避免 host 被错误切分为 "["
+  if [[ "$hostport" == \[*\]* ]]; then
+    printf -v "${var}_host" '%s' "${hostport%%]*}"
+    if [[ "${hostport##*]}" == ":"* ]]; then
+      printf -v "${var}_port" '%s' "${hostport##*]:}"
+    else
+      printf -v "${var}_port" '%s' ""
+    fi
+  elif [[ "$hostport" == *":"* ]]; then
     printf -v "${var}_host" '%s' "${hostport%%:*}"
     printf -v "${var}_port" '%s' "${hostport#*:}"
   else
@@ -108,41 +138,69 @@ pg_dsn_dbname() {
       return 1
     fi
     [ -n "$uri_host" ] || { echo "pg_dsn_dbname: URL DSN 缺少主机名: $(pg_dsn_normalize "$dsn")" >&2; return 1; }
-    # URL 中的 dbname 参数优先于路径段(libpq 行为: 后者覆盖前者)
+    # URL 中的 dbname 参数优先于路径段(libpq 行为: 后者覆盖前者)。
+    # query 中显式出现 dbname=(即使值为空)即覆盖路径段, 空值报错,
+    # 不静默回退(review LOW2)。用 has_query_dbname 哨兵区分
+    # "显式空 dbname"与"query 未提供 dbname"(后者回退路径段)。
+    db=""
+    has_query_dbname=""
     if [ -n "$uri_params" ]; then
       local IFS='&' p
       # set -f: 参数值含 * 等通配符时不触发路径展开
       set -f
       for p in $uri_params; do
         case "$p" in
-          dbname=*) db="${p#dbname=}";;
+          dbname=*) has_query_dbname=1; db="${p#dbname=}";;
         esac
       done
       set +f
     fi
-    echo "${db:-$uri_db}"
+    if [ -n "$has_query_dbname" ] && [ -z "$db" ]; then
+      echo "pg_dsn_dbname: URL DSN 数据库名为空: $(pg_dsn_normalize "$dsn")" >&2
+      return 1
+    fi
+    [ -n "$db" ] || db="$uri_db"
+    if [ -z "$db" ]; then
+      echo "pg_dsn_dbname: URL DSN 数据库名为空: $(pg_dsn_normalize "$dsn")" >&2
+      return 1
+    fi
+    # libpq 对 dbname 做 percent-decode(review LOW1), 避免 pg_dump -d 连错库
+    echo "$(pg_percent_decode "$db")"
     return 0
   fi
   # key=value 格式: 按空格 token 化逐项解析, 取最后一个 dbname token
   # (libpq 语义: 后者覆盖前者)。按 token 解析可避免密码/其他值中
-  # 含 "dbname=" 子串时被第一个匹配误判。
+  # 含 "dbname=" 子串时被第一个匹配误判。引号值含空格时
+  # (dbname="my forum") 拼接引号内全部 token(review LOW3)。
   if [[ "$dsn" == *"dbname="* ]]; then
-    local IFS=' ' tok val
+    local -a toks=()
+    local tok val i=0
     key=""
     set -f
-    for tok in $dsn; do
+    # read -a 按 IFS(默认含空格)切分; set -f 防 glob 展开
+    read -r -a toks <<< "$dsn"
+    set +f
+    while [ "$i" -lt "${#toks[@]}" ]; do
+      tok="${toks[$i]}"
       case "$tok" in
         dbname=*)
-          val="${tok#dbname=}"
-          # 去掉包裹引号(单/双; 引号值含空格时截断到引号前, libpq 无引号语义)
-          if [[ "$val" == \"*\" || "$val" == \'*\' ]]; then
-            val="${val:1:${#val}-2}"
+          key="${tok#dbname=}"
+          # 引号未闭合 → 拼接后续 token 直至闭合引号
+          while [[ "$key" == \"* && "$key" != *\" || "$key" == \'* && "$key" != *\' ]]; do
+            i=$((i + 1))
+            [ "$i" -lt "${#toks[@]}" ] || break
+            key="$key ${toks[$i]}"
+          done
+          # 去掉包裹引号(单/双)
+          if [[ "$key" == \"*\" ]]; then
+            key="${key:1:${#key}-2}"
+          elif [[ "$key" == \'*\' ]]; then
+            key="${key:1:${#key}-2}"
           fi
-          key="$val"
           ;;
       esac
+      i=$((i + 1))
     done
-    set +f
     [ -n "$key" ] || { echo "pg_dsn_dbname: dbname 为空: $(pg_dsn_normalize "$dsn")" >&2; return 1; }
     echo "$key"
     return 0

@@ -13,6 +13,7 @@ on:
       - "apps/gooseforum/resource/templates/**"
       - "apps/gooseforum/testdata/markdown-compat/**"
       - "packages/api-contract/**"
+      - "deploy/scripts/**"
       - ".github/workflows/ci-backend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
