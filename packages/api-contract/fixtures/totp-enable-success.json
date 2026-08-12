@@ -1,0 +1,18 @@
+{
+  "code": 0,
+  "result": {
+    "recoveryCodes": [
+      "CODE-REDACTED-01",
+      "CODE-REDACTED-02",
+      "CODE-REDACTED-03",
+      "CODE-REDACTED-04",
+      "CODE-REDACTED-05",
+      "CODE-REDACTED-06",
+      "CODE-REDACTED-07",
+      "CODE-REDACTED-08",
+      "CODE-REDACTED-09",
+      "CODE-REDACTED-10"
+    ]
+  },
+  "messageCode": "common.operation.success"
+}

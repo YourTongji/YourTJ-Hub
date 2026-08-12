@@ -123,13 +123,18 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
-### Upgrade note: `app.signingKey` is now mandatory
+### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
 Since the issue #8 build, `serve` refuses to start with the built-in default
-signing key (it exits with code 1 instead of silently continuing). Existing
-`config.toml` files created before this change may omit `app.signingKey`;
-**before upgrading an existing instance, add a random signing key** to
-`main/config.toml` and `dev/config.toml`:
+signing key (it exits with code 1 instead of silently continuing). The
+issue #106 build tightens the guard to **fail-closed**: `serve` now also
+refuses any **empty / whitespace-only** value and the deploy template
+placeholder `REPLACE_SIGNING_KEY`, because each of them lets an attacker
+forge password-reset tokens and take over arbitrary accounts (including
+admin). A missing or weak `app.signingKey` is rejected every boot — there is
+no fallback key. Existing `config.toml` files created before this change may
+omit `app.signingKey`; **before upgrading an existing instance, add a random
+signing key** to `main/config.toml` and `dev/config.toml`:
 
 ```toml
 [app]
@@ -139,6 +144,29 @@ signingKey = "<random 32+ byte base64 string>"
 Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
+
+**Rotation after a known/empty-key exposure:** if an instance ever ran with
+the built-in default, the `REPLACE_SIGNING_KEY` placeholder, or an empty
+`app.signingKey`, treat the signing key as compromised and rotate it. The
+symmetric key is shared across three surfaces, so rotation invalidates all of
+them at once: forum JWT sessions (users must sign in again), TOTP secret
+encryption (AES-GCM key is derived from `app.signingKey`; re-encrypt or
+re-enroll TOTP so existing secrets remain decryptable), and any outstanding
+password-reset / activation links. Rotating the key is the only way to retire
+tokens that were minted under the old key.
+
+**Rotation requires a process restart — hot reload is not supported.** The
+signing key feeds more surfaces than the three listed above — it also derives
+the session-cookie signing key (sessionstore) and the OIDC opaque-token key
+(oidcservice). The surfaces capture it at different points: JWT signing and
+session cookies at process start / first use, TOTP encryption on first use, and
+reset/activation and OIDC tokens on every call (fail-closed so a weak key is
+never accepted). With viper's config watcher enabled, editing `app.signingKey`
+at runtime does not rotate them together: the real-time surfaces switch to the
+new key immediately, the captured surfaces keep the old value, and TOTP secrets
+encrypted under the old key can become undecryptable if the key is swapped
+before the first TOTP use. Rotate the key and **restart the process** so all
+surfaces rotate consistently.
 
 ### Upgrade note: session Cookie `Secure` is now fail-closed by environment
 

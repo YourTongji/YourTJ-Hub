@@ -131,12 +131,13 @@ func pprofMux() *http.ServeMux {
 }
 
 func ginServe() {
-	// 拒绝使用内置默认签名密钥启动：该密钥公开在源码中，攻击者可据此
-	// 伪造 JWT 并解密 TOTP 密钥（见 jwtopt.DefaultSigningKey）。
-	// 配置错误必须以非零退出码终止，否则 systemd/docker 会把
-	// "配置错误"误判为"正常退出"，重启策略与告警都不会生效。
-	if jwtopt.IsSigningKeyDefault() {
-		slog.Error("app.signingKey 未配置，仍在使用内置默认密钥。请配置一个随机密钥后重试。")
+	// fail-closed：拒绝在不安全的 JWT 签名密钥下启动。空值、内置公开默认值
+	// 与部署模板占位符都可使攻击者伪造密码重置令牌（见 issue #106），因此
+	// 配置错误必须以非零退出码终止——否则 systemd/docker 会把"配置错误"
+	// 误判为"正常退出"，重启策略与告警都不会生效。
+	if reason := jwtopt.SigningKeyProblem(); reason != "" {
+		slog.Error("app.signingKey 不可用，拒绝启动", "reason", reason,
+			"hint", "请配置一个随机密钥（例如 openssl rand -base64 32）后重试")
 		os.Exit(1)
 	}
 	preferences.OpenConfigChangeEvent()

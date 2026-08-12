@@ -23,6 +23,10 @@ func GenerateActivationTokenByUser(entity users.EntityComplete) (string, error) 
 
 // GenerateActivationToken creates a signed email activation token.
 func GenerateActivationToken(userId uint64, email string) (string, error) {
+	key, err := signingKey()
+	if err != nil {
+		return "", err
+	}
 	claims := ActivationClaims{
 		UserId: userId,
 		Email:  email,
@@ -33,13 +37,17 @@ func GenerateActivationToken(userId uint64, email string) (string, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	return token.SignedString(signingKey())
+	return token.SignedString(key)
 }
 
 // ParseActivationToken parses and validates an activation token.
 func ParseActivationToken(tokenString string) (*ActivationClaims, error) {
+	key, err := signingKey()
+	if err != nil {
+		return nil, err
+	}
 	token, err := jwt.ParseWithClaims(tokenString, &ActivationClaims{}, func(token *jwt.Token) (any, error) {
-		return signingKey(), nil
+		return key, nil
 	})
 
 	if err != nil {
