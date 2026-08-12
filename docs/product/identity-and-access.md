@@ -153,10 +153,10 @@
   failure) still inherently distinguishes an already-registered email from a fresh one; removing
   that residual signal would require an async email-verification flow (product decision, issue #124
   acceptance item 1). Forgot-password answers unknown emails, bots, and the 24-hour email-change
-  cooldown with the same success message after equal dummy work (one HMAC token signing plus a
-  synchronous `email.noop` task carrying an equal-size token, silently consumed and dropped by the
-  mail worker so it never accumulates), so response time does not reveal whether an email is
-  registered (issue #124).
+  cooldown with the same success message after the same class of work as the registered path (one
+  HMAC token signing plus a synchronous `email.noop` task, silently consumed and dropped by the
+  mail worker so it never accumulates), so probing an email's registration status via response
+  time is not reliable (issue #124).
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,

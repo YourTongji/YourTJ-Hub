@@ -115,8 +115,8 @@ func TestForgotPasswordUnknownEmailEnqueuesNoopOnly(t *testing.T) {
 		t.Fatalf("unknown-email forgot-password must not enqueue reset mail (count = %d)", count)
 	}
 
-	// 等量负载断言（review #129 P2）：noop 任务必须携带与真实 reset_password 任务同量的
-	// 载荷（非空 Token 签名、非空 Username 占位），保证 JSON 序列化与 DB 写入负载一致。
+	// 同类操作断言（review #129 P2）：noop 任务应携带非空 Token 签名与非空 Username 占位，
+	// 与真实 reset_password 任务执行同类的 HMAC 签名 + 入队操作；不承诺字节级负载一致。
 	var noopTask *mailservice.EmailTask
 	tasks := getEmailTasks(t)
 	for i := range tasks {
