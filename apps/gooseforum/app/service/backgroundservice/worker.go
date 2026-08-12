@@ -17,16 +17,20 @@ import (
 )
 
 const (
-	batchSize     = 10
-	pollInterval  = 5 * time.Second
-	retryInterval = 5 * time.Second
-	maxRetries    = 3
-
-	// leaseRenewInterval 是任务租约的心跳续约间隔（issue #138）。远小于
-	// taskQueue.LeaseDuration（10 分钟），即使进程暂停或 DB 短暂抖动
-	// 也不至于丢租约。
-	leaseRenewInterval = 30 * time.Second
+	batchSize    = 10
+	pollInterval = 5 * time.Second
+	maxRetries   = 3
 )
+
+// leaseRenewInterval 是任务租约的心跳续约间隔（issue #138）。远小于
+// taskQueue.LeaseDuration（10 分钟），即使进程暂停或 DB 短暂抖动
+// 也不至于丢租约。var 而非 const：测试会临时缩短它以触发心跳路径
+// （TestLeaseLossCancelsHandlerViaHeartbeat）。
+var leaseRenewInterval = 30 * time.Second
+
+// retryInterval 是任务失败后的重试等待间隔。var 而非 const：测试会临时
+// 缩短它以加速重试路径（TestProcessTaskRetryThenFail）。
+var retryInterval = 5 * time.Second
 
 // TaskHandler processes one queued task. Returning an error triggers
 // retry/failure bookkeeping on the task row.
@@ -85,6 +89,10 @@ func drainTasks(stopCh <-chan struct{}, typePrefix string, handler TaskHandler) 
 	}
 }
 
+// processTask 处理单个任务并返回 continue 布尔：false = stop（stopCh 已
+// 关闭，worker 应退出），true = continue。注意与 mail worker 的
+// processClaimedEmailTask 语义相反（后者 true = stop）——两处各自调用方
+// 匹配了约定，修改时勿混用。
 func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Entity, handler TaskHandler) bool {
 	// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
 	// 并发 worker 中只有一个能成功，其余直接跳过，杜绝重复执行外部副作用。
@@ -188,6 +196,13 @@ func (g *LeaseGuard) Set(token string) {
 // 一次 CAS 续租。续租失败说明租约已被回收（任务被其他 worker 重新领取），
 // 立即取消 ctx 并退出；ctx 被外部取消时也退出。返回的通道在心跳 goroutine
 // 退出后关闭，调用方在处理结束后可等待它以固定最终租约值。
+//
+// 限制（review G2）：续租返回 error（DB 抖动/分区）时只记录并继续，不取消
+// ctx——这是刻意取舍：瞬时 DB 错误下取消会过早终止仍持有租约的 handler；
+// 但代价是持续错误期间租约实际已过期（时间维度）时，本 worker 的 handler
+// 会继续执行直到结束，其外部副作用无法被取消（详见
+// docs/architecture/contracts-and-data.md 的 at-least-once 说明）。若后续
+// 需要收紧，可在 err 持续 N 次后调用 cancel()。
 func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint64, guard *LeaseGuard) <-chan struct{} {
 	done := make(chan struct{})
 	go func() {
@@ -199,6 +214,7 @@ func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint
 			case <-ticker.C:
 				ok, _, token, err := taskQueue.RenewLease(id, guard.Get())
 				if err != nil {
+					// DB 抖动：保持续租尝试，不取消 handler（见上方限制说明）。
 					slog.Error("background: renew lease failed", "id", id, "err", err)
 					continue
 				}

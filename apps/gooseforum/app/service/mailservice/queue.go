@@ -125,6 +125,8 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 
 		for _, task := range tasks {
 			slog.Debug("邮件队列开始处理任务", "id", task.Id, "type", task.Type, "status", task.Status, "retryCount", task.RetryCount)
+			// 注意 stop 语义：true = stop（与 generic worker 的
+			// drainTasks 相反，后者 false = stop）。调用方各自匹配。
 			if stop := processClaimedEmailTask(stopCh, task); stop {
 				return false
 			}
@@ -178,7 +180,7 @@ func processClaimedEmailTask(stopCh <-chan struct{}, task *taskQueue.Entity) (st
 		return false
 	}
 
-	if retrying := writeEmailTaskOutcome(task, emailTask, outcome, sendErr, lease); retrying {
+	if retrying := writeEmailTaskOutcome(task, &running, emailTask, outcome, sendErr, lease); retrying {
 		select {
 		case <-time.After(RetryInterval):
 		case <-stopCh:
@@ -223,7 +225,12 @@ func executeClaimedEmail(task *taskQueue.Entity) (emailTask EmailTask, outcome e
 // writeEmailTaskOutcome 以最终 fencing token 为 CAS 前置条件写入任务终态
 // （fencing）。返回 retrying 表示任务已标记为 Retrying，调用方应等待
 // RetryInterval 后再继续，保持重试节奏。
-func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome emailTaskOutcome, sendErr error, token string) (retrying bool) {
+//
+// task 是批次拉取时的实体（仅用于日志等展示），running 是 ClaimTask 重读的
+// 已领取实体：重试上限判断必须用 running.RetryCount（review G4）——fetch→
+// claim 窗口内另一 worker 抢先重试后，旧实体的 RetryCount 已陈旧，用旧值
+// 会让已达上限的任务被再重试一次。
+func writeEmailTaskOutcome(task, running *taskQueue.Entity, emailTask EmailTask, outcome emailTaskOutcome, sendErr error, token string) (retrying bool) {
 	switch outcome {
 	case emailOutcomeNoop:
 		if delErr := taskQueue.DeleteOwned(task.Id, token); delErr != nil {
@@ -254,11 +261,11 @@ func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome 
 			"id", task.Id,
 			"type", emailTask.Type,
 			"to", emailTask.To,
-			"retryCount", task.RetryCount,
+			"retryCount", running.RetryCount,
 			"error", sendErr,
 		)
 
-		if task.RetryCount < MaxRetries {
+		if running.RetryCount < MaxRetries {
 			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, token); updateErr != nil {
 				slog.Error("更新任务重试次数失败", "id", task.Id, "error", updateErr)
 			}

@@ -79,6 +79,11 @@ func TestGetPendingTasksByTypeIsolation(t *testing.T) {
 func TestProcessTaskRetryThenFail(t *testing.T) {
 	setupWorkerTestDB(t)
 
+	// 注入短重试间隔，避免 processTask 内部 5s 等待拖慢 CI（review LOW）
+	origRetryInterval := retryInterval
+	retryInterval = 10 * time.Millisecond
+	t.Cleanup(func() { retryInterval = origRetryInterval })
+
 	// 用 error 类型的 handler 先失败一次（重试），再成功
 	failOnce := errors.New("boom")
 	attempts := 0
@@ -542,4 +547,104 @@ func TestRecoverStaleEmailTasksReclaimsExpiredLegacyLeases(t *testing.T) {
 	if updated := mustGetTask(t, freshEmail.Id); updated.Status != taskQueue.StatusRunning {
 		t.Fatalf("fresh %q task wrongly reclaimed: status = %d, want %d (running)", freshEmail.Type, updated.Status, taskQueue.StatusRunning)
 	}
+}
+
+// TestProcessTaskStatusFailedAfterMaxRetries 覆盖 retry-count fencing 的关键
+// 边界（review G3）：RetryCount 达到 maxRetries 时 handler 失败必须直接落
+// Failed，不再重试（off-by-one 回归防护）。任务直接以 RetryCount=maxRetries
+// 进入 Retrying，processTask 失败一次即应判定超限，不走 5s 重试等待。
+func TestProcessTaskStatusFailedAfterMaxRetries(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	failErr := errors.New("always fails")
+	handler := func(_ context.Context, _ *taskQueue.Entity) error {
+		return failErr
+	}
+
+	task := &taskQueue.Entity{
+		Type:       "export",
+		Status:     taskQueue.StatusRetrying,
+		RetryCount: maxRetries, // 已达上限，下一次失败即 Failed
+		TaskJson:   `{}`,
+	}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	start := time.Now()
+	if !processTask(make(chan struct{}), "export", task, handler) {
+		t.Fatal("processTask returned stop=true, want continue")
+	}
+	if elapsed := time.Since(start); elapsed > 2*time.Second {
+		t.Fatalf("processTask took %v, want immediate failure (no retry wait)", elapsed)
+	}
+
+	updated := mustGetTask(t, task.Id)
+	if updated.Status != taskQueue.StatusFailed {
+		t.Fatalf("status = %d, want %d (failed)", updated.Status, taskQueue.StatusFailed)
+	}
+	if updated.RetryCount != maxRetries {
+		t.Fatalf("retryCount = %d, want %d (unchanged at cap)", updated.RetryCount, maxRetries)
+	}
+}
+
+// TestLeaseLossCancelsHandlerViaHeartbeat 覆盖本 PR 核心的租约丢失取消语义
+// （review G3）：StartLeaseHeartbeat 检测到租约被回收（续租 CAS 失败）后
+// 必须 cancel ctx，使 handler 通过 ctx.Done() 中止。此前 fencing 测试只直接
+// 调 RenewLease，从未触发心跳 → cancel 的完整链路。
+func TestLeaseLossCancelsHandlerViaHeartbeat(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	// 心跳间隔临时缩短到 50ms，让测试在数秒内触发 tick（默认 30s 会
+	// 让测试超时）；Cleanup 恢复原值。
+	origLeaseRenew := leaseRenewInterval
+	leaseRenewInterval = 50 * time.Millisecond
+	t.Cleanup(func() { leaseRenewInterval = origLeaseRenew })
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	// worker A 领取，持有 token A
+	running, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("first claim failed: claimed=%v err=%v", claimed, err)
+	}
+	firstToken := running.LeaseToken
+
+	// 启动心跳，并用一个可观察 ctx.Done() 的 handler 模拟处理中的任务
+	guard := NewLeaseGuard(firstToken)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	heartbeatDone := StartLeaseHeartbeat(ctx, cancel, task.Id, guard)
+
+	// 模拟租约被回收：时间过期 → RecoverStaleRunning → 新 worker 重领（token B）
+	conn := dbconnect.Connect()
+	if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), task.Id).Error; err != nil {
+		t.Fatalf("age lease: %v", err)
+	}
+	if err := taskQueue.RecoverStaleRunning("export", taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale: %v", err)
+	}
+	if _, claimed, err := taskQueue.ClaimTask(task.Id); err != nil || !claimed {
+		t.Fatalf("second claim failed: claimed=%v err=%v", claimed, err)
+	}
+
+	// 心跳 tick 必须检测到续租失败并 cancel ctx；直接调用一次心跳体内
+	// 的逻辑不可行（ticker 间隔 30s），因此用短超时轮询等待 ctx 被取消。
+	ctxCanceled := make(chan struct{})
+	go func() {
+		<-ctx.Done()
+		close(ctxCanceled)
+	}()
+	select {
+	case <-ctxCanceled:
+		// 心跳检测到租约丢失，ctx 已取消：handler 的 ctx.Done() 分支应触发
+	case <-time.After(5 * time.Second):
+		t.Fatal("heartbeat did not cancel ctx within 5s after lease loss")
+	}
+
+	cancel()
+	<-heartbeatDone
 }

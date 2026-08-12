@@ -125,14 +125,20 @@ than a hand-maintained duplicate baseline.
   - `export` (data export)
   - `file-migrate` (BLOB → object storage migration)
 - Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
-  (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes can never
-  double-execute the same task. Each claim generates a fresh, non-reusable fencing token
-  (`lease_token`); `processed_at` only tracks the lease start for expiry-based reclaim. Every write
-  back — terminal state (`success/failed/retrying`), retry counter, deletion, and progress payload
-  (`task_json`) — is fenced on the fencing token (`status = running AND lease_token = ?`), so a
-  worker whose lease was reclaimed can neither overwrite the new owner's cursor nor flip its state.
-  Workers periodically reclaim `running` tasks whose lease expired (crashed process), so no task
-  stays stuck in `running` forever.
+  (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
+  the same task simultaneously from the queue's perspective. Each claim generates a fresh,
+  non-reusable fencing token (`lease_token`); `processed_at` only tracks the lease start for
+  expiry-based reclaim. Every write back — terminal state (`success/failed/retrying`), retry
+  counter, deletion, and progress payload (`task_json`) — is fenced on the fencing token
+  (`status = running AND lease_token = ?`), so a worker whose lease was reclaimed can neither
+  overwrite the new owner's cursor nor flip its state. Workers periodically reclaim `running` tasks
+  whose lease expired (crashed process), so no task stays stuck in `running` forever.
+  **Delivery semantics are at-least-once, not exactly-once**: fencing protects DB state writes but
+  cannot cancel a handler's external side effects once a lease is lost — the heartbeat only notices
+  loss up to `leaseRenewInterval` (30s) later, a heartbeat `err` (DB blip) branch keeps the handler
+  running, and email handlers take no context (`DialAndSend` is uninterruptible). A reclaimed task
+  can therefore be executed by the stale worker and then again by its new owner; the fencing token
+  only prevents the stale worker from writing terminal state over the new owner.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
