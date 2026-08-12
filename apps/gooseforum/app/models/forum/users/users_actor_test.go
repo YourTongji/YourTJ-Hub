@@ -6,6 +6,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 )
 
@@ -118,6 +119,21 @@ func TestVerifyUnknownAccountMatchesCredentialFailures(t *testing.T) {
 	}
 }
 
+// The dummy value must stay well-formed and run the full PBKDF2 cost:
+// VerifyEncryptPassword against it must reach the post-PBKDF2 comparison
+// and report "incorrect password", never a fail-fast parse error. If a
+// future hardening of VerifyPassword (e.g. hash/salt length checks) made
+// the dummy fail fast, the timing equalization would silently vanish while
+// the spy tests above stayed green.
+func TestDummyHashForTimingRunsFullCost(t *testing.T) {
+	if !algorithm.IsWellFormedPasswordHash(dummyHashForTiming) {
+		t.Fatal("dummyHashForTiming should satisfy IsWellFormedPasswordHash")
+	}
+	if err := algorithm.VerifyEncryptPassword(dummyHashForTiming, "whatever-password"); err == nil || err.Error() != "incorrect password" {
+		t.Fatalf("dummy verify error = %v, want post-PBKDF2 \"incorrect password\"", err)
+	}
+}
+
 // Accounts whose stored hash is empty or malformed (e.g. imported users
 // without a password) can never authenticate; they must still pay the
 // equal-cost PBKDF2 against the dummy hash, or a fast response would
@@ -134,6 +150,7 @@ func TestVerifyMalformedStoredHashUsesDummy(t *testing.T) {
 		validHash + ":%%%", // salt segment not base64
 		"a:b:c",            // more than two segments
 		validHash + ":" + validSalt[:len(validSalt)-4], // salt of wrong length
+		validHash[:len(validHash)-4] + ":" + validSalt, // hash of wrong length
 	}
 	for i, stored := range malformed {
 		user := &EntityComplete{Username: fmt.Sprintf("malformed-hash-user-%d", i)}
@@ -147,6 +164,18 @@ func TestVerifyMalformedStoredHashUsesDummy(t *testing.T) {
 		}
 		assertSingleVerifyCall(t, calls, dummyHashForTiming)
 	}
+
+	// Same handling via the email lookup route.
+	emailUser := &EntityComplete{Username: "malformed-hash-email-user", Email: "malformed-hash@example.com"}
+	emailUser.Password = ""
+	if err := Create(emailUser); err != nil {
+		t.Fatalf("create email-route user: %v", err)
+	}
+	calls := installVerifySpy(t)
+	if _, err := Verify("malformed-hash@example.com", "whatever-password"); !errors.Is(err, ErrInvalidCredentials) {
+		t.Fatalf("email-route malformed hash error = %v, want ErrInvalidCredentials", err)
+	}
+	assertSingleVerifyCall(t, calls, dummyHashForTiming)
 }
 
 func TestIsBotFlag(t *testing.T) {

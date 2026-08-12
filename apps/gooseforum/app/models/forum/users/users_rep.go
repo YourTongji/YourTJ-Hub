@@ -19,7 +19,7 @@ import (
 // stored hash such as imported users without a password). It runs the same
 // 10000-iteration cost as real hashes so username enumeration via response
 // time is not possible.
-const dummyHashForTiming = "cvSnM8ciGWPMBCT/2aqq7QC6kxNmvCbn51nily0JhOc=:eW91cnRqLXRpbWluZy1kdW1teS1zYWx0LTAxMjM0NTY3ODk="
+const dummyHashForTiming = "BhHz/kgB9L+m25V1YC0SHSBS4njsDq8fyOaQvNTaX80=:eW91cnRqLXRpbWluZy1kdW1teS1zYWx0LTAxMjM0NTY="
 
 // verifyEncryptPassword is the password verification entry point, held in a
 // package-level variable so tests can spy on which stored hash each Verify
