@@ -58,15 +58,18 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	importPosts(parsed["posts"], report)
 	importTopicCategoryIndexes(parsed["topicCategoryIndex"], report)
 	importTopicUserStats(parsed["topicUserStat"], report)
+	// 显式主键写入不会推进 PostgreSQL sequence，必须先推进序列再重建派生数据：
+	// rebuild 期间 ensureTopicCategoryIndexes / rebuildTopicUserStats 会用自增 ID
+	// 创建新行，若序列仍停在导入前小值，新行可能复用已导入显式 ID 撞主键，
+	// 分类索引/参与者统计行被静默丢弃（PR #160 复审 🟠）。
+	resetPostgresSequences()
 	// 话题 invariants 需要 posts 全部落库后才能推导，必须在 posts 导入之后执行。
-	// 仅当本次导入涉及 topics/posts 时才全库重建，避免仅导入 users 时
-	// 对全库话题产生无谓扫描与副作用（PR #160 review, suggestion 3）。
-	if _, hasTopics := parsed["topics"]; hasTopics {
+	// 仅当本次导入涉及非空 topics 且无失败行时才全库重建：失败导入的数据可能
+	// 不完整，重建会产生误导性结果；仅导入 users 或空 topics 时也跳过全库扫描
+	// 与副作用（PR #160 review, suggestion 3 / 复审 🟡）。
+	if len(parsed["topics"]) > 0 && report.Failed == 0 {
 		rebuildTopicInvariants()
 	}
-	// 显式主键写入不会推进 PostgreSQL sequence，导入后需手动推进，
-	// 否则下一次自动插入可能复用已导入 ID 触发主键冲突。
-	resetPostgresSequences()
 	for _, t := range []string{"users", "topics", "posts", "topicCategoryIndex", "topicUserStat"} {
 		if _, ok := parsed[t]; ok {
 			report.Imported = append(report.Imported, t)
@@ -87,10 +90,12 @@ func resetPostgresSequences() {
 	}
 	db := dbconnect.Connect()
 	for _, table := range []string{"users", "topics", "posts", "topic_category_index", "topic_user_stat"} {
-		db.Exec(fmt.Sprintf(
+		if err := db.Exec(fmt.Sprintf(
 			`SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM %s), 1), true)`,
 			table, table,
-		))
+		)).Error; err != nil {
+			slog.Error("resetPostgresSequences: 推进序列失败", "table", table, "err", err)
+		}
 	}
 }
 
@@ -367,7 +372,10 @@ func importTopicUserStats(rows []map[string]any, report *ImportReport) {
 			report.Skipped++
 			continue
 		}
-		lastReplyAt := time.Now()
+		// lastReplyAt 缺省用零值而非 time.Now()：旧格式文件缺该字段时
+		// 不臆造"最后回复时间"（该话题后续会被 rebuildTopicUserStats 或
+		// 正常发帖流程修正；PR #160 复审 🟡 可选）。
+		var lastReplyAt time.Time
 		if lr := rowString(row, "lastReplyAt"); lr != "" {
 			if t, err := time.Parse(time.RFC3339Nano, lr); err == nil {
 				lastReplyAt = t
@@ -418,7 +426,9 @@ func rebuildTopicInvariants() {
 			continue
 		}
 		var postList []*posts.Entity
-		if err := db.Where("topic_id = ?", topic.Id).
+		// 仅统计 visibility_status=ACTIVE 的帖子（与 rebuildTopicUserStats /
+		// postservice.RebuildTopicPostStats 严格对齐，PR #160 复审 🟡）。
+		if err := db.Where("topic_id = ? AND visibility_status = ?", topic.Id, posts.VisibilityActive).
 			Order("post_no asc").Order("id asc").
 			Find(&postList).Error; err != nil {
 			slog.Error("rebuildTopicInvariants: 加载话题 posts 失败", "topicId", topic.Id, "err", err)
@@ -456,8 +466,11 @@ func rebuildTopicInvariants() {
 			"last_post_id":  lastPostID,
 			"post_count":    len(postList),
 		}
-		// reply_count = post_count - 1（首帖不计回复）；若导出已带正确值则保留
-		if topic.ReplyCount == 0 && len(postList) > 1 {
+		// reply_count 与 post_count 一致重算（首帖不计回复）：回填分支仅在
+		// invariants 缺失（旧格式）时进入，导出值本就不可信；统一用
+		// len(postList)-1 覆盖，避免旧文件 replyCount 漂移导致 reply_count >
+		// post_count 的矛盾（PR #160 复审 🟡）。
+		if len(postList) > 1 {
 			updates["reply_count"] = len(postList) - 1
 		}
 		// posters 缺失时按实际发帖人重建（首帖作者 + 回复作者，话题作者置前）
