@@ -69,7 +69,6 @@ func ClearPostDeletedTombstone(postID uint64) error {
 	return db.Connect().Where("source_key = ?", fmt.Sprintf("post-deleted:%d", postID)).
 		Delete(&pointsRecord.Entity{}).Error
 }
-}
 
 func applyPoints(userId uint64, points int64, action PointsAction, sourceKey, originalSourceKey string) error {
 	if userId == 0 || sourceKey == "" {
