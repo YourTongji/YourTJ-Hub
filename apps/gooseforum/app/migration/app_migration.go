@@ -173,5 +173,16 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(15)
 		currentVersion = 15
 	}
+	if currentVersion < 16 {
+		// 移除 GitHub OAuth 明文 token 持久化并清理历史列（issue #131,PR #150）
+		result := datamigration.DropUserOAuthTokenColumns()
+		slog.Info("app migration user oauth credentials drop done", "dropped", result.Dropped, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user oauth credentials drop has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(16)
+		currentVersion = 16
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }
