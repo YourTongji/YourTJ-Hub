@@ -154,11 +154,11 @@ func SensitiveContentReview(actorUserId uint64, subjectType string, subjectId ui
 
 // TopicDeletedSnapshot 记录话题删除的审计上下文。
 type TopicDeletedSnapshot struct {
-	TopicId    uint64
-	TopicTitle string
-	DeletedBy  uint64
+	TopicId       uint64
+	TopicTitle    string
+	DeletedBy     uint64
 	DeletedByUser string
-	Reason     string
+	Reason        string
 }
 
 // TopicDeleted 记录话题删除（作者主动或管理员治理删除）。
@@ -253,6 +253,29 @@ func EvidenceViewed(actorUserId uint64, subjectType string, subjectId uint64, ti
 				"subjectId":  subjectId,
 				"title":      title,
 				"viewReason": viewReason,
+			},
+		},
+	})
+}
+
+// ReviewStatusChanged 记录课评隐藏/恢复的审核操作（独立 course 审核日志）。
+func ReviewStatusChanged(actorUserId, reviewId uint64, hidden bool) {
+	action := moderationLog.ActionCourseReviewUnblocked
+	status := "shown"
+	if hidden {
+		action = moderationLog.ActionCourseReviewBlocked
+		status = "hidden"
+	}
+	create(moderationLog.Entity{
+		ActorUserId: actorUserId,
+		Action:      action,
+		SubjectType: moderationLog.SubjectCourseReview,
+		SubjectId:   reviewId,
+		Payload: moderationLog.Payload{
+			MessageCode: "moderation.log.courseReview.statusChanged",
+			Params: map[string]any{
+				"reviewId": reviewId,
+				"status":   status,
 			},
 		},
 	})

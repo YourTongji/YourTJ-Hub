@@ -580,13 +580,28 @@ type SearchPageProps struct {
 	Topics            []TopicPayload          `json:"topics"`
 	Users             []UserSearchPayload     `json:"users"`
 	Categories        []CategorySearchPayload `json:"categories"`
+	Courses           []CourseSearchPayload   `json:"courses"`
 	Total             int64                   `json:"total"`
 	UsersTotal        int64                   `json:"usersTotal"`
 	CategoriesTotal   int64                   `json:"categoriesTotal"`
+	CoursesTotal      int64                   `json:"coursesTotal"`
 	TotalPages        int                     `json:"totalPages"`
 	Pagination        PaginationPayload       `json:"pagination"`
 	FailedScopes      []string                `json:"failedScopes,omitempty"`
 	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
+}
+
+// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）
+type CourseSearchPayload struct {
+	ID          uint64   `json:"id"`
+	PrimaryCode string   `json:"primaryCode"`
+	Name        string   `json:"name"`
+	Department  string   `json:"department"`
+	CreditX10   int      `json:"creditX10"`
+	Aliases     []string `json:"aliases"`
+	Instructors []string `json:"instructors"`
+	Terms       []string `json:"terms"`
+	Campus      []string `json:"campus"`
 }
 
 // UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
@@ -2596,6 +2611,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		Topics:     []TopicPayload{},
 		Users:      []UserSearchPayload{},
 		Categories: []CategorySearchPayload{},
+		Courses:    []CourseSearchPayload{},
 		Pagination: PaginationPayload{
 			Page: page,
 		},
@@ -2608,9 +2624,9 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		page = 1
 	}
 	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
-	// users/categories 一期单页（上限 MaxAggregateLimit），无分页 UI。
+	// users/categories/courses 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
-	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories {
+	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories || normalizedScope == searchservice.ScopeCourses {
 		limit = searchservice.MaxAggregateLimit
 	}
 	offset := 0
@@ -2664,10 +2680,23 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Desc:  item.Desc,
 		}
 	})
+	props.Courses = lo.Map(result.Courses, func(item searchservice.CourseSearchResult, _ int) CourseSearchPayload {
+		return CourseSearchPayload{
+			ID:          item.ID,
+			PrimaryCode: item.PrimaryCode,
+			Name:        item.Name,
+			Department:  item.Department,
+			CreditX10:   item.CreditX10,
+			Aliases:     item.Aliases,
+			Instructors: item.Instructors,
+			Terms:       item.Terms,
+			Campus:      item.Campus,
+		}
+	})
 	props.Total = result.Total
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
-	props.TotalPages = totalPageCount
+	props.CoursesTotal = result.CoursesTotal
 	props.Pagination = PaginationPayload{
 		Page:     page,
 		NextPage: nextPage,

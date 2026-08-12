@@ -7,10 +7,12 @@ import (
 	"strings"
 	"time"
 
+	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/bundles/i18n"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/service/pointservice"
+	"gorm.io/gorm"
 )
 
 func CreateUser(username, password, email string, needValid bool, locale ...string) (*users.EntityComplete, error) {
@@ -21,8 +23,12 @@ func CreateUser(username, password, email string, needValid bool, locale ...stri
 		userEntity.IsActivated = users.ActivationSuccess
 	}
 	userEntity.IsFrozen = users.StatusNormal
-	pointservice.InitUserPoints(userEntity.Id, 100)
-	err := users.Create(userEntity)
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Create(userEntity).Error; err != nil {
+			return err
+		}
+		return pointservice.InitUserPointsTx(tx, userEntity.Id, 100)
+	})
 	if err != nil {
 		return nil, err
 	}

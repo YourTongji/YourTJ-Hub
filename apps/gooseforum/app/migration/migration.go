@@ -18,13 +18,14 @@ import (
 
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/contentDeleteEvent"
+	"github.com/leancodebox/GooseForum/app/models/forum/course"
 	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
 	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
-	"github.com/leancodebox/GooseForum/app/models/forum/networkAccessLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
 	"github.com/leancodebox/GooseForum/app/models/forum/migrationMapping"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
+	"github.com/leancodebox/GooseForum/app/models/forum/networkAccessLog"
 	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
 	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
 	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
@@ -131,6 +132,18 @@ func validateUniqueUsernames(db *gorm.DB) error {
 func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
+		&course.Entity{},
+		&course.AliasEntity{},
+		&course.TermEntity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.ImportRunEntity{},
+		&course.SourceRefEntity{},
+		&course.ReviewEntity{},
+		&course.HelpfulEntity{},
+		&course.CourseStatsEntity{},
+		&course.OfferingStatsEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},

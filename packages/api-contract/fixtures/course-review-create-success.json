@@ -1,0 +1,22 @@
+{
+  "result": {
+    "id": 300,
+    "offeringId": 901,
+    "rating": 5,
+    "content": "好课",
+    "contentHtml": "<p>好课</p>\n",
+    "author": {
+      "kind": "member",
+      "label": "alice"
+    },
+    "viewer": {
+      "canEdit": true,
+      "canDelete": true,
+      "isHelpful": false
+    },
+    "helpfulCount": 0,
+    "createdAt": "2026-08-01T10:00:00+08:00",
+    "updatedAt": "2026-08-01T10:00:00+08:00"
+  },
+  "code": 0
+}

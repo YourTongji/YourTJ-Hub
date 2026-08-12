@@ -539,6 +539,383 @@ abstract class _CategorySearchPayload implements CategorySearchPayload {
   get copyWith => throw _privateConstructorUsedError;
 }
 
+CourseSearchPayload _$CourseSearchPayloadFromJson(Map<String, dynamic> json) {
+  return _CourseSearchPayload.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseSearchPayload {
+  int get id => throw _privateConstructorUsedError;
+  String get primaryCode => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  String get department => throw _privateConstructorUsedError;
+  int get creditX10 => throw _privateConstructorUsedError;
+  List<String>? get aliases => throw _privateConstructorUsedError;
+  List<String>? get instructors => throw _privateConstructorUsedError;
+  List<String>? get terms => throw _privateConstructorUsedError;
+  List<String>? get campus => throw _privateConstructorUsedError;
+
+  /// Serializes this CourseSearchPayload to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseSearchPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseSearchPayloadCopyWith<CourseSearchPayload> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseSearchPayloadCopyWith<$Res> {
+  factory $CourseSearchPayloadCopyWith(
+    CourseSearchPayload value,
+    $Res Function(CourseSearchPayload) then,
+  ) = _$CourseSearchPayloadCopyWithImpl<$Res, CourseSearchPayload>;
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? terms,
+    List<String>? campus,
+  });
+}
+
+/// @nodoc
+class _$CourseSearchPayloadCopyWithImpl<$Res, $Val extends CourseSearchPayload>
+    implements $CourseSearchPayloadCopyWith<$Res> {
+  _$CourseSearchPayloadCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseSearchPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? instructors = freezed,
+    Object? terms = freezed,
+    Object? campus = freezed,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            primaryCode: null == primaryCode
+                ? _value.primaryCode
+                : primaryCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            name: null == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            department: null == department
+                ? _value.department
+                : department // ignore: cast_nullable_to_non_nullable
+                      as String,
+            creditX10: null == creditX10
+                ? _value.creditX10
+                : creditX10 // ignore: cast_nullable_to_non_nullable
+                      as int,
+            aliases: freezed == aliases
+                ? _value.aliases
+                : aliases // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            instructors: freezed == instructors
+                ? _value.instructors
+                : instructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            terms: freezed == terms
+                ? _value.terms
+                : terms // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            campus: freezed == campus
+                ? _value.campus
+                : campus // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseSearchPayloadImplCopyWith<$Res>
+    implements $CourseSearchPayloadCopyWith<$Res> {
+  factory _$$CourseSearchPayloadImplCopyWith(
+    _$CourseSearchPayloadImpl value,
+    $Res Function(_$CourseSearchPayloadImpl) then,
+  ) = __$$CourseSearchPayloadImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? terms,
+    List<String>? campus,
+  });
+}
+
+/// @nodoc
+class __$$CourseSearchPayloadImplCopyWithImpl<$Res>
+    extends _$CourseSearchPayloadCopyWithImpl<$Res, _$CourseSearchPayloadImpl>
+    implements _$$CourseSearchPayloadImplCopyWith<$Res> {
+  __$$CourseSearchPayloadImplCopyWithImpl(
+    _$CourseSearchPayloadImpl _value,
+    $Res Function(_$CourseSearchPayloadImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseSearchPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? creditX10 = null,
+    Object? aliases = freezed,
+    Object? instructors = freezed,
+    Object? terms = freezed,
+    Object? campus = freezed,
+  }) {
+    return _then(
+      _$CourseSearchPayloadImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        primaryCode: null == primaryCode
+            ? _value.primaryCode
+            : primaryCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        name: null == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        department: null == department
+            ? _value.department
+            : department // ignore: cast_nullable_to_non_nullable
+                  as String,
+        creditX10: null == creditX10
+            ? _value.creditX10
+            : creditX10 // ignore: cast_nullable_to_non_nullable
+                  as int,
+        aliases: freezed == aliases
+            ? _value._aliases
+            : aliases // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        instructors: freezed == instructors
+            ? _value._instructors
+            : instructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        terms: freezed == terms
+            ? _value._terms
+            : terms // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        campus: freezed == campus
+            ? _value._campus
+            : campus // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
+  const _$CourseSearchPayloadImpl({
+    required this.id,
+    required this.primaryCode,
+    required this.name,
+    required this.department,
+    required this.creditX10,
+    final List<String>? aliases,
+    final List<String>? instructors,
+    final List<String>? terms,
+    final List<String>? campus,
+  }) : _aliases = aliases,
+       _instructors = instructors,
+       _terms = terms,
+       _campus = campus;
+
+  factory _$CourseSearchPayloadImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseSearchPayloadImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final String primaryCode;
+  @override
+  final String name;
+  @override
+  final String department;
+  @override
+  final int creditX10;
+  final List<String>? _aliases;
+  @override
+  List<String>? get aliases {
+    final value = _aliases;
+    if (value == null) return null;
+    if (_aliases is EqualUnmodifiableListView) return _aliases;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _instructors;
+  @override
+  List<String>? get instructors {
+    final value = _instructors;
+    if (value == null) return null;
+    if (_instructors is EqualUnmodifiableListView) return _instructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _terms;
+  @override
+  List<String>? get terms {
+    final value = _terms;
+    if (value == null) return null;
+    if (_terms is EqualUnmodifiableListView) return _terms;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  final List<String>? _campus;
+  @override
+  List<String>? get campus {
+    final value = _campus;
+    if (value == null) return null;
+    if (_campus is EqualUnmodifiableListView) return _campus;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  String toString() {
+    return 'CourseSearchPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, terms: $terms, campus: $campus)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseSearchPayloadImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.primaryCode, primaryCode) ||
+                other.primaryCode == primaryCode) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.department, department) ||
+                other.department == department) &&
+            (identical(other.creditX10, creditX10) ||
+                other.creditX10 == creditX10) &&
+            const DeepCollectionEquality().equals(other._aliases, _aliases) &&
+            const DeepCollectionEquality().equals(
+              other._instructors,
+              _instructors,
+            ) &&
+            const DeepCollectionEquality().equals(other._terms, _terms) &&
+            const DeepCollectionEquality().equals(other._campus, _campus));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    primaryCode,
+    name,
+    department,
+    creditX10,
+    const DeepCollectionEquality().hash(_aliases),
+    const DeepCollectionEquality().hash(_instructors),
+    const DeepCollectionEquality().hash(_terms),
+    const DeepCollectionEquality().hash(_campus),
+  );
+
+  /// Create a copy of CourseSearchPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseSearchPayloadImplCopyWith<_$CourseSearchPayloadImpl> get copyWith =>
+      __$$CourseSearchPayloadImplCopyWithImpl<_$CourseSearchPayloadImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseSearchPayloadImplToJson(this);
+  }
+}
+
+abstract class _CourseSearchPayload implements CourseSearchPayload {
+  const factory _CourseSearchPayload({
+    required final int id,
+    required final String primaryCode,
+    required final String name,
+    required final String department,
+    required final int creditX10,
+    final List<String>? aliases,
+    final List<String>? instructors,
+    final List<String>? terms,
+    final List<String>? campus,
+  }) = _$CourseSearchPayloadImpl;
+
+  factory _CourseSearchPayload.fromJson(Map<String, dynamic> json) =
+      _$CourseSearchPayloadImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  String get primaryCode;
+  @override
+  String get name;
+  @override
+  String get department;
+  @override
+  int get creditX10;
+  @override
+  List<String>? get aliases;
+  @override
+  List<String>? get instructors;
+  @override
+  List<String>? get terms;
+  @override
+  List<String>? get campus;
+
+  /// Create a copy of CourseSearchPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseSearchPayloadImplCopyWith<_$CourseSearchPayloadImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
 SearchPageProps _$SearchPagePropsFromJson(Map<String, dynamic> json) {
   return _SearchPageProps.fromJson(json);
 }
@@ -551,9 +928,11 @@ mixin _$SearchPageProps {
   List<UserSearchPayload> get users => throw _privateConstructorUsedError;
   List<CategorySearchPayload> get categories =>
       throw _privateConstructorUsedError;
+  List<CourseSearchPayload> get courses => throw _privateConstructorUsedError;
   int get total => throw _privateConstructorUsedError;
   int get usersTotal => throw _privateConstructorUsedError;
   int get categoriesTotal => throw _privateConstructorUsedError;
+  int get coursesTotal => throw _privateConstructorUsedError;
   int get totalPages => throw _privateConstructorUsedError;
   PaginationPayload get pagination => throw _privateConstructorUsedError;
   List<String>? get failedScopes => throw _privateConstructorUsedError;
@@ -582,9 +961,11 @@ abstract class $SearchPagePropsCopyWith<$Res> {
     List<TopicPayload> topics,
     List<UserSearchPayload> users,
     List<CategorySearchPayload> categories,
+    List<CourseSearchPayload> courses,
     int total,
     int usersTotal,
     int categoriesTotal,
+    int coursesTotal,
     int totalPages,
     PaginationPayload pagination,
     List<String>? failedScopes,
@@ -614,9 +995,11 @@ class _$SearchPagePropsCopyWithImpl<$Res, $Val extends SearchPageProps>
     Object? topics = null,
     Object? users = null,
     Object? categories = null,
+    Object? courses = null,
     Object? total = null,
     Object? usersTotal = null,
     Object? categoriesTotal = null,
+    Object? coursesTotal = null,
     Object? totalPages = null,
     Object? pagination = null,
     Object? failedScopes = freezed,
@@ -644,6 +1027,10 @@ class _$SearchPagePropsCopyWithImpl<$Res, $Val extends SearchPageProps>
                 ? _value.categories
                 : categories // ignore: cast_nullable_to_non_nullable
                       as List<CategorySearchPayload>,
+            courses: null == courses
+                ? _value.courses
+                : courses // ignore: cast_nullable_to_non_nullable
+                      as List<CourseSearchPayload>,
             total: null == total
                 ? _value.total
                 : total // ignore: cast_nullable_to_non_nullable
@@ -655,6 +1042,10 @@ class _$SearchPagePropsCopyWithImpl<$Res, $Val extends SearchPageProps>
             categoriesTotal: null == categoriesTotal
                 ? _value.categoriesTotal
                 : categoriesTotal // ignore: cast_nullable_to_non_nullable
+                      as int,
+            coursesTotal: null == coursesTotal
+                ? _value.coursesTotal
+                : coursesTotal // ignore: cast_nullable_to_non_nullable
                       as int,
             totalPages: null == totalPages
                 ? _value.totalPages
@@ -703,9 +1094,11 @@ abstract class _$$SearchPagePropsImplCopyWith<$Res>
     List<TopicPayload> topics,
     List<UserSearchPayload> users,
     List<CategorySearchPayload> categories,
+    List<CourseSearchPayload> courses,
     int total,
     int usersTotal,
     int categoriesTotal,
+    int coursesTotal,
     int totalPages,
     PaginationPayload pagination,
     List<String>? failedScopes,
@@ -735,9 +1128,11 @@ class __$$SearchPagePropsImplCopyWithImpl<$Res>
     Object? topics = null,
     Object? users = null,
     Object? categories = null,
+    Object? courses = null,
     Object? total = null,
     Object? usersTotal = null,
     Object? categoriesTotal = null,
+    Object? coursesTotal = null,
     Object? totalPages = null,
     Object? pagination = null,
     Object? failedScopes = freezed,
@@ -765,6 +1160,10 @@ class __$$SearchPagePropsImplCopyWithImpl<$Res>
             ? _value._categories
             : categories // ignore: cast_nullable_to_non_nullable
                   as List<CategorySearchPayload>,
+        courses: null == courses
+            ? _value._courses
+            : courses // ignore: cast_nullable_to_non_nullable
+                  as List<CourseSearchPayload>,
         total: null == total
             ? _value.total
             : total // ignore: cast_nullable_to_non_nullable
@@ -776,6 +1175,10 @@ class __$$SearchPagePropsImplCopyWithImpl<$Res>
         categoriesTotal: null == categoriesTotal
             ? _value.categoriesTotal
             : categoriesTotal // ignore: cast_nullable_to_non_nullable
+                  as int,
+        coursesTotal: null == coursesTotal
+            ? _value.coursesTotal
+            : coursesTotal // ignore: cast_nullable_to_non_nullable
                   as int,
         totalPages: null == totalPages
             ? _value.totalPages
@@ -807,9 +1210,11 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
     required final List<TopicPayload> topics,
     required final List<UserSearchPayload> users,
     required final List<CategorySearchPayload> categories,
+    required final List<CourseSearchPayload> courses,
     required this.total,
     required this.usersTotal,
     required this.categoriesTotal,
+    required this.coursesTotal,
     required this.totalPages,
     required this.pagination,
     final List<String>? failedScopes,
@@ -817,6 +1222,7 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
   }) : _topics = topics,
        _users = users,
        _categories = categories,
+       _courses = courses,
        _failedScopes = failedScopes;
 
   factory _$SearchPagePropsImpl.fromJson(Map<String, dynamic> json) =>
@@ -850,12 +1256,22 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
     return EqualUnmodifiableListView(_categories);
   }
 
+  final List<CourseSearchPayload> _courses;
+  @override
+  List<CourseSearchPayload> get courses {
+    if (_courses is EqualUnmodifiableListView) return _courses;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_courses);
+  }
+
   @override
   final int total;
   @override
   final int usersTotal;
   @override
   final int categoriesTotal;
+  @override
+  final int coursesTotal;
   @override
   final int totalPages;
   @override
@@ -875,7 +1291,7 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
 
   @override
   String toString() {
-    return 'SearchPageProps(query: $query, scope: $scope, topics: $topics, users: $users, categories: $categories, total: $total, usersTotal: $usersTotal, categoriesTotal: $categoriesTotal, totalPages: $totalPages, pagination: $pagination, failedScopes: $failedScopes, searchUnavailable: $searchUnavailable)';
+    return 'SearchPageProps(query: $query, scope: $scope, topics: $topics, users: $users, categories: $categories, courses: $courses, total: $total, usersTotal: $usersTotal, categoriesTotal: $categoriesTotal, coursesTotal: $coursesTotal, totalPages: $totalPages, pagination: $pagination, failedScopes: $failedScopes, searchUnavailable: $searchUnavailable)';
   }
 
   @override
@@ -891,11 +1307,14 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
               other._categories,
               _categories,
             ) &&
+            const DeepCollectionEquality().equals(other._courses, _courses) &&
             (identical(other.total, total) || other.total == total) &&
             (identical(other.usersTotal, usersTotal) ||
                 other.usersTotal == usersTotal) &&
             (identical(other.categoriesTotal, categoriesTotal) ||
                 other.categoriesTotal == categoriesTotal) &&
+            (identical(other.coursesTotal, coursesTotal) ||
+                other.coursesTotal == coursesTotal) &&
             (identical(other.totalPages, totalPages) ||
                 other.totalPages == totalPages) &&
             (identical(other.pagination, pagination) ||
@@ -917,9 +1336,11 @@ class _$SearchPagePropsImpl implements _SearchPageProps {
     const DeepCollectionEquality().hash(_topics),
     const DeepCollectionEquality().hash(_users),
     const DeepCollectionEquality().hash(_categories),
+    const DeepCollectionEquality().hash(_courses),
     total,
     usersTotal,
     categoriesTotal,
+    coursesTotal,
     totalPages,
     pagination,
     const DeepCollectionEquality().hash(_failedScopes),
@@ -950,9 +1371,11 @@ abstract class _SearchPageProps implements SearchPageProps {
     required final List<TopicPayload> topics,
     required final List<UserSearchPayload> users,
     required final List<CategorySearchPayload> categories,
+    required final List<CourseSearchPayload> courses,
     required final int total,
     required final int usersTotal,
     required final int categoriesTotal,
+    required final int coursesTotal,
     required final int totalPages,
     required final PaginationPayload pagination,
     final List<String>? failedScopes,
@@ -973,11 +1396,15 @@ abstract class _SearchPageProps implements SearchPageProps {
   @override
   List<CategorySearchPayload> get categories;
   @override
+  List<CourseSearchPayload> get courses;
+  @override
   int get total;
   @override
   int get usersTotal;
   @override
   int get categoriesTotal;
+  @override
+  int get coursesTotal;
   @override
   int get totalPages;
   @override

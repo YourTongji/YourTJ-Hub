@@ -121,6 +121,31 @@ func TestRateLimitLLMSFullReturns429(t *testing.T) {
 	}
 }
 
+func TestRewardAbuseActionsReturn429(t *testing.T) {
+	for _, action := range []string{RateLimitTopicStatus, RateLimitPostDelete} {
+		t.Run(action, func(t *testing.T) {
+			ratelimit.Default().ResetAll()
+			hotdataserve.ClearRateLimitConfigCache()
+			t.Cleanup(func() {
+				ratelimit.Default().ResetAll()
+				hotdataserve.ClearRateLimitConfigCache()
+			})
+			limit := rateLimitQuotaFor(action)
+			if limit <= 0 {
+				t.Fatalf("%s limitPerIp = %d, want > 0", action, limit)
+			}
+			for range limit {
+				if recorder := rateLimitRecorder(RateLimit(action)); recorder.Code != http.StatusOK {
+					t.Fatalf("request within %s limit returned %d", action, recorder.Code)
+				}
+			}
+			if recorder := rateLimitRecorder(RateLimit(action)); recorder.Code != http.StatusTooManyRequests {
+				t.Fatalf("request beyond %s limit returned %d, want 429", action, recorder.Code)
+			}
+		})
+	}
+}
+
 func rateLimitQuotaFor(action string) int {
 	cfg := hotdataserve.GetRateLimitConfigCache()
 	for _, rule := range cfg.Actions {

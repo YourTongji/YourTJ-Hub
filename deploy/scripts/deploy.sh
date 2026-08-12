@@ -1,7 +1,9 @@
 #!/usr/bin/env bash
 # deploy.sh — 容器版部署: 构建镜像 → compose 更新 → 健康检查 → 失败回滚。
+#   部署成功后自动清理本实例前缀的旧镜像与构建缓存, 防止磁盘无限膨胀。
 # usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]
 #   instance: main 或 dev
+# 环境变量: IMAGE_KEEP_N — 每个实例前缀保留的镜像 tag 数(含当前), 默认 5
 set -euo pipefail
 
 INSTANCE="${1:?usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]}"
@@ -17,6 +19,44 @@ TAG_VAR="$([ "$INSTANCE" = "main" ] && echo MAIN_TAG || echo DEV_TAG)"
 IMAGE="yourtj-hub"
 
 log() { echo "[deploy:$INSTANCE] $*"; }
+
+# 清理旧镜像与构建缓存, 防止磁盘无限膨胀:
+#   - 保留该实例前缀(dev-*/main-*)最近 IMAGE_KEEP_N 个 tag(含当前) + prev 回滚 tag
+#   - 清理 dangling images 与构建缓存
+prune_old_images() {
+  local instance_prefix keep_n removed=0 keep_count=0
+  local dangling_before=0 dangling_after=0
+  instance_prefix="$([ "$INSTANCE" = "main" ] && echo "main-" || echo "dev-")"
+  keep_n="${IMAGE_KEEP_N:-5}"
+  if ! [[ "$keep_n" =~ ^[0-9]+$ ]] || [ "$keep_n" -lt 1 ]; then
+    log "WARNING: invalid IMAGE_KEEP_N='$keep_n', falling back to default 5"
+    keep_n=5
+  fi
+
+  log "pruning old images (keep newest $keep_n ${instance_prefix}* incl. current + prev)"
+  # 按创建时间倒序列出该实例前缀的 tag, 保留前 keep_n 个(含当前), 超出删除; prev 始终保留
+  while IFS='|' read -r tag _; do
+    [ -z "$tag" ] && continue
+    [ "$tag" = "prev" ] && continue
+    keep_count=$((keep_count + 1))
+    if [ "$keep_count" -le "$keep_n" ]; then
+      continue
+    fi
+    if docker image rm "$IMAGE:$tag" >/dev/null 2>&1; then
+      removed=$((removed + 1))
+      log "removed old image $IMAGE:$tag"
+    fi
+  done < <(docker images "$IMAGE" --format '{{.Tag}}|{{.CreatedAt}}' \
+      | grep "^${instance_prefix}" \
+      | sort -t'|' -k2 -r)
+
+  # 清理 dangling 镜像(构建残留)与不再使用的构建缓存, 失败不影响部署结果
+  dangling_before="$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ' || true)"
+  docker image prune -f >/dev/null 2>&1 || true
+  docker builder prune -f --filter "until=72h" >/dev/null 2>&1 || true
+  dangling_after="$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ' || true)"
+  log "prune done: removed $removed image tag(s); dangling $dangling_before -> $dangling_after"
+}
 
 [ -f "$NEW_BINARY" ] || { log "FATAL: new binary not found: $NEW_BINARY"; exit 1; }
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
@@ -44,6 +84,7 @@ log "compose up $INSTANCE with $IMAGE_TAG"
 for ((i = 1; i <= 60; i++)); do
   if curl -fsS "http://127.0.0.1:$PORT/health" >/dev/null 2>&1; then
     log "health check passed"
+    prune_old_images || log "prune failed (non-fatal, deploy succeeded)"
     exit 0
   fi
   log "waiting for health ($i/60)..."

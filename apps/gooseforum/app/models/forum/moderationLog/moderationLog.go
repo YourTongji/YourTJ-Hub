@@ -5,12 +5,13 @@ import "time"
 const tableName = "moderation_logs"
 
 const (
-	SubjectCategory = "category"
-	SubjectTopic    = "topic"
-	SubjectPost     = "post"
-	SubjectReport   = "report"
-	SubjectUser     = "user"
-	SubjectSystem   = "system"
+	SubjectCategory     = "category"
+	SubjectTopic        = "topic"
+	SubjectPost         = "post"
+	SubjectReport       = "report"
+	SubjectUser         = "user"
+	SubjectSystem       = "system"
+	SubjectCourseReview = "course_review"
 )
 
 const (
@@ -27,11 +28,14 @@ const (
 	ActionSensitiveReview  = "contentSensitiveReview"
 
 	// 删除生命周期动作（Issue #94）
-	ActionTopicDeleted   = "topicDeleted"
-	ActionPostDeleted    = "postDeleted"
+	ActionTopicDeleted    = "topicDeleted"
+	ActionPostDeleted     = "postDeleted"
 	ActionContentRestored = "contentRestored"
-	ActionContentPurged  = "contentPurged"
-	ActionEvidenceViewed = "evidenceViewed"
+	ActionContentPurged   = "contentPurged"
+	ActionEvidenceViewed  = "evidenceViewed"
+
+	ActionCourseReviewBlocked   = "courseReviewBlocked"
+	ActionCourseReviewUnblocked = "courseReviewUnblocked"
 )
 
 const (

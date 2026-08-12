@@ -26,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
+      - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: yourtj-hub
@@ -40,6 +41,16 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
+      - name: Upload deploy script to dev host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "deploy/scripts/deploy.sh"
+          target: "/tmp"
+          strip_components: 2
       - name: Deploy to dev (sync db from main + build image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -49,7 +60,10 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
+            # 0. 同步仓库最新 deploy.sh 到服务器(install 保证可执行位)
+            install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
-            /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235
+            #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
+            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235

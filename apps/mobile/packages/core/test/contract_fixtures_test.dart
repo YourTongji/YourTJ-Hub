@@ -371,9 +371,11 @@ void main() {
           'desc': '技术讨论',
         },
       ],
+      'courses': [],
       'total': 1,
       'usersTotal': 1,
       'categoriesTotal': 1,
+      'coursesTotal': 0,
       'totalPages': 1,
       'pagination': {'page': 1, 'nextPage': 1, 'hasNext': false, 'nextUrl': ''},
     });
@@ -446,6 +448,55 @@ void main() {
       expect(response.isSuccess, isFalse);
       expect(response.messageCode, 'totp.rateLimited');
       expect(response.result, isNull);
+    });
+
+    test('解析 TOTP 设置 fixture', () {
+      final response = GfResponse<TotpSetupPayload>.fromJson(
+        _contractFixture('totp-setup-success.json'),
+        (json) => TotpSetupPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.secret, isNotEmpty);
+      expect(response.result?.otpauthUrl, startsWith('otpauth://totp/'));
+    });
+
+    test('解析 TOTP 启用 fixture', () {
+      final response = GfResponse<TotpEnablePayload>.fromJson(
+        _contractFixture('totp-enable-success.json'),
+        (json) => TotpEnablePayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(response.isSuccess, isTrue);
+      expect(response.result?.recoveryCodes, hasLength(10));
+    });
+
+    test('解析 TOTP 状态 fixture', () {
+      final disabled = GfResponse<TotpStatusPayload>.fromJson(
+        _contractFixture('totp-status-disabled.json'),
+        (json) => TotpStatusPayload.fromJson(json as Map<String, dynamic>),
+      );
+      final enabled = GfResponse<TotpStatusPayload>.fromJson(
+        _contractFixture('totp-status-enabled.json'),
+        (json) => TotpStatusPayload.fromJson(json as Map<String, dynamic>),
+      );
+
+      expect(disabled.result?.enabled, isFalse);
+      expect(enabled.result?.enabled, isTrue);
+    });
+
+    test('解析 TOTP 禁用 fixture', () {
+      final response = GfResponse<String>.fromJson(
+        _contractFixture('totp-disable-success.json'),
+        (json) => json as String,
+      );
+
+      expect(response.isSuccess, isTrue);
+      // 契约已把 disable 成功文案从 const 解耦为自由字符串（S3），这里只断言
+      // result 是存在且非空的人类可读文案，不绑定具体值。
+      expect(response.result, isNotNull);
+      expect(response.result, isNotEmpty);
+      expect(response.messageCode, 'common.operation.success');
     });
   });
 

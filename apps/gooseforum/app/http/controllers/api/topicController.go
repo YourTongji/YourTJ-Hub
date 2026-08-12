@@ -291,6 +291,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	nextStatus := req.Params.TopicStatus
+	if nextStatus == 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	if topic.Status == nextStatus {
 		return component.SuccessResponse(true)
 	}
@@ -561,7 +564,6 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-
 	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
 	if err != nil {
 		return component.FailResponseError(err)

@@ -29,7 +29,7 @@ func NewMessageError(code MessageCode, fallback string, params MessageParams) er
 const (
 	MessageRequestInvalidFormat MessageCode = "common.request.invalidFormat" // 请求体或参数格式无法解析。
 	MessageRequestInvalidParams MessageCode = "common.request.invalidParams" // 请求参数未通过业务校验。
-	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败，params.error 可带原始错误。
+	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败（400；不返回原始解析错误）。
 	MessageOperationSuccess     MessageCode = "common.operation.success"     // 通用操作成功。
 	MessageOperationFailed      MessageCode = "common.operation.failed"      // 通用操作失败。
 	MessageRateLimited          MessageCode = "common.rateLimited"           // 操作过于频繁，params.action/retryAfterSeconds。
@@ -141,6 +141,22 @@ const (
 	MessageReportOwnContent         MessageCode = "report.ownContent"         // 不能举报自己的内容。
 	MessageReportDuplicate          MessageCode = "report.duplicate"          // 已举报，等待处理。
 	MessageReportCreateFailed       MessageCode = "report.createFailed"       // 举报提交失败。
+
+	// 课评（course review）
+	MessageReviewNotFound         MessageCode = "review.notFound"              // 评价不存在或不可见。
+	MessageReviewNotOwned         MessageCode = "review.notOwned"              // 不能修改/删除他人的评价。
+	MessageReviewDuplicate        MessageCode = "review.duplicate"             // 已评价过该开课实例。
+	MessageReviewOfferingNotFound MessageCode = "review.offeringNotFound"      // 开课实例不存在或不可见。
+	MessageReviewRatingInvalid    MessageCode = "review.rating.invalid"        // 评分必须为 1..5 的整数。
+	MessageReviewContentEmpty     MessageCode = "review.content.empty"         // 评价内容不能为空。
+	MessageReviewContentTooLong   MessageCode = "review.content.tooLong"       // 评价内容过长，params.maxLength。
+	MessageReviewCreateFailed     MessageCode = "review.createFailed"          // 评价提交失败，params.error 可带原始错误。
+	MessageReviewUpdateFailed     MessageCode = "review.updateFailed"          // 评价更新失败，params.error 可带原始错误。
+	MessageReviewDeleteFailed     MessageCode = "review.deleteFailed"          // 评价删除失败，params.error 可带原始错误。
+	MessageReviewListFailed       MessageCode = "review.listFailed"            // 评价列表读取失败。
+	MessageReviewHelpfulFailed    MessageCode = "review.helpful.failed"        // 标记 helpful 失败。
+	MessageReviewReportFailed     MessageCode = "review.report.failed"         // 举报评价失败。
+	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
 )
 
 const (

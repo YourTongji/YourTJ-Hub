@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
@@ -150,4 +151,9 @@ func updateTaskProgress(taskID uint64, payload MigrateTask) {
 	if err := taskQueue.UpdateTaskJson(taskID, string(taskJSON)); err != nil {
 		slog.Error("update migrate task progress failed", "taskId", taskID, "err", err)
 	}
+}
+
+// RecoverStaleTasks 启动时恢复文件迁移 worker 类型前缀下崩溃遗留的 Running 任务。
+func RecoverStaleTasks() error {
+	return taskQueue.RecoverStaleRunning(TaskTypeFileMigrate, 10*time.Minute)
 }
