@@ -12,34 +12,37 @@
 #   - 解析失败必须返回非零, 调用方必须在任何 DB/stop 操作之前检查,
 #     避免"先停服务再报错"导致服务停留在停止状态。
 #   - 不依赖 psql/外部工具, 纯 bash 实现, 便于在无 PG 客户端的主机上测试。
+#   - 不使用 eval 拼接 DSN 内容(review P1 命令注入): 赋值一律走 printf -v。
 
 # pg_uri_split <uri> <var> — 从 postgres:// URL 提取组件。
 # 支持: postgres://user:pass@host:port/db?sslmode=disable&param=v
 #       postgresql://user@host/db
 # 输出到 <var>_user/_password/_host/_port/_db/_params(空为未提供)。
+# 密码中可能含任意字符(含 ' " @ / 等), 全部按字面量处理, 不做任何 shell 求值。
 pg_uri_split() {
   local uri="$1" var="$2" rest userinfo hostport pathquery dbpart
-  # 去掉 scheme 前缀
+  # 去掉 scheme 前缀(大小写不敏感, RFC 3986)
   rest="${uri#*://}"
-  # 分离 userinfo(最后一个 @ 之前)与 host 部分
+  # 分离 userinfo 与 host 部分: 按最后一个 @ 切分(libpq 语义,
+  # 密码中的裸 @ 不会破坏 host 解析)
   if [[ "$rest" == *"@"* ]]; then
-    userinfo="${rest%%@*}"
-    rest="${rest#*@}"
+    userinfo="${rest%@*}"
+    rest="${rest##*@}"
   else
     userinfo=""
   fi
   # userinfo: user[:password]
   if [ -n "$userinfo" ]; then
     if [[ "$userinfo" == *":"* ]]; then
-      eval "${var}_user='${userinfo%%:*}'"
-      eval "${var}_password='${userinfo#*:}'"
+      printf -v "${var}_user" '%s' "${userinfo%%:*}"
+      printf -v "${var}_password" '%s' "${userinfo#*:}"
     else
-      eval "${var}_user='$userinfo'"
-      eval "${var}_password=''"
+      printf -v "${var}_user" '%s' "$userinfo"
+      printf -v "${var}_password" '%s' ""
     fi
   else
-    eval "${var}_user=''"
-    eval "${var}_password=''"
+    printf -v "${var}_user" '%s' ""
+    printf -v "${var}_password" '%s' ""
   fi
   # host[:port] 与 path 的边界是第一个 /
   hostport="${rest%%/*}"
@@ -49,60 +52,86 @@ pg_uri_split() {
     pathquery=""
   fi
   # pathquery: db[?params]
-  if [[ "$pathquery" == *"?"* ]]; then
+  # 无路径但有 query 参数(postgres://u@h?dbname=dbq): query 挂在 hostport
+  # 末尾, db 段为空, ? 之后全部归 params
+  if [ -z "$pathquery" ] && [[ "$hostport" == *"?"* ]]; then
+    printf -v "${var}_db" '%s' ""
+    printf -v "${var}_params" '%s' "${hostport#*\?}"
+    hostport="${hostport%%\?*}"
+  elif [[ "$pathquery" == *"?"* ]]; then
     dbpart="${pathquery%%\?*}"
-    eval "${var}_db='$dbpart'"
-    eval "${var}_params='${pathquery#*\?}'"
+    printf -v "${var}_db" '%s' "$dbpart"
+    printf -v "${var}_params" '%s' "${pathquery#*\?}"
   else
-    eval "${var}_db='$pathquery'"
-    eval "${var}_params=''"
+    printf -v "${var}_db" '%s' "$pathquery"
+    printf -v "${var}_params" '%s' ""
   fi
   # host[:port]
   if [[ "$hostport" == *":"* ]]; then
-    eval "${var}_host='${hostport%%:*}'"
-    eval "${var}_port='${hostport#*:}'"
+    printf -v "${var}_host" '%s' "${hostport%%:*}"
+    printf -v "${var}_port" '%s' "${hostport#*:}"
   else
-    eval "${var}_host='$hostport'"
-    eval "${var}_port=''"
+    printf -v "${var}_host" '%s' "$hostport"
+    printf -v "${var}_port" '%s' ""
   fi
 }
 
 # pg_dsn_dbname <dsn> — 输出 DSN 中的数据库名。
 # 支持 key=value(key 可带引号)与 postgres:// URL 两种格式。
-# 解析失败输出错误到 stderr 并返回 1。
+# 解析失败输出错误到 stderr 并返回 1(错误信息经 pg_dsn_normalize 脱敏,
+# 避免明文密码进入 CI/部署日志)。
 pg_dsn_dbname() {
   local dsn="$1" key uri db
   [ -n "$dsn" ] || { echo "pg_dsn_dbname: empty DSN" >&2; return 1; }
-  # URL 格式: postgres:// 或 postgresql://
-  if [[ "$dsn" == postgres://* || "$dsn" == postgresql://* ]]; then
+  # URL 格式: postgres:// 或 postgresql:// (scheme 大小写不敏感, RFC 3986)
+  # 注: 用 [pP][oO]... 模式匹配而非 ${dsn,,}(bash 4+ 特性, macOS 默认 bash 3.2 不支持)
+  if [[ "$dsn" == [pP][oO][sS][tT][gG][rR][eE][sS]://* || "$dsn" == [pP][oO][sS][tT][gG][rR][eE][sS][qQ][lL]://* ]]; then
     pg_uri_split "$dsn" uri
-    [ -n "$uri_db" ] || { echo "pg_dsn_dbname: URL DSN 缺少数据库名: $dsn" >&2; return 1; }
-    [ -n "$uri_host" ] || { echo "pg_dsn_dbname: URL DSN 缺少主机名: $dsn" >&2; return 1; }
+    if [ -z "$uri_db" ] && [ -z "$uri_params" ]; then
+      echo "pg_dsn_dbname: URL DSN 缺少数据库名: $(pg_dsn_normalize "$dsn")" >&2
+      return 1
+    fi
+    [ -n "$uri_host" ] || { echo "pg_dsn_dbname: URL DSN 缺少主机名: $(pg_dsn_normalize "$dsn")" >&2; return 1; }
     # URL 中的 dbname 参数优先于路径段(libpq 行为: 后者覆盖前者)
     if [ -n "$uri_params" ]; then
       local IFS='&' p
+      # set -f: 参数值含 * 等通配符时不触发路径展开
+      set -f
       for p in $uri_params; do
         case "$p" in
           dbname=*) db="${p#dbname=}";;
         esac
       done
+      set +f
     fi
     echo "${db:-$uri_db}"
     return 0
   fi
-  # key=value 格式: 取 dbname= 的值(支持引号包裹)
+  # key=value 格式: 按空格 token 化逐项解析, 取最后一个 dbname token
+  # (libpq 语义: 后者覆盖前者)。按 token 解析可避免密码/其他值中
+  # 含 "dbname=" 子串时被第一个匹配误判。
   if [[ "$dsn" == *"dbname="* ]]; then
-    key="${dsn#*dbname=}"
-    key="${key%%[[:space:]]*}"
-    # 去掉包裹引号(单/双)
-    if [[ "$key" == \"*\" || "$key" == \'*\' ]]; then
-      key="${key:1:${#key}-2}"
-    fi
-    [ -n "$key" ] || { echo "pg_dsn_dbname: dbname 为空: $dsn" >&2; return 1; }
+    local IFS=' ' tok val
+    key=""
+    set -f
+    for tok in $dsn; do
+      case "$tok" in
+        dbname=*)
+          val="${tok#dbname=}"
+          # 去掉包裹引号(单/双; 引号值含空格时截断到引号前, libpq 无引号语义)
+          if [[ "$val" == \"*\" || "$val" == \'*\' ]]; then
+            val="${val:1:${#val}-2}"
+          fi
+          key="$val"
+          ;;
+      esac
+    done
+    set +f
+    [ -n "$key" ] || { echo "pg_dsn_dbname: dbname 为空: $(pg_dsn_normalize "$dsn")" >&2; return 1; }
     echo "$key"
     return 0
   fi
-  echo "pg_dsn_dbname: 无法解析 DSN(需为 postgres:// URL 或含 dbname= 的 key=value 格式): $dsn" >&2
+  echo "pg_dsn_dbname: 无法解析 DSN(需为 postgres:// URL 或含 dbname= 的 key=value 格式): $(pg_dsn_normalize "$dsn")" >&2
   return 1
 }
 
@@ -111,9 +140,9 @@ pg_dsn_dbname() {
 #   - key=value 格式: 脱敏 password 值
 pg_dsn_normalize() {
   local dsn="$1" uri result
-  if [[ "$dsn" == postgres://* || "$dsn" == postgresql://* ]]; then
+  if [[ "$dsn" == [pP][oO][sS][tT][gG][rR][eE][sS]://* || "$dsn" == [pP][oO][sS][tT][gG][rR][eE][sS][qQ][lL]://* ]]; then
     pg_uri_split "$dsn" uri
-    # shellcheck disable=SC2154  # uri_* 由 pg_uri_split 的 eval 赋值
+    # shellcheck disable=SC2154  # uri_* 由 pg_uri_split 的 printf -v 动态赋值
     result="postgres://${uri_user}"
     if [ -n "$uri_password" ]; then
       result="${result}:***"
@@ -132,11 +161,13 @@ pg_dsn_normalize() {
   # key=value: 脱敏 password
   result=""
   local IFS=' ' tok
+  set -f
   for tok in $dsn; do
     case "$tok" in
       password=*) result="$result password=***";;
       *) result="$result $tok";;
     esac
   done
+  set +f
   echo "${result# }"
 }

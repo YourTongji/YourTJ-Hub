@@ -42,11 +42,9 @@ pg_dbname() {
 }
 
 if [ "$(db_mode)" = "postgres" ]; then
-  PG_DB="$(pg_dbname)"
-  if [ -z "$PG_DB" ]; then
-    echo "backup-db: cannot parse dbname from $ROOT/$INSTANCE/config.toml" >&2
-    exit 1
-  fi
+  # 解析失败时 pg_dbname 已输出错误并返回非零(set -e 下即终止),
+  # 与 sync-db-from-main.sh 的 pg_dbname || exit 1 语义一致。
+  PG_DB="$(pg_dbname)" || exit 1
   TMP="/tmp/backup-${PG_DB}-$$.sql"
   if docker exec yourtj-postgres pg_dump -U yourtj -d "$PG_DB" > "$TMP"; then
     mv -f "$TMP" "$BACKUP_DIR/pg-${PG_DB}-${TS}.sql"
