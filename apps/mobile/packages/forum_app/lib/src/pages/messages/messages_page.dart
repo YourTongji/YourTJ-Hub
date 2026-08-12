@@ -12,6 +12,7 @@ import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../format.dart';
+import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 const InputDecoration _compactSearchDecoration = InputDecoration(
@@ -276,7 +277,8 @@ class _MessagesPageState extends ConsumerState<MessagesPage> {
       ),
       body: _conversations.when(
         loading: () => const GfLoading(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) =>
+            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (items) {
           return GfScrollToTop(
             semanticLabel: l10n.commonBackToTop,

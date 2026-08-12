@@ -8,6 +8,7 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
+import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 
 /// 草稿列表页(web drafts.index 的移动端形态)。
@@ -58,7 +59,8 @@ class _DraftsPageState extends ConsumerState<DraftsPage> {
       appBar: GfAppBar(title: Text(l10n.draftsTitle)),
       body: _page.when(
         loading: () => const GfLoading(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) =>
+            GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _load),
         data: (props) => GfScrollToTop(
           semanticLabel: l10n.commonBackToTop,
           threshold: 360,

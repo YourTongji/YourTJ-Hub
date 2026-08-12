@@ -12,6 +12,7 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../format.dart';
+import '../../server_messages.dart';
 import '../../theme_mode.dart';
 import '../../widgets/status_views.dart';
 import '../../current_user.dart';
@@ -709,7 +710,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       return const GfSettingsSkeleton();
     }
     if (needsUser && _user.hasError && !_user.hasValue) {
-      return GfErrorRetry(message: '${_user.error}', onRetry: _loadUser);
+      return GfErrorRetry(
+        message: resolveErrorMessage(l10n, _user.error!),
+        onRetry: _loadUser,
+      );
     }
 
     return GfScrollToTop(
@@ -946,8 +950,10 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
           title: l10n.settingsSessions,
           child: _sessions.when(
             loading: () => const _SettingsSessionsSkeleton(),
-            error: (e, _) =>
-                GfErrorRetry(message: '$e', onRetry: _loadSessions),
+            error: (e, _) => GfErrorRetry(
+              message: resolveErrorMessage(l10n, e),
+              onRetry: _loadSessions,
+            ),
             data: (sessions) {
               if (sessions.isEmpty) {
                 return Padding(

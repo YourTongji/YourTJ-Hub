@@ -1,6 +1,7 @@
 package forum
 
 import (
+	"fmt"
 	"html/template"
 	"strings"
 
@@ -25,6 +26,38 @@ var templateFuncMap = template.FuncMap{
 	// t localizes a server-rendered string, e.g. {{ t .Lang "search" }}.
 	// Extra args are alternating name/value pairs for {name} placeholders.
 	"t": i18n.T,
+	// serverMessage resolves a backend messageCode into a localized message,
+	// mirroring the frontend resolveApiMessage. Usage:
+	// {{ serverMessage .Lang .Payload.Props.MessageCode .Payload.Props.Params (t .Lang "common.loadFailed") }}.
+	// The last argument is a translated fallback.
+	"serverMessage": serverMessage,
+}
+
+// serverMessage adapts i18n.ServerMessage for templates: payload fields are
+// typed component.MessageCode / component.MessageParams, which Go templates
+// pass as interface{}, so the adapter unwraps them before delegating.
+func serverMessage(lang string, code any, params any, fallback string) string {
+	var codeStr string
+	switch v := code.(type) {
+	case nil:
+	case string:
+		codeStr = v
+	case component.MessageCode:
+		codeStr = string(v)
+	default:
+		codeStr = fmt.Sprint(v)
+	}
+	var paramsMap map[string]any
+	switch v := params.(type) {
+	case nil:
+	case map[string]any:
+		paramsMap = v
+	case component.MessageParams:
+		paramsMap = map[string]any(v)
+	default:
+		paramsMap = nil
+	}
+	return i18n.ServerMessage(lang, codeStr, paramsMap, fallback)
 }
 
 // requestLang resolves and normalizes the request locale. It delegates to

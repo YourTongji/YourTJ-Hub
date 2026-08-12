@@ -805,6 +805,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get commonParseFailed => 'Failed to parse page data';
 
   @override
+  String get commonLoadFailed => 'Failed to load';
+
+  @override
   String get topicEmpty => 'No topics yet';
 
   @override

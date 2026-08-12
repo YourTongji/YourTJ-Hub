@@ -2,6 +2,7 @@ import 'dart:async';
 
 import 'package:dio/dio.dart';
 
+import '../gen/page.dart';
 import '../gen/response.dart';
 import '../token/token_storage.dart';
 import 'api_error.dart';
@@ -116,6 +117,14 @@ class GfApiClient {
         );
       }
       if (status != null) {
+        // 页面级数据通道的错误页(HTTP 404/500 + error.index PagePayload):
+        // dio 视非 2xx 为异常,但 body 仍是可解析的页面负载,提升为
+        // ApiException 以便页面层展示本地化错误文案。
+        final data = e.response?.data;
+        if (data is Map<String, dynamic> && !data.containsKey('code')) {
+          final ApiException? pageError = _pageErrorException(status, data);
+          if (pageError != null) throw pageError;
+        }
         // 后端已应答的 4xx/5xx:解析 ResultStruct envelope,保留
         // status/messageCode/params,不再伪装成 NetworkException。
         // 无 body 或非 envelope 时退化为无 messageCode 的 ApiFailureException,
@@ -166,8 +175,15 @@ class GfApiClient {
       );
     }
 
-    // 页面级数据通道(X-Goose-Page)直接返回裸 PagePayload,无 code 字段,按成功处理。
+    // 页面级数据通道(X-Goose-Page)直接返回裸 PagePayload:
+    // 1. 非 2xx 时若为 error.index 页面(404/500 等),把 messageCode/params
+    //    提升为 ApiException,让页面层展示本地化错误文案而不是原始字符串;
+    // 2. 2xx 页面按成功处理。
     if (!data.containsKey('code')) {
+      if (statusCode != null && (statusCode < 200 || statusCode >= 300)) {
+        final ApiException? pageError = _pageErrorException(statusCode, data);
+        if (pageError != null) throw pageError;
+      }
       if (parser != null) {
         return parser(data);
       }
@@ -188,6 +204,34 @@ class GfApiClient {
       return parser(result);
     }
     return result as T;
+  }
+
+  /// 把 page-channel 的 error.index payload 转成 [ApiException]。
+  /// payload 形如 `{component: "error.index", props: {code, title, messageCode, params}}`。
+  /// 非 error.index 页面(或 props 缺失)返回 null,调用方按普通传输错误处理;
+  /// 解析出的 messageCode 缺失时退回通用的加载失败文案,绝不把原始字符串抛给 UI。
+  ApiException? _pageErrorException(int statusCode, Map<String, dynamic> data) {
+    if (data['component'] != PageComponent.error) return null;
+    final Object? props = data['props'];
+    if (props is! Map<String, dynamic>) {
+      return ApiException(
+        fallbackMessage: 'Failed to load',
+        statusCode: statusCode,
+      );
+    }
+    final String? code = (props['messageCode'] as String?)?.trim();
+    if (code == null || code.isEmpty) {
+      return ApiException(
+        fallbackMessage: 'Failed to load',
+        statusCode: statusCode,
+      );
+    }
+    return ApiException(
+      fallbackMessage: 'Failed to load',
+      messageCode: code,
+      params: (props['params'] as Map<String, dynamic>?)?.cast<String, dynamic>(),
+      statusCode: statusCode,
+    );
   }
 
   GfResponse<Object?>? _tryParseEnvelope(Object? data) {

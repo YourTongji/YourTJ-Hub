@@ -11,6 +11,7 @@ import '../../current_user.dart';
 import '../../format.dart';
 import '../../navigation/tab_scroll_registry.dart';
 import '../../providers.dart';
+import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/skeletons.dart';
 
@@ -168,12 +169,15 @@ class _ProfilePageState extends ConsumerState<ProfilePage> {
         loading: () => const GfProfileSkeleton(),
         error: (e, _) => _isShellProfile
             ? _ProfileErrorBody(
-                message: '$e',
+                message: resolveErrorMessage(l10n, e),
                 onRetry: _load,
                 showLogin: _loginRequired,
                 l10n: l10n,
               )
-            : GfErrorRetry(message: '$e', onRetry: _load),
+            : GfErrorRetry(
+                message: resolveErrorMessage(l10n, e),
+                onRetry: _load,
+              ),
         data: (UserProfileProps props) {
           return GfScrollToTop(
             semanticLabel: l10n.commonBackToTop,
