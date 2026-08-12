@@ -26,15 +26,21 @@ const (
 	RateLimitResetPassword  = "reset-password"
 	RateLimitEmailChange    = "email.change"
 	RateLimitPasswordChange = "password.change"
-	RateLimitTopicWrite     = "topic.write"
-	RateLimitPostCreate     = "post.create"
-	RateLimitMessageSend    = "message.send"
-	RateLimitUpload         = "upload"
-	RateLimitInteract       = "interact"
-	RateLimitLLMSIndex      = "llms.index"
-	RateLimitLLMSFull       = "llms.full"
-	RateLimitLLMSTopic      = "llms.topic"
-	RateLimitMCPAuth        = "mcp.auth"
+	// RateLimitTotpSetup/Enable/Disable 限流 TOTP 账户管理中的凭据校验入口：
+	// setup 校验账户密码、enable/disable 校验 6 位验证码（disable 也接受密码），
+	// 未限流时会话窃取者可无限暴力破解，配额对齐 password.change。
+	RateLimitTotpSetup   = "totp.setup"
+	RateLimitTotpEnable  = "totp.enable"
+	RateLimitTotpDisable = "totp.disable"
+	RateLimitTopicWrite  = "topic.write"
+	RateLimitPostCreate  = "post.create"
+	RateLimitMessageSend = "message.send"
+	RateLimitUpload      = "upload"
+	RateLimitInteract    = "interact"
+	RateLimitLLMSIndex   = "llms.index"
+	RateLimitLLMSFull    = "llms.full"
+	RateLimitLLMSTopic   = "llms.topic"
+	RateLimitMCPAuth     = "mcp.auth"
 )
 
 // RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。
