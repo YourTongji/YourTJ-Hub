@@ -226,6 +226,165 @@ void main() {
       );
     });
 
+    test('DioException 无 status 时 NetworkException 不携带 statusCode', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        throw DioException(
+          requestOptions: request,
+          type: DioExceptionType.connectionError,
+        );
+      });
+
+      await expectLater(
+        client.get<bool>('/api/ping'),
+        throwsA(
+          isA<NetworkException>().having(
+            (e) => e.statusCode,
+            'statusCode',
+            isNull,
+          ),
+        ),
+      );
+    });
+
+    test(
+      '400 envelope 抛 ApiFailureException 并保留 messageCode/params/status',
+      () async {
+        setupClient();
+        final adapter = MockAdapter((request) async {
+          return ResponseData(400, {
+            'code': 1,
+            'messageCode': 'common.request.invalidFormat',
+            'params': {'field': 'code'},
+          });
+        });
+        dio.httpClientAdapter = adapter;
+
+        await expectLater(
+          client.post<bool>('/api/auth/oidc/exchange', body: {}),
+          throwsA(
+            isA<ApiFailureException>()
+                .having((e) => e.statusCode, 'statusCode', 400)
+                .having(
+                  (e) => e.messageCode,
+                  'messageCode',
+                  'common.request.invalidFormat',
+                )
+                .having(
+                  (e) => e.messageKey,
+                  'messageKey',
+                  'server.common.request.invalidFormat',
+                )
+                .having((e) => e.params?['field'], 'params', 'code'),
+          ),
+        );
+      },
+    );
+
+    test('403 冻结 envelope 抛 ApiFailureException 并保留 messageCode', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(403, {
+          'code': 1,
+          'messageCode': 'oauth.account.frozen',
+          'params': {'action': 'login'},
+        });
+      });
+
+      await expectLater(
+        client.post<bool>('/api/auth/oidc/exchange', body: {}),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 403)
+              .having(
+                (e) => e.messageCode,
+                'messageCode',
+                'oauth.account.frozen',
+              )
+              .having((e) => e.params?['action'], 'params', 'login'),
+        ),
+      );
+    });
+
+    test('404 envelope 抛 ApiFailureException 并保留 messageCode', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(404, {'code': 1, 'messageCode': 'route.notFound'});
+      });
+
+      await expectLater(
+        client.get<bool>('/api/forum/does-not-exist'),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.messageCode, 'messageCode', 'route.notFound'),
+        ),
+      );
+    });
+
+    test('500 envelope 抛 ApiFailureException 并保留 messageCode', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(500, {
+          'code': 1,
+          'messageCode': 'oauth.token.failed',
+        });
+      });
+
+      await expectLater(
+        client.post<bool>('/api/auth/oidc/exchange', body: {}),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 500)
+              .having(
+                (e) => e.messageCode,
+                'messageCode',
+                'oauth.token.failed',
+              ),
+        ),
+      );
+    });
+
+    test(
+      '4xx 无 envelope body 时降级为无 messageCode 的 ApiFailureException',
+      () async {
+        setupClient();
+        dio.httpClientAdapter = MockAdapter((request) async {
+          return ResponseData(403, {'error': 'forbidden'});
+        });
+
+        await expectLater(
+          client.get<bool>('/api/ping'),
+          throwsA(
+            isA<ApiFailureException>()
+                .having((e) => e.statusCode, 'statusCode', 403)
+                .having((e) => e.messageCode, 'messageCode', isNull)
+                .having(
+                  (e) => e.fallbackMessage,
+                  'fallbackMessage',
+                  'Request failed with status 403',
+                ),
+          ),
+        );
+      },
+    );
+
+    test('5xx 空 body 时降级为无 messageCode 的 ApiFailureException', () async {
+      setupClient();
+      dio.httpClientAdapter = MockAdapter((request) async {
+        return ResponseData(502, <String, dynamic>{});
+      });
+
+      await expectLater(
+        client.get<bool>('/api/ping'),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 502)
+              .having((e) => e.messageCode, 'messageCode', isNull),
+        ),
+      );
+    });
+
     test('成功响应经 parser 解析 result', () async {
       setupClient();
       final adapter = MockAdapter((request) async {
@@ -245,6 +404,91 @@ void main() {
       );
       expect(captcha.captchaId, 'abc');
       expect(captcha.captchaImg, startsWith('data:image/png'));
+    });
+
+    test('page-channel 404 error.index payload 提升为 ApiException', () async {
+      setupClient();
+      final adapter = MockAdapter((request) async {
+        return ResponseData(404, {
+          'component': 'error.index',
+          'props': {
+            'code': '404',
+            'title': 'Not found',
+            'messageCode': 'topic.notFound',
+            'params': <String, dynamic>{},
+          },
+          'meta': {'title': 'Not found'},
+          'layout': <String, dynamic>{},
+          'url': '/p/post/999',
+          'version': '1.0',
+        });
+      });
+      dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.get<PagePayload>(
+          '/p/post/999',
+          headers: {GfApiClient.pageRequestHeader: 'true'},
+          parser: (json) => PagePayload.fromJson(json as Map<String, dynamic>),
+        ),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.messageCode, 'messageCode', 'topic.notFound')
+              .having((e) => e.statusCode, 'statusCode', 404),
+        ),
+      );
+    });
+
+    test('page-channel error.index 无 messageCode 时退回通用文案', () async {
+      setupClient();
+      final adapter = MockAdapter((request) async {
+        return ResponseData(404, {
+          'component': 'error.index',
+          'props': {'code': '500', 'title': 'Error'},
+          'meta': {'title': 'Error'},
+          'layout': <String, dynamic>{},
+          'url': '/p/post/999',
+          'version': '1.0',
+        });
+      });
+      dio.httpClientAdapter = adapter;
+
+      await expectLater(
+        client.get<PagePayload>(
+          '/p/post/999',
+          headers: {GfApiClient.pageRequestHeader: 'true'},
+          parser: (json) => PagePayload.fromJson(json as Map<String, dynamic>),
+        ),
+        throwsA(
+          isA<ApiException>()
+              .having((e) => e.messageCode, 'messageCode', isNull)
+              .having((e) => e.statusCode, 'statusCode', 404),
+        ),
+      );
+    });
+
+    test('page-channel 404 非 error.index(如 JSON 错误体)降级为 ApiFailureException',
+        () async {
+      setupClient();
+      final adapter = MockAdapter((request) async {
+        return ResponseData(404, {
+          'error': 'not found',
+          'path': '/api/unknown',
+        });
+      });
+      dio.httpClientAdapter = adapter;
+
+      // 后端已应答的 404 属于服务端错误(#143 语义):非 error.index 页面
+      // 不提升 messageCode,降级为无 messageCode 的 ApiFailureException,
+      // 不再是 NetworkException(后者仅限无 HTTP 状态码的传输层故障)。
+      await expectLater(
+        client.get<bool>('/api/unknown'),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.messageCode, 'messageCode', isNull),
+        ),
+      );
     });
   });
 

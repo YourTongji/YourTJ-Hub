@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
@@ -208,13 +209,28 @@ func AggregateSearch(req AggregateSearchRequest) (*AggregateSearchResponse, erro
 func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchResp *meilisearch.SearchResponse) {
 	switch indexUID {
 	case TopicIndex:
-		results := lo.FilterMap(searchResp.Hits, func(hit meilisearch.Hit, _ int) (SearchResult, bool) {
-			item := SearchResult{}
+		type topicHit struct {
+			ID    uint64 `json:"id"`
+			Title string `json:"title"`
+		}
+		ids := lo.FilterMap(searchResp.Hits, func(hit meilisearch.Hit, _ int) (uint64, bool) {
+			item := topicHit{}
 			if err := hit.Decode(&item); err != nil {
 				slog.Error("failed to decode topic search hit", "err", err)
+				return 0, false
+			}
+			return item.ID, item.ID > 0
+		})
+		// 防御层（issue #132）：索引可能因事件时序与 DB 短暂不一致
+		// （如取消发布/送审后事件尚未落地），按 DB 当前状态过滤，
+		// 确保非公开话题绝不出现在公共搜索结果中。
+		topicMap := topics.GetMapByIds(ids)
+		results := lo.FilterMap(ids, func(id uint64, _ int) (SearchResult, bool) {
+			t, ok := topicMap[id]
+			if !ok || !isTopicPubliclySearchable(&t) {
 				return SearchResult{}, false
 			}
-			return item, item.ID > 0
+			return SearchResult{ID: t.Id, Title: t.Title}, true
 		})
 		resp.Topics = append(resp.Topics, results...)
 		resp.Total = searchResp.EstimatedTotalHits

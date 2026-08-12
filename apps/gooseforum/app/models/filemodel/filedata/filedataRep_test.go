@@ -59,3 +59,35 @@ func TestFileResourcePageListsFilesByIDRangeWithoutContent(t *testing.T) {
 		t.Fatalf("url = %q, want image access path", page.List[0].URL)
 	}
 }
+
+// TestCountFilesUpTo verifies the cumulative-count helper used to derive the
+// task-level migration progress from the persisted cursor (id <= cursor).
+func TestCountFilesUpTo(t *testing.T) {
+	setupFileDataTestDB(t)
+
+	first, err := SaveFile(1, "migrate/a.png", "image/png", []byte("a"))
+	if err != nil {
+		t.Fatalf("save a.png: %v", err)
+	}
+	second, err := SaveFile(2, "migrate/b.png", "image/png", []byte("b"))
+	if err != nil {
+		t.Fatalf("save b.png: %v", err)
+	}
+	third, err := SaveFile(3, "migrate/c.png", "image/png", []byte("c"))
+	if err != nil {
+		t.Fatalf("save c.png: %v", err)
+	}
+
+	if got := CountFilesUpTo(0); got != 0 {
+		t.Fatalf("CountFilesUpTo(0) = %d, want 0", got)
+	}
+	if got := CountFilesUpTo(first.Id); got != 1 {
+		t.Fatalf("CountFilesUpTo(%d) = %d, want 1", first.Id, got)
+	}
+	if got := CountFilesUpTo(second.Id); got != 2 {
+		t.Fatalf("CountFilesUpTo(%d) = %d, want 2", second.Id, got)
+	}
+	if got := CountFilesUpTo(third.Id); got != 3 {
+		t.Fatalf("CountFilesUpTo(%d) = %d, want 3", third.Id, got)
+	}
+}

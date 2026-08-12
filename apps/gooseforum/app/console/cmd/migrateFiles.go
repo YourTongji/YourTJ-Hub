@@ -53,7 +53,8 @@ func runMigrateFiles(cmd *cobra.Command, _ []string) error {
 
 	clearAfter, _ := cmd.Flags().GetBool("clear-after-migrate")
 	start := time.Now()
-	processed, failed, err := filemigrateservice.MigrateFiles(ctx, 0, clearAfter, func(lastID uint64, proc, fail int64) {
+	// CLI 是一次性阻塞执行，进度用单次运行的局部计数即可，无需任务级累计。
+	processed, failed, err := filemigrateservice.MigrateFiles(ctx, 0, clearAfter, nil, func(lastID uint64, proc, fail int64) {
 		fmt.Printf("migrated %d files (failed %d), last id %d\n", proc, fail, lastID)
 	})
 	fmt.Printf("migration finished: processed=%d failed=%d duration=%s\n",

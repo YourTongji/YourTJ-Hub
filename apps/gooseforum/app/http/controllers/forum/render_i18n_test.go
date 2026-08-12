@@ -6,6 +6,7 @@ import (
 	"testing"
 	"unicode"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
@@ -416,6 +417,72 @@ func TestNoscriptLayoutRendersHeaderHomeLink(t *testing.T) {
 	}
 	if !strings.Contains(out, `<a class="gf-crawler-home-link" href="/">GooseForum</a>`) {
 		t.Fatalf("noscript header missing home link: %s", out)
+	}
+}
+
+func TestErrorTemplateLocalizesMessageCode(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatalf("newRegistry: %v", err)
+	}
+	tmpl := reg.templates["error.gohtml"]
+	if tmpl == nil {
+		t.Fatal("error.gohtml missing")
+	}
+
+	cases := []struct {
+		name       string
+		lang       string
+		messageCode component.MessageCode
+		params     component.MessageParams
+		want       string // localized message expected in the output
+	}{
+		{
+			name:        "known flat code",
+			lang:        "en",
+			messageCode: "route.notFound",
+			want:        "Route not found. Please check the URL and request method.",
+		},
+		{
+			name:        "known zh code",
+			lang:        "zh",
+			messageCode: "topic.notFound",
+			want:        "话题不存在",
+		},
+		{
+			name:        "unknown code falls back",
+			lang:        "en",
+			messageCode: "some.unknown.code",
+			want:        "Failed to load",
+		},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			payload := PagePayload{Props: ErrorPageProps{
+				Code:        "404",
+				Title:       "Not found",
+				MessageCode: tt.messageCode,
+				Params:      tt.params,
+			}}
+			var buf bytes.Buffer
+			if err := reg.render(&buf, "error.gohtml", templateData{Payload: payload, Lang: tt.lang}); err != nil {
+				t.Fatalf("render error template: %v", err)
+			}
+			out := buf.String()
+			if !strings.Contains(out, tt.want) {
+				t.Errorf("error page missing localized message %q: %s", tt.want, out)
+			}
+			if !strings.Contains(out, `class="gf-crawler-error"`) || !strings.Contains(out, `class="gf-crawler-error-code"`) {
+				t.Errorf("error page missing empty-state structure: %s", out)
+			}
+			// The noscript-rendered section must not leak the raw messageCode;
+			// the goose-payload JSON script below it intentionally keeps it for
+			// the JS ErrorPage.vue resolver.
+			noscript := out[strings.Index(out, "<noscript>"):strings.Index(out, "</noscript>")]
+			if strings.Contains(noscript, string(tt.messageCode)) {
+				t.Errorf("noscript error page leaked raw messageCode %q: %s", tt.messageCode, noscript)
+			}
+		})
 	}
 }
 

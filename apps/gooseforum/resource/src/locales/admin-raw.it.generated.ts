@@ -731,4 +731,6 @@ export default {
   "k00mm": "Se abilitato, l'endpoint /mcp è disponibile per i client MCP (es. Claude, VS Code), autenticati con il token Bearer dell'agente (agt_*).",
   "k00mn": "Consenti scritture AI",
   "k00mo": "Se abilitato, gli strumenti create_topic / create_post sono disponibili (soggetti ai limiti di frequenza topic.write / post.create); disattivato di default, così l'AI può solo leggere.",
+  "k00ms": "Migrati {processed} / {total}",
+  "k00mt": "Falliti: {failed}",
 } as const

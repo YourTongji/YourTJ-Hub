@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
+import '../../server_messages.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
@@ -159,7 +160,10 @@ class _NotificationsPageState extends ConsumerState<NotificationsPage> {
           Expanded(
             child: _list.when(
               loading: () => const GfLoading(),
-              error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+              error: (e, _) => GfErrorRetry(
+                message: resolveErrorMessage(l10n, e),
+                onRetry: _load,
+              ),
               data: (resp) => GfScrollToTop(
                 semanticLabel: l10n.commonBackToTop,
                 threshold: 360,

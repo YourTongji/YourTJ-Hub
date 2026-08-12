@@ -797,6 +797,9 @@ class AppLocalizationsZh extends AppLocalizations {
   String get commonParseFailed => '页面数据解析失败';
 
   @override
+  String get commonLoadFailed => '加载失败';
+
+  @override
   String get topicEmpty => '暂无话题';
 
   @override

@@ -95,6 +95,12 @@ class OidcController extends ChangeNotifier {
       _authenticated = true;
       notifyListeners();
       return true;
+    } on ApiException catch (e) {
+      // 后端已应答的业务失败(HTTP 2xx envelope 或 4xx/5xx ApiFailure):
+      // 展示稳定的 messageCode 便于上层本地化,不再吞成笼统的"OIDC login failed"。
+      _error = e.messageKey;
+      notifyListeners();
+      return false;
     } catch (e) {
       _error = 'OIDC login failed: $e';
       notifyListeners();

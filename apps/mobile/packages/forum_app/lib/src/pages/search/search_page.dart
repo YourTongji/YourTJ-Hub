@@ -5,6 +5,7 @@ import 'package:ui_kit/ui_kit.dart';
 
 import 'package:core/core.dart';
 import '../../asset_url.dart';
+import '../../server_messages.dart';
 
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
@@ -180,7 +181,8 @@ class _SearchPageState extends ConsumerState<SearchPage> {
     }
     return result.when(
       loading: () => const GfLoading(),
-      error: (Object e, _) => GfErrorRetry(message: '$e', onRetry: _search),
+      error: (Object e, _) =>
+          GfErrorRetry(message: resolveErrorMessage(l10n, e), onRetry: _search),
       data: (SearchPageProps props) {
         if (props.searchUnavailable == true) {
           return GfEmpty(message: l10n.searchUnavailable);

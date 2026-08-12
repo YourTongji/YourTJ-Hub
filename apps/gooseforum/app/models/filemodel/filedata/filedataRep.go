@@ -132,6 +132,17 @@ func CountFiles() int64 {
 	return count
 }
 
+// CountFilesUpTo returns the number of file rows with id <= cursor. The
+// migration cursor only advances past successfully migrated (or already empty)
+// rows, so this is the task-level cumulative count of migrated objects. It is
+// derived from the persisted cursor instead of per-run local counters, so a
+// worker retry never overwrites the accumulated progress with a partial count.
+func CountFilesUpTo(cursor uint64) int64 {
+	var count int64
+	builder().Where(queryopt.Le("id", cursor)).Count(&count)
+	return count
+}
+
 // ClearContentByName clears the BLOB column after a successful migration.
 func ClearContentByName(name string) error {
 	return builder().Where(queryopt.Eq(fieldName, name)).Update("content", nil).Error

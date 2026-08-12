@@ -94,6 +94,31 @@ const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
 
+interface MigrateTaskPayload {
+  lastId?: number
+  total?: number
+  processed?: number
+  failed?: number
+  clearAfterMigrate?: boolean
+}
+
+function parseMigrateTask(task: AdminTaskRow): MigrateTaskPayload {
+  try {
+    const raw = JSON.parse(task.taskJson || '{}') as unknown
+    if (typeof raw === 'object' && raw !== null) {
+      return raw as MigrateTaskPayload
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+// 渲染用：为每条迁移任务预解析 taskJson，展示进度与失败数，避免模板内重复解析。
+const migrateTaskRows = computed(() =>
+  migrateTasks.value.map((task) => ({ ...task, payload: parseMigrateTask(task) }))
+)
+
 const siteForm = reactive<SiteSettings>({
   siteName: '',
   siteUrl: '',
@@ -1163,14 +1188,18 @@ onMounted(load)
 
         <section class="space-y-3">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><HardDrive class="size-5 text-muted-foreground" />{{ adminText('k00if') }}</div>
-          <div v-if="migrateTasks.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
-          <div v-for="task in migrateTasks" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
+          <div v-if="migrateTaskRows.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
+          <div v-for="task in migrateTaskRows" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="font-mono text-xs text-muted-foreground">#{{ task.id }}</span>
                 <Badge :variant="task.status === 2 ? 'default' : task.status === 3 ? 'destructive' : 'secondary'" class="px-2 py-0 text-xs">{{ migrateTaskStatus(task.status) }}</Badge>
               </div>
               <span class="text-xs text-muted-foreground">{{ task.createdAt || '-' }}</span>
+            </div>
+            <div v-if="task.payload.total != null || (task.payload.failed || 0) > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span v-if="task.payload.total != null" class="text-muted-foreground">{{ adminText('k00ms', { processed: task.payload.processed || 0, total: task.payload.total }) }}</span>
+              <span v-if="(task.payload.failed || 0) > 0" class="font-medium text-destructive">{{ adminText('k00mt', { failed: task.payload.failed }) }}</span>
             </div>
             <div v-if="task.lastError" class="truncate text-xs text-destructive">{{ task.lastError }}</div>
           </div>

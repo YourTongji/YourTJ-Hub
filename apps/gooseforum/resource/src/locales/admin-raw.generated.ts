@@ -731,4 +731,6 @@ export default {
   "k00mm": "开启后 /mcp 端点可供 MCP 客户端（如 Claude、VS Code）连接，认证复用 Agent Bearer token（agt_*）。",
   "k00mn": "允许 AI 写操作",
   "k00mo": "开启后 create_topic / create_post 工具可用（受 topic.write / post.create 限流约束）；默认关闭，AI 只能读取。",
+  "k00ms": "已迁移 {processed} / {total}",
+  "k00mt": "失败 {failed}",
 } as const

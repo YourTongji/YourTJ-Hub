@@ -2,13 +2,77 @@
   "result": {
     "query": "campus",
     "scope": "all",
-    "topics": [],
-    "users": [],
-    "categories": [],
-    "total": 0,
-    "usersTotal": 0,
-    "categoriesTotal": 0,
-    "totalPages": 0,
+    "topics": [
+      {
+        "id": 9001,
+        "title": "Campus life discussion",
+        "description": "Everything about campus life.",
+        "url": "/p/9001",
+        "pinWeight": 0,
+        "processStatus": 0,
+        "author": {
+          "id": 1001,
+          "username": "campus-bot",
+          "avatarUrl": "/static/img/avatar/1.png"
+        },
+        "participants": [
+          {
+            "id": 1001,
+            "username": "campus-bot",
+            "avatarUrl": "/static/img/avatar/1.png"
+          }
+        ],
+        "categories": [
+          {
+            "id": 1,
+            "name": "校园生活",
+            "url": "/campus-life",
+            "color": "#10b981"
+          }
+        ],
+        "replyCount": 12,
+        "viewCount": 345,
+        "activityText": "2025-06-15 10:00:00",
+        "lastUpdateTime": "2025-06-15 10:00:00"
+      }
+    ],
+    "users": [
+      {
+        "id": 1001,
+        "username": "campus-bot",
+        "nickname": "校园机器人",
+        "avatarUrl": "/static/img/avatar/1.png",
+        "bio": "YourTJ Hub campus bot"
+      }
+    ],
+    "categories": [
+      {
+        "id": 1,
+        "name": "校园生活",
+        "slug": "campus-life",
+        "icon": "🎓",
+        "color": "#10b981",
+        "desc": "Campus life discussions"
+      }
+    ],
+    "courses": [
+      {
+        "id": 2001,
+        "primaryCode": "TONGJI100",
+        "name": "Introduction to Tongji",
+        "department": "教务处",
+        "creditX10": 20,
+        "aliases": ["同济导论"],
+        "instructors": ["张老师"],
+        "terms": ["2025-2026-1"],
+        "campus": ["四平路"]
+      }
+    ],
+    "total": 1,
+    "usersTotal": 1,
+    "categoriesTotal": 1,
+    "coursesTotal": 1,
+    "totalPages": 1,
     "pagination": {
       "page": 1,
       "nextPage": 0,
