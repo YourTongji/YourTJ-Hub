@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"reflect"
 	"sort"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -71,9 +72,9 @@ func setupCourseReviewContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
 	forumLoginAPI.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
 	forumLoginAPI.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
-	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
-	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
-	forumLoginAPI.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewReveal))
+	forumLoginAPI.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
+	forumLoginAPI.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
+	forumLoginAPI.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
 	return conn, router
 }
 
@@ -584,10 +585,13 @@ func TestCourseReviewModerationHTTPContract(t *testing.T) {
 	t.Run("regular user is denied for status changes", func(t *testing.T) {
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
 			`{"reviewId":303,"action":"hide"}`, regularToken)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("denied status change code = %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("denied status change code = %d, want 403: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-permission-denied.json"))
+		env := decodeContractEnvelope(t, rec)
+		if env.MessageCode != "permission.denied" {
+			t.Fatalf("denied status change messageCode = %q, want permission.denied", env.MessageCode)
+		}
 	})
 
 	t.Run("course manager hides and shows the review", func(t *testing.T) {
@@ -719,10 +723,13 @@ func TestCourseReviewModerationReportListHTTPContract(t *testing.T) {
 	t.Run("regular user is denied", func(t *testing.T) {
 		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-reports",
 			`{"status":"open","pageSize":10}`, regularToken)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("denied report list code = %d, want 200: %s", rec.Code, rec.Body.String())
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("denied report list code = %d, want 403: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-review-permission-denied.json"))
+		env := decodeContractEnvelope(t, rec)
+		if env.MessageCode != "permission.denied" {
+			t.Fatalf("denied report list messageCode = %q, want permission.denied", env.MessageCode)
+		}
 	})
 }
 
@@ -789,6 +796,48 @@ func TestCourseReviewModerationRateLimit(t *testing.T) {
 	}
 	if retry := rec.Header().Get("Retry-After"); retry == "" || retry == "0" {
 		t.Fatalf("Retry-After header = %q, want positive integer", retry)
+	}
+}
+
+// TestCourseReviewModerationUnauthorizedNoQuota 验证 F1（security review）：
+// CheckPermission 前置在 RateLimit 之前，未授权（无 CourseManager）请求返回 403，
+// 且不消耗 course.review.moderate 的 per-IP / per-User 限流配额。
+func TestCourseReviewModerationUnauthorizedNoQuota(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 902)
+	regular := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, regular)
+	seedCourseReview(t, conn, 305, 902, 1, intPtr(5), "权限目标", false, "", course.ReviewStatusVisible)
+
+	ratelimit.Default().ResetAll()
+	// 未授权用户连发 30 次审核请求（超过 per-User 配额上限）：全部 403，不消耗任何限流计数
+	const moderateUserLimit = 30
+	for i := 0; i < moderateUserLimit; i++ {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
+			`{"reviewId":305,"action":"hide"}`, token)
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("unauthorized #%d status = %d, want 403: %s", i+1, rec.Code, rec.Body.String())
+		}
+	}
+	// 403 不应产生限流计数：per-IP / per-User key 均不存在
+	store := ratelimit.Default().(interface{ Count(string) int })
+	ipKey := middleware.RateLimitReviewModerate + ":ip:"
+	if n := store.Count(ipKey); n != 0 {
+		t.Fatalf("ip quota count = %d after unauthorized requests, want 0", n)
+	}
+	userKey := middleware.RateLimitReviewModerate + ":user:" + strconv.FormatUint(regular.Id, 10)
+	if n := store.Count(userKey); n != 0 {
+		t.Fatalf("user quota count = %d after unauthorized requests, want 0", n)
+	}
+
+	// 授权 CourseManager 仍可正常操作（配额未被未授权请求消耗）
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	managerToken := contractSessionToken(t, manager)
+	rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
+		`{"reviewId":305,"action":"hide"}`, managerToken)
+	if rec.Code != http.StatusOK {
+		t.Fatalf("manager status = %d, want 200 after unauthorized requests: %s", rec.Code, rec.Body.String())
 	}
 }
 
