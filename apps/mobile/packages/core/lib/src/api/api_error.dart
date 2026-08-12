@@ -1,7 +1,10 @@
 /// API 错误类型。
 ///
-/// 后端错误协议:HTTP 200 + `{code != 0, messageCode, params}` 表示业务失败;
-/// HTTP 429 限流(带 Retry-After);HTTP 401 未授权;其它为网络/传输错误。
+/// 后端错误协议:HTTP 2xx + `{code != 0, messageCode, params}` 表示业务失败;
+/// 中间件/控制器直接以 HTTP 4xx/5xx 返回同一 `ResultStruct` envelope
+/// (`{code: 1, messageCode, params, result: null}`,见
+/// `component.FailDataCode`);HTTP 429 限流(带 Retry-After);HTTP 401 未授权;
+/// 只有真正的传输层故障(DNS、连接拒绝、超时等)才是 [NetworkException]。
 library;
 
 /// 业务失败(code != 0)或传输层错误(messageCode 为空)。
@@ -59,7 +62,30 @@ class UnauthorizedException extends ApiException {
   }) : super(statusCode: 401);
 }
 
-/// 网络层失败(DNS、连接拒绝、超时等)。
+/// HTTP 4xx/5xx 且响应体可解析为 `ResultStruct` envelope 的服务端错误
+/// (如 OIDC 400/403、冻结 `permission.userFrozen`、500)。区别于
+/// [NetworkException]:这是**后端已应答**的业务失败,messageCode 稳定。
+class ApiFailureException extends ApiException {
+  const ApiFailureException({
+    required super.fallbackMessage,
+    super.messageCode,
+    super.params,
+    super.statusCode,
+  });
+
+  @override
+  String toString() {
+    final code = messageCode == null ? '' : ' ($messageCode)';
+    return 'ApiFailureException: $fallbackMessage$code';
+  }
+}
+
+/// 网络层失败(DNS、连接拒绝、超时等),后端未产生业务响应。
 class NetworkException extends ApiException {
-  const NetworkException({required super.fallbackMessage, super.statusCode});
+  const NetworkException({
+    required super.fallbackMessage,
+    super.statusCode,
+    super.messageCode,
+    super.params,
+  });
 }
