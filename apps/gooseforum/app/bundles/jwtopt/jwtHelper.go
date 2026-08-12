@@ -15,8 +15,12 @@ import (
 )
 
 var (
-	once       sync.Once
-	std        *JWT
+	once sync.Once
+	std  *JWT
+	// signingKey is captured once at package init (process start) and is not
+	// affected by a runtime config reload — it aligns with securestore's
+	// first-use capture. Rotating the key therefore requires a process restart
+	// so all surfaces switch together; see docs/operations/deployment.md.
 	signingKey = preferences.GetString("app.signingKey")
 	validTime  = time.Duration(preferences.GetInt64("jwtopt.validTime", 86400*7)) * time.Second
 )

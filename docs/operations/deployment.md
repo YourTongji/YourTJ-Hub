@@ -155,6 +155,16 @@ re-enroll TOTP so existing secrets remain decryptable), and any outstanding
 password-reset / activation links. Rotating the key is the only way to retire
 tokens that were minted under the old key.
 
+**Rotation requires a process restart — hot reload is not supported.** The
+three surfaces capture `app.signingKey` at different points: JWT signing at
+process start, TOTP encryption on first use, and reset/activation tokens on
+every call (fail-closed so a weak key is never accepted). With viper's config
+watcher enabled, editing `app.signingKey` at runtime would switch only
+reset/activation tokens to the new key while session JWTs and TOTP encryption
+keep the old one — a partially-invalidated, confusing intermediate state.
+Rotate the key and **restart the process** so all three surfaces rotate
+together.
+
 ### Upgrade note: session Cookie `Secure` is now fail-closed by environment
 
 Before issue #113, the `access_token` and goth session cookies decided the
