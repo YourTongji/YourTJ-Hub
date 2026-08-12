@@ -98,15 +98,40 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 		if err != nil || offering.Status != course.OfferingStatusVisible {
 			return ErrOfferingNotFound
 		}
-		// 唯一约束：同一用户对同一 offering 最多一条
+		rating := input.Rating
+		// 唯一约束：同一用户对同一 offering 最多一条（唯一索引不含 status，
+		// 软删的 deleted 行仍占用唯一键，查重必须覆盖全部状态）。
 		existing, err := course.FindReviewByOfferingAndUserTx(tx, input.OfferingId, userId)
 		if err == nil && existing.Id > 0 {
-			return ErrReviewDuplicate
+			if existing.Status != course.ReviewStatusDeleted {
+				return ErrReviewDuplicate
+			}
+			// deleted 行：恢复重写（复用唯一键），并重新累加 stats
+			// （删除时已扣减，恢复时按新 rating/content 重新计入）。
+			ok, err := course.ReactivateReviewTx(tx, existing.Id, &rating, input.Content, input.IsAnonymous)
+			if err != nil {
+				return err
+			}
+			if !ok {
+				// 并发恢复已发生：另一事务已把该行恢复为 visible，视为重复。
+				return ErrReviewDuplicate
+			}
+			if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 1, rating, 1); err != nil {
+				return err
+			}
+			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
+				return err
+			}
+			refreshed, err := course.GetReviewTx(tx, existing.Id)
+			if err != nil {
+				return err
+			}
+			payload = buildReviewPayload(refreshed, userId, int64(0))
+			return nil
 		}
 		if err != nil && !errors.Is(err, gorm.ErrRecordNotFound) {
 			return err
 		}
-		rating := input.Rating
 		entity := course.ReviewEntity{
 			OfferingId:   input.OfferingId,
 			AuthorUserId: userId,
@@ -436,11 +461,13 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	}
 	myHelpful := make(map[uint64]bool)
 	if viewerId > 0 {
-		for _, id := range reviewIds {
-			if _, err := course.GetHelpful(id, viewerId); err == nil {
-				myHelpful[id] = true
-			}
+		// 批量查询当前用户的 helpful 标记，避免逐条 GetHelpful 的 N+1；
+		// 查询错误如实向上返回（原先被静默吞掉会误报 isHelpful=false）。
+		ids, err := course.ListHelpfulReviewIDsByUser(viewerId, reviewIds)
+		if err != nil {
+			return nil, err
 		}
+		myHelpful = ids
 	}
 	payloads := make([]ReviewPayload, 0, len(entities))
 	for _, e := range entities {

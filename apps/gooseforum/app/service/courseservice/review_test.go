@@ -491,3 +491,83 @@ func TestLegacyReviewExposesLegacyHelpfulCount(t *testing.T) {
 		t.Fatalf("expected helpfulCount=7 (native 0 + legacy 7), got %d", list[0].HelpfulCount)
 	}
 }
+
+// TestRecreateReviewAfterDelete 删除（软删）后同一用户可对同一 offering 重新评价：
+// deleted 行占用唯一索引 (offering_id, author_user_id)，重新评价必须复用该行
+// （ReactivateReviewTx），stats 按新 rating 重新累加；再次创建才返回 ErrReviewDuplicate。
+func TestRecreateReviewAfterDelete(t *testing.T) {
+	courseId, offeringId := setupReviewTest(t)
+	first, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "第一次评价", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create first review: %v", err)
+	}
+	if err := DeleteReview(1001, first.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	courseStats, err := course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.RatingCount != 0 || courseStats.RatingSum != 0 || courseStats.ReviewCount != 0 {
+		t.Fatalf("expected zero stats after delete, got %+v", courseStats)
+	}
+	// 同一 offering 重新评价必须成功（复用 deleted 行，而非唯一键冲突 409）。
+	second, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "重新评价", IsAnonymous: true})
+	if err != nil {
+		t.Fatalf("recreate review after delete must succeed: %v", err)
+	}
+	if second.Id != first.Id {
+		t.Fatalf("recreated review should reuse soft-deleted row id %d, got %d", first.Id, second.Id)
+	}
+	if second.Rating == nil || *second.Rating != 5 {
+		t.Fatalf("expected recreated rating 5, got %+v", second.Rating)
+	}
+	if !second.Viewer.CanEdit || !second.Viewer.CanDelete {
+		t.Fatalf("recreated review owner should see canEdit/canDelete: %+v", second.Viewer)
+	}
+	courseStats, err = course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats after recreate: %v", err)
+	}
+	if courseStats.RatingCount != 1 || courseStats.RatingSum != 5 || courseStats.ReviewCount != 1 {
+		t.Fatalf("expected stats 1/5/1 after recreate, got %+v", courseStats)
+	}
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 3, Content: "第三次", IsAnonymous: false}); err != ErrReviewDuplicate {
+		t.Fatalf("expected ErrReviewDuplicate after recreate, got %v", err)
+	}
+}
+
+// TestListHelpfulReviewIDsByUserBatch 批量查询当前用户 helpful 标记：
+// 多条评价中只返回已标记项；取消（物理删除）后不再返回。
+func TestListHelpfulReviewIDsByUserBatch(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	a, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "甲的评价", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review A: %v", err)
+	}
+	b, err := CreateReview(1002, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "乙的评价", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review B: %v", err)
+	}
+	if err := SetReviewHelpful(3001, a.Id, true); err != nil {
+		t.Fatalf("mark helpful: %v", err)
+	}
+	marked, err := course.ListHelpfulReviewIDsByUser(3001, []uint64{a.Id, b.Id})
+	if err != nil {
+		t.Fatalf("batch list helpful: %v", err)
+	}
+	if len(marked) != 1 || !marked[a.Id] || marked[b.Id] {
+		t.Fatalf("expected only review %d marked, got %+v", a.Id, marked)
+	}
+	// 取消标记（物理删除）后批量查询不再返回。
+	if err := SetReviewHelpful(3001, a.Id, false); err != nil {
+		t.Fatalf("unhelpful: %v", err)
+	}
+	marked, err = course.ListHelpfulReviewIDsByUser(3001, []uint64{a.Id, b.Id})
+	if err != nil {
+		t.Fatalf("batch list helpful after unhelpful: %v", err)
+	}
+	if len(marked) != 0 {
+		t.Fatalf("expected no marked reviews after unhelpful, got %+v", marked)
+	}
+}

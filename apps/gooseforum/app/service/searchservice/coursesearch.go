@@ -5,7 +5,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"log/slog"
 	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
@@ -311,6 +310,26 @@ func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
 	if err := waitForTaskChecked(client, cleanTask.TaskUID, 60*time.Second); err != nil {
 		return nil, fmt.Errorf("清空课程索引任务失败: %w", err)
 	}
+	return buildCourseIndexPages(ctx,
+		course.ListAllCourses,
+		convertCoursesToSearchDocuments,
+		func(docs []CourseSearchDocument) error {
+			task, err := index.AddDocuments(docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
+			if err != nil {
+				return err
+			}
+			return waitForTaskChecked(client, task.TaskUID, 60*time.Second)
+		})
+}
+
+// buildCourseIndexPages 分页读取课程并写入索引（依赖注入便于单测失败路径）。
+// 调用方必须先清空索引；任一页转换/写入失败必须整体返回错误——
+// 索引已清空时若只累计 FailedCount 继续，该批课程会永久丢失且 CLI 仍报成功。
+func buildCourseIndexPages(ctx context.Context,
+	listCourses func(limit, offset int) ([]course.Entity, error),
+	convert func(entities []course.Entity) ([]CourseSearchDocument, error),
+	addDocs func(docs []CourseSearchDocument) error,
+) (*IndexBuildResult, error) {
 	result := &IndexBuildResult{IndexName: CourseIndex}
 	offset := 0
 	const batch = 200
@@ -322,7 +341,7 @@ func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
 			default:
 			}
 		}
-		entities, err := course.ListAllCourses(batch, offset)
+		entities, err := listCourses(batch, offset)
 		if err != nil {
 			return result, err
 		}
@@ -335,17 +354,12 @@ func BuildCourseIndex(ctx context.Context) (*IndexBuildResult, error) {
 				batchEntities = append(batchEntities, e)
 			}
 		}
-		docs, err := convertCoursesToSearchDocuments(batchEntities)
+		docs, err := convert(batchEntities)
 		if err != nil {
-			slog.Error("course search docs conversion failed", "batchOffset", offset, "err", err)
-			result.FailedCount += len(batchEntities)
+			return result, fmt.Errorf("convert course search docs batch %d: %w", offset, err)
 		}
 		if len(docs) > 0 {
-			task, err := index.AddDocuments(docs, &meilisearch.DocumentOptions{PrimaryKey: &pk})
-			if err != nil {
-				return result, err
-			}
-			if err := waitForTaskChecked(client, task.TaskUID, 60*time.Second); err != nil {
+			if err := addDocs(docs); err != nil {
 				return result, err
 			}
 		}

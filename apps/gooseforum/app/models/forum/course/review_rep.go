@@ -54,17 +54,56 @@ func GetOfferingTx(tx *gorm.DB, id uint64) (entity OfferingEntity, err error) {
 	return
 }
 
-// FindReviewByOfferingAndUserTx 事务内查同一用户对同一 offering 的可见/隐藏评价。
-// 已删除（隔离窗口）的评价不参与查重：用户删除后可对同一 offering 重新评价。
-// 与唯一索引 (offering_id, author_user_id) 配合：删除仅改 status 不物理删除，
-// 若按全状态查重，删除后同一 offering 将永远无法再评。
+// FindReviewByOfferingAndUserTx 事务内查同一用户对同一 offering 的评价（全部状态）。
+// 唯一索引 (offering_id, author_user_id) 不含 status，删除仅软删（status=deleted），
+// 因此 deleted 行仍占用唯一键：调用方据此决定返回 duplicate（visible/hidden）
+// 还是恢复重写（deleted，见 ReactivateReviewTx）。
 func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (entity ReviewEntity, err error) {
 	err = tx.Table(reviewTableName).
 		Where(queryopt.Eq("offering_id", offeringId)).
 		Where(queryopt.Eq("author_user_id", userId)).
-		Where("status IN ?", []int8{ReviewStatusVisible, ReviewStatusHidden}).
+		Where("status IN ?", []int8{ReviewStatusVisible, ReviewStatusHidden, ReviewStatusDeleted}).
 		First(&entity).Error
 	return
+}
+
+// ReactivateReviewTx 事务内恢复并重写一条已删除（隔离窗口）的评价。
+// 唯一索引 (offering_id, author_user_id) 被软删行占用，重新评价必须复用该行；
+// 带 status 条件（CAS）防止并发事务重复恢复，RowsAffected=0 表示已被并发恢复。
+func ReactivateReviewTx(tx *gorm.DB, id uint64, rating *int, content string, isAnonymous bool) (bool, error) {
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, ReviewStatusDeleted).
+		Updates(map[string]any{
+			"rating":       rating,
+			"content":      content,
+			"is_anonymous": isAnonymous,
+			"status":       ReviewStatusVisible,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// ListHelpfulReviewIDsByUser 批量返回该用户已标记 helpful 的 review ID 集合。
+func ListHelpfulReviewIDsByUser(userId uint64, reviewIds []uint64) (map[uint64]bool, error) {
+	result := make(map[uint64]bool, len(reviewIds))
+	if len(reviewIds) == 0 {
+		return result, nil
+	}
+	var ids []uint64
+	if err := helpfulBuilder().
+		Select("review_id").
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.In("review_id", reviewIds)).
+		Where("deleted_at IS NULL").
+		Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
 }
 
 // FindLegacyReviewByOfferingTx 事务内查某 offering 的历史导入评价

@@ -1,7 +1,9 @@
 package searchservice
 
 import (
+	"context"
 	"errors"
+	"strings"
 	"testing"
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
@@ -146,5 +148,109 @@ func TestEnqueueCourseSearchTaskTxBound(t *testing.T) {
 	}
 	if n := countTasks(); n != 1 {
 		t.Fatalf("rolled-back tx must not leave task, got %d", n)
+	}
+}
+
+// TestBuildCourseIndexPagesConvertFailure 任一页转换失败必须整体返回错误：
+// 索引已在此前清空，若只累计 FailedCount 继续，该批课程会永久丢失且 CLI 仍报成功。
+func TestBuildCourseIndexPagesConvertFailure(t *testing.T) {
+	listCalls := 0
+	_, err := buildCourseIndexPages(context.Background(),
+		func(limit, offset int) ([]course.Entity, error) {
+			listCalls++
+			if listCalls == 1 {
+				return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
+			}
+			return nil, nil
+		},
+		func(entities []course.Entity) ([]CourseSearchDocument, error) {
+			return nil, errors.New("boom: conversion failed")
+		},
+		func(docs []CourseSearchDocument) error {
+			t.Fatal("addDocs must not be called when conversion fails")
+			return nil
+		})
+	if err == nil {
+		t.Fatal("expected conversion failure to abort rebuild")
+	}
+	if !strings.Contains(err.Error(), "convert course search docs batch 0") {
+		t.Fatalf("expected batch-context error, got %v", err)
+	}
+}
+
+// TestBuildCourseIndexPagesAddDocsFailure 写入失败同样中止 rebuild 并返回错误。
+func TestBuildCourseIndexPagesAddDocsFailure(t *testing.T) {
+	_, err := buildCourseIndexPages(context.Background(),
+		func(limit, offset int) ([]course.Entity, error) {
+			return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
+		},
+		func(entities []course.Entity) ([]CourseSearchDocument, error) {
+			return []CourseSearchDocument{{ID: 1}}, nil
+		},
+		func(docs []CourseSearchDocument) error {
+			return errors.New("boom: add documents failed")
+		})
+	if err == nil || !strings.Contains(err.Error(), "add documents failed") {
+		t.Fatalf("expected addDocs failure to abort rebuild, got %v", err)
+	}
+}
+
+// TestBuildCourseIndexPagesSuccess 分页成功路径：hidden 课程过滤、多批追加、计数正确。
+func TestBuildCourseIndexPagesSuccess(t *testing.T) {
+	pages := [][]course.Entity{
+		{
+			{Id: 1, Status: course.StatusVisible, Name: "高数"},
+			{Id: 2, Status: course.StatusHidden, Name: "隐藏课"},
+			{Id: 3, Status: course.StatusVisible, Name: "线代"},
+		},
+		nil, // 第二页为空 → 结束
+	}
+	pageIdx := 0
+	var added [][]CourseSearchDocument
+	result, err := buildCourseIndexPages(context.Background(),
+		func(limit, offset int) ([]course.Entity, error) {
+			if pageIdx < len(pages) {
+				p := pages[pageIdx]
+				pageIdx++
+				return p, nil
+			}
+			return nil, nil
+		},
+		func(entities []course.Entity) ([]CourseSearchDocument, error) {
+			docs := make([]CourseSearchDocument, 0, len(entities))
+			for _, e := range entities {
+				docs = append(docs, CourseSearchDocument{ID: e.Id, Name: e.Name})
+			}
+			return docs, nil
+		},
+		func(docs []CourseSearchDocument) error {
+			added = append(added, docs)
+			return nil
+		})
+	if err != nil {
+		t.Fatalf("buildCourseIndexPages: %v", err)
+	}
+	if len(added) != 1 || len(added[0]) != 2 {
+		t.Fatalf("expected 1 batch of 2 docs (hidden filtered out), got %+v", added)
+	}
+	if result.ProcessedCount != 3 || result.TotalBatches != 1 {
+		t.Fatalf("expected processed=3 batches=1, got %+v", result)
+	}
+}
+
+// TestBuildCourseIndexPagesContextCancel 上下文取消时中止并返回 ctx.Err()。
+func TestBuildCourseIndexPagesContextCancel(t *testing.T) {
+	ctx, cancel := context.WithCancel(context.Background())
+	cancel()
+	_, err := buildCourseIndexPages(ctx,
+		func(limit, offset int) ([]course.Entity, error) {
+			return []course.Entity{{Id: 1, Status: course.StatusVisible}}, nil
+		},
+		func(entities []course.Entity) ([]CourseSearchDocument, error) {
+			return nil, nil
+		},
+		func(docs []CourseSearchDocument) error { return nil })
+	if !errors.Is(err, context.Canceled) {
+		t.Fatalf("expected context.Canceled, got %v", err)
 	}
 }
