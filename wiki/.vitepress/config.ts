@@ -7,6 +7,9 @@ export default defineConfig({
   description: '同济大学校园社区平台 YourTJ 知识库 —— 使用指南、部署运维与开发文档',
   lang: 'zh-CN',
   base: '/',
+  // 内容源目录（review：缺失时 VitePress 以项目根为 srcDir，首页被构建到
+  // dist/docs/index.html，根路径与导航全部 404，且 README.md 被误收为内容源）
+  srcDir: 'docs',
 
   head: [
     ['link', { rel: 'icon', href: '/favicon.svg' }],
