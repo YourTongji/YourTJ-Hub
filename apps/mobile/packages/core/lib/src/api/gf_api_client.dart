@@ -13,6 +13,9 @@ typedef TokenRenewedCallback = FutureOr<void> Function(String newToken);
 ///
 /// 统一处理:Bearer 令牌注入、New-Token 头滑动续期、401 会话失效、
 /// 429 限流(Retry-After)、`{code, messageCode, params, result}` 错误协议。
+/// 后端所有失败(HTTP 2xx 业务失败或 HTTP 4xx/5xx 的 `ResultStruct` envelope)
+/// 都解析为带 messageCode 的 [ApiException];只有真正的传输层故障
+/// (DNS、连接拒绝、超时)才是 [NetworkException]。
 class GfApiClient {
   GfApiClient({
     required this.dio,
@@ -112,9 +115,22 @@ class GfApiClient {
           retryAfterSeconds: _retryAfter(e.response),
         );
       }
+      if (status != null) {
+        // 后端已应答的 4xx/5xx:解析 ResultStruct envelope,保留
+        // status/messageCode/params,不再伪装成 NetworkException。
+        // 无 body 或非 envelope 时退化为无 messageCode 的 ApiFailureException,
+        // 仍是"服务端错误"而非网络故障。
+        final envelope = _tryParseEnvelope(e.response?.data);
+        throw ApiFailureException(
+          fallbackMessage: 'Request failed with status $status',
+          messageCode: envelope?.messageCode,
+          params: envelope?.params,
+          statusCode: status,
+        );
+      }
+      // 无 HTTP 状态码:传输层故障(DNS、连接拒绝、超时等)。
       throw NetworkException(
         fallbackMessage: 'Network connection failed, please check your network',
-        statusCode: status,
       );
     }
   }

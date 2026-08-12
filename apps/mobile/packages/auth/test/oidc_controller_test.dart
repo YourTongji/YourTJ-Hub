@@ -233,6 +233,36 @@ void main() {
     expect(await storage.read(), isNull);
   });
 
+  test('exchange 收到 403 冻结 ApiFailure → 保留稳定 messageCode', () async {
+    final storage = MemoryTokenStorage();
+    final appAuth = FakeAppAuth(
+      response: const AuthorizationResponse(
+        authorizationCode: 'auth-code-frozen',
+        codeVerifier: 'pkce-verifier-frozen',
+      ),
+    );
+    final auth = FakeAuthRepository()
+      ..exchangeError = const ApiFailureException(
+        fallbackMessage: 'Request failed with status 403',
+        messageCode: 'oauth.account.frozen',
+        params: {'action': 'login'},
+        statusCode: 403,
+      );
+    final controller = buildController(
+      storage: storage,
+      appAuth: appAuth,
+      auth: auth,
+    );
+
+    final ok = await controller.login();
+
+    expect(ok, isFalse);
+    expect(controller.isAuthenticated, isFalse);
+    // 暴露稳定 messageCode 供上层本地化,而不是笼统的 "OIDC login failed"。
+    expect(controller.error, 'server.oauth.account.frozen');
+    expect(await storage.read(), isNull);
+  });
+
   test('exchange 返回空 token → 登录失败', () async {
     final storage = MemoryTokenStorage();
     final appAuth = FakeAppAuth(
