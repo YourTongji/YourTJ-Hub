@@ -1079,6 +1079,27 @@ class RevokingUserRepository extends UserRepository {
   }
 }
 
+/// 返回固定毫秒时间戳会话的 UserRepository,用于渲染时间戳测试。
+class FixedSessionsUserRepository extends UserRepository {
+  FixedSessionsUserRepository(super.client, this.createdAtMs);
+
+  final int createdAtMs;
+
+  @override
+  Future<List<UserSessionPayload>> listSessions() async {
+    return <UserSessionPayload>[
+      UserSessionPayload(
+        id: 1,
+        ipMasked: '10.0.0.1',
+        userAgent: 'test-agent',
+        createdAt: createdAtMs,
+        expiresAt: createdAtMs + 86400000,
+        isCurrent: true,
+      ),
+    ];
+  }
+}
+
 /// 构造最小 TopicPayload。
 TopicPayload makeTopic(int id, String title) {
   return TopicPayload(
@@ -2219,6 +2240,60 @@ void main() {
 
       expect(router.state.uri.path, '/host');
       expect(find.text('打开设置'), findsOneWidget);
+    });
+  });
+
+  group('设置页会话时间戳渲染', () {
+    testWidgets('Unix 毫秒 createdAt 直接渲染为正确日期(2026-08-07)', (tester) async {
+      // 2026-08-07 12:00:00 UTC(正午,任何时区本地日期均为 08-07)。
+      const int createdAtMs = 1786104000000;
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final ProviderContainer container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        userRepo: FixedSessionsUserRepository(client, createdAtMs),
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpAndSettle();
+
+      // 切到 Security tab 查看会话列表。
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+
+      // 契约(Unix 毫秒)直接渲染,不得再乘 1000。
+      expect(find.textContaining('2026-08-07'), findsOneWidget);
+    });
+
+    testWidgets('2038 边界(毫秒)渲染正确年份而非溢出', (tester) async {
+      // 2038-01-19 12:00:00 UTC(2038 问题边界附近,秒级 int32 溢出点之后)。
+      const int createdAtMs = 2147515200000;
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final ProviderContainer container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        userRepo: FixedSessionsUserRepository(client, createdAtMs),
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('2038-01-19'), findsOneWidget);
     });
   });
 
