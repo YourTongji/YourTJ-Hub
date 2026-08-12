@@ -124,3 +124,48 @@ abstract class CourseReviewAuthorRevealPayload
   factory CourseReviewAuthorRevealPayload.fromJson(Map<String, dynamic> json) =>
       _$CourseReviewAuthorRevealPayloadFromJson(json);
 }
+
+@freezed
+abstract class RelatedCourseItem with _$RelatedCourseItem {
+  const factory RelatedCourseItem({
+    required int id,
+    required String primaryCode,
+    required String name,
+    required String department,
+    List<String>? instructors,
+    required double ratingAvg,
+    required int ratingCount,
+    required int reviewCount,
+  }) = _RelatedCourseItem;
+
+  factory RelatedCourseItem.fromJson(Map<String, dynamic> json) =>
+      _$RelatedCourseItemFromJson(json);
+}
+
+@freezed
+abstract class RelatedTeacherOfferingItem with _$RelatedTeacherOfferingItem {
+  const factory RelatedTeacherOfferingItem({
+    required int offeringId,
+    String? termCode,
+    String? termName,
+    String? campus,
+    List<String>? instructors,
+    required double ratingAvg,
+    required int ratingCount,
+    required int reviewCount,
+  }) = _RelatedTeacherOfferingItem;
+
+  factory RelatedTeacherOfferingItem.fromJson(Map<String, dynamic> json) =>
+      _$RelatedTeacherOfferingItemFromJson(json);
+}
+
+@freezed
+abstract class CourseRelatedResult with _$CourseRelatedResult {
+  const factory CourseRelatedResult({
+    required List<RelatedCourseItem> teacherOtherCourses,
+    required List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+  }) = _CourseRelatedResult;
+
+  factory CourseRelatedResult.fromJson(Map<String, dynamic> json) =>
+      _$CourseRelatedResultFromJson(json);
+}
