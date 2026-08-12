@@ -15,8 +15,8 @@
     "sameCourseOtherTeachers": [
       {
         "offeringId": 902,
-        "termCode": "2025-2026-1",
-        "termName": "2025-2026 第一学期",
+        "termCode": "2024-2025-1",
+        "termName": "2024-2025 第一学期",
         "campus": "四平路校区",
         "instructors": ["李四"],
         "ratingAvg": 4,

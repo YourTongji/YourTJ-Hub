@@ -46,7 +46,8 @@ function formatRating(avg: number) {
 
 // ---- 相关课程（同教师其他课 / 同课程其他教师）----
 const related = ref<CourseRelatedResult | null>(null)
-const relatedLoading = ref(false)
+// 初始为 true：避免首屏未加载完成时错误闪现"暂无相关内容"。
+const relatedLoading = ref(true)
 const relatedError = ref('')
 const relatedMobileExpanded = ref(false)
 
@@ -313,6 +314,7 @@ onMounted(() => {
         <button
           type="button"
           class="gf-button gf-button-sm gf-button-ghost sm:hidden"
+          aria-controls="course-related-panel"
           :aria-expanded="relatedMobileExpanded"
           @click="relatedMobileExpanded = !relatedMobileExpanded"
         >
@@ -330,7 +332,8 @@ onMounted(() => {
       </div>
 
       <div
-        v-else
+        v-else-if="!relatedError"
+        id="course-related-panel"
         :class="['sm:grid sm:grid-cols-2 sm:gap-4', relatedMobileExpanded ? 'block' : 'hidden']"
       >
         <div class="gf-panel p-4">
@@ -357,7 +360,7 @@ onMounted(() => {
                 <span class="shrink-0 text-right">
                   <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
                   <span class="block text-[11px] tabular-nums text-base-content/45">
-                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }) }}
+                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
                   </span>
                 </span>
               </a>
@@ -391,7 +394,7 @@ onMounted(() => {
               <span class="shrink-0 text-right">
                 <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
                 <span class="block text-[11px] tabular-nums text-base-content/45">
-                  {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }) }}
+                  {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
                 </span>
               </span>
             </li>

@@ -409,7 +409,7 @@ export default {
     relatedOtherTeachersTitle: 'Altri docenti di questo corso',
     relatedEmpty: 'Nessun contenuto correlato',
     relatedLoadFailed: 'Caricamento dei corsi correlati non riuscito. Riprova più tardi.',
-    relatedReviews: '{count} recensioni',
+    relatedReviews: '{count} recensione | {count} recensioni',
     relatedExpand: 'Mostra corsi correlati',
     relatedCollapse: 'Nascondi corsi correlati',
   },

@@ -87,7 +87,10 @@ func ratingAvgFromStats(sum, count int) float64 {
 // 取前 RelatedListLimit 条，并批量回填每门课的教师名单（去重）。
 func buildRelatedTeacherCourses(courseIds []uint64) ([]RelatedCourseItem, error) {
 	courseById := course.GetMapByIds(courseIds)
-	stats := course.GetCourseStatsMap(courseIds)
+	stats, err := course.GetCourseStatsMap(courseIds)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]RelatedCourseItem, 0, len(courseIds))
 	for _, id := range courseIds {
 		c, ok := courseById[id]
@@ -244,7 +247,10 @@ func buildSameCourseOtherTeachers(courseId uint64) ([]RelatedTeacherOfferingItem
 	for _, t := range terms {
 		termByID[t.Id] = t
 	}
-	stats := course.GetOfferingStatsMap(offeringIds)
+	stats, err := course.GetOfferingStatsMap(offeringIds)
+	if err != nil {
+		return nil, err
+	}
 	items := make([]RelatedTeacherOfferingItem, 0, len(chosen))
 	for _, o := range chosen {
 		item := RelatedTeacherOfferingItem{

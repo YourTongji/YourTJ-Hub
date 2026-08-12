@@ -1150,7 +1150,7 @@ RelatedTeacherOfferingItem:
     An offering of the requested course taught by a teacher arrangement different from the most
     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
     course" is expressed at the offering level, where per-teacher ratings do not exist.
-  required: [offeringId, ratingAvg, ratingCount, reviewCount]
+  required: [offeringId, termCode, ratingAvg, ratingCount, reviewCount]
   properties:
     offeringId:
       type: integer

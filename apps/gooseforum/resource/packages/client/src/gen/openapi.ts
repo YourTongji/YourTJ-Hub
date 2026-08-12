@@ -1542,7 +1542,7 @@ export interface components {
         RelatedTeacherOfferingItem: {
             /** Format: uint64 */
             offeringId: number;
-            termCode?: string;
+            termCode: string;
             termName?: string;
             campus?: string;
             instructors?: string[];
@@ -2567,7 +2567,7 @@ export interface operations {
                     "application/json": components["schemas"]["CourseRelatedResponse"];
                 };
             };
-            /** @description Malformed course id. */
+            /** @description Malformed or zero course id. */
             400: {
                 headers: {
                     [name: string]: unknown;

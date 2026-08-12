@@ -143,8 +143,11 @@ getCourseRelated:
             examples:
               success:
                 externalValue: ../fixtures/course-related-success.json
+              empty:
+                summary: A course with no related teachers or same-course other-teacher offerings.
+                externalValue: ../fixtures/course-related-empty.json
       '400':
-        description: Malformed course id.
+        description: Malformed or zero course id.
         content:
           application/json:
             schema:
@@ -152,6 +155,9 @@ getCourseRelated:
             examples:
               parseFailed:
                 externalValue: ../fixtures/course-parse-failed.json
+              invalidParams:
+                summary: courseId parses as 0 and is rejected by the controller guard.
+                externalValue: ../fixtures/course-related-invalid-params.json
       '404':
         description: Course does not exist or is hidden.
         content:

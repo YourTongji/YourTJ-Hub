@@ -409,7 +409,7 @@ export default {
     relatedOtherTeachersTitle: 'Other teachers of this course',
     relatedEmpty: 'No related content',
     relatedLoadFailed: 'Failed to load related courses. Please try again later.',
-    relatedReviews: '{count} reviews',
+    relatedReviews: '{count} review | {count} reviews',
     relatedExpand: 'Show related courses',
     relatedCollapse: 'Hide related courses',
   },
