@@ -255,7 +255,10 @@ type ReviewPageQuery struct {
 
 // ListReviewsPage 按 cursor 分页列出可见评价（时间倒序）。
 func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
-	build := reviewBuilder().Where(queryopt.Eq("status", ReviewStatusVisible))
+	build := reviewBuilder().Where(queryopt.Eq("status", ReviewStatusVisible)).
+		// 软删条件显式写（spec S1：Table() 模式不依赖 gorm schema 推断，
+		// 与 Count 口径一致，防未来漂移）。
+		Where("deleted_at IS NULL")
 	if q.OfferingId > 0 {
 		build = build.Where(queryopt.Eq("offering_id", q.OfferingId))
 		if q.CursorReviewId > 0 {
@@ -285,23 +288,27 @@ func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
 }
 
 // CountVisibleReviewsByCourse 课程下可见评价总数（分页 total）。
-// 与 ListReviewsPage course 级口径一致：仅统计可见 offering
-// （PR #201 security F1：隐藏 offering 的评价不计入 total）。
+// 与 ListReviewsPage course 级口径一致：仅统计可见 offering 且未软删
+// （PR #201 security F1：隐藏 offering 的评价不计入 total；spec S1：
+// Count 走 *int64 dest 不解析 schema，软删条件必须显式写，防口径漂移）。
 func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
 	var count int64
 	err := reviewBuilder().
 		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
 		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
 		Count(&count).Error
 	return count, err
 }
 
 // CountVisibleReviewsByOffering offering 下可见评价总数（分页 total）。
+// 软删条件显式写（spec S1：Count 不解析 schema，需显式过滤软删行）。
 func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
 	var count int64
 	err := reviewBuilder().
 		Where(queryopt.Eq("offering_id", offeringId)).
 		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
 		Count(&count).Error
 	return count, err
 }

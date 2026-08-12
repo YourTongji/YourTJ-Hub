@@ -428,7 +428,7 @@ onMounted(() => {
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
-          <span v-if="reviews.length" class="ml-1 text-[13px] font-normal text-base-content/45">{{ reviews.length }}</span>
+          <span v-if="reviewTotal" class="ml-1 text-[13px] font-normal text-base-content/45">{{ reviewTotal }}</span>
         </h2>
         <button
           v-if="page.layout.viewer.isAuthenticated && props.course.offerings?.length"

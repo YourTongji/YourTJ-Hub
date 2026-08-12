@@ -397,6 +397,8 @@ func DecodeCursor(raw string) (ReviewCursor, error) {
 // ListReviewsPage 按 cursor 分页返回课程（或指定 offering）的可见评价。
 // pageSize 默认 20、上限 50；结果多取一条判断 hasNext（无重复无遗漏）。
 // total 为当前筛选下的可见评价总数（offering 过滤时同口径）。
+// 边界语义（PR #201 spec O3）：pageSize<=0 静默回落默认值（契约 minimum=1，
+// 宽松容忍无害，控制器仅拦 >50）；cursor 非法格式由控制器 DecodeCursor 拦 400。
 func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor, pageSize int) (ReviewPageResult, error) {
 	if pageSize <= 0 {
 		pageSize = DefaultReviewPageSize

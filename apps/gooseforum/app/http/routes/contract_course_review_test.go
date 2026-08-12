@@ -21,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -857,8 +858,9 @@ func TestCourseReviewPaginationHTTPContract(t *testing.T) {
 	for _, item := range page.List {
 		firstPageIDs[item["id"].(float64)] = true
 	}
-	// 删除 id=240（隔离窗口内软删）
-	if err := conn.Where("id = ?", 240).Delete(&course.ReviewEntity{}).Error; err != nil {
+	// 删除 id=240（隔离窗口内；用生产 DeleteReview 路径——status=deleted 软删，
+	// 与 gorm 直接软删（deleted_at）语义不同；spec S1）。
+	if err := courseservice.DeleteReview(240, 240); err != nil {
 		t.Fatalf("delete review 240: %v", err)
 	}
 	// 从第一页 cursor 继续：只应看到 id < 231 的剩余评价，无跳页无重复
@@ -868,8 +870,13 @@ func TestCourseReviewPaginationHTTPContract(t *testing.T) {
 	var page2 struct {
 		List       []map[string]any `json:"list"`
 		NextCursor string           `json:"nextCursor"`
+		Total      float64          `json:"total"`
 	}
 	_ = json.Unmarshal(response.Result, &page2)
+	// total 同步递减（生产删除路径扣减；spec S1：断言 total 口径一致）
+	if page2.Total != 249 {
+		t.Fatalf("total after delete = %v, want 249 (deleted review excluded)", page2.Total)
+	}
 	seenAfter := map[float64]bool{}
 	for _, item := range page2.List {
 		id := item["id"].(float64)
@@ -934,5 +941,75 @@ func TestCourseReviewPaginationHiddenOfferingExcluded(t *testing.T) {
 	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=903", "", "")
 	if rec.Code != http.StatusNotFound {
 		t.Fatalf("hidden offering scoped list status = %d, want 404", rec.Code)
+	}
+}
+
+// TestCourseReviewPaginationMultiOfferingCursor 验证 PR #201 spec S2：
+// 2+ offering 复合游标 (offering_id DESC, id DESC) 交错翻页——
+// 元组比较逻辑在跨 offering 场景下无重复无遗漏。
+func TestCourseReviewPaginationMultiOfferingCursor(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 901)
+	// 第二个 offering 902（course 42）
+	if err := conn.Create(&course.OfferingEntity{Id: 902, CourseId: 42, TermId: 101, Status: course.OfferingStatusVisible}).Error; err != nil {
+		t.Fatalf("create offering 902: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	// offering 901: id 1..15（新→旧），offering 902: id 101..115
+	// 交错后的全局序（offering_id DESC, id DESC）：
+	// 902(115..101) → 901(15..1)
+	for i := uint64(1); i <= 15; i++ {
+		seedCourseReview(t, conn, i, 901, i, nil, fmt.Sprintf("a%d", i), true, "", course.ReviewStatusVisible)
+		seedCourseReview(t, conn, 100+i, 902, 200+i, nil, fmt.Sprintf("b%d", i), true, "", course.ReviewStatusVisible)
+	}
+
+	// pageSize=10 翻页：全局序 902:115..101, 901:15..1 → 30 条 / 10 = 3 页
+	seen := map[float64]bool{}
+	cursor := ""
+	pages := 0
+	for {
+		path := fmt.Sprintf("/api/forum/courses/42/reviews?pageSize=10&cursor=%s", url.QueryEscape(cursor))
+		rec := serveAuthSecurityJSON(router, http.MethodGet, path, "", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("page %d status = %d: %s", pages+1, rec.Code, rec.Body.String())
+		}
+		response := decodeContractEnvelope(t, rec)
+		var page struct {
+			List       []map[string]any `json:"list"`
+			NextCursor string           `json:"nextCursor"`
+			Total      float64          `json:"total"`
+		}
+		_ = json.Unmarshal(response.Result, &page)
+		if page.Total != 30 {
+			t.Fatalf("page %d total = %v, want 30", pages+1, page.Total)
+		}
+		for _, item := range page.List {
+			id := item["id"].(float64)
+			if seen[id] {
+				t.Fatalf("duplicate review %v across pages", id)
+			}
+			seen[id] = true
+		}
+		pages++
+		if page.NextCursor == "" {
+			break
+		}
+		cursor = page.NextCursor
+	}
+	if pages != 3 {
+		t.Fatalf("pages = %d, want 3", pages)
+	}
+	if len(seen) != 30 {
+		t.Fatalf("collected %d unique reviews, want 30 (no skip/dup across offerings)", len(seen))
+	}
+	// 验证全局序首元素为 902 的最大 id（115）
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=10", "", "")
+	response := decodeContractEnvelope(t, rec)
+	var first struct {
+		List []map[string]any `json:"list"`
+	}
+	_ = json.Unmarshal(response.Result, &first)
+	if len(first.List) == 0 || first.List[0]["id"] != float64(115) {
+		t.Fatalf("first item = %#v, want id 115 (offering 902 newest first)", first.List[0])
 	}
 }
