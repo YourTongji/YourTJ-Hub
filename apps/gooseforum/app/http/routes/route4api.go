@@ -8,17 +8,17 @@ import (
 	"net/url"
 
 	"github.com/gin-contrib/gzip"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/service/oidcservice"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
 func gzipEnabled() bool {

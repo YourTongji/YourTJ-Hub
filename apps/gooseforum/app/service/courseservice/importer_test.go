@@ -9,9 +9,9 @@ import (
 	"path/filepath"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
 // writeManifestFixture 在临时目录写入 JSONL 数据文件并生成带 sha256 的 manifest（source 固定 test-fixture）。

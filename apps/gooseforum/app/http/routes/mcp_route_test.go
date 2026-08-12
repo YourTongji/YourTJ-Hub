@@ -6,12 +6,12 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 // setupMcpRouteTestDB migrates the page_config table the MCP settings live in

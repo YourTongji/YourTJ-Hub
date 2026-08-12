@@ -3,7 +3,7 @@ package oidcAuthRequests
 import (
 	"gorm.io/gorm"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 )
 
 // Prohibit manual changes

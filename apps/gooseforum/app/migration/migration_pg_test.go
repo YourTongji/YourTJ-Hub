@@ -5,10 +5,10 @@ import (
 	"os"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )

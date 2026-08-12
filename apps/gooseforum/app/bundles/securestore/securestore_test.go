@@ -6,8 +6,8 @@ import (
 	"os/exec"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 func TestEncryptDecryptRoundTrip(t *testing.T) {

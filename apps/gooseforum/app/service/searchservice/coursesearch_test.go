@@ -6,9 +6,9 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/forum/course"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"gorm.io/gorm"
 )
 

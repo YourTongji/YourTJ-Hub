@@ -5,9 +5,9 @@ import (
 	"sync"
 
 	"github.com/gorilla/sessions"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
 )
 
 var store *sessions.CookieStore
