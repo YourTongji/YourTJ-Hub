@@ -7,13 +7,17 @@ import (
 	"os"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 )
 
 func setupDataTestDB(t *testing.T) {
@@ -25,6 +29,8 @@ func setupDataTestDB(t *testing.T) {
 		&posts.Entity{},
 		&taskQueue.Entity{},
 		&category.Entity{},
+		&topicCategoryIndex.Entity{},
+		&topicUserStat.Entity{},
 	); err != nil {
 		t.Fatalf("migrate data tables: %v", err)
 	}
@@ -33,6 +39,8 @@ func setupDataTestDB(t *testing.T) {
 	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&category.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&topicUserStat.Entity{})
 }
 
 func withTempExportDir(t *testing.T) {
@@ -330,3 +338,239 @@ func TestImportPreservesOriginalIDs(t *testing.T) {
 }
 
 var _ = fmt.Sprintf // keep fmt import used if assertions change
+
+// TestExportImportRoundTripPreservesTopicInvariants 验证导出→导入空库后
+// 话题 invariants（首末帖指针、post_seq、计数、发帖人、分类索引）与源库一致，
+// 且导入后可继续回复（issue #135 核心回归）。
+func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+
+	conn := dbconnect.Connect()
+	// 源库数据：1 个分类、2 个用户、1 个话题（2 条回复）
+	cat := category.Entity{Name: "往返分类"}
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	author := users.EntityComplete{Username: "author", Email: "author@example.com"}
+	if err := users.Create(&author); err != nil {
+		t.Fatalf("create author: %v", err)
+	}
+	replier := users.EntityComplete{Username: "replier", Email: "replier@example.com"}
+	if err := users.Create(&replier); err != nil {
+		t.Fatalf("create replier: %v", err)
+	}
+	now := time.Now().UTC().Add(-time.Hour)
+	topic := topics.Entity{
+		Title:         "往返主题",
+		CategoryIds:   []uint64{cat.Id},
+		UserId:        author.Id,
+		Status:        1,
+		PostCount:     2,
+		ReplyCount:    1,
+		PostSeq:       2,
+		Posters:       []topics.Poster{{UserID: author.Id}, {UserID: replier.Id}},
+		Excerpt:       "摘要",
+		FirstImageURL: "",
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+	firstPost := posts.Entity{
+		TopicId: topic.Id, PostNo: 1, UserId: author.Id,
+		Content: "首帖", CreatedAt: now, UpdatedAt: now,
+	}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create first post: %v", err)
+	}
+	secondPost := posts.Entity{
+		TopicId: topic.Id, PostNo: 2, UserId: replier.Id,
+		Content: "回复", CreatedAt: now.Add(time.Minute), UpdatedAt: now.Add(time.Minute),
+	}
+	if err := conn.Create(&secondPost).Error; err != nil {
+		t.Fatalf("create second post: %v", err)
+	}
+	lastPosted := now.Add(time.Minute)
+	topic.FirstPostId = firstPost.Id
+	topic.LastPostId = secondPost.Id
+	topic.LastPostedAt = &lastPosted
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Updates(map[string]any{
+		"first_post_id":  firstPost.Id,
+		"last_post_id":   secondPost.Id,
+		"last_posted_at": lastPosted,
+	}).Error; err != nil {
+		t.Fatalf("update topic invariants: %v", err)
+	}
+	// 分类索引 + 参与者统计
+	if err := conn.Create(&topicCategoryIndex.Entity{TopicId: topic.Id, CategoryId: cat.Id, Effective: 1}).Error; err != nil {
+		t.Fatalf("create topic category index: %v", err)
+	}
+	if err := conn.Create(&topicUserStat.Entity{TopicId: topic.Id, UserId: replier.Id, ReplyCount: 1, LastReplyAt: lastPosted}).Error; err != nil {
+		t.Fatalf("create topic user stat: %v", err)
+	}
+
+	// 1) 全量导出
+	taskEntity := &taskQueue.Entity{
+		Type:     TaskTypeExport,
+		Status:   taskQueue.StatusPending,
+		TaskJson: `{"tables":["users","topics","posts","topicCategoryIndex","topicUserStat"],"format":"json"}`,
+	}
+	if err := taskQueue.Create(taskEntity); err != nil {
+		t.Fatalf("create export task: %v", err)
+	}
+	if err := RunExportTask(context.Background(), taskEntity); err != nil {
+		t.Fatalf("RunExportTask() error = %v", err)
+	}
+	reloaded, err := taskQueue.GetByID(taskEntity.Id)
+	if err != nil {
+		t.Fatalf("reload export task: %v", err)
+	}
+	path, err := ExportFilePath(&reloaded)
+	if err != nil {
+		t.Fatalf("ExportFilePath() error = %v", err)
+	}
+	exported, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read export file: %v", err)
+	}
+
+	// 导出文件应包含 invariants 字段
+	var doc map[string][]map[string]any
+	if err := json.Unmarshal(exported, &doc); err != nil {
+		t.Fatalf("export is not valid JSON: %v", err)
+	}
+	if len(doc["topics"]) != 1 || len(doc["topicCategoryIndex"]) != 1 || len(doc["topicUserStat"]) != 1 {
+		t.Fatalf("export tables = topics %d tci %d tus %d, want 1/1/1",
+			len(doc["topics"]), len(doc["topicCategoryIndex"]), len(doc["topicUserStat"]))
+	}
+	topicRow := doc["topics"][0]
+	if rowUint64(topicRow, "postSeq") != 2 || rowUint64(topicRow, "firstPostId") != firstPost.Id || rowUint64(topicRow, "lastPostId") != secondPost.Id {
+		t.Fatalf("export topic invariants = postSeq %d first %d last %d, want 2/%d/%d",
+			rowUint64(topicRow, "postSeq"), rowUint64(topicRow, "firstPostId"), rowUint64(topicRow, "lastPostId"),
+			firstPost.Id, secondPost.Id)
+	}
+	if rowString(topicRow, "lastPostedAt") == "" {
+		t.Fatal("export topic lastPostedAt missing")
+	}
+	if rowUint64(topicRow, "postCount") != 2 || rowUint64(topicRow, "replyCount") != 1 {
+		t.Fatalf("export topic counts = post %d reply %d, want 2/1",
+			rowUint64(topicRow, "postCount"), rowUint64(topicRow, "replyCount"))
+	}
+
+	// 2) 清空库后导入（fresh-DB round-trip）
+	conn.Unscoped().Where("1 = 1").Delete(&topicUserStat.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&topics.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Unscoped().Where("1 = 1").Delete(&category.Entity{})
+	// 分类保留（导入 topics 时校验分类存在）
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("recreate category: %v", err)
+	}
+
+	report, err := ImportData(context.Background(), exported, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 0 {
+		t.Fatalf("ImportData() failed = %d, want 0 (errors: %+v)", report.Failed, report.Errors)
+	}
+
+	// 3) 校验导入后话题 invariants 与源库一致
+	var gotTopic topics.Entity
+	if err := conn.First(&gotTopic, topic.Id).Error; err != nil {
+		t.Fatalf("imported topic missing: %v", err)
+	}
+	if gotTopic.PostSeq != 2 || gotTopic.FirstPostId != firstPost.Id || gotTopic.LastPostId != secondPost.Id {
+		t.Fatalf("imported topic invariants = postSeq %d first %d last %d, want 2/%d/%d",
+			gotTopic.PostSeq, gotTopic.FirstPostId, gotTopic.LastPostId, firstPost.Id, secondPost.Id)
+	}
+	if gotTopic.PostCount != 2 || gotTopic.ReplyCount != 1 {
+		t.Fatalf("imported topic counts = post %d reply %d, want 2/1", gotTopic.PostCount, gotTopic.ReplyCount)
+	}
+	if gotTopic.LastPostedAt == nil || !gotTopic.LastPostedAt.Equal(lastPosted) {
+		t.Fatalf("imported topic lastPostedAt = %v, want %v", gotTopic.LastPostedAt, lastPosted)
+	}
+	// 发帖人列表恢复
+	if len(gotTopic.Posters) != 2 || gotTopic.Posters[0].UserID != author.Id || gotTopic.Posters[1].UserID != replier.Id {
+		t.Fatalf("imported topic posters = %#v, want [%d %d]", gotTopic.Posters, author.Id, replier.Id)
+	}
+	// 首帖/末帖指针可解析
+	var gotFirst posts.Entity
+	if err := conn.First(&gotFirst, gotTopic.FirstPostId).Error; err != nil {
+		t.Fatalf("first post pointer broken: %v", err)
+	}
+	// 分类索引与参与者统计已恢复
+	var tciCount, tusCount int64
+	conn.Model(&topicCategoryIndex.Entity{}).Where("topic_id = ?", topic.Id).Count(&tciCount)
+	conn.Model(&topicUserStat.Entity{}).Where("topic_id = ?", topic.Id).Count(&tusCount)
+	if tciCount != 1 || tusCount != 1 {
+		t.Fatalf("imported derived tables = tci %d tus %d, want 1/1", tciCount, tusCount)
+	}
+
+	// 4) 继续回复：下一次 post_no 应为 3（post_seq 未归零，不与首帖冲突）
+	var postEntity posts.Entity
+	postEntity.TopicId = topic.Id
+	postEntity.UserId = author.Id
+	if err := postservice.CreateTopicPost(&postEntity, gotTopic); err != nil {
+		t.Fatalf("CreateTopicPost() error = %v", err)
+	}
+	if postEntity.PostNo != 3 {
+		t.Fatalf("next post post_no = %d, want 3", postEntity.PostNo)
+	}
+}
+
+// TestImportLegacyExportBackfillsInvariants 验证旧格式导出（无 invariants 字段）
+// 导入后仍能从 posts 推导补齐指针/计数/序列（issue #135 兼容路径）。
+func TestImportLegacyExportBackfillsInvariants(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+
+	conn := dbconnect.Connect()
+	cat := category.Entity{Name: "旧格式分类"}
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	user := users.EntityComplete{Username: "legacy", Email: "legacy@example.com"}
+	if err := users.Create(&user); err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	// 旧格式：topics 无 postSeq/firstPostId/lastPostId 等字段
+	jsonData := []byte(`{
+	  "users": [{"id": ` + jsonUint64(user.Id) + `, "username": "legacy", "email": "legacy@example.com"}],
+	  "topics": [{"id": 5001, "title": "旧主题", "userId": ` + jsonUint64(user.Id) + `, "categoryIds": "[` + jsonUint64(cat.Id) + `]"}],
+	  "posts": [
+	    {"id": 6001, "topicId": 5001, "userId": ` + jsonUint64(user.Id) + `, "content": "首帖", "postNo": 1},
+	    {"id": 6002, "topicId": 5001, "userId": ` + jsonUint64(user.Id) + `, "content": "回复", "postNo": 2}
+	  ]
+	}`)
+	report, err := ImportData(context.Background(), jsonData, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 0 {
+		t.Fatalf("ImportData() failed = %d, want 0 (errors: %+v)", report.Failed, report.Errors)
+	}
+
+	var topic topics.Entity
+	if err := conn.First(&topic, 5001).Error; err != nil {
+		t.Fatalf("imported topic missing: %v", err)
+	}
+	if topic.PostSeq != 2 || topic.FirstPostId != 6001 || topic.LastPostId != 6002 {
+		t.Fatalf("backfilled invariants = postSeq %d first %d last %d, want 2/6001/6002",
+			topic.PostSeq, topic.FirstPostId, topic.LastPostId)
+	}
+	if topic.PostCount != 2 || topic.ReplyCount != 1 {
+		t.Fatalf("backfilled counts = post %d reply %d, want 2/1", topic.PostCount, topic.ReplyCount)
+	}
+	// 分类索引补齐
+	var tciCount int64
+	conn.Model(&topicCategoryIndex.Entity{}).Where("topic_id = ?", 5001).Count(&tciCount)
+	if tciCount != 1 {
+		t.Fatalf("backfilled category index count = %d, want 1", tciCount)
+	}
+}
