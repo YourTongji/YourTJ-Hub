@@ -60,9 +60,9 @@ better-interface `full` 模式六域审计（accessibility / layout / writing / 
 | # | 严重度 | 域 | 位置 | 问题 | Before → After | Why |
 |---|---|---|---|---|---|---|
 | L1 | LOW | accessibility | `CourseDetailPage.vue:496-502` · `CourseReviewModerationPage.vue:356-362` | 弹窗关闭按钮只有 `<X>` 图标，无文本与 `aria-label`，读屏无法识别按钮用途 | Before：`<button><X/></button>`；After：加 `:aria-label="t('common.close')"` 或 sr-only 文本 | 图标按钮必须有可访问名称（WCAG 1.1.1 / 4.1.2） |
-| L2 | LOW | accessibility | `CourseDetailPage.vue:506-509` | 举报理由 radio 组无 `fieldset`/`legend` 分组（offering 选择已有，见 G3） | Before：5 个 radio 无组语义；After：`<fieldset><legend>` 包裹，或至少 `role="radiogroup"` + `aria-label` | 同组单选控件需分组命名，读屏才能播报完整语境（WCAG 1.3.1） |
+| L2 | LOW | accessibility | `CourseDetailPage.vue:506-509` | 举报理由 radio 组无 `fieldset`/`legend` 分组（offering 选择已用 fieldset/legend，见下文「已达标项核查」radio aria 行） | Before：5 个 radio 无组语义；After：`<fieldset><legend>` 包裹，或至少 `role="radiogroup"` + `aria-label` | 同组单选控件需分组命名，读屏才能播报完整语境（WCAG 1.3.1） |
 | L3 | LOW | ui | `CourseDetailPage.vue:419-426` | 评价列表星级只显示星形图标，无数字评分文本；读屏仅能听到星形（无 aria-label），视觉用户也需数星 | Before：5 个 `<Star>` 图标，`review.rating` 仅驱动高亮；After：旁置 `aria-label="4/5 星"`，或在评分徽标显示 `4.0`（与表单 `tabular-nums` 数字一致） | 评分是核心数据，需同时以文本形式暴露（可感知性）；PRD §7.2「评分数字排版」在列表侧未落实 |
-| L4 | LOW | typography | `CourseCatalogPage.vue:101-110` · `CourseReviewModerationPage.vue:30-39,51-67` | 卡片信息层级全部依赖任意值字号（`text-[15px]/[12px]/[11px]`）表达，无语义标记（如 `<p>`+token） | Before：标题/元信息/徽标字号各异但均手写；After：与 M5 一并 token 化，列表项标题可用语义元素 | 与 M5 同源，归并为排版 token 化工作项 |
+| L4 | LOW | typography | `CourseCatalogPage.vue:101-110` · `CourseReviewModerationPage.vue:229,231,235-236,239,251,258,267` | 卡片信息层级全部依赖任意值字号（`text-[15px]/[12px]/[11px]`）表达，无语义标记（如 `<p>`+token） | Before：标题/元信息/徽标字号各异但均手写；After：与 M5 一并 token 化，列表项标题可用语义元素 | 与 M5 同源，归并为排版 token 化工作项 |
 
 ## 已达标项核查（PRD §7.2 已知发现逐项）
 
@@ -70,7 +70,7 @@ better-interface `full` 模式六域审计（accessibility / layout / writing / 
 |---|---|---|
 | radio aria（单选可访问性） | ✅ 部分达标 | offering 选择：`<fieldset><legend>` + `<label>` 包裹原生 radio（`CourseDetailPage.vue:319-337`）；评分星已用 `<button>` + `aria-label`（342-354，但见 M4）；举报理由 radio 缺分组（见 L2） |
 | 弹窗 focus trap | ❌ 未达标 | 两个弹窗均无 trap / Escape / 初始聚焦（见 A1、A2） |
-| 移动端堆叠 | ✅ 达标 | 三页面均使用响应式 grid：目录 `md:grid-cols-2 xl:grid-cols-3`（`CourseCatalogPage.vue:94`）；审核列表 `lg:grid-cols-[...]` 移动端单列 + `lg:hidden` 紧凑元信息（`CourseReviewModerationPage.vue:22,39,51`）；详情卡片 `flex-wrap`；无固定宽度溢出 |
+| 移动端堆叠 | ✅ 达标 | 三页面均使用响应式 grid：目录 `md:grid-cols-2 xl:grid-cols-3`（`CourseCatalogPage.vue:94`）；审核列表 `lg:grid-cols-[...]` 移动端单列 + `lg:hidden` 紧凑元信息（`CourseReviewModerationPage.vue:222,239,251,258`）；详情卡片 `flex-wrap`；无固定宽度溢出 |
 | i18n 覆盖 | ✅ 达标 | 4 locale（zh/en/ja/it）三 section 键数完全一致：`coursesPage` 14、`courseDetailPage` 50、`courseReviewModeration` 35（`locales/{zh,en,ja,it}.ts`）；页面文案全部走 `t()`，服务端硬编码标签经 `authorLabel` 本地化（`CourseDetailPage.vue:41-47`） |
 | messageCode 不泄露 | ✅ 达标 | 前端统一 `ApiResponseError`：`message` 为翻译/fallback 文本，`messageCode` 存独立字段不直接渲染（`resource/src/runtime/api.ts:17-20,48-54`；`api-message.ts:40-46`）；页面 catch 仅展示 `error.message` |
 | 评分数字排版 | ✅ 部分达标 | 表单评分 `tabular-nums` + `{{ formRating }}.0`（`CourseDetailPage.vue:355`）达标；评价列表无数字评分（见 L3） |
