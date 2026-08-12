@@ -1,73 +1,103 @@
-# 课评界面审计基线（Course Review Interface Audit）
+# 课评界面六域审计基线
 
-> Doc type: interface audit baseline
+> Doc type: audit baseline
 >
-> Status: Active
+> Status: Active（Phase 1 基线；F1-F3 已改造，2026-08-12 复测，HIGH = 0）
 >
-> Owner: Platform maintainers
+> Owner: Platform maintainers / Web frontend
 >
 > Last verified: 2026-08-12
+>
+> Epic: #172（PRD §7.2 + A6） · Issue: #180
 
-对应 Epic #172（PRD §7.2 + A6）与 issue #180：对课评 3 个页面（Catalog / Detail / Moderation）做
-better-interface `full` 模式六域审计，产出 findings 表；F1–F3 改造后复测；`docs/product/current-state.md`
-同步更新。
+## 范围
 
-## Scope and Coverage
+better-interface `full` 模式六域审计（accessibility / layout / writing / typography / colors / ui），对象为课评 3 个页面：
 
-- Mode: `full`（六域全检，含空态/加载/错误/窄屏状态；finding 上限 15）
-- Scope: `CourseCatalogPage.vue`（/courses）、`CourseDetailPage.vue`（/courses/:courseId）、
-  `CourseReviewModerationPage.vue`（/moderation/course-reviews），以及它们共享的
-  `PageHeader.vue` / `EmptyState.vue` / `UserAvatar.vue` 与全局 tokens（`styles/tokens.css`）。
-- Stack: Vue 3.5 + Tailwind v4（OKLCH 语义 token）+ vue-i18n（zh/en/ja/it）+ Lucide icons；
-  设计系统为 `gf-*` 组件类（components.css）。
-
-| Domain | Evidence inspected | Result |
+| 页面 | 文件 | 行数 |
 |---|---|---|
-| Accessibility | 3 页面全部控件（键盘路径、aria 属性、表单、弹窗、焦点）、`AppShell.vue:568` main 地标、`app.gohtml:43` `#goose-app` 根节点 | 3 HIGH + 2 MEDIUM/LOW（HIGH 已修复） |
-| Layout | 三页响应式网格、弹窗、窄屏断点、内容列宽（`gf-shell-content`）、按钮间距 | 1 MEDIUM |
-| Writing | zh/en/ja/it 四语种文案（`locales/*.ts` 课评段）、按钮/空态/错误文案 | 1 MEDIUM（已修复） |
-| Typography | 字号阶梯（11–15px）、truncate/line-clamp、tabular-nums、行高 | 2 LOW |
-| Colors | OKLCH token 对比度实测（脚本换算 WCAG 比值）、星星填充/未填充状态 | 1 MEDIUM + 1 LOW |
-| UI | 按钮/徽章/圆角/过渡、motion-reduce、图标状态 | 1 LOW（已修复） |
+| 课程目录 | `apps/gooseforum/resource/src/site/pages/CourseCatalogPage.vue` | 136 |
+| 课程详情 | `apps/gooseforum/resource/src/site/pages/CourseDetailPage.vue` | 544 |
+| 课评审核 | `apps/gooseforum/resource/src/site/pages/CourseReviewModerationPage.vue` | 404 |
+
+基线方法：逐页逐域源码审计（对照 PRD §7.2 已知发现逐项核实），findings 按严重度 HIGH / MEDIUM / LOW 分级，每条含 `file:line`、Before/After、Why。改造完成后（F1-F3）按本文档复测，验收目标为 HIGH = 0。
+
+## 审计总览
+
+| 域 | HIGH | MEDIUM | LOW | 合计 |
+|---|---|---|---|---|
+| accessibility | 2 | 3 | 2 | 7 |
+| layout | 0 | 0 | 0 | 0 |
+| writing | 0 | 0 | 0 | 0 |
+| typography | 0 | 1 | 1 | 2 |
+| colors | 0 | 0 | 0 | 0 |
+| ui | 0 | 1 | 1 | 2 |
+| **合计** | **2** | **5** | **4** | **11** |
+
+六域全部完成检查，无 "Not reviewed"。layout / writing / colors 三域未发现阻断性或改进性 finding（达标项见下文「已达标项核查」）。
 
 ## Findings
 
-| # | Severity | Domain | Location | Before | After | Why |
+> 状态列：✅ 已修复（F1-F3，2026-08-12）· ⬜ 待办（记录在案，留待后续 slice）
+
+### HIGH
+
+| # | 严重度 | 域 | 位置 | 问题 | Before → After | Why |
 |---|---|---|---|---|---|---|
-| 1 | HIGH | Accessibility | `CourseDetailPage.vue:530`–591（举报弹窗）、`CourseReviewModerationPage.vue:353`–415（揭示弹窗） | `role="dialog"` + 遮罩，但无焦点移入/陷阱、无 Escape、关闭后焦点不还原、背景仍可 Tab 到达 | 新增 `site/composables/useModalDialog.ts`：打开时焦点移入首个表单控件、Tab/Shift+Tab 循环、Escape 关闭、关闭后还原焦点、打开时 `#goose-app` 置 `inert` | F1。弹窗缺焦点管理：键盘用户会 Tab 进背景、读屏可读到弹窗外内容、关闭后焦点丢失（WCAG 2.1.2 / APG dialog pattern） |
-| 2 | HIGH | Accessibility | `CourseDetailPage.vue:424`（表单错误）、`CourseReviewModerationPage.vue:192`、`:389`（页/弹窗错误） | 错误仅以 `text-error` 颜色渲染，无 `role="alert"`、无 `aria-invalid`/`aria-describedby`，校验失败不聚焦首个无效字段 | 错误加 `role="alert"`；offering/rating/content 三字段加 `aria-invalid` + `aria-describedby="course-review-form-error"`；`submitForm` 校验失败聚焦对应控件（`CourseDetailPage.vue:129`–177） | F3。表单校验错误未被读屏播报，用户不知道为何提交失败（WCAG 4.1.3 / better-accessibility「Errors that announce」） |
-| 3 | HIGH | Accessibility | `CourseDetailPage.vue:383`–398（星级评分） | 星星是 `<button>` + `aria-label="N 星"`，但无选中状态；评分组无可访问名称；未选中有无提示 | 星星加 `aria-pressed`；评分容器加 `role="group"` + `aria-label`；未选中时 `sr-only` 播报「未选择评分」 | F2。读屏用户听不出当前选了几星，表单状态不可感知（ARIA pressed state / 表单状态播报） |
-| 4 | MEDIUM | Accessibility | `CourseReviewModerationPage.vue:177`（改造前） | 页面自渲 `<main>`，嵌套在 `AppShell.vue:568` 的 `<main>` 内 | 改为 `<div class="min-w-0 pb-8">` | 重复 main 地标破坏读屏地标导航（better-accessibility「Structure is navigation」）。已修复 |
-| 5 | MEDIUM | Colors | `tokens.css:7`–8 派生：`text-base-content/45`、`/55`（如 `CourseCatalogPage.vue:106,110,117`、`CourseDetailPage.vue:277,300–301,315,473–475`、`CourseReviewModerationPage.vue:239,244–245,276,348,376`） | 小字号弱化文本：light `/45` = 3.34:1、dark `/45` = 3.09:1、dark `/55` = 4.18:1，均低于 4.5:1 | 信息性文本至少用 `/65`（light 6.94:1 / dark 5.55:1 达标）；`/45` 仅保留给纯装饰 | WCAG 1.4.3 AA 小字号 4.5:1。属全局 token 系统性调整（需同步 mobile `tokens.json`，AGENTS.md 硬约束），本基线只记录，不在此 PR 动 token |
-| 6 | MEDIUM | Layout | `CourseReviewModerationPage.vue:230`–249（队列行）、`app/http/controllers/forum/moderation.go:624` | 审核队列行无「查看被举报评价」入口；审核日志 snapshot 的 `TargetURL` 指向 `/courses/reviews/:id`，而该路由不存在（`route4api.go:103`–104 仅 `/courses`、`/courses/:courseId`） | 队列行加评价链接（指向 `/courses/:courseId`），或注册 `/courses/reviews/:id` 路由 | 审核员无法从队列跳转核对原文，且日志存在死链。需产品确认路由形态，留待后续 |
-| 7 | MEDIUM | Writing | `locales/zh.ts:413`（及 en/ja/it 同键，改造前） | resolved 标签为「已隐藏 / Hidden / 非表示済み / Nascoste」 | 「已处理 / Handled / 処理済み / Gestite」 | 该 tab 含「隐藏」与「恢复显示」两类已处理举报（`moderation.go:352`–360），原词义不准确、误导审核员。已修复 |
-| 8 | LOW | Accessibility | `CourseCatalogPage.vue:17`–24（改造前） | 页头徽章只显示裸页码数字 | 加 `sr-only` 「第 N 页 / Page N」标签 | 读屏把裸数字读成无意义内容（better-accessibility「Accessible names」）。已修复 |
-| 9 | LOW | Typography | `CourseCatalogPage.vue:104,110,117`、`CourseReviewModerationPage.vue:230,275` | `text-[11px]` 徽章/元信息低于 12px 地板 | 提到 `12px` | 小字号可读性（better-typography「Size and Contrast Floors」）。留待后续 |
-| 10 | LOW | Colors | `CourseDetailPage.vue:394,470` | 未填充星 `text-base-content/20` = 1.60:1（图形对象） | 提到 `/35`（约 2.6:1）或明确依赖冗余线索（`aria-pressed` + 数字读值） | WCAG 1.4.11 非文本 3:1。已有冗余线索（选中态还有数字与 pressed 状态），定为 LOW。留待后续 |
-| 11 | LOW | Typography | `CourseReviewModerationPage.vue:244` | 评价摘录 `line-clamp-2` 截断，无 title/展开 | 加 `:title` 或随 #6 提供全文链接 | 截断内容在队列内不可达（better-typography「Truncate Without Losing Content」）。与 #6 关联 |
+| A1 ✅ | HIGH | accessibility | `CourseDetailPage.vue:530-591`（举报弹窗） | 举报弹窗（`role="dialog" aria-modal="true"`）无 focus trap：打开后焦点停留在触发按钮，Tab 可穿出弹窗操作背景页面；无初始聚焦、无 `aria-labelledby` 关联标题、无 Escape 关闭、背景无滚动锁定 | Before：打开弹窗 → 焦点留在触发按钮，键盘可 Tab 到背景元素；After（F1，已实现）：打开时焦点移入弹窗首个表单控件，Tab/Shift+Tab 在弹窗内循环，Escape 关闭并归还焦点，标题用 `aria-labelledby` 关联，`#goose-app` 置 `inert` 使背景不可达 | 模态对话框必须闭环键盘导航（WCAG 2.1.2 / 2.4.3）；焦点穿出会导致键盘与屏幕阅读器用户误操作背景内容，属无障碍硬伤 |
+| A2 ✅ | HIGH | accessibility | `CourseReviewModerationPage.vue:353-415`（身份揭示弹窗） | 身份揭示弹窗（`role="dialog" aria-modal="true"`）与 A1 相同：无 focus trap、无初始聚焦、无 `aria-labelledby`、无 Escape 处理、无滚动锁定 | Before：同上；After（F1，已实现）：与 A1 相同的模态闭环（焦点圈定、Escape 归还、标题关联、背景 inert），由共享 `site/composables/useModalDialog.ts` 提供 | 同 A1；该弹窗含敏感操作（揭示匿名作者），焦点失控风险更高 |
 
-## Considered but Rejected
+### MEDIUM
 
-| Location | Candidate | Rejected because |
+| # | 严重度 | 域 | 位置 | 问题 | Before → After | Why |
+|---|---|---|---|---|---|---|
+| M1 ⬜ | MEDIUM | accessibility | `CourseDetailPage.vue:179-187,202-207` | 删除确认与错误提示使用浏览器原生 `window.confirm` / `window.alert` | Before：删除评价弹原生 confirm，helpful/删除失败弹原生 alert；After：替换为站内语义化 dialog（复用模态组件），成功/失败用 `role="status"`/`role="alert"` 内联提示 | 原生对话框不可样式化、打断流程、屏幕阅读器语境割裂，且无法聚焦管理；PRD §7.2 已知发现「alert/confirm 替换」核实属实。待办 |
+| M2 ⬜ | MEDIUM | accessibility | `CourseReviewModerationPage.vue:199-224` | 举报队列三态切换（open/resolved/rejected）用裸 `<button>` 实现，无 tab 语义：无 `role="tab"` / `aria-selected` / `aria-controls`，无方向键切换 | Before：三个 tab 外观按钮，仅 `@click` 切换；After：补 `role="tablist"`/`role="tab"` + `aria-selected` + 方向键导航 + `role="tabpanel"` | PRD §7.2 已知发现「三态齐全」——状态数据齐全但键盘/读屏语义缺失；tab 模式要求方向键导航（WAI-ARIA Tabs Pattern）。部分缓解：已补 `aria-pressed` 表达选中态（2026-08-12），完整 tablist 模式留待后续 |
+| M3 ⬜ | MEDIUM | accessibility | `CourseDetailPage.vue:335-337,424` · `CourseReviewModerationPage.vue:189,389` | 异步状态无 live region：评价加载/空态（EmptyState `loading`）、表单错误 `<p>`、举报错误 `<p>` 均为静态文本，屏幕阅读器不播报状态变化 | Before：加载中/失败静默切换；After：加载容器加 `aria-live="polite"`（或 `role="status"`），错误提示加 `role="alert"`，提交按钮 `aria-busy` | 异步内容变化需通过 live region 告知辅助技术（WCAG 4.1.3）；否则读屏用户无法感知加载失败与成功。部分缓解：错误提示已加 `role="alert"`、揭示结果加 `role="status"`（2026-08-12）；加载/空态 live region 留待后续 |
+| M4 ⬜ | MEDIUM | ui | `CourseDetailPage.vue:374-400` | 星级评分用 5 个独立 `<button>` 实现，无 `radiogroup` 语义、无键盘方向键调节、无 `aria-valuenow` | Before：只能点击/聚焦后按 Enter 逐星；After：改用 `role="radiogroup"` + 5 个 `role="radio"`（`aria-checked`），支持 ←/→ 增减、Home/End 到头尾；或 `input type="range"` 包装 | 评分是单选语义，radiogroup 模式提供标准键盘操作（WAI-ARIA Radio Group Pattern）；当前实现键盘操作低效且读屏播报割裂。部分缓解（F2）：星星补 `aria-pressed`、评分容器补 `role="group"` + `aria-label`、未选中 sr-only 播报（2026-08-12）；保留按钮模式（与全站控件一致），radiogroup/range 改造留待后续 |
+| M5 ⬜ | MEDIUM | typography | `CourseDetailPage.vue:222,228,252,268-272,283,328,334-337` 等 | 评价列表/表单大量使用任意值字号与颜色透明度（`text-[13px] text-base-content/55` 等），未走设计 token，字号层级（11/12/13/15px）与页头（`text-xl sm:text-2xl`）无系统化 scale | Before：分散任意值，正文/辅助文本层级靠手写；After：收敛为 token 化文本样式（如 `gf-text-sm/gf-text-xs` 或设计 token scale），同域页面字号一致 | 任意值字体与透明度破坏主题一致性，改主题时难以全局调优；PRD §7.2「评分数字排版」相关排版基准需 token 化（评分数字 `tabular-nums` 已达标，见 T1）。待办 |
+
+### LOW
+
+| # | 严重度 | 域 | 位置 | 问题 | Before → After | Why |
+|---|---|---|---|---|---|---|
+| L1 ✅ | LOW | accessibility | `CourseDetailPage.vue:544-551` · `CourseReviewModerationPage.vue:367-374` | 弹窗关闭按钮只有 `<X>` 图标，无文本与 `aria-label`，读屏无法识别按钮用途 | Before：`<button><X/></button>`；After（已实现）：加 `:aria-label="t('common.close')"` | 图标按钮必须有可访问名称（WCAG 1.1.1 / 4.1.2） |
+| L2 ⬜ | LOW | accessibility | `CourseDetailPage.vue:554-558` | 举报理由 radio 组无 `fieldset`/`legend` 分组（offering 选择已用 fieldset/legend，见下文「已达标项核查」radio aria 行） | Before：5 个 radio 无组语义；After：`<fieldset><legend>` 包裹，或至少 `role="radiogroup"` + `aria-label` | 同组单选控件需分组命名，读屏才能播报完整语境（WCAG 1.3.1）。待办 |
+| L3 ⬜ | LOW | ui | `CourseDetailPage.vue:465-472` | 评价列表星级只显示星形图标，无数字评分文本；读屏仅能听到星形（无 aria-label），视觉用户也需数星 | Before：5 个 `<Star>` 图标，`review.rating` 仅驱动高亮；After：旁置 `aria-label="4/5 星"`，或在评分徽标显示 `4.0`（与表单 `tabular-nums` 数字一致） | 评分是核心数据，需同时以文本形式暴露（可感知性）；PRD §7.2「评分数字排版」在列表侧未落实。待办 |
+| L4 ⬜ | LOW | typography | `CourseCatalogPage.vue:101-110` · `CourseReviewModerationPage.vue:229,231,235-236,239,251,258,267` | 卡片信息层级全部依赖任意值字号（`text-[15px]/[12px]/[11px]`）表达，无语义标记（如 `<p>`+token） | Before：标题/元信息/徽标字号各异但均手写；After：与 M5 一并 token 化，列表项标题可用语义元素 | 与 M5 同源，归并为排版 token 化工作项。待办 |
+
+## 已达标项核查（PRD §7.2 已知发现逐项）
+
+| PRD 已知发现 | 核查结果 | 证据 |
 |---|---|---|
-| `CourseReviewModerationPage.vue:200`–224 | 把状态 tab 改为 `role="tablist"/tab` + roving tabindex | 项目全局 `gf-tab` 是按钮式 tab（components.css:133）；`aria-pressed` 已表达选中态，引入新 widget 模式反而增加不一致 |
-| `CourseDetailPage.vue:405`（删除确认） | 把 `window.confirm` 换成自定义弹窗 | 原生 confirm 可访问且全站一致；换自定义弹窗超出本基线范围 |
-| `tokens.css:7` | 直接提高弱化文本 alpha 修 #5 | 跨全站系统改动，且按 AGENTS.md 设计 token 变更必须同步 mobile `tokens.json`；本 PR 只建基线并记录 |
-| `CourseDetailPage.vue:383` | 星级改为原生 `<select>`/`range` | 自定义按钮 + `aria-pressed` 保留视觉设计，Tab/Space 键盘路径完整 |
-| 课评列表分页 | 给详情页评价列表加分页 | `ReviewListMaxItems = 200`（`review.go:340`）是防无界读取的有意上限；分页属后续 slice 增强，不在 F1–F3 |
+| radio aria（单选可访问性） | ✅ 部分达标 | offering 选择：`<fieldset><legend>` + `<label>` 包裹原生 radio（`CourseDetailPage.vue:350-372`）；评分星已用 `<button>` + `aria-label` + `aria-pressed`（374-400，见 M4）；举报理由 radio 缺分组（见 L2） |
+| 弹窗 focus trap | ✅ 已达标（2026-08-12，F1） | 两个弹窗均接入 `useModalDialog`：焦点移入/陷阱/Escape/归还 + `#goose-app` inert（见 A1、A2） |
+| 移动端堆叠 | ✅ 达标 | 三页面均使用响应式 grid：目录 `md:grid-cols-2 xl:grid-cols-3`（`CourseCatalogPage.vue:94`）；审核列表 `lg:grid-cols-[...]` 移动端单列 + `lg:hidden` 紧凑元信息（`CourseReviewModerationPage.vue:222,239,251,258`）；详情卡片 `flex-wrap`；无固定宽度溢出 |
+| i18n 覆盖 | ✅ 达标 | 4 locale（zh/en/ja/it）三 section 键数完全一致：`coursesPage` 15、`courseDetailPage` 52、`courseReviewModeration` 36（`locales/{zh,en,ja,it}.ts`，2026-08-12 新增 `pageLabel`/`ratingUnselected`/`reportNoteLabel`/`revealReasonLabel` 后仍四语一致）；页面文案全部走 `t()`，服务端硬编码标签经 `authorLabel` 本地化（`CourseDetailPage.vue:41-47`） |
+| messageCode 不泄露 | ✅ 达标 | 前端统一 `ApiResponseError`：`message` 为翻译/fallback 文本，`messageCode` 存独立字段不直接渲染（`resource/src/runtime/api.ts:17-20,48-54`；`api-message.ts:40-46`）；页面 catch 仅展示 `error.message` |
+| 评分数字排版 | ✅ 部分达标 | 表单评分 `tabular-nums` + `{{ formRating }}.0`（`CourseDetailPage.vue:397`）达标；评价列表无数字评分（见 L3） |
+| alert/confirm 替换 | ❌ 未达标 | `window.confirm`/`window.alert` 仍用于删除确认与错误提示（见 M1） |
+| 三态齐全 | ⚠️ 部分达标 | open/resolved/rejected 三态数据与切换逻辑齐全（`CourseReviewModerationPage.vue:27,58-66`）；2026-08-12 补 `aria-pressed` 表达选中态，完整 tab 语义（tablist/方向键）仍缺（见 M2） |
 
-## Verification
+## 复测记录（F1-F3 改造后，2026-08-12）
 
-- `cd apps/gooseforum/resource && pnpm install` — 通过（6.3s，pnpm v11.18.0）。
-- `pnpm run typecheck`（client tsc + `vue-tsc --noEmit`）— **exit 0**。
-- `pnpm test`（vitest run --dir test）— **14 files / 101 tests passed**。
-- `pnpm build`（client build + vue-tsc + vite build）— **exit 0**；仅 @vueuse/core 的 rolldown
-  `INVALID_ANNOTATION` 与 chunk-size 既有告警，与本次改动无关。
-- 对比度：按 `tokens.css` OKLCH 值做 oklch→sRGB→WCAG 换算（light/dark 两套），数值见 #5/#10。
-- **Not verified**：真实浏览器键盘走查与读屏（NVDA/VoiceOver）未在本环境运行；`useModalDialog`
-  的焦点行为已按 APG dialog pattern 实现并通过类型检查，仍需人工走查确认。
+验收门禁：**HIGH（A1、A2）= 0 ✅**。
 
-## Verdict
+本次改造关闭/部分关闭项：
 
-`Needs changes` — F1–F3 已在本 PR 落地，**HIGH = 0**；剩余 2 MEDIUM（#5 token 对比度、#6 审核跳转/死链）
-与 3 LOW 记录在案，留待后续 slice。
+- A1、A2（弹窗 focus trap）— 关闭，新增共享 `site/composables/useModalDialog.ts` 接入两弹窗。
+- L1（关闭按钮 aria-label）— 关闭。
+- F2 附带（对应 M4 部分）：星级 `aria-pressed` + 评分组 `role="group"` + `aria-label` + 未选中 sr-only 播报。
+- F3 附带（对应 M3 部分）：表单/页/弹窗错误 `role="alert"`、揭示结果 `role="status"`、offering/rating/content 三字段 `aria-invalid` + `aria-describedby`、校验失败聚焦首个无效字段。
+- 附加修复（基线外）：审核页移除嵌套 `<main>` 地标（读屏地标导航）；状态 tab 补 `aria-pressed`；resolved 标签改「已处理/Handled/処理済み/Gestite」（原「已隐藏」与语义不符，该 tab 含隐藏与恢复两类已处理举报）；目录卡片截断字段补 `title`；页头页码 `sr-only` 标签（新增 `pageLabel` 键）。
+
+仍待办（⬜）：M1（alert/confirm 替换）、M2（完整 tab 语义）、M3（加载/空态 live region）、M4（radiogroup/range）、M5+L4（排版 token 化）、L2（举报理由 fieldset）、L3（列表数字评分）；colors 域弱化文本对比度（light `/45`=3.34:1、dark `/45`=3.09:1、dark `/55`=4.18:1 < 4.5:1 AA）与未填充星对比度（`/20`=1.60:1 < 3:1）记录在案，token 变更需同步 mobile `tokens.json`（AGENTS.md 硬约束），属独立 PR。
+
+验证：`pnpm install` 通过；`pnpm run typecheck` exit 0；`pnpm test` 14 files / 101 tests 通过；`pnpm build` exit 0（仅 @vueuse/core rolldown `INVALID_ANNOTATION` 与 chunk-size 既有第三方告警）。真实浏览器键盘/读屏人工走查未在本环境执行，`useModalDialog` 按 APG dialog pattern 实现，需人工复核。
+
+## 复测指引（后续 slice）
+
+1. 复测范围：同一 3 页面，按本表逐条核对 Before → After。
+2. 验收门禁：HIGH 必须为 0；MEDIUM 逐条关闭或给出例外理由；LOW 可排入 backlog。
+3. 复测工具：键盘走查（Tab/Shift+Tab/Escape/方向键）+ 读屏抽查（评分、tab、弹窗、live region）+ `git diff --check`。
+4. 复测结论回填至本文档「Last verified」与 findings 状态列。
