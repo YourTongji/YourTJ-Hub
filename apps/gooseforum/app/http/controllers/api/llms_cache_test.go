@@ -13,9 +13,11 @@ import (
 	"github.com/leancodebox/GooseForum/app/models/forum/category"
 	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
 	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
 	"github.com/leancodebox/GooseForum/app/models/forum/posts"
 	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
 	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
 	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 	"github.com/leancodebox/GooseForum/app/service/llmsservice"
@@ -262,6 +264,8 @@ func setupLLMSCacheTestDB(t *testing.T) *gorm.DB {
 		&pageConfig.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&pointsRecord.Entity{},
+		&userPoints.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
 		&users.EntityComplete{},

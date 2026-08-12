@@ -9,6 +9,8 @@ import (
 	"github.com/gin-gonic/gin"
 	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
+	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
+	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
 	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
 	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
 	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
@@ -22,6 +24,8 @@ func setupSessionAuthTestDB(t *testing.T) {
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{},
+		&userPoints.Entity{},
+		&pointsRecord.Entity{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 		&userTotpChallenges.Entity{},
@@ -31,6 +35,8 @@ func setupSessionAuthTestDB(t *testing.T) {
 	conn.Where("1 = 1").Delete(&userTotpChallenges.Entity{})
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
+	conn.Where("1 = 1").Delete(&pointsRecord.Entity{})
+	conn.Where("1 = 1").Delete(&userPoints.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }
 

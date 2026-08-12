@@ -2,6 +2,7 @@ package api
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -290,6 +291,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	nextStatus := req.Params.TopicStatus
+	if nextStatus == 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	if topic.Status == nextStatus {
 		return component.SuccessResponse(true)
 	}
@@ -555,7 +559,15 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	posts.DeleteEntity(&postEntity)
+	deletedPost, err := postservice.DeleteTopicPost(postEntity.Id, req.UserId)
+	if err != nil {
+		if errors.Is(err, postservice.ErrPostNotFound) {
+			return component.FailResponseCode(component.MessagePostNotFound, nil)
+		}
+		slog.Error("delete post failed", "postId", postEntity.Id, "userId", postEntity.UserId, "error", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	postEntity = deletedPost
 	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
 	hotdataserve.ClearTopicListCache()
 	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。

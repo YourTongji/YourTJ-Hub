@@ -150,5 +150,15 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(13)
 		currentVersion = 13
 	}
+	if currentVersion < 14 {
+		result := datamigration.BackfillMissingUserPoints()
+		slog.Info("app migration user points backfill done", "backfilled", result.Backfilled, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user points backfill has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(14)
+		currentVersion = 14
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }
