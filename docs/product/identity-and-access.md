@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-11
 
 ## Identity model
 
@@ -144,7 +144,9 @@
   (`Secure` + SameSite=Lax whenever `app.env != "local"`; the Secure flag follows the environment
   fail-closed rather than the `server.url` scheme, so production cookies stay Secure even when the
   template default `server.url = "http://localhost"` is left untouched — issue #113).
-- Enumeration resistance: login errors do not distinguish "user not found / wrong password".
+- Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
+  unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
+  reveal whether a username/email is registered.
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,
