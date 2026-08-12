@@ -111,3 +111,53 @@ func TestPrivacyEraseStillWorksForUserDeletedTopic(t *testing.T) {
 		t.Fatalf("repeated privacy-erase should be idempotent: %v", err)
 	}
 }
+
+// 场景：ACTIVE 话题 + 作者自己的回复被版主 MODERATOR_REMOVED + 作者对父话题
+// privacy-erase。修复前级联会无条件 MarkPrivacyErased 该治理回复并清空正文；
+// 修复后必须在写入父话题前整体拒绝，治理回复的状态与正文保持原样。
+func TestPrivacyEraseRejectsTopicWithModeratorRemovedOwnReply(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	const topicID = uint64(948700)
+	authorID, _ := seedTopicWithOptionalReply(t, conn, topicID, true)
+	const authorReplyID = topicID + 400
+	zzCleanupContent(t, conn, []uint64{topicID, topicID + 100, topicID + 200, topicID + 300, authorReplyID})
+
+	// 作者自己的回复（同作者，PostNo=3）。
+	if err := conn.Create(&posts.Entity{
+		Id: authorReplyID, TopicId: topicID, PostNo: 3, UserId: authorID,
+		Content: "author own reply",
+		VisibilityStatus: posts.VisibilityActive, RetentionStatus: posts.RetentionNormal,
+	}).Error; err != nil {
+		t.Fatalf("create author reply: %v", err)
+	}
+
+	// 版主治理删除该自回复。
+	if err := DeletePostAsModerator(topicID+99, authorReplyID, "spam"); err != nil {
+		t.Fatalf("DeletePostAsModerator: %v", err)
+	}
+	if got := posts.UnscopedGet(authorReplyID); got.VisibilityStatus != posts.VisibilityModeratorRemoved {
+		t.Fatalf("precondition: reply vis = %s, want MODERATOR_REMOVED", got.VisibilityStatus)
+	}
+	if topicBefore := topics.UnscopedGet(topicID); topicBefore.VisibilityStatus != topics.VisibilityActive {
+		t.Fatalf("precondition: topic vis = %s, want ACTIVE", topicBefore.VisibilityStatus)
+	}
+
+	// 作者对父话题发起整体隐私擦除：必须被拒绝（原子语义，避免级联改写治理回复）。
+	if err := PrivacyEraseContent(authorID, ContentTypeTopic, topicID); err == nil {
+		t.Fatal("privacy-erase on topic containing MODERATOR_REMOVED own reply should be rejected")
+	}
+
+	// 父话题状态与正文不变。
+	topicAfter := topics.UnscopedGet(topicID)
+	if topicAfter.VisibilityStatus != topics.VisibilityActive || topicAfter.RetentionStatus != topics.RetentionNormal {
+		t.Fatalf("topic mutated by rejected privacy-erase: %s/%s", topicAfter.VisibilityStatus, topicAfter.RetentionStatus)
+	}
+	if topicAfter.Title == "" {
+		t.Fatal("topic title wiped despite rejected privacy-erase")
+	}
+	// 治理回复状态与正文不变。
+	replyAfter := posts.UnscopedGet(authorReplyID)
+	if replyAfter.VisibilityStatus != posts.VisibilityModeratorRemoved || replyAfter.Content != "author own reply" {
+		t.Fatalf("moderator-removed reply mutated by rejected privacy-erase: %#v", replyAfter)
+	}
+}

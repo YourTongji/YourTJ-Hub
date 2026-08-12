@@ -586,18 +586,31 @@ func PrivacyEraseContent(userID uint64, contentType ContentType, contentID uint6
 		if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
 			return component.NewMessageError(component.MessageContentNotRecoverable, "治理删除内容不能通过隐私删除绕过审核", nil)
 		}
+		// 级联前预检：话题内同作者回复若存在治理删除（MODERATOR_REMOVED），
+		// 整体拒绝——否则作者可保留 ACTIVE 话题、让版主治理删除其一条自回复后，
+		// 再对父话题隐私擦除，级联路径会把治理删除回复改写为
+		// ACCOUNT_ANONYMIZED/PURGED 并清空正文，绕过治理证据留存（review）。
+		var topicPosts []*posts.Entity
+		if err := posts.ListUnscopedByTopicID(contentID, &topicPosts); err != nil {
+			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
+		}
+		for _, post := range topicPosts {
+			if post == nil || post.UserId != userID {
+				continue
+			}
+			if post.VisibilityStatus == posts.VisibilityModeratorRemoved {
+				return component.NewMessageError(component.MessageContentNotRecoverable, "话题内存在治理删除的回复，不能通过隐私删除绕过审核", nil)
+			}
+		}
 		if err := topics.MarkPrivacyErased(contentID, userID, reason); err != nil {
 			return component.NewMessageError(component.MessageContentPurgeFailed, "隐私删除失败", component.MessageParams{"error": err.Error()})
 		}
-		var topicPosts []*posts.Entity
-		if err := posts.ListUnscopedByTopicID(contentID, &topicPosts); err == nil {
-			for _, post := range topicPosts {
-				if post == nil || post.UserId != userID {
-					continue
-				}
-				_ = posts.MarkPrivacyErased(post.Id, userID, reason)
-				fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
+		for _, post := range topicPosts {
+			if post == nil || post.UserId != userID {
+				continue
 			}
+			_ = posts.MarkPrivacyErased(post.Id, userID, reason)
+			fileusageservice.PurgeTargetFiles(postsTarget(post.Id))
 		}
 		fileusageservice.PurgeTargetFiles(topicsTarget(contentID))
 		notificationservice.NullifyContentPreviews(contentID, 0)
