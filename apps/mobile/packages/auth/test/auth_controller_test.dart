@@ -149,7 +149,56 @@ void main() {
       expect(controller.error, 'Too many attempts, please try again later');
     });
 
-    test('TOTP 未知业务错误保留 needsTotp 并透出 messageKey', () async {
+    test('TOTP 未知业务错误保留 needsTotp 并返回可读 fallback(不泄露 raw key)', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const ApiException(
+          fallbackMessage: 'Request failed',
+          messageCode: 'some.unknown.code',
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      await controller.submitTotp('222222');
+
+      expect(controller.phase, LoginPhase.needsTotp);
+      // 与 _mapAuthError 策略一致:不泄露 `server.<code>` 字面量。
+      expect(
+        controller.error,
+        'Two-factor verification failed, please try again',
+      );
+      expect(controller.error, isNot(contains('server.')));
+      expect(controller.error, isNot(contains('some.unknown.code')));
+    });
+
+    test('TOTP 403 冻结账号进入 failed 并展示冻结文案(不再误报网络失败)', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        // #143 语义:403 携带 ResultStruct envelope,messageCode 保留。
+        totpVerifyError: const ApiFailureException(
+          fallbackMessage: 'Request failed with status 403',
+          messageCode: 'auth.account.frozen',
+          statusCode: 403,
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+
+      await controller.submitTotp('555555');
+
+      // 契约:challenge 不消费,解冻后可重试;但继续困在 TOTP 表单只会
+      // 误导用户,退出到 failed 允许重新走密码登录。
+      expect(controller.phase, LoginPhase.failed);
+      expect(controller.error, 'Account is frozen');
+      expect(controller.error, isNot(contains('Network connection failed')));
+    });
+
+    test('TOTP auth.login.failed(200,challenge 已消费)进入 failed 为终止性错误', () async {
       final storage = MemoryTokenStorage()..write('challenge-token');
       final controller = _buildController(
         storage: storage,
@@ -161,10 +210,50 @@ void main() {
       );
 
       await controller.login(username: 'alice', password: 'secret');
-      await controller.submitTotp('222222');
+      expect(controller.phase, LoginPhase.needsTotp);
+
+      await controller.submitTotp('666666');
+
+      // challenge 已被服务端消费,重试无意义,直接退出。
+      expect(controller.phase, LoginPhase.failed);
+      expect(controller.error, 'Sign-in failed, please try again');
+      expect(controller.error, isNot(contains('server.')));
+    });
+
+    test('TOTP 429 RateLimitException 保留 needsTotp 并展示限流文案', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifyError: const RateLimitException(
+          fallbackMessage: 'Too many requests, please retry later',
+          messageCode: 'totp.rateLimited',
+          retryAfterSeconds: 30,
+        ),
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      await controller.submitTotp('777777');
 
       expect(controller.phase, LoginPhase.needsTotp);
-      expect(controller.error, 'server.auth.login.failed');
+      expect(controller.error, 'Too many attempts, please try again later');
+    });
+
+    test('TOTP totpVerify 返回 false 防御性保留 needsTotp', () async {
+      final storage = MemoryTokenStorage()..write('challenge-token');
+      final controller = _buildController(
+        storage: storage,
+        twoFactorRequired: true,
+        totpVerifySucceeds: false,
+      );
+
+      await controller.login(username: 'alice', password: 'secret');
+      expect(controller.phase, LoginPhase.needsTotp);
+
+      await controller.submitTotp('888888');
+
+      expect(controller.phase, LoginPhase.needsTotp);
+      expect(controller.error, 'Invalid two-factor code');
     });
 
     test('TOTP 网络异常保留 needsTotp 可重试', () async {

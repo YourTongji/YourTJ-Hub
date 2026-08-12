@@ -124,12 +124,18 @@ class AuthController extends ChangeNotifier {
 
   /// TOTP 二次验证。
   ///
-  /// 错误语义(对齐后端 `totpController.go` 与 message_code.go):
+  /// 错误语义(对齐后端 `totpController.go`、`middleware/totpChallenge.go`
+  /// 与 message_code.go):
   /// - `totp.code.invalid` / `totp.rateLimited`:challenge 未消费,保留
   ///   [LoginPhase.needsTotp],用户可继续重试;
-  /// - HTTP 401 `auth.required`:challenge token 已过期/被消费,清理后回到
-  ///   [LoginPhase.failed],用户需重新走密码登录;
-  /// - 其他未知错误同样保留 needsTotp,避免一次抖动丢失有效 challenge。
+  /// - HTTP 401 `auth.required`:challenge token 已过期/被消费,回到
+  ///   [LoginPhase.failed] 并提示重新登录;
+  /// - HTTP 403 `auth.account.frozen`:账号已冻结,回到 [LoginPhase.failed]
+  ///   并展示冻结文案(契约:challenge 不消费,解冻后可重试);
+  /// - `auth.login.failed`(200,challenge 已消费后会话签发失败):终止性错误,
+  ///   回到 [LoginPhase.failed](重试无意义,下一次提交必然 401);
+  /// - 其他未知业务错误与网络抖动:防御性保留 needsTotp,避免一次抖动
+  ///   丢失有效 challenge。
   Future<void> submitTotp(String code) async {
     _busy = true;
     _error = '';
@@ -147,7 +153,21 @@ class AuthController extends ChangeNotifier {
       _phase = LoginPhase.failed;
       _error = 'Two-factor challenge expired, please sign in again';
     } on ApiException catch (e) {
-      // 保留 needsTotp 挑战,可重试;仅展示错误消息。
+      if (e.messageCode == 'auth.account.frozen') {
+        // 403 冻结:退出挑战并展示冻结文案,避免困在 TOTP 表单
+        // 误报"网络连接失败"(契约:解冻后重新走密码登录即可重试)。
+        _phase = LoginPhase.failed;
+        _error = 'Account is frozen';
+        return;
+      }
+      if (e.messageCode == 'auth.login.failed') {
+        // challenge 已被服务端消费后的会话签发失败:终止性错误,
+        // 保留挑战只会让用户看到"先失败、下一次又 401"的割裂体验。
+        _phase = LoginPhase.failed;
+        _error = 'Sign-in failed, please try again';
+        return;
+      }
+      // 其余未知业务错误:保留 needsTotp 挑战,可重试;仅展示错误消息。
       _error = _mapTotpError(e);
     } catch (e) {
       // 网络抖动等:保留挑战,可重试。
@@ -259,8 +279,10 @@ class AuthController extends ChangeNotifier {
     _pendingUsername = username;
   }
 
-  /// TOTP 错误消息映射。所有分支都保留 [LoginPhase.needsTotp],
-  /// 由调用方(login_page 的 `_submit`)决定是否清理挑战。
+  /// TOTP 错误消息映射。除 [submitTotp] 已显式处理的终止性错误
+  /// (`auth.account.frozen` / `auth.login.failed`)外,其余分支都保留
+  /// [LoginPhase.needsTotp],由调用方(login_page 的 `_submit`)决定
+  /// 是否清理挑战。
   String _mapTotpError(ApiException e) {
     switch (e.messageCode) {
       case 'totp.code.invalid':
@@ -268,8 +290,10 @@ class AuthController extends ChangeNotifier {
       case 'totp.rateLimited':
         return 'Too many attempts, please try again later';
       default:
-        // 未知业务错误:同样保留挑战,展示稳定 messageCode 供上层本地化。
-        return e.messageKey;
+        // 未知业务错误:与 _mapAuthError 一致的策略——认证页尚无
+        // server.* l10n 表,返回面向用户的操作级 fallback,不泄露
+        // messageKey(如 `server.auth.login.failed`)字面量。
+        return 'Two-factor verification failed, please try again';
     }
   }
 
