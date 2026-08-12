@@ -177,6 +177,11 @@ func migrateFiles(
 				consecutiveFailures++
 				batchFailed = true
 				if consecutiveFailures >= maxConsecutiveFailures {
+					// 中止前报告进度：持久化冻结游标与真实失败数，避免 taskJson 写
+					// 入上一批的旧值（如全桶故障时 failed=0），重试也能从冻结点续跑。
+					if onProgress != nil {
+						onProgress(lastID, processed, failed)
+					}
 					return processed, failed, fmt.Errorf("file migration aborted: %d object(s) failed to upload (%s); cursor stuck at id %d",
 						failed, sampleFailedNames(failedNames, 3), lastID)
 				}

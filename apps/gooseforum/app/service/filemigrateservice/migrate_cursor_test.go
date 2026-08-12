@@ -7,8 +7,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 )
 
 // fakeProvider simulates object storage with optional per-object failure counts.
@@ -325,5 +325,46 @@ func TestMigrateFilesFailsFastOnProviderOutage(t *testing.T) {
 	}
 	if total >= maxConsecutiveFailures+rowCount {
 		t.Fatalf("provider outage caused %d Save attempts, want fail-fast near %d", total, maxConsecutiveFailures)
+	}
+}
+
+// TestMigrateFilesAbortsReportsProgress verifies the abort path reports the
+// frozen cursor and the real distinct failed count through onProgress before
+// returning, so RunMigrateTask persists a truthful taskJson (a bucket-wide
+// outage must not show failed=0) and a retry resumes from the frozen cursor.
+func TestMigrateFilesAbortsReportsProgress(t *testing.T) {
+	const rowCount = 60
+	rows := make([]*filedata.Entity, 0, rowCount)
+	for i := 1; i <= rowCount; i++ {
+		rows = append(rows, entity(uint64(i), fmt.Sprintf("f%02d.png", i), []byte("data")))
+	}
+	provider := newFakeProvider()
+	provider.failAll = true
+
+	var calls int
+	var lastCursor uint64
+	var lastProcessed, lastFailed int64
+	onProgress := func(id uint64, processed, failed int64) {
+		calls++
+		lastCursor, lastProcessed, lastFailed = id, processed, failed
+	}
+
+	gotP, gotF, err := migrateFiles(context.Background(), provider, (&fakeTable{rows: rows}).queryByID, (&fakeTable{rows: rows}).clearContent, 0, true, onProgress)
+	if err == nil {
+		t.Fatal("migrateFiles() error = nil under full outage, want abort error")
+	}
+	// The abort path must have reported the frozen cursor and the real failure
+	// count exactly once before returning.
+	if calls != 1 {
+		t.Fatalf("onProgress called %d times, want 1 (the abort report)", calls)
+	}
+	if lastFailed != gotF || lastFailed == 0 {
+		t.Fatalf("abort reported failed = %d, want returned %d (real distinct count)", lastFailed, gotF)
+	}
+	if lastCursor != 0 || lastProcessed != 0 {
+		t.Fatalf("abort reported cursor=%d processed=%d, want (0, 0) with no success", lastCursor, lastProcessed)
+	}
+	if gotP != 0 {
+		t.Fatalf("migrateFiles() processed = %d, want 0 under full outage", gotP)
 	}
 }
