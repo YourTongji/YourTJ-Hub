@@ -13,6 +13,7 @@ import type {
   NotificationsPageProps,
   PublishPageProps,
   ResetPasswordPageProps,
+  SchedulePageProps,
   SearchPageProps,
   SettingsPageProps,
   SponsorsPageProps,
@@ -44,6 +45,7 @@ export const pageComponents = [
   'course.index',
   'course.detail',
   'course.reviewModeration',
+  'course.schedule',
   'auth.login',
   'auth.resetPassword',
   'error.index',
@@ -71,6 +73,7 @@ export interface PagePayloadMap {
   'course.index': CourseCatalogPageProps
   'course.detail': CourseDetailPageProps
   'course.reviewModeration': CourseReviewModerationPageProps
+  'course.schedule': SchedulePageProps
   'auth.login': LoginPageProps
   'auth.resetPassword': ResetPasswordPageProps
   'error.index': ErrorPageProps

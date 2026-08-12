@@ -3,6 +3,7 @@ import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, r
 import {
   Bell,
   BookOpen,
+  CalendarRange,
   FileText,
   Flame,
   Heart,
@@ -90,6 +91,7 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
     sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
     sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
     sidebarItem('courses', t('shell.nav.courses'), '/courses'),
+    sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
   ]
   if (props.layout.viewer.isAuthenticated) {
     items.push(
@@ -154,6 +156,7 @@ const sidebarIconMap = {
   hot: Flame,
   popular: TrendingUp,
   courses: BookOpen,
+  schedule: CalendarRange,
   messages: Inbox,
   notifications: Bell,
   drafts: FileText,
