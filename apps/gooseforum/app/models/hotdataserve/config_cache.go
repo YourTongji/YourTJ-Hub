@@ -172,6 +172,19 @@ func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
 }
 
+var oneSystemSettingsConfigCache = &localcache.Cache[pageConfig.OneSystemSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetOnesystemSettingsConfigCache 读取一系统同步凭证配置（cookie 为密文）。
+func GetOnesystemSettingsConfigCache() pageConfig.OneSystemSettingsConfig {
+	return oneSystemSettingsConfigCache.GetOrLoad("", func() (pageConfig.OneSystemSettingsConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.OneSystemSettings, defaultconfig.GetDefaultOneSystemSettingsConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearOnesystemSettingsConfigCache() {
+	oneSystemSettingsConfigCache.Clear()
+}
+
 func ClearSecuritySettingsConfigCache() {
 	securitySettingsConfigCache.Clear()
 }

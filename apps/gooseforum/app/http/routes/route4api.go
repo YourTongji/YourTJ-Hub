@@ -340,6 +340,8 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
+		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

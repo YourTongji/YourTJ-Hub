@@ -32,6 +32,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -150,6 +151,19 @@ func SchemaModels() []any {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&pk.CalendarEntity{},
+		&pk.LanguageEntity{},
+		&pk.CourseNatureEntity{},
+		&pk.CourseNatureByCalendarEntity{},
+		&pk.AssessmentEntity{},
+		&pk.CampusEntity{},
+		&pk.FacultyEntity{},
+		&pk.MajorEntity{},
+		&pk.MajorCourseEntity{},
+		&pk.CourseDetailEntity{},
+		&pk.TeacherEntity{},
+		&pk.TeacherTimeslotEntity{},
+		&pk.FetchLogEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},

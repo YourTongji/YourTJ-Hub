@@ -49,6 +49,7 @@ const (
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
 	MCPSettings         = `mcpSettings`
+	OneSystemSettings   = `onesystemSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -319,6 +320,12 @@ type HttpNotifyConfig struct {
 type MCPSettingsConfig struct {
 	Enabled bool `json:"enabled"` // /mcp 端点总开关
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
+}
+
+// OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），
+// 明文仅在保存时短暂出现；读取时由同步服务在内存中解密，管理端 GET 仅回显是否已配置。
+type OneSystemSettingsConfig struct {
+	CookieEncrypted string `json:"cookieEncrypted"` // 加密后的一系统 Cookie header
 }
 
 type HttpNotifyEndpoint struct {

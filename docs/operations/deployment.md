@@ -335,6 +335,41 @@ instance:
 - Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
   (daily cron). Export contains user emails — treat downloads as sensitive.
 
+## 一系统排课同步（course-pk-sync，issue #186）
+
+将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+```bash
+# 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
+# 已有记录后才可反查（同一学期同步过一次即可）
+./bin/yourtj-hub course-pk-sync 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 连同步前 3 个学期（选课季加频/补历史）
+./bin/yourtj-hub course-pk-sync 121 --depth 3
+
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+./bin/yourtj-hub course-pk-sync 121 --materialize
+```
+
+凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+- 运维 cron（每日，选课季加频；应用内不自造调度器）：
+
+  ```bash
+  # 每日 02:30 同步当前学期
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  ```
+
+- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+  续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
+  fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
+- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+  进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
+- 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
+  需到管理端重新保存。
+
 ## Runbooks to write
 
 - Built-in OIDC Provider production config ([oidc] in config.toml: enabled, issuer, signing key, clients)

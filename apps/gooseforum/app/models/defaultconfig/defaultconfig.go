@@ -161,6 +161,11 @@ func GetDefaultMCPSettingsConfig() pageConfig.MCPSettingsConfig {
 	return mustPageConfigDefaults().MCP
 }
 
+// GetDefaultOneSystemSettingsConfig 一系统凭证默认值：未配置（无默认 JSON 文件，空结构即可）。
+func GetDefaultOneSystemSettingsConfig() pageConfig.OneSystemSettingsConfig {
+	return pageConfig.OneSystemSettingsConfig{}
+}
+
 func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {
 	return mustPageConfigDefaults().Site
 }
