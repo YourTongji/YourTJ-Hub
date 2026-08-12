@@ -120,15 +120,15 @@ async function fetchAllBlocks(token, docId) {
 
 // ------------------------------------------------------- 块 → Markdown 转换
 
-// 飞书 docx block_type 枚举（官方文档）
+// 飞书 docx block_type 枚举（真实 API 实测校准，2026-08）
+// 注意：以实测为准 —— 12=bullet、13=ordered、19=callout、22=divider、
+// 27=image、30=sheet、31=table、32=table_cell、34=quote_container。
 const BT = {
-  PAGE: 1, TEXT: 2, HEADING1: 3, HEADING2: 4, HEADING3: 5,
-  HEADING4: 6, HEADING5: 7, HEADING6: 8,
-  BULLET: 9, ORDERED: 10, CODE: 11, QUOTE: 12, TODO: 13,
-  BITABLE: 14, CALLOUT: 15, CHAT_CARD: 16, DIAGRAM: 17, DIVIDER: 18,
-  FILE: 19, GRID: 20, GRID_COLUMN: 21, EMBED: 22, IMAGE: 23, ISV: 24,
-  SHEET: 25, TABLE: 26, TABLE_CELL: 27, VIEW: 28, QUOTE_CONTAINER: 29,
-  TASK: 30, DOCUMENT: 35, INFO: 41, NOTE: 42, VOTE: 44,
+  PAGE: 1, TEXT: 2,
+  HEADING1: 3, HEADING2: 4, HEADING3: 5, HEADING4: 6, HEADING5: 7, HEADING6: 8,
+  BULLET: 12, ORDERED: 13,
+  CALLOUT: 19, DIVIDER: 22, IMAGE: 27, SHEET: 30,
+  TABLE: 31, TABLE_CELL: 32, QUOTE_CONTAINER: 34,
 }
 
 /** 提取元素数组的纯文本（text_run / mention_doc / equation 等）。 */
@@ -175,121 +175,106 @@ function renderBlocks(blocksByParent, parentId) {
   return out
 }
 
+/**
+ * 渲染一个块。字段驱动：按块携带的字段（text/heading1…/bullet/ordered/
+ * callout/divider/image/sheet/table/quote_container…）判断类型，而不是
+ * 依赖 block_type 数字（实测数字与官方文档有出入，字段更可靠）。
+ */
 function renderBlock(blocksByParent, block) {
   const type = block.block_type
-  const text = (field) => elementsToText((block[field] || {}).elements)
   const childLines = () => renderBlocks(blocksByParent, block.block_id)
-  const prefix = () => (block.block_type === BT.GRID_COLUMN ? '  ' : '')
+  const txt = (field) => elementsToText((block[field] || {}).elements)
+  const prefix = () => (type === 21 ? '  ' : '') // grid_column
 
-  switch (type) {
-    case BT.PAGE:
-    case BT.GRID:
-    case BT.GRID_COLUMN:
-    case BT.VIEW:
-    case BT.QUOTE_CONTAINER:
-      return childLines().map((l) => prefix() + l)
+  // 容器类：递归渲染子块（quote_container/callout/grid/view 等）
+  if (block.quote_container || block.grid || block.grid_column || block.view || block.page) {
+    return childLines().map((l) => prefix() + l)
+  }
+  // callout：内容在 children（实测 19=callout，emoji_id 如 bulb）
+  if (block.callout) {
+    const emoji = block.callout.emoji_id ? `> 💡 ${block.callout.emoji_id} ` : '> '
+    return childLines().map((l) => (l.startsWith('>') ? l : `${emoji}${l}`))
+  }
 
-    case BT.TEXT: {
-      const t = text('text')
-      return t ? [t] : []
-    }
-
-    case BT.HEADING1:
-    case BT.HEADING2:
-    case BT.HEADING3:
-    case BT.HEADING4:
-    case BT.HEADING5:
-    case BT.HEADING6: {
-      const level = type - BT.HEADING1 + 1
-      const t = text(`heading${level}`)
+  // 标题
+  for (let level = 1; level <= 6; level++) {
+    const field = `heading${level}`
+    if (block[field]) {
+      const t = elementsToText((block[field] || {}).elements)
       return t ? [`${'#'.repeat(level)} ${t}`] : []
     }
-
-    case BT.BULLET: {
-      const t = text('bullet')
-      return t ? [`- ${t}`] : []
-    }
-
-    case BT.ORDERED: {
-      const t = text('ordered')
-      return t ? [`1. ${t}`] : []
-    }
-
-    case BT.TODO: {
-      const done = (block.todo || {}).style?.done ? '[x]' : '[ ]'
-      const t = text('todo')
-      return t ? [`- ${done} ${t}`] : []
-    }
-
-    case BT.QUOTE: {
-      const t = text('quote')
-      return t ? [`> ${t}`] : []
-    }
-
-    case BT.CALLOUT: {
-      const t = text('callout')
-      return t ? [`> 💡 ${t}`] : []
-    }
-
-    case BT.NOTE:
-    case BT.INFO: {
-      const t = text(type === BT.NOTE ? 'note' : 'info')
-      return t ? [`> ℹ️ ${t}`] : []
-    }
-
-    case BT.CODE: {
-      const t = text('code')
-      const lang = CODE_LANG[(block.code || {}).style?.language] || ''
-      return [`\`\`\`${lang}`, ...t.split('\n'), '```']
-    }
-
-    case BT.DIVIDER:
-      return ['---']
-
-    case BT.TABLE: {
-      const cells = (block.table || {}).cells || []
-      // cells 是 [[{ block_id }]] 的二维数组；table_cell 块在扁平块列表里
-      const byId = new Map()
-      for (const [, list] of blocksByParent) {
-        for (const b of list) byId.set(b.block_id, b)
-      }
-      const rows = cells.map((row) =>
-        row.map((cell) => {
-          const cb = byId.get(cell.block_id)
-          const t = cb ? elementsToText((cb.table_cell || {}).text?.elements) : ''
-          return t.replace(/\|/g, '\\|').replace(/\n/g, ' ')
-        }),
-      )
-      if (rows.length === 0) return []
-      const headerSep = `| ${rows[0].map(() => '---').join(' | ')} |`
-      return [`| ${rows[0].join(' | ')} |`, headerSep, ...rows.slice(1).map((r) => `| ${r.join(' | ')} |`), '']
-    }
-
-    case BT.IMAGE:
-      return [`<!-- 图片 token=${(block.image || {}).token || '?'}（需下载接口，未内嵌） -->`]
-
-    case BT.FILE:
-      return [`<!-- 文件 token=${(block.file || {}).token || '?'} -->`]
-
-    case BT.SHEET:
-      return [`<!-- 电子表格 token=${(block.sheet || {}).token || '?'} -->`]
-
-    case BT.DIAGRAM:
-      return [`<!-- 流程图 token=${(block.diagram || {}).token || '?'} -->`]
-
-    case BT.EMBED:
-      return [`<!-- 内嵌网页 ${(block.embed || {}).url || ''} -->`]
-
-    case BT.BITABLE:
-      return [`<!-- 内嵌多维表格 app_token=${(block.bitable || {}).app_token || '?'} -->`]
-
-    case BT.CHAT_CARD:
-    case BT.ISV:
-    case BT.TASK:
-    case BT.VOTE:
-    default:
-      return [`<!-- 未支持的块类型 ${type} -->`]
   }
+
+  // 文本类
+  if (block.text) {
+    const t = txt('text')
+    return t ? [t] : []
+  }
+  if (block.bullet) {
+    const t = txt('bullet')
+    return t ? [`- ${t}`] : []
+  }
+  if (block.ordered) {
+    const t = txt('ordered')
+    return t ? [`1. ${t}`] : []
+  }
+  if (block.todo) {
+    const done = (block.todo.style || {}).done ? '[x]' : '[ ]'
+    const t = txt('todo')
+    return t ? [`- ${done} ${t}`] : []
+  }
+  if (block.quote) {
+    const t = txt('quote')
+    return t ? [`> ${t}`] : []
+  }
+  if (block.code) {
+    const t = txt('code')
+    const lang = CODE_LANG[(block.code.style || {}).language] || ''
+    return [`\`\`\`${lang}`, ...t.split('\n'), '```']
+  }
+
+  // 分割线
+  if (block.divider) return ['---']
+
+  // 表格（实测 31=table，cells 一维数组 + property.row_size/column_size）
+  if (block.table) {
+    const t = block.table
+    const cells = t.cells || []
+    const rowSize = (t.property || {}).row_size || 1
+    const colSize = (t.property || {}).column_size || 1
+    const byId = new Map()
+    for (const [, list] of blocksByParent) for (const b of list) byId.set(b.block_id, b)
+    const rows = []
+    for (let r = 0; r < rowSize; r++) {
+      const row = cells.slice(r * colSize, (r + 1) * colSize)
+      rows.push(row.map((cid) => {
+        const cb = byId.get(cid)
+        if (!cb) return ''
+        // 单元格内容：递归渲染 cell 的子块（文本），取单行
+        const cellText = renderBlocks(blocksByParent, cb.block_id).join(' ').trim()
+        return cellText.replace(/\|/g, '\\|').replace(/\n/g, ' ')
+      }))
+    }
+    if (rows.length === 0) return []
+    const headerSep = `| ${rows[0].map(() => '---').join(' | ')} |`
+    return [`| ${rows[0].join(' | ')} |`, headerSep, ...rows.slice(1).map((r) => `| ${r.join(' | ')} |`), '']
+  }
+
+  // 图片/电子表格/文件等：占位注释（不下载二进制，避免敏感内容入 git）
+  if (block.image) return [`<!-- 图片 token=${block.image.token || '?'}（需媒体下载接口，未内嵌） -->`]
+  if (block.sheet) return [`<!-- 电子表格 token=${block.sheet.token || '?'} -->`]
+  if (block.file) return [`<!-- 文件 token=${block.file.token || '?'} -->`]
+  if (block.bitable) return [`<!-- 内嵌多维表格 app_token=${block.bitable.app_token || '?'} -->`]
+  if (block.embed) return [`<!-- 内嵌网页 ${block.embed.url || ''} -->`]
+  if (block.diagram) return [`<!-- 流程图 token=${block.diagram.token || '?'} -->`]
+
+  // 其他未知类型：尽力取文本，否则占位
+  const fallbackText = Object.values(block).find((v) => v && typeof v === 'object' && Array.isArray(v.elements))
+  if (fallbackText) {
+    const t = elementsToText(fallbackText.elements)
+    if (t) return [t]
+  }
+  return [`<!-- 未支持的块类型 ${type} -->`]
 }
 
 /** docx 文档 → markdown 全文。 */
