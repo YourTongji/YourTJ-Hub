@@ -122,6 +122,41 @@ assert_eq "KV normalize 密码含 dbname= 子串" "user=u password=*** dbname=fo
 assert_eq "URL normalize 大写 scheme" "postgres://u:***@h/forum" \
   "$(pg_dsn_normalize 'POSTGRES://u:p@h/forum')"
 
+## --- review W1 回归: TOML 行尾内联注释不破坏 DSN 解析 ---
+W1_CFG="$(mktemp)"
+trap 'rm -f "$W1_CFG"' EXIT
+cat > "$W1_CFG" <<'EOF'
+[db.default]
+url = "postgres://yourtj:secret@postgres:5432/yourtj_main"  # production main db
+
+[db.file]
+url = "sqlite:///tmp/file.db"
+EOF
+assert_eq "W1 URL+行尾注释 提取" "postgres://yourtj:secret@postgres:5432/yourtj_main" "$(pg_toml_url "$W1_CFG")"
+assert_eq "W1 URL+行尾注释 dbname" "yourtj_main" "$(pg_dsn_dbname "$(pg_toml_url "$W1_CFG")")"
+
+cat > "$W1_CFG" <<'EOF'
+[db.default]
+url = "host=postgres user=yourtj password=secret dbname=yourtj_kv"  # kv comment
+EOF
+assert_eq "W1 KV+行尾注释 提取" "host=postgres user=yourtj password=secret dbname=yourtj_kv" "$(pg_toml_url "$W1_CFG")"
+assert_eq "W1 KV+行尾注释 dbname" "yourtj_kv" "$(pg_dsn_dbname "$(pg_toml_url "$W1_CFG")")"
+
+cat > "$W1_CFG" <<'EOF'
+[db.default]
+url = "postgres://yourtj:pa#ss@postgres:5432/yourtj_main"
+EOF
+assert_eq "W1 引号内 # 不剥离" "postgres://yourtj:pa#ss@postgres:5432/yourtj_main" "$(pg_toml_url "$W1_CFG")"
+
+cat > "$W1_CFG" <<'EOF'
+[meilisearch]
+url = "dbname=meili_wrong"
+
+[db.default]
+url = "postgres://u:p@h:5432/correct_main"
+EOF
+assert_eq "W1 [db.default] 区块限定" "correct_main" "$(pg_dsn_dbname "$(pg_toml_url "$W1_CFG")")"
+
 echo
 echo "pgdsn_test: $PASS passed, $FAIL failed"
 [ "$FAIL" -eq 0 ]

@@ -33,14 +33,17 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
-      - name: Upload deploy script to prod host
+      - name: Upload deploy scripts to prod host
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh"
+          source: |
+            deploy/scripts/deploy.sh
+            deploy/scripts/backup-db.sh
+            deploy/scripts/pgdsn.sh
           target: "/tmp"
           strip_components: 2
       - name: Deploy to main (backup db + build image + restart + smoke + rollback)
@@ -52,8 +55,12 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
-            # 0. 同步仓库最新 deploy.sh 到服务器(install 保证可执行位)
+            # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
+            #    backup-db.sh source pgdsn.sh, 必须一并下发, 否则 set -e 下
+            #    source 失败阻断部署(review W2)。
             install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
+            install -m 0755 /tmp/backup-db.sh /opt/yourtj/scripts/backup-db.sh
+            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234

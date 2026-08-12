@@ -76,6 +76,22 @@ pg_uri_split() {
   fi
 }
 
+# pg_toml_url <cfg> — 从 config.toml 的 [db.default] 区块提取 url 值。
+# 按 TOML 语义剥离行尾内联注释(review W1): 只取双引号字符串内部,
+# 引号之后的内容(含 "  # 注释")全部丢弃; 引号值内合法 #(如密码含 #)
+# 不受影响。旧 grep 实现([^ ]+)对行尾注释免疫, 新 URL 支持的
+# tr -d '"' 会把注释并入 DSN 导致 dbname 带脏值, 此函数修复该回归。
+# 输出 url; 未配置或非双引号值(如单引号 TOML 字面量)时输出空/原样。
+pg_toml_url() {
+  local cfg="$1"
+  # 只匹配 [db.default] 区块内的 url 行, 避免误取 [db.file]/[meilisearch] 的 url
+  # 注: 用 POSIX 字符类而非 \s, 兼容 BSD sed(macOS); \1 捕获双引号内全部内容
+  sed -n '/^\[db\.default\]/,/^\[/p' "$cfg" \
+    | grep -E '^[[:space:]]*url[[:space:]]*=' \
+    | head -n1 \
+    | sed -E 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*"([^"]*)".*$/\1/'
+}
+
 # pg_dsn_dbname <dsn> — 输出 DSN 中的数据库名。
 # 支持 key=value(key 可带引号)与 postgres:// URL 两种格式。
 # 解析失败输出错误到 stderr 并返回 1(错误信息经 pg_dsn_normalize 脱敏,

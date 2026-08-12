@@ -32,11 +32,10 @@ db_mode() {
 # 从 config.toml 提取 [db.default] url 值, 经 pg_dsn_dbname 解析数据库名。
 # URL 与 key=value 两种格式均支持; 解析失败输出错误并返回非零(调用方须在
 # 任何 DB 操作之前检查, 避免"先操作再报错"留下中间状态)。
+# 注: pg_toml_url 同时负责剥离 TOML 行尾内联注释(review W1)。
 pg_dbname() {
   local cfg="$ROOT/$INSTANCE/config.toml" url
-  # 只匹配 [db.default] 区块内的 url 行, 避免误取 [db.file]/[meilisearch] 的 url
-  # 注: 用 POSIX 字符类而非 \s, 兼容 BSD sed(macOS)
-  url="$(sed -n '/^\[db\.default\]/,/^\[/p' "$cfg" | grep -E '^[[:space:]]*url[[:space:]]*=' | head -n1 | sed -E 's/^[[:space:]]*url[[:space:]]*=[[:space:]]*//' | tr -d '"')"
+  url="$(pg_toml_url "$cfg")"
   [ -n "$url" ] || { echo "backup-db: $cfg 未配置 [db.default].url" >&2; return 1; }
   pg_dsn_dbname "$url"
 }
