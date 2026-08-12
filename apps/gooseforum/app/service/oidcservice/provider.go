@@ -351,6 +351,11 @@ var (
 // forum signing key using a domain-separated SHA-256. It never reuses
 // app.signingKey directly. When no signing key is configured, a secure
 // random key is generated once and kept for the rest of the process.
+//
+// The random fallback is defensive only: serve already refuses to boot on an
+// empty/weak app.signingKey (issue #106), so this branch is reachable solely
+// from tests or a non-serve entrypoint and does not create a forgeable-token
+// surface in a runnable deploy.
 func deriveCryptoKey() [32]byte {
 	signingKey := preferences.GetString("app.signingKey", "")
 	if signingKey != "" {

@@ -87,21 +87,29 @@ func Decrypt(encoded string) (string, error) {
 // invalidate TOTP secrets mid-flight.
 func deriveKey() ([]byte, error) {
 	keyOnce.Do(func() {
-		// 兜底统一引用 jwtopt.DefaultSigningKey，避免两处重复的公开常量漂移；
-		// serve 启动检查已拒绝默认密钥，生产环境实际使用的是用户配置的密钥。
-		signingKey := preferences.GetString("app.signingKey", jwtopt.DefaultSigningKey)
-		if signingKey == "" {
-			keyErr = errors.New("securestore: empty signing key")
-			return
-		}
-		mac := hmac.New(sha256.New, []byte(signingKey))
-		if _, err := mac.Write([]byte(derivationLabel)); err != nil {
-			keyErr = fmt.Errorf("securestore: derive key: %w", err)
-			return
-		}
-		key = mac.Sum(nil)
+		// 与 tokenservice 共享 jwtopt 的 fail-closed 谓词（SigningKeyProblemFor）：
+		// serve 启动守卫已拒绝空值/内置默认/占位符密钥，这里作为纵深防御再拦一道——
+		// 即使绕过启动守卫（未来子命令、嵌入式调用、测试 harness），也不会以公开
+		// 已知的密钥派生 TOTP 加密密钥（issue #106 根因之一）。
+		key, keyErr = deriveKeyFrom(preferences.GetString("app.signingKey"))
 	})
 	return key, keyErr
+}
+
+// deriveKeyFrom derives the 32-byte AES key for a candidate signing key,
+// applying the same fail-closed policy as the JWT signing path
+// (jwtopt.SigningKeyProblemFor). It is extracted from deriveKey so the
+// weak-key rejection is directly testable without disturbing the process-wide
+// sync.Once cache.
+func deriveKeyFrom(signingKey string) ([]byte, error) {
+	if reason := jwtopt.SigningKeyProblemFor(signingKey); reason != "" {
+		return nil, fmt.Errorf("securestore: %s", reason)
+	}
+	mac := hmac.New(sha256.New, []byte(signingKey))
+	if _, err := mac.Write([]byte(derivationLabel)); err != nil {
+		return nil, fmt.Errorf("securestore: derive key: %w", err)
+	}
+	return mac.Sum(nil), nil
 }
 
 // Pepper derives a 32-byte HMAC key bound to the app signing key and a

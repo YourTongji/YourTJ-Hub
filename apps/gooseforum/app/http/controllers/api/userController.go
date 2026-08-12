@@ -582,7 +582,7 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 	if userEntity.EmailChangedAt != nil && time.Since(*userEntity.EmailChangedAt) < emailChangeCooldown {
 		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 	}
-	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email)
+	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email, userEntity.TokenVersion)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
 	}
@@ -625,6 +625,13 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 	}
 
 	if userEntity.Email != claims.Email {
+		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
+	}
+
+	// 重置令牌绑定签发时的 token_version（issue #106）：密码变更 / 撤销会自增
+	// token_version，因此旧的重置链接在账户被重置或恢复后立即失效，无法重放。
+	// 仅校验令牌签名与 email 不足以防止伪造链路接管账户。
+	if userEntity.TokenVersion != claims.TokenVersion {
 		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
 	}
 

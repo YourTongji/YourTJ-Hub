@@ -23,6 +23,7 @@ const (
 	RateLimitOIDCAuthorize  = "oidc.authorize"
 	RateLimitOIDCToken      = "oidc.token"
 	RateLimitForgotPassword = "forgot-password"
+	RateLimitResetPassword  = "reset-password"
 	RateLimitEmailChange    = "email.change"
 	RateLimitPasswordChange = "password.change"
 	RateLimitTopicWrite     = "topic.write"

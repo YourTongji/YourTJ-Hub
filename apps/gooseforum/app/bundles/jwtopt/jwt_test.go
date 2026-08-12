@@ -292,3 +292,28 @@ func TestCreateChallengeTokenPurpose(t *testing.T) {
 		t.Fatal("challenge token should not be expired yet")
 	}
 }
+
+// TestSigningKeyProblemForRejectsWeakKeys is the fail-closed gate for issue #106:
+// the serve startup guard rejects any key SigningKeyProblemFor reports, and
+// tokenservice shares this predicate to refuse signing reset/activation tokens.
+func TestSigningKeyProblemForRejectsWeakKeys(t *testing.T) {
+	cases := []struct {
+		name string
+		key  string
+		want string
+	}{
+		{name: "empty", key: "", want: "empty signing key"},
+		{name: "whitespace", key: "   \t\n ", want: "empty signing key"},
+		{name: "built-in default", key: DefaultSigningKey, want: "built-in default signing key"},
+		{name: "deploy placeholder", key: "REPLACE_SIGNING_KEY", want: "deploy template placeholder signing key"},
+		{name: "strong random", key: "8KZx9wq0nJ6v3L2tRbMfYc+UeP1sDhGa", want: ""},
+	}
+	for _, tt := range cases {
+		t.Run(tt.name, func(t *testing.T) {
+			got := SigningKeyProblemFor(tt.key)
+			if got != tt.want {
+				t.Fatalf("SigningKeyProblemFor(%q) = %q, want %q", tt.key, got, tt.want)
+			}
+		})
+	}
+}
