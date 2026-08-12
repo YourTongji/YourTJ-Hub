@@ -778,7 +778,8 @@ func TestCourseReviewModerationRateLimit(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("hit #%d status = %d, want 200 within limit: %s", i+1, rec.Code, rec.Body.String())
 		}
-		// hide/show 交替避免状态副作用影响后续请求
+		// 连续 30 次 hide（幂等操作，仅用于触发 per-User 限流计数；
+		// 不交替 show，避免引入不必要的状态变化）
 	}
 	// 第 31 次：429 + Retry-After
 	rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-status",
