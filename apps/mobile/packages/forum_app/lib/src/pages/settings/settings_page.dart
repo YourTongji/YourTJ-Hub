@@ -605,19 +605,20 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     }
   }
 
+  /// 吊销全部会话:后端原子删除全部会话并递增 tokenVersion,当前 JWT
+  /// 立即失效,必须走统一登出清理(token/认证状态/离线缓存)并跳转登录页,
+  /// 否则本地继续持有已被后端撤销的 JWT。
   Future<void> _revokeAll() async {
     final AppLocalizations l10n = AppLocalizations.of(context);
     try {
       await ref.read(userRepositoryProvider).revokeAllSessions();
-      _loadSessions(silent: true);
-      if (mounted) {
-        showGfToast(context, l10n.settingsRevokeAllDone);
-      }
     } catch (e) {
       if (mounted) {
         showGfToast(context, l10n.settingsOpFailed('$e'), error: true);
       }
+      return;
     }
+    await _signOutLocally(successMessage: l10n.settingsRevokeAllDone);
   }
 
   void _toggleDarkMode(bool value) {
@@ -1052,9 +1053,16 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     } catch (_) {
       // 服务端失效失败不阻塞本地登出(会话已不可信)。
     }
+    await _signOutLocally();
+  }
+
+  /// 统一本地登出:清 token → 失效会话世代 → 清离线缓存 → 跳转登录页。
+  ///
+  /// 登出/吊销全部会话后当前 JWT 已不可信,必须清空本地 token 与离线
+  /// 缓存(否则同一设备换账号后仍可读到上一账号数据,造成跨账号泄漏)。
+  Future<void> _signOutLocally({String? successMessage}) async {
     await ref.read(tokenStorageProvider).clear();
-    // 登出即进入新会话边界:先使旧会话在途写入失效、当前用户身份失效,
-    // 再清空缓存。
+    // 会话边界:先使旧会话在途写入失效、当前用户身份失效,再清空缓存。
     ref.read(offlineCacheEpochProvider.notifier).invalidate();
     ref.invalidate(currentUserProvider);
     // 清空话题/会话/私信离线缓存;失败静默(下次登出/登录会重试)。
@@ -1062,6 +1070,9 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
       ref.read(offlineTopicCacheProvider),
       ref.read(offlineChatCacheProvider),
     );
+    if (successMessage != null && mounted) {
+      showGfToast(context, successMessage);
+    }
     if (mounted) context.go('/login');
   }
 
