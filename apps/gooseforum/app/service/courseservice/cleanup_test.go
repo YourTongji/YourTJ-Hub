@@ -251,3 +251,91 @@ func TestCleanupDeletedReviewsSameOfferingMultiRows(t *testing.T) {
 		t.Fatalf("re-create after cleanup: %v", err)
 	}
 }
+
+// TestCleanupDeletedReviewsLegacyAuthorZeroRow 锁定撞唯一索引分支（交叉审查
+// 建议 1）：同 offering 已有 legacy author=0 的 deleted 行时，清理不能崩溃——
+// 待清理行置 author=0 撞 uniq_course_review_offering_author，跳过该行保留
+// 原 author；两行 content 均清空；legacy 行（author=0）不受影响。
+func TestCleanupDeletedReviewsLegacyAuthorZeroRow(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	conn := dbconnect.Connect()
+
+	// legacy 导入行：author_user_id=0，每 offering 至多一条（占位已占用）
+	legacyID := createDeletedReview(t, offeringId, 0, time.Now().Add(-60*24*time.Hour))
+	// 待清理行：真实用户 6001 的 deleted 行（超窗）
+	targetID := createDeletedReview(t, offeringId, 6001, time.Now().Add(-35*24*time.Hour))
+
+	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
+	if err != nil {
+		t.Fatalf("cleanup with legacy author=0 row must not fail: %v", err)
+	}
+	if cleaned != 2 {
+		t.Fatalf("cleaned = %d, want 2 (both contents cleared)", cleaned)
+	}
+
+	var legacy, target course.ReviewEntity
+	if err := conn.First(&legacy, legacyID).Error; err != nil {
+		t.Fatalf("legacy row missing: %v", err)
+	}
+	if err := conn.First(&target, targetID).Error; err != nil {
+		t.Fatalf("target row missing: %v", err)
+	}
+	// content 全部清空（隐私目标达成）
+	if legacy.Content != "" || target.Content != "" {
+		t.Fatalf("content not cleared: legacy=%q target=%q", legacy.Content, target.Content)
+	}
+	// legacy 行 author 保持 0；待清理行撞索引保留原 author（6001）
+	if legacy.AuthorUserId != 0 {
+		t.Fatalf("legacy author = %d, want 0", legacy.AuthorUserId)
+	}
+	if target.AuthorUserId != 6001 {
+		t.Fatalf("target author = %d, want 6001 (unique-index collision keeps original author)", target.AuthorUserId)
+	}
+}
+
+// TestCleanupPlaceholderReleasedStatsAccumulated 占位释放后重新写评的 stats
+// 断言（交叉审查建议 2）：清理释放 (offering_id, author_user_id) 占位后，同
+// offering 同用户重新写评走新建路径，且 stats 投影正确累加（reviewCount、
+// ratingSum 反映新评价，与 #173 B1 的 stats 语义一致——CreateReview 事务内
+// UpsertCourseStatsTx/UpsertOfferingStatsTx）。
+func TestCleanupPlaceholderReleasedStatsAccumulated(t *testing.T) {
+	courseId, offeringId := setupReviewTest(t)
+
+	oldID := createDeletedReview(t, offeringId, 7001, time.Now().Add(-35*24*time.Hour))
+
+	if _, err := CleanupDeletedReviews(30 * 24 * time.Hour); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+
+	// 清理后同用户重新写评（新建路径，rating=5）
+	payload, err := CreateReview(7001, CreateReviewInput{
+		OfferingId: offeringId,
+		Rating:     5,
+		Content:    "窗口后重新写评",
+	})
+	if err != nil {
+		t.Fatalf("re-create review after cleanup: %v", err)
+	}
+	if payload.Id == 0 || payload.Id == oldID {
+		t.Fatalf("re-created review id = %d, want a new row (old=%d)", payload.Id, oldID)
+	}
+
+	// 课程级 stats：reviewCount=1、ratingSum=5（ratingCount=1）
+	courseStats, err := course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.ReviewCount != 1 || courseStats.RatingCount != 1 || courseStats.RatingSum != 5 {
+		t.Fatalf("course stats after re-review = {count:%d ratingCount:%d sum:%d}, want {1 1 5}",
+			courseStats.ReviewCount, courseStats.RatingCount, courseStats.RatingSum)
+	}
+	// offering 级 stats 同理
+	offeringStats, err := course.GetOfferingStats(offeringId)
+	if err != nil {
+		t.Fatalf("get offering stats: %v", err)
+	}
+	if offeringStats.ReviewCount != 1 || offeringStats.RatingCount != 1 || offeringStats.RatingSum != 5 {
+		t.Fatalf("offering stats after re-review = {count:%d ratingCount:%d sum:%d}, want {1 1 5}",
+			offeringStats.ReviewCount, offeringStats.RatingCount, offeringStats.RatingSum)
+	}
+}
