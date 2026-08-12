@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
@@ -303,6 +304,7 @@ func TestCourseRelatedHiddenHTTPContract(t *testing.T) {
 		t.Fatalf("course related hidden status = %d, want 404: %s", rec.Code, rec.Body.String())
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-not-found.json"))
+}
 
 // TestCourseStatsProjectionHTTPContract 验证 B1 统计投影对外暴露（issue #173 验收）：
 //  1. 3 条评价（5/4/NULL）→ ratingAvg=4.5、reviewCount=3（NULL 不计均分但计评论数）；
@@ -427,5 +429,94 @@ func TestCourseStatsProjectionHTTPContract(t *testing.T) {
 	}
 	if got := detail["reviewCount"]; got != float64(1) {
 		t.Fatalf("reviewCount after hide 5-star = %#v, want 1", got)
+	}
+}
+
+// TestCourseStatsSecurityFindings 验证双审修复（security F1/F2/F4）：
+//  1. deleted_at 软删行不计入 ratingDistribution（与 stats 投影口径一致）；
+//  2. 隐藏 offering 的评价不计入课程级 ratingAvg/reviewCount/distribution；
+//  3. 无评价课程 ratingDistribution 省略（F4 指针语义）。
+func TestCourseStatsSecurityFindings(t *testing.T) {
+	conn, router := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+	if err := conn.AutoMigrate(&course.ReviewEntity{}, &course.CourseStatsEntity{}, &course.OfferingStatsEntity{}); err != nil {
+		t.Fatalf("migrate review/stats: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.CourseStatsEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.OfferingStatsEntity{})
+
+	// 3 条可见评价 + 1 条软删评价（deleted_at 置位）
+	r5, r4, r3 := 5, 4, 3
+	seedCourseReview(t, conn, 2001, 901, 501, &r5, "五星", false, "", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 2002, 901, 502, &r4, "四星", false, "", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 2003, 901, 503, &r3, "三星", false, "", course.ReviewStatusVisible)
+	// 软删行：status=visible 但 deleted_at 非空（模拟清理作业/数据迁移置位）
+	if err := conn.Unscoped().Model(&course.ReviewEntity{}).Where("id = ?", 2003).
+		Update("deleted_at", time.Now()).Error; err != nil {
+		t.Fatalf("soft-delete review 2003: %v", err)
+	}
+	if err := course.RebuildAllCourseStats(); err != nil {
+		t.Fatalf("rebuild stats: %v", err)
+	}
+
+	// 详情：ratingAvg=(5+4)/2=4.5、reviewCount=2（软删行不计）、distribution=[0,0,0,1,1]
+	rec := serveCourseGet(router, "/api/forum/courses/42")
+	var detailEnvelope struct {
+		Result map[string]any `json:"result"`
+	}
+	_ = json.Unmarshal(rec.Body.Bytes(), &detailEnvelope)
+	detail := detailEnvelope.Result
+	if got := detail["ratingAvg"]; got != 4.5 {
+		t.Fatalf("ratingAvg = %#v, want 4.5 (soft-deleted row excluded)", got)
+	}
+	if got := detail["reviewCount"]; got != float64(2) {
+		t.Fatalf("reviewCount = %#v, want 2 (soft-deleted row excluded)", got)
+	}
+	dist, ok := detail["ratingDistribution"].([]any)
+	if !ok {
+		t.Fatalf("ratingDistribution missing: %#v", detail["ratingDistribution"])
+	}
+	if dist[4] != float64(1) || dist[3] != float64(1) || dist[0] != float64(0) {
+		t.Fatalf("ratingDistribution = %v, want [0,0,0,1,1] (soft-deleted row excluded)", dist)
+	}
+
+	// F4：无评价课程 distribution 省略
+	var clean struct {
+		Result map[string]any `json:"result"`
+	}
+	// 造一个无评价课程
+	if err := conn.Create(&course.Entity{Id: 43, PrimaryCode: "100002", Name: "无评价课", Department: "数学", CreditX10: 20, NormalizedName: "无评价课", Status: course.StatusVisible}).Error; err != nil {
+		t.Fatalf("create empty course: %v", err)
+	}
+	rec = serveCourseGet(router, "/api/forum/courses/43")
+	_ = json.Unmarshal(rec.Body.Bytes(), &clean)
+	if _, present := clean.Result["ratingDistribution"]; present {
+		t.Fatalf("empty course should omit ratingDistribution, got %#v", clean.Result["ratingDistribution"])
+	}
+	if _, present := clean.Result["ratingAvg"]; present {
+		t.Fatalf("empty course should omit ratingAvg, got %#v", clean.Result["ratingAvg"])
+	}
+
+	// F2：隐藏 offering 的评价不计入课程级聚合
+	// 造第二个 offering（offering 902，同 course 42），给 1 条评价，然后隐藏 offering
+	if err := conn.Create(&course.OfferingEntity{Id: 902, CourseId: 42, TermId: 101, Status: course.OfferingStatusVisible}).Error; err != nil {
+		t.Fatalf("create offering 902: %v", err)
+	}
+	seedCourseReview(t, conn, 2004, 902, 504, &r5, "隐藏开课评价", false, "", course.ReviewStatusVisible)
+	if err := conn.Model(&course.OfferingEntity{}).Where("id = ?", 902).Update("status", course.OfferingStatusHidden).Error; err != nil {
+		t.Fatalf("hide offering 902: %v", err)
+	}
+	if err := course.RebuildAllCourseStats(); err != nil {
+		t.Fatalf("rebuild stats after hide offering: %v", err)
+	}
+	rec = serveCourseGet(router, "/api/forum/courses/42")
+	_ = json.Unmarshal(rec.Body.Bytes(), &detailEnvelope)
+	detail = detailEnvelope.Result
+	if got := detail["reviewCount"]; got != float64(2) {
+		t.Fatalf("reviewCount with hidden offering = %#v, want 2 (hidden offering excluded)", got)
+	}
+	if got := detail["ratingAvg"]; got != 4.5 {
+		t.Fatalf("ratingAvg with hidden offering = %#v, want 4.5", got)
 	}
 }

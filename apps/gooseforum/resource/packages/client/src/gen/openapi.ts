@@ -1211,7 +1211,10 @@ export interface components {
             ratingAvg?: number;
             /** @description Number of visible reviews (including unrated legacy ones). */
             reviewCount?: number;
-            /** @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars. */
+            /**
+             * @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+             *     Omitted when the course has no visible reviews.
+             */
             ratingDistribution?: number[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
@@ -1254,6 +1257,15 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /**
+             * Format: double
+             * @description Non-NULL rating average of the review's offering (PRD §5.1 B1).
+             *     Present only when the listing is scoped to a single offering and the
+             *     offering has at least one rated review.
+             */
+            offeringRatingAvg?: number;
+            /** @description Number of visible reviews of the review's offering (offering-scoped listing only). */
+            offeringReviewCount?: number;
         };
         /** @description The raw review array; an empty listing is an empty array, never null. */
         ReviewListResult: components["schemas"]["ReviewPayload"][];

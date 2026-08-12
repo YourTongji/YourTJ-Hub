@@ -1134,7 +1134,9 @@ CourseDetail:
       description: Number of visible reviews (including unrated legacy ones).
     ratingDistribution:
       type: array
-      description: Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+      description: |
+        Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+        Omitted when the course has no visible reviews.
       items:
         type: integer
   additionalProperties: false
@@ -1297,6 +1299,16 @@ ReviewPayload:
     updatedAt:
       type: string
       format: date-time
+    offeringRatingAvg:
+      type: number
+      format: double
+      description: |
+        Non-NULL rating average of the review's offering (PRD §5.1 B1).
+        Present only when the listing is scoped to a single offering and the
+        offering has at least one rated review.
+    offeringReviewCount:
+      type: integer
+      description: Number of visible reviews of the review's offering (offering-scoped listing only).
   additionalProperties: false
 
 ReviewListResult:

@@ -47,8 +47,9 @@ type CourseDetail struct {
 	Offerings   []OfferingSummary `json:"offerings,omitempty"`
 	RatingAvg   *float64          `json:"ratingAvg,omitempty"`
 	ReviewCount int               `json:"reviewCount,omitempty"`
-	// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星）。
-	RatingDistribution course.RatingDistribution `json:"ratingDistribution,omitempty"`
+	// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星）；
+	// 无评价时省略（security F4：定长数组 omitempty 无效，改用指针）。
+	RatingDistribution *course.RatingDistribution `json:"ratingDistribution,omitempty"`
 }
 
 // ratingAvgPtrFromStats 由统计投影计算均分：无评分（ratingCount==0）时返回 nil。
@@ -142,6 +143,16 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 	if err != nil {
 		return CourseDetail{}, err
 	}
+	// 课程级统计在 offerings 为空（如全部隐藏）时也填充（security F6）。
+	courseStatsMap := course.ListCourseStatsByIDs([]uint64{entity.Id})
+	if stats, ok := courseStatsMap[entity.Id]; ok {
+		detail.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
+		detail.ReviewCount = stats.ReviewCount
+	}
+	if dist := course.GetRatingDistributionsByCourseIds([]uint64{entity.Id})[entity.Id]; dist != (course.RatingDistribution{}) {
+		d := dist
+		detail.RatingDistribution = &d
+	}
 	if len(offerings) == 0 {
 		return detail, nil
 	}
@@ -198,12 +209,6 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 		}
 		detail.Offerings = append(detail.Offerings, os)
 	}
-	// B1：课程级统计 + 评分分布（详情页）
-	if stats, ok := course.ListCourseStatsByIDs([]uint64{entity.Id})[entity.Id]; ok {
-		detail.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
-		detail.ReviewCount = stats.ReviewCount
-	}
-	detail.RatingDistribution = course.GetRatingDistributionsByCourseIds([]uint64{entity.Id})[entity.Id]
 	return detail, nil
 }
 

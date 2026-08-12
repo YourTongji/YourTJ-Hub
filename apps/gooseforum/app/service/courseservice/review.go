@@ -57,6 +57,10 @@ type ReviewPayload struct {
 	HelpfulCount int64               `json:"helpfulCount"`
 	CreatedAt    string              `json:"createdAt"`
 	UpdatedAt    string              `json:"updatedAt"`
+	// OfferingRatingAvg / OfferingReviewCount：offering 级统计
+	// （PRD §5.1 B1，reviews?offeringId= 端点展示；spec F1）。
+	OfferingRatingAvg   *float64 `json:"offeringRatingAvg,omitempty"`
+	OfferingReviewCount int      `json:"offeringReviewCount,omitempty"`
 }
 
 // CreateReviewInput 写评请求。
@@ -348,7 +352,13 @@ func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error)
 	if len(entities) > ReviewListMaxItems {
 		entities = entities[:ReviewListMaxItems]
 	}
-	return listReviewPayloads(entities, viewerId)
+	payloads, err := listReviewPayloads(entities, viewerId)
+	if err != nil {
+		return nil, err
+	}
+	// offering 级统计（PRD §5.1 B1：reviews?offeringId= 端点展示；spec F1）。
+	fillOfferingStats(payloads)
+	return payloads, nil
 }
 
 // ListReviewsByCourse 返回课程下所有可见 offering 的评价（时间倒序，匿名 DTO，
@@ -488,7 +498,33 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	return payloads, nil
 }
 
-// fillReviewAuthorLabel 为写路径单条 member 评价回填展示用户名；匿名/legacy 不查询、不泄漏。
+// fillOfferingStats 为评价 payload 批量填充 offering 级统计
+// （PRD §5.1 B1：reviews?offeringId= 端点展示；spec F1）。
+// 数据来自 offering_review_stats 投影；查询错误由 ListOfferingStatsByIDs
+// 内部 slog.Warn 记录（fail-open：不阻断列表返回）。
+func fillOfferingStats(payloads []ReviewPayload) {
+	ids := make([]uint64, 0, len(payloads))
+	seen := map[uint64]bool{}
+	for _, p := range payloads {
+		if !seen[p.OfferingId] {
+			seen[p.OfferingId] = true
+			ids = append(ids, p.OfferingId)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	stats := course.ListOfferingStatsByIDs(ids)
+	for i := range payloads {
+		if s, ok := stats[payloads[i].OfferingId]; ok {
+			if s.RatingCount > 0 {
+				avg := float64(s.RatingSum) / float64(s.RatingCount)
+				payloads[i].OfferingRatingAvg = &avg
+			}
+			payloads[i].OfferingReviewCount = s.ReviewCount
+		}
+	}
+}
 func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 	if p == nil || p.Author.Kind != "member" || authorUserId == 0 {
 		return

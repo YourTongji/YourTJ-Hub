@@ -1,6 +1,7 @@
 package course
 
 import (
+	"log/slog"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -383,8 +384,9 @@ func RebuildAllCourseStats() error {
 		if err := tx.Table(offeringTableName+" o").
 			Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
 				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
-			Joins("LEFT JOIN " + reviewTableName + " r ON r.offering_id = o.id AND r.deleted_at IS NULL").
-			Where("o.deleted_at IS NULL").
+			Joins("LEFT JOIN "+reviewTableName+" r ON r.offering_id = o.id AND r.deleted_at IS NULL").
+			// 与列表口径一致：隐藏 offering 的评价不计入课程级聚合（security F2）。
+			Where("o.deleted_at IS NULL AND o.status = ?", OfferingStatusVisible).
 			Group("o.course_id").
 			Scan(&courseAggs).Error; err != nil {
 			return err
@@ -418,6 +420,7 @@ func ListCourseStatsByIDs(courseIds []uint64) map[uint64]CourseStatsEntity {
 	}
 	var list []CourseStatsEntity
 	if err := courseStatsBuilder().Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
+		slog.Warn("ListCourseStatsByIDs: 查询失败", "courseIds", courseIds, "err", err)
 		return result
 	}
 	for _, s := range list {
@@ -434,6 +437,7 @@ func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity
 	}
 	var list []OfferingStatsEntity
 	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
+		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
 		return result
 	}
 	for _, s := range list {
@@ -470,9 +474,11 @@ func GetRatingDistributionsByOfferings(offeringIds []uint64) map[uint64]RatingDi
 	var rows []RatingDistributionRow
 	if err := db.Connect().Table(reviewTableName).
 		Select("offering_id AS key, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS star5").
-		Where("offering_id IN ? AND status = ?", offeringIds, ReviewStatusVisible).
+		// 与 RebuildAllCourseStats 口径一致：status=visible 且未软删（security F1）。
+		Where("offering_id IN ? AND status = ? AND deleted_at IS NULL", offeringIds, ReviewStatusVisible).
 		Group("offering_id").
 		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByOfferings: 聚合失败", "offeringIds", offeringIds, "err", err)
 		return map[uint64]RatingDistribution{}
 	}
 	return ratingDistributionFromRows(rows)
@@ -487,9 +493,13 @@ func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDist
 	if err := db.Connect().Table(reviewTableName+" r").
 		Select("o.course_id AS key, SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
 		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
-		Where("o.course_id IN ? AND r.status = ?", courseIds, ReviewStatusVisible).
+		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
+		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。
+		Where("o.course_id IN ? AND r.status = ? AND r.deleted_at IS NULL AND o.deleted_at IS NULL AND o.status = ?",
+			courseIds, ReviewStatusVisible, OfferingStatusVisible).
 		Group("o.course_id").
 		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByCourseIds: 聚合失败", "courseIds", courseIds, "err", err)
 		return map[uint64]RatingDistribution{}
 	}
 	return ratingDistributionFromRows(rows)
