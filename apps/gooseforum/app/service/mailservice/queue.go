@@ -1,6 +1,7 @@
 package mailservice
 
 import (
+	"context"
 	"encoding/json"
 	"fmt"
 	"log/slog"
@@ -10,6 +11,7 @@ import (
 	"github.com/leancodebox/GooseForum/app/bundles/closer"
 	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/leancodebox/GooseForum/app/service/backgroundservice"
 )
 
 const (
@@ -107,6 +109,13 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 		default:
 		}
 
+		// 周期回收租约过期的 Running 任务（issue #138）：崩溃 worker 的
+		// 任务在 LeaseDuration 后回到 Pending 重新领取；运行中任务靠心跳
+		// 续租，不会被误回收。
+		if err := taskQueue.RecoverStaleRunning(emailTaskTypePrefix, taskQueue.LeaseDuration); err != nil {
+			slog.Error("恢复过期邮件任务失败", "error", err)
+		}
+
 		tasks := taskQueue.GetPendingEmailTasks(BatchSize)
 		if len(tasks) == 0 {
 			return true
@@ -115,72 +124,141 @@ func processPendingEmailTasks(stopCh <-chan struct{}) bool {
 
 		for _, task := range tasks {
 			slog.Debug("邮件队列开始处理任务", "id", task.Id, "type", task.Type, "status", task.Status, "retryCount", task.RetryCount)
-			if err := taskQueue.UpdateStatus(task.Id, taskQueue.StatusRunning, nil); err != nil {
-				slog.Error("更新任务状态失败", "error", err)
-				continue
-			}
 
-			var emailTask EmailTask
-			if err := json.Unmarshal([]byte(task.TaskJson), &emailTask); err != nil {
-				slog.Error("解析任务数据失败", "error", err)
-				if updateErr := taskQueue.UpdateStatus(task.Id, taskQueue.StatusFailed, err); updateErr != nil {
-					slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
-				}
-				continue
-			}
-
-			// noop 是 forgot-password 等时化 dummy 任务（#124）：静默消费并删除行，
-			// 不保留 Success 状态、不发送邮件、不打"邮件发送成功"日志，避免未认证
-			// 请求通过未知邮箱路径让 task_queue 无界增长。
-			if emailTask.Type == "noop" {
-				if delErr := taskQueue.Delete(task.Id); delErr != nil {
-					slog.Error("删除 noop 任务失败", "id", task.Id, "error", delErr)
-				}
-				continue
-			}
-
-			err := processEmailTask(emailTask)
+			// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
+			// 多 worker 并发时只有一个成功，其余跳过，避免重复发送邮件。
+			running, claimed, err := taskQueue.ClaimTask(task.Id)
 			if err != nil {
-				slog.Error("处理邮件任务失败",
-					"id", task.Id,
-					"type", emailTask.Type,
-					"to", emailTask.To,
-					"retryCount", task.RetryCount,
-					"error", err,
-				)
-
-				if task.RetryCount < MaxRetries {
-					if updateErr := taskQueue.IncrementRetryCount(task.Id); updateErr != nil {
-						slog.Error("更新任务重试次数失败", "id", task.Id, "error", updateErr)
-					}
-					if updateErr := taskQueue.UpdateStatus(task.Id, taskQueue.StatusRetrying, err); updateErr != nil {
-						slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
-					}
-					select {
-					case <-time.After(RetryInterval):
-					case <-stopCh:
-						return false
-					}
-					continue
-				}
-
-				if updateErr := taskQueue.UpdateStatus(task.Id, taskQueue.StatusFailed, err); updateErr != nil {
-					slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
-				}
+				slog.Error("领取任务失败", "id", task.Id, "error", err)
+				continue
+			}
+			if !claimed {
+				slog.Debug("任务已被其他 worker 领取", "id", task.Id)
 				continue
 			}
 
-			if err := taskQueue.UpdateStatus(task.Id, taskQueue.StatusSuccess, nil); err != nil {
-				slog.Error("更新任务状态失败", "id", task.Id, "error", err)
+			// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx 终止处理。
+			guard := backgroundservice.NewLeaseGuard(running.ProcessedAt)
+			ctx, cancel := context.WithCancel(context.Background())
+			heartbeatDone := backgroundservice.StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
+
+			emailTask, outcome, sendErr := executeClaimedEmail(task)
+
+			// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；后续状态
+			// 写入以它为 CAS 前置条件（fencing）。若心跳退出瞬间与最后一次
+			// 续租交叠，guard 中的租约值可能滞后于 DB，最终续租负责收敛；
+			// 续租失败说明租约已被回收，跳过终态写入，避免覆盖新持有者导致
+			// 重复发送。
+			cancel()
+			<-heartbeatDone
+			lease := guard.Get()
+			if ok, renewed, renewErr := taskQueue.RenewLease(task.Id, lease); renewErr != nil {
+				slog.Error("邮件任务最终续租失败", "id", task.Id, "error", renewErr)
+			} else if ok {
+				lease = renewed
+			} else {
+				slog.Warn("邮件任务租约已丢失，跳过终态写入", "id", task.Id)
 				continue
 			}
-			slog.Info("邮件发送成功",
-				"id", task.Id,
-				"type", emailTask.Type,
-				"to", emailTask.To,
-			)
+
+			retrying := writeEmailTaskOutcome(task, emailTask, outcome, sendErr, lease)
+			if retrying {
+				select {
+				case <-time.After(RetryInterval):
+				case <-stopCh:
+					return false
+				}
+			}
 		}
 	}
+}
+
+// emailTaskOutcome 描述一次邮件任务执行的业务结果，供终态写入决策。
+type emailTaskOutcome int
+
+const (
+	emailOutcomeInvalid emailTaskOutcome = iota // 任务数据无法解析，直接 Failed
+	emailOutcomeNoop                            // noop dummy 任务，静默删除
+	emailOutcomeSent                            // 邮件发送成功
+	emailOutcomeFailed                          // 发送失败，按重试策略处理
+)
+
+// executeClaimedEmail 执行一个已被当前 worker 原子领取的邮件任务：解析载荷、
+// 识别 noop dummy 任务、发送邮件。终态写入由调用方以最终租约值为 CAS
+// 前置条件执行（fencing），租约已丢失时跳过，避免覆盖新持有者导致重复发送。
+func executeClaimedEmail(task *taskQueue.Entity) (emailTask EmailTask, outcome emailTaskOutcome, sendErr error) {
+	if err := json.Unmarshal([]byte(task.TaskJson), &emailTask); err != nil {
+		slog.Error("解析任务数据失败", "error", err)
+		return emailTask, emailOutcomeInvalid, err
+	}
+
+	// noop 是 forgot-password 等时化 dummy 任务（#124）：静默消费并删除行，
+	// 不保留 Success 状态、不发送邮件、不打"邮件发送成功"日志，避免未认证
+	// 请求通过未知邮箱路径让 task_queue 无界增长。
+	if emailTask.Type == "noop" {
+		return emailTask, emailOutcomeNoop, nil
+	}
+
+	if err := processEmailTask(emailTask); err != nil {
+		return emailTask, emailOutcomeFailed, err
+	}
+	return emailTask, emailOutcomeSent, nil
+}
+
+// writeEmailTaskOutcome 以最终租约值为 CAS 前置条件写入任务终态（fencing）。
+// 返回 retrying 表示任务已标记为 Retrying，调用方应等待 RetryInterval 后
+// 再继续，保持重试节奏。
+func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome emailTaskOutcome, sendErr error, lease time.Time) (retrying bool) {
+	switch outcome {
+	case emailOutcomeNoop:
+		if delErr := taskQueue.DeleteOwned(task.Id, lease); delErr != nil {
+			slog.Error("删除 noop 任务失败", "id", task.Id, "error", delErr)
+		}
+		return false
+
+	case emailOutcomeInvalid:
+		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, lease, sendErr); updateErr != nil {
+			slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
+		}
+		return false
+
+	case emailOutcomeSent:
+		if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, lease, nil); err != nil {
+			slog.Error("更新任务状态失败", "id", task.Id, "error", err)
+			return false
+		}
+		slog.Info("邮件发送成功",
+			"id", task.Id,
+			"type", emailTask.Type,
+			"to", emailTask.To,
+		)
+		return false
+
+	case emailOutcomeFailed:
+		slog.Error("处理邮件任务失败",
+			"id", task.Id,
+			"type", emailTask.Type,
+			"to", emailTask.To,
+			"retryCount", task.RetryCount,
+			"error", sendErr,
+		)
+
+		if task.RetryCount < MaxRetries {
+			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, lease); updateErr != nil {
+				slog.Error("更新任务重试次数失败", "id", task.Id, "error", updateErr)
+			}
+			if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusRetrying, lease, sendErr); updateErr != nil {
+				slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
+			}
+			return true
+		}
+
+		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, lease, sendErr); updateErr != nil {
+			slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
+		}
+		return false
+	}
+	return false
 }
 
 // processEmailTask dispatches an email task by type.
@@ -202,5 +280,5 @@ func processEmailTask(task EmailTask) error {
 
 // RecoverStaleTasks 启动时恢复邮件 worker 类型前缀下崩溃遗留的 Running 任务。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(emailTaskTypePrefix, 10*time.Minute)
+	return taskQueue.RecoverStaleRunning(emailTaskTypePrefix, taskQueue.LeaseDuration)
 }

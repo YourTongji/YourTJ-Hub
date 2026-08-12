@@ -15,6 +15,12 @@ const (
 	StatusRetrying = 4 // 重试中
 )
 
+// LeaseDuration 是任务租约时长（issue #138）。任务被领取时以 processed_at 记录
+// 租约起点，worker 执行期间通过 RenewLease 心跳持续续约；超过 LeaseDuration
+// 未续约的 Running 任务视为崩溃残留，由 RecoverStaleRunning 回收为 Pending
+// 重新领取，避免任务永久卡在 Running。
+const LeaseDuration = 10 * time.Minute
+
 type Entity struct {
 	Id          uint64    `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
 	Type        string    `gorm:"column:type;type:varchar(50);not null;" json:"type"`       // 任务类型

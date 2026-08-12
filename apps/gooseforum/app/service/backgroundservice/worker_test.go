@@ -3,7 +3,10 @@ package backgroundservice
 import (
 	"context"
 	"errors"
+	"sync"
+	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
 	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
@@ -117,4 +120,165 @@ func mustGetTask(t *testing.T, id uint64) taskQueue.Entity {
 		t.Fatalf("GetByID(%d) error = %v", id, err)
 	}
 	return task
+}
+
+// TestClaimTaskAtomicity 验证多 worker 并发领取同一任务时只有一个成功
+// （issue #138：原子 claim 取代"查询 pending + 无守卫更新 running"两步分离）。
+func TestClaimTaskAtomicity(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	const workers = 8
+	var claimed atomic.Int32
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			_, ok, err := taskQueue.ClaimTask(task.Id)
+			if err != nil {
+				t.Errorf("ClaimTask(%d) error = %v", task.Id, err)
+				return
+			}
+			if ok {
+				claimed.Add(1)
+			}
+		}()
+	}
+	wg.Wait()
+
+	if got := claimed.Load(); got != 1 {
+		t.Fatalf("concurrent claims = %d, want exactly 1", got)
+	}
+	updated := mustGetTask(t, task.Id)
+	if updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("status after claim = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
+	}
+}
+
+// TestProcessTaskConcurrentSingleExecution 验证多个 worker 同时 processTask
+// 同一任务时 handler 恰好执行一次（issue #138 的核心回归点：不重复外部副作用）。
+func TestProcessTaskConcurrentSingleExecution(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	var runs atomic.Int32
+	handler := func(_ context.Context, _ *taskQueue.Entity) error {
+		runs.Add(1)
+		time.Sleep(20 * time.Millisecond) // 拉长执行窗口，放大竞争
+		return nil
+	}
+
+	const workers = 8
+	var wg sync.WaitGroup
+	for i := 0; i < workers; i++ {
+		wg.Add(1)
+		go func() {
+			defer wg.Done()
+			processTask(make(chan struct{}), "export", task, handler)
+		}()
+	}
+	wg.Wait()
+
+	if got := runs.Load(); got != 1 {
+		t.Fatalf("handler executed %d times, want exactly 1", got)
+	}
+	updated := mustGetTask(t, task.Id)
+	if updated.Status != taskQueue.StatusSuccess {
+		t.Fatalf("status after concurrent processing = %d, want %d (success)", updated.Status, taskQueue.StatusSuccess)
+	}
+}
+
+// TestLeaseFencing 验证租约 fencing：任务租约过期被回收并重新领取后，
+// 旧 worker 的续租与终态写入都必须失败，不能覆盖新持有者（issue #138）。
+func TestLeaseFencing(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	running, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("first claim failed: claimed=%v err=%v", claimed, err)
+	}
+	firstLease := running.ProcessedAt
+
+	// 模拟旧 worker 崩溃：租约过期 → 回收为 Pending → 新 worker 重新领取
+	conn := dbconnect.Connect()
+	if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), task.Id).Error; err != nil {
+		t.Fatalf("age lease: %v", err)
+	}
+	if err := taskQueue.RecoverStaleRunning("export", taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale: %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusPending {
+		t.Fatalf("status after recover = %d, want %d (pending)", updated.Status, taskQueue.StatusPending)
+	}
+	if _, claimed, err := taskQueue.ClaimTask(task.Id); err != nil || !claimed {
+		t.Fatalf("second claim failed: claimed=%v err=%v", claimed, err)
+	}
+
+	// 旧 worker 续租必须失败（其租约值已被新持有者覆盖）
+	ok, _, err := taskQueue.RenewLease(task.Id, firstLease)
+	if err != nil {
+		t.Fatalf("RenewLease error = %v", err)
+	}
+	if ok {
+		t.Fatal("stale worker renewed lease, want fencing failure")
+	}
+
+	// 旧 worker 的终态写入必须被跳过（fencing），新持有者状态不受影响
+	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, firstLease, nil); err != nil {
+		t.Fatalf("UpdateStatusOwned error = %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("fenced write leaked: status = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
+	}
+}
+
+// TestRecoverStaleRunningOnlyReclaimsExpiredLeases 验证过期租约回收只命中
+// 崩溃残留（processed_at 超时），运行中（心跳续租中的）任务不被误回收。
+func TestRecoverStaleRunningOnlyReclaimsExpiredLeases(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	fresh := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	stale := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(fresh); err != nil {
+		t.Fatalf("create fresh task: %v", err)
+	}
+	if err := taskQueue.Create(stale); err != nil {
+		t.Fatalf("create stale task: %v", err)
+	}
+	if _, claimed, err := taskQueue.ClaimTask(fresh.Id); err != nil || !claimed {
+		t.Fatalf("claim fresh: claimed=%v err=%v", claimed, err)
+	}
+	if _, claimed, err := taskQueue.ClaimTask(stale.Id); err != nil || !claimed {
+		t.Fatalf("claim stale: claimed=%v err=%v", claimed, err)
+	}
+
+	conn := dbconnect.Connect()
+	if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), stale.Id).Error; err != nil {
+		t.Fatalf("age stale lease: %v", err)
+	}
+
+	if err := taskQueue.RecoverStaleRunning("export", taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale: %v", err)
+	}
+
+	if updated := mustGetTask(t, stale.Id); updated.Status != taskQueue.StatusPending {
+		t.Fatalf("stale task status = %d, want %d (pending)", updated.Status, taskQueue.StatusPending)
+	}
+	if updated := mustGetTask(t, fresh.Id); updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("fresh task wrongly reclaimed: status = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
+	}
 }
