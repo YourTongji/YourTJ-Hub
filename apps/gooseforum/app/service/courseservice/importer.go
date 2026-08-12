@@ -244,6 +244,10 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 // 未声明 counts 的旧 manifest 不校验（向前兼容）；声明后逐文件强制一致，
 // 不一致说明包被截断/篡改（计数是 sha256 之外的第二道完整性防线），
 // 在 dry-run 阶段即拒绝，避免半包被静默导入。
+// 语义：counts 缺失（yaml 无 counts 键）与显式空 counts（counts: {} 或
+// counts: null，均解析为空 map）等同——都不触发校验，向后兼容旧包；
+// 只要 counts 非空，则每个声明的文件都必须匹配，且 counts 中引用
+// manifest.files 之外的文件同样拒绝。
 func validateManifestCounts(manifest ImportManifest, fileCounts map[string]int) error {
 	if len(manifest.Counts) == 0 {
 		return nil

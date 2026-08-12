@@ -102,6 +102,16 @@ func TestImportCatalogValidatesManifestCounts(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "counts mismatch") {
 		t.Fatalf("expected counts mismatch error, got %v", err)
 	}
+	// 多文件部分不匹配：3 个文件中仅 1 个计数错误，其余正确，
+	// 同样必须整体拒绝（防止"部分匹配"被误判通过）。
+	partialBad := writeManifestFixtureWithCounts(t, files, map[string]int{
+		"courses.jsonl": 2, "instructors.jsonl": 1, "offerings.jsonl": 9,
+	})
+	if _, err := ImportCatalog(context.Background(), partialBad, true); err == nil {
+		t.Fatal("expected counts mismatch error when only one of multiple files mismatches")
+	} else if !strings.Contains(err.Error(), "offerings.jsonl") {
+		t.Fatalf("expected error to name the mismatching file, got %v", err)
+	}
 	// 计数引用了 manifest 中不存在的文件：同样拒绝。
 	badFile := writeManifestFixtureWithCounts(t, files, map[string]int{
 		"courses.jsonl": 2, "instructors.jsonl": 1, "offerings.jsonl": 1, "reviews.jsonl": 1,
