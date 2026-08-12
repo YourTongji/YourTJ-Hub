@@ -1013,3 +1013,59 @@ func TestCourseReviewPaginationMultiOfferingCursor(t *testing.T) {
 		t.Fatalf("first item = %#v, want id 115 (offering 902 newest first)", first.List[0])
 	}
 }
+
+// TestCourseReviewPaginationOfferingStats 验证跨 PR 接线（#195 字段 → #201 分页路径）：
+// reviews?offeringId= 分页响应的 ReviewPayload 携带 offeringRatingAvg/
+// offeringReviewCount 且值正确（数据来自 offering_review_stats 投影）。
+func TestCourseReviewPaginationOfferingStats(t *testing.T) {
+	conn, router := setupCourseReviewContractTest(t)
+	seedCourseReviewCatalog(t, conn, 901)
+	conn.Unscoped().Where("1 = 1").Delete(&course.ReviewEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.OfferingStatsEntity{})
+
+	// 3 条评价（5/4/NULL）+ offering 统计投影（2 评分 sum=9 → avg=4.5, reviewCount=3）
+	r5, r4 := 5, 4
+	seedCourseReview(t, conn, 1, 901, 1, &r5, "五星", true, "", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 2, 901, 2, &r4, "四星", true, "", course.ReviewStatusVisible)
+	seedCourseReview(t, conn, 3, 901, 3, nil, "无评分", true, "", course.ReviewStatusVisible)
+	if err := conn.Create(&course.OfferingStatsEntity{OfferingId: 901, RatingCount: 2, RatingSum: 9, ReviewCount: 3}).Error; err != nil {
+		t.Fatalf("create offering stats: %v", err)
+	}
+
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=901&pageSize=50", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	response := decodeContractEnvelope(t, rec)
+	var page struct {
+		List []map[string]any `json:"list"`
+	}
+	_ = json.Unmarshal(response.Result, &page)
+	if len(page.List) != 3 {
+		t.Fatalf("list length = %d, want 3", len(page.List))
+	}
+	// 每条 payload 都带 offering 级统计（同 offering 901）
+	for i, item := range page.List {
+		if got := item["offeringRatingAvg"]; got != 4.5 {
+			t.Fatalf("item %d offeringRatingAvg = %#v, want 4.5", i, got)
+		}
+		if got := item["offeringReviewCount"]; got != float64(3) {
+			t.Fatalf("item %d offeringReviewCount = %#v, want 3", i, got)
+		}
+	}
+	// 无 offeringId 过滤（course 级）→ 不填充 offering 统计
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?pageSize=50", "", "")
+	response = decodeContractEnvelope(t, rec)
+	var coursePage struct {
+		List []map[string]any `json:"list"`
+	}
+	_ = json.Unmarshal(response.Result, &coursePage)
+	if len(coursePage.List) != 3 {
+		t.Fatalf("course list length = %d, want 3", len(coursePage.List))
+	}
+	for i, item := range coursePage.List {
+		if _, present := item["offeringRatingAvg"]; present {
+			t.Fatalf("course-level item %d should omit offeringRatingAvg, got %#v", i, item["offeringRatingAvg"])
+		}
+	}
+}

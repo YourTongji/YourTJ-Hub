@@ -1,6 +1,7 @@
 package course
 
 import (
+	"log/slog"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -364,6 +365,26 @@ func GetCourseStats(courseId uint64) (entity CourseStatsEntity, err error) {
 func GetOfferingStats(offeringId uint64) (entity OfferingStatsEntity, err error) {
 	err = offeringStatsBuilder().Where("offering_id = ?", offeringId).First(&entity).Error
 	return
+}
+
+// ListOfferingStatsByIDs 批量读取 offering 级统计投影（分页响应 offering 统计 N+1 防护）。
+// 无统计行的 offering 返回空实体（ratingCount=0/reviewCount=0）。
+// 依赖说明（PR #195 跨 PR 接线）：字段名与 #195 ReviewPayload 的
+// offeringRatingAvg/offeringReviewCount 对齐；#195 先于 #201 合入。
+func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity {
+	result := make(map[uint64]OfferingStatsEntity, len(offeringIds))
+	if len(offeringIds) == 0 {
+		return result
+	}
+	var list []OfferingStatsEntity
+	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
+		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.OfferingId] = s
+	}
+	return result
 }
 
 // UpsertCourseStatsTx 事务内课程级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
