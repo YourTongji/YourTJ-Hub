@@ -2,7 +2,7 @@
 # vim: set ts=2 sw=2 tw=0 fo=cnqoj
 
 version: 2
-project_name: GooseForum
+project_name: yourtj-hub
 
 before:
   hooks:
@@ -76,8 +76,6 @@ changelog:
       - "^docs:"
       - "^test:"
 
-env_files:
-  github_token: ~/.local/github_token
 
 release:
   footer: >-

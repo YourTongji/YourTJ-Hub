@@ -47,9 +47,9 @@ cd YourTJ-Hub/apps/gooseforum
 
 cd resource && pnpm install && pnpm build && cd ..
 go mod tidy
-go build -ldflags="-w -s" .
+go build -o yourtj-hub -ldflags="-w -s" .
 
-./gooseforum serve
+./yourtj-hub serve
 ```
 
 或在 monorepo 根目录执行 `make build`，生成单二进制 `bin/yourtj-hub`。
@@ -76,9 +76,9 @@ MySQL、PostgreSQL、邮件、备份、安全和站点配置见 [配置文档](d
 ### 管理命令
 
 ```bash
-./gooseforum set-user-admin <用户ID>
-./gooseforum set-user-email <用户ID> <邮箱>
-./gooseforum set-user-password <用户ID> <密码>
+./yourtj-hub set-user-admin <用户ID>
+./yourtj-hub set-user-email <用户ID> <邮箱>
+./yourtj-hub set-user-password <用户ID> <密码>
 ```
 
 ## GooseForum 是什么？
@@ -136,8 +136,8 @@ GooseForum/
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY gooseforum .
-CMD ["./gooseforum", "serve"]
+COPY yourtj-hub .
+CMD ["./yourtj-hub", "serve"]
 ```
 
 ## 文档

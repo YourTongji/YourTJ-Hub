@@ -47,9 +47,9 @@ cd YourTJ-Hub/apps/gooseforum
 
 cd resource && pnpm install && pnpm build && cd ..
 go mod tidy
-go build -ldflags="-w -s" .
+go build -o yourtj-hub -ldflags="-w -s" .
 
-./gooseforum serve
+./yourtj-hub serve
 ```
 
 Or from the monorepo root: `make build` produces the single binary at `bin/yourtj-hub`.
@@ -76,9 +76,9 @@ See [configuration documentation](docs/user/configuration.md) for MySQL, Postgre
 ### Admin Commands
 
 ```bash
-./gooseforum set-user-admin <userId>
-./gooseforum set-user-email <userId> <email>
-./gooseforum set-user-password <userId> <password>
+./yourtj-hub set-user-admin <userId>
+./yourtj-hub set-user-email <userId> <email>
+./yourtj-hub set-user-password <userId> <password>
 ```
 
 ## What Is GooseForum?
@@ -136,8 +136,8 @@ Minimal container image:
 FROM alpine:latest
 RUN apk --no-cache add ca-certificates
 WORKDIR /root/
-COPY gooseforum .
-CMD ["./gooseforum", "serve"]
+COPY yourtj-hub .
+CMD ["./yourtj-hub", "serve"]
 ```
 
 ## Documentation
