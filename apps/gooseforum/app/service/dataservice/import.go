@@ -4,6 +4,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"log/slog"
 	"strings"
 	"time"
 
@@ -58,7 +59,11 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	importTopicCategoryIndexes(parsed["topicCategoryIndex"], report)
 	importTopicUserStats(parsed["topicUserStat"], report)
 	// 话题 invariants 需要 posts 全部落库后才能推导，必须在 posts 导入之后执行。
-	rebuildTopicInvariants()
+	// 仅当本次导入涉及 topics/posts 时才全库重建，避免仅导入 users 时
+	// 对全库话题产生无谓扫描与副作用（PR #160 review, suggestion 3）。
+	if _, hasTopics := parsed["topics"]; hasTopics {
+		rebuildTopicInvariants()
+	}
 	// 显式主键写入不会推进 PostgreSQL sequence，导入后需手动推进，
 	// 否则下一次自动插入可能复用已导入 ID 触发主键冲突。
 	resetPostgresSequences()
@@ -70,14 +75,18 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	return report, nil
 }
 
-// resetPostgresSequences 导入显式主键后推进 users/topics/posts 的 sequence。
-// SQLite 无 sequence 概念，无需处理。
+// resetPostgresSequences 导入显式主键后推进各表的 sequence。
+// 覆盖 users/topics/posts 及两张派生表 topic_category_index/topic_user_stat
+// （均 autoIncrement 主键，PR #160 review, warning 1）：PG 上显式主键写入
+// 不推进序列，若漏推，下一次 INSERT 可能复用已导入 ID 触发主键冲突，
+// 参与者统计/分类索引的增量写入会被静默丢弃。SQLite 无 sequence 概念，
+// MySQL AUTO_INCREMENT 自动跳到 max(id)+1，均无需处理。
 func resetPostgresSequences() {
 	if dbconnect.IsSqlite() {
 		return
 	}
 	db := dbconnect.Connect()
-	for _, table := range []string{"users", "topics", "posts"} {
+	for _, table := range []string{"users", "topics", "posts", "topic_category_index", "topic_user_stat"} {
 		db.Exec(fmt.Sprintf(
 			`SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM %s), 1), true)`,
 			table, table,
@@ -300,6 +309,13 @@ func importTopicCategoryIndexes(rows []map[string]any, report *ImportReport) {
 			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicCategoryIndex", Reason: "topicId 不存在"})
 			continue
 		}
+		// 外键一致性：与 importTopics 校验分类存在保持一致（PR #160 review, suggestion 6）
+		var cat category.Entity
+		if err := db.First(&cat, categoryID).Error; err != nil {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicCategoryIndex", Reason: "categoryId 不存在"})
+			continue
+		}
 		var existing topicCategoryIndex.Entity
 		if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
 			report.Skipped++
@@ -339,6 +355,13 @@ func importTopicUserStats(rows []map[string]any, report *ImportReport) {
 			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicUserStat", Reason: "topicId 不存在"})
 			continue
 		}
+		// 外键一致性：与 importPosts 校验用户存在保持一致（PR #160 review, suggestion 6）
+		var user users.EntityComplete
+		if err := db.First(&user, userID).Error; err != nil {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "topicUserStat", Reason: "userId 不存在"})
+			continue
+		}
 		var existing topicUserStat.Entity
 		if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
 			report.Skipped++
@@ -369,28 +392,36 @@ func importTopicUserStats(rows []map[string]any, report *ImportReport) {
 // rebuildTopicInvariants 在导入全部落库后重建话题 invariants：
 //   - post_seq / first_post_id / last_post_id / post_count / reply_count /
 //     posters / last_posted_at 按实际 posts 推导，保证与源库一致（issue #135）；
-//   - topic_category_index 缺失时按 topics.categoryIds 补齐，避免分类/搜索关联丢失。
+//   - topic_category_index 缺失时按 topics.categoryIds 补齐，避免分类/搜索关联丢失；
+//   - topic_user_stat 缺失（count==0）时从 posts 重建参与者统计——
+//     覆盖默认 UI 路径（仅导出 users/topics/posts，新格式 topics 无需回填
+//     指针但仍需重建统计，PR #160 review, warning 2）。
 //
-// 仅当话题缺失关键字段时补算，避免覆盖新导出格式中导出的精确值。
+// 仅当话题缺失关键字段时补算指针，避免覆盖新导出格式中导出的精确值。
 func rebuildTopicInvariants() {
 	db := dbconnect.Connect()
 	var list []topics.Entity
 	if err := db.Find(&list).Error; err != nil {
+		slog.Error("rebuildTopicInvariants: 加载话题列表失败", "err", err)
 		return
 	}
 	for _, topic := range list {
-		// 判断该话题是否需要按 posts 回填：invariants 缺失（旧格式导出，
+		// 判断该话题是否需要按 posts 回填指针：invariants 缺失（旧格式导出，
 		// postSeq/firstPostId/lastPostId/lastPostedAt 全 0 或空）即回填。
 		needsBackfill := topic.PostSeq == 0 || topic.FirstPostId == 0 || topic.LastPostId == 0 || topic.LastPostedAt == nil
 		if !needsBackfill {
-			// 分类索引由导出文件显式导入；仅当缺失时按 topics.categoryIds 补齐
+			// 新格式导出：指针/计数已精确恢复，仅补齐缺失的派生表。
+			// 分类索引缺失时按 topics.categoryIds 补齐；
+			// 参与者统计缺失（默认 UI 路径不导出该表）时从 posts 重建。
 			ensureTopicCategoryIndexes(db, topic.Id)
+			ensureTopicUserStats(db, topic.Id)
 			continue
 		}
 		var postList []*posts.Entity
 		if err := db.Where("topic_id = ?", topic.Id).
 			Order("post_no asc").Order("id asc").
 			Find(&postList).Error; err != nil {
+			slog.Error("rebuildTopicInvariants: 加载话题 posts 失败", "topicId", topic.Id, "err", err)
 			continue
 		}
 		// 无 posts 的话题（空话题在源库不存在）跳过，避免全 0 误判后白扫
@@ -420,7 +451,7 @@ func rebuildTopicInvariants() {
 			continue
 		}
 		updates := map[string]any{
-			"post_seq":     maxPostNo,
+			"post_seq":      maxPostNo,
 			"first_post_id": firstPostID,
 			"last_post_id":  lastPostID,
 			"post_count":    len(postList),
@@ -438,15 +469,25 @@ func rebuildTopicInvariants() {
 			updates["last_posted_at"] = *lastTime
 		}
 		if err := db.Model(&topics.Entity{}).Where("id = ?", topic.Id).Updates(updates).Error; err != nil {
+			slog.Error("rebuildTopicInvariants: 更新话题 invariants 失败", "topicId", topic.Id, "err", err)
 			continue
 		}
 		// 参与者统计：导入文件带 topicUserStat 时保留导出值，缺失时从 posts 重建
-		var count int64
-		db.Model(&topicUserStat.Entity{}).Where("topic_id = ?", topic.Id).Count(&count)
-		if count == 0 {
-			rebuildTopicUserStats(db, topic.Id)
-		}
+		ensureTopicUserStats(db, topic.Id)
 		ensureTopicCategoryIndexes(db, topic.Id)
+	}
+}
+
+// ensureTopicUserStats 话题参与者统计缺失（count==0）时从 posts 重建。
+// 导入文件显式携带 topicUserStat 时保留导出值（count>0 不重建）。
+func ensureTopicUserStats(db *gorm.DB, topicID uint64) {
+	var count int64
+	if err := db.Model(&topicUserStat.Entity{}).Where("topic_id = ?", topicID).Count(&count).Error; err != nil {
+		slog.Error("ensureTopicUserStats: 统计失败", "topicId", topicID, "err", err)
+		return
+	}
+	if count == 0 {
+		rebuildTopicUserStats(db, topicID)
 	}
 }
 
@@ -472,6 +513,7 @@ func rebuildPosters(topicUserID uint64, postList []*posts.Entity) []topics.Poste
 func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) {
 	var topic topics.Entity
 	if err := db.First(&topic, topicID).Error; err != nil {
+		slog.Error("ensureTopicCategoryIndexes: 加载话题失败", "topicId", topicID, "err", err)
 		return
 	}
 	for _, cid := range topic.CategoryIds {
@@ -479,32 +521,40 @@ func ensureTopicCategoryIndexes(db *gorm.DB, topicID uint64) {
 			continue
 		}
 		var count int64
-		db.Model(&topicCategoryIndex.Entity{}).
+		if err := db.Model(&topicCategoryIndex.Entity{}).
 			Where("topic_id = ? AND category_id = ?", topicID, cid).
-			Count(&count)
+			Count(&count).Error; err != nil {
+			slog.Error("ensureTopicCategoryIndexes: 统计分类索引失败", "topicId", topicID, "categoryId", cid, "err", err)
+			continue
+		}
 		if count > 0 {
 			continue
 		}
-		_ = db.Create(&topicCategoryIndex.Entity{
+		if err := db.Create(&topicCategoryIndex.Entity{
 			TopicId:    topicID,
 			CategoryId: cid,
 			Effective:  1,
-		}).Error
+		}).Error; err != nil {
+			slog.Error("ensureTopicCategoryIndexes: 创建分类索引失败", "topicId", topicID, "categoryId", cid, "err", err)
+		}
 	}
 }
 
 // rebuildTopicUserStats 从 posts 重建话题参与者统计（reply_count/last_reply_at）。
+// 与 postservice.RebuildTopicPostStats 语义一致：仅统计 visibility_status=ACTIVE
+// 的回复（PR #160 review, suggestion 7）。
 func rebuildTopicUserStats(db *gorm.DB, topicID uint64) {
 	var postList []*posts.Entity
 	if err := db.Where("topic_id = ?", topicID).
 		Order("post_no asc").Order("id asc").
 		Find(&postList).Error; err != nil {
+		slog.Error("rebuildTopicUserStats: 加载话题 posts 失败", "topicId", topicID, "err", err)
 		return
 	}
 	byUser := map[uint64]uint32{}
 	lastByUser := map[uint64]time.Time{}
 	for _, p := range postList {
-		if p.PostNo == 1 {
+		if p.PostNo == 1 || p.VisibilityStatus != posts.VisibilityActive {
 			continue
 		}
 		byUser[p.UserId]++
@@ -514,12 +564,14 @@ func rebuildTopicUserStats(db *gorm.DB, topicID uint64) {
 	}
 	for userID, count := range byUser {
 		last := lastByUser[userID]
-		_ = db.Create(&topicUserStat.Entity{
+		if err := db.Create(&topicUserStat.Entity{
 			TopicId:     topicID,
 			UserId:      userID,
 			ReplyCount:  count,
 			LastReplyAt: last,
-		}).Error
+		}).Error; err != nil {
+			slog.Error("rebuildTopicUserStats: 创建参与者统计失败", "topicId", topicID, "userId", userID, "err", err)
+		}
 	}
 }
 

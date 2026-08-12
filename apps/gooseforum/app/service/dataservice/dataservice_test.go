@@ -574,3 +574,79 @@ func TestImportLegacyExportBackfillsInvariants(t *testing.T) {
 		t.Fatalf("backfilled category index count = %d, want 1", tciCount)
 	}
 }
+
+// TestImportDefaultUIPathRebuildsTopicUserStats 覆盖默认 UI 导出路径
+// （仅 users/topics/posts 三表，无 topicUserStat）：新格式 topics 自带完整
+// invariants（无需回填指针），但 topic_user_stat 未导出——导入后必须从
+// posts 重建参与者统计（PR #160 review, warning 2）。
+func TestImportDefaultUIPathRebuildsTopicUserStats(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+
+	conn := dbconnect.Connect()
+	// 数据：1 分类、2 用户、1 话题（2 帖）
+	cat := category.Entity{Name: "UI路径分类"}
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	author := users.EntityComplete{Username: "ui-author", Email: "ui-author@example.com"}
+	if err := users.Create(&author); err != nil {
+		t.Fatalf("create author: %v", err)
+	}
+	replier := users.EntityComplete{Username: "ui-replier", Email: "ui-replier@example.com"}
+	if err := users.Create(&replier); err != nil {
+		t.Fatalf("create replier: %v", err)
+	}
+	now := time.Now().UTC().Add(-time.Hour)
+
+	// 新格式 topics：postSeq/firstPostId/lastPostId 等 invariants 完整（无需回填）
+	jsonData := []byte(`{
+	  "users": [
+	    {"id": ` + jsonUint64(author.Id) + `, "username": "ui-author", "email": "ui-author@example.com"},
+	    {"id": ` + jsonUint64(replier.Id) + `, "username": "ui-replier", "email": "ui-replier@example.com"}
+	  ],
+	  "topics": [{
+	    "id": 9001, "title": "UI 路径话题", "userId": ` + jsonUint64(author.Id) + `,
+	    "categoryIds": "[` + jsonUint64(cat.Id) + `]", "status": 1, "postCount": 2, "replyCount": 1,
+	    "postSeq": 2, "firstPostId": 9002, "lastPostId": 9003,
+	    "lastPostedAt": "` + now.Add(time.Minute).Format(time.RFC3339Nano) + `",
+	    "posters": "[{\"user_id\":` + jsonUint64(author.Id) + `},{\"user_id\":` + jsonUint64(replier.Id) + `}]"
+	  }],
+	  "posts": [
+	    {"id": 9002, "topicId": 9001, "userId": ` + jsonUint64(author.Id) + `, "content": "首帖", "postNo": 1},
+	    {"id": 9003, "topicId": 9001, "userId": ` + jsonUint64(replier.Id) + `, "content": "回复", "postNo": 2}
+	  ]
+	}`)
+
+	report, err := ImportData(context.Background(), jsonData, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 0 {
+		t.Fatalf("ImportData() failed = %d, want 0 (errors: %+v)", report.Failed, report.Errors)
+	}
+
+	// topics 非回填分支：指针/计数保持导出精确值
+	var topic topics.Entity
+	if err := conn.First(&topic, 9001).Error; err != nil {
+		t.Fatalf("imported topic missing: %v", err)
+	}
+	if topic.PostSeq != 2 || topic.FirstPostId != 9002 || topic.LastPostId != 9003 {
+		t.Fatalf("invariants = postSeq %d first %d last %d, want 2/9002/9003",
+			topic.PostSeq, topic.FirstPostId, topic.LastPostId)
+	}
+	// 参与者统计被重建（warning 2 核心断言）：replier 的回复计数恢复
+	var stat topicUserStat.Entity
+	if err := conn.Where("topic_id = ? AND user_id = ?", 9001, replier.Id).First(&stat).Error; err != nil {
+		t.Fatalf("topic_user_stat not rebuilt for replier: %v", err)
+	}
+	if stat.ReplyCount != 1 {
+		t.Fatalf("rebuilt reply count = %d, want 1", stat.ReplyCount)
+	}
+	// 分类索引补齐
+	var tciCount int64
+	conn.Model(&topicCategoryIndex.Entity{}).Where("topic_id = ?", 9001).Count(&tciCount)
+	if tciCount != 1 {
+		t.Fatalf("category index count = %d, want 1", tciCount)
+	}
+}

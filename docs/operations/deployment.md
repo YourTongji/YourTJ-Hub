@@ -304,8 +304,10 @@ instance:
 
 ## Data export/import
 
-- Admin panel (数据管理): export users/topics/posts as JSON or CSV via a background task, then
-  download; import JSON with a per-row validation report and idempotent skip.
+- Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
+  topic_user_stat when selected) as JSON or CSV via a background task, then download;
+  import JSON with a per-row validation report and idempotent skip; topic invariants
+  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
 - Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
   (daily cron). Export contains user emails — treat downloads as sensitive.
 
