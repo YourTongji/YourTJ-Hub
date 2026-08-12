@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-12
 
 ## Contract status
 
@@ -31,6 +31,14 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
 - `GET /api/v1/agent/search`.
 - `GET /api/forum/courses` and `GET /api/forum/courses/{courseId}` (course catalog read endpoints, `security: []`);
+- `GET /api/forum/courses/{courseId}/reviews`, `POST /api/forum/courses/{courseId}/reviews`,
+  `PATCH /api/forum/course-reviews/{reviewId}`, and `DELETE /api/forum/course-reviews/{reviewId}`;
+- `PUT /api/forum/course-reviews/{reviewId}/helpful`,
+  `DELETE /api/forum/course-reviews/{reviewId}/helpful`, and
+  `POST /api/forum/course-reviews/{reviewId}/report`;
+- `POST /api/forum/moderation/course-review-status`,
+  `POST /api/forum/moderation/course-review-reports`, and
+  `POST /api/forum/moderation/course-review-reveal`.
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
