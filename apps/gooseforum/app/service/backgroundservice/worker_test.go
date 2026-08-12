@@ -211,7 +211,7 @@ func TestLeaseFencing(t *testing.T) {
 	if err != nil || !claimed {
 		t.Fatalf("first claim failed: claimed=%v err=%v", claimed, err)
 	}
-	firstLease := running.ProcessedAt
+	firstToken := running.LeaseToken
 
 	// 模拟旧 worker 崩溃：租约过期 → 回收为 Pending → 新 worker 重新领取
 	conn := dbconnect.Connect()
@@ -228,8 +228,8 @@ func TestLeaseFencing(t *testing.T) {
 		t.Fatalf("second claim failed: claimed=%v err=%v", claimed, err)
 	}
 
-	// 旧 worker 续租必须失败（其租约值已被新持有者覆盖）
-	ok, _, err := taskQueue.RenewLease(task.Id, firstLease)
+	// 旧 worker 续租必须失败（其 fencing token 已被新持有者替换）
+	ok, _, _, err := taskQueue.RenewLease(task.Id, firstToken)
 	if err != nil {
 		t.Fatalf("RenewLease error = %v", err)
 	}
@@ -238,7 +238,87 @@ func TestLeaseFencing(t *testing.T) {
 	}
 
 	// 旧 worker 的终态写入必须被跳过（fencing），新持有者状态不受影响
-	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, firstLease, nil); err != nil {
+	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, firstToken, nil); err != nil {
+		t.Fatalf("UpdateStatusOwned error = %v", err)
+	}
+	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusRunning {
+		t.Fatalf("fenced write leaked: status = %d, want %d (running)", updated.Status, taskQueue.StatusRunning)
+	}
+}
+
+// TestLeaseFencingSameLeaseCollision 构造最坏碰撞场景（review P1）：数据库
+// 时间精度截断使新旧 worker 领取的 processed_at 落进同一精度槽位 —— 旧实现
+// 把时间戳同时当作租约与 fencing token，此时旧 worker 的 CAS（WHERE
+// processed_at = 旧值）会误判匹配新持有者，覆盖状态并重新引入重复外部副作用。
+// 修复后 CAS 基于每次领取独立生成的 lease_token（UUID），时间戳碰撞不再
+// 影响持有者判定：把新行 processed_at 覆写为与旧租约完全相同（模拟精度截断）
+// 后，旧 worker 用旧 token 续租/写终态仍必须失败，任务保持新持有者状态。
+func TestLeaseFencingSameLeaseCollision(t *testing.T) {
+	setupWorkerTestDB(t)
+
+	task := &taskQueue.Entity{Type: "export", Status: taskQueue.StatusPending, TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+
+	// 第一次领取：旧 worker 拿到 token A
+	first, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("first claim failed: claimed=%v err=%v", claimed, err)
+	}
+	oldToken := first.LeaseToken
+	oldLease := first.ProcessedAt
+
+	// 回收并重新领取：新 worker 拿到 token B（与 A 必然不同）
+	conn := dbconnect.Connect()
+	if err := conn.Exec("UPDATE task_queue SET processed_at = ? WHERE id = ?", time.Now().Add(-20*time.Minute), task.Id).Error; err != nil {
+		t.Fatalf("age lease: %v", err)
+	}
+	if err := taskQueue.RecoverStaleRunning("export", taskQueue.LeaseDuration); err != nil {
+		t.Fatalf("recover stale: %v", err)
+	}
+	second, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil || !claimed {
+		t.Fatalf("second claim failed: claimed=%v err=%v", claimed, err)
+	}
+	if second.LeaseToken == "" || second.LeaseToken == oldToken {
+		t.Fatalf("second claim token = %q, want non-empty and different from old %q", second.LeaseToken, oldToken)
+	}
+
+	// 构造时间戳碰撞：把新持有者的 processed_at 覆写成与旧租约完全相同的值
+	// （模拟 PostgreSQL timestamp(6) 等精度截断）。此时若持有者判定依赖
+	// 时间戳，旧 worker 会误判仍持有租约；lease_token 保持 B 不变。
+	if err := conn.Exec(
+		"UPDATE task_queue SET processed_at = ? WHERE id = ?",
+		oldLease, task.Id,
+	).Error; err != nil {
+		t.Fatalf("force lease collision: %v", err)
+	}
+	// 双保险：确认碰撞构造有效（时间戳维度匹配）且 token 维度不匹配。
+	var tsMatch int64
+	if err := conn.Raw(
+		"SELECT COUNT(*) FROM task_queue WHERE id = ? AND status = ? AND processed_at = ?",
+		task.Id, taskQueue.StatusRunning, oldLease,
+	).Scan(&tsMatch).Error; err != nil {
+		t.Fatalf("verify timestamp collision: %v", err)
+	}
+	if tsMatch != 1 {
+		t.Fatalf("timestamp collision not constructed: processed_at match = %d, want 1", tsMatch)
+	}
+
+	// 旧 worker 续租必须失败：时间戳相同（旧实现下会通过）但 lease_token
+	// 已更换为 B，CAS 基于 token 判定持有者。
+	ok, _, _, err := taskQueue.RenewLease(task.Id, oldToken)
+	if err != nil {
+		t.Fatalf("RenewLease error = %v", err)
+	}
+	if ok {
+		t.Fatal("stale worker renewed lease despite timestamp collision, want fencing failure")
+	}
+
+	// 旧 worker 的终态写入必须被跳过；若持有者判定依赖时间戳，此处会覆盖
+	// 新持有者状态，测试失败。
+	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, oldToken, nil); err != nil {
 		t.Fatalf("UpdateStatusOwned error = %v", err)
 	}
 	if updated := mustGetTask(t, task.Id); updated.Status != taskQueue.StatusRunning {

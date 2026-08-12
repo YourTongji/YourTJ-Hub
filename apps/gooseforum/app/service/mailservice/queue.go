@@ -149,7 +149,7 @@ func processClaimedEmailTask(stopCh <-chan struct{}, task *taskQueue.Entity) (st
 	}
 
 	// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx 终止处理。
-	guard := backgroundservice.NewLeaseGuard(running.ProcessedAt)
+	guard := backgroundservice.NewLeaseGuard(running.LeaseToken)
 	ctx, cancel := context.WithCancel(context.Background())
 	// 即使 executeClaimedEmail panic（review P1），defer 也会在栈展开时取消
 	// ctx：心跳 goroutine 退出，不再续租，任务租约正常过期后可被回收，
@@ -167,10 +167,10 @@ func processClaimedEmailTask(stopCh <-chan struct{}, task *taskQueue.Entity) (st
 	cancel()
 	<-heartbeatDone
 	lease := guard.Get()
-	if ok, renewed, renewErr := taskQueue.RenewLease(task.Id, lease); renewErr != nil {
+	if ok, _, token, renewErr := taskQueue.RenewLease(task.Id, lease); renewErr != nil {
 		slog.Error("邮件任务最终续租失败", "id", task.Id, "error", renewErr)
 	} else if ok {
-		lease = renewed
+		lease = token
 	} else {
 		slog.Warn("邮件任务租约已丢失，跳过终态写入", "id", task.Id)
 		return false
@@ -218,25 +218,25 @@ func executeClaimedEmail(task *taskQueue.Entity) (emailTask EmailTask, outcome e
 	return emailTask, emailOutcomeSent, nil
 }
 
-// writeEmailTaskOutcome 以最终租约值为 CAS 前置条件写入任务终态（fencing）。
-// 返回 retrying 表示任务已标记为 Retrying，调用方应等待 RetryInterval 后
-// 再继续，保持重试节奏。
-func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome emailTaskOutcome, sendErr error, lease time.Time) (retrying bool) {
+// writeEmailTaskOutcome 以最终 fencing token 为 CAS 前置条件写入任务终态
+// （fencing）。返回 retrying 表示任务已标记为 Retrying，调用方应等待
+// RetryInterval 后再继续，保持重试节奏。
+func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome emailTaskOutcome, sendErr error, token string) (retrying bool) {
 	switch outcome {
 	case emailOutcomeNoop:
-		if delErr := taskQueue.DeleteOwned(task.Id, lease); delErr != nil {
+		if delErr := taskQueue.DeleteOwned(task.Id, token); delErr != nil {
 			slog.Error("删除 noop 任务失败", "id", task.Id, "error", delErr)
 		}
 		return false
 
 	case emailOutcomeInvalid:
-		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, lease, sendErr); updateErr != nil {
+		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, token, sendErr); updateErr != nil {
 			slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
 		}
 		return false
 
 	case emailOutcomeSent:
-		if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, lease, nil); err != nil {
+		if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, token, nil); err != nil {
 			slog.Error("更新任务状态失败", "id", task.Id, "error", err)
 			return false
 		}
@@ -257,16 +257,16 @@ func writeEmailTaskOutcome(task *taskQueue.Entity, emailTask EmailTask, outcome 
 		)
 
 		if task.RetryCount < MaxRetries {
-			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, lease); updateErr != nil {
+			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, token); updateErr != nil {
 				slog.Error("更新任务重试次数失败", "id", task.Id, "error", updateErr)
 			}
-			if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusRetrying, lease, sendErr); updateErr != nil {
+			if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusRetrying, token, sendErr); updateErr != nil {
 				slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
 			}
 			return true
 		}
 
-		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, lease, sendErr); updateErr != nil {
+		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, token, sendErr); updateErr != nil {
 			slog.Error("更新任务状态失败", "id", task.Id, "error", updateErr)
 		}
 		return false

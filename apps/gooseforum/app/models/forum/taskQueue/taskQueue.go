@@ -29,7 +29,12 @@ type Entity struct {
 	RetryCount  uint8     `gorm:"column:retry_count;not null;default:0;" json:"retryCount"` // 重试次数
 	LastError   string    `gorm:"column:last_error;type:text;" json:"lastError"`            // 最后一次错误信息
 	CreatedAt   time.Time `gorm:"column:created_at;index;autoCreateTime;<-:create;" json:"createdAt"`
-	ProcessedAt time.Time `gorm:"column:processed_at;" json:"processedAt"` // 处理时间
+	ProcessedAt time.Time `gorm:"column:processed_at;" json:"processedAt"` // 处理时间（时间租约起点）
+	// LeaseToken 是本次领取生成的 fencing token（每次领取唯一，不可复用）：
+	// RenewLease/UpdateStatusOwned/DeleteOwned 等 CAS 以其为持有者判定依据，
+	// 不依赖 processed_at —— 时间戳在 DB 规范化（如 PostgreSQL timestamp(6)）
+	// 后可能落在同一精度槽位，旧 worker 的租约值会误匹配新持有者（review P1）。
+	LeaseToken string `gorm:"column:lease_token;type:varchar(36);" json:"leaseToken"`
 }
 
 func (itself *Entity) TableName() string {

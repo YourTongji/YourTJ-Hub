@@ -99,7 +99,7 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 	}
 
 	// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx，终止 handler。
-	guard := NewLeaseGuard(running.ProcessedAt)
+	guard := NewLeaseGuard(running.LeaseToken)
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 	heartbeatDone := StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
@@ -114,10 +114,11 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 	cancel()
 	<-heartbeatDone
 	lease := guard.Get()
-	if ok, renewed, err := taskQueue.RenewLease(task.Id, lease); err != nil {
+	if ok, renewed, token, err := taskQueue.RenewLease(task.Id, lease); err != nil {
 		slog.Error("background: final lease renewal failed", "worker", typePrefix, "id", task.Id, "err", err)
 	} else if ok {
-		lease = renewed
+		lease = token
+		_ = renewed // 租约时间仅用于过期判断，终态 CAS 使用 fencing token
 	} else {
 		slog.Warn("background: task lease lost, skipping terminal write", "worker", typePrefix, "id", task.Id)
 		return true
@@ -151,30 +152,31 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 	return true
 }
 
-// LeaseGuard 跟踪 worker 当前持有的租约值（DB 中最新确认的 processed_at），
-// 供续租与终态写入的 CAS 使用。
+// LeaseGuard 跟踪 worker 当前持有的 fencing token（DB 中最新确认的
+// lease_token），供续租与终态写入的 CAS 使用。token 每次领取生成且不可
+// 复用；processed_at 仅作时间租约（过期回收判断），不作持有者判定。
 type LeaseGuard struct {
 	mu    sync.Mutex
-	lease time.Time
+	token string
 }
 
-// NewLeaseGuard 以领取任务时返回的租约值初始化 guard。
-func NewLeaseGuard(lease time.Time) *LeaseGuard {
-	return &LeaseGuard{lease: lease}
+// NewLeaseGuard 以领取任务时返回的 fencing token 初始化 guard。
+func NewLeaseGuard(token string) *LeaseGuard {
+	return &LeaseGuard{token: token}
 }
 
-// Get 返回当前已知租约值。
-func (g *LeaseGuard) Get() time.Time {
+// Get 返回当前已知 fencing token。
+func (g *LeaseGuard) Get() string {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	return g.lease
+	return g.token
 }
 
-// Set 记录一次成功续租后的新租约值。
-func (g *LeaseGuard) Set(lease time.Time) {
+// Set 记录一次成功续租后的新 fencing token。
+func (g *LeaseGuard) Set(token string) {
 	g.mu.Lock()
 	defer g.mu.Unlock()
-	g.lease = lease
+	g.token = token
 }
 
 // StartLeaseHeartbeat 启动任务续租心跳：每个 leaseRenewInterval 对任务执行
@@ -190,7 +192,7 @@ func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint
 		for {
 			select {
 			case <-ticker.C:
-				ok, lease, err := taskQueue.RenewLease(id, guard.Get())
+				ok, _, token, err := taskQueue.RenewLease(id, guard.Get())
 				if err != nil {
 					slog.Error("background: renew lease failed", "id", id, "err", err)
 					continue
@@ -200,7 +202,7 @@ func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint
 					cancel()
 					return
 				}
-				guard.Set(lease)
+				guard.Set(token)
 			case <-ctx.Done():
 				return
 			}
