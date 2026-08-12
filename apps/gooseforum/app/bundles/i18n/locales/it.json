@@ -115,5 +115,6 @@
   "serverMessages.oauth.activation.updateFailed": "Aggiornamento dello stato di attivazione dell'account non riuscito. Riprova più tardi.",
   "serverMessages.oauth.token.failed": "Creazione delle credenziali di accesso non riuscita. Riprova più tardi.",
   "meta.courseReviewModeration": "Moderazione recensioni corsi",
-  "meta.courseReviewModerationDesc": "Gestisci le segnalazioni delle recensioni e nascondi/ripristina le recensioni."
+  "meta.courseReviewModerationDesc": "Gestisci le segnalazioni delle recensioni e nascondi/ripristina le recensioni.",
+  "server.common.request.invalidFormat": "Il formato della richiesta non è valido. Controlla e riprova."
 }

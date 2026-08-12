@@ -115,5 +115,6 @@
   "serverMessages.oauth.activation.updateFailed": "登录账号激活状态更新失败，请稍后重试。",
   "serverMessages.oauth.token.failed": "登录凭据生成失败，请稍后重试。",
   "meta.courseReviewModeration": "课评审核",
-  "meta.courseReviewModerationDesc": "处理课程评价的举报与隐藏/恢复。"
+  "meta.courseReviewModerationDesc": "处理课程评价的举报与隐藏/恢复。",
+  "server.common.request.invalidFormat": "请求格式不正确，请检查后重试。"
 }

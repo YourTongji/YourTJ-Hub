@@ -16,10 +16,7 @@ void main() {
           fallbackMessage: 'Request failed',
           messageCode: 'topic.notFound',
         );
-        expect(
-          resolveErrorMessage(zh, error),
-          '话题不存在，或已经被删除。',
-        );
+        expect(resolveErrorMessage(zh, error), '话题不存在，或已经被删除。');
       });
 
       test('en: topic.notFound 返回英文目录文案', () {
@@ -56,7 +53,10 @@ void main() {
           fallbackMessage: 'Request failed',
           messageCode: 'topic.notFound',
         );
-        expect(resolveErrorMessage(zh, error), isNot(contains('topic.notFound')));
+        expect(
+          resolveErrorMessage(zh, error),
+          isNot(contains('topic.notFound')),
+        );
       });
     });
 

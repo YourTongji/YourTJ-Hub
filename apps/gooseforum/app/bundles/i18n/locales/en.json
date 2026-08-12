@@ -115,5 +115,6 @@
   "serverMessages.oauth.activation.updateFailed": "Failed to update the account activation status. Please try again later.",
   "serverMessages.oauth.token.failed": "Failed to create sign-in credentials. Please try again later.",
   "meta.courseReviewModeration": "Course review moderation",
-  "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews."
+  "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews.",
+  "server.common.request.invalidFormat": "The request format is invalid. Please check and try again."
 }

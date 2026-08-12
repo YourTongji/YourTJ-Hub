@@ -467,7 +467,8 @@ void main() {
       );
     });
 
-    test('page-channel 404 非 error.index(如 JSON 错误体)保持 NetworkException', () async {
+    test('page-channel 404 非 error.index(如 JSON 错误体)降级为 ApiFailureException',
+        () async {
       setupClient();
       final adapter = MockAdapter((request) async {
         return ResponseData(404, {
@@ -477,9 +478,16 @@ void main() {
       });
       dio.httpClientAdapter = adapter;
 
+      // 后端已应答的 404 属于服务端错误(#143 语义):非 error.index 页面
+      // 不提升 messageCode,降级为无 messageCode 的 ApiFailureException,
+      // 不再是 NetworkException(后者仅限无 HTTP 状态码的传输层故障)。
       await expectLater(
         client.get<bool>('/api/unknown'),
-        throwsA(isA<NetworkException>()),
+        throwsA(
+          isA<ApiFailureException>()
+              .having((e) => e.statusCode, 'statusCode', 404)
+              .having((e) => e.messageCode, 'messageCode', isNull),
+        ),
       );
     });
   });

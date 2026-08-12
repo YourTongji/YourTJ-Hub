@@ -24,7 +24,8 @@ const Map<String, Map<String, String>> _serverMessages = {
   },
   'en': <String, String>{
     'page.notFound': 'The page does not exist or has been deleted.',
-    'route.notFound': 'Route not found. Please check the URL and request method.',
+    'route.notFound':
+        'Route not found. Please check the URL and request method.',
     'topic.notFound': 'The topic does not exist or has been deleted.',
     'user.notFound': 'The user does not exist.',
     'auth.required': 'Please sign in to view this page.',
@@ -35,7 +36,8 @@ const Map<String, Map<String, String>> _serverMessages = {
     'oauth.process.failed': 'OAuth sign-in failed. Please try again later.',
     'oauth.activation.updateFailed':
         'Failed to update the account activation status. Please try again later.',
-    'oauth.token.failed': 'Failed to create sign-in credentials. Please try again later.',
+    'oauth.token.failed':
+        'Failed to create sign-in credentials. Please try again later.',
   },
 };
 
@@ -52,7 +54,8 @@ String resolveErrorMessage(AppLocalizations l10n, Object error) {
 
   final String? code = error.messageCode?.trim();
   if (code != null && code.isNotEmpty) {
-    final Map<String, String> catalog = _serverMessages[l10n.localeName] ??
+    final Map<String, String> catalog =
+        _serverMessages[l10n.localeName] ??
         _serverMessages['en'] ??
         const <String, String>{};
     final String? localized = catalog[code];

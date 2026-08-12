@@ -77,7 +77,15 @@ func TestServerMessage(t *testing.T) {
 			want: "The topic does not exist or has been deleted.",
 		},
 		{
-			name: "dotted server key",
+			// 该码仅存在于 dotted `server.<code>` 命名空间(无 flat
+			// serverMessages.* 覆盖),专门验证备用分支真实命中。
+			name: "dotted server key only",
+			lang: "en",
+			code: "common.request.invalidFormat",
+			want: "The request format is invalid. Please check and try again.",
+		},
+		{
+			name: "flat serverMessages key wins over dotted",
 			lang: "en",
 			code: "common.operation.failed",
 			want: "Operation failed. Please try again later.",
