@@ -2,6 +2,7 @@ package backgroundservice
 
 import (
 	"context"
+	"encoding/json"
 	"errors"
 	"strings"
 	"sync"
@@ -11,6 +12,8 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 )
 
 func setupWorkerTestDB(t *testing.T) {
@@ -195,6 +198,61 @@ func TestProcessTaskConcurrentSingleExecution(t *testing.T) {
 	updated := mustGetTask(t, task.Id)
 	if updated.Status != taskQueue.StatusSuccess {
 		t.Fatalf("status after concurrent processing = %d, want %d (success)", updated.Status, taskQueue.StatusSuccess)
+	}
+}
+
+// TestProcessTaskWritesExportProgressThroughRealChain 覆盖 review C1 回归：
+// 泛型 worker 的 processTask 必须把 ClaimTask 返回的已领取实体（&running）
+// 传给 handler —— 其 LeaseToken 是本次领取生成的新 token，导出 handler 用它
+// 做进度写回的 CAS。若仍传领取前的旧实体（token 为空），fileName/progress
+// 写回全部命中 0 行，最终 task_json 无 fileName，下载必然失败。本测试走真实
+// processTask → RunExportTask 完整链路，断言 fileName 最终落库（修复前红、
+// 修复后绿），不再绕开生产路径。
+func TestProcessTaskWritesExportProgressThroughRealChain(t *testing.T) {
+	setupWorkerTestDB(t)
+	// 导出目录指向临时目录（dataservice 提供测试专用 setter）
+	restore := dataservice.SetExportDirForTest(t.TempDir())
+	t.Cleanup(restore)
+
+	// 导出需要 users 表存在且可导出（RunExportTask 统计表行数）
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&users.EntityComplete{}); err != nil {
+		t.Fatalf("migrate users: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
+	u := users.EntityComplete{Username: "c1-chain", Email: "c1-chain@example.com"}
+	if err := conn.Create(&u).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+
+	task := &taskQueue.Entity{
+		Type:     dataservice.TaskTypeExport,
+		Status:   taskQueue.StatusPending,
+		TaskJson: `{"tables":["users"],"format":"json"}`,
+	}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create export task: %v", err)
+	}
+
+	// 真实 worker 链路：processTask 内部 ClaimTask → handler(&running)
+	if !processTask(make(chan struct{}), dataservice.TaskTypeExport, task, dataservice.RunExportTask) {
+		t.Fatal("processTask returned stop=true, want continue")
+	}
+
+	reloaded := mustGetTask(t, task.Id)
+	if reloaded.Status != taskQueue.StatusSuccess {
+		t.Fatalf("status after processTask = %d, want %d (success), task_json = %s", reloaded.Status, taskQueue.StatusSuccess, reloaded.TaskJson)
+	}
+	// 进度写回必须落库：fileName 存在才能下载（C1 的核心断言）
+	var payload dataservice.ExportTask
+	if err := json.Unmarshal([]byte(reloaded.TaskJson), &payload); err != nil {
+		t.Fatalf("decode task_json: %v", err)
+	}
+	if payload.FileName == "" {
+		t.Fatalf("task_json.fileName not persisted after real worker chain (progress CAS missed), task_json = %s", reloaded.TaskJson)
+	}
+	if payload.Progress != 100 {
+		t.Fatalf("task_json.progress = %d, want 100", payload.Progress)
 	}
 }
 

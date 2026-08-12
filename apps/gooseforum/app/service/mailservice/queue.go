@@ -157,7 +157,9 @@ func processClaimedEmailTask(stopCh <-chan struct{}, task *taskQueue.Entity) (st
 	defer cancel()
 	heartbeatDone := backgroundservice.StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
 
-	emailTask, outcome, sendErr := executeClaimedEmail(task)
+	// 与 generic worker 一致：传给执行函数的必须是 ClaimTask 重读的已领取
+	// 实体（&running），保证读到的 payload/状态与当前租约一致（review C1）。
+	emailTask, outcome, sendErr := executeClaimedEmail(&running)
 
 	// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；后续状态
 	// 写入以它为 CAS 前置条件（fencing）。若心跳退出瞬间与最后一次

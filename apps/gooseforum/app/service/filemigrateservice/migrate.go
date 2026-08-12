@@ -8,7 +8,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"log/slog"
-	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -159,5 +158,5 @@ func updateTaskProgress(taskID uint64, token string, payload MigrateTask) {
 
 // RecoverStaleTasks 启动时恢复文件迁移 worker 类型前缀下崩溃遗留的 Running 任务。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(TaskTypeFileMigrate, 10*time.Minute)
+	return taskQueue.RecoverStaleRunning(TaskTypeFileMigrate, taskQueue.LeaseDuration)
 }

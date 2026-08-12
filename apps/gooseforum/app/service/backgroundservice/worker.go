@@ -104,7 +104,12 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 	defer cancel()
 	heartbeatDone := StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
 
-	handlerErr := handler(ctx, task)
+	// 传给 handler 的必须是 ClaimTask 从 DB 重读的已领取实体（&running）：
+	// 其 LeaseToken 是本次领取生成的新 fencing token，handler 用它做进度
+	// 写回的 CAS；GetPendingTasksByType 取回的旧实体 task 在 Pending 时
+	// 尚无 token（空/旧值），传给它会导致所有进度写回 CAS 命中 0 行
+	// （review C1）。
+	handlerErr := handler(ctx, &running)
 
 	// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；之后的所有
 	// 状态写入都以该值为 CAS 前置条件（fencing）。若心跳退出瞬间与最后
@@ -125,8 +130,8 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 	}
 
 	if handlerErr != nil {
-		slog.Error("background: task failed", "worker", typePrefix, "id", task.Id, "type", task.Type, "retryCount", task.RetryCount, "err", handlerErr)
-		if task.RetryCount < maxRetries {
+		slog.Error("background: task failed", "worker", typePrefix, "id", task.Id, "type", running.Type, "retryCount", running.RetryCount, "err", handlerErr)
+		if running.RetryCount < maxRetries {
 			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, lease); updateErr != nil {
 				slog.Error("background: increment retry count failed", "id", task.Id, "err", updateErr)
 			}

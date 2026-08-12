@@ -34,7 +34,8 @@ type Entity struct {
 	// RenewLease/UpdateStatusOwned/DeleteOwned 等 CAS 以其为持有者判定依据，
 	// 不依赖 processed_at —— 时间戳在 DB 规范化（如 PostgreSQL timestamp(6)）
 	// 后可能落在同一精度槽位，旧 worker 的租约值会误匹配新持有者（review P1）。
-	LeaseToken string `gorm:"column:lease_token;type:varchar(36);" json:"leaseToken"`
+	// json:"-" 防止 fencing token 泄漏到管理端 API 响应（review S1）。
+	LeaseToken string `gorm:"column:lease_token;type:varchar(36);" json:"-"`
 }
 
 func (itself *Entity) TableName() string {

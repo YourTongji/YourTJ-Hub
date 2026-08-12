@@ -486,5 +486,5 @@ func ReconcileCourseIndex(ctx context.Context) (*CourseReconcileResult, error) {
 
 // RecoverStaleTasks 启动时恢复课程搜索 worker 类型前缀下崩溃遗留的 Running 任务。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(TaskTypeCourseSearch, 10*time.Minute)
+	return taskQueue.RecoverStaleRunning(TaskTypeCourseSearch, taskQueue.LeaseDuration)
 }

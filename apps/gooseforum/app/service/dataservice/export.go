@@ -32,6 +32,13 @@ var AllowedExportTables = map[string]bool{"users": true, "topics": true, "posts"
 // exportDir is where export files are written. Tests override it.
 var exportDir = "data/export"
 
+// SetExportDirForTest 覆盖导出目录（仅测试使用），返回恢复函数。
+func SetExportDirForTest(dir string) func() {
+	old := exportDir
+	exportDir = dir
+	return func() { exportDir = old }
+}
+
 const exportBatchSize = 200
 
 // ExportTask is the payload stored in taskQueue.task_json for export tasks.
@@ -438,5 +445,5 @@ func CleanupExpiredExports() {
 
 // RecoverStaleTasks 启动时恢复数据导出 worker 类型前缀下崩溃遗留的 Running 任务。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(TaskTypeExport, 10*time.Minute)
+	return taskQueue.RecoverStaleRunning(TaskTypeExport, taskQueue.LeaseDuration)
 }
