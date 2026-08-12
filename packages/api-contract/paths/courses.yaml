@@ -112,3 +112,61 @@ getCourse:
             examples:
               internalError:
                 externalValue: ../fixtures/course-internal-error.json
+
+getCourseRelated:
+  get:
+    tags: [Forum]
+    summary: Related courses and teachers for a canonical course
+    security: []
+    operationId: getCourseRelated
+    description: |
+      Public read endpoint. Returns up to 5 other visible courses sharing any teacher with the
+      requested course (`teacherOtherCourses`) and up to 5 offerings of the same course taught by
+      a different teacher arrangement (`sameCourseOtherTeachers`), each with rating stats. Hub
+      keeps one canonical course per primary_code, so "other teachers for the same course" is
+      expressed at the offering level.
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Related courses and same-course other-teacher offerings, each list ordered by review count desc and capped at 5.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CourseRelatedResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-related-success.json
+      '400':
+        description: Malformed course id.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/course-parse-failed.json
+      '404':
+        description: Course does not exist or is hidden.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-not-found.json
+      '500':
+        description: Related query failed (instructors, stats, terms, or offerings).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              internalError:
+                externalValue: ../fixtures/course-internal-error.json

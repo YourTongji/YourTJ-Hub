@@ -1115,6 +1115,89 @@ CourseDetailResponse:
         result:
           $ref: '#/CourseDetail'
 
+RelatedCourseItem:
+  type: object
+  description: A canonical course taught by a teacher shared with the requested course.
+  required: [id, primaryCode, name, department, ratingAvg, ratingCount, reviewCount]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+      description: Average rating (ratingSum / ratingCount), 0 when no ratings exist.
+    ratingCount:
+      type: integer
+      description: Number of visible reviews carrying a rating.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this course.
+  additionalProperties: false
+
+RelatedTeacherOfferingItem:
+  type: object
+  description: |
+    An offering of the requested course taught by a teacher arrangement different from the most
+    recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
+    course" is expressed at the offering level, where per-teacher ratings do not exist.
+  required: [offeringId, ratingAvg, ratingCount, reviewCount]
+  properties:
+    offeringId:
+      type: integer
+      format: uint64
+    termCode:
+      type: string
+    termName:
+      type: string
+    campus:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+    ratingCount:
+      type: integer
+    reviewCount:
+      type: integer
+  additionalProperties: false
+
+CourseRelatedResult:
+  type: object
+  required: [teacherOtherCourses, sameCourseOtherTeachers]
+  properties:
+    teacherOtherCourses:
+      type: array
+      description: Other visible courses sharing any teacher with the requested course, top 5 by review count.
+      items:
+        $ref: '#/RelatedCourseItem'
+    sameCourseOtherTeachers:
+      type: array
+      description: Offerings of the same course taught by a different teacher arrangement, top 5 by review count.
+      items:
+        $ref: '#/RelatedTeacherOfferingItem'
+  additionalProperties: false
+
+CourseRelatedResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseRelatedResult'
+
 ReviewAuthorPayload:
   type: object
   required: [kind, label]
