@@ -87,7 +87,7 @@
   after a key rotation. The signing key is fail-closed: `serve` refuses to boot with an
   empty, built-in default, or `REPLACE_SIGNING_KEY` value, and password-reset/activation
   tokens refuse to sign or parse under such a key (issue #106). Key rotation is not
-  hot-reloadable: the three surfaces capture `app.signingKey` at different points, so
+  hot-reloadable: the signing key is captured at different points across surfaces, so
   rotating it **requires a process restart** for the invalidation to apply consistently
   (see `docs/operations/deployment.md`).
 - Email change: `Current` for password accounts; the current password is verified before any write,

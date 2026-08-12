@@ -156,14 +156,17 @@ password-reset / activation links. Rotating the key is the only way to retire
 tokens that were minted under the old key.
 
 **Rotation requires a process restart — hot reload is not supported.** The
-three surfaces capture `app.signingKey` at different points: JWT signing at
-process start, TOTP encryption on first use, and reset/activation tokens on
-every call (fail-closed so a weak key is never accepted). With viper's config
-watcher enabled, editing `app.signingKey` at runtime would switch only
-reset/activation tokens to the new key while session JWTs and TOTP encryption
-keep the old one — a partially-invalidated, confusing intermediate state.
-Rotate the key and **restart the process** so all three surfaces rotate
-together.
+signing key feeds more surfaces than the three listed above — it also derives
+the session-cookie signing key (sessionstore) and the OIDC opaque-token key
+(oidcservice). The surfaces capture it at different points: JWT signing and
+session cookies at process start / first use, TOTP encryption on first use, and
+reset/activation and OIDC tokens on every call (fail-closed so a weak key is
+never accepted). With viper's config watcher enabled, editing `app.signingKey`
+at runtime does not rotate them together: the real-time surfaces switch to the
+new key immediately, the captured surfaces keep the old value, and TOTP secrets
+encrypted under the old key can become undecryptable if the key is swapped
+before the first TOTP use. Rotate the key and **restart the process** so all
+surfaces rotate consistently.
 
 ### Upgrade note: session Cookie `Secure` is now fail-closed by environment
 

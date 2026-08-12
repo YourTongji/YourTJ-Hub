@@ -117,20 +117,34 @@ func TestDeriveKeyFromStrongKey(t *testing.T) {
 	}
 }
 
+// encryptWeakKeyHelperEnv gates the child-process branch below. It is only
+// consulted inside TestEncryptWeakKeyHelperProcess, which runs only when the
+// parent test re-execs the test binary with `-test.run` pointing at it — an
+// unrelated GO_WANT_* variable in the environment cannot make the main test or
+// any other test take the child branch.
+const encryptWeakKeyHelperEnv = "YOURTJ_ISSUE106_ENCRYPT_WEAK_HELPER"
+
 // TestEncryptFailsUnderWeakSigningKey 在子进程中验证：当 app.signingKey 是弱密钥
 // 时 Encrypt 必须失败（TOTP 加密密钥无法派生）。子进程保证 keyOnce 是全新状态，
 // 从而真正走到 deriveKey 的 fail-closed 分支，不受本进程已缓存有效密钥的干扰。
 func TestEncryptFailsUnderWeakSigningKey(t *testing.T) {
-	if os.Getenv("GO_WANT_ENCRYPT_WEAK") == "1" {
-		preferences.Set("app.signingKey", jwtopt.DefaultSigningKey)
-		if _, err := Encrypt("secret"); err == nil {
-			os.Exit(1) // 弱密钥下 Encrypt 成功 → 子进程非零退出 → 父进程断言失败
-		}
-		os.Exit(0)
-	}
-	cmd := exec.Command(os.Args[0], "-test.run=^TestEncryptFailsUnderWeakSigningKey$")
-	cmd.Env = append(os.Environ(), "GO_WANT_ENCRYPT_WEAK=1")
+	cmd := exec.Command(os.Args[0], "-test.run=^TestEncryptWeakKeyHelperProcess$")
+	cmd.Env = append(os.Environ(), encryptWeakKeyHelperEnv+"=1")
 	if out, err := cmd.CombinedOutput(); err != nil {
 		t.Fatalf("Encrypt under weak signing key must fail cleanly (child exit 0), err=%v out=%s", err, out)
 	}
+}
+
+// TestEncryptWeakKeyHelperProcess is the child-process entry: with the helper
+// env var set it configures a weak signing key and asserts Encrypt fails. When
+// run as part of the normal test suite (no env var) it is a silent no-op.
+func TestEncryptWeakKeyHelperProcess(t *testing.T) {
+	if os.Getenv(encryptWeakKeyHelperEnv) != "1" {
+		return
+	}
+	preferences.Set("app.signingKey", jwtopt.DefaultSigningKey)
+	if _, err := Encrypt("secret"); err == nil {
+		os.Exit(1) // 弱密钥下 Encrypt 成功 → 子进程非零退出 → 父进程断言失败
+	}
+	os.Exit(0)
 }
