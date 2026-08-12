@@ -1,5 +1,6 @@
 ---
-title: "YourTJ WIKI初稿"
+title: "YourTJ WIKI 初稿"
+description: "面向同济大学学生的校园百科知识库：学校概况、学业指导、校园设施、生活服务与课余发展五大板块。"
 source: feishu-docx
 doc_token: "Hl9Xdmorio87ecxmvJ2cech0nch"
 fetched_at: "2026-08-12T15:32:55.568Z"
