@@ -49,6 +49,7 @@ const (
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
 	MCPSettings         = `mcpSettings`
+	AiSummarySettings   = `aiSummarySettings`
 	OneSystemSettings   = `onesystemSettings`
 	Version             = `version`
 	Migration           = `migration`
@@ -320,6 +321,14 @@ type HttpNotifyConfig struct {
 type MCPSettingsConfig struct {
 	Enabled bool `json:"enabled"` // /mcp 端点总开关
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
+}
+
+// AiSummaryConfig AI 课程总结开关配置（B7，issue #181），可在管理面板热修改。
+// GlobalPerMinute 为全局每分钟 LLM 生成上限（成本护栏）；Provider 相关配置
+// （base_url/api_key/model 等）在 config.toml [ai_summary] 段，不进 DB。
+type AiSummaryConfig struct {
+	Enabled         bool `json:"enabled"`         // 总开关（关闭时端点返回 status=disabled）
+	GlobalPerMinute int  `json:"globalPerMinute"` // 全局每分钟生成上限（0 = 用默认 5）
 }
 
 // OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），

@@ -1455,6 +1455,23 @@ func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.
 	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
 }
 
+// GetAiSummarySettings 获取 AI 课程总结开关设置（B7, issue #181）。
+// 仅含开关与全局配额；provider/base_url/api_key/model 在 config.toml [ai_summary] 段，
+// 不进 DB、不回显。
+func GetAiSummarySettings(req component.BetterRequest[component.Null]) component.Response {
+	config := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig())
+	return component.SuccessResponse(config)
+}
+
+type SaveAiSummarySettingsReq struct {
+	Settings pageConfig.AiSummaryConfig `json:"settings" validate:"required"`
+}
+
+// SaveAiSummarySettings 保存 AI 课程总结开关设置。
+func SaveAiSummarySettings(req component.BetterRequest[SaveAiSummarySettingsReq]) component.Response {
+	return savePageConfig(pageConfig.AiSummarySettings, req.Params.Settings, hotdataserve.ClearAiSummarySettingsConfigCache)
+}
+
 // GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。
 func GetOnesystemSettings(req component.BetterRequest[component.Null]) component.Response {
 	config := hotdataserve.GetOnesystemSettingsConfigCache()

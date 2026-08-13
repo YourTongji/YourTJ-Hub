@@ -197,6 +197,9 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
+	// 课程 AI 总结（B7, issue #181）：公开只读；独立限流 action course.summary，
+	// 生成动作另有 service 内全局/单课限流（成本护栏）。
+	forumApi.GET("courses/:courseId/summary", middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
@@ -352,6 +355,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
 		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
+		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

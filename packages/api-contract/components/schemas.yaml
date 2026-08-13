@@ -1150,6 +1150,89 @@ CourseDetailResponse:
         result:
           $ref: '#/CourseDetail'
 
+CourseSummaryStatus:
+  type: string
+  enum: [cached, generated, insufficient_data, disabled]
+  description: |
+    Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
+    HTTP failures and never returned by this API.
+
+CourseSummaryConsensus:
+  type: string
+  enum: [strong_recommend, recommend, neutral, cautious, not_recommend]
+  description: Five-level sentiment consensus across visible reviews.
+
+CourseSummarySentiment:
+  type: string
+  enum: [positive, neutral, negative]
+  description: Sentiment label of one representative review excerpt.
+
+CourseSummaryRepresentativeReview:
+  type: object
+  required: [excerpt, sentiment]
+  properties:
+    excerpt:
+      type: string
+      description: Short excerpt from the original review (≤500 chars).
+    sentiment:
+      $ref: '#/CourseSummarySentiment'
+  additionalProperties: false
+
+CourseSummaryPayload:
+  type: object
+  required: [consensus, keywords, pros, cons, representativeReviews]
+  properties:
+    consensus:
+      $ref: '#/CourseSummaryConsensus'
+    keywords:
+      type: array
+      maxItems: 5
+      items:
+        type: string
+    pros:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    cons:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    representativeReviews:
+      type: array
+      maxItems: 3
+      items:
+        $ref: '#/CourseSummaryRepresentativeReview'
+  additionalProperties: false
+
+CourseSummaryResult:
+  type: object
+  required: [status]
+  properties:
+    status:
+      $ref: '#/CourseSummaryStatus'
+    summary:
+      $ref: '#/CourseSummaryPayload'
+      description: Present for status `cached` and `generated`; omitted otherwise.
+    generatedAt:
+      type: string
+      format: date-time
+      description: When the summary was generated (RFC 3339).
+    model:
+      type: string
+      description: The LLM model that produced the summary.
+  additionalProperties: false
+
+CourseSummaryResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseSummaryResult'
+
 RelatedCourseItem:
   type: object
   description: A canonical course taught by a teacher shared with the requested course.

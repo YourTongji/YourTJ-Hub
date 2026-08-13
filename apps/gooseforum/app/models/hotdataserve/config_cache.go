@@ -172,6 +172,19 @@ func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
 }
 
+var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetAiSummarySettingsConfigCache 读取 AI 课程总结开关配置（5s TTL 热缓存）。
+func GetAiSummarySettingsConfigCache() pageConfig.AiSummaryConfig {
+	return aiSummarySettingsConfigCache.GetOrLoad("", func() (pageConfig.AiSummaryConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearAiSummarySettingsConfigCache() {
+	aiSummarySettingsConfigCache.Clear()
+}
+
 var oneSystemSettingsConfigCache = &localcache.Cache[pageConfig.OneSystemSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
 
 // GetOnesystemSettingsConfigCache 读取一系统同步凭证配置（cookie 为密文）。
