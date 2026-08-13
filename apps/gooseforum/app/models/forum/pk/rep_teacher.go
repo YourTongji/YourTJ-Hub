@@ -65,8 +65,8 @@ func ListTimeslotCoursesBySlot(calendarId, day int, sections []int, optionalLabe
 			`pk_course_detail.course_code, pk_course_detail.course_name,
 			 pk_course_detail.credit, f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
 		Joins("JOIN pk_teacher_timeslot ts ON ts.teaching_class_id = pk_course_detail.id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty AND f.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 		Where("pk_course_detail.calendar_id = ?", calendarId).
 		Where("ts.calendar_id = ?", calendarId).
@@ -95,8 +95,8 @@ func ListTimeslotCoursesByLike(calendarId int, likePatterns []string, optionalLa
 			`pk_course_detail.course_code, pk_course_detail.course_name,
 			 pk_course_detail.credit, f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
 		Joins("JOIN pk_teacher ON pk_teacher.teaching_class_id = pk_course_detail.id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty AND f.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 		Where("pk_course_detail.calendar_id = ?", calendarId)
 	orLike := ""

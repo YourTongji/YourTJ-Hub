@@ -34,10 +34,10 @@ func ListMajorCourseRows(calendarId int, code string, grade int) ([]MajorCourseR
 			 n.course_label_name, l.teaching_language_i18n`).
 		Joins("JOIN pk_major_course mac ON mac.course_id = pk_course_detail.id").
 		Joins("JOIN pk_major ON pk_major.id = mac.major_id").
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty AND f.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language AND l.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
 		Where("pk_course_detail.calendar_id = ?", calendarId).
 		Where("pk_major.code = ?", code).
 		Where("pk_major.grade <= ?", grade).
@@ -95,8 +95,8 @@ func ListCourseDetailRowsByCodes(calendarId int, codes []string) ([]CourseDetail
 				 pk_course_detail.credit, pk_course_detail.campus,
 				 pk_course_detail.teaching_language, pk_course_detail.faculty,
 				 pk_course_detail.calendar_id, ca.campus_i18n, l.teaching_language_i18n`).
-			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
-			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language AND l.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
+			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
 			Where("pk_course_detail.calendar_id = ?", calendarId).
 			Where("pk_course_detail.course_code IN ?", part).
 			Order("pk_course_detail.course_code ASC, pk_course_detail.code ASC").
@@ -137,10 +137,10 @@ func ListAllCourseDetailRowsByCodes(calendarId int, codes []string) ([]MajorCour
 				 pk_course_detail.credit, pk_course_detail.campus, pk_course_detail.faculty,
 				 pk_course_detail.teaching_language, pk_course_detail.calendar_id,
 				 f.faculty_i18n, ca.campus_i18n, n.course_label_name, l.teaching_language_i18n`).
-			Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty AND f.calendar_id = pk_course_detail.calendar_id").
-			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
+			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 			Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
-			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language AND l.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_language l ON l.teaching_language = pk_course_detail.teaching_language").
 			Where("pk_course_detail.calendar_id = ?", calendarId).
 			Where("pk_course_detail.course_code IN ?", part).
 			Order("pk_course_detail.course_code ASC, pk_course_detail.code ASC").
@@ -193,8 +193,8 @@ type CourseSearchQuery struct {
 // searchCourseFilter 应用 P9 高级检索过滤条件，返回带过滤的查询（JOIN 教师行会重复，只用于过滤/DISTINCT）。
 func searchCourseFilter(q CourseSearchQuery) *gorm.DB {
 	b := courseDetailBuilder().
-		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty AND f.calendar_id = pk_course_detail.calendar_id").
-		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus AND ca.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
+		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 		Joins("LEFT JOIN pk_teacher ON pk_teacher.teaching_class_id = pk_course_detail.id").
 		Where("pk_course_detail.calendar_id = ?", q.CalendarId)
