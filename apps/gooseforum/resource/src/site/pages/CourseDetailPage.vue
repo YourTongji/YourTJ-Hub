@@ -23,6 +23,7 @@ import {
   nextReviewTotalOnDelete,
   resolveStatsReviewCount,
 } from '@/site/utils/course-review-count'
+import { createReviewPageLoader } from '@/site/utils/course-review-loader'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -105,11 +106,18 @@ const helpfulBusyIds = ref<number[]>([])
 // 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
 const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
 
+// 列表加载协调器：用请求版本号避免 onMounted 的首屏 GET 在创建/删除后返回旧快照
+// 覆盖本地状态（issue #178 review P1 竞态）。
+const reviewLoader = createReviewPageLoader((offeringId, cursor) =>
+  listCourseReviews(page.props.course.id, offeringId, cursor),
+)
+
 async function loadReviews() {
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    const reviewPage = await listCourseReviews(page.props.course.id)
+    const reviewPage = await reviewLoader.load(0, '')
+    if (reviewPage === null) return // 过期响应：期间发生写操作，丢弃以保留本地状态
     reviews.value = reviewPage.list
     reviewTotal.value = reviewPage.total
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
@@ -126,7 +134,8 @@ async function loadMoreReviews() {
   if (!reviewNextCursor.value || reviewLoadingMore.value) return
   reviewLoadingMore.value = true
   try {
-    const reviewPage = await listCourseReviews(page.props.course.id, 0, reviewNextCursor.value)
+    const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
+    if (reviewPage === null) return // 过期响应：丢弃
     reviews.value = reviews.value.concat(reviewPage.list)
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
@@ -227,6 +236,7 @@ async function submitForm() {
         content: formContent.value,
         isAnonymous: formAnonymous.value,
       })
+      reviewLoader.invalidate() // 使进行中的首屏 GET 过期，避免旧快照覆盖刚创建的评价
       reviews.value.unshift(created)
       // 同步计数：创建后 +1（与下方删除路径递减口径一致），否则统计卡/评价区标题
       // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
@@ -265,6 +275,7 @@ async function confirmRemoveReview() {
   deleting.value = true
   try {
     await deleteCourseReview(review.id)
+    reviewLoader.invalidate() // 使进行中的 GET 过期，避免旧快照覆盖删除后的状态
     reviews.value = reviews.value.filter((item) => item.id !== review.id)
     reviewTotal.value = nextReviewTotalOnDelete(reviewTotal.value)
     pendingDelete.value = null
