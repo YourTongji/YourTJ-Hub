@@ -693,9 +693,10 @@ export interface paths {
         put?: never;
         /**
          * Hide or show a course review (CourseManager)
-         * @description CourseManager-scoped moderation. Permission failures and unknown reviews are legacy HTTP 200
-         *     business failures (`permission.denied`, `review.notFound`); the operation is idempotent and
-         *     adjusts course/offering stats projections.
+         * @description CourseManager-scoped moderation. Unknown reviews are legacy HTTP 200 business failures
+         *     (`review.notFound`); permission failures are rejected by the permission middleware with
+         *     HTTP 403 `permission.denied` (the middleware runs before the handler). The operation is
+         *     idempotent and adjusts course/offering stats projections.
          */
         post: operations["moderationCourseReviewStatus"];
         delete?: never;
@@ -715,9 +716,10 @@ export interface paths {
         put?: never;
         /**
          * List the course review report queue (CourseManager)
-         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are a
-         *     legacy HTTP 200 business failure (`permission.denied`). Items never expose the reviewed
-         *     author's identity; the reporter/handler author payloads are the standard forum author shape.
+         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are
+         *     rejected by the permission middleware with HTTP 403 `permission.denied` (the middleware
+         *     runs before the handler). Items never expose the reviewed author's identity; the
+         *     reporter/handler author payloads are the standard forum author shape.
          */
         post: operations["moderationCourseReviewReportList"];
         delete?: never;
@@ -2684,6 +2686,19 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /**
+             * @description The offering does not exist, does not belong to the given course, or is not visible.
+             *     The server validates offering ownership before listing (issue #176 B4), so a caller
+             *     cannot enumerate reviews of a hidden offering or an offering of another course.
+             */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
             /** @description Review listing failed. */
             500: {
                 headers: {
@@ -2708,7 +2723,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The created review payload, or a legacy business failure envelope for validation failures. */
+            /**
+             * @description The created review payload. Request-level validation failures (rating outside 1..5,
+             *     empty content, missing fields) are returned as a legacy HTTP 200 envelope
+             *     with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
+             *     route behavior). Over-long content is NOT a request-level failure: it passes the
+             *     request validator and is rejected by the service layer as 400 `review.content.tooLong`
+             *     (see below). Service-level errors use their own status codes below.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2717,7 +2739,12 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewWriteResponse"];
                 };
             };
-            /** @description Malformed JSON request body (binding failure). Rating range and required-field failures are legacy HTTP 200 business failures. */
+            /**
+             * @description Malformed JSON request body (binding failure), or a service-level validation failure
+             *     such as over-long content (`review.content.tooLong`). The request-level validator only
+             *     requires `content` to be present, so content longer than the service limit
+             *     (50000 chars) is rejected here, not in the legacy 200 envelope.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3063,7 +3090,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Boolean success result or a moderation business failure envelope. */
+            /** @description Boolean success result, or a business failure envelope (e.g. `review.notFound`). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3081,6 +3108,25 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description The caller is not a CourseManager. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     moderationCourseReviewReportList: {
@@ -3096,7 +3142,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One page of open (or filtered) reports, or a permission business failure envelope. */
+            /** @description One page of open (or filtered) reports. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3112,6 +3158,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not a CourseManager. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

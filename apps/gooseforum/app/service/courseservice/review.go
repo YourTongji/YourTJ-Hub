@@ -17,6 +17,9 @@ import (
 // ReviewContentMaxLength 评价正文最大长度（rune 计数，与帖子正文上限一致）。
 const ReviewContentMaxLength = 50000
 
+// uint64Ptr 返回 uint64 值的指针（author_user_id 在清理后为 NULL，原生评价用指针承载）。
+func uint64Ptr(v uint64) *uint64 { return &v }
+
 // 稳定错误 sentinel：控制器据此映射语义 HTTP 状态（400/403/404/409/500）。
 var (
 	// ErrReviewNotFound 评价不存在或不可见。
@@ -114,7 +117,7 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			}
 			// deleted 行：恢复重写（复用唯一键），并重新累加 stats
 			// （删除时已扣减，恢复时按新 rating/content 重新计入）。
-			ok, err := course.ReactivateReviewTx(tx, existing.Id, &rating, input.Content, input.IsAnonymous)
+			ok, err := course.ReactivateReviewTx(tx, existing.Id, userId, &rating, input.Content, input.IsAnonymous)
 			if err != nil {
 				return err
 			}
@@ -140,7 +143,7 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 		}
 		entity := course.ReviewEntity{
 			OfferingId:   input.OfferingId,
-			AuthorUserId: userId,
+			AuthorUserId: &userId,
 			Rating:       &rating,
 			Content:      input.Content,
 			IsAnonymous:  input.IsAnonymous,
@@ -191,7 +194,7 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 			if entity.Status != course.ReviewStatusVisible {
 				return ErrReviewNotFound
 			}
-			if entity.AuthorUserId != userId {
+			if entity.AuthorID() != userId {
 				return ErrReviewNotOwned
 			}
 			oldRating := 0
@@ -262,8 +265,10 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 }
 
 // DeleteReview 作者删除评价（隔离窗口语义由 status=deleted 表达，正文保留待清理）。
-// 幂等：已删除（含隔离窗口后的清理）直接成功；仅当评价仍可见时扣减 stats，
-// 避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
+// 删除时显式写入 deleted_at 作为 30 天隔离窗口起点（MarkReviewDeletedFromTx，
+// 吸收 #202 设计——专用时间锚点）。
+// 幂等：已删除（含隔离窗口清理后作者已断开的行）直接成功；仅当评价仍可见时
+// 扣减 stats，避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
 // 状态转换使用 CAS（WHERE status = 旧值）：并发 hide 与 delete 同时到达时，
 // 只有拿到转换权的事务会调整 stats，另一个 RowsAffected=0 直接幂等成功。
 func DeleteReview(userId, reviewId uint64) error {
@@ -272,13 +277,13 @@ func DeleteReview(userId, reviewId uint64) error {
 		if err != nil {
 			return ErrReviewNotFound
 		}
-		if entity.AuthorUserId != userId {
+		if entity.Status == course.ReviewStatusDeleted {
+			return nil // 幂等：隔离窗口内（作者仍关联）或清理后（作者已断开）均直接成功
+		}
+		if entity.AuthorID() != userId {
 			return ErrReviewNotOwned
 		}
-		if entity.Status == course.ReviewStatusDeleted {
-			return nil
-		}
-		converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, course.ReviewStatusDeleted)
+		converted, err := course.MarkReviewDeletedFromTx(tx, reviewId, entity.Status)
 		if err != nil {
 			return err
 		}
@@ -572,8 +577,8 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	authorIds := make([]uint64, 0, len(entities))
 	for _, e := range entities {
 		reviewIds = append(reviewIds, e.Id)
-		if !e.IsAnonymous && e.AuthorUserId > 0 {
-			authorIds = append(authorIds, e.AuthorUserId)
+		if !e.IsAnonymous && e.AuthorID() > 0 {
+			authorIds = append(authorIds, e.AuthorID())
 		}
 	}
 	helpfulCounts := course.CountHelpfulByReviewIds(reviewIds)
@@ -598,7 +603,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 			p.Viewer.IsHelpful = true
 		}
 		if p.Author.Kind == "member" {
-			if user, ok := userMap[e.AuthorUserId]; ok && user != nil {
+			if user, ok := userMap[e.AuthorID()]; ok && user != nil {
 				p.Author.Label = user.Username
 				if user.Nickname != "" {
 					p.Author.Label = user.Nickname
@@ -655,7 +660,7 @@ func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 // 保证 legacy 评价展示的 helpful 数与源数据一致。
 func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCount int64) ReviewPayload {
 	author := ReviewAuthorPayload{Kind: "member", Label: "同学"}
-	if entity.IsAnonymous || entity.AuthorUserId == 0 {
+	if entity.IsAnonymous || entity.AuthorID() == 0 {
 		author = ReviewAuthorPayload{Kind: "anonymous", Label: "匿名同学"}
 	} else if entity.Source != "" && entity.Source != "native" {
 		author = ReviewAuthorPayload{Kind: "legacy", Label: "历史匿名评价"}
@@ -664,8 +669,8 @@ func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCoun
 		author = ReviewAuthorPayload{Kind: "legacy", Label: "历史匿名评价"}
 	}
 	viewer := ReviewViewerPayload{
-		CanEdit:   entity.AuthorUserId > 0 && entity.AuthorUserId == viewerId,
-		CanDelete: entity.AuthorUserId > 0 && entity.AuthorUserId == viewerId,
+		CanEdit:   entity.AuthorID() > 0 && entity.AuthorID() == viewerId,
+		CanDelete: entity.AuthorID() > 0 && entity.AuthorID() == viewerId,
 	}
 	return ReviewPayload{
 		Id:           entity.Id,

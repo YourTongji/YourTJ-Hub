@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/job"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
@@ -148,19 +149,26 @@ func ginServe() {
 	captchaOpt.StartCleanup()
 	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
-	// 启动时回收进程崩溃遗留的 Running 任务（taskQueue 无租约机制，
-	// 崩溃时任务卡在 Running 将永久不可见，投影更新丢失）。
-	// 邮件/文件迁移/导出 worker 共用同一恢复逻辑，各按类型前缀处理。
+	// 启动时立即回收租约过期的 Running 任务（issue #138）：任务领取采用
+	// 原子 CAS + processed_at 租约，worker 执行期间心跳续租，worker 循环内
+	// 也会周期性回收过期租约；此处是启动时的即时清扫，让崩溃遗留任务尽快
+	// 回到 Pending 重新领取。邮件/文件迁移/导出 worker 共用同一恢复逻辑，
+	// 各按类型前缀处理。
 	mailservice.RecoverStaleTasks()
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
 	searchservice.RecoverStaleTasks()
+	courseservice.RecoverStaleTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费
+	// course-review-cleanup 前缀任务，脱敏超窗 deleted 行；失败按 taskQueue
+	// 语义重试至多 3 次后 failed 并有日志
+	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCleanupTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

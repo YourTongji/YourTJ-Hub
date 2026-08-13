@@ -13,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
@@ -87,6 +88,15 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "9 3 * * *", "err", err)
+	entryID, err = scheduler.AddFunc("10 3 * * *", upCmd(func() {
+		// 课评删除隔离窗口清理（issue #175 B3 隐私合规）：入队
+		// course-review-cleanup 任务，由 worker 消费；失败按 taskQueue
+		// 语义重试至多 3 次后 failed 并有日志（下次 cron 触发重新入队）。
+		if err := courseservice.EnqueueCleanupTask(); err != nil {
+			slog.Error("enqueue course review cleanup failed", "err", err)
+		}
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
 	running = true
 	scheduler.Start()
 }

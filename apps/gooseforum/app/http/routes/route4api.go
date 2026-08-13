@@ -232,8 +232,11 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
 	forumLoginApi.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
 	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
-	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, UpButterReq(forum.ModerationCourseReviewStatus))
-	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationCourseReviewReportList))
+	// 审核操作挂 course.review.moderate 限流（60s per-IP 60 / per-User 30，issue #176 B4）。
+	// 权限校验前置到 RateLimit 之前：未授权请求直接 403，不消耗共享 per-IP 配额
+	// （否则任意登录用户可耗尽同 IP 审核员的限流池，DoS 审核功能，security review F1）。
+	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
+	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
 	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
