@@ -336,6 +336,69 @@ func TestAuthorizeAcceptsRedirectGlobMatch(t *testing.T) {
 	}
 }
 
+// TestAuthorizeAcceptsWalineCallbackGlob 钉住真实 Waline 回调形状:
+// redirect_uri 内层页面 URL 仍带 %-编码(与 auth center 构造的一致), 而
+// zitadel/oidc 匹配前会再 QueryUnescape 一次——只有 ** 作末尾 segment 的
+// pattern 能命中(dev 部署实测: * 会让真实回调 400)。
+func TestAuthorizeAcceptsWalineCallbackGlob(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id":   "yourtj-wiki-comment",
+			"name": "Wiki Comment",
+			"redirect_uris_globs": []any{
+				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
+				`https://comment.example.com/api/oauth\?redirect=/**`,
+			},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	target := authorizeURL(issuer, "yourtj-wiki-comment",
+		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com%2Fguide%2F&type=oidc",
+		"st", "no", verifier)
+	rec := doGet(t, h, target)
+	if !strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("waline callback glob must reach login bridge: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestAuthorizeRejectsWalineCallbackGlobEvilDomain 钉住 glob 不放宽到任意域:
+// 相同回调形状但页面 URL 是 evil 域, 必须仍被拒绝。
+func TestAuthorizeRejectsWalineCallbackGlobEvilDomain(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id": "yourtj-wiki-comment",
+			"redirect_uris_globs": []any{
+				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
+				`https://comment.example.com/api/oauth\?redirect=/**`,
+			},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	target := authorizeURL(issuer, "yourtj-wiki-comment",
+		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fevil.example.com%2F&type=oidc",
+		"st", "no", verifier)
+	rec := doGet(t, h, target)
+	if strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("evil-domain waline callback must not reach login bridge: %q", rec.Header().Get("Location"))
+	}
+}
+
 // TestAuthorizeRejectsRedirectGlobMismatch 验证 glob 兜底不会放宽成任意匹配:
 // 未命中任何 pattern 的 URI 依然被拒绝。
 func TestAuthorizeRejectsRedirectGlobMismatch(t *testing.T) {

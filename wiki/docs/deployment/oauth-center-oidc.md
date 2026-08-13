@@ -42,9 +42,9 @@ redirect_uris_globs = ['https://comment.example.com/api/oauth\?redirect=*&type=o
   而 Waline 构造的是 `{comment serverURL}/api/oauth?redirect=<编码后页面>&type=oidc`
   ——所以 Hub 端必须注册 comment 域的这个回调。
 - **redirect_uris 精确匹配，redirect_uris_globs 兜底**（doublestar pattern，
-  加载时校验、非法即拒绝整个 OIDC 配置）。回调带动态 query 时用 glob；
-  示例 pattern 只匹配 `/api/oauth?redirect=*&type=oidc` 这一形状，
-  不会放宽成任意跳转。
+  加载时校验、非法即拒绝整个 OIDC 配置）。注意 zitadel/oidc 匹配前会再
+  `QueryUnescape` 一次 redirect_uri——`*` 嵌在 query 值中不能跨 `/`，用
+  `**` 作末尾 segment；示例 pattern 钉死站点域名前缀，evil 域不会被放行。
 
 ## 2. 部署 OAuth Center（walinejs/auth）
 
