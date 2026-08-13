@@ -18,6 +18,11 @@ import { useFlashMessages } from '@/runtime/flash-message'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
+import {
+  nextReviewTotalOnCreate,
+  nextReviewTotalOnDelete,
+  resolveStatsReviewCount,
+} from '@/site/utils/course-review-count'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -98,7 +103,7 @@ const helpfulBusyIds = ref<number[]>([])
 
 // 统计卡评论数：评价列表加载完成后以 reviewTotal（客户端、删除/创建后实时更新）为准，
 // 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
-const statsReviewCount = computed(() => (reviewLoaded.value ? reviewTotal.value : reviewCount.value))
+const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
 
 async function loadReviews() {
   reviewLoading.value = true
@@ -223,6 +228,11 @@ async function submitForm() {
         isAnonymous: formAnonymous.value,
       })
       reviews.value.unshift(created)
+      // 同步计数：创建后 +1（与下方删除路径递减口径一致），否则统计卡/评价区标题
+      // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
+      // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
+      reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      reviewLoaded.value = true
     }
     formVisible.value = false
     editingReviewId.value = null
@@ -256,7 +266,7 @@ async function confirmRemoveReview() {
   try {
     await deleteCourseReview(review.id)
     reviews.value = reviews.value.filter((item) => item.id !== review.id)
-    reviewTotal.value = Math.max(0, reviewTotal.value - 1)
+    reviewTotal.value = nextReviewTotalOnDelete(reviewTotal.value)
     pendingDelete.value = null
     pushFlash(t('courseDetailPage.reviewDeleted'), 'success')
   } catch (error) {
