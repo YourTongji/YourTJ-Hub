@@ -693,4 +693,3 @@ func TestProcessTaskCleanupRetryThenFail(t *testing.T) {
 		t.Fatal("failed task LastError empty, want error logged")
 	}
 }
-

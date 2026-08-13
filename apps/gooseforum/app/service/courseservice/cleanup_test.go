@@ -384,3 +384,54 @@ func TestCleanupWindowAnchorIsDeleteTime(t *testing.T) {
 		t.Fatalf("in-window review touched: content=%q author=%d", row.Content, row.AuthorID())
 	}
 }
+
+// TestRunCleanupTaskNonDefaultRetention 判别性验证 oierxjn 复审要求：
+// RetentionDays 覆盖链真实生效（RunCleanupTask payload → clamp 1..365 →
+// *24h cutoff → 清理窗口）。非默认窗口 retentionDays=7：
+//   - 删除后 10 天（>7）→ 被清（content 空 / author NULL）
+//   - 删除后 3 天（<7）→ 保留（content / author 原样）
+//
+// 判别性：若覆盖链退化（`_ = cutoff` 或恒定 30 天），10 天删除不会被清
+// （<30 天），测试红。
+func TestRunCleanupTaskNonDefaultRetention(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+
+	// 两条 deleted 行：10 天前删除（>7 天窗口）+ 3 天前删除（<7 天窗口）
+	oldID := createAndDeleteReview(t, offeringId, 3001, "超窗将清理")
+	recentID := createAndDeleteReview(t, offeringId, 3002, "窗口内保留")
+	backdateReviewDelete(t, oldID, 10*24*time.Hour)
+	backdateReviewDelete(t, recentID, 3*24*time.Hour)
+
+	// 真实 worker 链：payload retentionDays=7 走 RunCleanupTask
+	task := &taskQueue.Entity{Type: TaskTypeCourseReviewCleanup + ".run", TaskJson: `{"retentionDays":7}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if err := RunCleanupTask(context.Background(), task); err != nil {
+		t.Fatalf("run cleanup task: %v", err)
+	}
+
+	// 10 天前删除 → 被清（>7 天窗口）
+	old := loadReviewRow(t, oldID)
+	if old.Content != "" || old.AuthorID() != 0 {
+		t.Fatalf("10-day-old review not cleaned with retention=7: content=%q author=%d", old.Content, old.AuthorID())
+	}
+	// 3 天前删除 → 保留（<7 天窗口）
+	recent := loadReviewRow(t, recentID)
+	if recent.Content != "窗口内保留" || recent.AuthorID() != 3002 {
+		t.Fatalf("3-day-old review cleaned with retention=7: content=%q author=%d", recent.Content, recent.AuthorID())
+	}
+}
+
+// createAndDeleteReview 创建并立即删除一条评价（真实路径）。
+func createAndDeleteReview(t *testing.T, offeringId, authorId uint64, content string) uint64 {
+	t.Helper()
+	p, err := CreateReview(authorId, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: content, IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(authorId, p.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	return p.Id
+}
