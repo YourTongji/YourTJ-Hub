@@ -3,7 +3,7 @@
 // 桌面双栏（选课列表 + 课程班级）+ 下方课表；移动端三 tab（课表/选课/详情）。
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
 // 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync 增量保留已选。
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Download, RefreshCw } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -135,6 +135,23 @@ function handleCellClick(_day: number, _section: number) {
 }
 
 // ---- 导出（与课表一致：含已排入课表的所有班级）----
+const exportOpen = ref(false)
+const exportRoot = ref<HTMLElement | null>(null)
+
+function closeExportMenu() {
+  exportOpen.value = false
+}
+
+function handleExportOutsidePointerDown(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Node && exportRoot.value?.contains(target)) return
+  exportOpen.value = false
+}
+
+function handleExportKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') exportOpen.value = false
+}
+
 function exportableClassCodes(): string[] {
   const codes: string[] = []
   for (const course of store.state.commonLists.stagedCourses) {
@@ -146,6 +163,7 @@ function exportableClassCodes(): string[] {
 }
 
 function exportCsv() {
+  closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
     flash(t('schedule.empty'), 'warning')
@@ -156,6 +174,7 @@ function exportCsv() {
 }
 
 function exportXls() {
+  closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
     flash(t('schedule.empty'), 'warning')
@@ -173,7 +192,12 @@ onMounted(() => {
   }
   apply()
   query.addEventListener('change', apply)
+  document.addEventListener('pointerdown', handleExportOutsidePointerDown)
   void checkDataOutdated()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleExportOutsidePointerDown)
 })
 </script>
 
@@ -191,23 +215,30 @@ onMounted(() => {
             <RefreshCw class="h-4 w-4" />
             {{ t('schedule.syncLatest') }}
           </button>
-          <div class="dropdown dropdown-end">
-            <button type="button" tabindex="0" class="gf-button gf-button-md gf-button-outline">
+          <div ref="exportRoot" class="relative">
+            <button
+              type="button"
+              class="gf-button gf-button-md gf-button-outline"
+              :aria-expanded="exportOpen"
+              @click="exportOpen = !exportOpen"
+              @keydown="handleExportKeydown"
+            >
               <Download class="h-4 w-4" />
               {{ t('schedule.export') }}
             </button>
-            <ul tabindex="0" class="menu dropdown-content z-30 mt-1 w-48 rounded-box border border-line/70 bg-base-100 p-1 shadow-lg">
-              <li>
-                <button type="button" class="gf-menu-item" @click="exportCsv">
+            <Transition name="gf-menu">
+              <div
+                v-if="exportOpen"
+                class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-48 p-1"
+              >
+                <button type="button" class="gf-menu-item w-full" @click="exportCsv">
                   {{ t('schedule.exportCsv') }}
                 </button>
-              </li>
-              <li>
-                <button type="button" class="gf-menu-item" @click="exportXls">
+                <button type="button" class="gf-menu-item w-full" @click="exportXls">
                   {{ t('schedule.exportXls') }}
                 </button>
-              </li>
-            </ul>
+              </div>
+            </Transition>
           </div>
         </div>
       </template>
