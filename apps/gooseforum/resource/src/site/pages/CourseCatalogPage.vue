@@ -182,12 +182,12 @@ const hasActiveFilters = computed(() => {
               {{ t('coursesPage.terms') }}：{{ course.recentTerms.join(' / ') }}
             </div>
             <div class="mt-2 flex flex-wrap items-center gap-x-3 gap-y-1 text-[12px] text-base-content/70">
-              <span v-if="course.ratingCount > 0" class="inline-flex items-center gap-1">
+              <span v-if="course.ratingAvg != null" class="inline-flex items-center gap-1">
                 <Star class="h-3.5 w-3.5 fill-warning text-warning" />
                 <span class="tabular-nums">{{ t('coursesPage.rating', { score: course.ratingAvg.toFixed(1) }) }}</span>
               </span>
-              <span v-else-if="course.reviewCount > 0">{{ t('coursesPage.noRating') }}</span>
-              <span class="tabular-nums">{{ t('coursesPage.reviewCount', { count: course.reviewCount }) }}</span>
+              <span v-else-if="course.reviewCount">{{ t('coursesPage.noRating') }}</span>
+              <span class="tabular-nums">{{ t('coursesPage.reviewCount', { count: course.reviewCount ?? 0 }) }}</span>
             </div>
             <div class="mt-2 flex flex-wrap items-center gap-1.5">
               <span v-if="course.aliases?.length" class="gf-badge gf-badge-ghost text-[11px]">

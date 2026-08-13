@@ -74,11 +74,11 @@ func TestListCatalogStatsBackfill(t *testing.T) {
 	for _, s := range page.List {
 		byID[s.Id] = s
 	}
-	if got := byID[withStats]; got.RatingAvg != 4.5 || got.RatingCount != 2 || got.ReviewCount != 5 {
-		t.Fatalf("withStats summary = %#v, want RatingAvg 4.5 RatingCount 2 ReviewCount 5", got)
+	if got := byID[withStats]; got.RatingAvg == nil || *got.RatingAvg != 4.5 || got.ReviewCount != 5 {
+		t.Fatalf("withStats summary = %#v, want RatingAvg 4.5 ReviewCount 5", got)
 	}
-	if got := byID[noStats]; got.RatingAvg != 0 || got.RatingCount != 0 || got.ReviewCount != 0 {
-		t.Fatalf("noStats summary = %#v, want all zero rating fields", got)
+	if got := byID[noStats]; got.RatingAvg != nil || got.ReviewCount != 0 {
+		t.Fatalf("noStats summary = %#v, want nil RatingAvg and zero ReviewCount", got)
 	}
 }
 
@@ -108,7 +108,7 @@ func TestListCatalogPassThrough(t *testing.T) {
 		t.Fatalf("ListCatalog(sortBy=rating) ids = [%d,%d], want [%d,%d]",
 			rated.List[0].Id, rated.List[1].Id, c1, c2)
 	}
-	if rated.List[0].RatingAvg != 5.0 || rated.List[1].RatingAvg != 3.0 {
+	if rated.List[0].RatingAvg == nil || *rated.List[0].RatingAvg != 5.0 || rated.List[1].RatingAvg == nil || *rated.List[1].RatingAvg != 3.0 {
 		t.Fatalf("ListCatalog(sortBy=rating) avgs = [%v,%v], want [5,3]", rated.List[0].RatingAvg, rated.List[1].RatingAvg)
 	}
 }

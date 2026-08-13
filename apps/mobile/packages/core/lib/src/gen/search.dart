@@ -47,6 +47,8 @@ abstract class CourseSearchPayload with _$CourseSearchPayload {
     List<String>? instructors,
     List<String>? terms,
     List<String>? campus,
+    double? ratingAvg,
+    int? reviewCount,
   }) = _CourseSearchPayload;
 
   factory CourseSearchPayload.fromJson(Map<String, dynamic> json) =>

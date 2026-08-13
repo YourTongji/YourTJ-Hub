@@ -25,17 +25,23 @@
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+- **Wiki static site** (VitePress + Pagefind, separate from the binary): two nginx containers
+  `wiki-main` (127.0.0.1:5284) / `wiki-dev` (127.0.0.1:5285) in the same compose project, deployed by
+  `deploy-wiki.sh` from the `wiki-dist` artifact built in CI. Public reverse-proxy DNS for the wiki is
+  a post-merge ops task.
 
 ## Server layout (1Panel container orchestration)
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev services (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/WIKI_*_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
+  docker-compose.yaml     # main + dev + meili + wiki-main + wiki-dev services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
   build/
     Dockerfile            # alpine + binary
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
+    wiki.Dockerfile       # nginx + wiki static dist
+    wiki-dist/            # unpacked wiki dist (deploy-wiki.sh)
+  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, bootstrap-wiki-assets.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
     storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
@@ -59,12 +65,16 @@
      `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
      rollback tag) and build cache older than 72h.
      The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
+  4. SSH: `deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-<sha> 5285` → build nginx image from the
+     unpacked static dist, compose up, health check, rollback (the `wiki-build` job builds the site
+     and uploads the `wiki-dist` artifact).
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
      auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
      (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
+  4. SSH: `deploy-wiki.sh main /tmp/wiki-dist.tar.gz wiki-main-<sha> 5284` → same as dev, on 5284.
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -83,6 +93,12 @@
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
+- Wiki deploy assets are also CI-provisioned: each deploy uploads
+  `deploy/build/wiki.Dockerfile` / `wiki.nginx.conf` / `docker-compose.yaml` and runs
+  `bootstrap-wiki-assets.sh`, which idempotently installs them under `/opt/yourtj/build` and appends
+  missing `WIKI_*` vars to `/opt/yourtj/.env`. Existing servers therefore need no manual
+  `init-server.sh` re-run before the first wiki deploy; the compose file is only replaced when the
+  `wiki-*` services are missing (preserving any server-side local edits).
 
 ## GitHub Actions secrets
 
@@ -91,6 +107,7 @@
 | `VM_HOST` | server public IP or hostname (`20.205.27.178`) |
 | `VM_USER` | SSH user (e.g. `yourtj`) |
 | `VM_SSH_KEY` | private key for that user (full PEM, including `-----BEGIN ...` lines) |
+| `WIKI_WALINE_SERVER_URL` | optional Waline comment server URL, injected at wiki build time (`VITE_WALINE_SERVER_URL`); empty = comments disabled |
 
 Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
 
@@ -317,6 +334,41 @@ instance:
   (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
 - Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
   (daily cron). Export contains user emails — treat downloads as sensitive.
+
+## 一系统排课同步（course-pk-sync，issue #186）
+
+将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+```bash
+# 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
+# 已有记录后才可反查（同一学期同步过一次即可）
+./bin/yourtj-hub course-pk-sync 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 连同步前 3 个学期（选课季加频/补历史）
+./bin/yourtj-hub course-pk-sync 121 --depth 3
+
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+./bin/yourtj-hub course-pk-sync 121 --materialize
+```
+
+凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+- 运维 cron（每日，选课季加频；应用内不自造调度器）：
+
+  ```bash
+  # 每日 02:30 同步当前学期
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  ```
+
+- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+  续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
+  fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
+- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+  进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
+- 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
+  需到管理端重新保存。
 
 ## Runbooks to write
 

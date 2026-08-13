@@ -2171,12 +2171,12 @@ mixin _$CourseSummaryPayload {
   String get name => throw _privateConstructorUsedError;
   String get department => throw _privateConstructorUsedError;
   int get creditX10 => throw _privateConstructorUsedError;
-  double get ratingAvg => throw _privateConstructorUsedError;
-  int get ratingCount => throw _privateConstructorUsedError;
-  int get reviewCount => throw _privateConstructorUsedError;
   List<String>? get aliases => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
-  List<String>? get recentTerms => throw _privateConstructorUsedError;
+  List<String>? get recentTerms =>
+      throw _privateConstructorUsedError; // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  double? get ratingAvg => throw _privateConstructorUsedError;
+  int? get reviewCount => throw _privateConstructorUsedError;
 
   /// Serializes this CourseSummaryPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2201,12 +2201,11 @@ abstract class $CourseSummaryPayloadCopyWith<$Res> {
     String name,
     String department,
     int creditX10,
-    double ratingAvg,
-    int ratingCount,
-    int reviewCount,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -2233,12 +2232,11 @@ class _$CourseSummaryPayloadCopyWithImpl<
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
-    Object? ratingAvg = null,
-    Object? ratingCount = null,
-    Object? reviewCount = null,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? recentTerms = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -2262,18 +2260,6 @@ class _$CourseSummaryPayloadCopyWithImpl<
                 ? _value.creditX10
                 : creditX10 // ignore: cast_nullable_to_non_nullable
                       as int,
-            ratingAvg: null == ratingAvg
-                ? _value.ratingAvg
-                : ratingAvg // ignore: cast_nullable_to_non_nullable
-                      as double,
-            ratingCount: null == ratingCount
-                ? _value.ratingCount
-                : ratingCount // ignore: cast_nullable_to_non_nullable
-                      as int,
-            reviewCount: null == reviewCount
-                ? _value.reviewCount
-                : reviewCount // ignore: cast_nullable_to_non_nullable
-                      as int,
             aliases: freezed == aliases
                 ? _value.aliases
                 : aliases // ignore: cast_nullable_to_non_nullable
@@ -2286,6 +2272,14 @@ class _$CourseSummaryPayloadCopyWithImpl<
                 ? _value.recentTerms
                 : recentTerms // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
+            ratingAvg: freezed == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            reviewCount: freezed == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -2307,12 +2301,11 @@ abstract class _$$CourseSummaryPayloadImplCopyWith<$Res>
     String name,
     String department,
     int creditX10,
-    double ratingAvg,
-    int ratingCount,
-    int reviewCount,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -2335,12 +2328,11 @@ class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
-    Object? ratingAvg = null,
-    Object? ratingCount = null,
-    Object? reviewCount = null,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? recentTerms = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _$CourseSummaryPayloadImpl(
@@ -2364,18 +2356,6 @@ class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
             ? _value.creditX10
             : creditX10 // ignore: cast_nullable_to_non_nullable
                   as int,
-        ratingAvg: null == ratingAvg
-            ? _value.ratingAvg
-            : ratingAvg // ignore: cast_nullable_to_non_nullable
-                  as double,
-        ratingCount: null == ratingCount
-            ? _value.ratingCount
-            : ratingCount // ignore: cast_nullable_to_non_nullable
-                  as int,
-        reviewCount: null == reviewCount
-            ? _value.reviewCount
-            : reviewCount // ignore: cast_nullable_to_non_nullable
-                  as int,
         aliases: freezed == aliases
             ? _value._aliases
             : aliases // ignore: cast_nullable_to_non_nullable
@@ -2388,6 +2368,14 @@ class __$$CourseSummaryPayloadImplCopyWithImpl<$Res>
             ? _value._recentTerms
             : recentTerms // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
+        ratingAvg: freezed == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        reviewCount: freezed == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -2402,12 +2390,11 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
     required this.name,
     required this.department,
     required this.creditX10,
-    required this.ratingAvg,
-    required this.ratingCount,
-    required this.reviewCount,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? recentTerms,
+    this.ratingAvg,
+    this.reviewCount,
   }) : _aliases = aliases,
        _instructors = instructors,
        _recentTerms = recentTerms;
@@ -2425,12 +2412,6 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
   final String department;
   @override
   final int creditX10;
-  @override
-  final double ratingAvg;
-  @override
-  final int ratingCount;
-  @override
-  final int reviewCount;
   final List<String>? _aliases;
   @override
   List<String>? get aliases {
@@ -2461,9 +2442,15 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
     return EqualUnmodifiableListView(value);
   }
 
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  @override
+  final double? ratingAvg;
+  @override
+  final int? reviewCount;
+
   @override
   String toString() {
-    return 'CourseSummaryPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, ratingAvg: $ratingAvg, ratingCount: $ratingCount, reviewCount: $reviewCount, aliases: $aliases, instructors: $instructors, recentTerms: $recentTerms)';
+    return 'CourseSummaryPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, recentTerms: $recentTerms, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -2479,12 +2466,6 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
                 other.department == department) &&
             (identical(other.creditX10, creditX10) ||
                 other.creditX10 == creditX10) &&
-            (identical(other.ratingAvg, ratingAvg) ||
-                other.ratingAvg == ratingAvg) &&
-            (identical(other.ratingCount, ratingCount) ||
-                other.ratingCount == ratingCount) &&
-            (identical(other.reviewCount, reviewCount) ||
-                other.reviewCount == reviewCount) &&
             const DeepCollectionEquality().equals(other._aliases, _aliases) &&
             const DeepCollectionEquality().equals(
               other._instructors,
@@ -2493,7 +2474,11 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
             const DeepCollectionEquality().equals(
               other._recentTerms,
               _recentTerms,
-            ));
+            ) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2505,12 +2490,11 @@ class _$CourseSummaryPayloadImpl implements _CourseSummaryPayload {
     name,
     department,
     creditX10,
-    ratingAvg,
-    ratingCount,
-    reviewCount,
     const DeepCollectionEquality().hash(_aliases),
     const DeepCollectionEquality().hash(_instructors),
     const DeepCollectionEquality().hash(_recentTerms),
+    ratingAvg,
+    reviewCount,
   );
 
   /// Create a copy of CourseSummaryPayload
@@ -2538,12 +2522,11 @@ abstract class _CourseSummaryPayload implements CourseSummaryPayload {
     required final String name,
     required final String department,
     required final int creditX10,
-    required final double ratingAvg,
-    required final int ratingCount,
-    required final int reviewCount,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? recentTerms,
+    final double? ratingAvg,
+    final int? reviewCount,
   }) = _$CourseSummaryPayloadImpl;
 
   factory _CourseSummaryPayload.fromJson(Map<String, dynamic> json) =
@@ -2560,17 +2543,15 @@ abstract class _CourseSummaryPayload implements CourseSummaryPayload {
   @override
   int get creditX10;
   @override
-  double get ratingAvg;
-  @override
-  int get ratingCount;
-  @override
-  int get reviewCount;
-  @override
   List<String>? get aliases;
   @override
   List<String>? get instructors;
   @override
-  List<String>? get recentTerms;
+  List<String>? get recentTerms; // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  @override
+  double? get ratingAvg;
+  @override
+  int? get reviewCount;
 
   /// Create a copy of CourseSummaryPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -2745,7 +2726,7 @@ class __$$CourseCatalogPagePropsImplCopyWithImpl<$Res>
             : pagination // ignore: cast_nullable_to_non_nullable
                   as PaginationPayload,
         departments: null == departments
-            ? _value.departments
+            ? _value._departments
             : departments // ignore: cast_nullable_to_non_nullable
                   as List<String>,
       ),
@@ -3227,6 +3208,8 @@ mixin _$CourseOfferingPayload {
   String? get campus => throw _privateConstructorUsedError;
   String? get faculty => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
+  double? get ratingAvg => throw _privateConstructorUsedError;
+  int? get reviewCount => throw _privateConstructorUsedError;
 
   /// Serializes this CourseOfferingPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -3252,6 +3235,8 @@ abstract class $CourseOfferingPayloadCopyWith<$Res> {
     String? campus,
     String? faculty,
     List<String>? instructors,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -3279,6 +3264,8 @@ class _$CourseOfferingPayloadCopyWithImpl<
     Object? campus = freezed,
     Object? faculty = freezed,
     Object? instructors = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -3306,6 +3293,14 @@ class _$CourseOfferingPayloadCopyWithImpl<
                 ? _value.instructors
                 : instructors // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
+            ratingAvg: freezed == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            reviewCount: freezed == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -3328,6 +3323,8 @@ abstract class _$$CourseOfferingPayloadImplCopyWith<$Res>
     String? campus,
     String? faculty,
     List<String>? instructors,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -3352,6 +3349,8 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
     Object? campus = freezed,
     Object? faculty = freezed,
     Object? instructors = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _$CourseOfferingPayloadImpl(
@@ -3379,6 +3378,14 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
             ? _value._instructors
             : instructors // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
+        ratingAvg: freezed == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        reviewCount: freezed == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -3394,6 +3401,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     this.campus,
     this.faculty,
     final List<String>? instructors,
+    this.ratingAvg,
+    this.reviewCount,
   }) : _instructors = instructors;
 
   factory _$CourseOfferingPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -3420,8 +3429,13 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
   }
 
   @override
+  final double? ratingAvg;
+  @override
+  final int? reviewCount;
+
+  @override
   String toString() {
-    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, instructors: $instructors)';
+    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, instructors: $instructors, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -3439,7 +3453,11 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
             const DeepCollectionEquality().equals(
               other._instructors,
               _instructors,
-            ));
+            ) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -3452,6 +3470,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     campus,
     faculty,
     const DeepCollectionEquality().hash(_instructors),
+    ratingAvg,
+    reviewCount,
   );
 
   /// Create a copy of CourseOfferingPayload
@@ -3480,6 +3500,8 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
     final String? campus,
     final String? faculty,
     final List<String>? instructors,
+    final double? ratingAvg,
+    final int? reviewCount,
   }) = _$CourseOfferingPayloadImpl;
 
   factory _CourseOfferingPayload.fromJson(Map<String, dynamic> json) =
@@ -3497,6 +3519,10 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
   String? get faculty;
   @override
   List<String>? get instructors;
+  @override
+  double? get ratingAvg;
+  @override
+  int? get reviewCount;
 
   /// Create a copy of CourseOfferingPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3698,6 +3724,9 @@ mixin _$CourseDetailPayload {
   List<String>? get aliases => throw _privateConstructorUsedError;
   List<CourseOfferingPayload>? get offerings =>
       throw _privateConstructorUsedError;
+  double? get ratingAvg => throw _privateConstructorUsedError;
+  int? get reviewCount => throw _privateConstructorUsedError;
+  List<int>? get ratingDistribution => throw _privateConstructorUsedError;
 
   /// Serializes this CourseDetailPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -3724,6 +3753,9 @@ abstract class $CourseDetailPayloadCopyWith<$Res> {
     int creditX10,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
+    double? ratingAvg,
+    int? reviewCount,
+    List<int>? ratingDistribution,
   });
 }
 
@@ -3749,6 +3781,9 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
     Object? creditX10 = null,
     Object? aliases = freezed,
     Object? offerings = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
+    Object? ratingDistribution = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -3780,6 +3815,18 @@ class _$CourseDetailPayloadCopyWithImpl<$Res, $Val extends CourseDetailPayload>
                 ? _value.offerings
                 : offerings // ignore: cast_nullable_to_non_nullable
                       as List<CourseOfferingPayload>?,
+            ratingAvg: freezed == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            reviewCount: freezed == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            ratingDistribution: freezed == ratingDistribution
+                ? _value.ratingDistribution
+                : ratingDistribution // ignore: cast_nullable_to_non_nullable
+                      as List<int>?,
           )
           as $Val,
     );
@@ -3803,6 +3850,9 @@ abstract class _$$CourseDetailPayloadImplCopyWith<$Res>
     int creditX10,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
+    double? ratingAvg,
+    int? reviewCount,
+    List<int>? ratingDistribution,
   });
 }
 
@@ -3827,6 +3877,9 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
     Object? creditX10 = null,
     Object? aliases = freezed,
     Object? offerings = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
+    Object? ratingDistribution = freezed,
   }) {
     return _then(
       _$CourseDetailPayloadImpl(
@@ -3858,6 +3911,18 @@ class __$$CourseDetailPayloadImplCopyWithImpl<$Res>
             ? _value._offerings
             : offerings // ignore: cast_nullable_to_non_nullable
                   as List<CourseOfferingPayload>?,
+        ratingAvg: freezed == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        reviewCount: freezed == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        ratingDistribution: freezed == ratingDistribution
+            ? _value._ratingDistribution
+            : ratingDistribution // ignore: cast_nullable_to_non_nullable
+                  as List<int>?,
       ),
     );
   }
@@ -3874,8 +3939,12 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     required this.creditX10,
     final List<String>? aliases,
     final List<CourseOfferingPayload>? offerings,
+    this.ratingAvg,
+    this.reviewCount,
+    final List<int>? ratingDistribution,
   }) : _aliases = aliases,
-       _offerings = offerings;
+       _offerings = offerings,
+       _ratingDistribution = ratingDistribution;
 
   factory _$CourseDetailPayloadImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseDetailPayloadImplFromJson(json);
@@ -3911,8 +3980,23 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
   }
 
   @override
+  final double? ratingAvg;
+  @override
+  final int? reviewCount;
+  final List<int>? _ratingDistribution;
+  @override
+  List<int>? get ratingDistribution {
+    final value = _ratingDistribution;
+    if (value == null) return null;
+    if (_ratingDistribution is EqualUnmodifiableListView)
+      return _ratingDistribution;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
   String toString() {
-    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, offerings: $offerings)';
+    return 'CourseDetailPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, offerings: $offerings, ratingAvg: $ratingAvg, reviewCount: $reviewCount, ratingDistribution: $ratingDistribution)';
   }
 
   @override
@@ -3932,6 +4016,14 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
             const DeepCollectionEquality().equals(
               other._offerings,
               _offerings,
+            ) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount) &&
+            const DeepCollectionEquality().equals(
+              other._ratingDistribution,
+              _ratingDistribution,
             ));
   }
 
@@ -3946,6 +4038,9 @@ class _$CourseDetailPayloadImpl implements _CourseDetailPayload {
     creditX10,
     const DeepCollectionEquality().hash(_aliases),
     const DeepCollectionEquality().hash(_offerings),
+    ratingAvg,
+    reviewCount,
+    const DeepCollectionEquality().hash(_ratingDistribution),
   );
 
   /// Create a copy of CourseDetailPayload
@@ -3974,6 +4069,9 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
     required final int creditX10,
     final List<String>? aliases,
     final List<CourseOfferingPayload>? offerings,
+    final double? ratingAvg,
+    final int? reviewCount,
+    final List<int>? ratingDistribution,
   }) = _$CourseDetailPayloadImpl;
 
   factory _CourseDetailPayload.fromJson(Map<String, dynamic> json) =
@@ -3993,6 +4091,12 @@ abstract class _CourseDetailPayload implements CourseDetailPayload {
   List<String>? get aliases;
   @override
   List<CourseOfferingPayload>? get offerings;
+  @override
+  double? get ratingAvg;
+  @override
+  int? get reviewCount;
+  @override
+  List<int>? get ratingDistribution;
 
   /// Create a copy of CourseDetailPayload
   /// with the given fields replaced by the non-null parameter values.

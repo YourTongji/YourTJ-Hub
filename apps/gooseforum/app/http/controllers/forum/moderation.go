@@ -552,7 +552,7 @@ func reportTargetInfo(targetType string, targetID uint64, userID uint64) (report
 		if err != nil || review.Id == 0 || review.Status != course.ReviewStatusVisible {
 			return reportTargetInfoData{}, false
 		}
-		return reportTargetInfoData{UserID: review.AuthorUserId}, true
+		return reportTargetInfoData{UserID: review.AuthorID()}, true
 	default:
 		return reportTargetInfoData{}, false
 	}

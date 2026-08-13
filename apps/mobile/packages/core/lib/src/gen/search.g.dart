@@ -64,6 +64,8 @@ _$CourseSearchPayloadImpl _$$CourseSearchPayloadImplFromJson(
       .toList(),
   terms: (json['terms'] as List<dynamic>?)?.map((e) => e as String).toList(),
   campus: (json['campus'] as List<dynamic>?)?.map((e) => e as String).toList(),
+  ratingAvg: (json['ratingAvg'] as num?)?.toDouble(),
+  reviewCount: (json['reviewCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$CourseSearchPayloadImplToJson(
@@ -78,6 +80,8 @@ Map<String, dynamic> _$$CourseSearchPayloadImplToJson(
   'instructors': instance.instructors,
   'terms': instance.terms,
   'campus': instance.campus,
+  'ratingAvg': instance.ratingAvg,
+  'reviewCount': instance.reviewCount,
 };
 
 _$SearchPagePropsImpl _$$SearchPagePropsImplFromJson(

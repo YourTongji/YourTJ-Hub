@@ -185,9 +185,6 @@ _$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
-  ratingAvg: (json['ratingAvg'] as num).toDouble(),
-  ratingCount: (json['ratingCount'] as num).toInt(),
-  reviewCount: (json['reviewCount'] as num).toInt(),
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -197,6 +194,8 @@ _$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
   recentTerms: (json['recentTerms'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  ratingAvg: (json['ratingAvg'] as num?)?.toDouble(),
+  reviewCount: (json['reviewCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
@@ -207,12 +206,11 @@ Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
-  'ratingAvg': instance.ratingAvg,
-  'ratingCount': instance.ratingCount,
-  'reviewCount': instance.reviewCount,
   'aliases': instance.aliases,
   'instructors': instance.instructors,
   'recentTerms': instance.recentTerms,
+  'ratingAvg': instance.ratingAvg,
+  'reviewCount': instance.reviewCount,
 };
 
 _$CourseCatalogPagePropsImpl _$$CourseCatalogPagePropsImplFromJson(
@@ -280,6 +278,8 @@ _$CourseOfferingPayloadImpl _$$CourseOfferingPayloadImplFromJson(
   instructors: (json['instructors'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
+  ratingAvg: (json['ratingAvg'] as num?)?.toDouble(),
+  reviewCount: (json['reviewCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$CourseOfferingPayloadImplToJson(
@@ -291,6 +291,8 @@ Map<String, dynamic> _$$CourseOfferingPayloadImplToJson(
   'campus': instance.campus,
   'faculty': instance.faculty,
   'instructors': instance.instructors,
+  'ratingAvg': instance.ratingAvg,
+  'reviewCount': instance.reviewCount,
 };
 
 _$CourseDetailPagePropsImpl _$$CourseDetailPagePropsImplFromJson(
@@ -317,6 +319,11 @@ _$CourseDetailPayloadImpl _$$CourseDetailPayloadImplFromJson(
   offerings: (json['offerings'] as List<dynamic>?)
       ?.map((e) => CourseOfferingPayload.fromJson(e as Map<String, dynamic>))
       .toList(),
+  ratingAvg: (json['ratingAvg'] as num?)?.toDouble(),
+  reviewCount: (json['reviewCount'] as num?)?.toInt(),
+  ratingDistribution: (json['ratingDistribution'] as List<dynamic>?)
+      ?.map((e) => (e as num).toInt())
+      .toList(),
 );
 
 Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
@@ -329,4 +336,7 @@ Map<String, dynamic> _$$CourseDetailPayloadImplToJson(
   'creditX10': instance.creditX10,
   'aliases': instance.aliases,
   'offerings': instance.offerings,
+  'ratingAvg': instance.ratingAvg,
+  'reviewCount': instance.reviewCount,
+  'ratingDistribution': instance.ratingDistribution,
 };

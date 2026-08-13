@@ -554,6 +554,8 @@ mixin _$CourseSearchPayload {
   List<String>? get instructors => throw _privateConstructorUsedError;
   List<String>? get terms => throw _privateConstructorUsedError;
   List<String>? get campus => throw _privateConstructorUsedError;
+  double? get ratingAvg => throw _privateConstructorUsedError;
+  int? get reviewCount => throw _privateConstructorUsedError;
 
   /// Serializes this CourseSearchPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -582,6 +584,8 @@ abstract class $CourseSearchPayloadCopyWith<$Res> {
     List<String>? instructors,
     List<String>? terms,
     List<String>? campus,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -609,6 +613,8 @@ class _$CourseSearchPayloadCopyWithImpl<$Res, $Val extends CourseSearchPayload>
     Object? instructors = freezed,
     Object? terms = freezed,
     Object? campus = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -648,6 +654,14 @@ class _$CourseSearchPayloadCopyWithImpl<$Res, $Val extends CourseSearchPayload>
                 ? _value.campus
                 : campus // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
+            ratingAvg: freezed == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            reviewCount: freezed == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -673,6 +687,8 @@ abstract class _$$CourseSearchPayloadImplCopyWith<$Res>
     List<String>? instructors,
     List<String>? terms,
     List<String>? campus,
+    double? ratingAvg,
+    int? reviewCount,
   });
 }
 
@@ -699,6 +715,8 @@ class __$$CourseSearchPayloadImplCopyWithImpl<$Res>
     Object? instructors = freezed,
     Object? terms = freezed,
     Object? campus = freezed,
+    Object? ratingAvg = freezed,
+    Object? reviewCount = freezed,
   }) {
     return _then(
       _$CourseSearchPayloadImpl(
@@ -738,6 +756,14 @@ class __$$CourseSearchPayloadImplCopyWithImpl<$Res>
             ? _value._campus
             : campus // ignore: cast_nullable_to_non_nullable
                   as List<String>?,
+        ratingAvg: freezed == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        reviewCount: freezed == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -756,6 +782,8 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
     final List<String>? instructors,
     final List<String>? terms,
     final List<String>? campus,
+    this.ratingAvg,
+    this.reviewCount,
   }) : _aliases = aliases,
        _instructors = instructors,
        _terms = terms,
@@ -815,8 +843,13 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
   }
 
   @override
+  final double? ratingAvg;
+  @override
+  final int? reviewCount;
+
+  @override
   String toString() {
-    return 'CourseSearchPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, terms: $terms, campus: $campus)';
+    return 'CourseSearchPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, terms: $terms, campus: $campus, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -838,7 +871,11 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
               _instructors,
             ) &&
             const DeepCollectionEquality().equals(other._terms, _terms) &&
-            const DeepCollectionEquality().equals(other._campus, _campus));
+            const DeepCollectionEquality().equals(other._campus, _campus) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -854,6 +891,8 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
     const DeepCollectionEquality().hash(_instructors),
     const DeepCollectionEquality().hash(_terms),
     const DeepCollectionEquality().hash(_campus),
+    ratingAvg,
+    reviewCount,
   );
 
   /// Create a copy of CourseSearchPayload
@@ -884,6 +923,8 @@ abstract class _CourseSearchPayload implements CourseSearchPayload {
     final List<String>? instructors,
     final List<String>? terms,
     final List<String>? campus,
+    final double? ratingAvg,
+    final int? reviewCount,
   }) = _$CourseSearchPayloadImpl;
 
   factory _CourseSearchPayload.fromJson(Map<String, dynamic> json) =
@@ -907,6 +948,10 @@ abstract class _CourseSearchPayload implements CourseSearchPayload {
   List<String>? get terms;
   @override
   List<String>? get campus;
+  @override
+  double? get ratingAvg;
+  @override
+  int? get reviewCount;
 
   /// Create a copy of CourseSearchPayload
   /// with the given fields replaced by the non-null parameter values.

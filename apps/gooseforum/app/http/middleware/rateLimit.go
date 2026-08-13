@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 )
 
 // 限流动作标识，与管理面板 rateLimitSettings 的 actions.action 对应。
@@ -48,6 +48,10 @@ const (
 	RateLimitReviewHelpful = "course.review.helpful"
 	RateLimitReviewReport  = "course.review.report"
 	RateLimitReviewReveal  = "course.review.reveal"
+	// RateLimitReviewModerate 课评审核操作（隐藏/恢复、举报队列）：60s 窗口
+	// per-IP 60 / per-User 30（issue #176 B4）。比写接口宽松（审核是低频
+	// 操作但需批量处理举报），同时防止单账号刷审核接口。
+	RateLimitReviewModerate = "course.review.moderate"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。

@@ -133,12 +133,12 @@ abstract class CourseSummaryPayload with _$CourseSummaryPayload {
     required String name,
     required String department,
     required int creditX10,
-    required double ratingAvg,
-    required int ratingCount,
-    required int reviewCount,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? recentTerms,
+    // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+    double? ratingAvg,
+    int? reviewCount,
   }) = _CourseSummaryPayload;
 
   factory CourseSummaryPayload.fromJson(Map<String, dynamic> json) =>
@@ -185,6 +185,8 @@ abstract class CourseOfferingPayload with _$CourseOfferingPayload {
     String? campus,
     String? faculty,
     List<String>? instructors,
+    double? ratingAvg,
+    int? reviewCount,
   }) = _CourseOfferingPayload;
 
   factory CourseOfferingPayload.fromJson(Map<String, dynamic> json) =>
@@ -210,6 +212,9 @@ abstract class CourseDetailPayload with _$CourseDetailPayload {
     required int creditX10,
     List<String>? aliases,
     List<CourseOfferingPayload>? offerings,
+    double? ratingAvg,
+    int? reviewCount,
+    List<int>? ratingDistribution,
   }) = _CourseDetailPayload;
 
   factory CourseDetailPayload.fromJson(Map<String, dynamic> json) =>

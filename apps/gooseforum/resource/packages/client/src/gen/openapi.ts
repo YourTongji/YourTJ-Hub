@@ -693,9 +693,10 @@ export interface paths {
         put?: never;
         /**
          * Hide or show a course review (CourseManager)
-         * @description CourseManager-scoped moderation. Permission failures and unknown reviews are legacy HTTP 200
-         *     business failures (`permission.denied`, `review.notFound`); the operation is idempotent and
-         *     adjusts course/offering stats projections.
+         * @description CourseManager-scoped moderation. Unknown reviews are legacy HTTP 200 business failures
+         *     (`review.notFound`); permission failures are rejected by the permission middleware with
+         *     HTTP 403 `permission.denied` (the middleware runs before the handler). The operation is
+         *     idempotent and adjusts course/offering stats projections.
          */
         post: operations["moderationCourseReviewStatus"];
         delete?: never;
@@ -715,9 +716,10 @@ export interface paths {
         put?: never;
         /**
          * List the course review report queue (CourseManager)
-         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are a
-         *     legacy HTTP 200 business failure (`permission.denied`). Items never expose the reviewed
-         *     author's identity; the reporter/handler author payloads are the standard forum author shape.
+         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are
+         *     rejected by the permission middleware with HTTP 403 `permission.denied` (the middleware
+         *     runs before the handler). Items never expose the reviewed author's identity; the
+         *     reporter/handler author payloads are the standard forum author shape.
          */
         post: operations["moderationCourseReviewReportList"];
         delete?: never;
@@ -1160,12 +1162,13 @@ export interface components {
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
-            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
-            ratingAvg: number;
-            /** @description Number of visible reviews carrying a rating. */
-            ratingCount: number;
-            /** @description Number of visible reviews for this course. */
-            reviewCount: number;
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -1186,6 +1189,13 @@ export interface components {
             campus?: string;
             faculty?: string;
             instructors?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average for this offering; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews for this offering. */
+            reviewCount?: number;
         };
         CourseDetail: {
             /** Format: uint64 */
@@ -1196,6 +1206,18 @@ export interface components {
             creditX10: number;
             aliases?: string[];
             offerings?: components["schemas"]["OfferingSummary"][];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+            /**
+             * @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+             *     Omitted when the course has no visible reviews.
+             */
+            ratingDistribution?: number[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
@@ -1237,9 +1259,31 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /**
+             * Format: double
+             * @description Non-NULL rating average of the review's offering (PRD §5.1 B1).
+             *     Present only when the listing is scoped to a single offering and the
+             *     offering has at least one rated review.
+             */
+            offeringRatingAvg?: number;
+            /** @description Number of visible reviews of the review's offering (offering-scoped listing only). */
+            offeringReviewCount?: number;
         };
-        /** @description The raw review array; an empty listing is an empty array, never null. */
-        ReviewListResult: components["schemas"]["ReviewPayload"][];
+        ReviewListResult: {
+            /** @description The current page of visible reviews; an empty listing is an empty array, never null. */
+            list: components["schemas"]["ReviewPayload"][];
+            /**
+             * @description Cursor for the next page, present only when more reviews exist.
+             *     Format is "offeringId:reviewId" of the last item of the current page
+             *     (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+             */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Total number of visible reviews matching the current scope (course or offering filter).
+             */
+            total: number;
+        };
         ReviewListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ReviewListResult"];
         }) | components["schemas"]["ApiFailure"];
@@ -1518,6 +1562,13 @@ export interface components {
             instructors: string[];
             terms: string[];
             campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         PaginationPayload: {
             page: number;
@@ -2609,6 +2660,8 @@ export interface operations {
         parameters: {
             query?: {
                 offeringId?: number;
+                cursor?: string;
+                pageSize?: number;
             };
             header?: never;
             path: {
@@ -2629,6 +2682,19 @@ export interface operations {
             };
             /** @description Malformed course id or query parameters. */
             400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /**
+             * @description The offering does not exist, does not belong to the given course, or is not visible.
+             *     The server validates offering ownership before listing (issue #176 B4), so a caller
+             *     cannot enumerate reviews of a hidden offering or an offering of another course.
+             */
+            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2660,7 +2726,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description The created review payload, or a legacy business failure envelope for validation failures. */
+            /**
+             * @description The created review payload. Request-level validation failures (rating outside 1..5,
+             *     empty content, missing fields) are returned as a legacy HTTP 200 envelope
+             *     with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
+             *     route behavior). Over-long content is NOT a request-level failure: it passes the
+             *     request validator and is rejected by the service layer as 400 `review.content.tooLong`
+             *     (see below). Service-level errors use their own status codes below.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2669,7 +2742,12 @@ export interface operations {
                     "application/json": components["schemas"]["ReviewWriteResponse"];
                 };
             };
-            /** @description Malformed JSON request body (binding failure). Rating range and required-field failures are legacy HTTP 200 business failures. */
+            /**
+             * @description Malformed JSON request body (binding failure), or a service-level validation failure
+             *     such as over-long content (`review.content.tooLong`). The request-level validator only
+             *     requires `content` to be present, so content longer than the service limit
+             *     (50000 chars) is rejected here, not in the legacy 200 envelope.
+             */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3015,7 +3093,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Boolean success result or a moderation business failure envelope. */
+            /** @description Boolean success result, or a business failure envelope (e.g. `review.notFound`). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3033,6 +3111,25 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description The caller is not a CourseManager. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
         };
     };
     moderationCourseReviewReportList: {
@@ -3048,7 +3145,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One page of open (or filtered) reports, or a permission business failure envelope. */
+            /** @description One page of open (or filtered) reports. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3064,6 +3161,25 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not a CourseManager. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course-review moderation rate limit exceeded (60s window). */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

@@ -1,0 +1,61 @@
+# Waline 评论服务端部署示例（issue #170）
+#
+# 用法：
+#   1. 复制 .env.example 为 .env 并填写（SQLite 或 MySQL 二选一）。
+#   2. docker compose up -d
+#   3. 反向代理 https://comment.example.com -> 127.0.0.1:8360（仅回环暴露）
+#
+# 存储：SQLite（零依赖）或 MySQL（生产推荐，需先导入建表 SQL，见 README）。
+#       不使用 LeanCloud（停服风险）。
+# 登录：Waline 通过 OAUTH_URL 指向 walinejs/auth OAuth Center（自托管或
+#       Vercel 部署，见 ../oauth-center/），OAuth Center 再对接 YourTJ-Hub
+#       OIDC provider。注意：OAUTH_URL 指向的是 OAuth Center 自身地址，
+#       Waline 会用 ${OAUTH_URL}/oidc 拼登录跳转。
+# 必填：JWT_TOKEN（评论登录 token 密钥，Waline 未设置会拒绝启动）。
+
+services:
+  waline:
+    image: lizheming/waline:latest
+    restart: unless-stopped
+    ports:
+      # 仅回环暴露, 公网一律经反向代理(与 forum 后端一致的姿势)
+      - "127.0.0.1:8360:8360"
+    environment:
+      # --- 必填 ---
+      # 登录 token 密钥：请替换为强随机值（openssl rand -hex 32）
+      - JWT_TOKEN=${JWT_TOKEN:-replace-with-a-random-token}
+
+      # --- 存储：二选一 ---
+      # SQLite（默认；SQLITE_PATH 是数据目录，不是文件路径）
+      - SQLITE_PATH=/app/data
+      # MySQL（生产推荐，取消注释并填 .env；需先导入 waline.sql 建表）
+      # - MYSQL_DB=${MYSQL_DB:-waline}
+      # - MYSQL_USER=${MYSQL_USER}
+      # - MYSQL_PASSWORD=${MYSQL_PASSWORD}
+      # - MYSQL_HOST=${MYSQL_HOST:-127.0.0.1}
+      # - MYSQL_PORT=${MYSQL_PORT:-3306}
+      # - MYSQL_PREFIX=${MYSQL_PREFIX:-wl_}
+
+      # --- 站点信息 ---
+      - SITE_NAME=YourTJ Wiki
+      - SITE_URL=https://wiki.example.com
+      # 允许评论的域名白名单（防跨站刷评），逗号分隔
+      - SECURE_DOMAINS=wiki.example.com
+
+      # --- 登录：OAuth Center（必填）---
+      # 指向 walinejs/auth 服务（见 ../oauth-center/）；Waline 登录页将
+      # 展示 OAuth Center 提供的第三方登录方式（含 YourTJ-Hub OIDC）。
+      - OAUTH_URL=${OAUTH_URL:-https://auth.example.com}
+
+      # --- 邮件通知（可选） ---
+      # - SMTP_SERVICE=${SMTP_SERVICE}
+      # - SMTP_HOST=${SMTP_HOST}
+      # - SMTP_PORT=${SMTP_PORT:-465}
+      # - SMTP_USER=${SMTP_USER}
+      # - SMTP_PASS=${SMTP_PASS}
+      # - AUTHOR_EMAIL=${AUTHOR_EMAIL}
+
+      # --- 反垃圾（可选） ---
+      # - AKISMET_KEY=${AKISMET_KEY}
+    volumes:
+      - ./data:/app/data

@@ -41,10 +41,24 @@ abstract class ReviewPayload with _$ReviewPayload {
     required int helpfulCount,
     required String createdAt,
     required String updatedAt,
+    double? offeringRatingAvg,
+    int? offeringReviewCount,
   }) = _ReviewPayload;
 
   factory ReviewPayload.fromJson(Map<String, dynamic> json) =>
       _$ReviewPayloadFromJson(json);
+}
+
+@freezed
+abstract class ReviewListResult with _$ReviewListResult {
+  const factory ReviewListResult({
+    required List<ReviewPayload> list,
+    String? nextCursor,
+    required int total,
+  }) = _ReviewListResult;
+
+  factory ReviewListResult.fromJson(Map<String, dynamic> json) =>
+      _$ReviewListResultFromJson(json);
 }
 
 @freezed

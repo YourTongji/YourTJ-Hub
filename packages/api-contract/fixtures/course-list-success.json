@@ -9,10 +9,7 @@
         "creditX10": 50,
         "aliases": ["高数"],
         "instructors": ["张三", "李四"],
-        "recentTerms": ["2025-2026-1"],
-        "ratingAvg": 0,
-        "ratingCount": 0,
-        "reviewCount": 0
+        "recentTerms": ["2025-2026-1"]
       }
     ],
     "page": 1,

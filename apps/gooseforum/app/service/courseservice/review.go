@@ -2,6 +2,9 @@ package courseservice
 
 import (
 	"errors"
+	"fmt"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -13,6 +16,9 @@ import (
 
 // ReviewContentMaxLength 评价正文最大长度（rune 计数，与帖子正文上限一致）。
 const ReviewContentMaxLength = 50000
+
+// uint64Ptr 返回 uint64 值的指针（author_user_id 在清理后为 NULL，原生评价用指针承载）。
+func uint64Ptr(v uint64) *uint64 { return &v }
 
 // 稳定错误 sentinel：控制器据此映射语义 HTTP 状态（400/403/404/409/500）。
 var (
@@ -57,6 +63,9 @@ type ReviewPayload struct {
 	HelpfulCount int64               `json:"helpfulCount"`
 	CreatedAt    string              `json:"createdAt"`
 	UpdatedAt    string              `json:"updatedAt"`
+	// OfferingRatingAvg / OfferingReviewCount：offering 级统计（PRD §5.1 B1，reviews?offeringId= 端点展示）。
+	OfferingRatingAvg   *float64 `json:"offeringRatingAvg,omitempty"`
+	OfferingReviewCount int      `json:"offeringReviewCount,omitempty"`
 }
 
 // CreateReviewInput 写评请求。
@@ -108,7 +117,7 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			}
 			// deleted 行：恢复重写（复用唯一键），并重新累加 stats
 			// （删除时已扣减，恢复时按新 rating/content 重新计入）。
-			ok, err := course.ReactivateReviewTx(tx, existing.Id, &rating, input.Content, input.IsAnonymous)
+			ok, err := course.ReactivateReviewTx(tx, existing.Id, userId, &rating, input.Content, input.IsAnonymous)
 			if err != nil {
 				return err
 			}
@@ -134,7 +143,7 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 		}
 		entity := course.ReviewEntity{
 			OfferingId:   input.OfferingId,
-			AuthorUserId: userId,
+			AuthorUserId: &userId,
 			Rating:       &rating,
 			Content:      input.Content,
 			IsAnonymous:  input.IsAnonymous,
@@ -185,7 +194,7 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 			if entity.Status != course.ReviewStatusVisible {
 				return ErrReviewNotFound
 			}
-			if entity.AuthorUserId != userId {
+			if entity.AuthorID() != userId {
 				return ErrReviewNotOwned
 			}
 			oldRating := 0
@@ -256,8 +265,10 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 }
 
 // DeleteReview 作者删除评价（隔离窗口语义由 status=deleted 表达，正文保留待清理）。
-// 幂等：已删除（含隔离窗口后的清理）直接成功；仅当评价仍可见时扣减 stats，
-// 避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
+// 删除时显式写入 deleted_at 作为 30 天隔离窗口起点（MarkReviewDeletedFromTx，
+// 吸收 #202 设计——专用时间锚点）。
+// 幂等：已删除（含隔离窗口清理后作者已断开的行）直接成功；仅当评价仍可见时
+// 扣减 stats，避免隐藏（SetReviewVisibility 已扣）后再删导致双重扣减。
 // 状态转换使用 CAS（WHERE status = 旧值）：并发 hide 与 delete 同时到达时，
 // 只有拿到转换权的事务会调整 stats，另一个 RowsAffected=0 直接幂等成功。
 func DeleteReview(userId, reviewId uint64) error {
@@ -266,13 +277,13 @@ func DeleteReview(userId, reviewId uint64) error {
 		if err != nil {
 			return ErrReviewNotFound
 		}
-		if entity.AuthorUserId != userId {
+		if entity.Status == course.ReviewStatusDeleted {
+			return nil // 幂等：隔离窗口内（作者仍关联）或清理后（作者已断开）均直接成功
+		}
+		if entity.AuthorID() != userId {
 			return ErrReviewNotOwned
 		}
-		if entity.Status == course.ReviewStatusDeleted {
-			return nil
-		}
-		converted, err := course.UpdateReviewStatusFromTx(tx, reviewId, entity.Status, course.ReviewStatusDeleted)
+		converted, err := course.MarkReviewDeletedFromTx(tx, reviewId, entity.Status)
 		if err != nil {
 			return err
 		}
@@ -337,7 +348,117 @@ func SetReviewHelpful(userId, reviewId uint64, helpful bool) error {
 }
 
 // ReviewListMaxItems 评价列表单次返回上限（防止热门课程响应无界；分页由后续 slice 增强）。
+// 注意：B2 分页（issue #174）上线后 HTTP 列表走 ListReviewsPage，旧路径
+// ListReviewsByOffering/ListReviewsByCourse 仅供内部调用（如无 HTTP 调用方时
+// 待后续清理，PR #201 security F3）。
 const ReviewListMaxItems = 200
+
+// ---- B2: cursor 分页（issue #174） ----
+
+// DefaultReviewPageSize 评价列表默认页大小；MaxReviewPageSize 上限。
+// 默认 20 与前端 api.ts 默认值及契约 default 对齐（issue #174 验收约定
+// 默认 20、上限 50；PR #201 security N1：契约文档/前端/服务端三方一致）。
+const (
+	DefaultReviewPageSize = 20
+	MaxReviewPageSize     = 50
+)
+
+// ErrReviewInvalidCursor 非法 cursor（格式/取值错误，控制器映射 400）。
+var ErrReviewInvalidCursor = errors.New("invalid review cursor")
+
+// ReviewPageResult cursor 分页结果。
+type ReviewPageResult struct {
+	List       []ReviewPayload `json:"list"`
+	NextCursor string          `json:"nextCursor,omitempty"`
+	Total      int64           `json:"total"`
+}
+
+// ReviewCursor 复合游标（offering_id, review_id）。
+// Course 级列表按 (offering_id DESC, id DESC) 排序，cursor 是上一页
+// 最后一条的 (offeringId, id)；offering 级列表只用 reviewId。
+type ReviewCursor struct {
+	OfferingId uint64
+	ReviewId   uint64
+}
+
+// EncodeCursor 编码 cursor 为明文 "offeringId:reviewId"。
+func EncodeCursor(c ReviewCursor) string {
+	return fmt.Sprintf("%d:%d", c.OfferingId, c.ReviewId)
+}
+
+// DecodeCursor 解析 cursor；非法格式返回 ErrReviewInvalidCursor。
+func DecodeCursor(raw string) (ReviewCursor, error) {
+	raw = strings.TrimSpace(raw)
+	if raw == "" {
+		return ReviewCursor{}, nil
+	}
+	parts := strings.Split(raw, ":")
+	if len(parts) != 2 {
+		return ReviewCursor{}, ErrReviewInvalidCursor
+	}
+	oid, err1 := strconv.ParseUint(parts[0], 10, 64)
+	rid, err2 := strconv.ParseUint(parts[1], 10, 64)
+	if err1 != nil || err2 != nil {
+		return ReviewCursor{}, ErrReviewInvalidCursor
+	}
+	return ReviewCursor{OfferingId: oid, ReviewId: rid}, nil
+}
+
+// ListReviewsPage 按 cursor 分页返回课程（或指定 offering）的可见评价。
+// pageSize 默认 20、上限 50；结果多取一条判断 hasNext（无重复无遗漏）。
+// total 为当前筛选下的可见评价总数（offering 过滤时同口径）。
+// 边界语义（PR #201 spec O3）：pageSize<=0 静默回落默认值（契约 minimum=1，
+// 宽松容忍无害，控制器仅拦 >50）；cursor 非法格式由控制器 DecodeCursor 拦 400。
+func ListReviewsPage(courseId, offeringId, viewerId uint64, cursor ReviewCursor, pageSize int) (ReviewPageResult, error) {
+	if pageSize <= 0 {
+		pageSize = DefaultReviewPageSize
+	}
+	if pageSize > MaxReviewPageSize {
+		pageSize = MaxReviewPageSize
+	}
+	query := course.ReviewPageQuery{
+		CourseId:         courseId,
+		OfferingId:       offeringId,
+		CursorOfferingId: cursor.OfferingId,
+		CursorReviewId:   cursor.ReviewId,
+		Limit:            pageSize + 1,
+	}
+	entities, err := course.ListReviewsPage(query)
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	hasNext := len(entities) > pageSize
+	if hasNext {
+		entities = entities[:pageSize]
+	}
+	payloads, err := listReviewPayloads(entities, viewerId)
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	// offering 级统计（PRD §5.1 B1：reviews?offeringId= 端点展示；跨 PR 接线，
+	// 依赖 #195 的 ReviewPayload 字段定义，合入顺序 #195 先于 #201）。
+	// 仅 offeringId 过滤场景填充（course 级跨 offering 无单一 offering 统计）。
+	if offeringId > 0 {
+		fillOfferingStats(payloads)
+	}
+	result := ReviewPageResult{
+		List:  payloads,
+		Total: 0,
+	}
+	if offeringId > 0 {
+		result.Total, err = course.CountVisibleReviewsByOffering(offeringId)
+	} else {
+		result.Total, err = course.CountVisibleReviewsByCourse(courseId)
+	}
+	if err != nil {
+		return ReviewPageResult{}, err
+	}
+	if hasNext {
+		last := entities[len(entities)-1]
+		result.NextCursor = EncodeCursor(ReviewCursor{OfferingId: last.OfferingId, ReviewId: last.Id})
+	}
+	return result, nil
+}
 
 // ListReviewsByOffering 返回 offering 的可见评价列表（匿名 DTO，最多 ReviewListMaxItems 条）。
 func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error) {
@@ -348,7 +469,13 @@ func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error)
 	if len(entities) > ReviewListMaxItems {
 		entities = entities[:ReviewListMaxItems]
 	}
-	return listReviewPayloads(entities, viewerId)
+	payloads, err := listReviewPayloads(entities, viewerId)
+	if err != nil {
+		return nil, err
+	}
+	// offering 级统计（PRD §5.1 B1：reviews?offeringId= 端点展示；spec F1）。
+	fillOfferingStats(payloads)
+	return payloads, nil
 }
 
 // ListReviewsByCourse 返回课程下所有可见 offering 的评价（时间倒序，匿名 DTO，
@@ -450,8 +577,8 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	authorIds := make([]uint64, 0, len(entities))
 	for _, e := range entities {
 		reviewIds = append(reviewIds, e.Id)
-		if !e.IsAnonymous && e.AuthorUserId > 0 {
-			authorIds = append(authorIds, e.AuthorUserId)
+		if !e.IsAnonymous && e.AuthorID() > 0 {
+			authorIds = append(authorIds, e.AuthorID())
 		}
 	}
 	helpfulCounts := course.CountHelpfulByReviewIds(reviewIds)
@@ -476,7 +603,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 			p.Viewer.IsHelpful = true
 		}
 		if p.Author.Kind == "member" {
-			if user, ok := userMap[e.AuthorUserId]; ok && user != nil {
+			if user, ok := userMap[e.AuthorID()]; ok && user != nil {
 				p.Author.Label = user.Username
 				if user.Nickname != "" {
 					p.Author.Label = user.Nickname
@@ -488,7 +615,32 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	return payloads, nil
 }
 
-// fillReviewAuthorLabel 为写路径单条 member 评价回填展示用户名；匿名/legacy 不查询、不泄漏。
+// fillOfferingStats 为评价 payload 批量填充 offering 级统计（PRD §5.1 B1，reviews?offeringId= 端点展示）。
+// 数据来自 offering_review_stats 投影；查询错误由 ListOfferingStatsByIDs
+// 内部 slog.Warn 记录（fail-open：不阻断列表返回）。
+func fillOfferingStats(payloads []ReviewPayload) {
+	ids := make([]uint64, 0, len(payloads))
+	seen := map[uint64]bool{}
+	for _, p := range payloads {
+		if !seen[p.OfferingId] {
+			seen[p.OfferingId] = true
+			ids = append(ids, p.OfferingId)
+		}
+	}
+	if len(ids) == 0 {
+		return
+	}
+	stats := course.ListOfferingStatsByIDs(ids)
+	for i := range payloads {
+		if s, ok := stats[payloads[i].OfferingId]; ok {
+			if s.RatingCount > 0 {
+				avg := float64(s.RatingSum) / float64(s.RatingCount)
+				payloads[i].OfferingRatingAvg = &avg
+			}
+			payloads[i].OfferingReviewCount = s.ReviewCount
+		}
+	}
+}
 func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 	if p == nil || p.Author.Kind != "member" || authorUserId == 0 {
 		return
@@ -508,7 +660,7 @@ func fillReviewAuthorLabel(p *ReviewPayload, authorUserId uint64) {
 // 保证 legacy 评价展示的 helpful 数与源数据一致。
 func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCount int64) ReviewPayload {
 	author := ReviewAuthorPayload{Kind: "member", Label: "同学"}
-	if entity.IsAnonymous || entity.AuthorUserId == 0 {
+	if entity.IsAnonymous || entity.AuthorID() == 0 {
 		author = ReviewAuthorPayload{Kind: "anonymous", Label: "匿名同学"}
 	} else if entity.Source != "" && entity.Source != "native" {
 		author = ReviewAuthorPayload{Kind: "legacy", Label: "历史匿名评价"}
@@ -517,8 +669,8 @@ func buildReviewPayload(entity course.ReviewEntity, viewerId uint64, helpfulCoun
 		author = ReviewAuthorPayload{Kind: "legacy", Label: "历史匿名评价"}
 	}
 	viewer := ReviewViewerPayload{
-		CanEdit:   entity.AuthorUserId > 0 && entity.AuthorUserId == viewerId,
-		CanDelete: entity.AuthorUserId > 0 && entity.AuthorUserId == viewerId,
+		CanEdit:   entity.AuthorID() > 0 && entity.AuthorID() == viewerId,
+		CanDelete: entity.AuthorID() > 0 && entity.AuthorID() == viewerId,
 	}
 	return ReviewPayload{
 		Id:           entity.Id,
