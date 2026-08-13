@@ -40,7 +40,9 @@ jobs:
       - uses: actions/setup-node@v4
         if: steps.filter.outputs.wiki == 'true'
         with:
-          node-version: 20
+          # pnpm 11 要求 Node >= 22.13(其 store 依赖 node:sqlite 内置模块),
+          # Node 20 会在 setup-node 缓存步骤直接崩溃(CI 实测)。对齐 ci-frontend 惯例。
+          node-version: 24
           cache: pnpm
           cache-dependency-path: wiki/pnpm-lock.yaml
       - name: Install
