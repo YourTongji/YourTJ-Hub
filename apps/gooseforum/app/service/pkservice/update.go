@@ -15,5 +15,5 @@ func GetLatestUpdate() (string, error) {
 	if ts <= 0 {
 		return "", nil
 	}
-	return time.Unix(ts, 0).Format("2006-01-02"), nil
+	return time.Unix(ts, 0).UTC().Format("2006-01-02"), nil
 }
