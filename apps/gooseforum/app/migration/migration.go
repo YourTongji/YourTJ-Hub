@@ -234,22 +234,31 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 	}
 
 	// 旧形态：手工全列重建（保留 author_user_id 数据与唯一索引）。
-	// 整个序列（CREATE temp → INSERT SELECT → DROP → RENAME → 建索引）包进
-	// db.Transaction：SQLite 事务性 DDL 下，任意点崩溃（如 DROP 后、RENAME
-	// 前进程退出）全量回滚，旧表完整、重启重试（security 复审 F1——此前
-	// 两条 autocommit 语句的崩溃窗口会把存量数据滞留在孤儿临时表，静默丢失）。
+	// 整个序列（删旧索引 → CREATE temp → INSERT SELECT → DROP → RENAME）
+	// 包进 db.Transaction：SQLite 事务性 DDL 下，任意点崩溃（如 DROP 后、
+	// RENAME 前进程退出）全量回滚，旧表完整、重启重试（security F1 与
+	// spec F1 同根因——此前 autocommit 的崩溃窗口会把存量数据滞留在孤儿
+	// 临时表，preflight 走"全新库"分支静默丢数据，或临时表残留导致重启
+	// 卡死）。
 	//
-	// ⚠️ 列清单警示（security 复审 F3）：下方 temp 表 DDL 与 INSERT SELECT
-	// 的 12 列清单硬编码，当前与 ReviewEntity 字段一一对应；未来给
-	// ReviewEntity 加列时必须同步这两处，否则升级丢列（gorm 重建同样只
-	// 复制变化列）。列序：id, offering_id, author_user_id, rating, content,
-	// is_anonymous, status, legacy_helpful_count, source, created_at,
-	// updated_at, deleted_at。
+	// 孤儿临时表兜底（spec F1）：事务回滚覆盖普通错误与可恢复崩溃；进程
+	// SIGKILL 等无法回滚的极端场景下，SQLite 崩溃恢复语义（journal/WAL）
+	// 通常也会撤销未提交 DDL，但为绝对自愈，此处主动清理历史残留的
+	// course_review__upgrade（若有）——CREATE 无 IF NOT EXISTS，残留会令
+	// 重启永久卡死（already exists → os.Exit(1)）。清理先于事务，带 Warn
+	// 日志便于诊断。
 	//
 	// 多实例并发（security 复审 F2）：两实例同时 preflight 时后到者 CREATE
 	// temp 报 already exists → 返回错误 → 迁移失败退出 → 进程管理器重启 →
 	// 先到者已完成则跳过。数据安全（fail-safe）但有一次启动失败噪音；
-	// SQLite 无 advisory lock，事务包裹后错误重试成本低，容忍现状。
+	// SQLite 无 advisory lock，事务包裹 + 孤儿清理兜底后错误重试成本低，
+	// 容忍现状。
+	if db.Migrator().HasTable("course_review__upgrade") {
+		slog.Warn("migration: dropping orphan course_review__upgrade from a previous interrupted upgrade")
+		if err := db.Exec(`DROP TABLE course_review__upgrade`).Error; err != nil {
+			return fmt.Errorf("drop orphan course_review__upgrade: %w", err)
+		}
+	}
 	err := db.Transaction(func(tx *gorm.DB) error {
 		// 1) 先删旧表索引（SQLite 索引名 schema 级唯一；旧表的
 		// idx_course_review_* / uniq_course_review_offering_author 与

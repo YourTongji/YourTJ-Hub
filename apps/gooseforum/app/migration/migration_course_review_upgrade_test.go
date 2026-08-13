@@ -295,3 +295,46 @@ func TestCourseReviewUpgradeCrashWindowRollback(t *testing.T) {
 		t.Fatalf("row 1 altered after crash retry: %+v", kept)
 	}
 }
+
+// TestCourseReviewUpgradeOrphanTempSelfHeal 判别性验证 spec 复审 F1：
+// preflight 部分失败（如 INSERT SELECT 中断）后残留孤儿临时表
+// course_review__upgrade——重启 preflight 必须自愈（清理孤儿表并重建成功），
+// 不得卡死（旧实现 CREATE 无 IF NOT EXISTS → already exists → 迁移失败退出
+// → 服务永远无法启动）。
+func TestCourseReviewUpgradeOrphanTempSelfHeal(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:migration-course-review-orphan-%d?mode=memory&cache=shared", 0)), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.Exec(legacyCourseReviewDDL).Error; err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if err := db.Exec("INSERT INTO course_review (id, offering_id, author_user_id, status, content) VALUES (1, 100, 1001, 2, '孤儿场景数据')").Error; err != nil {
+		t.Fatalf("insert row: %v", err)
+	}
+	// 构造孤儿临时表（模拟上次升级在 INSERT 后、DROP 前中断的残留；残留表
+	// 结构不完整/数据半截，但必须能被兜底清理）
+	if err := db.Exec(`CREATE TABLE course_review__upgrade (id INTEGER PRIMARY KEY AUTOINCREMENT, offering_id INTEGER)`).Error; err != nil {
+		t.Fatalf("create orphan temp: %v", err)
+	}
+
+	// 重启 preflight：必须先清理孤儿表再重建，不得报 already exists 卡死
+	if err := upgradeCourseReviewLegacySchema(db); err != nil {
+		t.Fatalf("preflight with orphan temp failed (stuck): %v", err)
+	}
+	if db.Migrator().HasTable("course_review__upgrade") {
+		t.Fatal("orphan temp not cleaned up")
+	}
+	if err := db.AutoMigrate(&course.ReviewEntity{}); err != nil {
+		t.Fatalf("AutoMigrate after self-heal failed: %v", err)
+	}
+	var kept course.ReviewEntity
+	if err := db.Table(courseReviewTableName).Where("id = ?", 1).First(&kept).Error; err != nil {
+		t.Fatalf("row lost after self-heal: %v", err)
+	}
+	if kept.Content != "孤儿场景数据" || kept.AuthorID() != 1001 {
+		t.Fatalf("row altered after self-heal: %+v", kept)
+	}
+}
