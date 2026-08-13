@@ -555,25 +555,6 @@ func ratingDistributionFromRows(rows []RatingDistributionRow) map[uint64]RatingD
 	return result
 }
 
-// GetRatingDistributionsByOfferings 批量按 offering 聚合 1-5 星分布
-// （仅 status=visible 且未软删行，与统计投影口径一致；评价列表 N+1 防护）。
-func GetRatingDistributionsByOfferings(offeringIds []uint64) map[uint64]RatingDistribution {
-	if len(offeringIds) == 0 {
-		return map[uint64]RatingDistribution{}
-	}
-	var rows []RatingDistributionRow
-	if err := db.Connect().Table(reviewTableName).
-		Select("offering_id AS key, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS star5").
-		// 与 RebuildAllCourseStats 口径一致：status=visible 且未软删（security F1）。
-		Where("offering_id IN ? AND status = ? AND deleted_at IS NULL", offeringIds, ReviewStatusVisible).
-		Group("offering_id").
-		Scan(&rows).Error; err != nil {
-		slog.Warn("GetRatingDistributionsByOfferings: 聚合失败", "offeringIds", offeringIds, "err", err)
-		return map[uint64]RatingDistribution{}
-	}
-	return ratingDistributionFromRows(rows)
-}
-
 // GetRatingDistributionsByCourseIds 批量按课程聚合 1-5 星分布（目录列表 N+1 防护）。
 func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDistribution {
 	if len(courseIds) == 0 {
@@ -581,7 +562,7 @@ func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDist
 	}
 	var rows []RatingDistributionRow
 	if err := db.Connect().Table(reviewTableName+" r").
-		Select("o.course_id AS key, SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Select("o.course_id AS \"key\", SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
 		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
 		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
 		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。

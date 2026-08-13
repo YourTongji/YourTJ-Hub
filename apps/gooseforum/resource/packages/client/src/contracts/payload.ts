@@ -911,6 +911,9 @@ export interface CourseSearchPayload {
   instructors?: string[]
   terms?: string[]
   campus?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseCatalogPageProps {
@@ -940,6 +943,9 @@ export interface CourseSummaryPayload {
   aliases?: string[]
   instructors?: string[]
   recentTerms?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseDetailPageProps {
