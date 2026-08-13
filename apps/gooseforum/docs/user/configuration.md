@@ -74,26 +74,26 @@ spec = "0 3 * * *"                         # 备份时间（Cron 表达式）
 
 ```toml
 [db.default]
-connection = "sqlite"                          # 数据库类型: sqlite, mysql
+connection = "sqlite"                          # 数据库类型: sqlite（本地开发）/ postgres（部署默认）
 path = "./storage/database/sqlite.db"           # SQLite 路径
-url = "user:pass@tcp(host:3306)/db?charset=utf8mb4&parseTime=True&loc=Local"  # MySQL 连接字符串
+url = "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"  # PostgreSQL 连接字符串
 maxIdleConnections = 3                        # 最大空闲连接数
 maxOpenConnections = 5                       # 最大打开连接数
 maxLifeSeconds = 300                          # 连接最大生存时间（秒）
 ```
 
-**SQLite 配置示例：**
+**SQLite 配置示例（本地开发/测试默认）：**
 ```toml
 [db.default]
 connection = "sqlite"
 path = "./storage/database/sqlite.db"
 ```
 
-**MySQL 配置示例：**
+**PostgreSQL 配置示例（部署默认）：**
 ```toml
 [db.default]
-connection = "mysql"
-url = "username:password@tcp(localhost:3306)/gooseforum?charset=utf8mb4&parseTime=True&loc=Local"
+connection = "postgres"
+url = "host=localhost user=gooseforum password=<secret> dbname=gooseforum port=5432 sslmode=disable"
 maxIdleConnections = 10
 maxOpenConnections = 20
 maxLifeSeconds = 3600

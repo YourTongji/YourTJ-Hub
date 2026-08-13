@@ -13,7 +13,7 @@ const reviewTableName = "course_review"
 // 每 offering 至多一条）；应用层查重负责语义错误映射，索引兜底并发写。
 // 隔离窗口清理（courseservice.CleanupExpiredReviewsBatch）把 author_user_id
 // 置 NULL 并清空 content：NULL 在唯一索引中彼此不冲突（SQL 标准，
-// SQLite/PostgreSQL/MySQL 一致），因此同 offering 的多条已清理行可共存，
+// SQLite/PostgreSQL 一致），因此同 offering 的多条已清理行可共存，
 // 且同用户可重新写评新建行。
 // DeletedAt 是隔离窗口锚点（普通 *time.Time 列，非 GORM 软删语义）：作者
 // 删除时写入（MarkReviewDeletedFromTx），清理任务按 deleted_at 超过窗口

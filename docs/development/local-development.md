@@ -77,7 +77,7 @@ GooseForum is configured by `apps/gooseforum/config.toml` (not environment varia
 |---|---|
 | `[app]` | env (local binds 127.0.0.1; any non-`local` value forces session-cookie `Secure` even when `server.url` is `http://…` — issue #113), debug, maintenance, signingKey, cdn_url |
 | `[server]` | url, port (default 5234), accessLog, gzip |
-| `[db]` / `[db.default]` / `[db.file]` | SQLite default; main db (`[db.default]`) also supports MySQL and PostgreSQL (issue #11); file db stays SQLite; migration, backup, pool |
+| `[db]` / `[db.default]` / `[db.file]` | SQLite default for local dev/tests; deployments default to PostgreSQL (`[db.default] connection = "postgres"`, issue #11); MySQL is not supported; file db stays SQLite; migration, backup, pool |
 | `[meilisearch]` | url, masterkey (optional search) |
 | `[log]` | log type/rolling/slow SQL; `level` (debug/info/warn/error), `format` (json/console), `errorPath` (WARN/ERROR separate file), `logIp` (access-log IP, default off) — all require restart |
 | `[github]` | GitHub OAuth client |

@@ -12,8 +12,10 @@
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
-- Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; optional built-in OIDC Provider ([oidc] in config.toml).
+- Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
+  database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
+  built-in OIDC Provider ([oidc] in config.toml).
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -215,9 +217,7 @@ error and startup continues). Before deploying a build containing this index, ru
 on the live database and clean up any duplicates:
 
 ```sql
--- SQLite / MySQL
-SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
--- PostgreSQL
+-- SQLite / PostgreSQL
 SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
 ```
 
@@ -244,15 +244,17 @@ GROUP BY username
 HAVING COUNT(*) > 1;
 ```
 
-## PostgreSQL support
+## Database: PostgreSQL default
 
-Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
-default SQLite and optional MySQL. The file database (`[db.file]`, attachment BLOBs) remains SQLite.
+PostgreSQL 16+ is the default deployment database (`[db.default] connection = "postgres"`,
+`deploy/config.toml.example`). SQLite remains the local development/test default
+(`apps/gooseforum/config.toml`, in-memory tests) and the file database (`[db.file]`, attachment
+BLOBs) is fixed SQLite. MySQL is **not supported** and its connection driver was removed.
 
-### Enable PostgreSQL
+### Deploy on PostgreSQL
 
-1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
-   `POSTGRES_PASSWORD` in `/opt/yourtj/.env`.
+1. The `postgres` service is defined in `deploy/docker-compose.yaml` (enabled by default); set
+   `POSTGRES_USER` / `POSTGRES_PASSWORD` in `/opt/yourtj/.env` (see `deploy/env.example`).
 2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
    SQLite deployment model (dev is one-way synced from main, never written directly):
    ```bash
@@ -274,6 +276,7 @@ default SQLite and optional MySQL. The file database (`[db.file]`, attachment BL
    `url` accepts libpq key=value or URL DSN formats.
 4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
    versioned data migrations v1-v12 from scratch, then serves.
+
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 

@@ -22,13 +22,11 @@ const (
 //   - LeaseVersion：单调递增的精确 CAS/lease token。ClaimFetchLog 以
 //     「WHERE lease_version=<旧值> SET lease_version=lease_version+1」的条件 UPDATE 原子认领，
 //     用 RowsAffected==1 判定是否赢得竞态。不用 started_at 时间戳做 token——不同方言时间精度
-//     不一致（如 MySQL DATETIME 秒精度），两次写入可能取同一值，CAS 失效。
+//     不一致，两次写入可能取同一值，CAS 失效。
 //   - RunningKey：仅当 status='running' 时置为 calendar_id，其余状态置 NULL，配普通 UNIQUE 索引
-//     uniq_pk_fetch_log_running_key。SQLite/MySQL/PostgreSQL 均允许唯一索引含多个 NULL，故
+//     uniq_pk_fetch_log_running_key。SQLite/PostgreSQL 均允许唯一索引含多个 NULL，故
 //     completed/failed（NULL）行之间永不冲突，但同一 calendar 的两条 running 行必然冲突——这是
-//     「同一 calendar 至多一条 running」的跨方言唯一保证。不依赖 GORM 的 partial unique index tag
-//     （MySQL migrator 不生成 WHERE 子句，会退化为普通 UNIQUE(calendar_id)，阻止 completed/failed
-//     后的重跑）。
+//     「同一 calendar 至多一条 running」的跨方言唯一保证（不依赖方言专属的 partial unique index）。
 type FetchLogEntity struct {
 	Id                uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
 	CalendarId        uint64         `gorm:"column:calendar_id;not null;default:0;index:idx_pk_fetch_log_calendar;" json:"calendarId"`
