@@ -36,6 +36,7 @@ import type { LayoutPayload } from '@gooseforum/client'
 import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import UserAvatar from './UserAvatar.vue'
 import type UserCardComponent from './UserCard.vue'
+import WikiSidebar from './WikiSidebar.vue'
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -85,6 +86,8 @@ const hasModerationReports = computed(() => unreadStatus.moderationReports.value
 const notificationTitle = computed(() => unreadStatus.notificationMessage.value)
 const asArray = <T>(value: T[] | null | undefined): T[] => (Array.isArray(value) ? value : [])
 const activeSidebarKey = computed(() => props.layout.sidebar.activeKey || 'topics')
+const isWikiMode = computed(() => props.layout.sidebar.mode === 'wiki')
+const wikiTree = computed(() => props.layout.sidebar.wikiTree || [])
 const primaryItems = computed<SidebarNavItem[]>(() => {
   const items: SidebarNavItem[] = [
     sidebarItem('topics', t('shell.nav.topics'), '/'),
@@ -92,6 +95,7 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
     sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
     sidebarItem('courses', t('shell.nav.courses'), '/courses'),
     sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
+    sidebarItem('wiki', t('shell.nav.wiki'), '/wiki'),
   ]
   if (props.layout.viewer.isAuthenticated) {
     items.push(
@@ -157,6 +161,7 @@ const sidebarIconMap = {
   popular: TrendingUp,
   courses: BookOpen,
   schedule: CalendarRange,
+  wiki: BookOpen,
   messages: Inbox,
   notifications: Bell,
   drafts: FileText,
@@ -573,7 +578,8 @@ async function loadUserCard() {
       :class="{ 'xl:grid-cols-[224px_minmax(0,1fr)_280px]': rail }"
     >
       <aside class="gf-scrollbar-none sticky top-16 -my-3 hidden h-[calc(100vh-4rem)] overflow-y-auto self-start lg:block" aria-label="Sidebar">
-        <nav class="py-3">
+        <WikiSidebar v-if="isWikiMode" :tree="wikiTree" />
+        <nav v-else class="py-3">
           <div class="pb-2">
             <div class="space-y-0.5">
               <a

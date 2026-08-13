@@ -22,6 +22,8 @@ import type {
   ThemePreviewProps,
   TopicDetailProps,
   UserProfileProps,
+  WikiDetailProps,
+  WikiHomeProps,
   PagePayload,
 } from './payload.js'
 
@@ -46,6 +48,8 @@ export const pageComponents = [
   'course.detail',
   'course.reviewModeration',
   'course.schedule',
+  'wiki.home',
+  'wiki.detail',
   'auth.login',
   'auth.resetPassword',
   'error.index',
@@ -74,6 +78,8 @@ export interface PagePayloadMap {
   'course.detail': CourseDetailPageProps
   'course.reviewModeration': CourseReviewModerationPageProps
   'course.schedule': SchedulePageProps
+  'wiki.home': WikiHomeProps
+  'wiki.detail': WikiDetailProps
   'auth.login': LoginPageProps
   'auth.resetPassword': ResetPasswordPageProps
   'error.index': ErrorPageProps

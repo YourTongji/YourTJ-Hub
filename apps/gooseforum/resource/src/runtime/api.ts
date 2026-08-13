@@ -1411,3 +1411,65 @@ export async function revealCourseReviewAuthor(reviewId: number, reason: string)
   })
   return readApiResponse<CourseReviewAuthorRevealPayload>(response, t('api.moderationCourseReviewRevealFailed'))
 }
+
+// ---- wiki 分站 ----
+
+export interface CreateWikiPageInput {
+  namespace: string
+  path: string
+  title: string
+  content: string
+}
+
+export interface CreateWikiPageResult {
+  pageId: number
+  path: string
+}
+
+export async function createWikiPage(input: CreateWikiPageInput): Promise<CreateWikiPageResult> {
+  const response = await fetch('/api/wiki/pages', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<CreateWikiPageResult>(response, t('api.operationFailed'))
+}
+
+export interface UpdateWikiPageResult {
+  revisionId: number
+  status: number
+}
+
+export async function updateWikiPage(pageId: number, title: string, content: string): Promise<UpdateWikiPageResult> {
+  const response = await fetch(`/api/wiki/pages/${pageId}`, {
+    method: 'PUT',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ title, content }),
+  })
+  return readApiResponse<UpdateWikiPageResult>(response, t('api.operationFailed'))
+}
+
+export interface WikiRevisionPayload {
+  revisionId: number
+  pageId: number
+  revisionNo: number
+  title: string
+  content: string
+  status: number
+  editorId: number
+  editorName: string
+  updatedAt: string
+}
+
+export async function getWikiRevisions(pageId: number): Promise<WikiRevisionPayload[]> {
+  const response = await fetch(`/api/wiki/revisions?pageId=${pageId}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<WikiRevisionPayload[]>(response, t('api.operationFailed'))
+}
