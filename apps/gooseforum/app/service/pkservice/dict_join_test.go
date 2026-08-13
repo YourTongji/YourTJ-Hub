@@ -13,13 +13,13 @@ import (
 func seedDictJoinFixture(t *testing.T, conn *gorm.DB) {
 	t.Helper()
 	models := []any{
-		&pk.CourseDetailEntity{Id: 910001, Code: "TJCS20101", CourseCode: "TJCS201", CourseName: "数据结构与算法", CourseLabelId: 1, Credit: 4, Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
+		&pk.CourseDetailEntity{Id: 910001, Code: "TJCS20101", CourseCode: "TJCS201", CourseName: "数据结构与算法", CourseLabelId: ptr(uint64(1)), Credit: ptr(4.0), Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
 		// 字典行 calendar_id 与查询学期不同，但 code 命中 → 明细查询仍须解析出 i18n。
 		&pk.CampusEntity{Campus: "JD", CampusI18n: "嘉定校区", CalendarId: 88888},
 		&pk.FacultyEntity{Faculty: "CS", FacultyI18n: "计算机科学与技术系", CalendarId: 88888},
 		&pk.LanguageEntity{TeachingLanguage: "ZH", TeachingLanguageI18n: "中文", CalendarId: 88888},
-		// 课程性质按学期隔离：只有与查询学期一致的 calendar_id 才会命中。
-		&pk.CourseNatureEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
+		// 课程性质按学期隔离（pk_course_nature_by_calendar）：只有与查询学期一致的 calendar_id 才会命中。
+		&pk.CourseNatureByCalendarEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
 	}
 	for _, m := range models {
 		if err := conn.Create(m).Error; err != nil {

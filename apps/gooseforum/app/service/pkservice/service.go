@@ -194,7 +194,7 @@ func rebuildTeacherTimeslots() error {
 	}
 	pending := map[string]pk.TeacherTimeslotEntity{}
 	for _, row := range rows {
-		if row.TeachingClassId == 0 || row.CalendarId <= 0 {
+		if row.TeachingClassId == 0 || row.CalendarId == 0 {
 			continue
 		}
 		teacherCode := normalizeText(row.TeacherCode)
@@ -231,7 +231,7 @@ func rebuildTeacherTimeslots() error {
 
 func timeslotKey(e pk.TeacherTimeslotEntity) string {
 	return strings.Join([]string{
-		strconv.Itoa(e.CalendarId),
+		strconv.FormatUint(e.CalendarId, 10),
 		strconv.FormatUint(e.TeachingClassId, 10),
 		strconv.Itoa(e.OccupyDay),
 		strconv.Itoa(e.OccupySection),

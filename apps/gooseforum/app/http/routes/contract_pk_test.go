@@ -10,6 +10,7 @@ import (
 	"runtime"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
@@ -35,6 +36,7 @@ var pkModelList = []any{
 	&pk.LanguageEntity{},
 	&pk.AssessmentEntity{},
 	&pk.CourseNatureEntity{},
+	&pk.CourseNatureByCalendarEntity{},
 	&pk.MajorEntity{},
 	&pk.MajorCourseEntity{},
 	&pk.CourseDetailEntity{},
@@ -99,6 +101,7 @@ func cleanupPkTables(t *testing.T, conn *gorm.DB) {
 // seedPkContractData 写入与 pk-*-success fixture 一致的数据。
 func seedPkContractData(t *testing.T, conn *gorm.DB) {
 	t.Helper()
+	finishedAt := time.Unix(1723456800, 0).UTC()
 	models := []any{
 		&pk.CalendarEntity{CalendarId: 99999, CalendarIdI18n: "本地测试学期"},
 		&pk.CalendarEntity{CalendarId: 99998, CalendarIdI18n: "2025-2026 第一学期"},
@@ -106,20 +109,20 @@ func seedPkContractData(t *testing.T, conn *gorm.DB) {
 		&pk.CampusEntity{Campus: "JD", CampusI18n: "嘉定校区", CalendarId: 99999},
 		&pk.FacultyEntity{Faculty: "CS", FacultyI18n: "计算机科学与技术系", CalendarId: 99999},
 		&pk.LanguageEntity{TeachingLanguage: "ZH", TeachingLanguageI18n: "中文", CalendarId: 99999},
-		&pk.CourseNatureEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
-		&pk.CourseNatureEntity{CalendarId: 99999, CourseLabelId: 2, CourseLabelName: "通识选修课"},
-		&pk.MajorEntity{Id: 9000, Code: "03074", Grade: 2025, Name: "2025(03074 测试专业)", CalendarId: 99999},
-		&pk.MajorEntity{Id: 9001, Code: "03075", Grade: 2024, Name: "2024(03075 测试专业)", CalendarId: 99999},
+		&pk.CourseNatureByCalendarEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
+		&pk.CourseNatureByCalendarEntity{CalendarId: 99999, CourseLabelId: 2, CourseLabelName: "通识选修课"},
+		&pk.MajorEntity{Id: 9000, Code: "03074", Grade: intPtr(2025), Name: "2025(03074 测试专业)", CalendarId: 99999},
+		&pk.MajorEntity{Id: 9001, Code: "03075", Grade: intPtr(2024), Name: "2024(03075 测试专业)", CalendarId: 99999},
 		&pk.MajorCourseEntity{MajorId: 9000, CourseId: 900001},
 		&pk.MajorCourseEntity{MajorId: 9000, CourseId: 900002},
 		&pk.MajorCourseEntity{MajorId: 9001, CourseId: 900003},
-		&pk.CourseDetailEntity{Id: 900001, Code: "TJCS10101", Name: "计算机程序设计-1班", CourseLabelId: 1, AssessmentMode: "EXAM", Period: 48, WeekHour: 3, Campus: "SP", Number: 60, ElcNumber: 0, StartWeek: 1, EndWeek: 16, CourseCode: "TJCS101", CourseName: "计算机程序设计", Credit: 3, TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10101"},
-		&pk.CourseDetailEntity{Id: 900002, Code: "TJCS10102", Name: "计算机程序设计-2班", CourseLabelId: 1, AssessmentMode: "EXAM", Period: 48, WeekHour: 3, Campus: "SP", Number: 60, ElcNumber: 0, StartWeek: 1, EndWeek: 16, CourseCode: "TJCS101", CourseName: "计算机程序设计", Credit: 3, TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10102"},
-		&pk.CourseDetailEntity{Id: 900003, Code: "TJCS20101", Name: "数据结构与算法-1班", CourseLabelId: 2, AssessmentMode: "EXAM", Period: 64, WeekHour: 4, Campus: "JD", Number: 80, ElcNumber: 0, StartWeek: 1, EndWeek: 16, CourseCode: "TJCS201", CourseName: "数据结构与算法", Credit: 4, TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS201", NewCode: "CS20101"},
+		&pk.CourseDetailEntity{Id: 900001, Code: "TJCS10101", Name: "计算机程序设计-1班", CourseLabelId: uint64Ptr(1), AssessmentMode: "EXAM", Period: float64Ptr(48), WeekHour: float64Ptr(3), Campus: "SP", Number: intPtr(60), ElcNumber: intPtr(0), StartWeek: intPtr(1), EndWeek: intPtr(16), CourseCode: "TJCS101", CourseName: "计算机程序设计", Credit: float64Ptr(3), TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10101"},
+		&pk.CourseDetailEntity{Id: 900002, Code: "TJCS10102", Name: "计算机程序设计-2班", CourseLabelId: uint64Ptr(1), AssessmentMode: "EXAM", Period: float64Ptr(48), WeekHour: float64Ptr(3), Campus: "SP", Number: intPtr(60), ElcNumber: intPtr(0), StartWeek: intPtr(1), EndWeek: intPtr(16), CourseCode: "TJCS101", CourseName: "计算机程序设计", Credit: float64Ptr(3), TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS101", NewCode: "CS10102"},
+		&pk.CourseDetailEntity{Id: 900003, Code: "TJCS20101", Name: "数据结构与算法-1班", CourseLabelId: uint64Ptr(2), AssessmentMode: "EXAM", Period: float64Ptr(64), WeekHour: float64Ptr(4), Campus: "JD", Number: intPtr(80), ElcNumber: intPtr(0), StartWeek: intPtr(1), EndWeek: intPtr(16), CourseCode: "TJCS201", CourseName: "数据结构与算法", Credit: float64Ptr(4), TeachingLanguage: "ZH", Faculty: "CS", CalendarId: 99999, NewCourseCode: "CS201", NewCode: "CS20101"},
 		&pk.TeacherEntity{Id: 1, TeachingClassId: 900001, TeacherCode: "T001", TeacherName: "张伟", ArrangeInfoText: "张伟(T001) 星期一1-2节[1-16周] 四平路校区 A101\n张伟(T001) 星期三3-4节[1-16周] 四平路校区 A101"},
 		&pk.TeacherEntity{Id: 2, TeachingClassId: 900002, TeacherCode: "T006", TeacherName: "李娜", ArrangeInfoText: "李娜(T006) 星期二1-2节[1-16周] 四平路校区 B202"},
 		&pk.TeacherEntity{Id: 3, TeachingClassId: 900003, TeacherCode: "T001", TeacherName: "张伟", ArrangeInfoText: "张伟(T001) 星期五1-2节[1-16周] 嘉定校区 C303"},
-		&pk.FetchLogEntity{Id: 1, FetchTime: 1723456800, Msg: "sync ok"},
+		&pk.FetchLogEntity{Id: 1, CalendarId: 99999, Status: pk.FetchStatusCompleted, FinishedAt: &finishedAt},
 		&course.Entity{Id: 1, PrimaryCode: "CS101", Name: "计算机程序设计", Department: "计算机", CreditX10: 30, NormalizedName: "计算机程序设计", Status: course.StatusVisible},
 		&course.CourseStatsEntity{CourseId: 1, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	}
@@ -442,3 +445,6 @@ func TestPkCourseReviewBriefHTTPContract(t *testing.T) {
 	}
 	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-course-review-brief-bad-request.json"))
 }
+
+// float64Ptr 返回 v 的地址（dev 侧 CourseDetailEntity 可空指针字段的 fixture 用）。
+func float64Ptr(v float64) *float64 { return &v }

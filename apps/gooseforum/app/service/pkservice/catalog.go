@@ -6,7 +6,7 @@ import (
 
 // CalendarItem P1 calendars 输出项。
 type CalendarItem struct {
-	CalendarId   int    `json:"calendarId"`
+	CalendarId   uint64 `json:"calendarId"`
 	CalendarName string `json:"calendarName"`
 }
 

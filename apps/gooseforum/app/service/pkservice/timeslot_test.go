@@ -16,6 +16,7 @@ var pkServiceModels = []any{
 	&pk.LanguageEntity{},
 	&pk.AssessmentEntity{},
 	&pk.CourseNatureEntity{},
+	&pk.CourseNatureByCalendarEntity{},
 	&pk.MajorEntity{},
 	&pk.MajorCourseEntity{},
 	&pk.CourseDetailEntity{},
@@ -119,7 +120,7 @@ func TestFindCoursesByTimeDegraded(t *testing.T) {
 func TestFindCoursesByTimeSection6Degraded(t *testing.T) {
 	conn := setupPkServiceTest(t)
 	seedTimeslotFixture(t, conn)
-	conn.Create(&pk.CourseDetailEntity{Id: 900004, Code: "TJCS30101", CourseCode: "TJCS301", CourseName: "艺术鉴赏", CourseLabelId: 2, Credit: 2, Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999})
+	conn.Create(&pk.CourseDetailEntity{Id: 900004, Code: "TJCS30101", CourseCode: "TJCS301", CourseName: "艺术鉴赏", CourseLabelId: ptr(uint64(2)), Credit: ptr(2.0), Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999})
 	conn.Create(&pk.TeacherEntity{Id: 4, TeachingClassId: 900004, TeacherCode: "T009", TeacherName: "王芳", ArrangeInfoText: "王芳(T009) 星期五10-11节[1-16周] 嘉定校区 D404"})
 
 	result, err := FindCoursesByTime(99999, 5, 6)
@@ -137,10 +138,10 @@ func TestFindCoursesByTimeSection6Degraded(t *testing.T) {
 func seedTimeslotFixture(t *testing.T, conn *gorm.DB) {
 	t.Helper()
 	models := []any{
-		&pk.CourseDetailEntity{Id: 900003, Code: "TJCS20101", CourseCode: "TJCS201", CourseName: "数据结构与算法", CourseLabelId: 2, Credit: 4, Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
-		&pk.CourseDetailEntity{Id: 900001, Code: "TJCS10101", CourseCode: "TJCS101", CourseName: "计算机程序设计", CourseLabelId: 1, Credit: 3, Campus: "SP", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
-		&pk.CourseNatureEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
-		&pk.CourseNatureEntity{CalendarId: 99999, CourseLabelId: 2, CourseLabelName: "通识选修课"},
+		&pk.CourseDetailEntity{Id: 900003, Code: "TJCS20101", CourseCode: "TJCS201", CourseName: "数据结构与算法", CourseLabelId: ptr(uint64(2)), Credit: ptr(4.0), Campus: "JD", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
+		&pk.CourseDetailEntity{Id: 900001, Code: "TJCS10101", CourseCode: "TJCS101", CourseName: "计算机程序设计", CourseLabelId: ptr(uint64(1)), Credit: ptr(3.0), Campus: "SP", Faculty: "CS", TeachingLanguage: "ZH", CalendarId: 99999},
+		&pk.CourseNatureByCalendarEntity{CalendarId: 99999, CourseLabelId: 1, CourseLabelName: "专业必修"},
+		&pk.CourseNatureByCalendarEntity{CalendarId: 99999, CourseLabelId: 2, CourseLabelName: "通识选修课"},
 		&pk.FacultyEntity{Faculty: "CS", FacultyI18n: "计算机科学与技术系", CalendarId: 99999},
 		&pk.CampusEntity{Campus: "SP", CampusI18n: "四平路校区", CalendarId: 99999},
 		&pk.CampusEntity{Campus: "JD", CampusI18n: "嘉定校区", CalendarId: 99999},

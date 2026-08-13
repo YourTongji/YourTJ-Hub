@@ -10,7 +10,7 @@ import (
 // TeacherArrangeRow teacher 表 JOIN coursedetail 的行，用于懒构建 timeslots。
 type TeacherArrangeRow struct {
 	TeachingClassId uint64
-	CalendarId      int
+	CalendarId      uint64
 	TeacherCode     string
 	TeacherName     string
 	ArrangeInfoText string
@@ -67,7 +67,7 @@ func ListTimeslotCoursesBySlot(calendarId, day int, sections []int, optionalLabe
 		Joins("JOIN pk_teacher_timeslot ts ON ts.teaching_class_id = pk_course_detail.id").
 		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
 		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 		Where("pk_course_detail.calendar_id = ?", calendarId).
 		Where("ts.calendar_id = ?", calendarId).
 		Where("ts.occupy_day = ?", day).
@@ -97,7 +97,7 @@ func ListTimeslotCoursesByLike(calendarId int, likePatterns []string, optionalLa
 		Joins("JOIN pk_teacher ON pk_teacher.teaching_class_id = pk_course_detail.id").
 		Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
 		Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
-		Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+		Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 		Where("pk_course_detail.calendar_id = ?", calendarId)
 	orLike := ""
 	for range likePatterns {
@@ -123,33 +123,6 @@ func ListTimeslotCoursesByLike(calendarId int, likePatterns []string, optionalLa
 	return rows, nil
 }
 
-// ListTeachersByClassIds 按教学班 id 批量查教师（避免 N+1，按 IN 分块）。
-func ListTeachersByClassIds(classIds []uint64) ([]TeacherEntity, error) {
-	valid := make([]uint64, 0, len(classIds))
-	seen := make(map[uint64]struct{}, len(classIds))
-	for _, id := range classIds {
-		if _, ok := seen[id]; ok {
-			continue
-		}
-		seen[id] = struct{}{}
-		valid = append(valid, id)
-	}
-	if len(valid) == 0 {
-		return nil, nil
-	}
-	var entities []TeacherEntity
-	for _, part := range chunkUint64(valid, MAX_SQL_VARS) {
-		var batch []TeacherEntity
-		if err := teacherBuilder().Where(queryopt.In("teaching_class_id", part)).
-			Order("teaching_class_id ASC, id ASC").
-			Find(&batch).Error; err != nil {
-			return nil, err
-		}
-		entities = append(entities, batch...)
-	}
-	return entities, nil
-}
-
 // GetSetting 读取 PK 模块键值。
 func GetSetting(key string) (SettingEntity, error) {
 	var entity SettingEntity
@@ -164,27 +137,23 @@ func SetSetting(key, value string) error {
 		Assign(entity).FirstOrCreate(&entity).Error
 }
 
-// GetLatestFetchTime 返回最近一次同步时间（Unix 秒），无记录返回 0。
+// GetLatestFetchTime 返回最近一次成功同步的完成时间（Unix 秒），无记录返回 0。
+// dev 侧（issue #186）的 FetchLog 记录同步游标：completed 时写入 finished_at，
+// 用它作为「数据更新到哪天」的锚点（等价原 fetch_time 语义）。
 func GetLatestFetchTime() (int64, error) {
 	var entity FetchLogEntity
-	err := fetchLogBuilder().Order("fetch_time DESC, id DESC").First(&entity).Error
+	err := fetchLogBuilder().
+		Where(queryopt.Eq("status", FetchStatusCompleted)).
+		Order("finished_at DESC, id DESC").
+		First(&entity).Error
 	if err != nil {
 		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return 0, nil
 		}
 		return 0, err
 	}
-	return entity.FetchTime, nil
-}
-
-func chunkUint64(arr []uint64, size int) [][]uint64 {
-	var out [][]uint64
-	for i := 0; i < len(arr); i += size {
-		end := i + size
-		if end > len(arr) {
-			end = len(arr)
-		}
-		out = append(out, arr[i:end])
+	if entity.FinishedAt == nil {
+		return 0, nil
 	}
-	return out
+	return entity.FinishedAt.Unix(), nil
 }

@@ -131,12 +131,12 @@ func ListOptionalTypesByCalendar(calendarId int, labels []string) ([]CourseNatur
 		return []CourseNatureOption{}, nil
 	}
 	var options []CourseNatureOption
-	err := courseNatureBuilder().
-		Select("DISTINCT pk_course_nature.course_label_id, pk_course_nature.course_label_name").
-		Joins("JOIN pk_course_detail cd ON cd.course_label_id = pk_course_nature.course_label_id AND cd.calendar_id = pk_course_nature.calendar_id").
-		Where("pk_course_nature.calendar_id = ?", calendarId).
-		Where("pk_course_nature.course_label_name IN ?", labels).
-		Order("pk_course_nature.course_label_id DESC").
+	err := courseNatureByCalendarBuilder().
+		Select("DISTINCT pk_course_nature_by_calendar.course_label_id, pk_course_nature_by_calendar.course_label_name").
+		Joins("JOIN pk_course_detail cd ON cd.course_label_id = pk_course_nature_by_calendar.course_label_id AND cd.calendar_id = pk_course_nature_by_calendar.calendar_id").
+		Where("pk_course_nature_by_calendar.calendar_id = ?", calendarId).
+		Where("pk_course_nature_by_calendar.course_label_name IN ?", labels).
+		Order("pk_course_nature_by_calendar.course_label_id DESC").
 		Scan(&options).Error
 	if err != nil {
 		return nil, err
@@ -158,7 +158,7 @@ func ListCourseNatureRowsByLabelIds(calendarId int, ids []int) ([]CourseNatureRo
 				`pk_course_detail.course_code, pk_course_detail.course_name,
 				 pk_course_detail.course_label_id, pk_course_detail.credit,
 				 f.faculty_i18n, n.course_label_name, ca.campus_i18n`).
-			Joins("LEFT JOIN pk_course_nature n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
+			Joins("LEFT JOIN pk_course_nature_by_calendar n ON n.course_label_id = pk_course_detail.course_label_id AND n.calendar_id = pk_course_detail.calendar_id").
 			Joins("LEFT JOIN pk_faculty f ON f.faculty = pk_course_detail.faculty").
 			Joins("LEFT JOIN pk_campus ca ON ca.campus = pk_course_detail.campus").
 			Where("pk_course_detail.calendar_id = ?", calendarId).

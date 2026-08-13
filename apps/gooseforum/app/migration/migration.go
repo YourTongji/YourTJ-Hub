@@ -31,8 +31,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -151,13 +151,14 @@ func SchemaModels() []any {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
-		// PK 排课数据域（Issue #187 / PRD §5.4.2）：12 表 + 元数据列。
+		// PK 排课数据域（Issue #187 / #186）：13 表。
 		&pk.CalendarEntity{},
 		&pk.CampusEntity{},
 		&pk.FacultyEntity{},
 		&pk.LanguageEntity{},
 		&pk.AssessmentEntity{},
 		&pk.CourseNatureEntity{},
+		&pk.CourseNatureByCalendarEntity{},
 		&pk.MajorEntity{},
 		&pk.MajorCourseEntity{},
 		&pk.CourseDetailEntity{},

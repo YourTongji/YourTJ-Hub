@@ -11,11 +11,11 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
@@ -51,6 +51,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
@@ -1452,6 +1453,33 @@ type SaveMCPSettingsReq struct {
 // SaveMCPSettings 保存内置 MCP server 设置
 func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.Response {
 	return savePageConfig(pageConfig.MCPSettings, req.Params.Settings, hotdataserve.ClearMCPSettingsConfigCache)
+}
+
+// GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。
+func GetOnesystemSettings(req component.BetterRequest[component.Null]) component.Response {
+	config := hotdataserve.GetOnesystemSettingsConfigCache()
+	return component.SuccessResponse(map[string]any{
+		"cookieConfigured": strings.TrimSpace(config.CookieEncrypted) != "",
+	})
+}
+
+type SaveOnesystemSettingsReq struct {
+	// Cookie 一系统 Cookie header（明文，仅在保存瞬间存在）；留空表示清除已存凭证。
+	Cookie string `json:"cookie" validate:"max=4096"`
+}
+
+// SaveOnesystemSettings 保存一系统 Cookie：securestore 加密后落库（密文经 OneSystemSettingsStorage
+// 持久化，领域结构 json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
+func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]) component.Response {
+	encrypted := ""
+	if cookie := strings.TrimSpace(req.Params.Cookie); cookie != "" {
+		sealed, err := securestore.EncryptPurpose(cookie, securestore.OneSystemCookiePurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密一系统 Cookie 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		encrypted = sealed
+	}
+	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
 }
 
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {
