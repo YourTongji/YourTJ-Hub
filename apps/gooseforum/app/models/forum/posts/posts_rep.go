@@ -25,8 +25,18 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+// CreateTx 事务内创建帖子。
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Create(entity).Error
+}
+
 func Save(entity *Entity) error {
 	return builder().Save(entity).Error
+}
+
+// SaveTx 事务内保存帖子。
+func SaveTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Save(entity).Error
 }
 
 func Get(id uint64) (entity Entity) {

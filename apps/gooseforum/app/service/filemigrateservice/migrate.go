@@ -10,7 +10,6 @@ import (
 	"log/slog"
 	"sort"
 	"strings"
-	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
@@ -87,16 +86,20 @@ func RunMigrateTask(ctx context.Context, task *taskQueue.Entity) error {
 	if err := json.Unmarshal([]byte(task.TaskJson), &payload); err != nil {
 		return fmt.Errorf("decode migrate task: %w", err)
 	}
+	// 持有者 fencing token（ClaimTask 领取时生成）：进度写回必须是
+	// status=Running AND lease_token=? 的 CAS，任务被回收重领后旧 worker
+	// 的进度更新不再命中（fencing，review P1）。
+	token := task.LeaseToken
 	_, _, err := MigrateFiles(ctx, payload.LastID, payload.ClearAfterMigrate, filedata.CountFilesUpTo, func(lastID uint64, processed, failed int64) {
 		// migrateFiles 已用 countUpTo 把 processed 换算为任务级累计值，直接
 		// 持久化；worker 自动重试时不会用单次执行的局部计数覆盖已完成进度。
 		payload.LastID = lastID
 		payload.Processed = processed
 		payload.Failed = failed
-		updateTaskProgress(task.Id, payload)
+		updateTaskProgress(task.Id, token, payload)
 	})
 	if err != nil {
-		updateTaskProgress(task.Id, payload)
+		updateTaskProgress(task.Id, token, payload)
 		return err
 	}
 	slog.Info("file migration finished", "taskId", task.Id, "processed", payload.Processed, "failed", payload.Failed)
@@ -271,17 +274,17 @@ func sampleFailedNames(names map[string]struct{}, limit int) string {
 	return strings.Join(list, ", ")
 }
 
-func updateTaskProgress(taskID uint64, payload MigrateTask) {
+func updateTaskProgress(taskID uint64, token string, payload MigrateTask) {
 	taskJSON, err := json.Marshal(payload)
 	if err != nil {
 		return
 	}
-	if err := taskQueue.UpdateTaskJson(taskID, string(taskJSON)); err != nil {
+	if err := taskQueue.UpdateTaskJsonOwned(taskID, token, string(taskJSON)); err != nil {
 		slog.Error("update migrate task progress failed", "taskId", taskID, "err", err)
 	}
 }
 
 // RecoverStaleTasks 启动时恢复文件迁移 worker 类型前缀下崩溃遗留的 Running 任务。
 func RecoverStaleTasks() error {
-	return taskQueue.RecoverStaleRunning(TaskTypeFileMigrate, 10*time.Minute)
+	return taskQueue.RecoverStaleRunning(TaskTypeFileMigrate, taskQueue.LeaseDuration)
 }

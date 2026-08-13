@@ -94,7 +94,8 @@ func TestExportRunAndFile(t *testing.T) {
 		t.Fatalf("create post: %v", err)
 	}
 
-	// 直接构造导出任务并运行
+	// 直接构造导出任务并运行（真实 worker 路径：先原子领取拿到 fencing
+	// token，进度/文件名的写回是 status=Running AND lease_token=? 的 CAS）
 	taskEntity := &taskQueue.Entity{
 		Type:     TaskTypeExport,
 		Status:   taskQueue.StatusPending,
@@ -103,7 +104,11 @@ func TestExportRunAndFile(t *testing.T) {
 	if err := taskQueue.Create(taskEntity); err != nil {
 		t.Fatalf("create export task: %v", err)
 	}
-	if err := RunExportTask(context.Background(), taskEntity); err != nil {
+	running, claimed, err := taskQueue.ClaimTask(taskEntity.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim export task: claimed=%v err=%v", claimed, err)
+	}
+	if err := RunExportTask(context.Background(), &running); err != nil {
 		t.Fatalf("RunExportTask() error = %v", err)
 	}
 
@@ -259,7 +264,14 @@ func TestExportMultiBatchJSONValid(t *testing.T) {
 	if err := taskQueue.Create(taskEntity); err != nil {
 		t.Fatalf("create export task: %v", err)
 	}
-	if err := RunExportTask(context.Background(), taskEntity); err != nil {
+	// 真实 worker 路径：先原子领取（拿到 fencing token），再运行 handler。
+	// 进度写回是 status=Running AND lease_token=? 的 CAS，未领取的任务
+	// 没有 token，进度不会落库（与线上行为一致）。
+	running, claimed, err := taskQueue.ClaimTask(taskEntity.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim export task: claimed=%v err=%v", claimed, err)
+	}
+	if err := RunExportTask(context.Background(), &running); err != nil {
 		t.Fatalf("RunExportTask() error = %v", err)
 	}
 	reloaded, err := taskQueue.GetByID(taskEntity.Id)
@@ -420,7 +432,13 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	if err := taskQueue.Create(taskEntity); err != nil {
 		t.Fatalf("create export task: %v", err)
 	}
-	if err := RunExportTask(context.Background(), taskEntity); err != nil {
+	// 真实 worker 路径：先原子领取拿到 fencing token 再运行 handler，
+	// 进度/文件名的写回是 status=Running AND lease_token=? 的 CAS
+	running, claimed, err := taskQueue.ClaimTask(taskEntity.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim export task: claimed=%v err=%v", claimed, err)
+	}
+	if err := RunExportTask(context.Background(), &running); err != nil {
 		t.Fatalf("RunExportTask() error = %v", err)
 	}
 	reloaded, err := taskQueue.GetByID(taskEntity.Id)
