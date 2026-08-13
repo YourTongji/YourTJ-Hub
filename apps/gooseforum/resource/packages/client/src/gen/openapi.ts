@@ -669,9 +669,10 @@ export interface paths {
         put?: never;
         /**
          * Hide or show a course review (CourseManager)
-         * @description CourseManager-scoped moderation. Permission failures and unknown reviews are legacy HTTP 200
-         *     business failures (`permission.denied`, `review.notFound`); the operation is idempotent and
-         *     adjusts course/offering stats projections.
+         * @description CourseManager-scoped moderation. Unknown reviews are legacy HTTP 200 business failures
+         *     (`review.notFound`); permission failures are rejected by the permission middleware with
+         *     HTTP 403 `permission.denied` (the middleware runs before the handler). The operation is
+         *     idempotent and adjusts course/offering stats projections.
          */
         post: operations["moderationCourseReviewStatus"];
         delete?: never;
@@ -691,9 +692,10 @@ export interface paths {
         put?: never;
         /**
          * List the course review report queue (CourseManager)
-         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are a
-         *     legacy HTTP 200 business failure (`permission.denied`). Items never expose the reviewed
-         *     author's identity; the reporter/handler author payloads are the standard forum author shape.
+         * @description CourseManager-scoped moderation queue for course review reports. Permission failures are
+         *     rejected by the permission middleware with HTTP 403 `permission.denied` (the middleware
+         *     runs before the handler). Items never expose the reviewed author's identity; the
+         *     reporter/handler author payloads are the standard forum author shape.
          */
         post: operations["moderationCourseReviewReportList"];
         delete?: never;
@@ -2918,7 +2920,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Boolean success result or a moderation business failure envelope. */
+            /** @description Boolean success result, or a business failure envelope (e.g. `review.notFound`). */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2929,6 +2931,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not a CourseManager. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -2961,7 +2972,7 @@ export interface operations {
             };
         };
         responses: {
-            /** @description One page of open (or filtered) reports, or a permission business failure envelope. */
+            /** @description One page of open (or filtered) reports. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -2972,6 +2983,15 @@ export interface operations {
             };
             /** @description Missing, invalid, expired, or revoked access token. */
             401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The caller is not a CourseManager. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

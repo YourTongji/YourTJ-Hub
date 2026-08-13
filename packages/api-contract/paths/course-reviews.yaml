@@ -512,9 +512,10 @@ moderationCourseReviewStatus:
       - bearerAuth: []
       - accessTokenCookie: []
     description: |
-      CourseManager-scoped moderation. Permission failures and unknown reviews are legacy HTTP 200
-      business failures (`permission.denied`, `review.notFound`); the operation is idempotent and
-      adjusts course/offering stats projections.
+      CourseManager-scoped moderation. Unknown reviews are legacy HTTP 200 business failures
+      (`review.notFound`); permission failures are rejected by the permission middleware with
+      HTTP 403 `permission.denied` (the middleware runs before the handler). The operation is
+      idempotent and adjusts course/offering stats projections.
     requestBody:
       required: true
       content:
@@ -523,7 +524,7 @@ moderationCourseReviewStatus:
             $ref: ../components/schemas.yaml#/ModerationCourseReviewStatusRequest
     responses:
       '200':
-        description: Boolean success result or a moderation business failure envelope.
+        description: Boolean success result, or a business failure envelope (e.g. `review.notFound`).
         content:
           application/json:
             schema:
@@ -531,8 +532,6 @@ moderationCourseReviewStatus:
             examples:
               success:
                 externalValue: ../fixtures/course-review-moderation-status-success.json
-              permissionDenied:
-                externalValue: ../fixtures/course-review-permission-denied.json
               notFound:
                 externalValue: ../fixtures/course-review-not-found.json
       '401':
@@ -544,6 +543,15 @@ moderationCourseReviewStatus:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not a CourseManager.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/course-review-permission-denied.json
       '429':
         description: Course-review moderation rate limit exceeded (60s window).
         headers:
@@ -566,9 +574,10 @@ moderationCourseReviewReportList:
       - bearerAuth: []
       - accessTokenCookie: []
     description: |
-      CourseManager-scoped moderation queue for course review reports. Permission failures are a
-      legacy HTTP 200 business failure (`permission.denied`). Items never expose the reviewed
-      author's identity; the reporter/handler author payloads are the standard forum author shape.
+      CourseManager-scoped moderation queue for course review reports. Permission failures are
+      rejected by the permission middleware with HTTP 403 `permission.denied` (the middleware
+      runs before the handler). Items never expose the reviewed author's identity; the
+      reporter/handler author payloads are the standard forum author shape.
     requestBody:
       required: true
       content:
@@ -577,7 +586,7 @@ moderationCourseReviewReportList:
             $ref: ../components/schemas.yaml#/ModerationCourseReviewReportListRequest
     responses:
       '200':
-        description: One page of open (or filtered) reports, or a permission business failure envelope.
+        description: One page of open (or filtered) reports.
         content:
           application/json:
             schema:
@@ -585,8 +594,6 @@ moderationCourseReviewReportList:
             examples:
               success:
                 externalValue: ../fixtures/course-review-moderation-reports-success.json
-              permissionDenied:
-                externalValue: ../fixtures/course-review-permission-denied.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -596,6 +603,15 @@ moderationCourseReviewReportList:
             examples:
               unauthenticated:
                 externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not a CourseManager.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/course-review-permission-denied.json
       '429':
         description: Course-review moderation rate limit exceeded (60s window).
         headers:
