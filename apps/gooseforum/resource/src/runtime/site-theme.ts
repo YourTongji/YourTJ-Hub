@@ -8,6 +8,7 @@ const COOKIE_KEY = 'goose-site-theme'
 const themes: SiteTheme[] = ['gf-light', 'gf-dark']
 const THEME_LINK_ID = 'goose-site-theme-link'
 const THEME_PREVIEW_STYLE_ID = 'goose-site-theme-preview'
+const THEME_SWITCHING_CLASS = 'theme-switching'
 const themeColors: Record<SiteTheme, string> = {
   'gf-light': '#fbfdff',
   'gf-dark': '#101010',
@@ -77,8 +78,8 @@ export function toggleTheme() {
 }
 
 /**
- * 主题切换（带 View Transitions 圆形模糊扩散动画）。
- * 从页面中心向外扩散（circle SVG mask + blur，参考 theme-toggle.rdsx.dev），
+ * 主题切换（带 View Transitions 圆形扩散动画）。
+ * 从页面中心向外扩散（circle mask，参考 theme-toggle.rdsx.dev），
  * 旧层垫底被圆形边缘逐步覆盖。无 startViewTransition 时直接切换。
  */
 export function toggleThemeFromElement(_trigger?: Element | null) {
@@ -100,13 +101,38 @@ export function setTheme(theme: SiteTheme) {
     // Ignore storage failures in private or restricted browsing contexts.
   }
 }
+// 引用计数：连续快速切换时，每个进行中的 view transition 占一个引用，
+// 只有最后一个完成（或全部失败回退）才移除抑制 class。
+let themeSwitchingRefs = 0
+
+function setThemeSwitching(active: boolean) {
+  themeSwitchingRefs = Math.max(0, themeSwitchingRefs + (active ? 1 : -1))
+  const root = document.documentElement
+  if (themeSwitchingRefs > 0) {
+    root.classList.add(THEME_SWITCHING_CLASS)
+  } else {
+    root.classList.remove(THEME_SWITCHING_CLASS)
+  }
+}
 
 function applyThemeWithTransition(theme: SiteTheme) {
   const apply = () => setTheme(theme)
-  if (typeof document.startViewTransition === 'function') {
-    document.startViewTransition(apply)
-  } else {
+  if (typeof document.startViewTransition !== 'function') {
     apply()
+    return
+  }
+  // 抑制元素级 CSS transition（导航/标签/按钮上并发 color/background 过渡，
+  // 与 view transition 叠加会拥塞主线程样式与绘制），只保留 view transition 自身。
+  // 在 startViewTransition 之前同步加上，确保新旧快照捕获时都处于抑制状态。
+  setThemeSwitching(true)
+  try {
+    const transition = document.startViewTransition(apply)
+    transition.finished
+      .catch(() => {})
+      .finally(() => setThemeSwitching(false))
+  } catch {
+    apply()
+    setThemeSwitching(false)
   }
 }
 
