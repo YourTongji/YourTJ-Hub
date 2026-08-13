@@ -1,6 +1,7 @@
 package courseservice
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -9,352 +10,325 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
-// createDeletedReview 造一条 status=deleted 的评价行。删除窗口起点是
-// updated_at（status 变 deleted 时 autoUpdateTime 写入；deleted 行删除后
-// 无其他写路径），故创建后把 updated_at 覆写为给定时间模拟删除时间。
-// 注意：不设置 gorm.DeletedAt（置值会被查询自动软删过滤）。
-func createDeletedReview(t *testing.T, offeringId, authorId uint64, deletedAt time.Time) uint64 {
+// backdateReviewDelete 把 deleted_at/updated_at 回拨到隔离窗口之外，模拟
+// "删除已超 30 天"。裸 Table().Update：无 schema 无 autoUpdateTime，
+// 两列均真实写入（判别性要求，spec N1 教训）。
+func backdateReviewDelete(t *testing.T, reviewID uint64, ago time.Duration) {
 	t.Helper()
 	conn := dbconnect.Connect()
-	rating := 4
-	entity := &course.ReviewEntity{
-		OfferingId:   offeringId,
-		AuthorUserId: authorId,
-		Rating:       &rating,
-		Content:      "隐私正文内容",
-		IsAnonymous:  false,
-		Status:       course.ReviewStatusDeleted,
-	}
-	if err := conn.Create(entity).Error; err != nil {
-		t.Fatalf("create deleted review: %v", err)
-	}
-	if err := conn.Model(entity).Update("updated_at", deletedAt).Error; err != nil {
-		t.Fatalf("set review updated_at: %v", err)
-	}
-	return entity.Id
-}
-
-// TestCleanupDeletedReviewsExpiredWindow 验收 1：删除超 30 天 → content 为空、
-// 作者关联断开（author_user_id=0，释放唯一约束占位）、行保留（可审计）。
-func TestCleanupDeletedReviewsExpiredWindow(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	conn := dbconnect.Connect()
-
-	// 两条超窗 deleted 行（不同 offering，避免唯一索引 (offering, author=0)
-	// 每 offering 至多一条的限制）：31 天前 + 40 天前
-	offering2 := createExtraOffering(t)
-	oldID := createDeletedReview(t, offeringId, 1001, time.Now().Add(-31*24*time.Hour))
-	oldID2 := createDeletedReview(t, offering2, 1002, time.Now().Add(-40*24*time.Hour))
-
-	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
-	if err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-	if cleaned != 2 {
-		t.Fatalf("cleaned = %d, want 2", cleaned)
-	}
-
-	var old1, old2 course.ReviewEntity
-	if err := conn.First(&old1, oldID).Error; err != nil {
-		t.Fatalf("row %d should be kept (audit): %v", oldID, err)
-	}
-	if old1.Content != "" {
-		t.Fatalf("expired review content = %q, want empty", old1.Content)
-	}
-	if old1.AuthorUserId != 0 {
-		t.Fatalf("expired review author = %d, want 0 (disconnected)", old1.AuthorUserId)
-	}
-	if old1.Status != course.ReviewStatusDeleted {
-		t.Fatalf("expired review status = %d, want deleted (kept for audit)", old1.Status)
-	}
-	if err := conn.First(&old2, oldID2).Error; err != nil {
-		t.Fatalf("row %d should be kept (audit): %v", oldID2, err)
-	}
-	if old2.Content != "" || old2.AuthorUserId != 0 {
-		t.Fatalf("second expired review not anonymized: content=%q author=%d", old2.Content, old2.AuthorUserId)
+	ts := time.Now().Add(-ago)
+	if err := conn.Table((&course.ReviewEntity{}).TableName()).
+		Where("id = ?", reviewID).
+		Updates(map[string]any{"deleted_at": ts, "updated_at": ts}).Error; err != nil {
+		t.Fatalf("backdate review delete: %v", err)
 	}
 }
 
-// createExtraOffering 追加一个可见 offering（用于多行清理测试）。
-func createExtraOffering(t *testing.T) uint64 {
+// loadReviewRow 用 Table 查询读取行（课评领域不启用 GORM 软删）。
+func loadReviewRow(t *testing.T, reviewID uint64) course.ReviewEntity {
 	t.Helper()
 	conn := dbconnect.Connect()
-	term := course.TermEntity{Code: "2026-2027-1", Name: "2026-2027 第一学期", Status: 0}
-	if err := conn.Create(&term).Error; err != nil {
-		t.Fatalf("create term: %v", err)
+	var ent course.ReviewEntity
+	if err := conn.Table((&course.ReviewEntity{}).TableName()).
+		Where("id = ?", reviewID).First(&ent).Error; err != nil {
+		t.Fatalf("load review %d: %v", reviewID, err)
 	}
-	c := course.Entity{PrimaryCode: "100002", Name: "线性代数", Department: "数学科学学院", Status: course.StatusVisible}
-	if err := conn.Create(&c).Error; err != nil {
-		t.Fatalf("create course: %v", err)
-	}
-	offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Campus: "四平路校区", Status: course.OfferingStatusVisible}
-	if err := conn.Create(&offering).Error; err != nil {
-		t.Fatalf("create offering: %v", err)
-	}
-	return offering.Id
+	return ent
 }
 
-// TestCleanupDeletedReviewsWithinWindow 验收 2：删除未到 30 天 → 不动该行
-// （content/作者关联原样保留，允许窗口内恢复重写）。
-func TestCleanupDeletedReviewsWithinWindow(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	conn := dbconnect.Connect()
-
-	recentID := createDeletedReview(t, offeringId, 2001, time.Now().Add(-10*24*time.Hour))
-	noDeletedAtID := func() uint64 {
-		rating := 5
-		entity := &course.ReviewEntity{
-			OfferingId:   offeringId,
-			AuthorUserId: 2002,
-			Rating:       &rating,
-			Content:      "未写入删除时间戳的旧行",
-			Status:       course.ReviewStatusDeleted,
-		}
-		if err := conn.Create(entity).Error; err != nil {
-			t.Fatalf("create legacy deleted review: %v", err)
-		}
-		return entity.Id
-	}()
-
-	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
-	if err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-	if cleaned != 0 {
-		t.Fatalf("cleaned = %d, want 0 (window not expired)", cleaned)
-	}
-
-	var recent, legacy course.ReviewEntity
-	if err := conn.First(&recent, recentID).Error; err != nil {
-		t.Fatalf("recent row missing: %v", err)
-	}
-	if recent.Content != "隐私正文内容" || recent.AuthorUserId != 2001 {
-		t.Fatalf("recent review touched: content=%q author=%d", recent.Content, recent.AuthorUserId)
-	}
-	if err := conn.First(&legacy, noDeletedAtID).Error; err != nil {
-		t.Fatalf("legacy row missing: %v", err)
-	}
-	if legacy.Content != "未写入删除时间戳的旧行" || legacy.AuthorUserId != 2002 {
-		t.Fatalf("legacy review touched: content=%q author=%d", legacy.Content, legacy.AuthorUserId)
-	}
-}
-
-// TestCleanupDeletedReviewsPlaceholderReleased 验收 1 的占位释放语义：
-// 清理后同 offering 同用户可重新写评（不再命中 deleted 行复用路径）。
-func TestCleanupDeletedReviewsPlaceholderReleased(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	oldID := createDeletedReview(t, offeringId, 3001, time.Now().Add(-35*24*time.Hour))
-
-	if _, err := CleanupDeletedReviews(30 * 24 * time.Hour); err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-
-	// 清理后：FindReviewByOfferingAndUser 不应再命中 author_user_id=3001 的行
-	existing, err := course.FindReviewByOfferingAndUserTx(dbconnect.Connect(), offeringId, 3001)
-	if err == nil && existing.Id > 0 && existing.Id == oldID {
-		t.Fatalf("placeholder still occupies unique key: review %d still matched", oldID)
-	}
-	// 新写评应走新建路径（不再复用 deleted 行），而不是 ErrReviewDuplicate
-	payload, err := CreateReview(3001, CreateReviewInput{
-		OfferingId: offeringId,
-		Rating:     5,
-		Content:    "窗口后重新写评",
-	})
-	if err != nil {
-		t.Fatalf("re-create review after cleanup: %v", err)
-	}
-	if payload.Id == 0 || payload.Id == oldID {
-		t.Fatalf("re-created review id = %d, want a new row (old=%d)", payload.Id, oldID)
-	}
-}
-
-// TestCleanupTaskEnqueueAndWorker 验收 3（taskQueue 语义）：EnqueueCleanupTask
-// 入队 pending 任务且幂等（重复入队不产生第二条）；RunCleanupTask 执行清理。
-// 任务状态流转（Success/retrying/failed）由 backgroundservice.RunWorker 的
-// processTask 负责（dev 当前朴素领取版），此处验证 worker handler 本身。
-func TestCleanupTaskEnqueueAndWorker(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	conn := dbconnect.Connect()
-	oldID := createDeletedReview(t, offeringId, 4001, time.Now().Add(-35*24*time.Hour))
-
-	if err := EnqueueCleanupTask(); err != nil {
-		t.Fatalf("enqueue cleanup task: %v", err)
-	}
-	// 幂等：重复入队不产生第二条 pending 任务
-	if err := EnqueueCleanupTask(); err != nil {
-		t.Fatalf("re-enqueue cleanup task: %v", err)
-	}
-	tasks := taskQueue.GetPendingTasksByType(TaskTypeCourseReviewCleanup, 10)
-	if len(tasks) != 1 {
-		t.Fatalf("pending cleanup tasks = %d, want 1", len(tasks))
-	}
-
-	if err := RunCleanupTask(nil, tasks[0]); err != nil {
-		t.Fatalf("run cleanup task: %v", err)
-	}
-	// worker handler 效果：超窗行已被脱敏
-	var old course.ReviewEntity
-	if err := conn.First(&old, oldID).Error; err != nil {
-		t.Fatalf("cleaned row missing: %v", err)
-	}
-	if old.Content != "" || old.AuthorUserId != 0 {
-		t.Fatalf("cleanup task did not anonymize: content=%q author=%d", old.Content, old.AuthorUserId)
-	}
-}
-
-// TestCleanupDeletedReviewsSameOfferingMultiRows 同 offering 多条 deleted 行：
-// content 全部清空；author 逐行置 0，撞唯一索引的行保留原作者（可复用路径
-// 仍可用），至少一条 author 置 0（占位释放）。
-func TestCleanupDeletedReviewsSameOfferingMultiRows(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	conn := dbconnect.Connect()
-
-	oldID1 := createDeletedReview(t, offeringId, 5001, time.Now().Add(-35*24*time.Hour))
-	oldID2 := createDeletedReview(t, offeringId, 5002, time.Now().Add(-36*24*time.Hour))
-
-	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
-	if err != nil {
-		t.Fatalf("cleanup: %v", err)
-	}
-	if cleaned != 2 {
-		t.Fatalf("cleaned = %d, want 2 (both contents cleared)", cleaned)
-	}
-
-	var r1, r2 course.ReviewEntity
-	if err := conn.First(&r1, oldID1).Error; err != nil {
-		t.Fatalf("row1 missing: %v", err)
-	}
-	if err := conn.First(&r2, oldID2).Error; err != nil {
-		t.Fatalf("row2 missing: %v", err)
-	}
-	if r1.Content != "" || r2.Content != "" {
-		t.Fatalf("content not fully cleared: r1=%q r2=%q", r1.Content, r2.Content)
-	}
-	// 至少一条作者断开（每 offering 至多一条 author=0，其余保留原值）
-	if r1.AuthorUserId != 0 && r2.AuthorUserId != 0 {
-		t.Fatalf("no author disconnected: r1=%d r2=%d", r1.AuthorUserId, r2.AuthorUserId)
-	}
-	// 断开的行（author=0）用户可重新写评（新建不撞索引）
-	var zeroRow course.ReviewEntity
-	if r1.AuthorUserId == 0 {
-		zeroRow = r1
-	} else {
-		zeroRow = r2
-	}
-	payload, err := CreateReview(zeroRow.AuthorUserId+1000, CreateReviewInput{
-		OfferingId: offeringId,
-		Rating:     5,
-		Content:    "窗口后重新写评",
-	})
-	_ = payload
-	if err != nil {
-		t.Fatalf("re-create after cleanup: %v", err)
-	}
-}
-
-// TestCleanupDeletedReviewsLegacyAuthorZeroRow 锁定撞唯一索引分支（交叉审查
-// 建议 1）：同 offering 已有 legacy author=0 的 deleted 行时，清理不能崩溃——
-// 待清理行置 author=0 撞 uniq_course_review_offering_author，跳过该行保留
-// 原 author；两行 content 均清空；legacy 行（author=0）不受影响。
-func TestCleanupDeletedReviewsLegacyAuthorZeroRow(t *testing.T) {
-	_, offeringId := setupReviewTest(t)
-	conn := dbconnect.Connect()
-
-	// legacy 导入行：author_user_id=0，每 offering 至多一条（占位已占用）
-	legacyID := createDeletedReview(t, offeringId, 0, time.Now().Add(-60*24*time.Hour))
-	// 待清理行：真实用户 6001 的 deleted 行（超窗）
-	targetID := createDeletedReview(t, offeringId, 6001, time.Now().Add(-35*24*time.Hour))
-
-	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
-	if err != nil {
-		t.Fatalf("cleanup with legacy author=0 row must not fail: %v", err)
-	}
-	if cleaned != 2 {
-		t.Fatalf("cleaned = %d, want 2 (both contents cleared)", cleaned)
-	}
-
-	var legacy, target course.ReviewEntity
-	if err := conn.First(&legacy, legacyID).Error; err != nil {
-		t.Fatalf("legacy row missing: %v", err)
-	}
-	if err := conn.First(&target, targetID).Error; err != nil {
-		t.Fatalf("target row missing: %v", err)
-	}
-	// content 全部清空（隐私目标达成）
-	if legacy.Content != "" || target.Content != "" {
-		t.Fatalf("content not cleared: legacy=%q target=%q", legacy.Content, target.Content)
-	}
-	// legacy 行 author 保持 0；待清理行撞索引保留原 author（6001）
-	if legacy.AuthorUserId != 0 {
-		t.Fatalf("legacy author = %d, want 0", legacy.AuthorUserId)
-	}
-	if target.AuthorUserId != 6001 {
-		t.Fatalf("target author = %d, want 6001 (unique-index collision keeps original author)", target.AuthorUserId)
-	}
-}
-
-// TestCleanupPlaceholderReleasedStatsAccumulated 占位释放后重新写评的 stats
-// 断言（交叉审查建议 2）：清理释放 (offering_id, author_user_id) 占位后，同
-// offering 同用户重新写评走新建路径，且 stats 投影正确累加（reviewCount、
-// ratingSum 反映新评价，与 #173 B1 的 stats 语义一致——CreateReview 事务内
-// UpsertCourseStatsTx/UpsertOfferingStatsTx）。
-func TestCleanupPlaceholderReleasedStatsAccumulated(t *testing.T) {
+// TestCleanupExpiredReviewClearsContentAndAuthor 验收 1：删除超 30 天 →
+// content 为空、作者关联断开（NULL，释放占位）、行保留（可审计）、幂等。
+func TestCleanupExpiredReviewClearsContentAndAuthor(t *testing.T) {
 	courseId, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "将被清理的正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	backdateReviewDelete(t, payload.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
 
-	oldID := createDeletedReview(t, offeringId, 7001, time.Now().Add(-35*24*time.Hour))
-
-	if _, err := CleanupDeletedReviews(30 * 24 * time.Hour); err != nil {
+	cleaned, err := CleanupExpiredReviewsBatch(10)
+	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
-
-	// 清理后同用户重新写评（新建路径，rating=5）
-	payload, err := CreateReview(7001, CreateReviewInput{
-		OfferingId: offeringId,
-		Rating:     5,
-		Content:    "窗口后重新写评",
-	})
-	if err != nil {
-		t.Fatalf("re-create review after cleanup: %v", err)
+	if cleaned != 1 {
+		t.Fatalf("cleaned = %d, want 1", cleaned)
 	}
-	if payload.Id == 0 || payload.Id == oldID {
-		t.Fatalf("re-created review id = %d, want a new row (old=%d)", payload.Id, oldID)
+	ent := loadReviewRow(t, payload.Id)
+	if ent.Status != course.ReviewStatusDeleted {
+		t.Fatalf("status after cleanup = %d, want deleted（行保留可审计）", ent.Status)
 	}
-
-	// 课程级 stats：reviewCount=1、ratingSum=5（ratingCount=1）
+	if ent.Content != "" {
+		t.Fatalf("content after cleanup = %q, want empty", ent.Content)
+	}
+	if ent.AuthorID() != 0 {
+		t.Fatalf("author after cleanup = %d, want 0（作者关联断开）", ent.AuthorID())
+	}
+	if ent.AuthorUserId != nil {
+		t.Fatalf("author_user_id after cleanup = %v, want NULL（唯一索引占位释放）", *ent.AuthorUserId)
+	}
+	// 统计投影不受清理影响（删除时已扣减，清理不改 status）。
 	courseStats, err := course.GetCourseStats(courseId)
 	if err != nil {
 		t.Fatalf("get course stats: %v", err)
 	}
-	if courseStats.ReviewCount != 1 || courseStats.RatingCount != 1 || courseStats.RatingSum != 5 {
-		t.Fatalf("course stats after re-review = {count:%d ratingCount:%d sum:%d}, want {1 1 5}",
-			courseStats.ReviewCount, courseStats.RatingCount, courseStats.RatingSum)
+	if courseStats.RatingCount != 0 || courseStats.RatingSum != 0 || courseStats.ReviewCount != 0 {
+		t.Fatalf("stats corrupted by cleanup: %+v", courseStats)
 	}
-	// offering 级 stats 同理
-	offeringStats, err := course.GetOfferingStats(offeringId)
+	// 幂等：再次清理不再选中该行（author_user_id IS NULL 谓词）。
+	again, err := CleanupExpiredReviewsBatch(10)
 	if err != nil {
-		t.Fatalf("get offering stats: %v", err)
+		t.Fatalf("second cleanup: %v", err)
 	}
-	if offeringStats.ReviewCount != 1 || offeringStats.RatingCount != 1 || offeringStats.RatingSum != 5 {
-		t.Fatalf("offering stats after re-review = {count:%d ratingCount:%d sum:%d}, want {1 1 5}",
-			offeringStats.ReviewCount, offeringStats.RatingCount, offeringStats.RatingSum)
+	if again != 0 {
+		t.Fatalf("second cleanup cleaned = %d, want 0（幂等）", again)
 	}
 }
 
-// TestCleanupWindowStartIsDeleteTime 锁定 security/spec 双审 F2：窗口起点是
-// 删除时间（DeleteReview 显式写 updated_at=now），不是创建时间。真实路径：
-// 评价创建于 100 天前（created_at/updated_at 均回拨）→ 今天经 DeleteReview
-// 删除 → 清理运行 → 30 天窗口内不清该行（此前 updated_at≈created_at 导致
-// 窗口塌缩、老评价刚删即被清）。
-// 判别性（spec N1）：回拨必须用裸 Table().Update——Model(entity).Update
-// 走 schema，created_at 的 <-:create 标签使赋值被跳过（静默 no-op）且
-// autoUpdateTime 会把 updated_at 撞到 now，测试在 buggy 代码上同样全绿
-// （假阳性回归盾）。裸 Table() 无 schema、无 autoUpdateTime，两列都真实回拨，
-// 测试才具判别性：buggy（不写 updated_at）→ 红；修复 → 绿。
-func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
+// TestCleanupSkipsRecentDelete 验收 2：删除未到隔离窗口的行不被清理。
+func TestCleanupSkipsRecentDelete(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "刚删除的正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	// 不回拨：deleted_at 为当前时间（窗口内）。
+
+	cleaned, err := CleanupExpiredReviewsBatch(10)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if cleaned != 0 {
+		t.Fatalf("cleaned = %d, want 0（窗口内不动）", cleaned)
+	}
+	ent := loadReviewRow(t, payload.Id)
+	if ent.Content != "刚删除的正文" || ent.AuthorID() != 1001 {
+		t.Fatalf("window-internal review was modified: %+v", ent)
+	}
+}
+
+// TestCleanupSkipsVisibleAndLegacy 可见评价与 legacy 导入评价永不进入清理。
+func TestCleanupSkipsVisibleAndLegacy(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	if _, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "可见正文", IsAnonymous: false}); err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	conn := dbconnect.Connect()
+	legacy := course.ReviewEntity{
+		OfferingId:   offeringId,
+		AuthorUserId: uint64Ptr(0),
+		Content:      "历史评价",
+		IsAnonymous:  true,
+		Status:       course.ReviewStatusVisible,
+		Source:       course.ReviewSourceLegacyImport,
+	}
+	if err := conn.Create(&legacy).Error; err != nil {
+		t.Fatalf("create legacy review: %v", err)
+	}
+	cleaned, err := CleanupExpiredReviewsBatch(10)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if cleaned != 0 {
+		t.Fatalf("cleaned = %d, want 0（可见/legacy 不动）", cleaned)
+	}
+}
+
+// TestCleanupFallbackToUpdatedAt 存量 deleted 行（本功能上线前删除，
+// deleted_at 为空）以 updated_at 近似窗口起点，超期后同样被清理（COALESCE）。
+func TestCleanupFallbackToUpdatedAt(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 3, Content: "存量删除正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	conn := dbconnect.Connect()
+	// 抹掉 deleted_at，只留超期的 updated_at（模拟上线前的存量 deleted 行）。
+	old := time.Now().Add(-(time.Duration(ReviewCleanupRetentionDays)*24*time.Hour + 24*time.Hour))
+	if err := conn.Table((&course.ReviewEntity{}).TableName()).
+		Where("id = ?", payload.Id).
+		Updates(map[string]any{"deleted_at": nil, "updated_at": old}).Error; err != nil {
+		t.Fatalf("clear deleted_at: %v", err)
+	}
+	cleaned, err := CleanupExpiredReviewsBatch(10)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if cleaned != 1 {
+		t.Fatalf("cleaned = %d, want 1（COALESCE 回退 updated_at）", cleaned)
+	}
+	ent := loadReviewRow(t, payload.Id)
+	if ent.Content != "" || ent.AuthorID() != 0 {
+		t.Fatalf("legacy deleted row not cleaned: %+v", ent)
+	}
+}
+
+// TestCleanupAllowsRecreateAfterCleanup 验收 1 的"占位释放"：清理后同一用户
+// 可对同一 offering 重新写评（新建行，不与唯一索引冲突），stats 正确累加。
+func TestCleanupAllowsRecreateAfterCleanup(t *testing.T) {
+	courseId, offeringId := setupReviewTest(t)
+	first, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "第一次", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create first review: %v", err)
+	}
+	if err := DeleteReview(1001, first.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	backdateReviewDelete(t, first.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
+	if _, err := CleanupExpiredReviewsBatch(10); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+
+	second, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 5, Content: "清理后重写", IsAnonymous: true})
+	if err != nil {
+		t.Fatalf("recreate after cleanup must succeed（占位已释放）: %v", err)
+	}
+	if second.Id == first.Id {
+		t.Fatalf("recreated review reused cleaned row id %d, want a new row", second.Id)
+	}
+	courseStats, err := course.GetCourseStats(courseId)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if courseStats.RatingCount != 1 || courseStats.RatingSum != 5 || courseStats.ReviewCount != 1 {
+		t.Fatalf("stats after recreate = %+v, want 1/5/1", courseStats)
+	}
+	// 旧的已清理行仍保留（审计），且不与新行冲突。
+	old := loadReviewRow(t, first.Id)
+	if old.Status != course.ReviewStatusDeleted || old.Content != "" || old.AuthorID() != 0 {
+		t.Fatalf("cleaned row altered by recreate: %+v", old)
+	}
+}
+
+// TestDeleteReviewIdempotentAfterCleanup 清理后（作者已断开）作者再次删除仍幂等成功。
+func TestDeleteReviewIdempotentAfterCleanup(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	backdateReviewDelete(t, payload.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
+	if _, err := CleanupExpiredReviewsBatch(10); err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete after cleanup must be idempotent: %v", err)
+	}
+}
+
+// TestCleanupSameOfferingMultipleCleanedRows 吸收 #202 核心语义：同一 offering
+// 多条 deleted 行清理后 author 均置 NULL——NULL 在唯一索引中彼此不冲突
+// （SQLite/PG 一致），多条已清理行可共存（旧实现置 0 会撞唯一索引）。
+func TestCleanupSameOfferingMultipleCleanedRows(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	create := func(authorID uint64) uint64 {
+		t.Helper()
+		p, err := CreateReview(authorID, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "将被清理", IsAnonymous: false})
+		if err != nil {
+			t.Fatalf("create review: %v", err)
+		}
+		if err := DeleteReview(authorID, p.Id); err != nil {
+			t.Fatalf("delete review: %v", err)
+		}
+		backdateReviewDelete(t, p.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
+		return p.Id
+	}
+	id1 := create(1001)
+	id2 := create(1002)
+
+	cleaned, err := CleanupExpiredReviewsBatch(10)
+	if err != nil {
+		t.Fatalf("cleanup: %v", err)
+	}
+	if cleaned != 2 {
+		t.Fatalf("cleaned = %d, want 2（多条同 offering 均清理，NULL 不冲突）", cleaned)
+	}
+	for _, id := range []uint64{id1, id2} {
+		ent := loadReviewRow(t, id)
+		if ent.Content != "" || ent.AuthorUserId != nil {
+			t.Fatalf("row %d not fully cleaned: content=%q author=%v", id, ent.Content, ent.AuthorUserId)
+		}
+	}
+}
+
+// TestEnqueueCleanupTaskDedupe 入队去重：已有 pending/retrying 清理任务时
+// 不再重复入队。
+func TestEnqueueCleanupTaskDedupe(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatalf("migrate task queue: %v", err)
+	}
+	if err := conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{}).Error; err != nil {
+		t.Fatalf("clean task queue: %v", err)
+	}
+	for i := 0; i < 2; i++ {
+		if err := EnqueueCleanupTask(); err != nil {
+			t.Fatalf("enqueue %d: %v", i, err)
+		}
+	}
+	var count int64
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeCourseReviewCleanup+"%").Count(&count).Error; err != nil {
+		t.Fatalf("count tasks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("pending cleanup tasks = %d, want 1（去重）", count)
+	}
+}
+
+// TestRunCleanupTaskWorker worker 处理：消费 pending 任务并清理超窗行。
+func TestRunCleanupTaskWorker(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatalf("migrate task queue: %v", err)
+	}
+	if err := conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{}).Error; err != nil {
+		t.Fatalf("clean task queue: %v", err)
+	}
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "worker 清理正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	backdateReviewDelete(t, payload.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
+
+	task := &taskQueue.Entity{Type: TaskTypeCourseReviewCleanup + ".run", TaskJson: `{}`}
+	if err := taskQueue.Create(task); err != nil {
+		t.Fatalf("create task: %v", err)
+	}
+	if err := RunCleanupTask(context.Background(), task); err != nil {
+		t.Fatalf("run cleanup task: %v", err)
+	}
+	ent := loadReviewRow(t, payload.Id)
+	if ent.Content != "" || ent.AuthorID() != 0 {
+		t.Fatalf("worker did not clean review: %+v", ent)
+	}
+}
+
+// TestCleanupWindowAnchorIsDeleteTime 锁定窗口锚点判别性（spec N1 延续）：
+// DeleteReview 经 MarkReviewDeletedFromTx 显式写 deleted_at=now。真实路径：
+// 创建 100 天前的评价（created_at/updated_at 均回拨）→ 今天真实 DeleteReview
+// → 30 天内不清；且断言 deleted_at 已写入（专用锚点，区别于 updated_at 语义）。
+// 判别性：回拨用裸 Table().Update（无 schema 无 autoUpdateTime）；
+// 若 MarkReviewDeletedFromTx 不写 deleted_at（buggy），deleted_at 为空 →
+// COALESCE 回退 updated_at（100 天前）→ 立即被清 → 测试红。
+func TestCleanupWindowAnchorIsDeleteTime(t *testing.T) {
 	_, offeringId := setupReviewTest(t)
 	conn := dbconnect.Connect()
 
-	// 创建评价（真实 CreateReview）
 	payload, err := CreateReview(8001, CreateReviewInput{
 		OfferingId: offeringId,
 		Rating:     5,
@@ -363,14 +337,13 @@ func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
 	if err != nil {
 		t.Fatalf("create review: %v", err)
 	}
-	// 裸 Table().Update 同时把 created_at 与 updated_at 回拨 100 天前
-	// （模拟老评价；无 schema 无 autoUpdateTime，两列均真实写入）
+	// 裸 Table().Update 把 created_at/updated_at 回拨 100 天前（模拟老评价）
 	oldTime := time.Now().Add(-100 * 24 * time.Hour)
-	if err := conn.Table("course_review").Where("id = ?", payload.Id).
+	if err := conn.Table((&course.ReviewEntity{}).TableName()).Where("id = ?", payload.Id).
 		Updates(map[string]any{"created_at": oldTime, "updated_at": oldTime}).Error; err != nil {
 		t.Fatalf("age review timestamps: %v", err)
 	}
-	// 确认回拨真实生效（若被 schema 拦截，此断言直接红）
+	// 确认回拨真实生效（防 schema 拦截静默 no-op）
 	var preDelete course.ReviewEntity
 	if err := conn.First(&preDelete, payload.Id).Error; err != nil {
 		t.Fatalf("reload aged review: %v", err)
@@ -379,22 +352,24 @@ func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
 		t.Fatalf("timestamp rollback was a no-op (schema intercepted): updated_at=%v", preDelete.UpdatedAt)
 	}
 
-	// 今天经真实 DeleteReview 删除（窗口起点 = 今天）
+	// 今天经真实 DeleteReview 删除（MarkReviewDeletedFromTx 写 deleted_at）
 	if err := DeleteReview(8001, payload.Id); err != nil {
 		t.Fatalf("delete review: %v", err)
 	}
-	// 关键断言：DeleteReview 后 updated_at 必须刷新到今天（F2 修复生效）
 	var afterDelete course.ReviewEntity
 	if err := conn.First(&afterDelete, payload.Id).Error; err != nil {
 		t.Fatalf("reload deleted review: %v", err)
 	}
-	if since := time.Since(afterDelete.UpdatedAt); since > 24*time.Hour {
-		t.Fatalf("DeleteReview did not refresh updated_at (window collapsed): updated_at=%v (since %v)",
-			afterDelete.UpdatedAt, since)
+	// 关键断言：deleted_at 必须已写入（今天），不是 NULL
+	if afterDelete.DeletedAt == nil {
+		t.Fatal("DeleteReview did not write deleted_at anchor (window collapsed to updated_at)")
+	}
+	if since := time.Since(*afterDelete.DeletedAt); since > 24*time.Hour {
+		t.Fatalf("deleted_at anchor not refreshed: %v (since %v)", *afterDelete.DeletedAt, since)
 	}
 
 	// 清理运行：30 天窗口内 → 不清
-	cleaned, err := CleanupDeletedReviews(30 * 24 * time.Hour)
+	cleaned, err := CleanupExpiredReviewsBatch(10)
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -405,7 +380,7 @@ func TestCleanupWindowStartIsDeleteTime(t *testing.T) {
 	if err := conn.First(&row, payload.Id).Error; err != nil {
 		t.Fatalf("row missing: %v", err)
 	}
-	if row.Content != "百天老评价" || row.AuthorUserId != 8001 {
-		t.Fatalf("in-window review touched: content=%q author=%d", row.Content, row.AuthorUserId)
+	if row.Content != "百天老评价" || row.AuthorID() != 8001 {
+		t.Fatalf("in-window review touched: content=%q author=%d", row.Content, row.AuthorID())
 	}
 }

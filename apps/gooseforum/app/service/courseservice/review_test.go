@@ -268,7 +268,7 @@ func TestLegacyReviewAnonymized(t *testing.T) {
 	rating := 0
 	legacy := course.ReviewEntity{
 		OfferingId:   offeringId,
-		AuthorUserId: 0,
+		AuthorUserId: uint64Ptr(0),
 		Rating:       &rating,
 		Content:      "历史评价正文",
 		IsAnonymous:  true,
@@ -390,11 +390,11 @@ func TestDeleteReviewIdempotent(t *testing.T) {
 func TestReviewUniqueOfferingAuthor(t *testing.T) {
 	_, offeringId := setupReviewTest(t)
 	rating := 5
-	first := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: 1001, Rating: &rating, Content: "第一条", Status: course.ReviewStatusVisible}
+	first := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "第一条", Status: course.ReviewStatusVisible}
 	if err := dbconnect.Connect().Create(&first).Error; err != nil {
 		t.Fatalf("create first review: %v", err)
 	}
-	second := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: 1001, Rating: &rating, Content: "第二条", Status: course.ReviewStatusVisible}
+	second := course.ReviewEntity{OfferingId: offeringId, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "第二条", Status: course.ReviewStatusVisible}
 	if err := dbconnect.Connect().Create(&second).Error; err == nil {
 		t.Fatal("expected duplicate key error for same offering+user")
 	}
@@ -470,7 +470,7 @@ func TestLegacyReviewExposesLegacyHelpfulCount(t *testing.T) {
 	conn := dbconnect.Connect()
 	legacy := course.ReviewEntity{
 		OfferingId:         offeringId,
-		AuthorUserId:       0,
+		AuthorUserId:       uint64Ptr(0),
 		Content:            "历史评价",
 		IsAnonymous:        true,
 		Status:             course.ReviewStatusVisible,

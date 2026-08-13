@@ -107,7 +107,7 @@ func seedCourseReview(t *testing.T, conn *gorm.DB, id, offeringID, authorID uint
 	entity := &course.ReviewEntity{
 		Id:           id,
 		OfferingId:   offeringID,
-		AuthorUserId: authorID,
+		AuthorUserId: &authorID,
 		Rating:       rating,
 		Content:      content,
 		IsAnonymous:  isAnonymous,
@@ -132,6 +132,8 @@ func grantContractPermission(t *testing.T, conn *gorm.DB, userID uint64, perm pe
 }
 
 func intPtr(v int) *int { return &v }
+
+func uint64Ptr(v uint64) *uint64 { return &v }
 
 func sortedReviewKeys(item map[string]any) string {
 	keys := make([]string, 0, len(item))
@@ -734,7 +736,7 @@ func TestCourseReviewLegacyHelpfulCountHTTPContract(t *testing.T) {
 	if err := conn.Create(&course.ReviewEntity{
 		Id:                 500,
 		OfferingId:         902,
-		AuthorUserId:       0,
+		AuthorUserId:       uint64Ptr(0),
 		Content:            "历史评价",
 		IsAnonymous:        true,
 		Status:             course.ReviewStatusVisible,

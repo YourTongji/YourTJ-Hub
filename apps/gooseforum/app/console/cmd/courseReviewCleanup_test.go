@@ -36,9 +36,11 @@ func TestRunCourseReviewCleanupRespectsWindow(t *testing.T) {
 
 	// 窗口内行：今天删除（updated_at = now），内容/作者保留
 	rating := 4
+	author9001 := uint64(9001)
+	author9002 := uint64(9002)
 	recent := &course.ReviewEntity{
 		OfferingId:   offering.Id,
-		AuthorUserId: 9001,
+		AuthorUserId: &author9001,
 		Rating:       &rating,
 		Content:      "刚删除的评价正文",
 		Status:       course.ReviewStatusDeleted,
@@ -49,7 +51,7 @@ func TestRunCourseReviewCleanupRespectsWindow(t *testing.T) {
 	// 超窗行：40 天前删除
 	old := &course.ReviewEntity{
 		OfferingId:   offering.Id,
-		AuthorUserId: 9002,
+		AuthorUserId: &author9002,
 		Rating:       &rating,
 		Content:      "超窗的评价正文",
 		Status:       course.ReviewStatusDeleted,
@@ -74,11 +76,11 @@ func TestRunCourseReviewCleanupRespectsWindow(t *testing.T) {
 		t.Fatalf("old row missing: %v", err)
 	}
 	// 窗口内行必须原样保留（验收 2）
-	if recentRow.Content != "刚删除的评价正文" || recentRow.AuthorUserId != 9001 {
-		t.Fatalf("CLI cleanup touched in-window review: content=%q author=%d", recentRow.Content, recentRow.AuthorUserId)
+	if recentRow.Content != "刚删除的评价正文" || recentRow.AuthorID() != 9001 {
+		t.Fatalf("CLI cleanup touched in-window review: content=%q author=%d", recentRow.Content, recentRow.AuthorID())
 	}
 	// 超窗行被清理
-	if oldRow.Content != "" || oldRow.AuthorUserId != 0 {
-		t.Fatalf("CLI cleanup did not anonymize expired review: content=%q author=%d", oldRow.Content, oldRow.AuthorUserId)
+	if oldRow.Content != "" || oldRow.AuthorID() != 0 {
+		t.Fatalf("CLI cleanup did not anonymize expired review: content=%q author=%d", oldRow.Content, oldRow.AuthorID())
 	}
 }

@@ -1,8 +1,6 @@
 package course
 
 import (
-	"errors"
-	"strings"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -72,17 +70,22 @@ func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (enti
 // ReactivateReviewTx 事务内恢复并重写一条已删除（隔离窗口）的评价。
 // 唯一索引 (offering_id, author_user_id) 被软删行占用，重新评价必须复用该行；
 // 带 status 条件（CAS）防止并发事务重复恢复，RowsAffected=0 表示已被并发恢复。
-// AND author_user_id <> 0（spec S1）：清理 job 置 0 释放占位后，该行已不是
-// 调用方的行（用户已可新建），恢复路径不得再把它复活为 author=0 的 visible
-// 评论（否则失去作者归属，后续 Delete/Update 404）。
-func ReactivateReviewTx(tx *gorm.DB, id uint64, rating *int, content string, isAnonymous bool) (bool, error) {
+// 恢复时一并回写作者关联并清除 deleted_at（隔离窗口标记，吸收 #202）：行在
+// 窗口内 author_user_id 仍为用户本人，回写为幂等；若清理任务已断开作者
+// （置 NULL，仅可能发生在行仍被占用前的边界），恢复后该用户重新占用唯一键，
+// 与"同 offering+用户至多一条"约束保持一致，且不会出现 author 为空的
+// visible 评论（spec S1 的 NULL 语义版本）。
+func ReactivateReviewTx(tx *gorm.DB, id, authorUserId uint64, rating *int, content string, isAnonymous bool) (bool, error) {
 	res := tx.Table(reviewTableName).
-		Where("id = ? AND status = ? AND author_user_id <> 0", id, ReviewStatusDeleted).
+		Where("id = ? AND status = ?", id, ReviewStatusDeleted).
 		Updates(map[string]any{
-			"rating":       rating,
-			"content":      content,
-			"is_anonymous": isAnonymous,
-			"status":       ReviewStatusVisible,
+			"author_user_id": authorUserId,
+			"rating":         rating,
+			"content":        content,
+			"is_anonymous":   isAnonymous,
+			"status":         ReviewStatusVisible,
+			"deleted_at":     nil,
+			"updated_at":     time.Now(),
 		})
 	if res.Error != nil {
 		return false, res.Error
@@ -153,6 +156,27 @@ func UpdateReviewStatusFromTx(tx *gorm.DB, id uint64, from, to int8) (bool, erro
 	return res.RowsAffected > 0, nil
 }
 
+// MarkReviewDeletedFromTx 事务内带旧状态条件的 CAS 删除：置 status=deleted，
+// 并写入 deleted_at 作为隔离窗口起点（30 天，见 courseservice.ReviewCleanupWindow，
+// 吸收 #202 设计——显式删除时间锚点取代 updated_at 语义）。
+// Table 更新不会自动维护时间戳（GORM 仅对带 Schema 的更新自动处理），
+// 因此 deleted_at/updated_at 必须显式写入，否则窗口起点缺失、删除后立即
+// 进入可清理状态。
+func MarkReviewDeletedFromTx(tx *gorm.DB, id uint64, from int8) (bool, error) {
+	now := time.Now()
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]any{
+			"status":     ReviewStatusDeleted,
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
 // UpdateReviewRatingFromTx 事务内带旧评分条件的 CAS 评分更新：
 // 仅当当前 rating 仍为 oldRating 时更新，返回是否成功。
 // 并发 PATCH 评分时避免两笔事务都基于同一旧值累加 stats delta。
@@ -191,95 +215,62 @@ func DeleteHelpful(reviewId, userId uint64) error {
 		Delete(&HelpfulEntity{}).Error
 }
 
-// CleanupExpiredDeletedReviewsTx 清理删除隔离窗口（issue #175 B3，隐私合规）：
-// 将 status=deleted 且 updated_at（业务删除时间，见 UpdateReviewStatusFromTx
-// 的显式写入）早于 cutoff 的课程评价行脱敏——
+// CleanupExpiredDeletedReviewsTx 清理删除隔离窗口（issue #175 B3，隐私合规，
+// 吸收 #202 的 NULL 设计）：将 status=deleted 且窗口超期（deleted_at 显式
+// 锚点，存量行回退 updated_at，COALESCE）的课程评价行脱敏——
 //   - content 清空：正文（含用户隐私）不再保留；
-//   - author_user_id 逐行置 0：断开与用户的关联，释放 (offering_id,
-//     author_user_id) 唯一索引占位。同一 offering 的多条 deleted 行不能同时
-//     置 0（唯一索引每 offering 至多一条 author=0 行，与 legacy 导入行共享），
-//     置 0 撞唯一索引的行保留原 author（content 已清空，正文隐私已消除；
-//     作者保留使 ReactivateReviewTx 复用路径仍可用，补救路径见 F3 说明）；
-//   - 行本身保留（status 仍为 deleted）：审计可追溯，不会破坏引用。
+//   - author_user_id 置 NULL：断开与用户的关联，释放 (offering_id,
+//     author_user_id) 唯一索引占位。NULL 在唯一索引中彼此不冲突（SQL 标准，
+//     SQLite/PostgreSQL/MySQL 一致），同 offering 多条已清理行可共存，且
+//     同用户可重新写评新建行——唯一冲突问题从根源消失，无需 SAVEPOINT
+//     绕行（security F1 方案随 NULL 设计移除，isUniqueViolation 兜底不再
+//     需要）；清理后行的唯一标记即 author_user_id IS NULL（幂等）。
+//   - 行本身保留（status 仍为 deleted）：审计可追溯，不会破坏引用；
+//     deleted_at 保持原始删除时刻不变（清理不改锚点）。
 //
-// 窗口起点：DeleteReview 经 UpdateReviewStatusFromTx 把 status 置 deleted 时
-// 显式写 updated_at=now()（裸 Table().Update 不触发 gorm autoUpdateTime，
-// 见 spec/security 双审 F2）。deleted 行删除后无其他写路径，updated_at 即
-// 删除时间。
+// 扫描条件带 status 谓词：防止与 ReactivateReviewTx（恢复重写）并发竞态——
+// 行被选中后若被并发恢复为 visible，本更新不得把已恢复的评价清空/断开作者
+// （spec S1 的 NULL 语义版本）。统计投影无需修正：删除时已扣减 stats，
+// 清理不改 status（仍非 visible）。
 //
-// PostgreSQL 兼容（security F1）：逐行置 0 用 SAVEPOINT 包裹——PG 下唯一
-// 约束冲突会中止整个事务（25P02），后续语句全部报错；SAVEPOINT 天然隔离
-// 冲突（回滚到 savepoint 后事务可继续），不依赖驱动错误映射
-// （gorm.ErrDuplicatedKey 在 PG 下不可靠）。SQLite 同样支持 SAVEPOINT。
-//
-// 分块（security F4）：每批次最多处理 500 行，避免首启积压多年删除行时
-// 单大事务长持锁。排水率约 500 行/次（每日 cron 触发）；积压量大时多日
-// 收敛，符合后台任务节奏（spec N3）。
-func CleanupExpiredDeletedReviewsTx(tx *gorm.DB, cutoff time.Time) (int64, error) {
-	const batchSize = 500
-	// 1) 批量清空正文（无唯一约束冲突；按行数分块）
-	res := tx.Table(reviewTableName).
-		Where("status = ?", ReviewStatusDeleted).
-		Where("updated_at <= ?", cutoff).
-		Where("content <> ''").
-		Limit(batchSize).
-		Update("content", "")
-	if res.Error != nil {
-		return 0, res.Error
+// 分块（security F4）：limit 上限由调用方传入（默认 500 行/批），避免首启
+// 积压多年删除行时单大事务长持锁；排水率约 500 行/次（每日 cron 触发，
+// 积压多日收敛，spec N3）。
+func CleanupExpiredDeletedReviewsTx(tx *gorm.DB, cutoff time.Time, limit int) (int64, error) {
+	if limit <= 0 {
+		limit = 500
 	}
-	cleaned := res.RowsAffected
-
-	// 2) 逐行断开作者关联：SAVEPOINT 隔离唯一冲突，撞索引行跳过（保留原
-	// author）。每批最多 batchSize 行。
 	var rows []struct {
 		Id uint64
 	}
 	if err := tx.Table(reviewTableName).
 		Select("id").
 		Where("status = ?", ReviewStatusDeleted).
-		Where("updated_at <= ?", cutoff).
-		Where("author_user_id <> 0").
-		Limit(batchSize).
+		Where("author_user_id IS NOT NULL").
+		Where("COALESCE(deleted_at, updated_at) < ?", cutoff).
+		Limit(limit).
 		Scan(&rows).Error; err != nil {
-		return cleaned, err
+		return 0, err
 	}
-	for _, row := range rows {
-		if err := tx.SavePoint("review_author_zero").Error; err != nil {
-			return cleaned, err
-		}
-		err := tx.Table(reviewTableName).
-			Where("id = ? AND author_user_id <> 0", row.Id).
-			Update("author_user_id", 0).Error
-		if err != nil {
-			// 回滚到 savepoint：PG 下唯一冲突（25P02）中止事务，须先恢复
-			// 才能继续后续行；SQLite 同样路径。
-			if rbErr := tx.RollbackTo("review_author_zero").Error; rbErr != nil {
-				return cleaned, rbErr
-			}
-			// 唯一索引冲突：该 offering 已有 author=0 行（legacy 或本次
-			// 其他行），保留原 author；content 已清空，隐私目标已达成。
-			if errors.Is(err, gorm.ErrDuplicatedKey) || isUniqueViolation(err) {
-				continue
-			}
-			return cleaned, err
-		}
+	if len(rows) == 0 {
+		return 0, nil
 	}
-	return cleaned, nil
-}
-
-// isUniqueViolation 识别数据库唯一约束违规错误（不依赖 gorm.ErrDuplicatedKey
-// 的驱动映射，PG 下该映射对 25P02/23505 不总是成立）：按错误串兜底。
-func isUniqueViolation(err error) bool {
-	if err == nil {
-		return false
+	ids := make([]uint64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.Id)
 	}
-	msg := strings.ToLower(err.Error())
-	return strings.Contains(msg, "unique constraint") ||
-		strings.Contains(msg, "duplicate key") ||
-		strings.Contains(msg, "duplicate entry") ||
-		strings.Contains(msg, "23505") ||
-		strings.Contains(msg, "constraint failed") ||
-		strings.Contains(msg, "unique")
+	// 更新带 status 条件：防并发恢复竞态（见上）。
+	res := tx.Table(reviewTableName).
+		Where("id IN ?", ids).
+		Where("status = ?", ReviewStatusDeleted).
+		Updates(map[string]any{
+			"content":        "",
+			"author_user_id": nil,
+		})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return res.RowsAffected, nil
 }
 
 // ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID

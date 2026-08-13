@@ -8,9 +8,9 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
-	"gorm.io/gorm"
 )
 
 // TaskTypeCourseReviewCleanup 是 course-review-cleanup worker 的任务类型前缀
@@ -21,23 +21,77 @@ const TaskTypeCourseReviewCleanup = "course-review-cleanup"
 // 完整正文与作者关联（允许恢复重写），窗口超期后由清理 job 脱敏。
 const ReviewCleanupRetentionDays = 30
 
-// CleanupDeletedReviews 清理删除隔离窗口超期的课程评价（issue #175 B3）：
-// 清空 content、断开 author_user_id（释放 (offering_id, author_user_id) 唯一
-// 约束占位，同 offering 同用户可重新写评）、行保留可审计。
-// 返回本次清理的行数。失败时返回 error，由 taskQueue worker 按重试语义处理
-// （retrying 至多 3 次后 failed，并有日志）。
-func CleanupDeletedReviews(cutoff time.Duration) (int64, error) {
-	cutoffTime := time.Now().Add(-cutoff)
-	var cleaned int64
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		var err error
-		cleaned, err = course.CleanupExpiredDeletedReviewsTx(tx, cutoffTime)
-		return err
-	})
-	if err != nil {
-		return 0, fmt.Errorf("cleanup expired deleted reviews: %w", err)
+// reviewCleanupBatchSize 单次清理批次上限（吸收 #202：worker 循环分批直到
+// 本批不足 batchSize；已清理行 author_user_id 置 NULL，批次间不会重复选中）。
+const reviewCleanupBatchSize = 500
+
+// CleanupExpiredReviewsBatch 清理一批删除隔离窗口超期的课程评价（issue #175
+// B3，吸收 #202 的 NULL 设计）：
+//   - 清空 content（正文不再留存）
+//   - author_user_id 置 NULL（断开作者关联；NULL 在唯一索引
+//     uniq_course_review_offering_author 中彼此不冲突，SQLite/PostgreSQL/
+//     MySQL 一致——同 offering 多条已清理行可共存，同用户可重新写评新建行，
+//     唯一冲突问题从根源消失）
+//   - 行保留（status 仍为 deleted，可审计）；deleted_at 保持原始删除时刻
+//     不变（清理不改锚点）
+//
+// 窗口判定：deleted_at 显式锚点（MarkReviewDeletedFromTx 写入），存量行
+// （本功能上线前删除）回退 updated_at 近似（COALESCE，与 topics/posts
+// 墓碑口径一致）。
+// 已清理行的唯一标记是 author_user_id IS NULL：扫描条件带该谓词保证幂等。
+// 统计投影无需修正：删除时已扣减 stats，清理不改 status（仍非 visible）。
+// 更新带 status 谓词：防止与 ReactivateReviewTx（恢复重写）并发竞态。
+func CleanupExpiredReviewsBatch(limit int) (int, error) {
+	if limit <= 0 {
+		return 0, nil
 	}
-	return cleaned, nil
+	cutoff := time.Now().Add(-time.Duration(ReviewCleanupRetentionDays) * 24 * time.Hour)
+	conn := dbconnect.Connect()
+	table := (&course.ReviewEntity{}).TableName()
+
+	var rows []course.ReviewEntity
+	if err := conn.Table(table).
+		Where("status = ? AND author_user_id IS NOT NULL AND COALESCE(deleted_at, updated_at) < ?",
+			course.ReviewStatusDeleted, cutoff).
+		Limit(limit).
+		Find(&rows).Error; err != nil {
+		return 0, err
+	}
+	if len(rows) == 0 {
+		return 0, nil
+	}
+	ids := make([]uint64, 0, len(rows))
+	for _, r := range rows {
+		ids = append(ids, r.Id)
+	}
+	res := conn.Table(table).
+		Where(queryopt.In("id", ids)).
+		Where("status = ?", course.ReviewStatusDeleted).
+		Updates(map[string]any{
+			"content":        "",
+			"author_user_id": nil,
+		})
+	if res.Error != nil {
+		return 0, res.Error
+	}
+	return int(res.RowsAffected), nil
+}
+
+// CleanupDeletedReviews 全量清理（CLI 手动触发）：循环分批直到无剩余过期行。
+// 返回累计清理行数。失败时返回 error。
+func CleanupDeletedReviews(cutoff time.Duration) (int64, error) {
+	_ = cutoff // 窗口由 ReviewCleanupRetentionDays 常量统一；保留参数兼容旧签名
+	total := 0
+	for {
+		n, err := CleanupExpiredReviewsBatch(reviewCleanupBatchSize)
+		if err != nil {
+			return int64(total), fmt.Errorf("cleanup expired deleted reviews: %w", err)
+		}
+		total += n
+		if n < reviewCleanupBatchSize {
+			return int64(total), nil
+		}
+	}
 }
 
 // CleanupReviewTask 是 course-review-cleanup worker 的任务负载。
