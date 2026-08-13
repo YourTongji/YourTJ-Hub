@@ -20,6 +20,10 @@ const scope = computed(() => page.props.scope || 'all')
 const topics = computed(() => page.props.topics || [])
 const users = computed(() => page.props.users || [])
 const categories = computed(() => page.props.categories || [])
+function formatRating(avg: number) {
+  return avg.toFixed(1)
+}
+
 const courses = computed(() => page.props.courses || [])
 const hasQuery = computed(() => (page.props.query || '').trim().length > 0)
 const hasResults = computed(() => topics.value.length > 0 || users.value.length > 0 || categories.value.length > 0 || courses.value.length > 0)
@@ -225,6 +229,10 @@ watch(
                   <p class="mt-0.5 truncate text-xs text-base-content/55">{{ course.primaryCode }} · {{ course.department }}</p>
                   <p v-if="course.instructors?.length" class="mt-0.5 truncate text-xs text-base-content/45">
                     {{ course.instructors.join('、') }}
+                  </p>
+                  <p v-if="course.ratingAvg !== undefined" class="mt-0.5 text-xs">
+                    <span class="font-semibold tabular-nums text-warning">{{ formatRating(course.ratingAvg) }}</span>
+                    <span class="text-base-content/45"> · {{ t('searchPage.reviewCount', { count: course.reviewCount ?? 0 }, course.reviewCount ?? 0) }}</span>
                   </p>
                 </div>
               </a>

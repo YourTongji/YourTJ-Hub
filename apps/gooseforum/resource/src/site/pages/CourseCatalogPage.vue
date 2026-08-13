@@ -10,6 +10,10 @@ defineProps<{
   props: CourseCatalogPageProps
 }>()
 const { t } = useI18n()
+
+function formatRating(avg: number) {
+  return avg.toFixed(1)
+}
 </script>
 
 <template>
@@ -116,6 +120,10 @@ const { t } = useI18n()
               </span>
               <span v-if="course.creditX10" class="text-[11px] text-base-content/45">
                 {{ t('coursesPage.credit', { credit: (course.creditX10 / 10).toFixed(1).replace(/\.0$/, '') }) }}
+              </span>
+              <span v-if="course.ratingAvg !== undefined" class="text-[11px]">
+                <span class="font-semibold tabular-nums text-warning">{{ formatRating(course.ratingAvg) }}</span>
+                <span class="text-base-content/45"> · {{ t('coursesPage.reviewCount', { count: course.reviewCount ?? 0 }, course.reviewCount ?? 0) }}</span>
               </span>
             </div>
           </a>

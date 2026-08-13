@@ -602,6 +602,10 @@ type CourseSearchPayload struct {
 	Instructors []string `json:"instructors"`
 	Terms       []string `json:"terms"`
 	Campus      []string `json:"campus"`
+	// RatingAvg 非 NULL rating 均分；无评分时省略（SSR 透传给 SearchPage，
+	// oierxjn review 阻塞 1）。
+	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
+	ReviewCount int      `json:"reviewCount,omitempty"`
 }
 
 // UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
@@ -2698,6 +2702,8 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Instructors: item.Instructors,
 			Terms:       item.Terms,
 			Campus:      item.Campus,
+			RatingAvg:   item.RatingAvg,
+			ReviewCount: item.ReviewCount,
 		}
 	})
 	props.Total = result.Total

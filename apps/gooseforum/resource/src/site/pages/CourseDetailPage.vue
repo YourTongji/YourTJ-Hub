@@ -266,6 +266,26 @@ onMounted(() => {
             <span class="h-1 w-1 rounded-full bg-base-content/30" />
             {{ t('courseDetailPage.credit') }}：{{ formatCredit(props.course.creditX10) }}
           </span>
+          <span v-if="props.course.ratingAvg !== undefined" class="inline-flex items-center gap-1">
+            <span class="h-1 w-1 rounded-full bg-base-content/30" />
+            <Star class="h-3.5 w-3.5 fill-warning text-warning" />
+            <span class="font-semibold tabular-nums text-warning">{{ formatRating(props.course.ratingAvg) }}</span>
+            <span class="text-base-content/45">{{ t('courseDetailPage.reviewsCount', { count: props.course.reviewCount ?? 0 }, props.course.reviewCount ?? 0) }}</span>
+          </span>
+          <span
+            v-if="props.course.ratingDistribution?.length"
+            class="inline-flex items-center gap-1.5 text-[12px] text-base-content/55"
+            :title="t('courseDetailPage.ratingDistributionTitle')"
+          >
+            <span
+              v-for="(count, star) in props.course.ratingDistribution"
+              :key="star"
+              class="inline-flex items-center gap-0.5"
+            >
+              <Star class="h-3 w-3" :class="star + 1 <= Math.round(props.course.ratingAvg ?? 0) ? 'fill-warning text-warning' : 'text-base-content/25'" />
+              <span class="tabular-nums">{{ count }}</span>
+            </span>
+          </span>
         </div>
       </template>
     </PageHeader>

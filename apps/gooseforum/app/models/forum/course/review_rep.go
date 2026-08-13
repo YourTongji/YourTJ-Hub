@@ -448,12 +448,15 @@ func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity
 
 // RatingDistributionRow 评分分布聚合行（group key + 1-5 星计数）。
 type RatingDistributionRow struct {
-	Key   uint64
-	Star1 int
-	Star2 int
-	Star3 int
-	Star4 int
-	Star5 int
+	// Key 聚合键（offering_id / course_id）。gorm column 显式映射到非保留
+	// 别名 agg_key（MySQL 中 KEY 是保留字，未转义别名会使查询静默失败；
+	// oierxjn review 阻塞 2）。
+	Key   uint64 `gorm:"column:agg_key"`
+	Star1 int    `gorm:"column:star1"`
+	Star2 int    `gorm:"column:star2"`
+	Star3 int    `gorm:"column:star3"`
+	Star4 int    `gorm:"column:star4"`
+	Star5 int    `gorm:"column:star5"`
 }
 
 // ratingDistributionFromRows 把聚合行转成 map[Key]RatingDistribution。
@@ -473,7 +476,7 @@ func GetRatingDistributionsByOfferings(offeringIds []uint64) map[uint64]RatingDi
 	}
 	var rows []RatingDistributionRow
 	if err := db.Connect().Table(reviewTableName).
-		Select("offering_id AS key, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Select("offering_id AS agg_key, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS star5").
 		// 与 RebuildAllCourseStats 口径一致：status=visible 且未软删（security F1）。
 		Where("offering_id IN ? AND status = ? AND deleted_at IS NULL", offeringIds, ReviewStatusVisible).
 		Group("offering_id").
@@ -491,7 +494,7 @@ func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDist
 	}
 	var rows []RatingDistributionRow
 	if err := db.Connect().Table(reviewTableName+" r").
-		Select("o.course_id AS key, SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Select("o.course_id AS agg_key, SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
 		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
 		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
 		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。

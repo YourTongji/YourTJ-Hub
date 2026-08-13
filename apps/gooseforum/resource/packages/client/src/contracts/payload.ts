@@ -911,6 +911,8 @@ export interface CourseSearchPayload {
   instructors?: string[]
   terms?: string[]
   campus?: string[]
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseCatalogPageProps {
@@ -940,6 +942,8 @@ export interface CourseSummaryPayload {
   aliases?: string[]
   instructors?: string[]
   recentTerms?: string[]
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseDetailPageProps {
@@ -950,6 +954,9 @@ export interface CourseDetailPageProps {
     department: string
     creditX10: number
     aliases?: string[]
+    ratingAvg?: number
+    reviewCount?: number
+    ratingDistribution?: number[]
     offerings?: Array<{
       id: number
       termCode: string
@@ -957,6 +964,8 @@ export interface CourseDetailPageProps {
       campus?: string
       faculty?: string
       instructors?: string[]
+      ratingAvg?: number
+      reviewCount?: number
     }>
   }
 }
