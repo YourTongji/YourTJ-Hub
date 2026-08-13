@@ -46,6 +46,8 @@ _$ReviewPayloadImpl _$$ReviewPayloadImplFromJson(
   helpfulCount: (json['helpfulCount'] as num).toInt(),
   createdAt: json['createdAt'] as String,
   updatedAt: json['updatedAt'] as String,
+  offeringRatingAvg: (json['offeringRatingAvg'] as num?)?.toDouble(),
+  offeringReviewCount: (json['offeringReviewCount'] as num?)?.toInt(),
 );
 
 Map<String, dynamic> _$$ReviewPayloadImplToJson(_$ReviewPayloadImpl instance) =>
@@ -60,7 +62,27 @@ Map<String, dynamic> _$$ReviewPayloadImplToJson(_$ReviewPayloadImpl instance) =>
       'helpfulCount': instance.helpfulCount,
       'createdAt': instance.createdAt,
       'updatedAt': instance.updatedAt,
+      'offeringRatingAvg': instance.offeringRatingAvg,
+      'offeringReviewCount': instance.offeringReviewCount,
     };
+
+_$ReviewListResultImpl _$$ReviewListResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$ReviewListResultImpl(
+  list: (json['list'] as List<dynamic>)
+      .map((e) => ReviewPayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  nextCursor: json['nextCursor'] as String?,
+  total: (json['total'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ReviewListResultImplToJson(
+  _$ReviewListResultImpl instance,
+) => <String, dynamic>{
+  'list': instance.list,
+  'nextCursor': instance.nextCursor,
+  'total': instance.total,
+};
 
 _$CreateCourseReviewInputImpl _$$CreateCourseReviewInputImplFromJson(
   Map<String, dynamic> json,
