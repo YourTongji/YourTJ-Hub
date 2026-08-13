@@ -1322,9 +1322,9 @@ export interface ReviewPage {
   total: number
 }
 
-// 默认 pageSize=50（PR #201 security F2：减少共享 IP 限流下的翻页请求量，
-// 200 条只需 4 次请求而非 10 次）。
-export async function listCourseReviews(courseId: number, offeringId = 0, cursor = '', pageSize = 50): Promise<ReviewPage> {
+// 默认 pageSize=20（issue #174 验收约定；上限 50，安全 F2 的限流考量
+// 由显式传更大 pageSize 的调用方自行决定）。
+export async function listCourseReviews(courseId: number, offeringId = 0, cursor = '', pageSize = 20): Promise<ReviewPage> {
   const params = new URLSearchParams()
   if (offeringId > 0) params.set('offeringId', String(offeringId))
   if (cursor) params.set('cursor', cursor)

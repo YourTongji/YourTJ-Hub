@@ -186,6 +186,8 @@ async function submitForm() {
         isAnonymous: formAnonymous.value,
       })
       reviews.value.unshift(created)
+      // 标题计数同步（P2）：创建成功 +1，与服务端 total 保持近似一致
+      reviewTotal.value += 1
     }
     formVisible.value = false
     editingReviewId.value = null
@@ -201,6 +203,8 @@ async function removeReview(review: ReviewPayload) {
   try {
     await deleteCourseReview(review.id)
     reviews.value = reviews.value.filter((item) => item.id !== review.id)
+    // 标题计数同步（P2）：删除成功 -1，0 为下限
+    reviewTotal.value = Math.max(0, reviewTotal.value - 1)
   } catch (error) {
     window.alert(error instanceof Error ? error.message : t('courseDetailPage.reviewDeleteFailed'))
   }
