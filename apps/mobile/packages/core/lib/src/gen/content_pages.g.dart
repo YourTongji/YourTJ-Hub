@@ -185,6 +185,9 @@ _$CourseSummaryPayloadImpl _$$CourseSummaryPayloadImplFromJson(
   name: json['name'] as String,
   department: json['department'] as String,
   creditX10: (json['creditX10'] as num).toInt(),
+  ratingAvg: (json['ratingAvg'] as num).toDouble(),
+  ratingCount: (json['ratingCount'] as num).toInt(),
+  reviewCount: (json['reviewCount'] as num).toInt(),
   aliases: (json['aliases'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -204,6 +207,9 @@ Map<String, dynamic> _$$CourseSummaryPayloadImplToJson(
   'name': instance.name,
   'department': instance.department,
   'creditX10': instance.creditX10,
+  'ratingAvg': instance.ratingAvg,
+  'ratingCount': instance.ratingCount,
+  'reviewCount': instance.reviewCount,
   'aliases': instance.aliases,
   'instructors': instance.instructors,
   'recentTerms': instance.recentTerms,
@@ -221,6 +227,9 @@ _$CourseCatalogPagePropsImpl _$$CourseCatalogPagePropsImplFromJson(
   pagination: PaginationPayload.fromJson(
     json['pagination'] as Map<String, dynamic>,
   ),
+  departments: (json['departments'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$$CourseCatalogPagePropsImplToJson(
@@ -229,6 +238,7 @@ Map<String, dynamic> _$$CourseCatalogPagePropsImplToJson(
   'query': instance.query,
   'courses': instance.courses,
   'pagination': instance.pagination,
+  'departments': instance.departments,
 };
 
 _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
@@ -238,6 +248,9 @@ _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
   department: json['department'] as String?,
   term: json['term'] as String?,
   campus: json['campus'] as String?,
+  instructor: json['instructor'] as String?,
+  onlyWithReviews: json['onlyWithReviews'] as bool?,
+  sortBy: json['sortBy'] as String?,
   page: (json['page'] as num).toInt(),
   size: (json['size'] as num).toInt(),
 );
@@ -249,6 +262,9 @@ Map<String, dynamic> _$$CourseCatalogQueryPayloadImplToJson(
   'department': instance.department,
   'term': instance.term,
   'campus': instance.campus,
+  'instructor': instance.instructor,
+  'onlyWithReviews': instance.onlyWithReviews,
+  'sortBy': instance.sortBy,
   'page': instance.page,
   'size': instance.size,
 };

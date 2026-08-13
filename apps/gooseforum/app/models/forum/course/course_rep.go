@@ -30,6 +30,9 @@ type ListCourseQuery struct {
 	Department string // 院系精确
 	TermCode   string // 学期（通过 offering 关联）
 	Campus     string // 校区（通过 offering 关联）
+	Instructor string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母）
+	HasReview  bool   // 仅看有评价（course_review_stats.review_count > 0）
+	SortBy     string // 排序：rating 按评分降序（零评分排末尾）；其它值/空串 id 倒序
 	Page       int
 	Size       int
 }
@@ -56,6 +59,19 @@ OR EXISTS (
 			kw, kw, kw, kw, kw, kw, kw, kw, kw, kw,
 		)
 	}
+	if q.Instructor != "" {
+		ins := "%" + q.Instructor + "%"
+		b = b.Where(`EXISTS (
+	SELECT 1 FROM course_offering
+	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
+	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL
+	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
+)`, ins, ins, ins, ins)
+	}
+	if q.HasReview {
+		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0)`)
+	}
 	if q.TermCode != "" || q.Campus != "" {
 		ob := offeringBuilder()
 		if q.TermCode != "" {
@@ -79,8 +95,30 @@ OR EXISTS (
 	if q.Page <= 0 {
 		q.Page = 1
 	}
-	err = b.Order("id DESC").Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
+	// 排序：仅 SortBy=rating 时按评分降序（LEFT JOIN course_review_stats，
+	// 其 course_id 主键唯一故不放大行数）；否则保持 id 倒序保证分页稳定。
+	// COUNT 已在上方按同一套 WHERE 过滤完成，JOIN 只影响排序不影响计数。
+	if q.SortBy == "rating" {
+		b = b.Joins("LEFT JOIN course_review_stats s ON s.course_id = course.id AND s.deleted_at IS NULL").
+			Order("CASE WHEN s.rating_count > 0 THEN 0 ELSE 1 END ASC, COALESCE(s.rating_sum * 1.0 / NULLIF(s.rating_count, 0), 0) DESC, course.id DESC")
+	} else {
+		b = b.Order("id DESC")
+	}
+	err = b.Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
 	return
+}
+
+// ListDistinctDepartments 返回所有可见课程的去重院系列表（非空、按字典序），供目录页筛选下拉。
+func ListDistinctDepartments() ([]string, error) {
+	var departments []string
+	err := courseBuilder().
+		Where(queryopt.Eq("status", StatusVisible)).
+		Where(queryopt.IsNull("deleted_at")).
+		Where(queryopt.Ne("department", "")).
+		Distinct().
+		Order("department ASC").
+		Pluck("department", &departments).Error
+	return departments, err
 }
 
 // ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。

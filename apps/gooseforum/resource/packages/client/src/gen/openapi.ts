@@ -1160,6 +1160,12 @@ export interface components {
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
+            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
+            ratingAvg: number;
+            /** @description Number of visible reviews carrying a rating. */
+            ratingCount: number;
+            /** @description Number of visible reviews for this course. */
+            reviewCount: number;
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -2460,6 +2466,9 @@ export interface operations {
                 department?: string;
                 term?: string;
                 campus?: string;
+                instructor?: string;
+                onlyWithReviews?: boolean;
+                sortBy?: string;
                 page?: number;
                 size?: number;
             };

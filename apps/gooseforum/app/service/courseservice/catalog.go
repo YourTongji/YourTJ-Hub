@@ -9,7 +9,7 @@ import (
 // ErrCourseNotFound 课程不存在或已隐藏（与存储层错误区分，控制器映射为 404）。
 var ErrCourseNotFound = errors.New("course not found")
 
-// CourseSummary 课程列表卡片（Slice A 只读目录；评价统计在 Slice C 追加）。
+// CourseSummary 课程列表卡片（评价统计与 RelatedCourseItem 语义一致，无评分时三字段取零值）。
 type CourseSummary struct {
 	Id          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -19,6 +19,9 @@ type CourseSummary struct {
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
+	RatingAvg   float64  `json:"ratingAvg"`
+	RatingCount int      `json:"ratingCount"`
+	ReviewCount int      `json:"reviewCount"`
 }
 
 // OfferingSummary 开课实例摘要（详情页）。
@@ -48,6 +51,9 @@ type CatalogQuery struct {
 	Department string
 	TermCode   string
 	Campus     string
+	Instructor string
+	HasReview  bool
+	SortBy     string
 	Page       int
 	Size       int
 }
@@ -79,6 +85,9 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		Department: q.Department,
 		TermCode:   q.TermCode,
 		Campus:     q.Campus,
+		Instructor: q.Instructor,
+		HasReview:  q.HasReview,
+		SortBy:     q.SortBy,
 		Page:       page,
 		Size:       size,
 	})
@@ -93,6 +102,11 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		return CatalogPage{}, err
 	}
 	return CatalogPage{List: summaries, Page: page, Size: size, Total: total, HasNext: int64(page)*int64(size) < total}, nil
+}
+
+// ListDepartments 返回课程目录可筛选的院系列表（去重、按字典序）。
+func ListDepartments() ([]string, error) {
+	return course.ListDistinctDepartments()
 }
 
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。
@@ -179,6 +193,10 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 	for _, e := range entities {
 		courseIds = append(courseIds, e.Id)
 	}
+	stats, err := course.GetCourseStatsMap(courseIds)
+	if err != nil {
+		return nil, err
+	}
 	aliases, err := course.ListAliasesByCourses(courseIds)
 	if err != nil {
 		return nil, err
@@ -259,6 +277,11 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 				}
 			}
 		}
+		// 评价统计回填（无评分行时 map 缺失 → 三字段取零值）。
+		st := stats[e.Id]
+		s.RatingAvg = ratingAvgFromStats(st.RatingSum, st.RatingCount)
+		s.RatingCount = st.RatingCount
+		s.ReviewCount = st.ReviewCount
 		summaries = append(summaries, s)
 	}
 	return summaries, nil

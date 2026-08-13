@@ -1,8 +1,11 @@
 package routes
 
 import (
+	"encoding/json"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
+	"reflect"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -301,4 +304,161 @@ func TestCourseRelatedHiddenHTTPContract(t *testing.T) {
 		t.Fatalf("course related hidden status = %d, want 404: %s", rec.Code, rec.Body.String())
 	}
 	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-not-found.json"))
+}
+
+// seedCourseFilterData 写入高级筛选测试数据（不参与 course-list-success 基线，仅配合
+// 新筛选参数的 HTTP 契约测试）：
+//   - 课程 45 大学物理，李四授课，CourseStatsEntity RatingCount 3 / RatingSum 12 / ReviewCount 5（平均分 4.0）
+//   - 课程 46 无机化学，张三授课，CourseStatsEntity RatingCount 1 / RatingSum 5  / ReviewCount 2（平均分 5.0）
+//
+// 基线课程 42 高等数学无 CourseStatsEntity 行（三字段零值），用于验证 onlyWithReviews 的
+// 排除与 sortBy=rating 的"无评分垫底"排序。
+func seedCourseFilterData(t *testing.T, conn *gorm.DB) {
+	t.Helper()
+	for _, c := range []*course.Entity{
+		{
+			Id:             45,
+			PrimaryCode:    "200001",
+			Name:           "大学物理",
+			Department:     "物理科学与工程学院",
+			CreditX10:      30,
+			NormalizedName: "大学物理",
+			NamePinyin:     "daxuewuli",
+			NameInitials:   "dxwl",
+			Status:         course.StatusVisible,
+		},
+		{
+			Id:             46,
+			PrimaryCode:    "200002",
+			Name:           "无机化学",
+			Department:     "化学科学与工程学院",
+			CreditX10:      40,
+			NormalizedName: "无机化学",
+			NamePinyin:     "wujihuaxue",
+			NameInitials:   "wjhx",
+			Status:         course.StatusVisible,
+		},
+	} {
+		if err := conn.Create(c).Error; err != nil {
+			t.Fatalf("create course %d: %v", c.Id, err)
+		}
+	}
+	// offering 904 由李四(202)授课程 45，offering 905 由张三(201)授课程 46，复用 term 101。
+	for _, offering := range []*course.OfferingEntity{
+		{Id: 904, CourseId: 45, TermId: 101, Campus: "四平路校区", Faculty: "物理科学与工程学院", Status: course.OfferingStatusVisible},
+		{Id: 905, CourseId: 46, TermId: 101, Campus: "四平路校区", Faculty: "化学科学与工程学院", Status: course.OfferingStatusVisible},
+	} {
+		if err := conn.Create(offering).Error; err != nil {
+			t.Fatalf("create offering %d: %v", offering.Id, err)
+		}
+	}
+	for _, link := range []*course.OfferingInstructorEntity{
+		{OfferingId: 904, InstructorId: 202, Role: "lecturer"}, // 李四
+		{OfferingId: 905, InstructorId: 201, Role: "lecturer"}, // 张三
+	} {
+		if err := conn.Create(link).Error; err != nil {
+			t.Fatalf("create offering instructor link: %v", err)
+		}
+	}
+	for _, st := range []*course.CourseStatsEntity{
+		{CourseId: 45, RatingCount: 3, RatingSum: 12, ReviewCount: 5},
+		{CourseId: 46, RatingCount: 1, RatingSum: 5, ReviewCount: 2},
+	} {
+		if err := conn.Create(st).Error; err != nil {
+			t.Fatalf("create course stats: %v", err)
+		}
+	}
+}
+
+// courseListContract 是 CourseListResponse.result 的黑盒 JSON 视图，仅按契约字段解析，
+// 不引用后端 Go 结构体。
+type courseListContract struct {
+	List []struct {
+		Id          uint64  `json:"id"`
+		RatingAvg   float64 `json:"ratingAvg"`
+		ReviewCount int     `json:"reviewCount"`
+	} `json:"list"`
+}
+
+func decodeCourseList(t *testing.T, rec *httptest.ResponseRecorder) courseListContract {
+	t.Helper()
+	var list courseListContract
+	if err := json.Unmarshal(decodeContractEnvelope(t, rec).Result, &list); err != nil {
+		t.Fatalf("decode course list %q: %v", rec.Body.String(), err)
+	}
+	return list
+}
+
+func courseListIDs(list courseListContract) []uint64 {
+	ids := make([]uint64, 0, len(list.List))
+	for _, item := range list.List {
+		ids = append(ids, item.Id)
+	}
+	return ids
+}
+
+func assertCourseIDSet(t *testing.T, list courseListContract, want ...uint64) {
+	t.Helper()
+	got := make(map[uint64]bool, len(list.List))
+	for _, item := range list.List {
+		got[item.Id] = true
+	}
+	if len(got) != len(want) {
+		t.Fatalf("course id set = %v, want %v", got, want)
+	}
+	for _, id := range want {
+		if !got[id] {
+			t.Fatalf("course id set = %v, missing %d", got, id)
+		}
+	}
+}
+
+func TestCourseListOnlyWithReviewsHTTPContract(t *testing.T) {
+	conn, router := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+	seedCourseFilterData(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses?onlyWithReviews=1")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course list onlyWithReviews status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	list := decodeCourseList(t, rec)
+	// 基线课程 42 无 CourseStatsEntity 行（无评价）→ 被排除；45/46 有评价 → 保留。
+	assertCourseIDSet(t, list, 45, 46)
+	for _, item := range list.List {
+		if item.ReviewCount == 0 {
+			t.Fatalf("onlyWithReviews=1 返回了无评价课程: %+v", item)
+		}
+	}
+}
+
+func TestCourseListInstructorHTTPContract(t *testing.T) {
+	conn, router := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+	seedCourseFilterData(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses?instructor="+url.QueryEscape("张三"))
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course list instructor status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	list := decodeCourseList(t, rec)
+	// 42 高等数学（offering 901）与 46 无机化学（offering 905）均由张三授课；45 大学物理由李四授课被排除。
+	assertCourseIDSet(t, list, 42, 46)
+}
+
+func TestCourseListSortByRatingHTTPContract(t *testing.T) {
+	conn, router := setupCourseContractTest(t)
+	seedCourseContractData(t, conn)
+	seedCourseFilterData(t, conn)
+
+	rec := serveCourseGet(router, "/api/forum/courses?sortBy=rating")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("course list sortBy status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	list := decodeCourseList(t, rec)
+	// 46 平均分 5.0 → 45 平均分 4.0 → 42 无评分垫底；同分时 id 降序兜底。
+	want := []uint64{46, 45, 42}
+	if got := courseListIDs(list); !reflect.DeepEqual(got, want) {
+		t.Fatalf("sortBy=rating ids = %v, want %v", got, want)
+	}
 }

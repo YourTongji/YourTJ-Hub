@@ -56,13 +56,17 @@ func CourseDetail(c *gin.Context) {
 }
 
 // CourseListReq 课程目录 JSON API 请求参数。
+// OnlyWithReviews 用 string 承接以便解析 1/true/on 等多种布尔表示（见 parseBoolLike）。
 type CourseListReq struct {
-	Keyword    string `form:"keyword"`
-	Department string `form:"department"`
-	TermCode   string `form:"term"`
-	Campus     string `form:"campus"`
-	Page       int    `form:"page"`
-	Size       int    `form:"size"`
+	Keyword         string `form:"keyword"`
+	Department      string `form:"department"`
+	TermCode        string `form:"term"`
+	Campus          string `form:"campus"`
+	Instructor      string `form:"instructor"`
+	OnlyWithReviews string `form:"onlyWithReviews"`
+	SortBy          string `form:"sortBy"`
+	Page            int    `form:"page"`
+	Size            int    `form:"size"`
 }
 
 // CourseListJSON 课程目录 JSON API（公开只读，供前端异步加载与后续移动端使用）。
@@ -74,6 +78,9 @@ func CourseListJSON(req component.BetterRequest[CourseListReq]) component.Respon
 		Department: strings.TrimSpace(req.Params.Department),
 		TermCode:   strings.TrimSpace(req.Params.TermCode),
 		Campus:     strings.TrimSpace(req.Params.Campus),
+		Instructor: strings.TrimSpace(req.Params.Instructor),
+		HasReview:  parseBoolLike(req.Params.OnlyWithReviews),
+		SortBy:     strings.TrimSpace(req.Params.SortBy),
 		Page:       req.Params.Page,
 		Size:       req.Params.Size,
 	})
@@ -139,17 +146,28 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 	department := strings.TrimSpace(c.Query("department"))
 	termCode := strings.TrimSpace(c.Query("term"))
 	campus := strings.TrimSpace(c.Query("campus"))
+	instructor := strings.TrimSpace(c.Query("instructor"))
+	onlyWithReviews := parseBoolLike(c.Query("onlyWithReviews"))
+	sortBy := strings.TrimSpace(c.Query("sortBy"))
 	pageData, err := courseservice.ListCatalog(courseservice.CatalogQuery{
 		Keyword:    keyword,
 		Department: department,
 		TermCode:   termCode,
 		Campus:     campus,
+		Instructor: instructor,
+		HasReview:  onlyWithReviews,
+		SortBy:     sortBy,
 		Page:       page,
 		Size:       size,
 	})
 	if err != nil {
 		slog.Error("course_catalog_list_failed", "error", err)
 		pageData = courseservice.CatalogPage{List: []courseservice.CourseSummary{}, Page: page, Size: size}
+	}
+	departments, deptErr := courseservice.ListDepartments()
+	if deptErr != nil {
+		slog.Error("course_departments_list_failed", "error", deptErr)
+		departments = []string{}
 	}
 	nextPage := 0
 	if pageData.HasNext {
@@ -161,10 +179,14 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 			Department: department,
 			TermCode:   termCode,
 			Campus:     campus,
+			Instructor: instructor,
+			HasReview:  onlyWithReviews,
+			SortBy:     sortBy,
 			Page:       pageData.Page,
 			Size:       pageData.Size,
 		},
-		Courses: pageData.List,
+		Courses:     pageData.List,
+		Departments: departments,
 		Pagination: PaginationPayload{
 			Page:     pageData.Page,
 			NextPage: nextPage,
@@ -199,7 +221,27 @@ func buildCourseListURL(c *gin.Context, page, size int) string {
 	if v := strings.TrimSpace(c.Query("campus")); v != "" {
 		params.Set("campus", v)
 	}
+	if v := strings.TrimSpace(c.Query("instructor")); v != "" {
+		params.Set("instructor", v)
+	}
+	if parseBoolLike(c.Query("onlyWithReviews")) {
+		params.Set("onlyWithReviews", "1")
+	}
+	if v := strings.TrimSpace(c.Query("sortBy")); v != "" {
+		params.Set("sortBy", v)
+	}
 	return "/courses?" + params.Encode()
+}
+
+// parseBoolLike 解析布尔 query 参数：1/true/on（大小写不敏感）视为 true，其余视为 false。
+// 前端/JSON API 可能以不同形式传 onlyWithReviews，统一在此归一化。
+func parseBoolLike(v string) bool {
+	switch strings.ToLower(strings.TrimSpace(v)) {
+	case "1", "true", "on":
+		return true
+	default:
+		return false
+	}
 }
 
 func buildCourseMeta(c *gin.Context) PageMeta {

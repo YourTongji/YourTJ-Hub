@@ -1004,7 +1004,7 @@ LogoutResponse:
 
 CourseSummary:
   type: object
-  required: [id, primaryCode, name, department, creditX10]
+  required: [id, primaryCode, name, department, creditX10, ratingAvg, ratingCount, reviewCount]
   properties:
     id:
       type: integer
@@ -1030,6 +1030,15 @@ CourseSummary:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      description: Average rating (ratingSum / ratingCount), 0 when no ratings exist.
+    ratingCount:
+      type: integer
+      description: Number of visible reviews carrying a rating.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this course.
   additionalProperties: false
 
 CourseListResult:
