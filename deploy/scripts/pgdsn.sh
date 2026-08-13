@@ -101,7 +101,8 @@ pg_uri_split() {
   # host[:port] — IPv6 字面量 [::1] 或 [::1]:5432 按括号整体识别(review INFO),
   # 避免 host 被错误切分为 "["
   if [[ "$hostport" == \[*\]* ]]; then
-    printf -v "${var}_host" '%s' "${hostport%%]*}"
+    # %%]* 最长后缀匹配会连闭合 ] 一起吞掉, 需补回(否则 host 变成 "[::1")
+    printf -v "${var}_host" '%s' "${hostport%%]*}]"
     if [[ "${hostport##*]}" == ":"* ]]; then
       printf -v "${var}_port" '%s' "${hostport##*]:}"
     else
@@ -193,7 +194,7 @@ pg_dsn_dbname() {
   # (dbname="my forum") 拼接引号内全部 token(review LOW3)。
   if [[ "$dsn" == *"dbname="* ]]; then
     local -a toks=()
-    local tok val i=0
+    local tok i=0
     key=""
     set -f
     # read -a 按 IFS(默认含空格)切分; set -f 防 glob 展开

@@ -113,6 +113,10 @@ assert_stderr_no "URL 空 dbname 错误不泄露密码" "SUPERSECRET" pg_dsn_dbn
 ## --- review INFO 回归: IPv6 host 字面量 ---
 assert_eq "URL IPv6 host 无端口" "forum" "$(pg_dsn_dbname 'postgres://u@[::1]/forum')"
 assert_eq "URL IPv6 host 带端口" "forum" "$(pg_dsn_dbname 'postgres://u@[::1]:5432/forum')"
+assert_eq "URL IPv6 host 带端口 normalize" "postgres://u@[::1]:5432/forum" \
+  "$(pg_dsn_normalize 'postgres://u@[::1]:5432/forum')"
+assert_eq "URL IPv6 host 带密码 normalize" "postgres://u:***@[::1]:5432/forum" \
+  "$(pg_dsn_normalize 'postgres://u:p@[::1]:5432/forum')"
 
 ## --- 非法 DSN ---
 assert_run "空 DSN 报错" 1 pg_dsn_dbname ""
