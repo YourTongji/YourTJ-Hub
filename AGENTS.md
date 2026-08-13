@@ -23,8 +23,10 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   `app/service` (business) → `app/http/controllers/{api,forum}` (JSON API + GoHTML three-mode rendering).
 - Frontend: `apps/gooseforum/resource` (Vue 3 + Vite, site/admin dual entry), built output
   `resource/static/dist` go:embed; GoHTML templates in `resource/templates` keep server-side rendering (three-mode).
-- Database: SQLite default, MySQL optional (`config.toml [db]`); **PostgreSQL supported for the main
-  database since issue #11** (file db stays SQLite).
+- Database: **PostgreSQL is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite stays the local development/test default
+  (`apps/gooseforum/config.toml`, in-memory tests); the file db (`[db.file]`) is fixed SQLite.
+  MySQL is **not supported**.
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
@@ -49,7 +51,7 @@ apps/
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
-    docs/             Upstream-owned docs (reference only)
+    docs/             Fork-owned docs (maintained in this monorepo, not reference-only)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
@@ -101,7 +103,7 @@ docs/        Docs center (product/architecture/development/operations)
   (both `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
   `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
   command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
-  break PG and are forbidden in models.
+  break PG and are forbidden in models (MySQL itself is not supported).
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)

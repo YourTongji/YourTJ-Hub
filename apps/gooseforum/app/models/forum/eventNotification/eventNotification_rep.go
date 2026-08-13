@@ -114,8 +114,8 @@ func ClearPreviewsByTopic(topicId uint64, postId uint64) error {
 			item.Payload.Title = ""
 			item.Payload.TopicTitle = ""
 			// 显式序列化为 JSON 字节再写入：GORM 的 Updates(map[...]) 不会对值应用
-			// serializer:json，直接传结构体在三库驱动下都会报错。先 marshal 保证
-			// SQLite/MySQL/PostgreSQL 的 JSON 列都能正常写入。
+			// serializer:json，直接传结构体在两库驱动下都会报错。先 marshal 保证
+			// SQLite/PostgreSQL 的 JSON 列都能正常写入。
 			payloadBytes, err := json.Marshal(item.Payload)
 			if err != nil {
 				return err

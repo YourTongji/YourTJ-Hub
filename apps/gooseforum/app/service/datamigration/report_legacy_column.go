@@ -51,12 +51,8 @@ func DropReportLegacyColumnsWithDB(conn *gorm.DB) ReportLegacyColumnResult {
 }
 
 func dropReportLegacyIndex(conn *gorm.DB, indexName string) error {
-	switch conn.Dialector.Name() {
-	case "mysql":
-		return conn.Exec("DROP INDEX " + indexName + " ON reports").Error
-	default:
-		return conn.Exec("DROP INDEX IF EXISTS " + indexName).Error
-	}
+	// SQLite 与 PostgreSQL 均支持 DROP INDEX IF EXISTS（MySQL 语法不同，已不再支持 MySQL）。
+	return conn.Exec("DROP INDEX IF EXISTS " + indexName).Error
 }
 
 func failReportLegacyColumnMigration(result *ReportLegacyColumnResult, step string, err error) {
