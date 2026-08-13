@@ -2,6 +2,7 @@ package pkservice
 
 import (
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -151,4 +152,91 @@ func seedTimeslotFixture(t *testing.T, conn *gorm.DB) {
 			t.Fatalf("create %T: %v", m, err)
 		}
 	}
+}
+
+// TestTriggerPkAuxiliaryBuildBackoffThrottle 验证构建失败后的指数退避窗口内
+// TriggerPkAuxiliaryBuild 不再启动重建（回归 synergy-agent 评审 P1）。
+func TestTriggerPkAuxiliaryBuildBackoffThrottle(t *testing.T) {
+	setupPkServiceTest(t)
+
+	// 手工构造"刚失败"状态：ready=false，退避截止在 10s 后。
+	pkAuxStateMu.Lock()
+	pkAuxBuildRunning = false
+	pkAuxReadyValue = false
+	pkAuxReadyExpires = time.Now().Add(10 * time.Second)
+	pkAuxRetryAfter = time.Now().Add(10 * time.Second)
+	pkAuxFailCount = 1
+	pkAuxStateMu.Unlock()
+
+	// 退避窗口内：不应启动新构建（pkAuxBuildRunning 保持 false，failCount 不变）。
+	TriggerPkAuxiliaryBuild()
+	pkAuxStateMu.Lock()
+	running := pkAuxBuildRunning
+	ready := pkAuxReadyValue
+	failCount := pkAuxFailCount
+	pkAuxStateMu.Unlock()
+	if running {
+		t.Fatal("退避窗口内 TriggerPkAuxiliaryBuild 不应启动重建")
+	}
+	if ready {
+		t.Fatal("退避窗口内就绪状态应保持 false")
+	}
+	if failCount != 1 {
+		t.Fatalf("退避窗口内 failCount 不应变化，got %d", failCount)
+	}
+
+	// 退避结束后：应允许重建并正常完成。
+	pkAuxStateMu.Lock()
+	pkAuxRetryAfter = time.Time{}
+	pkAuxStateMu.Unlock()
+	TriggerPkAuxiliaryBuild()
+	WaitPkAuxiliaryBuildForTest()
+	pkAuxStateMu.Lock()
+	running = pkAuxBuildRunning
+	pkAuxStateMu.Unlock()
+	if running {
+		t.Fatal("重建完成后 pkAuxBuildRunning 应为 false")
+	}
+}
+
+// TestRebuildTeacherTimeslotsDoesNotClearOnReadFailure 验证重建先在内存解析、
+// 读取成功后才清空旧表：ListTeacherArrangeRows 失败（pk_course_detail 缺失）时
+// teacher_timeslots 不被清空（回归 WALKERKILLER 评审 P2：clear-first 失败窗口）。
+func TestRebuildTeacherTimeslotsDoesNotClearOnReadFailure(t *testing.T) {
+	conn := setupPkServiceTest(t)
+	seedTimeslotFixture(t, conn)
+
+	if err := rebuildTeacherTimeslots(); err != nil {
+		t.Fatalf("initial rebuild: %v", err)
+	}
+	countBefore := countTeacherTimeslots(t, conn)
+	if countBefore != 6 {
+		t.Fatalf("seed timeslots = %d, want 6", countBefore)
+	}
+
+	// 删除 pk_course_detail 表，使 ListTeacherArrangeRows（JOIN 该表）必然失败。
+	if err := conn.Migrator().DropTable(&pk.CourseDetailEntity{}); err != nil {
+		t.Fatalf("drop pk_course_detail: %v", err)
+	}
+	t.Cleanup(func() {
+		if err := conn.AutoMigrate(&pk.CourseDetailEntity{}); err != nil {
+			t.Errorf("restore pk_course_detail: %v", err)
+		}
+	})
+
+	if err := rebuildTeacherTimeslots(); err == nil {
+		t.Fatal("rebuild 应在 pk_course_detail 缺失时失败")
+	}
+	if got := countTeacherTimeslots(t, conn); got != countBefore {
+		t.Fatalf("重建失败后 timeslots = %d, want %d（clear 必须发生在解析成功后）", got, countBefore)
+	}
+}
+
+func countTeacherTimeslots(t *testing.T, conn *gorm.DB) int64 {
+	t.Helper()
+	var count int64
+	if err := conn.Model(&pk.TeacherTimeslotEntity{}).Count(&count).Error; err != nil {
+		t.Fatalf("count timeslots: %v", err)
+	}
+	return count
 }

@@ -42,22 +42,6 @@ var CROSS_DISCIPLINE_LABEL_NAMES = []string{
 	"领域基础课",
 }
 
-// chunk 按 size 切分切片（SQL IN 分块）。
-func chunk[T any](arr []T, size int) [][]T {
-	if size <= 0 {
-		return [][]T{arr}
-	}
-	var out [][]T
-	for i := 0; i < len(arr); i += size {
-		end := i + size
-		if end > len(arr) {
-			end = len(arr)
-		}
-		out = append(out, arr[i:end])
-	}
-	return out
-}
-
 // normalizeText 去除首尾空白。
 func normalizeText(value string) string {
 	return strings.TrimSpace(value)
@@ -96,7 +80,8 @@ var (
 	pkAuxStateMu      sync.Mutex
 	pkAuxBuildRunning bool
 	pkAuxReadyValue   bool
-	pkAuxReadyExpires time.Time
+	pkAuxReadyExpires time.Time // isPkAuxiliaryReady 的就绪状态缓存（正/负均缓存 30s）。
+	pkAuxRetryAfter   time.Time // 构建失败后的指数退避截止；此时间前 TriggerPkAuxiliaryBuild 不再启动重建。
 	pkAuxFailCount    int
 	pkAuxBuildWG      sync.WaitGroup
 )
@@ -108,6 +93,7 @@ func ResetPkAuxiliaryStateForTest() {
 	pkAuxBuildRunning = false
 	pkAuxReadyValue = false
 	pkAuxReadyExpires = time.Time{}
+	pkAuxRetryAfter = time.Time{}
 	pkAuxFailCount = 0
 }
 
@@ -154,10 +140,17 @@ func pkAuxBackoffSeconds(failCount int) time.Duration {
 }
 
 // TriggerPkAuxiliaryBuild 触发 teacher_timeslots 后台重建（非阻塞）。
-// 已在构建或已就绪时不重复启动；构建失败按指数退避重置 ready 缓存。
+// 已在构建或已就绪时不重复启动；构建失败按指数退避重置 ready 缓存，
+// 且退避窗口内（pkAuxRetryAfter 之前）不再次触发，避免持续失败时
+// 每 10s 全量清表+重建空转（见 pkAuxBackoffSeconds）。
 func TriggerPkAuxiliaryBuild() {
 	pkAuxStateMu.Lock()
 	if pkAuxBuildRunning || pkAuxSchemaVersionMatches() {
+		pkAuxStateMu.Unlock()
+		return
+	}
+	// 失败退避窗口内不重新触发（锁内判定，避免与失败写回竞态）。
+	if time.Now().Before(pkAuxRetryAfter) {
 		pkAuxStateMu.Unlock()
 		return
 	}
@@ -176,8 +169,10 @@ func TriggerPkAuxiliaryBuild() {
 			slog.Error("pk auxiliary timeslot build failed", "error", err)
 			pkAuxStateMu.Lock()
 			pkAuxFailCount++
+			backoff := pkAuxBackoffSeconds(pkAuxFailCount)
 			pkAuxReadyValue = false
-			pkAuxReadyExpires = time.Now().Add(pkAuxBackoffSeconds(pkAuxFailCount))
+			pkAuxReadyExpires = time.Now().Add(backoff)
+			pkAuxRetryAfter = pkAuxReadyExpires
 			pkAuxStateMu.Unlock()
 			return
 		}
@@ -185,15 +180,14 @@ func TriggerPkAuxiliaryBuild() {
 		pkAuxFailCount = 0
 		pkAuxReadyValue = true
 		pkAuxReadyExpires = time.Now().Add(30 * time.Second)
+		pkAuxRetryAfter = time.Time{}
 		pkAuxStateMu.Unlock()
 	}()
 }
 
-// rebuildTeacherTimeslots 全量重建 teacher_timeslots（清空旧表 → 解析重填 → 写版本）。
+// rebuildTeacherTimeslots 全量重建 teacher_timeslots（先在内存解析生成 pending，
+// 解析/读取成功后再清空旧表 → 批量 upsert → 写版本，避免中途失败留下空表）。
 func rebuildTeacherTimeslots() error {
-	if err := pk.ClearTeacherTimeslots(); err != nil {
-		return err
-	}
 	rows, err := pk.ListTeacherArrangeRows()
 	if err != nil {
 		return err
@@ -225,6 +219,9 @@ func rebuildTeacherTimeslots() error {
 				pending[timeslotKey(entity)] = entity
 			}
 		}
+	}
+	if err := pk.ClearTeacherTimeslots(); err != nil {
+		return err
 	}
 	if err := pk.UpsertTeacherTimeslots(collectTimeslots(pending)); err != nil {
 		return err
