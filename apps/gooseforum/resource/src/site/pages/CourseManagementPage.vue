@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { onMounted, ref } from 'vue'
+import { onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Loader2, Pencil, Plus, RefreshCw, Search, Trash2, X } from '@lucide/vue'
 import {
@@ -367,6 +367,13 @@ function formatCredit(creditX10: number): string {
 
 onMounted(() => {
   void loadCourses(true)
+})
+
+// 首次切到「评价管理」tab 时若尚未加载，触发一次拉取，避免显示空态。
+watch(activeTab, (tab) => {
+  if (tab === 'reviews' && !reviewLoaded.value) {
+    void loadReviews(true)
+  }
 })
 </script>
 

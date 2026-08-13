@@ -65,6 +65,8 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.POST("moderation/course-update", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseUpdate))
 	forumLoginAPI.POST("moderation/course-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseDelete))
 	forumLoginAPI.POST("moderation/course-review-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminReviewList))
+	forumLoginAPI.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
+	forumLoginAPI.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
 	forumLoginAPI.POST("moderation/course-stats-rebuild", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseStatsRebuild))
 	return conn, router
 }
@@ -126,5 +128,93 @@ func TestCourseManageListAndCreate(t *testing.T) {
 	}
 	if optCount == 0 {
 		t.Fatal("expected course.created audit log")
+	}
+}
+
+// TestCourseManageReviewWriteEndpoints 管理端评价编辑/删除端点的成功与 404 路径
+// （含 courseManageErrorResponse 的 review.notFound 语义映射）。
+func TestCourseManageReviewWriteEndpoints(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	token := contractSessionToken(t, manager)
+
+	// 准备一个可见评价
+	c := course.Entity{PrimaryCode: "CS101", Name: "数据结构", Status: course.StatusVisible}
+	if err := conn.Create(&c).Error; err != nil {
+		t.Fatalf("create course: %v", err)
+	}
+	term := course.TermEntity{Code: "2025-2026-1", Name: "t", Status: 0}
+	if err := conn.Create(&term).Error; err != nil {
+		t.Fatalf("create term: %v", err)
+	}
+	offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Status: course.OfferingStatusVisible}
+	if err := conn.Create(&offering).Error; err != nil {
+		t.Fatalf("create offering: %v", err)
+	}
+	rating := 3
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: &rating, Content: "内容", Status: course.ReviewStatusVisible}
+	if err := conn.Create(&review).Error; err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+
+	// 编辑评分成功
+	editBody, _ := json.Marshal(map[string]any{"reviewId": review.Id, "rating": 5})
+	recorder := serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-edit", string(editBody), token)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("edit review status = %d, want 200", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.Code != 0 {
+		t.Fatalf("edit review code = %d, messageCode=%q", env.Code, env.MessageCode)
+	}
+
+	// 编辑不存在的评价 → 404 review.notFound
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-edit", `{"reviewId":999999,"rating":5}`, token)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("edit missing review status = %d, want 404", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "review.notFound" {
+		t.Fatalf("edit missing review messageCode = %q, want review.notFound", env.MessageCode)
+	}
+
+	// 删除不存在的评价 → 404 review.notFound
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-delete", `{"reviewId":999999}`, token)
+	if recorder.Code != http.StatusNotFound {
+		t.Fatalf("delete missing review status = %d, want 404", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.MessageCode != "review.notFound" {
+		t.Fatalf("delete missing review messageCode = %q, want review.notFound", env.MessageCode)
+	}
+
+	// 删除现有评价成功
+	deleteBody, _ := json.Marshal(map[string]any{"reviewId": review.Id})
+	recorder = serveAuthSecurityJSON(router, http.MethodPost, "/api/forum/moderation/course-review-delete", string(deleteBody), token)
+	if recorder.Code != http.StatusOK {
+		t.Fatalf("delete review status = %d, want 200", recorder.Code)
+	}
+	if env := decodeContractEnvelope(t, recorder); env.Code != 0 {
+		t.Fatalf("delete review code = %d, messageCode=%q", env.Code, env.MessageCode)
+	}
+}
+
+// TestCourseManageReviewWritePermissionDenied 非 CourseManager 访问评价写端点返回 permission.denied。
+func TestCourseManageReviewWritePermissionDenied(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	user := createHTTPContractUser(t, conn, contractTestID())
+	token := contractSessionToken(t, user)
+
+	for _, path := range []string{
+		"/api/forum/moderation/course-review-edit",
+		"/api/forum/moderation/course-review-delete",
+	} {
+		body := `{"reviewId":1}`
+		if path == "/api/forum/moderation/course-review-edit" {
+			body = `{"reviewId":1,"rating":5}`
+		}
+		recorder := serveAuthSecurityJSON(router, http.MethodPost, path, body, token)
+		envelope := decodeContractEnvelope(t, recorder)
+		if envelope.Code != 1 || envelope.MessageCode != "permission.denied" {
+			t.Fatalf("%s expected permission.denied, got code=%d messageCode=%q", path, envelope.Code, envelope.MessageCode)
+		}
 	}
 }

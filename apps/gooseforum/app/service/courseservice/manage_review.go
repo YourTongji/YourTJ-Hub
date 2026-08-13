@@ -176,10 +176,16 @@ func AdminUpdateReview(reviewId uint64, input AdminReviewUpdateInput) (ReviewPay
 					if err != nil {
 						return err
 					}
-					if err := course.UpsertCourseStatsTx(tx, offering.CourseId, 0, newRating-oldRating, 0); err != nil {
+					// rating NULL → n：对未评分评价补评分时 rating_count 需 +1，
+					// 否则平均分按偏小的计数计算导致 ratingAvg 虚高。
+					deltaCount := 0
+					if oldRating == 0 {
+						deltaCount = 1
+					}
+					if err := course.UpsertCourseStatsTx(tx, offering.CourseId, deltaCount, newRating-oldRating, 0); err != nil {
 						return err
 					}
-					if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, newRating-oldRating, 0); err != nil {
+					if err := course.UpsertOfferingStatsTx(tx, offering.Id, deltaCount, newRating-oldRating, 0); err != nil {
 						return err
 					}
 				}

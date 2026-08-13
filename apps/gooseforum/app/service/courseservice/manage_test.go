@@ -264,6 +264,129 @@ func TestAdminUpdateReviewRatingSyncsStats(t *testing.T) {
 	}
 }
 
+// intPtr 返回 int 指针，便于构造可空 rating。
+func intPtr(v int) *int { return &v }
+
+// TestAdminUpdateReviewSetsRatingOnUnratedReview 对未评分（rating NULL）的 legacy 评价补评分时
+// rating_count 需 +1：否则平均分按偏小计数计算导致 ratingAvg 虚高（回归 #204 review）。
+func TestAdminUpdateReviewSetsRatingOnUnratedReview(t *testing.T) {
+	setupManageTest(t)
+	conn := dbconnect.Connect()
+	c := course.Entity{PrimaryCode: "CS101", Name: "数据结构", Status: course.StatusVisible}
+	if err := conn.Create(&c).Error; err != nil {
+		t.Fatalf("create course: %v", err)
+	}
+	term := course.TermEntity{Code: "2025-2026-1", Name: "t", Status: 0}
+	if err := conn.Create(&term).Error; err != nil {
+		t.Fatalf("create term: %v", err)
+	}
+	offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Status: course.OfferingStatusVisible}
+	if err := conn.Create(&offering).Error; err != nil {
+		t.Fatalf("create offering: %v", err)
+	}
+	// legacy 导入：author_user_id=0 且 rating NULL（历史 0 转 NULL）。
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 0, Rating: nil, Content: "历史评价", Status: course.ReviewStatusVisible, Source: course.ReviewSourceLegacyImport}
+	if err := conn.Create(&review).Error; err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	// 初始统计：可见未评分评价只计入 review_count。
+	if err := course.UpsertCourseStatsTx(conn, c.Id, 0, 0, 1); err != nil {
+		t.Fatalf("upsert course stats: %v", err)
+	}
+	if err := course.UpsertOfferingStatsTx(conn, offering.Id, 0, 0, 1); err != nil {
+		t.Fatalf("upsert offering stats: %v", err)
+	}
+
+	newRating := 5
+	if _, err := AdminUpdateReview(review.Id, AdminReviewUpdateInput{Rating: &newRating}); err != nil {
+		t.Fatalf("update rating: %v", err)
+	}
+	stats, err := course.GetCourseStats(c.Id)
+	if err != nil {
+		t.Fatalf("get course stats: %v", err)
+	}
+	if stats.RatingSum != 5 || stats.RatingCount != 1 || stats.ReviewCount != 1 {
+		t.Fatalf("expected course stats sum=5 count=1 reviews=1, got sum=%d count=%d reviews=%d",
+			stats.RatingSum, stats.RatingCount, stats.ReviewCount)
+	}
+	offeringStats, err := course.GetOfferingStats(offering.Id)
+	if err != nil {
+		t.Fatalf("get offering stats: %v", err)
+	}
+	if offeringStats.RatingSum != 5 || offeringStats.RatingCount != 1 || offeringStats.ReviewCount != 1 {
+		t.Fatalf("expected offering stats sum=5 count=1 reviews=1, got sum=%d count=%d reviews=%d",
+			offeringStats.RatingSum, offeringStats.RatingCount, offeringStats.ReviewCount)
+	}
+}
+
+// TestAdminDeleteReviewSyncsStats 管理端硬删除评价的 stats 扣减分支：
+// 可见评分评价扣 (-1,-rating,-1)，可见未评分评价扣 (0,0,-1)，且评价行被物理删除。
+func TestAdminDeleteReviewSyncsStats(t *testing.T) {
+	for _, tc := range []struct {
+		name      string
+		rating    *int
+		initCount int
+		initSum   int
+	}{
+		{"rated", intPtr(5), 1, 5},
+		{"unrated", nil, 0, 0},
+	} {
+		t.Run(tc.name, func(t *testing.T) {
+			setupManageTest(t)
+			conn := dbconnect.Connect()
+			c := course.Entity{PrimaryCode: "CS101", Name: "数据结构", Status: course.StatusVisible}
+			if err := conn.Create(&c).Error; err != nil {
+				t.Fatalf("create course: %v", err)
+			}
+			term := course.TermEntity{Code: "2025-2026-1", Name: "t", Status: 0}
+			if err := conn.Create(&term).Error; err != nil {
+				t.Fatalf("create term: %v", err)
+			}
+			offering := course.OfferingEntity{CourseId: c.Id, TermId: term.Id, Status: course.OfferingStatusVisible}
+			if err := conn.Create(&offering).Error; err != nil {
+				t.Fatalf("create offering: %v", err)
+			}
+			review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: tc.rating, Content: "内容", Status: course.ReviewStatusVisible}
+			if err := conn.Create(&review).Error; err != nil {
+				t.Fatalf("create review: %v", err)
+			}
+			if err := course.UpsertCourseStatsTx(conn, c.Id, tc.initCount, tc.initSum, 1); err != nil {
+				t.Fatalf("upsert course stats: %v", err)
+			}
+			if err := course.UpsertOfferingStatsTx(conn, offering.Id, tc.initCount, tc.initSum, 1); err != nil {
+				t.Fatalf("upsert offering stats: %v", err)
+			}
+
+			if err := AdminDeleteReview(review.Id); err != nil {
+				t.Fatalf("delete review: %v", err)
+			}
+			stats, err := course.GetCourseStats(c.Id)
+			if err != nil {
+				t.Fatalf("get course stats: %v", err)
+			}
+			if stats.RatingCount != 0 || stats.RatingSum != 0 || stats.ReviewCount != 0 {
+				t.Fatalf("expected course stats zeroed, got count=%d sum=%d reviews=%d",
+					stats.RatingCount, stats.RatingSum, stats.ReviewCount)
+			}
+			offeringStats, err := course.GetOfferingStats(offering.Id)
+			if err != nil {
+				t.Fatalf("get offering stats: %v", err)
+			}
+			if offeringStats.RatingCount != 0 || offeringStats.RatingSum != 0 || offeringStats.ReviewCount != 0 {
+				t.Fatalf("expected offering stats zeroed, got count=%d sum=%d reviews=%d",
+					offeringStats.RatingCount, offeringStats.RatingSum, offeringStats.ReviewCount)
+			}
+			var remaining int64
+			if err := conn.Unscoped().Table("course_review").Where("id = ?", review.Id).Count(&remaining).Error; err != nil {
+				t.Fatalf("count reviews: %v", err)
+			}
+			if remaining != 0 {
+				t.Fatalf("review not physically deleted")
+			}
+		})
+	}
+}
+
 // TestEnqueueCourseStatsRebuildTaskDedup 统计重建任务入队去重。
 func TestEnqueueCourseStatsRebuildTaskDedup(t *testing.T) {
 	setupManageTest(t)
