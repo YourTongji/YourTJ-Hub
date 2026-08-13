@@ -21,12 +21,22 @@ func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }
 
+// CreateTx 事务内创建话题。
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Create(entity).Error
+}
+
 func Delete(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
 }
 
 func Save(entity *Entity) error {
 	return builder().Save(entity).Error
+}
+
+// SaveTx 事务内保存话题（含首帖/末帖指针字段回写）。
+func SaveTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Save(entity).Error
 }
 
 func SaveNoUpdate(entity *Entity) error {
