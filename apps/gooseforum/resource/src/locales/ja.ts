@@ -104,6 +104,7 @@ export default {
       drafts: '下書き',
       moderation: 'モデレーション',
       courseReviews: 'コース評価',
+      courseManage: 'コース管理',
       links: '相互リンク',
       sponsors: 'スポンサー',
     },

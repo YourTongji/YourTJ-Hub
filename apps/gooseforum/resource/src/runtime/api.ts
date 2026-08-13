@@ -1411,3 +1411,141 @@ export async function revealCourseReviewAuthor(reviewId: number, reason: string)
   })
   return readApiResponse<CourseReviewAuthorRevealPayload>(response, t('api.moderationCourseReviewRevealFailed'))
 }
+
+// ---- 课评管理（课程/评价 CRUD + 统计重建，CourseManager） ----
+
+export interface AdminCourseItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  status: number
+  aliases: string[]
+  instructors: string[]
+  reviewCount: number
+  ratingAvg?: number
+  createdAt: string
+}
+
+export interface AdminCourseListResult {
+  list: AdminCourseItem[]
+  page: number
+  size: number
+  total: number
+  hasNext: boolean
+}
+
+export interface AdminCourseCreateInput {
+  primaryCode: string
+  name: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminCourseUpdateInput {
+  primaryCode?: string
+  name?: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminReviewItem {
+  id: number
+  offeringId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  rating: number | null
+  content: string
+  status: number
+  author: ReviewAuthorPayload
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminReviewListResult {
+  items: AdminReviewItem[]
+  nextCursor: number
+  hasNext: boolean
+}
+
+export interface AdminReviewUpdateInput {
+  rating?: number | null
+  content?: string
+}
+
+export async function fetchAdminCourses(keyword = '', department = '', page = 1, pageSize = 20): Promise<AdminCourseListResult> {
+  const response = await fetch('/api/forum/moderation/course-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, department, page, pageSize }),
+  })
+  return readApiResponse<AdminCourseListResult>(response, t('api.adminCourseListFailed'))
+}
+
+export async function createAdminCourse(input: AdminCourseCreateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseCreateFailed'))
+}
+
+export async function updateAdminCourse(courseId: number, input: AdminCourseUpdateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, ...input }),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseUpdateFailed'))
+}
+
+export async function deleteAdminCourse(courseId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseDeleteFailed'))
+}
+
+export async function fetchAdminReviews(keyword = '', status = -1, cursor = 0, pageSize = 20): Promise<AdminReviewListResult> {
+  const response = await fetch('/api/forum/moderation/course-review-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, status, cursor, pageSize }),
+  })
+  return readApiResponse<AdminReviewListResult>(response, t('api.adminReviewListFailed'))
+}
+
+export async function updateAdminReview(reviewId: number, input: AdminReviewUpdateInput): Promise<ReviewPayload> {
+  const response = await fetch('/api/forum/moderation/course-review-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId, ...input }),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.adminReviewUpdateFailed'))
+}
+
+export async function deleteAdminReview(reviewId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-review-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminReviewDeleteFailed'))
+}
+
+export async function rebuildCourseStats(): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-stats-rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseStatsRebuildFailed'))
+}

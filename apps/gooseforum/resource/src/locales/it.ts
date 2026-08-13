@@ -104,6 +104,7 @@ export default {
       drafts: 'Bozze',
       moderation: 'Moderazione',
       courseReviews: 'Recensioni corsi',
+      courseManage: 'Gestione corsi',
       links: 'Link amici',
       sponsors: 'Sponsor',
     },
