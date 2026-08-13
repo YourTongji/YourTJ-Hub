@@ -3057,6 +3057,8 @@ export interface operations {
              */
             429: {
                 headers: {
+                    /** @description Seconds until the rate-limit window resets. Integer seconds as specified by RFC 9110. */
+                    "Retry-After"?: number;
                     [name: string]: unknown;
                 };
                 content: {

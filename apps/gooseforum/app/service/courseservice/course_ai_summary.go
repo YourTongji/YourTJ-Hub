@@ -124,12 +124,16 @@ const aiSummarySystemPrompt = `你是「选课评课 AI 助手」。你的任务
 4. 选择代表性评价：优先有具体案例/细节的，不要只说"好/不好"。5. 按评分分布选择 consensus。
 6. 只输出符合约束的 JSON。`
 
-// buildAiSummaryPrompt 构造用户 prompt（编号评价列表 + 课程信息）。
+// buildAiSummaryPrompt 构造用户 prompt（编号评价列表 + 课程信息；无评分的 legacy 评价标注「无评分」）。
 func buildAiSummaryPrompt(courseName, courseCode string, reviews []reviewInput) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "课程名称：%s\n课程代码：%s\n评价数量：%d 条\n\n各条评价（评分 1-5）：\n", courseName, courseCode, len(reviews))
+	fmt.Fprintf(&b, "课程名称：%s\n课程代码：%s\n评价数量：%d 条\n\n各条评价（评分 1-5，无评分标注「无评分」）：\n", courseName, courseCode, len(reviews))
 	for i, r := range reviews {
-		fmt.Fprintf(&b, "%d. 评分%d：%s\n", i+1, r.Rating, r.Content)
+		if r.Rating > 0 {
+			fmt.Fprintf(&b, "%d. 评分%d：%s\n", i+1, r.Rating, r.Content)
+		} else {
+			fmt.Fprintf(&b, "%d. （无评分）%s\n", i+1, r.Content)
+		}
 	}
 	return b.String()
 }
@@ -149,7 +153,7 @@ var (
 )
 
 // GetAiSummary 课程 AI 总结主流程（状态机见设计文档）：
-// 课程可见 → 开关 → DB 缓存（!refresh）→ 全局/单课限流 → 取评价 → LLM → sanitize → 落库。
+// 课程可见 → 开关 → DB 缓存（!refresh）→ 单课/全局限流 → 取评价 → LLM → sanitize → 落库。
 func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 	// 1. 课程存在且可见。
 	entity := course.GetCourse(courseId)
@@ -180,33 +184,33 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		}
 	}
 
-	// 4. 全局生成上限（成本护栏，先于单课限流）；配额可经 aiSummarySettings.globalPerMinute 热调。
+	// 4. 限流（先于 LLM 调用消耗，成本护栏）：
+	//    先查单课 10 分钟窗口是否已满（Count 不计数）——被单课拒绝的请求
+	//    不消耗全局每分钟配额（review P1：避免个别课的 refresh 刷爆全局生成池）；
+	//    再消耗全局配额（Allow 计数），最后记录单课生成（Allow 计数）。
 	store := ratelimit.Default()
+	courseKey := aiSummaryCourseKeyPrefix + fmt.Sprint(courseId)
+	if store.Count(courseKey) >= aiSummaryCourseLimit {
+		// 单课窗口已满：回退 DB 缓存（上游语义）；无缓存则 429，不消耗全局配额。
+		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
+			if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
+				return AiSummaryResult{
+					Status:      AiSummaryStatusCached,
+					Summary:     &payload,
+					GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
+					Model:       cached.Model,
+				}, nil
+			}
+		}
+		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: aiSummaryCourseWindow}
+	}
+
 	globalLimit := aiCfg.GlobalPerMinute
 	if globalLimit <= 0 {
 		globalLimit = aiSummaryGlobalLimit
 	}
 	if ok, retryAfter, _ := store.Allow(aiSummaryGlobalKey, globalLimit, aiSummaryGlobalWindow); !ok {
 		// 全局配额满：有缓存则回退缓存，无缓存返回错误（控制器映射 429）。
-		if !refresh {
-			if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
-				if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
-					return AiSummaryResult{
-						Status:      AiSummaryStatusCached,
-						Summary:     &payload,
-						GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
-						Model:       cached.Model,
-					}, nil
-				}
-			}
-		}
-		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: retryAfter}
-	}
-
-	// 5. 单课 10 分钟限流（仅生成动作）。
-	ok, retryAfter, _ := store.Allow(aiSummaryCourseKeyPrefix+fmt.Sprint(courseId), aiSummaryCourseLimit, aiSummaryCourseWindow)
-	if !ok {
-		// 限流回退 DB 缓存（上游语义）；无缓存则 429。
 		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
 			if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
 				return AiSummaryResult{
@@ -220,7 +224,23 @@ func GetAiSummary(courseId uint64, refresh bool) (AiSummaryResult, error) {
 		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: retryAfter}
 	}
 
-	// 6. 取最新 N 条可见有效评价（仅 visible + 有正文）。
+	// 记录单课生成（10 分钟 1 次）。Count 与 Allow 之间的并发窗口内可能被
+	// 其它请求抢先消耗单课名额，此时 Allow 拒绝——回退缓存或 429
+	// （全局配额已在上面消耗，属罕见的可接受竞争）。
+	if ok, retryAfter, _ := store.Allow(courseKey, aiSummaryCourseLimit, aiSummaryCourseWindow); !ok {
+		if cached := course.GetCourseAiSummary(courseId); cached.CourseId > 0 && cached.SummaryJson != "" {
+			if payload, err := decodeAiSummaryPayload(cached.SummaryJson); err == nil {
+				return AiSummaryResult{
+					Status:      AiSummaryStatusCached,
+					Summary:     &payload,
+					GeneratedAt: cached.GeneratedAt.Format(time.RFC3339),
+					Model:       cached.Model,
+				}, nil
+			}
+		}
+		return AiSummaryResult{}, &AiSummaryRateLimitError{RetryAfter: retryAfter}
+	}
+	// 5. 取最新 N 条可见有效评价（仅 visible + 有正文，分页续取凑满）。
 	reviews, err := listRecentVisibleReviews(courseId)
 	if err != nil {
 		return AiSummaryResult{}, err
@@ -283,32 +303,48 @@ func (e *AiSummaryRateLimitError) Error() string {
 }
 
 // listRecentVisibleReviews 返回课程下最新 N 条可见有效评价（仅评分与正文）。
-// 复用 ListReviewsPage 的可见性口径：仅可见 offering + 可见评价 + 未软删。
+// 复用 ListReviewsPage 的可见性口径：仅可见 offering + 可见评价 + 未软删；
+// 分页续取直到收满 AiSummaryMaxReviews 条有正文的评价（review P2：空正文
+// 不能占掉有效配额，避免"最新 30 行含空正文 → 误判 insufficient_data"）。
 func listRecentVisibleReviews(courseId uint64) ([]reviewInput, error) {
-	entities, err := course.ListReviewsPage(course.ReviewPageQuery{
-		CourseId: courseId,
-		Limit:    AiSummaryMaxReviews,
-	})
-	if err != nil {
-		return nil, err
-	}
-	reviews := make([]reviewInput, 0, len(entities))
-	for _, e := range entities {
-		content := strings.TrimSpace(e.Content)
-		if content == "" {
-			continue
-		}
-		rating := 0
-		if e.Rating != nil {
-			rating = *e.Rating
-		}
-		if rating < 1 || rating > 5 {
-			rating = 0
-		}
-		reviews = append(reviews, reviewInput{
-			Rating:  rating,
-			Content: truncateRunes(content, AiSummaryReviewMaxRune),
+	reviews := make([]reviewInput, 0, AiSummaryMaxReviews)
+	var cursorOfferingId, cursorReviewId uint64
+	for len(reviews) < AiSummaryMaxReviews {
+		entities, err := course.ListReviewsPage(course.ReviewPageQuery{
+			CourseId:         courseId,
+			CursorOfferingId: cursorOfferingId,
+			CursorReviewId:   cursorReviewId,
+			Limit:            AiSummaryMaxReviews,
 		})
+		if err != nil {
+			return nil, err
+		}
+		if len(entities) == 0 {
+			break
+		}
+		for _, e := range entities {
+			content := strings.TrimSpace(e.Content)
+			if content == "" {
+				continue
+			}
+			rating := 0
+			if e.Rating != nil {
+				rating = *e.Rating
+			}
+			if rating < 1 || rating > 5 {
+				rating = 0
+			}
+			reviews = append(reviews, reviewInput{
+				Rating:  rating,
+				Content: truncateRunes(content, AiSummaryReviewMaxRune),
+			})
+			if len(reviews) >= AiSummaryMaxReviews {
+				break
+			}
+		}
+		last := entities[len(entities)-1]
+		cursorOfferingId = last.OfferingId
+		cursorReviewId = last.Id
 	}
 	return reviews, nil
 }
@@ -350,7 +386,7 @@ func sanitizeAiSummaryPayload(raw string, reviews []reviewInput) (AiSummaryPaylo
 		Keywords:              sanitizeStrings(parsed.Keywords, 5),
 		Pros:                  sanitizeStrings(parsed.Pros, 4),
 		Cons:                  sanitizeStrings(parsed.Cons, 4),
-		RepresentativeReviews: sanitizeRepresentative(parsed.RepresentativeReviews),
+		RepresentativeReviews: sanitizeRepresentative(parsed.RepresentativeReviews, reviews),
 	}
 	if payload.Consensus == "" {
 		payload.Consensus = consensusFromRatings(reviews)
@@ -368,15 +404,21 @@ func consensusFromString(s string) AiSummaryConsensus {
 }
 
 // consensusFromRatings 按评分分布映射五档（sanitize 兜底，验收 1 schema 合规）。
+// 无评分（Rating<=0）的 legacy 评价不参与均分计算（review P2），
+// 全部无评分时返回中性。
 func consensusFromRatings(reviews []reviewInput) AiSummaryConsensus {
-	if len(reviews) == 0 {
+	var sum, count int
+	for _, r := range reviews {
+		if r.Rating < 1 || r.Rating > 5 {
+			continue
+		}
+		sum += r.Rating
+		count++
+	}
+	if count == 0 {
 		return ConsensusNeutral
 	}
-	var sum int
-	for _, r := range reviews {
-		sum += r.Rating
-	}
-	avg := float64(sum) / float64(len(reviews))
+	avg := float64(sum) / float64(count)
 	switch {
 	case avg >= 4.5:
 		return ConsensusStrongRecommend
@@ -407,12 +449,17 @@ func sanitizeStrings(items []string, max int) []string {
 	return out
 }
 
-// sanitizeRepresentative 归一化代表性评价（sentiment 白名单，excerpt 截断）。
-func sanitizeRepresentative(items []AiSummaryRepresentativeReview) []AiSummaryRepresentativeReview {
+// sanitizeRepresentative 归一化代表性评价（sentiment 白名单，excerpt 截断；
+// 且必须能在输入评价中匹配到原文摘录——review P2：防止模型幻觉/注入伪造
+// "学生原话"）。过短摘录（<4 字）不做强校验，避免误杀合法摘要。
+func sanitizeRepresentative(items []AiSummaryRepresentativeReview, reviews []reviewInput) []AiSummaryRepresentativeReview {
 	out := make([]AiSummaryRepresentativeReview, 0, len(items))
 	for _, r := range items {
 		r.Excerpt = strings.TrimSpace(r.Excerpt)
 		if r.Excerpt == "" {
+			continue
+		}
+		if !excerptMatchesInput(r.Excerpt, reviews) {
 			continue
 		}
 		switch r.Sentiment {
@@ -427,4 +474,24 @@ func sanitizeRepresentative(items []AiSummaryRepresentativeReview) []AiSummaryRe
 		}
 	}
 	return out
+}
+
+// excerptMatchesInput 判断摘录是否为某条输入评价的子串（去除首尾引号与
+// 省略号等语气符号后）。无评分评价的正文同样参与匹配。
+func excerptMatchesInput(excerpt string, reviews []reviewInput) bool {
+	needle := strings.TrimSpace(excerpt)
+	needle = strings.Trim(needle, `「」『』“”"…`)
+	needle = strings.TrimRight(needle, "。！？!?. ")
+	if needle == "" {
+		return false
+	}
+	if len([]rune(needle)) < 4 {
+		return true // 过短，无法可靠判定，放行
+	}
+	for _, r := range reviews {
+		if strings.Contains(r.Content, needle) {
+			return true
+		}
+	}
+	return false
 }

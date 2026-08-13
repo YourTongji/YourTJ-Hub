@@ -733,4 +733,12 @@ export default {
   "k00mo": "When enabled, create_topic / create_post tools are available (subject to topic.write / post.create rate limits); off by default, so AI can only read.",
   "k00ms": "Migrated {processed} / {total}",
   "k00mt": "Failed: {failed}",
+  "k00n0": "AI Course Summary",
+  "k00n1": "Manage the AI course summary generation switch and global rate limit.",
+  "k00n2": "Failed to load AI course summary settings",
+  "k00n3": "Failed to save AI course summary settings",
+  "k00n4": "Enable AI course summary",
+  "k00n5": "When enabled, course detail pages can request AI-generated summaries; when disabled, the endpoint returns status=disabled.",
+  "k00n6": "Global summaries per minute",
+  "k00n7": "Maximum summaries generated per minute across all courses; 0 uses the default of 5.",
 } as const

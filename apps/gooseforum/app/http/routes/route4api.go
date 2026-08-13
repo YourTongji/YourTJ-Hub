@@ -197,9 +197,10 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
-	// 课程 AI 总结（B7, issue #181）：公开只读；独立限流 action course.summary，
-	// 生成动作另有 service 内全局/单课限流（成本护栏）。
-	forumApi.GET("courses/:courseId/summary", middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
+	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
+	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
+	// 未登录调用者仍可读（JWTAuth 可选）。
+	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)

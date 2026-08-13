@@ -33,6 +33,14 @@ func UpsertCourseAiSummary(entity *CourseAiSummaryEntity) error {
 		Create(entity).Error
 }
 
+// DeleteCourseAiSummaryTx 事务内删除课程 AI 总结缓存（评价变更时随事务失效，
+// 保证 summary 不会引用已删除/隐藏/修改的评价内容）。
+func DeleteCourseAiSummaryTx(tx *gorm.DB, courseId uint64) error {
+	return tx.Table("course_ai_summary").
+		Where(queryopt.Eq("course_id", courseId)).
+		Delete(&CourseAiSummaryEntity{}).Error
+}
+
 // DeleteCourseAiSummary 删除课程 AI 总结缓存（评价被清理/课程删除时失效）。
 func DeleteCourseAiSummary(courseId uint64) error {
 	return dbconnect.Connect().Table("course_ai_summary").

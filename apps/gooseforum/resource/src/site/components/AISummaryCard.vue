@@ -24,17 +24,28 @@ const state = ref<CardState>({ kind: 'idle' })
 const lastStatus = ref<CourseSummaryStatus | null>(null)
 let debounceTimer: ReturnType<typeof setTimeout> | undefined
 
-// 展开/收起触发防抖加载：快速点击不重复请求；已生成（cached/generated）
-// 不重复请求（仅 refresh 按钮强制重取）。
+// 展开/收起触发防抖加载：快速点击不重复请求；已生成（cached/generated）与
+// disabled 视为终态不重复请求（仅 refresh 按钮强制重取）。
 watch(expanded, (open) => {
-  if (!open) return
-  if (lastStatus.value === 'cached' || lastStatus.value === 'generated') return
+  if (!open) {
+    // 折叠时取消挂起的防抖请求，避免卡片已关闭仍触发生成/消耗限流。
+    clearTimeout(debounceTimer)
+    debounceTimer = undefined
+    return
+  }
+  if (
+    lastStatus.value === 'cached' ||
+    lastStatus.value === 'generated' ||
+    lastStatus.value === 'disabled'
+  )
+    return
   clearTimeout(debounceTimer)
   debounceTimer = setTimeout(load, 500)
 })
 
 async function load(refresh = false) {
   clearTimeout(debounceTimer)
+  debounceTimer = undefined
   if (state.value.kind === 'loading') return
   state.value = { kind: 'loading' }
   let result: CourseSummaryResult
@@ -126,7 +137,8 @@ function sentimentBadgeClass(sentiment: string): string {
 </script>
 
 <template>
-  <section class="gf-panel">
+  <!-- 功能未启用时不渲染整个卡片（避免空 accordion 与重复请求） -->
+  <section v-if="state.kind !== 'disabled'" class="gf-panel">
     <button
       type="button"
       class="flex w-full items-center justify-between gap-2 px-4 py-3 text-left"
@@ -230,9 +242,6 @@ function sentimentBadgeClass(sentiment: string): string {
         <Sparkles class="h-4 w-4 text-base-content/35" />
         {{ t('courseSummary.insufficientData') }}
       </div>
-
-      <!-- 功能未启用 -->
-      <div v-else-if="state.kind === 'disabled'" class="hidden" />
 
       <!-- 429 限流 -->
       <div v-else-if="state.kind === 'rateLimited'" class="flex items-center gap-2 text-sm text-base-content/55">

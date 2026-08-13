@@ -266,6 +266,13 @@ getCourseSummary:
           Generation rate limit hit (global per-minute or per-course 10-minute window).
           The `Retry-After` header carries the seconds until the window resets; the body
           params carry the same value as `retryAfterSeconds` for clients that cannot read headers.
+        headers:
+          Retry-After:
+            description: Seconds until the rate-limit window resets. Integer seconds as specified by RFC 9110.
+            schema:
+              type: integer
+              format: int32
+              minimum: 1
         content:
           application/json:
             schema:
