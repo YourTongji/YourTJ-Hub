@@ -30,6 +30,9 @@ docker compose up -d
 - 存储：SQLite（默认）或 MySQL（生产推荐，避免 LeanCloud 停服风险）。
 - 登录：`OAUTH_URL` 指向 OAuth Center（walinejs/auth），OAuth Center 再
   对接 YourTJ-Hub OIDC provider。
+- `SECURE_DOMAINS` 必须包含 Waline 服务自身域名（如 `comment.example.com`），
+  否则 `/ui` 管理后台的 oidc 登录按钮 403（Referer 白名单校验）；
+  `/ui/login` 的邮箱/密码表单仅供 Waline 本地账号使用，Hub 账号走 oidc 按钮。
 
 ## 相关文档
 
