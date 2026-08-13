@@ -402,6 +402,8 @@ mixin _$ReviewPayload {
   int get helpfulCount => throw _privateConstructorUsedError;
   String get createdAt => throw _privateConstructorUsedError;
   String get updatedAt => throw _privateConstructorUsedError;
+  double? get offeringRatingAvg => throw _privateConstructorUsedError;
+  int? get offeringReviewCount => throw _privateConstructorUsedError;
 
   /// Serializes this ReviewPayload to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -431,6 +433,8 @@ abstract class $ReviewPayloadCopyWith<$Res> {
     int helpfulCount,
     String createdAt,
     String updatedAt,
+    double? offeringRatingAvg,
+    int? offeringReviewCount,
   });
 
   $ReviewAuthorPayloadCopyWith<$Res> get author;
@@ -462,6 +466,8 @@ class _$ReviewPayloadCopyWithImpl<$Res, $Val extends ReviewPayload>
     Object? helpfulCount = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? offeringRatingAvg = freezed,
+    Object? offeringReviewCount = freezed,
   }) {
     return _then(
       _value.copyWith(
@@ -505,6 +511,14 @@ class _$ReviewPayloadCopyWithImpl<$Res, $Val extends ReviewPayload>
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
                       as String,
+            offeringRatingAvg: freezed == offeringRatingAvg
+                ? _value.offeringRatingAvg
+                : offeringRatingAvg // ignore: cast_nullable_to_non_nullable
+                      as double?,
+            offeringReviewCount: freezed == offeringReviewCount
+                ? _value.offeringReviewCount
+                : offeringReviewCount // ignore: cast_nullable_to_non_nullable
+                      as int?,
           )
           as $Val,
     );
@@ -551,6 +565,8 @@ abstract class _$$ReviewPayloadImplCopyWith<$Res>
     int helpfulCount,
     String createdAt,
     String updatedAt,
+    double? offeringRatingAvg,
+    int? offeringReviewCount,
   });
 
   @override
@@ -583,6 +599,8 @@ class __$$ReviewPayloadImplCopyWithImpl<$Res>
     Object? helpfulCount = null,
     Object? createdAt = null,
     Object? updatedAt = null,
+    Object? offeringRatingAvg = freezed,
+    Object? offeringReviewCount = freezed,
   }) {
     return _then(
       _$ReviewPayloadImpl(
@@ -626,6 +644,14 @@ class __$$ReviewPayloadImplCopyWithImpl<$Res>
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
                   as String,
+        offeringRatingAvg: freezed == offeringRatingAvg
+            ? _value.offeringRatingAvg
+            : offeringRatingAvg // ignore: cast_nullable_to_non_nullable
+                  as double?,
+        offeringReviewCount: freezed == offeringReviewCount
+            ? _value.offeringReviewCount
+            : offeringReviewCount // ignore: cast_nullable_to_non_nullable
+                  as int?,
       ),
     );
   }
@@ -645,6 +671,8 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
     required this.helpfulCount,
     required this.createdAt,
     required this.updatedAt,
+    this.offeringRatingAvg,
+    this.offeringReviewCount,
   });
 
   factory _$ReviewPayloadImpl.fromJson(Map<String, dynamic> json) =>
@@ -670,10 +698,14 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
   final String createdAt;
   @override
   final String updatedAt;
+  @override
+  final double? offeringRatingAvg;
+  @override
+  final int? offeringReviewCount;
 
   @override
   String toString() {
-    return 'ReviewPayload(id: $id, offeringId: $offeringId, rating: $rating, content: $content, contentHtml: $contentHtml, author: $author, viewer: $viewer, helpfulCount: $helpfulCount, createdAt: $createdAt, updatedAt: $updatedAt)';
+    return 'ReviewPayload(id: $id, offeringId: $offeringId, rating: $rating, content: $content, contentHtml: $contentHtml, author: $author, viewer: $viewer, helpfulCount: $helpfulCount, createdAt: $createdAt, updatedAt: $updatedAt, offeringRatingAvg: $offeringRatingAvg, offeringReviewCount: $offeringReviewCount)';
   }
 
   @override
@@ -695,7 +727,11 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
             (identical(other.createdAt, createdAt) ||
                 other.createdAt == createdAt) &&
             (identical(other.updatedAt, updatedAt) ||
-                other.updatedAt == updatedAt));
+                other.updatedAt == updatedAt) &&
+            (identical(other.offeringRatingAvg, offeringRatingAvg) ||
+                other.offeringRatingAvg == offeringRatingAvg) &&
+            (identical(other.offeringReviewCount, offeringReviewCount) ||
+                other.offeringReviewCount == offeringReviewCount));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -712,6 +748,8 @@ class _$ReviewPayloadImpl implements _ReviewPayload {
     helpfulCount,
     createdAt,
     updatedAt,
+    offeringRatingAvg,
+    offeringReviewCount,
   );
 
   /// Create a copy of ReviewPayload
@@ -740,6 +778,8 @@ abstract class _ReviewPayload implements ReviewPayload {
     required final int helpfulCount,
     required final String createdAt,
     required final String updatedAt,
+    final double? offeringRatingAvg,
+    final int? offeringReviewCount,
   }) = _$ReviewPayloadImpl;
 
   factory _ReviewPayload.fromJson(Map<String, dynamic> json) =
@@ -765,12 +805,226 @@ abstract class _ReviewPayload implements ReviewPayload {
   String get createdAt;
   @override
   String get updatedAt;
+  @override
+  double? get offeringRatingAvg;
+  @override
+  int? get offeringReviewCount;
 
   /// Create a copy of ReviewPayload
   /// with the given fields replaced by the non-null parameter values.
   @override
   @JsonKey(includeFromJson: false, includeToJson: false)
   _$$ReviewPayloadImplCopyWith<_$ReviewPayloadImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+ReviewListResult _$ReviewListResultFromJson(Map<String, dynamic> json) {
+  return _ReviewListResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$ReviewListResult {
+  List<ReviewPayload> get list => throw _privateConstructorUsedError;
+  String? get nextCursor => throw _privateConstructorUsedError;
+  int get total => throw _privateConstructorUsedError;
+
+  /// Serializes this ReviewListResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of ReviewListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $ReviewListResultCopyWith<ReviewListResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $ReviewListResultCopyWith<$Res> {
+  factory $ReviewListResultCopyWith(
+    ReviewListResult value,
+    $Res Function(ReviewListResult) then,
+  ) = _$ReviewListResultCopyWithImpl<$Res, ReviewListResult>;
+  @useResult
+  $Res call({List<ReviewPayload> list, String? nextCursor, int total});
+}
+
+/// @nodoc
+class _$ReviewListResultCopyWithImpl<$Res, $Val extends ReviewListResult>
+    implements $ReviewListResultCopyWith<$Res> {
+  _$ReviewListResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of ReviewListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? list = null,
+    Object? nextCursor = freezed,
+    Object? total = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            list: null == list
+                ? _value.list
+                : list // ignore: cast_nullable_to_non_nullable
+                      as List<ReviewPayload>,
+            nextCursor: freezed == nextCursor
+                ? _value.nextCursor
+                : nextCursor // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            total: null == total
+                ? _value.total
+                : total // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$ReviewListResultImplCopyWith<$Res>
+    implements $ReviewListResultCopyWith<$Res> {
+  factory _$$ReviewListResultImplCopyWith(
+    _$ReviewListResultImpl value,
+    $Res Function(_$ReviewListResultImpl) then,
+  ) = __$$ReviewListResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({List<ReviewPayload> list, String? nextCursor, int total});
+}
+
+/// @nodoc
+class __$$ReviewListResultImplCopyWithImpl<$Res>
+    extends _$ReviewListResultCopyWithImpl<$Res, _$ReviewListResultImpl>
+    implements _$$ReviewListResultImplCopyWith<$Res> {
+  __$$ReviewListResultImplCopyWithImpl(
+    _$ReviewListResultImpl _value,
+    $Res Function(_$ReviewListResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of ReviewListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? list = null,
+    Object? nextCursor = freezed,
+    Object? total = null,
+  }) {
+    return _then(
+      _$ReviewListResultImpl(
+        list: null == list
+            ? _value._list
+            : list // ignore: cast_nullable_to_non_nullable
+                  as List<ReviewPayload>,
+        nextCursor: freezed == nextCursor
+            ? _value.nextCursor
+            : nextCursor // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        total: null == total
+            ? _value.total
+            : total // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$ReviewListResultImpl implements _ReviewListResult {
+  const _$ReviewListResultImpl({
+    required final List<ReviewPayload> list,
+    this.nextCursor,
+    required this.total,
+  }) : _list = list;
+
+  factory _$ReviewListResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$ReviewListResultImplFromJson(json);
+
+  final List<ReviewPayload> _list;
+  @override
+  List<ReviewPayload> get list {
+    if (_list is EqualUnmodifiableListView) return _list;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_list);
+  }
+
+  @override
+  final String? nextCursor;
+  @override
+  final int total;
+
+  @override
+  String toString() {
+    return 'ReviewListResult(list: $list, nextCursor: $nextCursor, total: $total)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$ReviewListResultImpl &&
+            const DeepCollectionEquality().equals(other._list, _list) &&
+            (identical(other.nextCursor, nextCursor) ||
+                other.nextCursor == nextCursor) &&
+            (identical(other.total, total) || other.total == total));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_list),
+    nextCursor,
+    total,
+  );
+
+  /// Create a copy of ReviewListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$ReviewListResultImplCopyWith<_$ReviewListResultImpl> get copyWith =>
+      __$$ReviewListResultImplCopyWithImpl<_$ReviewListResultImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$ReviewListResultImplToJson(this);
+  }
+}
+
+abstract class _ReviewListResult implements ReviewListResult {
+  const factory _ReviewListResult({
+    required final List<ReviewPayload> list,
+    final String? nextCursor,
+    required final int total,
+  }) = _$ReviewListResultImpl;
+
+  factory _ReviewListResult.fromJson(Map<String, dynamic> json) =
+      _$ReviewListResultImpl.fromJson;
+
+  @override
+  List<ReviewPayload> get list;
+  @override
+  String? get nextCursor;
+  @override
+  int get total;
+
+  /// Create a copy of ReviewListResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$ReviewListResultImplCopyWith<_$ReviewListResultImpl> get copyWith =>
       throw _privateConstructorUsedError;
 }
 

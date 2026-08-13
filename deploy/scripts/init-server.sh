@@ -33,13 +33,22 @@ done
 chmod +x "$ROOT/scripts/"*.sh
 # 4. 生成/补齐 .env:
 #    - 不存在时整文件生成
-#    - 已存在(存量服务器)时逐条追加缺失的变量, 保证已有部署
+#    - 已存在(存量服务器)时逐条追加缺失的 POSTGRES_* 变量, 保证已有部署
+#      POSTGRES_PASSWORD 由 init 生成随机值(compose 要求非空; 部署默认 PG 主库)
+PG_PASS="$(openssl rand -hex 16)"
 if [ ! -f "$ROOT/.env" ]; then
   cat > "$ROOT/.env" <<EOF
 MAIN_PORT=5234
 DEV_PORT=5235
 MAIN_TAG=latest
 DEV_TAG=latest
+MAIN_PORT=5234
+DEV_PORT=5235
+MAIN_TAG=latest
+DEV_TAG=latest
+POSTGRES_USER=yourtj
+POSTGRES_PASSWORD=$PG_PASS
+POSTGRES_DB=postgres
 EOF
   echo "init: $ROOT/.env created"
 else
@@ -54,21 +63,52 @@ else
   append_if_missing DEV_PORT 5235
   append_if_missing MAIN_TAG latest
   append_if_missing DEV_TAG latest
+  append_if_missing POSTGRES_USER yourtj
+  if grep -q "^POSTGRES_PASSWORD=" "$ROOT/.env" && [ -z "$(grep '^POSTGRES_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)" ]; then
+    sed -i.bak -E "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" "$ROOT/.env" && rm -f "$ROOT/.env.bak"
+    echo "init: $ROOT/.env POSTGRES_PASSWORD 已生成随机值"
+  else
+    append_if_missing POSTGRES_PASSWORD "$PG_PASS"
+  fi
+  append_if_missing POSTGRES_DB postgres
 fi
 
 
-# 5. 生成 config.toml(随机 signingKey, 域名参数化)
+# 5. 生成 config.toml(随机 signingKey, 域名参数化, PG DSN)
 GEN_KEY="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)"
+PG_USER="$(grep '^POSTGRES_USER=' "$ROOT/.env" | cut -d= -f2-)"
+PG_PASS="$(grep '^POSTGRES_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)"
 for inst in main dev; do
   if [ ! -f "$ROOT/$inst/config.toml" ]; then
     domain="$MAIN_DOMAIN"
     [ "$inst" = "dev" ] && domain="$DEV_DOMAIN"
+    pg_dsn="host=postgres user=$PG_USER password=$PG_PASS dbname=yourtj_$inst port=5432 sslmode=disable"
     sed -e "s|REPLACE_SIGNING_KEY|$GEN_KEY|" \
         -e "s|REPLACE_SERVER_URL|$domain|" \
+        -e "s|REPLACE_POSTGRES_DSN|$pg_dsn|" \
       "$ROOT/config.toml.example" > "$ROOT/$inst/config.toml"
-    echo "init: $ROOT/$inst/config.toml created (domain: $domain)"
+    echo "init: $ROOT/$inst/config.toml created (domain: $domain, db: yourtj_$inst)"
   fi
 done
+
+# 5.5 启动 postgres 容器并创建实例数据库(main/dev 隔离, 幂等; 供部署默认 PG 主库使用)
+PG_USER="$(grep '^POSTGRES_USER=' "$ROOT/.env" | cut -d= -f2-)"
+docker compose --env-file "$ROOT/.env" -f "$ROOT/docker-compose.yaml" up -d postgres
+for _ in $(seq 1 30); do
+  docker exec yourtj-postgres pg_isready -U "$PG_USER" >/dev/null 2>&1 && break
+  sleep 2
+done
+for pgdb in yourtj_main yourtj_dev; do
+  if ! docker exec yourtj-postgres psql -U "$PG_USER" -d postgres -tAc \
+    "SELECT 1 FROM pg_database WHERE datname='$pgdb'" | grep -q 1; then
+    docker exec yourtj-postgres psql -U "$PG_USER" -d postgres -c "CREATE DATABASE $pgdb"
+    echo "init: postgres database $pgdb created"
+  else
+    echo "init: postgres database $pgdb exists"
+  fi
+done
+
+
 
 # 6. 权限: 宿主部署用户 yourtj uid=1000 与容器内 app uid=1000 一致,
 #    整体交给 1000:1000, 保证 CI 可写、容器可写 storage

@@ -558,6 +558,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/{courseId}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the AI-generated summary of a course (B7, issue
+         * @description Public read endpoint. Returns the cached AI summary when available (status `cached`),
+         *     generates and persists a fresh one on first request (status `generated`), or reports
+         *     `insufficient_data` when the course has fewer than 10 visible reviews with content.
+         *     When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
+         *     `?refresh=true` forces regeneration, subject to per-course and global generation rate
+         *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
+         *     affects the course page main flow. The summary schema is provider-independent
+         *     (OpenAI-compatible chat/completions; qwen/OpenRouter/local Ollama are configuration-only).
+         */
+        get: operations["getCourseSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}/reviews": {
         parameters: {
             query?: never;
@@ -951,6 +978,174 @@ export interface paths {
         get: operations["listAdminWikiRevisions"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List courses for management (CourseManager/Admin)
+         * @description CourseManager-scoped course list including hidden courses. Permission failures are a legacy
+         *     HTTP 200 business failure (`permission.denied`).
+         */
+        post: operations["adminCourseList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a course (CourseManager/Admin)
+         * @description CourseManager-scoped write. The primary code must be unique (409 `course.codeConflict`).
+         *     The created course is enqueued for search indexing in the same transaction.
+         */
+        post: operations["adminCourseCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update a course (CourseManager/Admin)
+         * @description CourseManager-scoped partial update. Field presence is the change signal; omitted fields are
+         *     left unchanged. Renaming syncs the search index via a transaction-bound outbox enqueue.
+         */
+        post: operations["adminCourseUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a course and cascade its reviews/offerings/stats (CourseManager/Admin)
+         * @description CourseManager-scoped write. Physically removes the course plus its offerings, instructor
+         *     links, aliases, reviews, helpful marks, and stats projections, and enqueues a search deletion.
+         *     Writes an audit log entry.
+         */
+        post: operations["adminCourseDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List course reviews for management (CourseManager/Admin)
+         * @description CourseManager-scoped review list including hidden and quarantine-deleted reviews, searchable
+         *     by course name/code/review body. Items never expose the reviewed author's identity.
+         */
+        post: operations["adminReviewList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a course review (CourseManager/Admin)
+         * @description CourseManager-scoped write. Rating changes adjust stats projections for visible reviews only.
+         */
+        post: operations["adminReviewUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently delete a course review (CourseManager/Admin)
+         * @description CourseManager-scoped write. Physically removes the review and its helpful marks; visible
+         *     reviews decrement stats projections.
+         */
+        post: operations["adminReviewDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-stats-rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a full course/offering stats rebuild (CourseManager/Admin)
+         * @description CourseManager-scoped write. Enqueues a background task that rebuilds all course/offering
+         *     stats projections from the review fact table (deduplicated against pending tasks).
+         */
+        post: operations["adminCourseStatsRebuild"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1369,6 +1564,13 @@ export interface components {
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -1389,6 +1591,13 @@ export interface components {
             campus?: string;
             faculty?: string;
             instructors?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average for this offering; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews for this offering. */
+            reviewCount?: number;
         };
         CourseDetail: {
             /** Format: uint64 */
@@ -1399,9 +1608,64 @@ export interface components {
             creditX10: number;
             aliases?: string[];
             offerings?: components["schemas"]["OfferingSummary"][];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+            /**
+             * @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+             *     Omitted when the course has no visible reviews.
+             */
+            ratingDistribution?: number[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
+        };
+        /**
+         * @description Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
+         *     HTTP failures and never returned by this API.
+         * @enum {string}
+         */
+        CourseSummaryStatus: "cached" | "generated" | "insufficient_data" | "disabled";
+        /**
+         * @description Five-level sentiment consensus across visible reviews.
+         * @enum {string}
+         */
+        CourseSummaryConsensus: "strong_recommend" | "recommend" | "neutral" | "cautious" | "not_recommend";
+        /**
+         * @description Sentiment label of one representative review excerpt.
+         * @enum {string}
+         */
+        CourseSummarySentiment: "positive" | "neutral" | "negative";
+        CourseSummaryRepresentativeReview: {
+            /** @description Short excerpt from the original review (≤500 chars). */
+            excerpt: string;
+            sentiment: components["schemas"]["CourseSummarySentiment"];
+        };
+        CourseSummaryPayload: {
+            consensus: components["schemas"]["CourseSummaryConsensus"];
+            keywords: string[];
+            pros: string[];
+            cons: string[];
+            representativeReviews: components["schemas"]["CourseSummaryRepresentativeReview"][];
+        };
+        CourseSummaryResult: {
+            status: components["schemas"]["CourseSummaryStatus"];
+            /** @description Present for status `cached` and `generated`; omitted otherwise. */
+            summary?: components["schemas"]["CourseSummaryPayload"];
+            /**
+             * Format: date-time
+             * @description When the summary was generated (RFC 3339).
+             */
+            generatedAt?: string;
+            /** @description The LLM model that produced the summary. */
+            model?: string;
+        };
+        CourseSummaryResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseSummaryResult"];
         };
         /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
         ReviewAuthorPayload: {
@@ -1440,9 +1704,31 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /**
+             * Format: double
+             * @description Non-NULL rating average of the review's offering (PRD §5.1 B1).
+             *     Present only when the listing is scoped to a single offering and the
+             *     offering has at least one rated review.
+             */
+            offeringRatingAvg?: number;
+            /** @description Number of visible reviews of the review's offering (offering-scoped listing only). */
+            offeringReviewCount?: number;
         };
-        /** @description The raw review array; an empty listing is an empty array, never null. */
-        ReviewListResult: components["schemas"]["ReviewPayload"][];
+        ReviewListResult: {
+            /** @description The current page of visible reviews; an empty listing is an empty array, never null. */
+            list: components["schemas"]["ReviewPayload"][];
+            /**
+             * @description Cursor for the next page, present only when more reviews exist.
+             *     Format is "offeringId:reviewId" of the last item of the current page
+             *     (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+             */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Total number of visible reviews matching the current scope (course or offering filter).
+             */
+            total: number;
+        };
         ReviewListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ReviewListResult"];
         }) | components["schemas"]["ApiFailure"];
@@ -1557,6 +1843,119 @@ export interface components {
         ModerationCourseReviewRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseReviewAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        AdminCourseListRequest: {
+            /** @description Matches normalized name, primary code, aliases, pinyin, initials, or instructor names. */
+            keyword?: string;
+            department?: string;
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            pageSize: number;
+        };
+        AdminCourseItem: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral. */
+            creditX10: number;
+            /**
+             * @description 0 visible, 1 hidden.
+             * @enum {integer}
+             */
+            status: 0 | 1;
+            aliases: string[];
+            instructors: string[];
+            reviewCount: number;
+            /** @description Average rating across visible reviews; omitted when no rated reviews. */
+            ratingAvg?: number;
+            createdAt: string;
+        };
+        AdminCourseListResult: {
+            list: components["schemas"]["AdminCourseItem"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        AdminCourseListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseItemResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseCreateRequest: {
+            primaryCode: string;
+            name: string;
+            department?: string;
+            creditX10?: number;
+            aliases?: string[];
+            instructors?: string[];
+        };
+        AdminCourseUpdateRequest: {
+            /** Format: uint64 */
+            courseId: number;
+            primaryCode?: string;
+            name?: string;
+            department?: string;
+            creditX10?: number;
+            aliases?: string[];
+            instructors?: string[];
+        };
+        AdminCourseDeleteRequest: {
+            /** Format: uint64 */
+            courseId: number;
+        };
+        AdminReviewItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            offeringId: number;
+            /** Format: uint64 */
+            courseId: number;
+            courseCode: string;
+            courseName: string;
+            rating?: number;
+            content: string;
+            /**
+             * @description 0 visible, 1 hidden, 2 deleted (quarantine window).
+             * @enum {integer}
+             */
+            status: 0 | 1 | 2;
+            author: components["schemas"]["ReviewAuthorPayload"];
+            createdAt: string;
+            updatedAt: string;
+        };
+        AdminReviewListRequest: {
+            /** @description Matches course name, primary code, or review body. */
+            keyword?: string;
+            /** @description -1 all; 0/1/2 filter by status. Defaults to -1. */
+            status?: number;
+            /** Format: uint64 */
+            cursor?: number;
+            pageSize?: number;
+        };
+        AdminReviewListResult: {
+            items: components["schemas"]["AdminReviewItem"][];
+            /** Format: uint64 */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        AdminReviewListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminReviewListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminReviewUpdateRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+            rating?: number;
+            content?: string;
+        };
+        AdminReviewDeleteRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+        };
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -1934,6 +2333,13 @@ export interface components {
             instructors: string[];
             terms: string[];
             campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         PaginationPayload: {
             page: number;
@@ -2882,6 +3288,9 @@ export interface operations {
                 department?: string;
                 term?: string;
                 campus?: string;
+                instructor?: string;
+                onlyWithReviews?: boolean;
+                sortBy?: string;
                 page?: number;
                 size?: number;
             };
@@ -3018,10 +3427,81 @@ export interface operations {
             };
         };
     };
+    getCourseSummary: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Summary result. `status` is one of `cached` / `generated` / `insufficient_data` /
+             *     `disabled`; `summary` is present for `cached` and `generated`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseSummaryResponse"];
+                };
+            };
+            /** @description Malformed or zero course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /**
+             * @description Generation rate limit hit (global per-minute or per-course 10-minute window).
+             *     The `Retry-After` header carries the seconds until the window resets; the body
+             *     params carry the same value as `retryAfterSeconds` for clients that cannot read headers.
+             */
+            429: {
+                headers: {
+                    /** @description Seconds until the rate-limit window resets. Integer seconds as specified by RFC 9110. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description LLM provider failure, timeout, or unparsable output. Nothing is persisted. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
     listCourseReviews: {
         parameters: {
             query?: {
                 offeringId?: number;
+                cursor?: string;
+                pageSize?: number;
             };
             header?: never;
             path: {
@@ -3685,7 +4165,16 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Revisions of the page ordered by revision number desc. */
+            /**
+             * @description Published revisions of the page ordered by revision number desc. Only approved
+             *     (published) revisions are listed; pending/rejected/superseded revisions carry
+             *     unpublished content and are exposed only to editors and reviewers (Blueprint
+             *     risk item: pending content must not leak to the public). Request-level validation
+             *     failures (missing pageId) and unknown pages are returned as legacy HTTP 200
+             *     envelopes (issue #176 B4 style: the contract documents the actual route behavior):
+             *     `common.request.invalidParams` for a missing pageId, `wiki.page.notFound` for an
+             *     unknown page.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3694,17 +4183,8 @@ export interface operations {
                     "application/json": components["schemas"]["WikiRevisionListResponse"];
                 };
             };
-            /** @description Missing or malformed pageId. */
+            /** @description Malformed query string (strict binding failure). */
             400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Page does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3727,7 +4207,14 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Created page id and canonical path. */
+            /**
+             * @description Created page id and canonical path. Business failures are returned as legacy
+             *     HTTP 200 envelopes with stable message codes (issue #176 B4 style: the contract
+             *     documents the actual route behavior): request-level validation failures
+             *     (`common.request.invalidParams`, including illegal paths), namespace missing or
+             *     the account not being an editor of the namespace (`wiki.namespace.notFound`),
+             *     and a path collision (`wiki.page.pathConflict`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3736,7 +4223,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiCreatePageResponse"];
                 };
             };
-            /** @description Malformed body or illegal path (empty, invalid characters, or parent page missing). */
+            /** @description Malformed JSON request body (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3754,17 +4241,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Namespace does not exist or the account is not an editor of the namespace. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description A page with the same path already exists in the namespace. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3789,7 +4267,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description New pending revision created for the page. */
+            /**
+             * @description New pending revision created for the page. Business failures are returned as
+             *     legacy HTTP 200 envelopes with stable message codes: request-level validation
+             *     failures (`common.request.invalidParams`), the page or its namespace missing or
+             *     the account not being an editor (`wiki.namespace.notFound`, `wiki.page.notFound`),
+             *     and a path collision (`wiki.page.pathConflict`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3798,7 +4282,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiUpdatePageResponse"];
                 };
             };
-            /** @description Malformed body. */
+            /** @description Malformed URI or JSON request body (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3816,17 +4300,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not an editor of the page's namespace. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Page does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3851,7 +4326,13 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Review recorded. */
+            /**
+             * @description Review recorded. Business failures are returned as legacy HTTP 200 envelopes with
+             *     stable message codes: an unknown action (`common.request.invalidParams`), the
+             *     caller lacking PageManager/Admin (`permission.denied`), an unknown revision
+             *     (`wiki.revision.notFound`), and a revision that is no longer pending
+             *     (`wiki.revision.notPending`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3860,7 +4341,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiReviewRevisionResponse"];
                 };
             };
-            /** @description Malformed body or unknown action. */
+            /** @description Malformed URI or JSON request body (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -3878,26 +4359,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Revision does not exist. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Revision is not in pending status. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3920,22 +4383,18 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Namespace created. */
+            /**
+             * @description Namespace created. Business failures are returned as legacy HTTP 200 envelopes:
+             *     malformed bodies degrade to `common.request.invalidParams` (non-strict binding),
+             *     an illegal name is `common.request.invalidParams`, and an existing name is
+             *     `wiki.namespace.nameConflict`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed body or illegal namespace name. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -3947,17 +4406,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description A namespace with the same name already exists. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -3982,7 +4432,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Namespace updated. */
+            /**
+             * @description Namespace updated. Business failures are returned as legacy HTTP 200 envelopes:
+             *     request-level validation failures (`common.request.invalidParams`) and an unknown
+             *     namespace (`wiki.namespace.notFound`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -3991,7 +4445,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiNamespaceActionResponse"];
                 };
             };
-            /** @description Malformed body. */
+            /** @description Malformed URI or JSON request body (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4009,17 +4463,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Namespace does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4040,13 +4485,26 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace deleted. */
+            /**
+             * @description Namespace deleted. Business failures are returned as legacy HTTP 200 envelopes:
+             *     an unknown namespace (`wiki.namespace.notFound`) and a namespace that still
+             *     contains pages (`wiki.namespace.hasPages`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed URI (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -4058,17 +4516,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Namespace does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4089,13 +4538,25 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Editor user summaries of the namespace. */
+            /**
+             * @description Editor user summaries of the namespace. An unknown namespace is returned as a
+             *     legacy HTTP 200 envelope `wiki.namespace.notFound`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["WikiEditorListResponse"];
+                };
+            };
+            /** @description Malformed URI (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -4107,17 +4568,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Namespace does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4142,7 +4594,11 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Editor set replaced. */
+            /**
+             * @description Editor set replaced. Business failures are returned as legacy HTTP 200 envelopes:
+             *     request-level validation failures (`common.request.invalidParams`) and an unknown
+             *     namespace (`wiki.namespace.notFound`).
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4151,7 +4607,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiNamespaceActionResponse"];
                 };
             };
-            /** @description Malformed body. */
+            /** @description Malformed URI or JSON request body (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4169,17 +4625,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Namespace does not exist. */
-            404: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4216,7 +4663,7 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -4240,22 +4687,20 @@ export interface operations {
             };
         };
         responses: {
-            /** @description Tree operations applied in order; any failure aborts the batch. */
+            /**
+             * @description Tree operations applied in order; any failure aborts the batch. Business failures
+             *     are returned as legacy HTTP 200 envelopes: malformed bodies degrade to
+             *     `common.request.invalidParams` (non-strict binding) and illegal operations are
+             *     `common.request.invalidParams`, an unknown target page is `wiki.page.notFound`,
+             *     a path collision is `wiki.page.pathConflict`, and deleting a page with children
+             *     is `wiki.page.hasChildren`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["WikiTreeOpsResponse"];
-                };
-            };
-            /** @description Malformed body or invalid operation payload. */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -4267,26 +4712,8 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description A target page does not exist. */
-            404: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description An operation would collide with an existing path or parent cycle. */
-            409: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4307,7 +4734,10 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Revisions matching the status ordered by creation time desc. */
+            /**
+             * @description Revisions matching the status ordered by creation time desc. An invalid status is
+             *     returned as a legacy HTTP 200 envelope `common.request.invalidParams`.
+             */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4316,7 +4746,7 @@ export interface operations {
                     "application/json": components["schemas"]["WikiAdminRevisionListResponse"];
                 };
             };
-            /** @description Missing or invalid status query parameter. */
+            /** @description Malformed query string (strict binding failure). */
             400: {
                 headers: {
                     [name: string]: unknown;
@@ -4334,8 +4764,322 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description The account is not a PageManager or Admin. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of courses, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created course item, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Primary code already used by another course. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated course item, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or was deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Primary code already used by another course. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or was deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of reviews, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated review payload, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewWriteResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Review does not exist or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Review does not exist or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseStatsRebuild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success with a `course.statsRebuildQueued` message code, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -82,8 +82,7 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 // 覆盖 users/topics/posts 及两张派生表 topic_category_index/topic_user_stat
 // （均 autoIncrement 主键，PR #160 review, warning 1）：PG 上显式主键写入
 // 不推进序列，若漏推，下一次 INSERT 可能复用已导入 ID 触发主键冲突，
-// 参与者统计/分类索引的增量写入会被静默丢弃。SQLite 无 sequence 概念，
-// MySQL AUTO_INCREMENT 自动跳到 max(id)+1，均无需处理。
+// 参与者统计/分类索引的增量写入会被静默丢弃。SQLite 无 sequence 概念，无需处理。
 func resetPostgresSequences() {
 	if dbconnect.IsSqlite() {
 		return

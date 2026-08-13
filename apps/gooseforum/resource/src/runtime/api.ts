@@ -1316,16 +1316,25 @@ export async function getCourseRelated(courseId: number): Promise<CourseRelatedR
   return readApiResponse<CourseRelatedResult>(response, t('api.courseRelatedLoadFailed'))
 }
 
-export async function listCourseReviews(courseId: number, offeringId = 0): Promise<ReviewPayload[]> {
+export interface ReviewPage {
+  list: ReviewPayload[]
+  nextCursor?: string
+  total: number
+}
+
+// 默认 pageSize=20（issue #174 验收约定默认 20、上限 50）。
+export async function listCourseReviews(courseId: number, offeringId = 0, cursor = '', pageSize = 20): Promise<ReviewPage> {
   const params = new URLSearchParams()
   if (offeringId > 0) params.set('offeringId', String(offeringId))
+  if (cursor) params.set('cursor', cursor)
+  params.set('pageSize', String(pageSize))
   const query = params.toString()
   const response = await fetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
     },
   })
-  return readApiResponse<ReviewPayload[]>(response, t('api.reviewsLoadFailed'))
+  return readApiResponse<ReviewPage>(response, t('api.reviewsLoadFailed'))
 }
 
 export async function createCourseReview(input: CreateCourseReviewInput): Promise<ReviewPayload> {
@@ -1472,4 +1481,190 @@ export async function getWikiRevisions(pageId: number): Promise<WikiRevisionPayl
     },
   })
   return readApiResponse<WikiRevisionPayload[]>(response, t('api.operationFailed'))
+}
+// ---- 课评管理（课程/评价 CRUD + 统计重建，CourseManager） ----
+
+export interface AdminCourseItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  status: number
+  aliases: string[]
+  instructors: string[]
+  reviewCount: number
+  ratingAvg?: number
+  createdAt: string
+}
+
+export interface AdminCourseListResult {
+  list: AdminCourseItem[]
+  page: number
+  size: number
+  total: number
+  hasNext: boolean
+}
+
+export interface AdminCourseCreateInput {
+  primaryCode: string
+  name: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminCourseUpdateInput {
+  primaryCode?: string
+  name?: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminReviewItem {
+  id: number
+  offeringId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  rating: number | null
+  content: string
+  status: number
+  author: ReviewAuthorPayload
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminReviewListResult {
+  items: AdminReviewItem[]
+  nextCursor: number
+  hasNext: boolean
+}
+
+export interface AdminReviewUpdateInput {
+  rating?: number | null
+  content?: string
+}
+
+export async function fetchAdminCourses(keyword = '', department = '', page = 1, pageSize = 20): Promise<AdminCourseListResult> {
+  const response = await fetch('/api/forum/moderation/course-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, department, page, pageSize }),
+  })
+  return readApiResponse<AdminCourseListResult>(response, t('api.adminCourseListFailed'))
+}
+
+export async function createAdminCourse(input: AdminCourseCreateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseCreateFailed'))
+}
+
+export async function updateAdminCourse(courseId: number, input: AdminCourseUpdateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, ...input }),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseUpdateFailed'))
+}
+
+export async function deleteAdminCourse(courseId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseDeleteFailed'))
+}
+
+export async function fetchAdminReviews(keyword = '', status = -1, cursor = 0, pageSize = 20): Promise<AdminReviewListResult> {
+  const response = await fetch('/api/forum/moderation/course-review-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, status, cursor, pageSize }),
+  })
+  return readApiResponse<AdminReviewListResult>(response, t('api.adminReviewListFailed'))
+}
+
+export async function updateAdminReview(reviewId: number, input: AdminReviewUpdateInput): Promise<ReviewPayload> {
+  const response = await fetch('/api/forum/moderation/course-review-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId, ...input }),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.adminReviewUpdateFailed'))
+}
+
+export async function deleteAdminReview(reviewId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-review-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminReviewDeleteFailed'))
+}
+
+export async function rebuildCourseStats(): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-stats-rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseStatsRebuildFailed'))
+}
+
+// ---- B7: AI 课程总结（issue #181） ----
+
+export type CourseSummaryStatus = 'cached' | 'generated' | 'insufficient_data' | 'disabled' | 'error' | 'rateLimited'
+
+export type CourseSummarySentiment = 'positive' | 'neutral' | 'negative'
+
+export interface CourseSummaryRepresentativeReview {
+  excerpt: string
+  sentiment: CourseSummarySentiment
+}
+
+export interface CourseSummaryPayload {
+  consensus: string
+  keywords: string[]
+  pros: string[]
+  cons: string[]
+  representativeReviews: CourseSummaryRepresentativeReview[]
+}
+
+export interface CourseSummaryResult {
+  status: CourseSummaryStatus
+  summary?: CourseSummaryPayload
+  generatedAt?: string
+  model?: string
+  retryAfterSeconds?: number
+}
+
+export async function getCourseSummary(courseId: number, refresh = false): Promise<CourseSummaryResult> {
+  const query = refresh ? '?refresh=true' : ''
+  const response = await fetch(`/api/forum/courses/${courseId}/summary${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 429) {
+    const retryHeader = Number(response.headers.get('Retry-After'))
+    const retryAfterSeconds = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined
+    return { status: 'rateLimited', retryAfterSeconds }
+  }
+  if (!response.ok) {
+    return { status: 'error' }
+  }
+  const data = (await response.json().catch(() => undefined)) as
+    | { code?: number; result?: CourseSummaryResult; data?: CourseSummaryResult }
+    | undefined
+  if (!data) return { status: 'error' }
+  const result = (data.result ?? data.data) as CourseSummaryResult | undefined
+  if (!result) return { status: 'error' }
+  return result
 }

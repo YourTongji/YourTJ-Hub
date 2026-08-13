@@ -929,6 +929,9 @@ export interface CourseSearchPayload {
   instructors?: string[]
   terms?: string[]
   campus?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseCatalogPageProps {
@@ -937,6 +940,9 @@ export interface CourseCatalogPageProps {
     department?: string
     term?: string
     campus?: string
+    instructor?: string
+    onlyWithReviews?: boolean
+    sortBy?: string
     page: number
     size: number
   }
@@ -947,6 +953,7 @@ export interface CourseCatalogPageProps {
     hasNext: boolean
     nextUrl: string
   }
+  departments: string[]
 }
 
 export interface CourseSummaryPayload {
@@ -958,6 +965,9 @@ export interface CourseSummaryPayload {
   aliases?: string[]
   instructors?: string[]
   recentTerms?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
 }
 
 export interface CourseDetailPageProps {
@@ -968,6 +978,11 @@ export interface CourseDetailPageProps {
     department: string
     creditX10: number
     aliases?: string[]
+    // B1 统计投影（PRD §5.1）：均分 / 评论数 / 1-5 星各档计数（index 0 = 1 星）。
+    // 无评分/无评价时省略（omitempty），前端按 undefined 降级展示。
+    ratingAvg?: number
+    reviewCount?: number
+    ratingDistribution?: number[]
     offerings?: Array<{
       id: number
       termCode: string
@@ -975,12 +990,18 @@ export interface CourseDetailPageProps {
       campus?: string
       faculty?: string
       instructors?: string[]
+      ratingAvg?: number
+      reviewCount?: number
     }>
   }
 }
 
 export interface CourseReviewModerationPageProps {
   // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
+export interface CourseManagementPageProps {
+  // 课程/评价管理页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
 }
 
 export interface SchedulePageProps {

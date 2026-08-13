@@ -30,9 +30,8 @@ const reviewCleanupBatchSize = 500
 // B3，吸收 #202 的 NULL 设计）：
 //   - 清空 content（正文不再留存）
 //   - author_user_id 置 NULL（断开作者关联；NULL 在唯一索引
-//     uniq_course_review_offering_author 中彼此不冲突，SQLite/PostgreSQL/
-//     MySQL 一致——同 offering 多条已清理行可共存，同用户可重新写评新建行，
-//     唯一冲突问题从根源消失）
+//     uniq_course_review_offering_author 中彼此不冲突，SQLite/PostgreSQL
+//     一致——同 offering 多条已清理行可共存，同用户可重新写评新建行，
 //   - 行保留（status 仍为 deleted，可审计）；deleted_at 保持原始删除时刻
 //     不变（清理不改锚点）
 //

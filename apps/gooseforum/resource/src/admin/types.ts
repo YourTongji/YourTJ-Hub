@@ -268,6 +268,11 @@ export interface MCPSettings {
   writes: boolean
 }
 
+export interface AiSummarySettings {
+  enabled: boolean
+  globalPerMinute: number
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string

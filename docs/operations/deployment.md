@@ -12,8 +12,10 @@
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
-- Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; optional built-in OIDC Provider ([oidc] in config.toml).
+- Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
+  database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
+  built-in OIDC Provider ([oidc] in config.toml).
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -200,9 +202,7 @@ error and startup continues). Before deploying a build containing this index, ru
 on the live database and clean up any duplicates:
 
 ```sql
--- SQLite / MySQL
-SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
--- PostgreSQL
+-- SQLite / PostgreSQL
 SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
 ```
 
@@ -229,36 +229,41 @@ GROUP BY username
 HAVING COUNT(*) > 1;
 ```
 
-## PostgreSQL support
+## Database: PostgreSQL default
 
-Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
-default SQLite and optional MySQL. The file database (`[db.file]`, attachment BLOBs) remains SQLite.
+PostgreSQL 16+ is the default deployment database (`[db.default] connection = "postgres"`,
+`deploy/config.toml.example`). SQLite remains the local development/test default
+(`apps/gooseforum/config.toml`, in-memory tests) and the file database (`[db.file]`, attachment
+BLOBs) is fixed SQLite. MySQL is **not supported** and its connection driver was removed.
 
-### Enable PostgreSQL
+### Deploy on PostgreSQL
 
-1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
-   `POSTGRES_PASSWORD` in `/opt/yourtj/.env`.
-2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
-   SQLite deployment model (dev is one-way synced from main, never written directly):
-   ```bash
-   # 在 postgres 容器内执行
-   docker compose exec postgres psql -U yourtj -d postgres -c \
-     "CREATE DATABASE yourtj_main; CREATE DATABASE yourtj_dev;"
-   ```
-   Do **not** point both instances at the same database — dev migrations/writes would land on
-   production data.
-3. In `main/config.toml` set:
+Fresh installs default to PostgreSQL end to end — `init-server.sh` does the
+provisioning automatically:
+
+1. Generates `POSTGRES_USER` / a random `POSTGRES_PASSWORD` / `POSTGRES_DB` into
+   `/opt/yourtj/.env` (missing keys are appended on existing servers; empty
+   `POSTGRES_PASSWORD` is replaced with a random value).
+2. Starts the `postgres` service (defined in `deploy/docker-compose.yaml`) and waits for it,
+   then creates **two separate databases** — `yourtj_main` and `yourtj_dev` — so main
+   (production) and dev (test) stay isolated (dev is one-way synced from main, never written
+   directly). Do **not** point both instances at the same database — dev migrations/writes
+   would land on production data.
+3. Generates `main/config.toml` / `dev/config.toml` from `deploy/config.toml.example`,
+   substituting `REPLACE_POSTGRES_DSN` with a real DSN per instance:
    ```toml
    [db.default]
    connection = "postgres"
-   url = "host=postgres user=yourtj password=<secret> dbname=yourtj_main port=5432 sslmode=disable"
+   url = "host=postgres user=<user> password=<secret> dbname=yourtj_main port=5432 sslmode=disable"  # dev 用 yourtj_dev
    ```
-   In `dev/config.toml` use the same DSN but `dbname=yourtj_dev`. `host=postgres` is the Compose
-   service name: the forum and postgres containers share the compose network, so `127.0.0.1` inside
-   the forum container would point at the forum container itself and fail to connect.
-   `url` accepts libpq key=value or URL DSN formats.
-4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
-   versioned data migrations v1-v12 from scratch, then serves.
+   `host=postgres` is the Compose service name: the forum and postgres containers share the
+   compose network, so `127.0.0.1` inside the forum container would point at the forum
+   container itself and fail to connect. `url` accepts libpq key=value or URL DSN formats.
+4. Start the instance (`deploy.sh` / `docker compose up -d main dev`; compose starts
+   `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
+   AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
+   serves.
+
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 
@@ -319,6 +324,41 @@ instance:
   (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
 - Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
   (daily cron). Export contains user emails — treat downloads as sensitive.
+
+## 一系统排课同步（course-pk-sync，issue #186）
+
+将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+```bash
+# 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
+# 已有记录后才可反查（同一学期同步过一次即可）
+./bin/yourtj-hub course-pk-sync 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 连同步前 3 个学期（选课季加频/补历史）
+./bin/yourtj-hub course-pk-sync 121 --depth 3
+
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+./bin/yourtj-hub course-pk-sync 121 --materialize
+```
+
+凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+- 运维 cron（每日，选课季加频；应用内不自造调度器）：
+
+  ```bash
+  # 每日 02:30 同步当前学期
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  ```
+
+- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+  续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
+  fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
+- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+  进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
+- 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
+  需到管理端重新保存。
 
 ## Runbooks to write
 

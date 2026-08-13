@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
@@ -16,7 +17,7 @@ import (
 // TestSchemaMigratesOnPostgreSQL 验证全部主库模型能在 PostgreSQL 上完成 AutoMigrate。
 //
 // 回归背景（issue #8）：user_sessions / user_totp / user_totp_recovery_codes 曾硬编码
-// MySQL 专用类型（bigint unsigned / datetime / tinyint），在 PostgreSQL 上建表失败，
+// 方言专属类型（bigint unsigned / datetime / tinyint），在 PostgreSQL 上建表失败，
 // 而迁移错误只记日志不退出，服务带着残缺 schema 启动，登录/注册接口运行期才报错。
 //
 // 通过环境变量 YOURTJ_TEST_PG_URL 提供 PostgreSQL DSN；未设置时跳过。
@@ -54,6 +55,20 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 		"oidc_access_tokens",
 		"users",
 		"agents",
+		// Issue #186：一系统同步管线（course-pk-sync）新增 PK 域表。
+		"pk_calendar",
+		"pk_language",
+		"pk_course_nature",
+		"pk_course_nature_by_calendar",
+		"pk_assessment",
+		"pk_campus",
+		"pk_faculty",
+		"pk_major",
+		"pk_major_course",
+		"pk_course_detail",
+		"pk_teacher",
+		"pk_teacher_timeslot",
+		"pk_fetch_log",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after postgres migration", table)
@@ -66,6 +81,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 }
 
@@ -144,6 +160,12 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 		"users",
 		"topics",
 		"agents",
+		// Issue #186：升级存量实例时同样需补齐 PK 域表。
+		"pk_calendar",
+		"pk_course_detail",
+		"pk_teacher",
+		"pk_teacher_timeslot",
+		"pk_fetch_log",
 	} {
 		if !db.Migrator().HasTable(table) {
 			t.Errorf("table %q missing after upgrade migration", table)
@@ -158,6 +180,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
 	}
+	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	var legacyPointsCount int64
 	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
@@ -165,6 +188,25 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if legacyPointsCount != 1 {
 		t.Errorf("legacy points record count after upgrade = %d, want 1", legacyPointsCount)
+	}
+}
+
+// assertPkFetchLogLeaseSchema 校验 pk_fetch_log 的跨方言租约列/索引（issue #186 review P1）：
+// lease_version（精确 CAS token）与 running_key 唯一索引（同一 calendar 至多一条 running，
+// 不依赖 PG 专属 partial unique index）；旧 partial index idx_pk_fetch_log_running 不得再创建。
+func assertPkFetchLogLeaseSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasColumn(&pk.FetchLogEntity{}, "lease_version") {
+		t.Error("pk_fetch_log.lease_version column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&pk.FetchLogEntity{}, "running_key") {
+		t.Error("pk_fetch_log.running_key column missing after postgres migration")
+	}
+	if !db.Migrator().HasIndex(&pk.FetchLogEntity{}, "uniq_pk_fetch_log_running_key") {
+		t.Error("pk_fetch_log.uniq_pk_fetch_log_running_key unique index missing after postgres migration")
+	}
+	if db.Migrator().HasIndex(&pk.FetchLogEntity{}, "idx_pk_fetch_log_running") {
+		t.Error("stale partial index idx_pk_fetch_log_running must not be created after postgres migration")
 	}
 }
 

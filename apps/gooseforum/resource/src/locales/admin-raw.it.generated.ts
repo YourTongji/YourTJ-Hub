@@ -774,4 +774,12 @@ export default {
   "k00o2": "Dopo l'approvazione la revisione verrà pubblicata sulla pagina.",
   "k00o3": "Dopo il rifiuto la revisione verrà scartata.",
   "k00o4": "Il percorso è obbligatorio",
+  "k00p0": "Riepilogo corsi AI",
+  "k00p1": "Gestisci l'interruttore di generazione del riepilogo corsi AI e il limite di frequenza globale.",
+  "k00p2": "Caricamento delle impostazioni del riepilogo corsi AI non riuscito",
+  "k00p3": "Salvataggio delle impostazioni del riepilogo corsi AI non riuscito",
+  "k00p4": "Abilita riepilogo corsi AI",
+  "k00p5": "Se abilitato, le pagine dei corsi possono richiedere riepiloghi generati dall'AI; se disabilitato, l'endpoint restituisce status=disabled.",
+  "k00p6": "Riepiloghi globali al minuto",
+  "k00p7": "Numero massimo di riepiloghi generati al minuto su tutti i corsi; 0 usa il valore predefinito di 5.",
 } as const

@@ -21,6 +21,7 @@ export const pageLoaders = {
   'course.index': () => import('@/site/pages/CourseCatalogPage.vue'),
   'course.detail': () => import('@/site/pages/CourseDetailPage.vue'),
   'course.reviewModeration': () => import('@/site/pages/CourseReviewModerationPage.vue'),
+  'course.management': () => import('@/site/pages/CourseManagementPage.vue'),
   'course.schedule': () => import('@/site/pages/SchedulePage.vue'),
   'wiki.home': () => import('@/site/pages/WikiHome.vue'),
   'wiki.detail': () => import('@/site/pages/WikiPage.vue'),

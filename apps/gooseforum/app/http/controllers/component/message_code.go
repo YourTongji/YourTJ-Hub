@@ -173,6 +173,16 @@ const (
 	MessageWikiSaveFailed            MessageCode = "wiki.saveFailed"             // wiki 保存失败。
 	MessageWikiNamespaceNameConflict MessageCode = "wiki.namespace.nameConflict" // namespace 名称已存在（契约 409 语义）。
 	MessageWikiPathConflict          MessageCode = "wiki.page.pathConflict"      // wiki 路径已存在（契约 409 语义）。
+	// 课程管理（管理端课程/评价管理）
+	MessageCourseNotFound           MessageCode = "course.notFound"           // 课程不存在或已删除。
+	MessageCourseCodeRequired       MessageCode = "course.codeRequired"       // 主课号不能为空。
+	MessageCourseNameRequired       MessageCode = "course.nameRequired"       // 课程名不能为空。
+	MessageCourseCodeConflict       MessageCode = "course.codeConflict"       // 主课号已被其它课程占用。
+	MessageCourseCreditInvalid      MessageCode = "course.creditInvalid"      // 学分格式不正确。
+	MessageCourseListFailed         MessageCode = "course.listFailed"         // 课程列表读取失败。
+	MessageCourseStatsRebuildQueued MessageCode = "course.statsRebuildQueued" // 课程统计重建任务已入队。
+	MessageCourseStatsRebuildFailed MessageCode = "course.statsRebuildFailed" // 课程统计重建任务入队失败。
+	MessageCourseSummaryFailed      MessageCode = "course.summary.failed"     // AI 总结生成失败（LLM 超时/输出非法等，不影响课程页主流程）。
 )
 
 const (

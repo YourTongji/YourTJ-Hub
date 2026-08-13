@@ -897,6 +897,13 @@ CourseSearchPayload:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
   additionalProperties: false
 
 PaginationPayload:
@@ -1030,6 +1037,13 @@ CourseSummary:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
   additionalProperties: false
 
 CourseListResult:
@@ -1079,6 +1093,13 @@ OfferingSummary:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average for this offering; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this offering.
   additionalProperties: false
 
 CourseDetail:
@@ -1104,6 +1125,20 @@ CourseDetail:
       type: array
       items:
         $ref: '#/OfferingSummary'
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
+    ratingDistribution:
+      type: array
+      description: |
+        Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+        Omitted when the course has no visible reviews.
+      items:
+        type: integer
   additionalProperties: false
 
 CourseDetailResponse:
@@ -1114,6 +1149,89 @@ CourseDetailResponse:
       properties:
         result:
           $ref: '#/CourseDetail'
+
+CourseSummaryStatus:
+  type: string
+  enum: [cached, generated, insufficient_data, disabled]
+  description: |
+    Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
+    HTTP failures and never returned by this API.
+
+CourseSummaryConsensus:
+  type: string
+  enum: [strong_recommend, recommend, neutral, cautious, not_recommend]
+  description: Five-level sentiment consensus across visible reviews.
+
+CourseSummarySentiment:
+  type: string
+  enum: [positive, neutral, negative]
+  description: Sentiment label of one representative review excerpt.
+
+CourseSummaryRepresentativeReview:
+  type: object
+  required: [excerpt, sentiment]
+  properties:
+    excerpt:
+      type: string
+      description: Short excerpt from the original review (≤500 chars).
+    sentiment:
+      $ref: '#/CourseSummarySentiment'
+  additionalProperties: false
+
+CourseSummaryPayload:
+  type: object
+  required: [consensus, keywords, pros, cons, representativeReviews]
+  properties:
+    consensus:
+      $ref: '#/CourseSummaryConsensus'
+    keywords:
+      type: array
+      maxItems: 5
+      items:
+        type: string
+    pros:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    cons:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    representativeReviews:
+      type: array
+      maxItems: 3
+      items:
+        $ref: '#/CourseSummaryRepresentativeReview'
+  additionalProperties: false
+
+CourseSummaryResult:
+  type: object
+  required: [status]
+  properties:
+    status:
+      $ref: '#/CourseSummaryStatus'
+    summary:
+      $ref: '#/CourseSummaryPayload'
+      description: Present for status `cached` and `generated`; omitted otherwise.
+    generatedAt:
+      type: string
+      format: date-time
+      description: When the summary was generated (RFC 3339).
+    model:
+      type: string
+      description: The LLM model that produced the summary.
+  additionalProperties: false
+
+CourseSummaryResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseSummaryResult'
 
 RelatedCourseItem:
   type: object
@@ -1264,13 +1382,38 @@ ReviewPayload:
     updatedAt:
       type: string
       format: date-time
+    offeringRatingAvg:
+      type: number
+      format: double
+      description: |
+        Non-NULL rating average of the review's offering (PRD §5.1 B1).
+        Present only when the listing is scoped to a single offering and the
+        offering has at least one rated review.
+    offeringReviewCount:
+      type: integer
+      description: Number of visible reviews of the review's offering (offering-scoped listing only).
   additionalProperties: false
 
 ReviewListResult:
-  type: array
-  items:
-    $ref: '#/ReviewPayload'
-  description: The raw review array; an empty listing is an empty array, never null.
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/ReviewPayload'
+      description: The current page of visible reviews; an empty listing is an empty array, never null.
+    nextCursor:
+      type: string
+      description: |
+        Cursor for the next page, present only when more reviews exist.
+        Format is "offeringId:reviewId" of the last item of the current page
+        (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+    total:
+      type: integer
+      format: int64
+      description: Total number of visible reviews matching the current scope (course or offering filter).
+  additionalProperties: false
 
 ReviewListResponse:
   oneOf:
@@ -1512,6 +1655,278 @@ ModerationCourseReviewRevealResponse:
             result:
               $ref: '#/CourseReviewAuthorRevealPayload'
     - $ref: '#/ApiFailure'
+
+AdminCourseListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches normalized name, primary code, aliases, pinyin, initials, or instructor names.
+    department:
+      type: string
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+      default: 20
+  additionalProperties: false
+
+AdminCourseItem:
+  type: object
+  required: [id, primaryCode, name, department, creditX10, status, aliases, instructors, reviewCount, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral.
+    status:
+      type: integer
+      enum: [0, 1]
+      description: 0 visible, 1 hidden.
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    reviewCount:
+      type: integer
+    ratingAvg:
+      type: number
+      description: Average rating across visible reviews; omitted when no rated reviews.
+    createdAt:
+      type: string
+  additionalProperties: false
+
+AdminCourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminCourseItem'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminCourseListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseListResult'
+    - $ref: '#/ApiFailure'
+
+AdminCourseItemResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseItem'
+    - $ref: '#/ApiFailure'
+
+AdminCourseCreateRequest:
+  type: object
+  required: [primaryCode, name]
+  properties:
+    primaryCode:
+      type: string
+      minLength: 1
+    name:
+      type: string
+      minLength: 1
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseUpdateRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseDeleteRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+AdminReviewItem:
+  type: object
+  required: [id, offeringId, courseId, courseCode, courseName, content, status, author, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+    status:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 visible, 1 hidden, 2 deleted (quarantine window).
+    author:
+      $ref: '#/ReviewAuthorPayload'
+    createdAt:
+      type: string
+    updatedAt:
+      type: string
+  additionalProperties: false
+
+AdminReviewListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches course name, primary code, or review body.
+    status:
+      type: integer
+      minimum: -1
+      maximum: 2
+      description: -1 all; 0/1/2 filter by status. Defaults to -1.
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+  additionalProperties: false
+
+AdminReviewListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminReviewItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminReviewListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminReviewListResult'
+    - $ref: '#/ApiFailure'
+
+AdminReviewUpdateRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+  additionalProperties: false
+
+AdminReviewDeleteRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
 
 TopicAuthorPayload:
   type: object

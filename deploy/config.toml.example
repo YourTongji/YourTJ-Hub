@@ -27,11 +27,12 @@ keep = 7
 spec = "0 3 * * *"
 
 [db.default]
-# 主库连接类型: sqlite / mysql / postgres（文件库 [db.file] 固定 sqlite）
-connection = "sqlite"
-# mysql: "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
-# postgres: "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
-url = "db_user:db_pass@tcp(db_host:3306)/db_name?charset=utf8mb4&parseTime=True&loc=Local"
+# 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
+connection = "postgres"
+# 部署时由 init-server.sh 用 .env 的 POSTGRES_* 生成真实 DSN 替换
+# （main/dev 分别使用 yourtj_main / yourtj_dev 数据库）。
+# postgres: "host=postgres user=... password=... dbname=... port=5432 sslmode=disable"
+url = "REPLACE_POSTGRES_DSN"
 path = "./storage/database/sqlite.db"
 maxIdleConnections = 3
 maxOpenConnections = 5
@@ -39,11 +40,11 @@ maxLifeSeconds = 300
 
 [db.file]
 connection = "sqlite"
-url = "root:root_password@tcp(127.0.0.1:3306)/goose_forum?charset=utf8mb4&parseTime=True&loc=Local"
 path = "./storage/database/file.db"
 maxIdleConnections = 3
 maxOpenConnections = 5
 maxLifeSeconds = 300
+
 
 [meilisearch]
 url = "http://localhost:7700"
@@ -83,10 +84,32 @@ auth_request_ttl = 600
 id_token_ttl = 3600
 # 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
 # redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
-# 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)
-# redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
+# 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)。
+# 示例为 Waline 评论登录: 注册 Waline 服务端回调(带动态 redirect query)。
+# 注意(zitadel/oidc v3.49 实测): 匹配前会再 QueryUnescape 一次 redirect_uri,
+# 实际匹配串中内层页面 URL 的 %2F 已是字面 /; doublestar 的 * 嵌在 query
+# 值中不能跨 /, 只有 ** 作为末尾 segment 可以。因此按"钉死站点域名前缀"
+# 拆两条。\? 转义匹配字面 ?; TOML 单引号字面串保证反斜杠原样传给解析器
+# redirect_uris_globs = [
+#   'https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**',
+#   'https://comment.example.com/api/oauth\?redirect=/**',
+# ]
 [[oidc.clients]]
 id = "yourtj-mobile"
 name = "yourtj 移动端"
 redirect_uris = ["yourtj://callback"]
 # secret = ""
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 均走同一协议，
+# 切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# 生产环境请通过环境注入或密钥管理替换为真实密钥
+api_key = ""
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024

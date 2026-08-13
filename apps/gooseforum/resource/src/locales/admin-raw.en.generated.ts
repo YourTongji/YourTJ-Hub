@@ -774,4 +774,12 @@ export default {
   "k00o2": "After approval the revision will be published to the page.",
   "k00o3": "After rejection the revision will be discarded.",
   "k00o4": "Path is required",
+  "k00p0": "AI Course Summary",
+  "k00p1": "Manage the AI course summary generation switch and global rate limit.",
+  "k00p2": "Failed to load AI course summary settings",
+  "k00p3": "Failed to save AI course summary settings",
+  "k00p4": "Enable AI course summary",
+  "k00p5": "When enabled, course detail pages can request AI-generated summaries; when disabled, the endpoint returns status=disabled.",
+  "k00p6": "Global summaries per minute",
+  "k00p7": "Maximum summaries generated per minute across all courses; 0 uses the default of 5.",
 } as const

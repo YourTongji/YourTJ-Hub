@@ -56,7 +56,7 @@ type CategorySearchResult struct {
 	Desc  string `json:"desc"`
 }
 
-// CourseSearchResult 课程搜索结果（展示数据由 PG 重构填充）
+// CourseSearchResult 课程搜索结果（展示数据由 PG 重构填充；B1 携带评分聚合）。
 type CourseSearchResult struct {
 	ID          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -67,6 +67,9 @@ type CourseSearchResult struct {
 	Instructors []string `json:"instructors"`
 	Terms       []string `json:"terms"`
 	Campus      []string `json:"campus"`
+	// RatingAvg 非 NULL rating 均分；无评分时 null。
+	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
+	ReviewCount int      `json:"reviewCount,omitempty"`
 }
 
 // AggregateSearchResponse 分组聚合搜索结果。
@@ -322,12 +325,18 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 			return item, item.ID > 0
 		})
 		courseMap := course.GetMapByIds(lo.Map(hits, func(h courseHit, _ int) uint64 { return h.ID }))
+		// B1：课程评分聚合（搜索命中展示评分）。
+		ids := make([]uint64, 0, len(hits))
+		for _, h := range hits {
+			ids = append(ids, h.ID)
+		}
+		courseStats := course.ListCourseStatsByIDs(ids)
 		resp.Courses = lo.FilterMap(hits, func(h courseHit, _ int) (CourseSearchResult, bool) {
 			c, ok := courseMap[h.ID]
 			if !ok || c == nil || c.Status != course.StatusVisible {
 				return CourseSearchResult{}, false
 			}
-			return CourseSearchResult{
+			r := CourseSearchResult{
 				ID:          c.Id,
 				PrimaryCode: c.PrimaryCode,
 				Name:        c.Name,
@@ -337,7 +346,15 @@ func collectScopeResults(resp *AggregateSearchResponse, indexUID string, searchR
 				Instructors: h.Instructors,
 				Terms:       h.Terms,
 				Campus:      h.Campus,
-			}, true
+			}
+			if s, ok := courseStats[h.ID]; ok {
+				if s.RatingCount > 0 {
+					avg := float64(s.RatingSum) / float64(s.RatingCount)
+					r.RatingAvg = &avg
+				}
+				r.ReviewCount = s.ReviewCount
+			}
+			return r, true
 		})
 		resp.CoursesTotal = searchResp.EstimatedTotalHits
 	}

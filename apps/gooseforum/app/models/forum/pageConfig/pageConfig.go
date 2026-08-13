@@ -49,6 +49,8 @@ const (
 	SiteChrome          = `siteChrome`
 	RateLimitSettings   = `rateLimitSettings`
 	MCPSettings         = `mcpSettings`
+	AiSummarySettings   = `aiSummarySettings`
+	OneSystemSettings   = `onesystemSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -319,6 +321,32 @@ type HttpNotifyConfig struct {
 type MCPSettingsConfig struct {
 	Enabled bool `json:"enabled"` // /mcp 端点总开关
 	Writes  bool `json:"writes"`  // 写工具（create_topic / create_post）开关
+}
+
+// AiSummaryConfig AI 课程总结开关配置（B7，issue #181），可在管理面板热修改。
+// GlobalPerMinute 为全局每分钟 LLM 生成上限（成本护栏）；Provider 相关配置
+// （base_url/api_key/model 等）在 config.toml [ai_summary] 段，不进 DB。
+type AiSummaryConfig struct {
+	Enabled         bool `json:"enabled"`         // 总开关（关闭时端点返回 status=disabled）
+	GlobalPerMinute int  `json:"globalPerMinute"` // 全局每分钟生成上限（0 = 用默认 5）
+}
+
+// OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），
+// 明文仅在保存时短暂出现；读取时由同步服务在内存中解密，管理端 GET 仅回显是否已配置。
+// CookieEncrypted 标 json:"-"：密文绝不随 JSON 序列化导出（review MEDIUM），持久化走 OneSystemSettingsStorage。
+type OneSystemSettingsConfig struct {
+	CookieEncrypted string `json:"-"` // 加密后的一系统 Cookie header
+}
+
+// OneSystemSettingsStorage 一系统凭证的落库 JSON 形状：与对外 OneSystemSettingsConfig 分离，
+// 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。ToConfig 转回领域结构。
+type OneSystemSettingsStorage struct {
+	CookieEncrypted string `json:"cookieEncrypted"`
+}
+
+// ToConfig 将落库形状转为领域结构（二者当前字段一致，仅为序列化语义隔离）。
+func (s OneSystemSettingsStorage) ToConfig() OneSystemSettingsConfig {
+	return OneSystemSettingsConfig{CookieEncrypted: s.CookieEncrypted}
 }
 
 type HttpNotifyEndpoint struct {

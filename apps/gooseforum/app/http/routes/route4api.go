@@ -105,6 +105,7 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
 	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
 	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
+	viewRouteApp.GET("/moderation/courses", middleware.CheckLogin, forum.CourseManagement)
 	viewRouteApp.GET("/schedule", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.Schedule)
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
@@ -209,6 +210,10 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiLoginApi.POST("pages", middleware.CheckWritableAccount, UpJsonReq(api.WikiCreatePage))
 	wikiLoginApi.PUT("pages/:pageId", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiEditPage))
 	wikiLoginApi.POST("revisions/:revisionId/review", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiReview))
+	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
+	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
+	// 未登录调用者仍可读（JWTAuth 可选）。
+	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
@@ -251,6 +256,15 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
 	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
 	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
+	// 课评管理：课程/评价 CRUD + 统计重建（CourseManager 权限，控制器内校验）。
+	forumLoginApi.POST("moderation/course-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminCourseList))
+	forumLoginApi.POST("moderation/course-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseCreate))
+	forumLoginApi.POST("moderation/course-update", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseUpdate))
+	forumLoginApi.POST("moderation/course-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseDelete))
+	forumLoginApi.POST("moderation/course-review-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminReviewList))
+	forumLoginApi.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
+	forumLoginApi.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
+	forumLoginApi.POST("moderation/course-stats-rebuild", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseStatsRebuild))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
@@ -361,6 +375,10 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
+		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
+		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).

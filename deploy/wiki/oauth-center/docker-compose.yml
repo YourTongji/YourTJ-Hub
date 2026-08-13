@@ -1,0 +1,33 @@
+# walinejs/auth OAuth Center 自托管部署（YourTJ-Hub 补丁版）
+#
+# 用法：
+#   1. 复制 .env.example 为 .env 并填写（OIDC_ID/OIDC_ISSUER 必填）。
+#   2. docker compose up -d --build
+#   3. 反向代理 https://auth.example.com -> 127.0.0.1:8300（仅回环暴露）
+#
+# 说明：镜像内是打过补丁的 src/oidc.js（PKCE S256 + nonce + 服务端 state
+# 存储），详见 PATCH.md。上游 walinejs/auth 不支持 PKCE/nonce，直接部署会被
+# YourTJ-Hub OIDC（强制 PKCE + nonce）在授权端点拒绝。
+#
+# env_file: .env 使 .env 中全部变量（含可选 GITHUB_ID/GITHUB_SECRET 等）进入
+# 容器，而不仅是 compose 变量插值。缺失 .env 时使用下方默认值。
+
+services:
+  oauth-center:
+    build: .
+    restart: unless-stopped
+    ports:
+      # 仅回环暴露, 公网一律经反向代理(与 forum 后端一致的姿势);
+      # 容器内进程监听 0.0.0.0(见 server.js), 宿主侧 127.0.0.1 绑定保证不对外
+      - "127.0.0.1:8300:8300"
+    env_file:
+      - .env
+    environment:
+      # 与 Hub [[oidc.clients]].id 一致
+      - OIDC_ID=${OIDC_ID:-yourtj-wiki-comment}
+      # 可空（public client + PKCE S256）；填写则走 client_secret_basic
+      - OIDC_SECRET=${OIDC_SECRET:-}
+      # Hub OIDC issuer（自动 discovery）
+      - OIDC_ISSUER=${OIDC_ISSUER:-https://forum.example.com/api/oauth}
+      # 可选，默认 openid profile email
+      - OIDC_SCOPES=${OIDC_SCOPES:-openid profile email}

@@ -79,6 +79,9 @@ paths:
   /api/forum/courses/{courseId}/related:
     get:
       $ref: ./paths/courses.yaml#/getCourseRelated/get
+  /api/forum/courses/{courseId}/summary:
+    get:
+      $ref: ./paths/courses.yaml#/getCourseSummary/get
   /api/forum/courses/{courseId}/reviews:
     get:
       $ref: ./paths/course-reviews.yaml#/listCourseReviews/get
@@ -149,6 +152,30 @@ paths:
   /api/admin/wiki/revisions:
     get:
       $ref: ./paths/wiki.yaml#/listAdminWikiRevisions/get
+  /api/forum/moderation/course-list:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseList/post
+  /api/forum/moderation/course-create:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseCreate/post
+  /api/forum/moderation/course-update:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseUpdate/post
+  /api/forum/moderation/course-delete:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseDelete/post
+  /api/forum/moderation/course-review-list:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewList/post
+  /api/forum/moderation/course-review-edit:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewUpdate/post
+  /api/forum/moderation/course-review-delete:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewDelete/post
+  /api/forum/moderation/course-stats-rebuild:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseStatsRebuild/post
 components:
   securitySchemes:
     bearerAuth:
@@ -289,6 +316,20 @@ components:
       $ref: ./components/schemas.yaml#/CourseDetail
     CourseDetailResponse:
       $ref: ./components/schemas.yaml#/CourseDetailResponse
+    CourseSummaryStatus:
+      $ref: ./components/schemas.yaml#/CourseSummaryStatus
+    CourseSummaryConsensus:
+      $ref: ./components/schemas.yaml#/CourseSummaryConsensus
+    CourseSummarySentiment:
+      $ref: ./components/schemas.yaml#/CourseSummarySentiment
+    CourseSummaryRepresentativeReview:
+      $ref: ./components/schemas.yaml#/CourseSummaryRepresentativeReview
+    CourseSummaryPayload:
+      $ref: ./components/schemas.yaml#/CourseSummaryPayload
+    CourseSummaryResult:
+      $ref: ./components/schemas.yaml#/CourseSummaryResult
+    CourseSummaryResponse:
+      $ref: ./components/schemas.yaml#/CourseSummaryResponse
     ReviewAuthorPayload:
       $ref: ./components/schemas.yaml#/ReviewAuthorPayload
     ReviewViewerPayload:
@@ -327,6 +368,34 @@ components:
       $ref: ./components/schemas.yaml#/CourseReviewAuthorRevealPayload
     ModerationCourseReviewRevealResponse:
       $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealResponse
+    AdminCourseListRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseListRequest
+    AdminCourseItem:
+      $ref: ./components/schemas.yaml#/AdminCourseItem
+    AdminCourseListResult:
+      $ref: ./components/schemas.yaml#/AdminCourseListResult
+    AdminCourseListResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseListResponse
+    AdminCourseItemResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseItemResponse
+    AdminCourseCreateRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseCreateRequest
+    AdminCourseUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseUpdateRequest
+    AdminCourseDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseDeleteRequest
+    AdminReviewItem:
+      $ref: ./components/schemas.yaml#/AdminReviewItem
+    AdminReviewListRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewListRequest
+    AdminReviewListResult:
+      $ref: ./components/schemas.yaml#/AdminReviewListResult
+    AdminReviewListResponse:
+      $ref: ./components/schemas.yaml#/AdminReviewListResponse
+    AdminReviewUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewUpdateRequest
+    AdminReviewDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     RevokeSessionRequest:

@@ -32,7 +32,7 @@
            └──────┬──────┘   └──────────────┘
                   │
            ┌──────▼────────────┐
-           │ SQLite/MySQL/PG   │ (PG main-db supported, issue #11; file db stays SQLite)
+           │ SQLite/PG        │ (PG default in deployments, issue #11; local dev/tests SQLite; file db stays SQLite)
            └───────────────────┘
 ```
 
@@ -41,7 +41,8 @@
 - **Single binary**: forum frontend (Vue 3 output static/dist + GoHTML templates) is fully go:embed'd
   into the Go binary; vite :3010 hits the backend in dev, one file in production. No nginx/CDN split.
 - Dependency services (Meilisearch/PostgreSQL/Redis) are orchestrated with docker-compose;
-  `services/` holds deployment configs only, not third-party source.
+  `services/` holds deployment configs only, not third-party source. Deployments default to
+  PostgreSQL for the main database; local development and tests default to SQLite.
 
 ## Domain boundaries (apps/gooseforum upstream layers)
 

@@ -110,6 +110,7 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
   // 课评审核入口：CourseManager 权限（Admin 通过 adminPermissions 全量包含，id=6）。
   if (props.layout.viewer.isAuthenticated && props.layout.viewer.adminPermissions.includes(6)) {
     items.push(sidebarItem('courseReviews', t('shell.nav.courseReviews'), '/moderation/course-reviews'))
+    items.push(sidebarItem('courseManage', t('shell.nav.courseManage'), '/moderation/courses'))
   }
   return [...items, ...serverSidebarItems(props.layout.sidebar.main)]
 })
@@ -167,6 +168,7 @@ const sidebarIconMap = {
   drafts: FileText,
   moderation: Scale,
   courseReviews: GraduationCap,
+  courseManage: BookOpen,
   links: Link,
   sponsors: Heart,
 } as const
