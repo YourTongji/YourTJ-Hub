@@ -338,3 +338,73 @@ func TestCourseReviewUpgradeOrphanTempSelfHeal(t *testing.T) {
 		t.Fatalf("row altered after self-heal: %+v", kept)
 	}
 }
+
+// TestCourseReviewUpgradeHalfMigratedRestore 判别性验证 oierxjn 复审 P1：
+// 旧的非事务重建在 DROP course_review 成功、RENAME 之前中断——course_review
+// 缺失但 course_review__upgrade 仍含已复制的历史课评。重启 preflight 必须
+// rename 恢复临时表（数据可读），而不是当全新库建空表（历史数据滞留不可见）。
+func TestCourseReviewUpgradeHalfMigratedRestore(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:migration-course-review-half-%d?mode=memory&cache=shared", 0)), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.Exec(legacyCourseReviewDDL).Error; err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	// 模拟旧非事务重建：删旧索引 + CREATE upgrade（新形态，SQLite 索引名
+	// schema 级唯一，先删旧表同名索引）+ 复制数据 + DROP 原表，RENAME 未
+	// 执行（中断点）
+	for _, idx := range []string{
+		"uniq_course_review_offering_author",
+		"idx_course_review_offering",
+		"idx_course_review_author",
+		"idx_course_review_status",
+	} {
+		if err := db.Migrator().DropIndex(&course.ReviewEntity{}, idx); err != nil {
+			t.Fatalf("drop legacy index %s: %v", idx, err)
+		}
+	}
+	if err := db.Table("course_review__upgrade").Migrator().CreateTable(&course.ReviewEntity{}); err != nil {
+		t.Fatalf("create upgrade table: %v", err)
+	}
+	if err := db.Exec(`INSERT INTO course_review__upgrade
+		(id, offering_id, author_user_id, status, content)
+		VALUES (1, 100, 1001, 2, '半迁移历史数据'), (2, 100, 1002, 0, '可见数据')`).Error; err != nil {
+		t.Fatalf("copy data to upgrade table: %v", err)
+	}
+	if err := db.Exec(`DROP TABLE course_review`).Error; err != nil {
+		t.Fatalf("drop original table: %v", err)
+	}
+
+	// 重启 preflight：必须恢复 upgrade 表（rename），而非当全新库
+	if err := upgradeCourseReviewLegacySchema(db); err != nil {
+		t.Fatalf("preflight half-migrated restore failed: %v", err)
+	}
+	if !db.Migrator().HasTable(courseReviewTableName) {
+		t.Fatal("course_review not restored")
+	}
+	if db.Migrator().HasTable("course_review__upgrade") {
+		t.Fatal("upgrade table still present after restore")
+	}
+	// 数据恢复且可读
+	var kept course.ReviewEntity
+	if err := db.Table(courseReviewTableName).Where("id = ?", 1).First(&kept).Error; err != nil {
+		t.Fatalf("restored data not readable: %v", err)
+	}
+	if kept.Content != "半迁移历史数据" || kept.AuthorID() != 1001 || kept.Status != course.ReviewStatusDeleted {
+		t.Fatalf("restored row altered: %+v", kept)
+	}
+	var count int64
+	if err := db.Table(courseReviewTableName).Count(&count).Error; err != nil {
+		t.Fatalf("count restored rows: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("restored row count = %d, want 2", count)
+	}
+	// 恢复后 AutoMigrate 无差异（upgrade 表是 gorm 模型驱动的新形态）
+	if err := db.AutoMigrate(&course.ReviewEntity{}); err != nil {
+		t.Fatalf("AutoMigrate after restore failed: %v", err)
+	}
+}

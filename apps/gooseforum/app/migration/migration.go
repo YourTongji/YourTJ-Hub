@@ -211,7 +211,29 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 		return nil // PG 由 AutoMigrate ALTER COLUMN 处理
 	}
 	if !db.Migrator().HasTable(courseReviewTableName) {
-		return nil // 全新库，AutoMigrate 直接建新形态
+		// 原表缺失：先检测半迁移状态（oierxjn 复审 P1）——旧的非事务重建
+		// 若在 DROP course_review 成功、RENAME 之前中断，course_review 不
+		// 存在但 course_review__upgrade 仍含已复制的历史课评。此时必须
+		// rename 恢复临时表（含数据），而不是当全新库建空表（否则历史数据
+		// 滞留 upgrade 表、业务不可见）。
+		if db.Migrator().HasTable("course_review__upgrade") {
+			slog.Warn("migration: course_review missing but course_review__upgrade present — restoring half-migrated data")
+			err := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Exec(`ALTER TABLE course_review__upgrade RENAME TO course_review`).Error; err != nil {
+					return fmt.Errorf("restore course_review from half-migrated upgrade table: %w", err)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			// 恢复后继续走下方旧形态检测（upgrade 表为 gorm 模型驱动的新
+			// 形态——author_user_id nullable，检测会跳过重建，直接返回）。
+			// 若恢复的是更早的非事务版本遗留（author_user_id NOT NULL），
+			// 则进入正常重建流程。
+		} else {
+			return nil // 全新库，AutoMigrate 直接建新形态
+		}
 	}
 	// 检查 author_user_id 是否仍为 NOT NULL（旧形态）：
 	// 读 sqlite_master 的表定义 SQL 做匹配——PRAGMA table_info 的 notnull
