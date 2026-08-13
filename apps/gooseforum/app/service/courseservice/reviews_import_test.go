@@ -142,7 +142,7 @@ func TestImportReviewsCreatesLegacyRow(t *testing.T) {
 	if err := conn.Where("offering_id = ?", offeringId).First(&review).Error; err != nil {
 		t.Fatalf("load review: %v", err)
 	}
-	if review.AuthorUserId != 0 || !review.IsAnonymous || review.Source != course.ReviewSourceLegacyImport {
+	if review.AuthorID() != 0 || !review.IsAnonymous || review.Source != course.ReviewSourceLegacyImport {
 		t.Fatalf("legacy row flags wrong: %+v", review)
 	}
 	if review.Status != course.ReviewStatusVisible {

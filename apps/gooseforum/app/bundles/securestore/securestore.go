@@ -35,6 +35,43 @@ func Encrypt(plaintext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return seal(key, plaintext)
+}
+
+// Decrypt reverses Encrypt.
+func Decrypt(encoded string) (string, error) {
+	key, err := deriveKey()
+	if err != nil {
+		return "", err
+	}
+	return open(key, encoded)
+}
+
+// OneSystemCookiePurpose 一系统同步 Cookie 的加密用途标签。与 TOTP 的 derivationLabel 隔离，
+// 避免不同用途密文复用同一派生密钥（即使 signing key 泄露也不能跨用途解密）。
+const OneSystemCookiePurpose = "yourtj-onesystem-cookie"
+
+// EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
+// HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
+func EncryptPurpose(plaintext, purpose string) (string, error) {
+	key, err := keyForPurpose(purpose)
+	if err != nil {
+		return "", err
+	}
+	return seal(key, plaintext)
+}
+
+// DecryptPurpose reverses EncryptPurpose.
+func DecryptPurpose(encoded, purpose string) (string, error) {
+	key, err := keyForPurpose(purpose)
+	if err != nil {
+		return "", err
+	}
+	return open(key, encoded)
+}
+
+// seal encrypts plaintext with AES-256-GCM and returns base64(nonce||ciphertext).
+func seal(key []byte, plaintext string) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("securestore: create cipher: %w", err)
@@ -51,12 +88,8 @@ func Encrypt(plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt reverses Encrypt.
-func Decrypt(encoded string) (string, error) {
-	key, err := deriveKey()
-	if err != nil {
-		return "", err
-	}
+// open reverses seal.
+func open(key []byte, encoded string) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("securestore: create cipher: %w", err)
@@ -78,6 +111,38 @@ func Decrypt(encoded string) (string, error) {
 		return "", fmt.Errorf("securestore: decrypt: %w", err)
 	}
 	return string(plaintext), nil
+}
+
+type purposeKeyEntry struct {
+	key []byte
+	err error
+}
+
+// purposeKeys caches per-purpose keys for the process lifetime, mirroring the
+// sync.Once lifetime of the base key so a config reload cannot invalidate
+// encrypted values mid-flight.
+var purposeKeys sync.Map // purpose string -> *purposeKeyEntry
+
+// keyForPurpose derives and caches a 32-byte AES key for a purpose label:
+// HMAC-SHA256(baseKey, purpose). Fail-closed policy (weak signing key) comes
+// from deriveKey.
+func keyForPurpose(purpose string) ([]byte, error) {
+	if cached, ok := purposeKeys.Load(purpose); ok {
+		entry := cached.(*purposeKeyEntry)
+		return entry.key, entry.err
+	}
+	base, err := deriveKey()
+	if err != nil {
+		purposeKeys.Store(purpose, &purposeKeyEntry{err: err})
+		return nil, err
+	}
+	mac := hmac.New(sha256.New, base)
+	if _, err := mac.Write([]byte(purpose)); err != nil {
+		return nil, fmt.Errorf("securestore: derive purpose key: %w", err)
+	}
+	key := mac.Sum(nil)
+	purposeKeys.Store(purpose, &purposeKeyEntry{key: key})
+	return key, nil
 }
 
 // deriveKey derives a 32-byte AES key from the app signing key:

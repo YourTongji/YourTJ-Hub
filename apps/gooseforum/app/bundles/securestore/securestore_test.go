@@ -28,6 +28,39 @@ func TestEncryptDecryptRoundTrip(t *testing.T) {
 	}
 }
 
+func TestEncryptPurposeRoundTrip(t *testing.T) {
+	plaintext := "JWTUser=abc; JSESSIONID=def; sessionid=ghi"
+	encoded, err := EncryptPurpose(plaintext, OneSystemCookiePurpose)
+	if err != nil {
+		t.Fatalf("EncryptPurpose() error = %v", err)
+	}
+	if encoded == plaintext {
+		t.Fatal("EncryptPurpose() returned plaintext")
+	}
+	got, err := DecryptPurpose(encoded, OneSystemCookiePurpose)
+	if err != nil {
+		t.Fatalf("DecryptPurpose() error = %v", err)
+	}
+	if got != plaintext {
+		t.Fatalf("DecryptPurpose() = %q, want %q", got, plaintext)
+	}
+}
+
+func TestEncryptPurposeCrossPurposeIsolation(t *testing.T) {
+	// 用不同用途标签解同一密文必须失败：即使 signing key 泄露，也不能跨用途解密。
+	plaintext := "secret-cookie"
+	encoded, err := EncryptPurpose(plaintext, OneSystemCookiePurpose)
+	if err != nil {
+		t.Fatalf("EncryptPurpose() error = %v", err)
+	}
+	if _, err := DecryptPurpose(encoded, "yourtj-totp-secret"); err == nil {
+		t.Fatal("cross-purpose decrypt should fail")
+	}
+	if _, err := DecryptPurpose(encoded, "another-purpose"); err == nil {
+		t.Fatal("unrelated-purpose decrypt should fail")
+	}
+}
+
 func TestEncryptProducesUniqueCiphertexts(t *testing.T) {
 	first, err := Encrypt("same-secret")
 	if err != nil {

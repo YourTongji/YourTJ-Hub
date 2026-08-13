@@ -70,14 +70,22 @@ func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (enti
 // ReactivateReviewTx 事务内恢复并重写一条已删除（隔离窗口）的评价。
 // 唯一索引 (offering_id, author_user_id) 被软删行占用，重新评价必须复用该行；
 // 带 status 条件（CAS）防止并发事务重复恢复，RowsAffected=0 表示已被并发恢复。
-func ReactivateReviewTx(tx *gorm.DB, id uint64, rating *int, content string, isAnonymous bool) (bool, error) {
+// 恢复时一并回写作者关联并清除 deleted_at（隔离窗口标记，吸收 #202）：行在
+// 窗口内 author_user_id 仍为用户本人，回写为幂等；若清理任务已断开作者
+// （置 NULL，仅可能发生在行仍被占用前的边界），恢复后该用户重新占用唯一键，
+// 与"同 offering+用户至多一条"约束保持一致，且不会出现 author 为空的
+// visible 评论（spec S1 的 NULL 语义版本）。
+func ReactivateReviewTx(tx *gorm.DB, id, authorUserId uint64, rating *int, content string, isAnonymous bool) (bool, error) {
 	res := tx.Table(reviewTableName).
 		Where("id = ? AND status = ?", id, ReviewStatusDeleted).
 		Updates(map[string]any{
-			"rating":       rating,
-			"content":      content,
-			"is_anonymous": isAnonymous,
-			"status":       ReviewStatusVisible,
+			"author_user_id": authorUserId,
+			"rating":         rating,
+			"content":        content,
+			"is_anonymous":   isAnonymous,
+			"status":         ReviewStatusVisible,
+			"deleted_at":     nil,
+			"updated_at":     time.Now(),
 		})
 	if res.Error != nil {
 		return false, res.Error
@@ -117,24 +125,42 @@ func FindLegacyReviewByOfferingTx(tx *gorm.DB, offeringId uint64) (entity Review
 	return
 }
 
-// SaveReviewTx 事务内更新评价。
-func SaveReviewTx(tx *gorm.DB, entity *ReviewEntity) error {
-	return tx.Table(reviewTableName).Save(entity).Error
-}
-
-// UpdateReviewStatusTx 事务内更新评价状态。
-func UpdateReviewStatusTx(tx *gorm.DB, id uint64, status int8) error {
-	return tx.Table(reviewTableName).Where("id = ?", id).Update("status", status).Error
-}
-
 // UpdateReviewStatusFromTx 事务内带旧状态条件的 CAS 状态转换：
 // 仅当当前 status 仍为 from 时更新为 to，返回是否成功转换。
 // 并发 hide/delete 双写时只有一个事务能拿到转换权，另一个 RowsAffected=0，
 // 调用方据此决定是否调整 stats，避免按陈旧旧值重复扣减/累加。
+// 显式写 updated_at=now()（security/spec 双审 F2）：裸 Table().Update 不触发
+// gorm autoUpdateTime（callbacks 中 autoUpdateTime 赋值被 schema 解析守卫），
+// 否则 updated_at 停留在创建时间。deleted 转换时该时间戳即 B3 清理窗口起点
+// （deleted 行删除后无其他写路径）；隐藏/恢复转换同样刷新，无副作用。
 func UpdateReviewStatusFromTx(tx *gorm.DB, id uint64, from, to int8) (bool, error) {
 	res := tx.Table(reviewTableName).
 		Where("id = ? AND status = ?", id, from).
-		Update("status", to)
+		Updates(map[string]any{
+			"status":     to,
+			"updated_at": time.Now(),
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// MarkReviewDeletedFromTx 事务内带旧状态条件的 CAS 删除：置 status=deleted，
+// 并写入 deleted_at 作为隔离窗口起点（30 天，见 courseservice.ReviewCleanupWindow，
+// 吸收 #202 设计——显式删除时间锚点取代 updated_at 语义）。
+// Table 更新不会自动维护时间戳（GORM 仅对带 Schema 的更新自动处理），
+// 因此 deleted_at/updated_at 必须显式写入，否则窗口起点缺失、删除后立即
+// 进入可清理状态。
+func MarkReviewDeletedFromTx(tx *gorm.DB, id uint64, from int8) (bool, error) {
+	now := time.Now()
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]any{
+			"status":     ReviewStatusDeleted,
+			"deleted_at": now,
+			"updated_at": now,
+		})
 	if res.Error != nil {
 		return false, res.Error
 	}
@@ -204,16 +230,6 @@ func FindReviewByOfferingAndUser(offeringId, userId uint64) (entity ReviewEntity
 		Where(queryopt.Eq("author_user_id", userId)).
 		First(&entity).Error
 	return
-}
-
-// SaveReview 更新评价（Save 会写全部字段）。
-func SaveReview(entity *ReviewEntity) error {
-	return reviewBuilder().Save(entity).Error
-}
-
-// UpdateReviewStatus 更新评价状态（隐藏/恢复/删除）。
-func UpdateReviewStatus(id uint64, status int8) error {
-	return reviewBuilder().Where("id = ?", id).Update("status", status).Error
 }
 
 // ListReviewsByOffering 按 offering 列出可见评价（时间倒序）。

@@ -158,6 +158,7 @@ func ginServe() {
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
 	searchservice.RecoverStaleTasks()
+	courseservice.RecoverStaleTasks()
 	courseservice.RecoverCourseStatsRebuildTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
@@ -167,6 +168,10 @@ func ginServe() {
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
 	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
 	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
+	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费
+	// course-review-cleanup 前缀任务，脱敏超窗 deleted 行；失败按 taskQueue
+	// 语义重试至多 3 次后 failed 并有日志
+	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCleanupTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

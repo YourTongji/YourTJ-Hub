@@ -67,6 +67,33 @@ services:
       timeout: 5s
       retries: 10
 
+  # wiki 静态站(VitePress + Pagefind, nginx 镜像; 由 deploy-wiki.sh 部署)
+  wiki-main:
+    image: yourtj-wiki:${WIKI_MAIN_TAG:-latest}
+    container_name: yourtj-wiki-main
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WIKI_MAIN_PORT:-5284}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
+  wiki-dev:
+    image: yourtj-wiki:${WIKI_DEV_TAG:-latest}
+    container_name: yourtj-wiki-dev
+    restart: unless-stopped
+    ports:
+      - "127.0.0.1:${WIKI_DEV_PORT:-5285}:80"
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 30
+      start_period: 5s
+
 
 volumes:
   pgdata:

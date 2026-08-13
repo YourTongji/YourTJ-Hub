@@ -138,7 +138,7 @@ func TestDeleteCourseCascades(t *testing.T) {
 	}
 	// 评价 + helpful + 统计
 	rating := 5
-	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: &rating, Content: "很好", Status: course.ReviewStatusVisible}
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "很好", Status: course.ReviewStatusVisible}
 	if err := conn.Create(&review).Error; err != nil {
 		t.Fatalf("create review: %v", err)
 	}
@@ -204,7 +204,7 @@ func TestAdminReviewListSearch(t *testing.T) {
 		t.Fatalf("create offering: %v", err)
 	}
 	rating := 5
-	if err := conn.Create(&course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: &rating, Content: "讲得很好", Status: course.ReviewStatusVisible}).Error; err != nil {
+	if err := conn.Create(&course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "讲得很好", Status: course.ReviewStatusVisible}).Error; err != nil {
 		t.Fatalf("create review: %v", err)
 	}
 
@@ -239,7 +239,7 @@ func TestAdminUpdateReviewRatingSyncsStats(t *testing.T) {
 		t.Fatalf("create offering: %v", err)
 	}
 	rating := 3
-	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: &rating, Content: "内容", Status: course.ReviewStatusVisible}
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "内容", Status: course.ReviewStatusVisible}
 	if err := conn.Create(&review).Error; err != nil {
 		t.Fatalf("create review: %v", err)
 	}
@@ -285,7 +285,7 @@ func TestAdminUpdateReviewSetsRatingOnUnratedReview(t *testing.T) {
 		t.Fatalf("create offering: %v", err)
 	}
 	// legacy 导入：author_user_id=0 且 rating NULL（历史 0 转 NULL）。
-	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 0, Rating: nil, Content: "历史评价", Status: course.ReviewStatusVisible, Source: course.ReviewSourceLegacyImport}
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(0), Rating: nil, Content: "历史评价", Status: course.ReviewStatusVisible, Source: course.ReviewSourceLegacyImport}
 	if err := conn.Create(&review).Error; err != nil {
 		t.Fatalf("create review: %v", err)
 	}
@@ -346,7 +346,7 @@ func TestAdminDeleteReviewSyncsStats(t *testing.T) {
 			if err := conn.Create(&offering).Error; err != nil {
 				t.Fatalf("create offering: %v", err)
 			}
-			review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: tc.rating, Content: "内容", Status: course.ReviewStatusVisible}
+			review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(1001), Rating: tc.rating, Content: "内容", Status: course.ReviewStatusVisible}
 			if err := conn.Create(&review).Error; err != nil {
 				t.Fatalf("create review: %v", err)
 			}

@@ -153,7 +153,7 @@ func TestCourseManageReviewWriteEndpoints(t *testing.T) {
 		t.Fatalf("create offering: %v", err)
 	}
 	rating := 3
-	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: 1001, Rating: &rating, Content: "内容", Status: course.ReviewStatusVisible}
+	review := course.ReviewEntity{OfferingId: offering.Id, AuthorUserId: uint64Ptr(1001), Rating: &rating, Content: "内容", Status: course.ReviewStatusVisible}
 	if err := conn.Create(&review).Error; err != nil {
 		t.Fatalf("create review: %v", err)
 	}

@@ -120,7 +120,7 @@ func buildAdminReviewItems(entities []course.ReviewEntity) ([]AdminReviewItem, e
 
 // adminReviewAuthor 构造不泄露匿名作者身份的 kind/label（与公开 DTO 口径一致）。
 func adminReviewAuthor(entity course.ReviewEntity) ReviewAuthorPayload {
-	if entity.IsAnonymous || entity.AuthorUserId == 0 {
+	if entity.IsAnonymous || entity.AuthorID() == 0 {
 		return ReviewAuthorPayload{Kind: "anonymous", Label: "匿名同学"}
 	}
 	if entity.Source == "legacy-import" || (entity.Source != "" && entity.Source != "native") {
