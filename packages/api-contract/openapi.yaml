@@ -19,6 +19,10 @@ tags:
     description: Forum writing operations.
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
+  - name: Wiki
+    description: Wiki public reading and logged-in writing operations.
+  - name: Wiki Admin
+    description: Wiki administration operations restricted to PageManager or Admin accounts.
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
@@ -103,6 +107,48 @@ paths:
   /api/forum/moderation/course-review-reveal:
     post:
       $ref: ./paths/course-reviews.yaml#/moderationCourseReviewReveal/post
+  /api/wiki/tree:
+    get:
+      $ref: ./paths/wiki.yaml#/getWikiTree/get
+  /api/wiki/namespaces:
+    get:
+      $ref: ./paths/wiki.yaml#/listWikiNamespaces/get
+  /api/wiki/home:
+    get:
+      $ref: ./paths/wiki.yaml#/getWikiHome/get
+  /api/wiki/revisions:
+    get:
+      $ref: ./paths/wiki.yaml#/listWikiRevisions/get
+  /api/wiki/pages:
+    post:
+      $ref: ./paths/wiki.yaml#/createWikiPage/post
+  /api/wiki/pages/{pageId}:
+    put:
+      $ref: ./paths/wiki.yaml#/updateWikiPage/put
+  /api/wiki/revisions/{revisionId}/review:
+    post:
+      $ref: ./paths/wiki.yaml#/reviewWikiRevision/post
+  /api/admin/wiki/namespaces:
+    post:
+      $ref: ./paths/wiki.yaml#/createWikiNamespace/post
+  /api/admin/wiki/namespaces/{name}:
+    put:
+      $ref: ./paths/wiki.yaml#/updateWikiNamespace/put
+    delete:
+      $ref: ./paths/wiki.yaml#/deleteWikiNamespace/delete
+  /api/admin/wiki/namespaces/{name}/editors:
+    get:
+      $ref: ./paths/wiki.yaml#/listWikiNamespaceEditors/get
+    put:
+      $ref: ./paths/wiki.yaml#/updateWikiNamespaceEditors/put
+  /api/admin/wiki/tree:
+    get:
+      $ref: ./paths/wiki.yaml#/getAdminWikiTree/get
+    put:
+      $ref: ./paths/wiki.yaml#/updateAdminWikiTree/put
+  /api/admin/wiki/revisions:
+    get:
+      $ref: ./paths/wiki.yaml#/listAdminWikiRevisions/get
 components:
   securitySchemes:
     bearerAuth:
@@ -295,3 +341,85 @@ components:
       $ref: ./components/schemas.yaml#/SessionMessageSuccess
     UserSession:
       $ref: ./components/schemas.yaml#/UserSession
+    WikiTreePage:
+      $ref: ./components/schemas.yaml#/WikiTreePage
+    WikiTreeNamespace:
+      $ref: ./components/schemas.yaml#/WikiTreeNamespace
+    WikiTreeResult:
+      $ref: ./components/schemas.yaml#/WikiTreeResult
+    WikiTreeResponse:
+      $ref: ./components/schemas.yaml#/WikiTreeResponse
+    WikiNamespaceSummary:
+      $ref: ./components/schemas.yaml#/WikiNamespaceSummary
+    WikiNamespaceListResult:
+      $ref: ./components/schemas.yaml#/WikiNamespaceListResult
+    WikiNamespaceListResponse:
+      $ref: ./components/schemas.yaml#/WikiNamespaceListResponse
+    WikiRecentPage:
+      $ref: ./components/schemas.yaml#/WikiRecentPage
+    WikiHomeResult:
+      $ref: ./components/schemas.yaml#/WikiHomeResult
+    WikiHomeResponse:
+      $ref: ./components/schemas.yaml#/WikiHomeResponse
+    WikiRevision:
+      $ref: ./components/schemas.yaml#/WikiRevision
+    WikiRevisionListResult:
+      $ref: ./components/schemas.yaml#/WikiRevisionListResult
+    WikiRevisionListResponse:
+      $ref: ./components/schemas.yaml#/WikiRevisionListResponse
+    WikiCreatePageRequest:
+      $ref: ./components/schemas.yaml#/WikiCreatePageRequest
+    WikiCreatePageResult:
+      $ref: ./components/schemas.yaml#/WikiCreatePageResult
+    WikiCreatePageResponse:
+      $ref: ./components/schemas.yaml#/WikiCreatePageResponse
+    WikiUpdatePageRequest:
+      $ref: ./components/schemas.yaml#/WikiUpdatePageRequest
+    WikiUpdatePageResult:
+      $ref: ./components/schemas.yaml#/WikiUpdatePageResult
+    WikiUpdatePageResponse:
+      $ref: ./components/schemas.yaml#/WikiUpdatePageResponse
+    WikiReviewRevisionRequest:
+      $ref: ./components/schemas.yaml#/WikiReviewRevisionRequest
+    WikiReviewRevisionResult:
+      $ref: ./components/schemas.yaml#/WikiReviewRevisionResult
+    WikiReviewRevisionResponse:
+      $ref: ./components/schemas.yaml#/WikiReviewRevisionResponse
+    WikiCreateNamespaceRequest:
+      $ref: ./components/schemas.yaml#/WikiCreateNamespaceRequest
+    WikiUpdateNamespaceRequest:
+      $ref: ./components/schemas.yaml#/WikiUpdateNamespaceRequest
+    WikiNamespaceActionResult:
+      $ref: ./components/schemas.yaml#/WikiNamespaceActionResult
+    WikiNamespaceActionResponse:
+      $ref: ./components/schemas.yaml#/WikiNamespaceActionResponse
+    WikiEditorSummary:
+      $ref: ./components/schemas.yaml#/WikiEditorSummary
+    WikiEditorListResult:
+      $ref: ./components/schemas.yaml#/WikiEditorListResult
+    WikiEditorListResponse:
+      $ref: ./components/schemas.yaml#/WikiEditorListResponse
+    WikiUpdateEditorsRequest:
+      $ref: ./components/schemas.yaml#/WikiUpdateEditorsRequest
+    WikiAdminTreePage:
+      $ref: ./components/schemas.yaml#/WikiAdminTreePage
+    WikiAdminTreeNamespace:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeNamespace
+    WikiAdminTreeResult:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeResult
+    WikiAdminTreeResponse:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeResponse
+    WikiTreeOp:
+      $ref: ./components/schemas.yaml#/WikiTreeOp
+    WikiTreeOpsRequest:
+      $ref: ./components/schemas.yaml#/WikiTreeOpsRequest
+    WikiTreeOpsResult:
+      $ref: ./components/schemas.yaml#/WikiTreeOpsResult
+    WikiTreeOpsResponse:
+      $ref: ./components/schemas.yaml#/WikiTreeOpsResponse
+    WikiAdminRevision:
+      $ref: ./components/schemas.yaml#/WikiAdminRevision
+    WikiAdminRevisionListResult:
+      $ref: ./components/schemas.yaml#/WikiAdminRevisionListResult
+    WikiAdminRevisionListResponse:
+      $ref: ./components/schemas.yaml#/WikiAdminRevisionListResponse

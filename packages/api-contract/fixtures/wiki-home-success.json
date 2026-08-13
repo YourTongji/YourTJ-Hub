@@ -1,0 +1,39 @@
+{
+  "result": {
+    "namespaces": [
+      {
+        "name": "guide",
+        "description": "社区使用指南",
+        "sortOrder": 10,
+        "pageCount": 2,
+        "updatedAt": "2026-08-10T14:30:00+08:00"
+      },
+      {
+        "name": "deployment",
+        "description": "部署运维手册",
+        "sortOrder": 20,
+        "pageCount": 1,
+        "updatedAt": "2026-08-11T09:12:00+08:00"
+      }
+    ],
+    "recent": [
+      {
+        "pageId": 1004,
+        "path": "container-deploy",
+        "title": "容器部署",
+        "updatedAt": "2026-08-12T18:05:00+08:00",
+        "editorId": 3002,
+        "editorName": "bob"
+      },
+      {
+        "pageId": 1001,
+        "path": "getting-started",
+        "title": "快速开始",
+        "updatedAt": "2026-08-10T14:30:00+08:00",
+        "editorId": 3001,
+        "editorName": "alice"
+      }
+    ]
+  },
+  "code": 0
+}

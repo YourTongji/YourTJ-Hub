@@ -750,6 +750,213 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public wiki page tree across namespaces */
+        get: operations["getWikiTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List public wiki namespaces with page counts */
+        get: operations["listWikiNamespaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public wiki home feed with namespaces and recent approved revisions */
+        get: operations["getWikiHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List revisions of one wiki page */
+        get: operations["listWikiRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a wiki page in a namespace (submits a pending revision) */
+        post: operations["createWikiPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update an existing wiki page (submits a new pending revision) */
+        put: operations["updateWikiPage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/revisions/{revisionId}/review": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Approve or reject a pending wiki revision (PageManager or Admin only) */
+        post: operations["reviewWikiRevision"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a wiki namespace (PageManager or Admin only) */
+        post: operations["createWikiNamespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a wiki namespace description (PageManager or Admin only) */
+        put: operations["updateWikiNamespace"];
+        post?: never;
+        /** Delete a wiki namespace (PageManager or Admin only) */
+        delete: operations["deleteWikiNamespace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces/{name}/editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List editors of a wiki namespace (PageManager or Admin only) */
+        get: operations["listWikiNamespaceEditors"];
+        /** Replace the editor set of a wiki namespace (PageManager or Admin only) */
+        put: operations["updateWikiNamespaceEditors"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin wiki page tree with sort order (PageManager or Admin only) */
+        get: operations["getAdminWikiTree"];
+        /** Apply tree operations (move, rename, sort, delete) to wiki pages (PageManager or Admin only) */
+        put: operations["updateAdminWikiTree"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List wiki revisions across namespaces with page path (PageManager or Admin only) */
+        get: operations["listAdminWikiRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1398,6 +1605,219 @@ export interface components {
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
         };
+        WikiTreePage: {
+            /** Format: uint64 */
+            pageId: number;
+            /** @description Canonical page path within the namespace (slash-separated). */
+            path: string;
+            title: string;
+            /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
+            active: boolean;
+        };
+        WikiTreeNamespace: {
+            name: string;
+            /** @description Display label of the namespace. */
+            label: string;
+            pages: components["schemas"]["WikiTreePage"][];
+        };
+        WikiTreeResult: {
+            namespaces: components["schemas"]["WikiTreeNamespace"][];
+        };
+        WikiTreeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiTreeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiNamespaceSummary: {
+            name: string;
+            description: string;
+            /** @description Ordering key; smaller values come first. */
+            sortOrder: number;
+            /**
+             * Format: int64
+             * @description Number of pages with at least one approved revision.
+             */
+            pageCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The raw namespace array; an empty listing is an empty array, never null. */
+        WikiNamespaceListResult: components["schemas"]["WikiNamespaceSummary"][];
+        WikiNamespaceListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiNamespaceListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiRecentPage: {
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: uint64 */
+            editorId: number;
+            /** @description Display name of the last approved-revision editor. */
+            editorName: string;
+        };
+        WikiHomeResult: {
+            namespaces: components["schemas"]["WikiNamespaceSummary"][];
+            recent: components["schemas"]["WikiRecentPage"][];
+        };
+        WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiHomeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiRevision: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            pageId: number;
+            /** @description 1-based revision number of the page, incremented per edit. */
+            revisionNo: number;
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+            /** @enum {string} */
+            status: "approved" | "pending" | "rejected" | "superseded";
+            /** Format: uint64 */
+            editorId: number;
+            editorName: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The raw revision array; an empty listing is an empty array, never null. */
+        WikiRevisionListResult: components["schemas"]["WikiRevision"][];
+        WikiRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiRevisionListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiCreatePageRequest: {
+            namespace: string;
+            /** @description Page path within the namespace; the parent segment must reference an existing page when present. */
+            path: string;
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+        };
+        WikiCreatePageResult: {
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+        };
+        WikiCreatePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiCreatePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiUpdatePageRequest: {
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+        };
+        WikiUpdatePageResult: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** @constant */
+            status: "pending";
+        };
+        WikiUpdatePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiUpdatePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiReviewRevisionRequest: {
+            /** @enum {string} */
+            action: "approve" | "reject";
+        };
+        WikiReviewRevisionResult: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** @enum {string} */
+            status: "approved" | "rejected";
+        };
+        WikiReviewRevisionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiReviewRevisionResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiCreateNamespaceRequest: {
+            /** @description Namespace key, lowercase letters, digits, and hyphens. */
+            name: string;
+            description: string;
+        };
+        WikiUpdateNamespaceRequest: {
+            description: string;
+        };
+        WikiNamespaceActionResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiNamespaceActionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiNamespaceActionResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiEditorSummary: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            avatarUrl: string;
+        };
+        /** @description The raw editor array; an empty listing is an empty array, never null. */
+        WikiEditorListResult: components["schemas"]["WikiEditorSummary"][];
+        WikiEditorListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiEditorListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiUpdateEditorsRequest: {
+            /** @description Replaces the namespace editor set; an empty array removes all editors. */
+            userIds: number[];
+        };
+        WikiAdminTreePage: {
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+            title: string;
+            sortOrder: number;
+        };
+        WikiAdminTreeNamespace: {
+            name: string;
+            label: string;
+            pages: components["schemas"]["WikiAdminTreePage"][];
+        };
+        /** @description The raw namespace tree array; an empty listing is an empty array, never null. */
+        WikiAdminTreeResult: components["schemas"]["WikiAdminTreeNamespace"][];
+        WikiAdminTreeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAdminTreeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiTreeOp: {
+            /** @enum {string} */
+            op: "move" | "rename" | "sort" | "delete";
+            /** Format: uint64 */
+            pageId: number;
+            /** @description Target parent path for move operations; empty or absent means the namespace root. */
+            parentPath?: string;
+            /** @description New page path for rename operations. */
+            newPath?: string;
+            /** @description New sort order for sort operations. */
+            sortOrder?: number;
+        };
+        WikiTreeOpsRequest: {
+            /** @description Applied in order; any failure aborts the batch before further operations run. */
+            ops: components["schemas"]["WikiTreeOp"][];
+        };
+        WikiTreeOpsResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiTreeOpsResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiTreeOpsResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAdminRevision: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+            title: string;
+            content: string;
+            /** Format: uint64 */
+            editorId: number;
+            editorName: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The raw revision array; an empty listing is an empty array, never null. */
+        WikiAdminRevisionListResult: components["schemas"]["WikiAdminRevision"][];
+        WikiAdminRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAdminRevisionListResult"];
+        }) | components["schemas"]["ApiFailure"];
         PostPayload: {
             /** Format: uint64 */
             id: number;
@@ -3163,6 +3583,764 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace-labeled page tree with an active-page flag for each page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiTreeResponse"];
+                };
+            };
+            /** @description Wiki tree query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiNamespaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespaces ordered by sort order then name, each with its approved-page count. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceListResponse"];
+                };
+            };
+            /** @description Namespace query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace overview plus recently updated pages ordered by update time desc. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiHomeResponse"];
+                };
+            };
+            /** @description Wiki home query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiRevisions: {
+        parameters: {
+            query: {
+                pageId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revisions of the page ordered by revision number desc. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiRevisionListResponse"];
+                };
+            };
+            /** @description Missing or malformed pageId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Page does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    createWikiPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiCreatePageRequest"];
+            };
+        };
+        responses: {
+            /** @description Created page id and canonical path. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiCreatePageResponse"];
+                };
+            };
+            /** @description Malformed body or illegal path (empty, invalid characters, or parent page missing). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Namespace does not exist or the account is not an editor of the namespace. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description A page with the same path already exists in the namespace. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdatePageRequest"];
+            };
+        };
+        responses: {
+            /** @description New pending revision created for the page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiUpdatePageResponse"];
+                };
+            };
+            /** @description Malformed body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not an editor of the page's namespace. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Page does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    reviewWikiRevision: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                revisionId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiReviewRevisionRequest"];
+            };
+        };
+        responses: {
+            /** @description Review recorded. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiReviewRevisionResponse"];
+                };
+            };
+            /** @description Malformed body or unknown action. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Revision does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Revision is not in pending status. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    createWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiCreateNamespaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Namespace created. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed body or illegal namespace name. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description A namespace with the same name already exists. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdateNamespaceRequest"];
+            };
+        };
+        responses: {
+            /** @description Namespace updated. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Namespace does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deleteWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace deleted. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Namespace does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiNamespaceEditors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Editor user summaries of the namespace. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiEditorListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Namespace does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiNamespaceEditors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdateEditorsRequest"];
+            };
+        };
+        responses: {
+            /** @description Editor set replaced. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed body. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Namespace does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getAdminWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace-labeled page tree including sort order for admin editing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAdminTreeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateAdminWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiTreeOpsRequest"];
+            };
+        };
+        responses: {
+            /** @description Tree operations applied in order; any failure aborts the batch. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiTreeOpsResponse"];
+                };
+            };
+            /** @description Malformed body or invalid operation payload. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description A target page does not exist. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description An operation would collide with an existing path or parent cycle. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listAdminWikiRevisions: {
+        parameters: {
+            query: {
+                status: "pending" | "approved" | "rejected" | "superseded";
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revisions matching the status ordered by creation time desc. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAdminRevisionListResponse"];
+                };
+            };
+            /** @description Missing or invalid status query parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

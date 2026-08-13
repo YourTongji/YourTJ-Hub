@@ -1,0 +1,19 @@
+{
+  "result": [
+    {
+      "name": "guide",
+      "description": "社区使用指南",
+      "sortOrder": 10,
+      "pageCount": 2,
+      "updatedAt": "2026-08-10T14:30:00+08:00"
+    },
+    {
+      "name": "deployment",
+      "description": "部署运维手册",
+      "sortOrder": 20,
+      "pageCount": 1,
+      "updatedAt": "2026-08-11T09:12:00+08:00"
+    }
+  ],
+  "code": 0
+}
