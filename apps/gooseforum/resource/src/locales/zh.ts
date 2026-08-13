@@ -436,6 +436,7 @@ export default {
     noOfferings: '暂无开课记录。',
     reviewsTitle: '课程评价',
     reviewsLoading: '正在加载评价…',
+    loadMoreReviews: '加载更多评价',
     reviewsEmpty: '暂无评价',
     reviewsEmptyDescription: '还没有同学评价这门课，来写第一条吧。',
     reviewsLoadFailed: '评价加载失败，请稍后重试。',
@@ -483,6 +484,42 @@ export default {
     relatedReviews: '{count} 条评价',
     relatedExpand: '展开相关课程',
     relatedCollapse: '收起相关课程',
+    ratingOutOf: '/ 5.0',
+    reviewCountLabel: '{count} 条评价',
+    template: '模板',
+    chooseTemplate: '选择模板',
+    templateChange: '更换模板',
+    templateSelectorTitle: '选择评价模板',
+    templateSelectorHint: '选择一个模板快速开始，正文可继续编辑。',
+    templateContentNotEmpty: '正文已有内容，请先清空后再套用模板。',
+    confirmDeleteTitle: '删除评价',
+    reviewDeleted: '评价已删除',
+    templates: {
+      comprehensive: {
+        name: '全面评价',
+        description: '包含课程内容、教学方式、考核方式等全面评价',
+      },
+      quick: {
+        name: '快速点评',
+        description: '简洁明了的快速评价',
+      },
+      teacherFocused: {
+        name: '教师评价',
+        description: '重点评价教师教学水平和风格',
+      },
+      examFocused: {
+        name: '考试攻略',
+        description: '重点介绍考试形式和备考建议',
+      },
+      workload: {
+        name: '工作量评估',
+        description: '重点评价课程工作量和时间投入',
+      },
+      blank: {
+        name: '空白模板',
+        description: '从空白开始自由发挥',
+      },
+    },
   },
   courseReviewModeration: {
     title: '课评审核',

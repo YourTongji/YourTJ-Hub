@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/meilisearch/meilisearch-go"
 )
@@ -160,5 +161,52 @@ func TestCollectScopeResultsFiltersNonPublicTopics(t *testing.T) {
 	collectScopeResults(resp, TopicIndex, searchResp)
 	if len(resp.Topics) != 1 || resp.Topics[0].ID != 1 {
 		t.Fatalf("only public topic should survive DB filter, got %+v", resp.Topics)
+	}
+}
+
+// TestCollectScopeResultsCoursesFillsStats 验证课程搜索结果的评分聚合填充
+// （spec O2）：有 stats 时填充 ratingAvg/reviewCount；无 stats 时省略。
+func TestCollectScopeResultsCoursesFillsStats(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&course.Entity{}, &course.CourseStatsEntity{}); err != nil {
+		t.Fatalf("migrate course tables: %v", err)
+	}
+	conn.Unscoped().Where("1 = 1").Delete(&course.CourseStatsEntity{})
+	conn.Unscoped().Where("1 = 1").Delete(&course.Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("1 = 1").Delete(&course.CourseStatsEntity{})
+		conn.Unscoped().Where("1 = 1").Delete(&course.Entity{})
+	})
+	if err := conn.Create(&course.Entity{Id: 10, PrimaryCode: "100010", Name: "高数", Department: "数学", CreditX10: 50, Status: course.StatusVisible}).Error; err != nil {
+		t.Fatalf("create course 10: %v", err)
+	}
+	if err := conn.Create(&course.Entity{Id: 11, PrimaryCode: "100011", Name: "线代", Department: "数学", CreditX10: 30, Status: course.StatusVisible}).Error; err != nil {
+		t.Fatalf("create course 11: %v", err)
+	}
+	// course 10 有 stats：2 条评分 sum=9 → avg=4.5
+	if err := conn.Create(&course.CourseStatsEntity{CourseId: 10, RatingCount: 2, RatingSum: 9, ReviewCount: 3}).Error; err != nil {
+		t.Fatalf("create course stats: %v", err)
+	}
+
+	resp := &AggregateSearchResponse{Courses: []CourseSearchResult{}}
+	searchResp := &meilisearch.SearchResponse{
+		Hits: []meilisearch.Hit{
+			{"id": json.RawMessage(`10`), "primaryCode": json.RawMessage(`"100010"`), "name": json.RawMessage(`"高数"`)},
+			{"id": json.RawMessage(`11`), "primaryCode": json.RawMessage(`"100011"`), "name": json.RawMessage(`"线代"`)},
+		},
+		EstimatedTotalHits: 2,
+	}
+	collectScopeResults(resp, CourseIndex, searchResp)
+	if len(resp.Courses) != 2 {
+		t.Fatalf("courses results = %d, want 2", len(resp.Courses))
+	}
+	if resp.Courses[0].ID != 10 || resp.Courses[0].RatingAvg == nil || *resp.Courses[0].RatingAvg != 4.5 {
+		t.Fatalf("course 10 ratingAvg = %#v, want 4.5", resp.Courses[0].RatingAvg)
+	}
+	if resp.Courses[0].ReviewCount != 3 {
+		t.Fatalf("course 10 reviewCount = %d, want 3", resp.Courses[0].ReviewCount)
+	}
+	if resp.Courses[1].ID != 11 || resp.Courses[1].RatingAvg != nil || resp.Courses[1].ReviewCount != 0 {
+		t.Fatalf("course 11 should omit stats, got ratingAvg=%#v reviewCount=%d", resp.Courses[1].RatingAvg, resp.Courses[1].ReviewCount)
 	}
 }
