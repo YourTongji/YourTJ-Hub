@@ -1,8 +1,0 @@
-# wiki 独立 workspace：防止 pnpm 向上查找到外层 package.json
-# （HOME / worktree 根部的 packageManager 声明会干扰项目解析）
-packages:
-  - "."
-
-# pnpm 11+ 构建脚本白名单（esbuild 需要 postinstall 构建原生二进制）
-allowBuilds:
-  esbuild: true
