@@ -1,52 +1,17 @@
-# OAuth Center（walinejs/auth）部署
+# OAuth Center 部署（walinejs/auth）
 
-Waline 评论登录的 OIDC 中转服务：向 Waline 提供第三方登录页，背后对接
-YourTJ-Hub 的 OIDC provider（authorization code + PKCE）。
+向 Waline 提供第三方登录页，背后对接 YourTJ-Hub OIDC（authorization code + PKCE）。
 
 ```
 Waline (OAUTH_URL) → OAuth Center (walinejs/auth) → YourTJ-Hub OIDC
 ```
 
-## 部署方式
-
-**walinejs/auth 官方没有 Dockerfile / docker-compose**，官方部署方式是
-Vercel（`vercel.json` + Deploy with Vercel 按钮）。两种自托管路线：
-
-**方式 A：Vercel（官方推荐，零运维）**
-
-1. Fork [walinejs/auth](https://github.com/walinejs/auth)（master 分支）。
-2. Vercel 导入，配置环境变量后 Deploy。
-
-**方式 B：自托管（Docker，需自行 wrap Koa app）**
-
-仓库导出 `app.callback()`（Koa 中间件，无 `listen`），需自写入口：
-
-```js
-// server.js —— 自托管入口（示例，需自行维护）
-const http = require('http');
-const callback = require('@waline/auth'); // 或指向本地 clone 的 index.js
-http.createServer(callback).listen(process.env.PORT || 3000);
-```
-
-```dockerfile
-# Dockerfile（示例）
-FROM node:20-alpine
-WORKDIR /app
-COPY . .
-RUN npm install --omit=dev
-EXPOSE 3000
-CMD ["node", "server.js"]
-```
-
-> 说明：`@waline/auth` 是私有包（`"private": true`），npm 上不可直接安装，
-> 自托管需 clone 源码（`git clone https://github.com/walinejs/auth`）。
-
-## 核心环境变量（walinejs/auth）
+## 核心环境变量
 
 | 变量 | 示例 | 说明 |
 |---|---|---|
 | `OIDC_ID` | `yourtj-wiki-comment` | 与 Hub `[[oidc.clients]].id` 一致 |
-| `OIDC_SECRET` | （留空） | public 客户端不填（PKCE S256） |
+| `OIDC_SECRET` | （留空） | public 客户端不填（PKCE S256）；填写则走 client_secret_basic |
 | `OIDC_ISSUER` | `https://forum.example.com/api/oauth` | Hub OIDC issuer（自动 discovery） |
 | `OIDC_SCOPES` | （可选） | 默认 `openid profile email` |
 | `GITHUB_ID` / `GITHUB_SECRET` | 可选 | 可同时保留 GitHub 登录 |
@@ -58,27 +23,32 @@ CMD ["node", "server.js"]
 
 1. Hub 已注册 OIDC client 并开启 `oidc.enabled`（见
    [wiki 部署文档](../../../wiki/docs/deployment/oauth-center-oidc.md)）。
-2. Hub `redirect_uris` 与 Waline server 动态构造的回调匹配（**落地第一步验证**，
-   见下方风险说明）。
+2. Hub `redirect_uris` 与 Waline server 动态构造的回调匹配——现在
+   redirect_uris 已支持 glob 兜底（doublestar pattern，见
+   `deploy/config.toml.example`），见 wiki 部署文档。
 
-## ✅ redirect_uri 匹配已支持 glob（本 PR 落地）
+## 部署方式
 
-Waline 登录流程中 `redirect_uri` 会携带动态 query 参数，而 Hub OIDC 曾只有
-精确字符串匹配。现在 Hub 侧已实现 zitadel/oidc 的 `HasRedirectGlobs` 接口：
-每个 client 可配置 `redirect_uris_globs`（doublestar pattern），精确匹配失败后
-按 pattern 兜底匹配。配置示例见
-[wiki 部署文档](../../../wiki/docs/deployment/oauth-center-oidc.md)：
+**方式 A：本目录 compose（推荐，YourTJ-Hub 补丁版，零额外依赖）**
 
-```toml
-[[oidc.clients]]
-id = "yourtj-wiki-comment"
-redirect_uris = ["https://auth.example.com/api/oauth/redirect"]
-redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
+```bash
+cd deploy/wiki/oauth-center
+cp .env.example .env && 编辑 .env
+docker compose up -d --build
 ```
 
-- pattern 在配置加载时校验，非法 pattern 拒绝整个 OIDC 配置（fail-closed）；
-- glob 只兜底注册过的 pattern，未命中的 URI 依然被拒绝，不构成 open redirect；
-- 落地第一步仍建议验证实际回调串与 pattern 匹配（见下方说明）。
+再反向代理 `https://auth.example.com` → `127.0.0.1:8300`（compose 仅回环绑定）。
+
+**方式 B：Vercel（官方推荐，零运维）**
+
+1. Fork [walinejs/auth](https://github.com/walinejs/auth)（master 分支）。
+2. Vercel 导入，配置环境变量后 Deploy。
+
+**方式 C：自托管上游（需自行 wrap Koa app + 打补丁）**
+
+上游 walinejs/auth **不支持 PKCE/nonce**，直接对接 YourTJ-Hub OIDC 会被授权
+端点拒绝。仓库 `deploy/wiki/oauth-center/` 已提供补丁版自托管资产（
+`src/oidc.js` + `server.js` + `Dockerfile`），补丁内容见 `PATCH.md`。
 
 ## 说明
 

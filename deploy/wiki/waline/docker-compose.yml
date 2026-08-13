@@ -37,10 +37,10 @@ services:
       # - MYSQL_PREFIX=${MYSQL_PREFIX:-wl_}
 
       # --- 站点信息 ---
-      - SITE_NAME=YourTJ Wiki
-      - SITE_URL=https://wiki.example.com
+      - SITE_NAME=${SITE_NAME:-YourTJ Wiki}
+      - SITE_URL=${SITE_URL:-https://wiki.example.com}
       # 允许评论的域名白名单（防跨站刷评），逗号分隔
-      - SECURE_DOMAINS=wiki.example.com
+      - SECURE_DOMAINS=${SECURE_DOMAINS:-wiki.example.com}
 
       # --- 登录：OAuth Center（必填）---
       # 指向 walinejs/auth 服务（见 ../oauth-center/）；Waline 登录页将
