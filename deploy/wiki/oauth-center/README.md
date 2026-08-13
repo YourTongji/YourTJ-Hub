@@ -42,7 +42,10 @@ docker compose up -d --build
 **方式 B：Vercel（官方推荐，零运维）**
 
 1. Fork [walinejs/auth](https://github.com/walinejs/auth)（master 分支）。
-2. Vercel 导入，配置环境变量后 Deploy。
+2. **必须同样应用本目录的补丁**（上游 `src/oidc.js` 不支持 PKCE/nonce，
+   Hub OIDC 会拒绝授权请求）——把本目录 `src/oidc.js` 覆盖 fork 的同名文件，
+   或在 fork 中手工应用 `PATCH.md` 描述的改动。
+3. Vercel 导入，配置环境变量后 Deploy。
 
 **方式 C：自托管上游（需自行 wrap Koa app + 打补丁）**
 

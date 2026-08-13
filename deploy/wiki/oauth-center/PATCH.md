@@ -14,12 +14,12 @@ authorize 阶段直接拒绝不符合的请求）。因此上游 auth center 直
    `code_challenge`（SHA-256 后 base64url）+ `code_challenge_method=S256`；
    token 交换时提交 `code_verifier`。
 2. **nonce**：authorize 时发送随机 `nonce`（16 字节）。
-3. **state 信封**：`code_verifier`、`redirect_uri`、原始 `state` 编码为
-   base64url JSON 放进 `state` 参数。原因：Hub 回跳 Waline server 后，
-   Waline server 回调 auth center 时只转发 `code` 和 `state`，不转发
-   `redirect`——token 交换所需的 `redirect_uri` 必须与授权请求**逐字节一致**
-   （Hub 对 token 的 redirect_uri 与 authorize 请求做精确比对），因此必须
-   从 state 里恢复。
+3. **服务端会话存储（非 state 信封）**：`code_verifier` 与 `redirect_uri`
+   只存服务端内存，OIDC `state` 参数只放不透明会话 id。会话一次性消费 +
+   10 分钟 TTL + 过期清理。**PKCE 威胁模型要求 verifier 绝不与授权码同
+   信道出现**——把 verifier 编码进 state 会让回调拦截者同时拿到 code 和
+   verifier，PKCE 失效。单实例自托管下内存存储即可；进程重启丢失未完成
+   登录（用户重试即可）。
 4. **public client**：`OIDC_SECRET` 允许为空（PKCE 替代 client secret）。
    若配置了 `OIDC_SECRET`，则用 HTTP Basic（`client_secret_basic`）提交。
 
@@ -28,16 +28,14 @@ authorize 阶段直接拒绝不符合的请求）。因此上游 auth center 直
 ## 自托管部署（本目录）
 
 ```bash
-# 1. 构建（首次）
-docker build -t yourtj-oauth-center:1.1.0-pkce .
-
-# 2. 运行（仅回环，公网走反代 https://auth.example.com -> 127.0.0.1:8300）
-docker run -d --name oauth-center --restart unless-stopped \
-  -p 127.0.0.1:8300:8300 \
-  -e OIDC_ID=yourtj-wiki-comment \
-  -e OIDC_ISSUER=https://forum.example.com/api/oauth \
-  yourtj-oauth-center:1.1.0-pkce
+cd deploy/wiki/oauth-center
+cp .env.example .env   # OIDC_ID / OIDC_ISSUER 必填
+docker compose up -d --build
 ```
+
+再反向代理 `https://auth.example.com` → `127.0.0.1:8300`（compose 仅回环绑定）。
+进程在容器内监听 `0.0.0.0`（docker -p 的流量到达容器 eth0，容器内 loopback
+监听会拒收），公网暴露由宿主侧 `127.0.0.1` 绑定保证。
 
 环境变量（与上游相同 + public client 放宽）：
 

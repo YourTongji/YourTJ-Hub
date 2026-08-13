@@ -5,17 +5,23 @@
 #   2. docker compose up -d --build
 #   3. 反向代理 https://auth.example.com -> 127.0.0.1:8300（仅回环暴露）
 #
-# 说明：镜像内是打过补丁的 src/oidc.js（PKCE S256 + nonce + state 信封），
-# 详见 PATCH.md。上游 walinejs/auth 不支持 PKCE/nonce，直接部署会被
+# 说明：镜像内是打过补丁的 src/oidc.js（PKCE S256 + nonce + 服务端 state
+# 存储），详见 PATCH.md。上游 walinejs/auth 不支持 PKCE/nonce，直接部署会被
 # YourTJ-Hub OIDC（强制 PKCE + nonce）在授权端点拒绝。
+#
+# env_file: .env 使 .env 中全部变量（含可选 GITHUB_ID/GITHUB_SECRET 等）进入
+# 容器，而不仅是 compose 变量插值。缺失 .env 时使用下方默认值。
 
 services:
   oauth-center:
     build: .
     restart: unless-stopped
     ports:
-      # 仅回环暴露, 公网一律经反向代理(与 forum 后端一致的姿势)
+      # 仅回环暴露, 公网一律经反向代理(与 forum 后端一致的姿势);
+      # 容器内进程监听 0.0.0.0(见 server.js), 宿主侧 127.0.0.1 绑定保证不对外
       - "127.0.0.1:8300:8300"
+    env_file:
+      - .env
     environment:
       # 与 Hub [[oidc.clients]].id 一致
       - OIDC_ID=${OIDC_ID:-yourtj-wiki-comment}
