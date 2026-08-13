@@ -44,6 +44,12 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
+// GetTx 事务内按 id 获取帖子（避免单连接测试库下事务内走全局连接死锁）。
+func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
+	tx.Table(tableName).First(&entity, id)
+	return
+}
+
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)

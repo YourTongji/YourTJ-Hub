@@ -442,3 +442,73 @@ func compactWhitespace(s string) string {
 	}
 	return buf.String()
 }
+
+// HeadingItem 是文档目录（TOC）的一个条目，与服务端渲染的 heading id 严格一致。
+type HeadingItem struct {
+	Level int    `json:"level"`
+	ID    string `json:"id"`
+	Text  string `json:"text"`
+}
+
+// ExtractHeadings 解析 Markdown 并提取全部标题（层级/id/纯文本）。
+// 与 MarkdownToHTML 共用同一 goldmark 配置与 headingid context，
+// 保证返回的 id 与渲染 HTML 中 h1-h6 的 id 完全一致（TOC 锚点可靠）。
+func ExtractHeadings(content string) []HeadingItem {
+	reader := text.NewReader([]byte(content))
+	ctx := parser.NewContext(parser.WithIDs(headingid.NewIDs()))
+	doc := GetParser().Parser().Parse(reader, parser.WithContext(ctx))
+
+	items := make([]HeadingItem, 0, 16)
+	_ = ast.Walk(doc, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		heading, ok := n.(*ast.Heading)
+		if !ok {
+			return ast.WalkContinue, nil
+		}
+		items = append(items, HeadingItem{
+			Level: heading.Level,
+			ID:    headingIDAttr(heading),
+			Text:  headingText(heading, reader.Source()),
+		})
+		return ast.WalkContinue, nil
+	})
+	return items
+}
+
+func headingIDAttr(heading *ast.Heading) string {
+	value, ok := heading.AttributeString("id")
+	if !ok {
+		return ""
+	}
+	switch typed := value.(type) {
+	case []byte:
+		return string(typed)
+	case string:
+		return typed
+	default:
+		return ""
+	}
+}
+
+func headingText(heading *ast.Heading, source []byte) string {
+	var buf strings.Builder
+	_ = ast.Walk(heading, func(n ast.Node, entering bool) (ast.WalkStatus, error) {
+		if !entering {
+			return ast.WalkContinue, nil
+		}
+		switch node := n.(type) {
+		case *ast.Text:
+			buf.Write(node.Segment.Value(source))
+		case *ast.CodeSpan:
+			for child := node.FirstChild(); child != nil; child = child.NextSibling() {
+				if textNode, ok := child.(*ast.Text); ok {
+					buf.Write(textNode.Segment.Value(source))
+				}
+			}
+		}
+		return ast.WalkContinue, nil
+	})
+	return strings.TrimSpace(buf.String())
+}

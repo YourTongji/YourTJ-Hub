@@ -12,7 +12,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
@@ -43,6 +42,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
@@ -199,6 +199,25 @@ type SidebarPayload struct {
 	Groups     []SidebarGroupPayload `json:"groups,omitempty"`
 	Categories []CategoryNavPayload  `json:"categories"`
 	ActiveKey  string                `json:"activeKey"`
+	// Mode 指示当前视图：forum（默认）/ wiki。
+	Mode string `json:"mode,omitempty"`
+	// WikiTree 在 wiki 模式下填充（左栏导航树）。
+	WikiTree []WikiTreeNamespacePayload `json:"wikiTree,omitempty"`
+}
+
+// WikiTreeNamespacePayload wiki 导航树的 namespace 分组。
+type WikiTreeNamespacePayload struct {
+	Name  string                `json:"name"`
+	Label string                `json:"label"`
+	Pages []WikiTreePagePayload `json:"pages"`
+}
+
+// WikiTreePagePayload wiki 导航树的一页。
+type WikiTreePagePayload struct {
+	PageId uint64 `json:"pageId"`
+	Path   string `json:"path"`
+	Title  string `json:"title"`
+	Active bool   `json:"active"`
 }
 
 type FooterPayload struct {
@@ -2641,10 +2660,11 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		offset = (page - 1) * pageSize
 	}
 	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
-		Query:  query,
-		Scope:  normalizedScope,
-		Limit:  limit,
-		Offset: offset,
+		Query:     query,
+		Scope:     normalizedScope,
+		Limit:     limit,
+		Offset:    offset,
+		TopicType: topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true

@@ -15,6 +15,7 @@ type Entity struct {
 	UserId        uint64         `gorm:"column:user_id;not null;default:0;index:idx_topics_user_status,priority:1;index:idx_topics_admin_user_list,priority:1;" json:"userId"`
 	Status        int8           `gorm:"column:status;not null;default:0;index:idx_topics_user_status,priority:2;index:idx_topics_list_default,priority:1;index:idx_topics_list_hot,priority:1;index:idx_topics_list_popular,priority:1;index:idx_topics_list_new,priority:1;" json:"status"`
 	ProcessStatus int8           `gorm:"column:process_status;not null;default:0;index:idx_topics_user_status,priority:3;index:idx_topics_list_default,priority:2;index:idx_topics_list_hot,priority:2;index:idx_topics_list_popular,priority:2;index:idx_topics_list_new,priority:2;" json:"processStatus"`
+	TopicType     int8           `gorm:"column:topic_type;not null;default:0;index:idx_topics_type_status,priority:1;" json:"topicType"`
 	LikeCount     uint64         `gorm:"column:like_count;not null;default:0;" json:"likeCount"`
 	ViewCount     uint64         `gorm:"column:view_count;not null;default:0;index:idx_topics_list_popular,priority:3,sort:desc;" json:"viewCount"`
 	PostCount     uint64         `gorm:"column:post_count;not null;default:0;" json:"postCount"`
@@ -46,22 +47,28 @@ const (
 	ProcessStatusPending int8 = 2 // 待审（敏感词转人工审核）
 )
 
+// 话题类型（topic_type）：与论坛 feed 隔离正交。
+const (
+	TopicTypeForum int8 = 0 // 论坛普通话题（默认）
+	TopicTypeWiki  int8 = 1 // wiki 分站页面
+)
+
 // 可见性状态（visibility_status）：与 process_status（封禁/待审）正交。
 // 封禁=内容仍在库但不可见（可逆）；删除=内容进入删除生命周期。
 const (
-	VisibilityActive           = "ACTIVE"
-	VisibilityUserDeleted      = "USER_DELETED"      // 作者本人删除，进入 30 天恢复窗口
-	VisibilityModeratorRemoved = "MODERATOR_REMOVED" // 管理员/版主治理删除
+	VisibilityActive            = "ACTIVE"
+	VisibilityUserDeleted       = "USER_DELETED"       // 作者本人删除，进入 30 天恢复窗口
+	VisibilityModeratorRemoved  = "MODERATOR_REMOVED"  // 管理员/版主治理删除
 	VisibilityAccountAnonymized = "ACCOUNT_ANONYMIZED" // 账号注销联动匿名化
 )
 
 // 保留状态（retention_status）：决定数据在删除后保留多久、由谁访问。
 const (
-	RetentionNormal         = "NORMAL"         // 正常生命周期
-	RetentionRecoverable    = "RECOVERABLE"    // 恢复窗口期（默认 30 天），仅作者本人可恢复
-	RetentionEvidenceHold   = "EVIDENCE_HOLD"  // 存在举报/审核证据，保留证据副本
-	RetentionLegalHold      = "LEGAL_HOLD"     // 法律保存要求，覆盖普通 TTL
-	RetentionPurged         = "PURGED"         // 已永久删除，仅审计可查
+	RetentionNormal       = "NORMAL"        // 正常生命周期
+	RetentionRecoverable  = "RECOVERABLE"   // 恢复窗口期（默认 30 天），仅作者本人可恢复
+	RetentionEvidenceHold = "EVIDENCE_HOLD" // 存在举报/审核证据，保留证据副本
+	RetentionLegalHold    = "LEGAL_HOLD"    // 法律保存要求，覆盖普通 TTL
+	RetentionPurged       = "PURGED"        // 已永久删除，仅审计可查
 )
 
 type Poster struct {

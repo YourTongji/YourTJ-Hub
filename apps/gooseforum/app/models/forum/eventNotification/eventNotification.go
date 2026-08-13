@@ -8,22 +8,24 @@ const tableName = "event_notification"
 
 // Event Types
 const (
-	EventTypeComment   = "comment"    // 主题收到新 post
-	EventTypePostReply = "post_reply" // post 回复通知
-	EventTypeTopicPost = "topic_post" // 关注主题的新 post 通知
-	EventTypeSystem    = "system"     // 系统通知
-	EventTypeFollow    = "follow"     // 关注通知
-	EventTypeBadge     = "badge"      // 徽章通知
-	EventTypeLike      = "like"       // 楼层点赞通知
+	EventTypeComment     = "comment"      // 主题收到新 post
+	EventTypePostReply   = "post_reply"   // post 回复通知
+	EventTypeTopicPost   = "topic_post"   // 关注主题的新 post 通知
+	EventTypeSystem      = "system"       // 系统通知
+	EventTypeFollow      = "follow"       // 关注通知
+	EventTypeBadge       = "badge"        // 徽章通知
+	EventTypeLike        = "like"         // 楼层点赞通知
+	EventTypeWikiUpdated = "wiki_updated" // wiki 页面审核通过后的更新通知
 )
 
 const (
-	TemplateComment   = "notifications.templates.comment"
-	TemplatePostReply = "notifications.templates.postReply"
-	TemplateTopicPost = "notifications.templates.topicPost"
-	TemplateFollow    = "notifications.templates.follow"
-	TemplateBadge     = "notifications.templates.badge"
-	TemplateLike      = "notifications.templates.like"
+	TemplateComment     = "notifications.templates.comment"
+	TemplatePostReply   = "notifications.templates.postReply"
+	TemplateTopicPost   = "notifications.templates.topicPost"
+	TemplateFollow      = "notifications.templates.follow"
+	TemplateBadge       = "notifications.templates.badge"
+	TemplateLike        = "notifications.templates.like"
+	TemplateWikiUpdated = "notifications.templates.wikiUpdated"
 )
 
 // Future unread-scope design:

@@ -48,6 +48,12 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
+// GetTx 事务内按 id 获取话题（避免单连接测试库下事务内走全局连接死锁）。
+func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
+	tx.Table(tableName).First(&entity, id)
+	return
+}
+
 // GetWithError 返回实体与查询错误，供需要区分“记录不存在”与“查询失败”的调用方使用。
 func GetWithError(id uint64) (entity Entity, err error) {
 	err = builder().First(&entity, id).Error
@@ -113,6 +119,7 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -129,6 +136,7 @@ func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err err
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Asc("id")).
 		Limit(limit).
@@ -147,6 +155,7 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -172,6 +181,7 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -185,7 +195,8 @@ func GetPublishedByUserBeforeId(userId uint64, beforeId uint64, limit int) ([]*E
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive))
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
 	}
@@ -210,7 +221,8 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 	b := builder().
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive))
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
 	if cursorID != 0 {
 		b = b.Where(queryopt.Lt("id", cursorID))
 	}
@@ -233,6 +245,8 @@ type PageQuery struct {
 	FilterStatus   bool
 	CategoryId     uint64
 	Sort           string
+	// TopicType 按话题类型过滤；nil=不过滤（兼容既有调用）。
+	TopicType *int8
 }
 
 type AdminPageQuery struct {
@@ -264,6 +278,9 @@ func Page(q PageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
+	}
+	if q.TopicType != nil {
+		b.Where(queryopt.Eq("topic_type", *q.TopicType))
 	}
 	if q.FilterStatus {
 		b.Where(queryopt.Eq("status", 1))
@@ -615,3 +632,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 		"image_urls":        "[]",
 	}).Error
 }
+
+// TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
+func TopicTypePtr(t int8) *int8 { return &t }

@@ -27,4 +27,6 @@ const (
 	PageComponentResetPassword          PageComponent = "auth.resetPassword"
 	PageComponentError                  PageComponent = "error.index"
 	PageComponentAdmin                  PageComponent = "admin.shell"
+	PageComponentWikiHome               PageComponent = "wiki.home"
+	PageComponentWikiDetail             PageComponent = "wiki.detail"
 )

@@ -54,6 +54,10 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpChallenges"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpRecoveryCodes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"gorm.io/gorm"
 )
 
@@ -166,6 +170,10 @@ func SchemaModels() []any {
 		&topicCategoryIndex.Entity{},
 		&topicUserAction.Entity{},
 		&postUserAction.Entity{},
+		&wikiNamespaces.Entity{},
+		&wikiNamespaceEditors.Entity{},
+		&wikiPages.Entity{},
+		&wikiPageRevisions.Entity{},
 		&topicUserStat.Entity{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},
