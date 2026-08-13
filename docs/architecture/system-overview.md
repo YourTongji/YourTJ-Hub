@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-08
+> Last verified: 2026-08-14
 
 ## System shape
 
@@ -50,7 +50,7 @@
 | `app/console` | cobra CLI (serve / mock / rebuild-search-index / migrate-files ...) |
 | `app/bundles` | Utilities (connect/eventbus/jwtopt/i18n/captcha/logging/cache ...) |
 | `app/models` | GORM models + migrations (app/migration) |
-| `app/service` | Business logic (users/topics/mail/oauth/theme ...) |
+| `app/service` | Business logic (users/topics/mail/oauth/theme/wikiservice ...) |
 | `app/http/controllers/api` | JSON API (auth/topic/user/admin/chat/notification/file ...) |
 | `app/http/controllers/forum` | Page rendering (GoHTML three-mode: payload + render + SEO) |
 | `app/http/middleware` | JWT auth, access log, maintenance mode, rate limiting (per-action, IP+user, 429 + Retry-After) ... |
@@ -84,6 +84,29 @@
   in issue #22. Index sync is event-driven (topic/user/category events). When Meilisearch is
   unavailable the search page shows a full unavailable state; per-index failures degrade partially
   via `failedScopes`. The index is a rebuildable projection (`rebuild-search-index` CLI).
+
+### Wiki 分站 (Current)
+
+Wiki 已原生化进论坛单二进制（同二进制内嵌视图，不再是独立 VitePress 静态站；旧 wiki 站点与部署已废弃）。
+
+- **后端分层**: `app/models/forum/wikiNamespaces` / `wikiNamespaceEditors` / `wikiPages` /
+  `wikiPageRevisions` → `app/service/wikiservice`（Create/Edit/Review 审核流、BuildTree/BuildHome/
+  ListRevisions、贡献者；admin 树操作/命名空间管理/编辑者管理）→ controllers：
+  `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
+  `app/http/controllers/api/wikiController.go`（公开 API + `/api/admin/wiki/*` 管理端）。
+- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；公开 API
+  `GET /api/wiki/{tree,namespaces,home,revisions}`；登录写
+  `POST /api/wiki/pages`、`PUT /api/wiki/pages/:pageId`、`POST /api/wiki/revisions/:revisionId/review`
+  （PageManager/Admin 审核）；管理端 `/api/admin/wiki/*`（PageManager 权限：namespaces CRUD、editors、
+  tree、tree ops、revisions 队列）。
+- **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` / `WikiPageActions`
+  组件（`PostStream` 从 TopicPage 抽取共享），AppShell 侧栏 wiki 模式；admin 区 `WikiManage.vue`
+  （`/admin/wiki`，PageManager）。
+- **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
+  sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；wiki 审核通过向订阅者发
+  `wiki_updated` 通知（`notifications.templates.wikiUpdated`）。
+- **契约**: OpenAPI wiki 域已覆盖（16 操作、38 schema、35 fixtures，`paths/wiki.yaml`），生成 TS
+  类型 + 手写 Dart mirror（`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 ### Points (phase 2)
 
