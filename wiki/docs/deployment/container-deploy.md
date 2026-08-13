@@ -48,11 +48,11 @@ Waline 服务端部署见 [Waline 评论服务](./waline)。
    - `wiki.yourtj.de` → `127.0.0.1:5284`（main）
    - `dev-wiki.yourtj.de` → `127.0.0.1:5285`（dev）
 2. **GitHub Secrets**：`WIKI_WALINE_SERVER_URL`（可选，评论服务地址）
-3. **服务器重新初始化**：在已有服务器上运行
-   `sudo bash /opt/yourtj/scripts/init-server.sh`（或手动执行）以补齐
-   `build/wiki.Dockerfile`、`build/wiki.nginx.conf` 与 `.env` 的 `WIKI_*` 变量；
-   首次部署需 `docker compose -f /opt/yourtj/docker-compose.yaml up -d wiki-main wiki-dev`
-   创建容器（deploy-wiki.sh 的 compose up 会处理后续更新）。
+3. **服务器 wiki 资产**：无需手动操作。deploy-dev/main 每次部署都会 scp 上传
+   `wiki.Dockerfile`、`wiki.nginx.conf` 与 `docker-compose.yaml`，并由
+   `bootstrap-wiki-assets.sh` 幂等安装（compose 仅在缺 wiki 服务时替换、
+   `.env` 逐条追加缺失的 `WIKI_*` 变量），首次 wiki 部署即可自动创建
+   `wiki-main`/`wiki-dev` 容器。
 
 ## 验证清单（部署后）
 

@@ -41,7 +41,7 @@
     Dockerfile            # alpine + binary
     wiki.Dockerfile       # nginx + wiki static dist
     wiki-dist/            # unpacked wiki dist (deploy-wiki.sh)
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, pgdsn.sh
+  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, bootstrap-wiki-assets.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
     storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
@@ -93,6 +93,12 @@
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
+- Wiki deploy assets are also CI-provisioned: each deploy uploads
+  `deploy/build/wiki.Dockerfile` / `wiki.nginx.conf` / `docker-compose.yaml` and runs
+  `bootstrap-wiki-assets.sh`, which idempotently installs them under `/opt/yourtj/build` and appends
+  missing `WIKI_*` vars to `/opt/yourtj/.env`. Existing servers therefore need no manual
+  `init-server.sh` re-run before the first wiki deploy; the compose file is only replaced when the
+  `wiki-*` services are missing (preserving any server-side local edits).
 
 ## GitHub Actions secrets
 

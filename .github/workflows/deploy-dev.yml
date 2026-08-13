@@ -100,9 +100,21 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/scripts/deploy-wiki.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/scripts/deploy-wiki.sh,deploy/scripts/bootstrap-wiki-assets.sh"
           target: "/tmp"
           strip_components: 2
+      - name: Upload wiki deploy assets to dev host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          # strip 1 保留相对结构: /tmp/build/wiki.Dockerfile + /tmp/docker-compose.yaml,
+          # bootstrap-wiki-assets.sh 幂等安装到 /opt/yourtj(存量服务器免手动 init-server)
+          source: "deploy/build/wiki.Dockerfile,deploy/build/wiki.nginx.conf,deploy/docker-compose.yaml"
+          target: "/tmp"
+          strip_components: 1
       - name: Deploy to dev (sync db from main + build image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -119,6 +131,10 @@ jobs:
             install -m 0755 /tmp/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
             install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
             install -m 0755 /tmp/deploy-wiki.sh /opt/yourtj/scripts/deploy-wiki.sh
+            install -m 0755 /tmp/bootstrap-wiki-assets.sh /opt/yourtj/scripts/bootstrap-wiki-assets.sh
+            # 0.5 幂等补齐 wiki 部署资产(Dockerfile/nginx.conf/compose 服务/.env WIKI_*),
+            #     存量服务器无需手动重跑 init-server.sh
+            /opt/yourtj/scripts/bootstrap-wiki-assets.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
