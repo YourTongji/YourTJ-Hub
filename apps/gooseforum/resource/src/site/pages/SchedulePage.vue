@@ -3,7 +3,7 @@
 // 桌面双栏（选课列表 + 课程班级）+ 下方课表；移动端三 tab（课表/选课/详情）。
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
 // 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync 增量保留已选。
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Download, RefreshCw } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -137,19 +137,43 @@ function handleCellClick(_day: number, _section: number) {
 // ---- 导出（与课表一致：含已排入课表的所有班级）----
 const exportOpen = ref(false)
 const exportRoot = ref<HTMLElement | null>(null)
+const exportButton = ref<HTMLButtonElement | null>(null)
+const exportMenu = ref<HTMLElement | null>(null)
+
+function openExportMenu() {
+  exportOpen.value = true
+  // 打开后聚焦首项，保证键盘用户可直接继续导航（无需再 Tab 到菜单内）。
+  nextTick(() => {
+    exportMenu.value?.querySelector<HTMLButtonElement>('button')?.focus()
+  })
+}
 
 function closeExportMenu() {
   exportOpen.value = false
+  // 菜单项激活 / Esc 关闭后，焦点还原到触发按钮。
+  exportButton.value?.focus()
+}
+
+function toggleExportMenu() {
+  if (exportOpen.value) {
+    closeExportMenu()
+  } else {
+    openExportMenu()
+  }
 }
 
 function handleExportOutsidePointerDown(event: PointerEvent) {
   const target = event.target
   if (target instanceof Node && exportRoot.value?.contains(target)) return
+  // 外部点击关闭时不抢焦点，焦点留给用户点击的目标。
   exportOpen.value = false
 }
 
 function handleExportKeydown(event: KeyboardEvent) {
-  if (event.key === 'Escape') exportOpen.value = false
+  // 监听 document，菜单打开时无论焦点在按钮还是菜单项内，Esc 都能关闭。
+  if (event.key !== 'Escape' || !exportOpen.value) return
+  event.preventDefault()
+  closeExportMenu()
 }
 
 function exportableClassCodes(): string[] {
@@ -193,11 +217,13 @@ onMounted(() => {
   apply()
   query.addEventListener('change', apply)
   document.addEventListener('pointerdown', handleExportOutsidePointerDown)
+  document.addEventListener('keydown', handleExportKeydown)
   void checkDataOutdated()
 })
 
 onBeforeUnmount(() => {
   document.removeEventListener('pointerdown', handleExportOutsidePointerDown)
+  document.removeEventListener('keydown', handleExportKeydown)
 })
 </script>
 
@@ -217,11 +243,12 @@ onBeforeUnmount(() => {
           </button>
           <div ref="exportRoot" class="relative">
             <button
+              ref="exportButton"
               type="button"
               class="gf-button gf-button-md gf-button-outline"
               :aria-expanded="exportOpen"
-              @click="exportOpen = !exportOpen"
-              @keydown="handleExportKeydown"
+              aria-haspopup="menu"
+              @click="toggleExportMenu"
             >
               <Download class="h-4 w-4" />
               {{ t('schedule.export') }}
@@ -229,6 +256,7 @@ onBeforeUnmount(() => {
             <Transition name="gf-menu">
               <div
                 v-if="exportOpen"
+                ref="exportMenu"
                 class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-48 p-1"
               >
                 <button type="button" class="gf-menu-item w-full" @click="exportCsv">
