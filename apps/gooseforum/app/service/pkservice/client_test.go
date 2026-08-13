@@ -146,3 +146,82 @@ func TestRedactCredentials(t *testing.T) {
 		t.Errorf("benign hint altered: %q", plain)
 	}
 }
+
+func TestFetchPageRejectsBusinessFailureCode(t *testing.T) {
+	// HTTP 200 但业务/鉴权失败（code!=0）：不得当作成功空页，且不可重试（review HIGH）。
+	calls := 0
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		calls++
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":1,"msg":"未登录或会话失效","data":null}`))
+	}))
+	_, err := c.fetchPage(context.Background(), "bad-cookie", 121, 1, 200)
+	if err == nil {
+		t.Fatal("expected error on HTTP 200 + code!=0")
+	}
+	if !strings.Contains(err.Error(), "code=1") {
+		t.Errorf("error should mention code=1, got: %v", err)
+	}
+	if calls != 1 {
+		t.Errorf("business failure must not retry, calls = %d", calls)
+	}
+}
+
+func TestFetchPageCodeZeroIsSuccess(t *testing.T) {
+	// code=0 或缺失时按成功页处理，不误判。
+	for name, body := range map[string]string{
+		"code-zero":  `{"code":0,"msg":"success","data":{"total_":1,"list":[]}}`,
+		"no-code":    pageResponse(1, nil),
+		"code-null":  `{"code":null,"data":{"total_":1,"list":[]}}`,
+		"code-text0": `{"code":"0","data":{"total_":1,"list":[]}}`,
+	} {
+		t.Run(name, func(t *testing.T) {
+			c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				w.Header().Set("Content-Type", "application/json")
+				w.WriteHeader(http.StatusOK)
+				_, _ = w.Write([]byte(body))
+			}))
+			if _, err := c.fetchPage(context.Background(), "cookie", 121, 1, 200); err != nil {
+				t.Fatalf("code-zero/none should succeed: %v", err)
+			}
+		})
+	}
+}
+
+func TestFetchPageRejectsStringBusinessCode(t *testing.T) {
+	// 字符串形式的 code="1" 同样应拦截（勿因 JSON 字符串引号误判为成功）。
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"1","msg":"未登录","data":null}`))
+	}))
+	_, err := c.fetchPage(context.Background(), "bad-cookie", 121, 1, 200)
+	if err == nil {
+		t.Fatal("expected error on string code=\"1\"")
+	}
+	if !strings.Contains(err.Error(), "code=1") {
+		t.Errorf("error should mention code=1, got: %v", err)
+	}
+}
+
+func TestFetchPageCodeBoundary(t *testing.T) {
+	// 负数 code 应拦截；非数字字符串 code 应 fail-closed（报错而非当成功）。
+	negative := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":-1,"msg":"fail","data":null}`))
+	}))
+	if _, err := negative.fetchPage(context.Background(), "cookie", 121, 1, 200); err == nil {
+		t.Fatal("expected error on negative code")
+	}
+
+	nonNumeric := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"success","msg":"ok","data":{"total_":1,"list":[]}}`))
+	}))
+	if _, err := nonNumeric.fetchPage(context.Background(), "cookie", 121, 1, 200); err == nil {
+		t.Fatal("expected error on non-numeric code (fail-closed)")
+	}
+}

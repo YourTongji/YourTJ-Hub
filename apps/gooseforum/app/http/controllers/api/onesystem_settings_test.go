@@ -8,7 +8,6 @@ import (
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
@@ -28,7 +27,7 @@ func setupOnesystemSettingsTest(t *testing.T) {
 }
 
 func readOnesystemSettings() pageConfig.OneSystemSettingsConfig {
-	return pageConfig.GetConfigByPageType(pageConfig.OneSystemSettings, defaultconfig.GetDefaultOneSystemSettingsConfig())
+	return hotdataserve.GetOnesystemSettingsConfigCache()
 }
 
 func TestSaveOnesystemSettingsEncryptsAtRest(t *testing.T) {

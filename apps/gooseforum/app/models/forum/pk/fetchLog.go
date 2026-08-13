@@ -19,7 +19,7 @@ const (
 // 语义参照 ImportRunEntity：running/completed/failed + 计数；额外记录 last_committed_page 作为批量游标。
 type FetchLogEntity struct {
 	Id                uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	CalendarId        uint64         `gorm:"column:calendar_id;not null;default:0;index:idx_pk_fetch_log_calendar;" json:"calendarId"`
+	CalendarId        uint64         `gorm:"column:calendar_id;not null;default:0;index:idx_pk_fetch_log_calendar;index:idx_pk_fetch_log_running,unique,where:status = 'running';" json:"calendarId"`
 	Status            string         `gorm:"column:status;type:varchar(32);not null;default:'';" json:"status"`
 	TotalPages        int            `gorm:"column:total_pages;not null;default:0;" json:"totalPages"`
 	LastCommittedPage int            `gorm:"column:last_committed_page;not null;default:0;" json:"lastCommittedPage"`

@@ -196,7 +196,14 @@ const fetchLogStaleWindow = time.Hour
 // beginOrResumeFetchLog 决定本次运行是全新同步还是断点续跑：
 //   - 无日志或最近一次 completed → 新建 running 日志，返回全新（需清空）
 //   - 最近一次 running 且未陈旧 → 拒绝：另一进程正在同步（并发防护，避免相互删数据）
-//   - 最近一次 running 已陈旧 / failed → 复用该日志续跑
+//   - 最近一次 running 已陈旧 / failed → 原子认领该日志后续跑
+//
+// 并发防护三层（review HIGH「唯一/租约」）：
+//  1. 应用层按 StartedAt 时间窗拒绝未陈旧的并发；
+//  2. 续跑（stale running / failed）用 ClaimFetchLog 原子 CAS 认领，两进程同时读到同一行时
+//     仅一个能成功，另一进程返回「并发续跑冲突」，避免复用同一行导致 double-delete；
+//  3. 新建用 (calendar_id) WHERE status='running' partial unique index 兜底，消除「两进程同时
+//     读不到 running → 各自 CreateFetchLog 成功」的 TOCTOU 竞态。
 func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) {
 	latest, ok := pk.LatestFetchLogByCalendar(calendarId)
 	if ok {
@@ -205,13 +212,37 @@ func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) 
 			if latest.StartedAt != nil && time.Since(*latest.StartedAt) < fetchLogStaleWindow {
 				return nil, false, errors.New("该学期同步正在进行中（fetchlog running），请勿并发运行；若确已中断请稍后再试")
 			}
+			// stale running：原子认领（CAS 比较 started_at 旧值），防止并发续跑同一行。
+			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusRunning, latest.StartedAt)
+			if err != nil {
+				return nil, false, err
+			}
+			if !claimed {
+				return nil, false, errors.New("该学期同步正在进行中（并发续跑冲突），请稍后再试")
+			}
+			now := time.Now()
+			latest.StartedAt = &now
 			return &latest, true, nil
 		case pk.FetchStatusFailed:
+			// failed：原子改回 running 认领（状态转换即串行化），防止并发续跑同一行。
+			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusFailed, nil)
+			if err != nil {
+				return nil, false, err
+			}
+			if !claimed {
+				return nil, false, errors.New("该学期同步正在进行中（并发续跑冲突），请稍后再试")
+			}
+			now := time.Now()
+			latest.Status = pk.FetchStatusRunning
+			latest.StartedAt = &now
 			return &latest, true, nil
 		}
 	}
 	log, err := pk.CreateFetchLog(calendarId)
 	if err != nil {
+		if errors.Is(err, gorm.ErrDuplicatedKey) {
+			return nil, false, errors.New("该学期同步正在进行中（fetchlog running 唯一约束冲突），请勿并发运行；若确已中断请稍后再试")
+		}
 		return nil, false, err
 	}
 	return log, false, nil

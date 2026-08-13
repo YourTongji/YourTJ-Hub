@@ -11,7 +11,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/randopt"
@@ -52,6 +51,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"github.com/samber/lo"
 )
 
@@ -1457,7 +1457,7 @@ func SaveMCPSettings(req component.BetterRequest[SaveMCPSettingsReq]) component.
 
 // GetOnesystemSettings 获取一系统同步凭证配置：仅返回是否已配置，不回显密文或明文。
 func GetOnesystemSettings(req component.BetterRequest[component.Null]) component.Response {
-	config := pageConfig.GetConfigByPageType(pageConfig.OneSystemSettings, defaultconfig.GetDefaultOneSystemSettingsConfig())
+	config := hotdataserve.GetOnesystemSettingsConfigCache()
 	return component.SuccessResponse(map[string]any{
 		"cookieConfigured": strings.TrimSpace(config.CookieEncrypted) != "",
 	})
@@ -1468,8 +1468,8 @@ type SaveOnesystemSettingsReq struct {
 	Cookie string `json:"cookie" validate:"max=4096"`
 }
 
-// SaveOnesystemSettings 保存一系统 Cookie：securestore 加密后落库（json:"-" 防泄露），
-// 明文不持久化。清除时传空字符串。
+// SaveOnesystemSettings 保存一系统 Cookie：securestore 加密后落库（密文经 OneSystemSettingsStorage
+// 持久化，领域结构 json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
 func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]) component.Response {
 	encrypted := ""
 	if cookie := strings.TrimSpace(req.Params.Cookie); cookie != "" {
@@ -1479,7 +1479,7 @@ func SaveOnesystemSettings(req component.BetterRequest[SaveOnesystemSettingsReq]
 		}
 		encrypted = sealed
 	}
-	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsConfig{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
+	return savePageConfig(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{CookieEncrypted: encrypted}, hotdataserve.ClearOnesystemSettingsConfigCache)
 }
 
 func GetHttpNotifySettings(req component.BetterRequest[component.Null]) component.Response {

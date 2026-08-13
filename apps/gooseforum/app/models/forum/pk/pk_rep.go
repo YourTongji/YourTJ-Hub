@@ -50,6 +50,27 @@ func SaveFetchLog(entity *FetchLogEntity) error {
 	return nil
 }
 
+// ClaimFetchLog 原子认领一条可续跑日志：仅当其当前状态等于 expectedStatus（且若给出 expectedStartedAt，
+// 其 started_at 也须相等）时，将其置为 running 并刷新 started_at。返回是否认领成功（RowsAffected==1）。
+//
+// 用于消除「两进程同时读到同一条 stale-running / failed 日志并都续跑」的 double-delete 竞态
+// （review HIGH「唯一/租约」的租约部分）。对 stale-running 必须传 expectedStartedAt 做真正的 CAS：
+// 认领后 started_at 被刷新，第二个认领者用旧 started_at 的 WHERE 不再匹配，故只会有一个成功；
+// 若仅按 status 过滤，running→running 不变会导致两进程都拿到 RowsAffected==1（CAS 失效）。
+// 对 failed 可传 nil：failed→running 的状态转换本身就足以串行化。
+func ClaimFetchLog(id uint64, expectedStatus string, expectedStartedAt *time.Time) (bool, error) {
+	now := time.Now()
+	q := fetchLogBuilder().Where("id = ? AND status = ?", id, expectedStatus)
+	if expectedStartedAt != nil {
+		q = q.Where("started_at = ?", expectedStartedAt)
+	}
+	res := q.Updates(map[string]any{"status": FetchStatusRunning, "started_at": now})
+	if res.Error != nil {
+		return false, fmt.Errorf("pk: claim fetch log: %w", res.Error)
+	}
+	return res.RowsAffected == 1, nil
+}
+
 // CleanupOldFetchLogs 清理 30 天前的同步日志。
 func CleanupOldFetchLogs() error {
 	cutoff := time.Now().Add(-30 * 24 * time.Hour)

@@ -324,8 +324,20 @@ type MCPSettingsConfig struct {
 
 // OneSystemSettingsConfig 一系统同步凭证配置：只落库密文（securestore AES-256-GCM），
 // 明文仅在保存时短暂出现；读取时由同步服务在内存中解密，管理端 GET 仅回显是否已配置。
+// CookieEncrypted 标 json:"-"：密文绝不随 JSON 序列化导出（review MEDIUM），持久化走 OneSystemSettingsStorage。
 type OneSystemSettingsConfig struct {
-	CookieEncrypted string `json:"cookieEncrypted"` // 加密后的一系统 Cookie header
+	CookieEncrypted string `json:"-"` // 加密后的一系统 Cookie header
+}
+
+// OneSystemSettingsStorage 一系统凭证的落库 JSON 形状：与对外 OneSystemSettingsConfig 分离，
+// 密文只在持久化序列化时出现，不进入 API 响应/缓存结构。ToConfig 转回领域结构。
+type OneSystemSettingsStorage struct {
+	CookieEncrypted string `json:"cookieEncrypted"`
+}
+
+// ToConfig 将落库形状转为领域结构（二者当前字段一致，仅为序列化语义隔离）。
+func (s OneSystemSettingsStorage) ToConfig() OneSystemSettingsConfig {
+	return OneSystemSettingsConfig{CookieEncrypted: s.CookieEncrypted}
 }
 
 type HttpNotifyEndpoint struct {

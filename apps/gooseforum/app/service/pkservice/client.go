@@ -8,6 +8,7 @@ import (
 	"io"
 	"net/http"
 	"regexp"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -64,10 +65,42 @@ type TeacherRaw struct {
 }
 
 type manualArrangePage struct {
+	Code onesystemCode `json:"code"` // 0=成功；非 0=业务/鉴权失败（一系统 HTTP 200 信封）
+	Msg  string        `json:"msg"`
 	Data struct {
 		Total_ int         `json:"total_"`
 		List   []CourseRaw `json:"list"`
 	} `json:"data"`
+}
+
+// onesystemCode 解析一系统响应信封的 code 字段：0 表示成功，非 0 表示业务/鉴权失败。
+// 上游 code 通常为整数，但为稳健兼容整数、数字字符串与缺失（缺失/空/null 一律视为成功 0）。
+type onesystemCode int64
+
+// UnmarshalJSON 兼容数字（1）、数字字符串（"1"）、null 与缺失。
+// 注意 JSON 字符串值会带引号，须先剥离引号再 ParseInt，否则 "1" 会被误判为成功。
+// 显式但非数字的 code 值（如 "success"）fail-closed：返回错误，避免把未知失败形状
+// 当作成功页而误删存量数据（review HIGH）。
+func (c *onesystemCode) UnmarshalJSON(b []byte) error {
+	s := strings.TrimSpace(string(b))
+	if s == "" || s == "null" {
+		*c = 0
+		return nil
+	}
+	if len(s) >= 2 && s[0] == '"' && s[len(s)-1] == '"' {
+		s = s[1 : len(s)-1]
+		s = strings.TrimSpace(s)
+	}
+	if s == "" {
+		*c = 0
+		return nil
+	}
+	n, err := strconv.ParseInt(s, 10, 64)
+	if err != nil {
+		return fmt.Errorf("无法解析 code 字段 %q", s)
+	}
+	*c = onesystemCode(n)
+	return nil
 }
 
 // onesystemClient 一系统 manualArrange 分页抓取客户端。忽略环境代理（等价上游 trust_env=False），
@@ -161,6 +194,18 @@ func (c *onesystemClient) tryFetch(ctx context.Context, cookie string, body []by
 		var page manualArrangePage
 		if err := json.Unmarshal(respBody, &page); err != nil {
 			return nil, false, fmt.Errorf("一系统返回无法解析: %w", err)
+		}
+		if code := int64(page.Code); code != 0 {
+			// HTTP 200 但业务/鉴权失败（code!=0）：勿当成功页，否则会误删存量数据（review HIGH）。
+			// 鉴权失败不可重试，直接以明确错误中止；错误体需脱敏。
+			hint := redactCredentials(strings.TrimSpace(page.Msg))
+			if hint == "" {
+				hint = redactCredentials(strings.TrimSpace(string(respBody)))
+			}
+			if len(hint) > 200 {
+				hint = hint[:200]
+			}
+			return nil, false, fmt.Errorf("一系统返回业务失败: code=%d %s", code, hint)
 		}
 		return &page, false, nil
 	}

@@ -3,6 +3,7 @@ package pkservice
 import (
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
@@ -13,6 +14,7 @@ import (
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
+	"gorm.io/gorm"
 )
 
 // migratePkTables 迁移并清空 PK 域表（测试用内存 sqlite）。
@@ -44,13 +46,14 @@ func migratePkTables(t *testing.T) {
 	}
 }
 
-// fakeOneSystem 模拟一系统 manualArrange 分页服务，可注入按页失败与全局 401。
+// fakeOneSystem 模拟一系统 manualArrange 分页服务，可注入按页失败、全局 401 与 HTTP 200 业务失败。
 type fakeOneSystem struct {
-	mu        sync.Mutex
-	courses   []CourseRaw
-	failPages map[int]int // pageNum -> HTTP status
-	cookieOK  bool
-	calls     []int // 按顺序记录请求的 pageNum
+	mu           sync.Mutex
+	courses      []CourseRaw
+	failPages    map[int]int // pageNum -> HTTP status
+	cookieOK     bool
+	businessCode int   // 非 0 时返回 HTTP 200 + code!=0（模拟一系统业务/鉴权失败信封）
+	calls        []int // 按顺序记录请求的 pageNum
 }
 
 func (f *fakeOneSystem) handler() http.Handler {
@@ -67,11 +70,18 @@ func (f *fakeOneSystem) handler() http.Handler {
 		f.calls = append(f.calls, req.PageNum_)
 		status := f.failPages[req.PageNum_]
 		cookieOK := f.cookieOK
+		businessCode := f.businessCode
 		f.mu.Unlock()
 
 		if !cookieOK {
 			w.WriteHeader(http.StatusUnauthorized)
 			_, _ = w.Write([]byte(`{"message":"未登录或会话失效"}`))
+			return
+		}
+		if businessCode != 0 {
+			w.Header().Set("Content-Type", "application/json")
+			w.WriteHeader(http.StatusOK)
+			_, _ = w.Write([]byte(fmt.Sprintf(`{"code":%d,"msg":"未登录或会话失效","data":null}`, businessCode)))
 			return
 		}
 		if status != 0 {
@@ -325,6 +335,41 @@ func TestSyncExpiredCookiePreservesPriorData(t *testing.T) {
 	}
 }
 
+// TestSyncBusinessCodeFailurePreservesPriorData 回归（review HIGH）：一系统 HTTP 200 + code!=0
+// 的鉴权失败同样不得当成功页，不得在验证前删除存量数据。
+func TestSyncBusinessCodeFailurePreservesPriorData(t *testing.T) {
+	migratePkTables(t)
+	fake := &fakeOneSystem{courses: genCourses(1200), cookieOK: true}
+	client := newSyncClient(t, fake)
+
+	const calendarID = uint64(121)
+	if _, err := syncWith(context.Background(), client, "valid-cookie", calendarID, 1, false); err != nil {
+		t.Fatalf("prior successful sync: %v", err)
+	}
+	if got := countCourseDetails(t, calendarID); got != 1200 {
+		t.Fatalf("prior course details = %d, want 1200", got)
+	}
+
+	// 一系统返回 HTTP 200 + code=1 的业务失败：必须失败，且不得摧毁存量数据。
+	fake.mu.Lock()
+	fake.businessCode = 1
+	fake.mu.Unlock()
+	_, bizErr := syncWith(context.Background(), client, "expired-cookie", calendarID, 1, false)
+	if bizErr == nil {
+		t.Fatal("expected business-code re-run to fail")
+	}
+	if !strings.Contains(bizErr.Error(), "code=1") {
+		t.Errorf("error should mention code=1, got: %v", bizErr)
+	}
+	if got := countCourseDetails(t, calendarID); got != 1200 {
+		t.Errorf("course details after failed re-run = %d, want 1200 (prior data must be preserved)", got)
+	}
+	log, _ := pk.LatestFetchLogByCalendar(calendarID)
+	if log.Status != pk.FetchStatusFailed {
+		t.Errorf("fetchlog status = %q, want failed", log.Status)
+	}
+}
+
 func TestSyncMissingCookie(t *testing.T) {
 	migratePkTables(t)
 	fake := &fakeOneSystem{courses: genCourses(10), cookieOK: true}
@@ -357,5 +402,83 @@ func TestSyncDepthSyncsConsecutiveCalendars(t *testing.T) {
 		if got := countCourseDetails(t, id); got != 5 {
 			t.Errorf("calendar %d course details = %d, want 5", id, got)
 		}
+	}
+}
+
+func TestFetchLogRunningUniqueConstraint(t *testing.T) {
+	// 并发防护（review HIGH）：同一学期只允许一条 running 日志，(status='running')
+	// partial unique index 按 calendar_id 限定，兜底消除 TOCTOU 竞态——同一学期第二条 running 必须冲突失败。
+	migratePkTables(t)
+	const calendarID = uint64(121)
+
+	if _, err := pk.CreateFetchLog(calendarID); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	// 不同学期可各自拥有一条 running（索引按 calendar_id 限定，而非全局唯一）。
+	if _, err := pk.CreateFetchLog(122); err != nil {
+		t.Fatalf("different calendar running should coexist: %v", err)
+	}
+	// 同一学期第二条 running 冲突失败。
+	if _, err := pk.CreateFetchLog(calendarID); !errors.Is(err, gorm.ErrDuplicatedKey) {
+		t.Fatalf("second running create error = %v, want gorm.ErrDuplicatedKey", err)
+	}
+
+	// 标记 completed 后 running 唯一约束释放，可再建新 running（幂等重跑路径）。
+	var log pk.FetchLogEntity
+	if err := db.Connect().Where("calendar_id = ?", calendarID).First(&log).Error; err != nil {
+		t.Fatalf("load log: %v", err)
+	}
+	log.Status = pk.FetchStatusCompleted
+	if err := pk.SaveFetchLog(&log); err != nil {
+		t.Fatalf("mark completed: %v", err)
+	}
+	if _, err := pk.CreateFetchLog(calendarID); err != nil {
+		t.Fatalf("create after completed should succeed: %v", err)
+	}
+}
+
+func TestClaimFetchLogCAS(t *testing.T) {
+	// 续跑原子认领（review HIGH 租约）：ClaimFetchLog 用 started_at 旧值做 CAS，
+	// 防止两进程同时读到同一条 stale-running/failed 日志并都续跑造成 double-delete。
+	migratePkTables(t)
+
+	running, err := pk.CreateFetchLog(121)
+	if err != nil {
+		t.Fatalf("create running: %v", err)
+	}
+	oldStartedAt := running.StartedAt
+
+	// stale running 认领：用旧 started_at 做 CAS，第一次成功（刷新 started_at）。
+	claimed, err := pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldStartedAt)
+	if err != nil || !claimed {
+		t.Fatalf("claim stale running = (%v, %v), want (true, nil)", claimed, err)
+	}
+	// 第二次用同一个旧 started_at 认领（模拟并发者）：started_at 已被刷新，CAS 不匹配，应失败。
+	claimed, err = pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldStartedAt)
+	if err != nil || claimed {
+		t.Fatalf("second claim stale running = (%v, %v), want (false, nil)", claimed, err)
+	}
+
+	// failed 状态可认领（状态转换即串行化），认领后置回 running。
+	failed, err := pk.CreateFetchLog(122)
+	if err != nil {
+		t.Fatalf("create 122: %v", err)
+	}
+	if err := db.Connect().Model(&pk.FetchLogEntity{}).Where("id = ?", failed.Id).Update("status", pk.FetchStatusFailed).Error; err != nil {
+		t.Fatalf("mark failed: %v", err)
+	}
+	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, nil); err != nil || !claimed {
+		t.Fatalf("claim failed = (%v, %v), want (true, nil)", claimed, err)
+	}
+	var got pk.FetchLogEntity
+	if err := db.Connect().Where("id = ?", failed.Id).First(&got).Error; err != nil {
+		t.Fatalf("load claimed: %v", err)
+	}
+	if got.Status != pk.FetchStatusRunning {
+		t.Errorf("claimed status = %q, want running", got.Status)
+	}
+	// failed 认领后状态已转 running，再次按 failed 认领应失败（CAS 不匹配）。
+	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, nil); err != nil || claimed {
+		t.Fatalf("second claim failed = (%v, %v), want (false, nil)", claimed, err)
 	}
 }

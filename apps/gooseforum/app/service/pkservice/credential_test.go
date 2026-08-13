@@ -23,7 +23,7 @@ func writeEncryptedCookieSetting(t *testing.T, cookie string) {
 		if err != nil {
 			t.Fatalf("encrypt cookie: %v", err)
 		}
-		if err := conn.Create(&pageConfig.Entity{PageType: pageConfig.OneSystemSettings, Config: jsonopt.Encode(pageConfig.OneSystemSettingsConfig{CookieEncrypted: enc})}).Error; err != nil {
+		if err := conn.Create(&pageConfig.Entity{PageType: pageConfig.OneSystemSettings, Config: jsonopt.Encode(pageConfig.OneSystemSettingsStorage{CookieEncrypted: enc})}).Error; err != nil {
 			t.Fatalf("write settings: %v", err)
 		}
 	}
