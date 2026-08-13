@@ -215,3 +215,83 @@ CREATE UNIQUE INDEX uniq_course_review_offering_author ON course_review (offerin
 		t.Fatalf("pg write NULL author_user_id after upgrade failed: %v", err)
 	}
 }
+
+// TestCourseReviewUpgradeCrashWindowRollback 判别性验证 security 复审 F1：
+// 重建序列（CREATE temp → INSERT SELECT → DROP → RENAME → 建索引）必须包在
+// 事务内——模拟 DROP 后、RENAME 前的崩溃（事务中途失败），断言：
+//   - 旧 course_review 表完整（事务回滚，数据未滞留孤儿临时表）
+//   - 无 course_review__upgrade 残留
+//   - 重启后 preflight 重跑成功（旧形态仍可检测 → 正常升级）
+func TestCourseReviewUpgradeCrashWindowRollback(t *testing.T) {
+	db, err := gorm.Open(sqlite.Open(fmt.Sprintf("file:migration-course-review-crash-%d?mode=memory&cache=shared", 0)), &gorm.Config{
+		Logger: logger.Default.LogMode(logger.Silent),
+	})
+	if err != nil {
+		t.Fatalf("open sqlite: %v", err)
+	}
+	if err := db.Exec(legacyCourseReviewDDL).Error; err != nil {
+		t.Fatalf("create legacy table: %v", err)
+	}
+	if err := db.Exec("INSERT INTO course_review (id, offering_id, author_user_id, status, content) VALUES (1, 100, 1001, 2, '崩溃窗口数据'), (2, 100, 1002, 0, '可见数据')").Error; err != nil {
+		t.Fatalf("insert rows: %v", err)
+	}
+
+	// 模拟崩溃：手工执行重建序列到 DROP 后（与旧实现一致），然后让事务回滚
+	crashErr := db.Transaction(func(tx *gorm.DB) error {
+		for _, idx := range []string{
+			"uniq_course_review_offering_author",
+			"idx_course_review_offering",
+			"idx_course_review_author",
+			"idx_course_review_status",
+		} {
+			if err := tx.Migrator().DropIndex(&course.ReviewEntity{}, idx); err != nil {
+				return err
+			}
+		}
+		if err := tx.Table("course_review__upgrade").Migrator().CreateTable(&course.ReviewEntity{}); err != nil {
+			return err
+		}
+		if err := tx.Exec(`INSERT INTO course_review__upgrade (id, offering_id, author_user_id, status, content)
+			SELECT id, offering_id, author_user_id, status, content FROM course_review`).Error; err != nil {
+			return err
+		}
+		if err := tx.Exec(`DROP TABLE course_review`).Error; err != nil {
+			return err
+		}
+		// ⚠️ 崩溃点：DROP 之后、RENAME 之前返回错误 → 事务必须整体回滚
+		return fmt.Errorf("simulated crash after DROP")
+	})
+	if crashErr == nil {
+		t.Fatal("expected simulated crash error")
+	}
+
+	// 断言 1：事务回滚后旧表完整（数据未丢、未滞留孤儿临时表）
+	if !db.Migrator().HasTable(courseReviewTableName) {
+		t.Fatal("course_review missing after rollback（崩溃窗口未回滚——旧实现静默丢数据）")
+	}
+	if db.Migrator().HasTable("course_review__upgrade") {
+		t.Fatal("orphan course_review__upgrade table survived rollback")
+	}
+	var count int64
+	if err := db.Table(courseReviewTableName).Count(&count).Error; err != nil {
+		t.Fatalf("count after rollback: %v", err)
+	}
+	if count != 2 {
+		t.Fatalf("row count after rollback = %d, want 2（数据滞留丢失）", count)
+	}
+
+	// 断言 2：重启后 preflight 重跑成功（旧形态仍可检测 → 正常升级）
+	if err := upgradeCourseReviewLegacySchema(db); err != nil {
+		t.Fatalf("preflight retry after crash failed: %v", err)
+	}
+	if err := db.AutoMigrate(&course.ReviewEntity{}); err != nil {
+		t.Fatalf("AutoMigrate after crash retry failed: %v", err)
+	}
+	var kept course.ReviewEntity
+	if err := db.Table(courseReviewTableName).Where("id = ?", 1).First(&kept).Error; err != nil {
+		t.Fatalf("row 1 lost after crash retry: %v", err)
+	}
+	if kept.Content != "崩溃窗口数据" || kept.AuthorID() != 1001 {
+		t.Fatalf("row 1 altered after crash retry: %+v", kept)
+	}
+}

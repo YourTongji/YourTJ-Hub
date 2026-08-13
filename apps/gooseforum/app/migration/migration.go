@@ -233,53 +233,66 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 		return nil // 已是新形态（nullable），交给 AutoMigrate
 	}
 
-	// 旧形态：手工全列重建（保留 author_user_id 数据与唯一索引）
-	// 1) 临时表（新形态：author_user_id 可空、deleted_at 普通列）
-	if err := db.Exec(`CREATE TABLE course_review__upgrade (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		offering_id INTEGER NOT NULL DEFAULT 0,
-		author_user_id INTEGER,
-		rating INTEGER,
-		content TEXT NOT NULL DEFAULT '',
-		is_anonymous INTEGER NOT NULL DEFAULT 0,
-		status INTEGER NOT NULL DEFAULT 0,
-		legacy_helpful_count INTEGER NOT NULL DEFAULT 0,
-		source TEXT NOT NULL DEFAULT '',
-		created_at DATETIME,
-		updated_at DATETIME,
-		deleted_at DATETIME
-	)`).Error; err != nil {
-		return fmt.Errorf("create course_review upgrade table: %w", err)
-	}
-	// 2) 全列复制（含 author_user_id——gorm 重建会漏掉的列）
-	if err := db.Exec(`INSERT INTO course_review__upgrade
-		(id, offering_id, author_user_id, rating, content, is_anonymous, status,
-		 legacy_helpful_count, source, created_at, updated_at, deleted_at)
-		SELECT id, offering_id, author_user_id, rating, content, is_anonymous, status,
-		       legacy_helpful_count, source, created_at, updated_at, deleted_at
-		FROM course_review`).Error; err != nil {
-		return fmt.Errorf("copy course_review data: %w", err)
-	}
-	// 3) 原子替换 + 重建索引
-	if err := db.Exec(`DROP TABLE course_review`).Error; err != nil {
-		return fmt.Errorf("drop legacy course_review: %w", err)
-	}
-	if err := db.Exec(`ALTER TABLE course_review__upgrade RENAME TO course_review`).Error; err != nil {
-		return fmt.Errorf("rename course_review: %w", err)
-	}
-	if err := db.Exec(`CREATE UNIQUE INDEX uniq_course_review_offering_author ON course_review (offering_id, author_user_id)`).Error; err != nil {
-		return fmt.Errorf("recreate course_review unique index: %w", err)
-	}
-	for _, idx := range []string{
-		"CREATE INDEX idx_course_review_offering ON course_review (offering_id)",
-		"CREATE INDEX idx_course_review_author ON course_review (author_user_id)",
-		"CREATE INDEX idx_course_review_status ON course_review (status)",
-	} {
-		if err := db.Exec(idx).Error; err != nil {
-			return fmt.Errorf("recreate course_review index: %w", err)
+	// 旧形态：手工全列重建（保留 author_user_id 数据与唯一索引）。
+	// 整个序列（CREATE temp → INSERT SELECT → DROP → RENAME → 建索引）包进
+	// db.Transaction：SQLite 事务性 DDL 下，任意点崩溃（如 DROP 后、RENAME
+	// 前进程退出）全量回滚，旧表完整、重启重试（security 复审 F1——此前
+	// 两条 autocommit 语句的崩溃窗口会把存量数据滞留在孤儿临时表，静默丢失）。
+	//
+	// ⚠️ 列清单警示（security 复审 F3）：下方 temp 表 DDL 与 INSERT SELECT
+	// 的 12 列清单硬编码，当前与 ReviewEntity 字段一一对应；未来给
+	// ReviewEntity 加列时必须同步这两处，否则升级丢列（gorm 重建同样只
+	// 复制变化列）。列序：id, offering_id, author_user_id, rating, content,
+	// is_anonymous, status, legacy_helpful_count, source, created_at,
+	// updated_at, deleted_at。
+	//
+	// 多实例并发（security 复审 F2）：两实例同时 preflight 时后到者 CREATE
+	// temp 报 already exists → 返回错误 → 迁移失败退出 → 进程管理器重启 →
+	// 先到者已完成则跳过。数据安全（fail-safe）但有一次启动失败噪音；
+	// SQLite 无 advisory lock，事务包裹后错误重试成本低，容忍现状。
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 1) 先删旧表索引（SQLite 索引名 schema 级唯一；旧表的
+		// idx_course_review_* / uniq_course_review_offering_author 与
+		// CreateTable 将建的索引同名冲突）。事务回滚时 DROP INDEX 一并
+		// 撤销，旧表索引完整。
+		for _, idx := range []string{
+			"uniq_course_review_offering_author",
+			"idx_course_review_offering",
+			"idx_course_review_author",
+			"idx_course_review_status",
+		} {
+			if err := tx.Migrator().DropIndex(&course.ReviewEntity{}, idx); err != nil {
+				return fmt.Errorf("drop legacy course_review index %s: %w", idx, err)
+			}
 		}
-	}
-	return nil
+		// 2) 临时表（新形态：author_user_id 可空、deleted_at 普通列）。
+		// 用 gorm Migrator.CreateTable 模型驱动生成——与 ReviewEntity 精确
+		// 一致。手写 DDL 与 gorm 期望的细微差异会触发 AutoMigrate 的渐进
+		// 整表重建（每轮只复制部分列，多轮累积丢列，实测 6 轮后丢数据）；
+		// 模型驱动后 AutoMigrate 无差异可检，不再重建。⚠️ 未来加列自动跟随
+		// （security 复审 F3 消除硬编码漂移）。
+		if err := tx.Table("course_review__upgrade").Migrator().CreateTable(&course.ReviewEntity{}); err != nil {
+			return fmt.Errorf("create course_review upgrade table: %w", err)
+		}
+		// 3) 全列复制（含 author_user_id——gorm 自动重建会漏掉的列）
+		if err := tx.Exec(`INSERT INTO course_review__upgrade
+			(id, offering_id, author_user_id, rating, content, is_anonymous, status,
+			 legacy_helpful_count, source, created_at, updated_at, deleted_at)
+			SELECT id, offering_id, author_user_id, rating, content, is_anonymous, status,
+			       legacy_helpful_count, source, created_at, updated_at, deleted_at
+			FROM course_review`).Error; err != nil {
+			return fmt.Errorf("copy course_review data: %w", err)
+		}
+		// 4) 原子替换（temp 已含唯一索引与普通索引，RENAME 后随表保留）
+		if err := tx.Exec(`DROP TABLE course_review`).Error; err != nil {
+			return fmt.Errorf("drop legacy course_review: %w", err)
+		}
+		if err := tx.Exec(`ALTER TABLE course_review__upgrade RENAME TO course_review`).Error; err != nil {
+			return fmt.Errorf("rename course_review: %w", err)
+		}
+		return nil
+	})
+	return err
 }
 
 const courseReviewTableName = "course_review"
