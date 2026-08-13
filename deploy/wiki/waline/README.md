@@ -49,7 +49,7 @@ Waline 登录页 → OAUTH_URL（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
 | `JWT_TOKEN` | 是 | 登录 token 密钥（`openssl rand -hex 32` 生成） |
 | `SQLITE_PATH` / `MYSQL_*` | 二选一 | 存储 |
 | `SITE_NAME` | 否 | 站点名（评论框展示） |
-| `SECURE_DOMAINS` | 否 | 允许评论的域名白名单，防跨站刷评 |
+| `SECURE_DOMAINS` | 否 | 允许评论的域名白名单，防跨站刷评；**必须包含 Waline 服务自身域名**（`/ui` 登录按钮的 Referer 校验），如 `wiki.example.com,comment.example.com` |
 | `SMTP_*` | 否 | 评论邮件通知 |
 | `AKISMET_KEY` | 否 | Akismet 反垃圾 |
 
@@ -58,4 +58,6 @@ Waline 登录页 → OAUTH_URL（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
 ## 管理
 
 - 评论管理后台：`https://comment.example.com/ui`，登录方式同评论（OIDC）。
+  注意 `/ui/login` 的邮箱/密码表单是 Waline **本地账号**用的（Hub 账号不在
+  其密码表，用论坛密码登录必然失败），正确入口是 oidc 第三方登录按钮。
 - 站点侧 `VITE_WALINE_SERVER_URL` 指向本服务后，评论即在前端渲染。
