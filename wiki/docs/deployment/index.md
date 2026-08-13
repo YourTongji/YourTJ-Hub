@@ -26,6 +26,7 @@ VitePress 站点 (wiki/)  ── CF Pages 部署
 
 ## 快速导航
 
+- [容器部署（main/dev 接入）](./container-deploy)：接入现有 deploy 链路（nginx 容器）
 - [CF Pages 发布](./cloudflare-pages)：站点构建与发布
 - [Waline 评论服务](./waline)：评论服务端部署
 - [OAuth Center 与 Hub OIDC](./oauth-center-oidc)：登录打通

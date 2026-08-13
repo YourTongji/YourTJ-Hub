@@ -11,6 +11,13 @@ DIST_TARBALL="${2:?usage: deploy-wiki.sh <instance> <dist-tarball> <image-tag> [
 IMAGE_TAG="${3:?usage: deploy-wiki.sh <instance> <dist-tarball> <image-tag> [health-port]}"
 PORT="${4:-5284}"
 
+# instance 校验(review S2): 仅 main/dev 对应 compose 服务 wiki-main/wiki-dev,
+# 任意其他值会落到 WIKI_DEV_TAG + 不存在的服务, 提前拒绝
+case "$INSTANCE" in
+  main|dev) ;;
+  *) echo "deploy-wiki: FATAL: invalid instance '$INSTANCE' (must be main or dev)" >&2; exit 1 ;;
+esac
+
 ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
 BUILD_DIR="$ROOT/build"
 ENV_FILE="$ROOT/.env"

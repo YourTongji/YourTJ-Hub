@@ -57,6 +57,7 @@ export default defineConfig({
           text: '部署',
           items: [
             { text: '部署总览', link: '/deployment/' },
+            { text: '容器部署（main/dev 接入）', link: '/deployment/container-deploy' },
             { text: 'CF Pages 发布', link: '/deployment/cloudflare-pages' },
             { text: 'Waline 评论服务', link: '/deployment/waline' },
             { text: 'OAuth Center 与 Hub OIDC', link: '/deployment/oauth-center-oidc' },
