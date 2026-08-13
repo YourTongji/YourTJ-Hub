@@ -2,6 +2,7 @@ package posts
 
 import (
 	"errors"
+	"log/slog"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
@@ -279,7 +280,9 @@ func MarkPurged(id uint64) error {
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	_ = postRevisions.BlankContentByPostId(id)
+	if err := postRevisions.BlankContentByPostId(id); err != nil {
+		slog.Error("blank post revision content failed", "postId", id, "err", err)
+	}
 	return nil
 }
 
@@ -303,7 +306,9 @@ func MarkPurgedOwned(id uint64, ownerID uint64) error {
 	if result.RowsAffected == 0 {
 		return gorm.ErrRecordNotFound
 	}
-	_ = postRevisions.BlankContentByPostId(id)
+	if err := postRevisions.BlankContentByPostId(id); err != nil {
+		slog.Error("blank post revision content failed", "postId", id, "err", err)
+	}
 	return nil
 }
 
@@ -320,7 +325,9 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	}).Error; err != nil {
 		return err
 	}
-	_ = postRevisions.BlankContentByPostId(id)
+	if err := postRevisions.BlankContentByPostId(id); err != nil {
+		slog.Error("blank post revision content failed", "postId", id, "err", err)
+	}
 	return nil
 }
 
@@ -345,7 +352,9 @@ func MarkPurgedByTopicID(topicID uint64) int64 {
 			"content":          "",
 			"rendered_html":    "",
 		}).RowsAffected
-	_ = postRevisions.BlankContentByPostIds(targets)
+	if err := postRevisions.BlankContentByPostIds(targets); err != nil {
+		slog.Error("blank post revision content failed", "postIds", targets, "err", err)
+	}
 	return rows
 }
 

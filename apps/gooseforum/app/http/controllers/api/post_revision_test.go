@@ -168,3 +168,56 @@ func TestUpdateFirstPostRejectsNonAuthor(t *testing.T) {
 		t.Fatalf("non-author edit changed revisions, got %#v, want unchanged [v1]", versions)
 	}
 }
+
+// TestWriteTopicSeedsRevisionWithRenderedHTML 验证 writeTopic 创建与编辑分支
+// 的版本快照都携带渲染后的 HTML（历史查看依赖 renderedHTML 展示正文）。
+func TestWriteTopicSeedsRevisionWithRenderedHTML(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	authorID := uint64(7501)
+	createTopicWriteUser(t, conn, authorID, "author")
+	if err := conn.Create(&category.Entity{Id: 8101, Name: "Rendered", Slug: "rendered"}).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+
+	res := WriteTopic(component.BetterRequest[WriteTopicReq]{
+		UserId: authorID,
+		Params: WriteTopicReq{
+			Title:       "Rendered revision topic",
+			Content:     "Rendered revision content with enough words",
+			CategoryId:  []uint64{8101},
+			TopicStatus: 1,
+		},
+	})
+	topicID, ok := res.Data.Result.(uint64)
+	if !ok || topicID == 0 {
+		t.Fatalf("result = %#v, want topic id", res.Data.Result)
+	}
+	firstPost := posts.Get(topics.Get(topicID).FirstPostId)
+	versions := postRevisions.ListByPostId(firstPost.Id)
+	if len(versions) != 1 || versions[0].RenderedHTML == "" {
+		t.Fatalf("seeded v1 renderedHTML = %q, want non-empty (versions=%d)", versions[0].RenderedHTML, len(versions))
+	}
+
+	// 编辑分支（PublishPage 经 /publish?id= 走 WriteTopic）追加的版本同样带 HTML。
+	newContent := "Edited rendered content with enough words"
+	editRes := WriteTopic(component.BetterRequest[WriteTopicReq]{
+		UserId: authorID,
+		Params: WriteTopicReq{
+			TopicId:     topicID,
+			Title:       "Rendered revision topic",
+			Content:     newContent,
+			CategoryId:  []uint64{8101},
+			TopicStatus: 1,
+		},
+	})
+	if editRes.Data.Code != component.SUCCESS {
+		t.Fatalf("WriteTopic edit failed: %+v", editRes)
+	}
+	versions = postRevisions.ListByPostId(firstPost.Id)
+	if len(versions) != 2 {
+		t.Fatalf("revision count after edit = %d, want 2", len(versions))
+	}
+	if versions[1].Content != newContent || versions[1].RenderedHTML == "" {
+		t.Fatalf("edited revision = %#v, want content %q with non-empty renderedHTML", versions[1], newContent)
+	}
+}

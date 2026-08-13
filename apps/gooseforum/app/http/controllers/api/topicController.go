@@ -208,7 +208,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		firstPost.Content = req.Params.Content
-		firstPost.RenderedHTML = ""
+		firstPost.RenderedHTML = markdown2html.PostMarkdownToHTML(req.Params.Content)
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
@@ -243,7 +243,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				PostNo:          1,
 				UserId:          req.UserId,
 				Content:         req.Params.Content,
-				RenderedHTML:    "",
+				RenderedHTML:    markdown2html.PostMarkdownToHTML(req.Params.Content),
 				RenderedVersion: markdown2html.GetPostVersion(),
 				ProcessStatus:   posts.ProcessStatusNormal,
 			}

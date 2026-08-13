@@ -234,3 +234,83 @@ func TestPostRevisionsRejectsInvisibleTopic(t *testing.T) {
 		t.Fatalf("PostRevisions on hidden topic = code=%v msg=%v, want FAIL/%q", res.Data.Code, res.Data.MessageCode, component.MessagePostNotFound)
 	}
 }
+
+// TestPostRevisionsBlanksDeletedPostContent 验证软删帖的版本历史正文清空：
+// 话题仍可见时，任何读者都不能经版本历史读回已删除回复的原文（review blocker）。
+func TestPostRevisionsBlanksDeletedPostContent(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	authorID := uint64(8701)
+	readerID := uint64(8702)
+	createRevisionUser(t, conn, authorID, "author")
+	createRevisionUser(t, conn, readerID, "reader")
+	createRevisionFixture(t, conn, 8801, 8802, authorID, 1, []postRevisions.Entity{
+		{Version: 1, EditorId: authorID, Content: "original body", RenderedHTML: "<p>original body</p>", ProcessStatus: posts.ProcessStatusNormal},
+		{Version: 2, EditorId: authorID, Content: "edited body", RenderedHTML: "<p>edited body</p>", ProcessStatus: posts.ProcessStatusNormal},
+	})
+	if err := conn.Unscoped().Model(&posts.Entity{}).Where("id = ?", 8802).Updates(map[string]any{
+		"visibility_status": posts.VisibilityUserDeleted,
+		"retention_status":  posts.RetentionRecoverable,
+		"deleted_at":        time.Now(),
+	}).Error; err != nil {
+		t.Fatalf("soft delete post: %v", err)
+	}
+
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 8802},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions() failed: %+v", res)
+	}
+	_, versions := decodeRevisions(t, res)
+	if len(versions) != 2 {
+		t.Fatalf("version count = %d, want 2", len(versions))
+	}
+	for _, v := range versions {
+		if v.Content != "" || v.RenderedHTML != "" {
+			t.Fatalf("deleted post revision v%d leaks content = %q / %q", v.Version, v.Content, v.RenderedHTML)
+		}
+	}
+}
+
+// TestPostRevisionsHidesBlockedPostContentFromNonModerator 验证封禁帖的版本正文
+// 对非版主屏蔽、版主可见（与楼层窗口的 ProcessStatus 过滤同语义）。
+func TestPostRevisionsHidesBlockedPostContentFromNonModerator(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	authorID := uint64(8901)
+	readerID := uint64(8902)
+	moderatorID := uint64(8903)
+	createRevisionUser(t, conn, authorID, "author")
+	createRevisionUser(t, conn, readerID, "reader")
+	createGlobalModerator(t, conn, moderatorID, "moderator")
+	createRevisionFixture(t, conn, 9001, 9002, authorID, 1, []postRevisions.Entity{
+		{Version: 1, EditorId: authorID, Content: "blocked body", RenderedHTML: "<p>blocked body</p>", ProcessStatus: posts.ProcessStatusNormal},
+	})
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", 9002).Update("process_status", posts.ProcessStatusBlocked).Error; err != nil {
+		t.Fatalf("block post: %v", err)
+	}
+
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9002},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(reader) failed: %+v", res)
+	}
+	_, readerVersions := decodeRevisions(t, res)
+	if len(readerVersions) != 1 || readerVersions[0].Content != "" || readerVersions[0].RenderedHTML != "" {
+		t.Fatalf("non-moderator sees blocked content = %#v, want blanked", readerVersions)
+	}
+
+	resMod := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: moderatorID,
+		Params: PostRevisionsReq{PostID: 9002},
+	})
+	if resMod.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(moderator) failed: %+v", resMod)
+	}
+	_, modVersions := decodeRevisions(t, resMod)
+	if len(modVersions) != 1 || modVersions[0].Content != "blocked body" {
+		t.Fatalf("moderator blocked content = %#v, want visible", modVersions)
+	}
+}

@@ -1317,17 +1317,13 @@ async function savePostEdit() {
     const updated = await updatePost(post.id, content)
     const index = posts.value.findIndex((item) => item.id === post.id)
     if (index >= 0) {
-      // 编辑者即当前用户：lastEditor 缺少昵称等字段时，用 viewer 兜底补全用户对象
+      // 编辑者即当前用户：lastEditor 复用作者卡片，保留昵称/头像/徽章等完整信息
       posts.value[index] = {
         ...posts.value[index],
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
-        lastEditor: {
-          id: updated.lastEditorId,
-          username: page.layout.viewer.username,
-          avatarUrl: page.layout.viewer.avatarUrl,
-        },
+        lastEditor: { ...post.author, id: updated.lastEditorId },
         lastEditedAt: updated.lastEditedAt,
         revisionCount: updated.revisionCount,
       }
