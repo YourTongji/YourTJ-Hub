@@ -367,6 +367,12 @@ func DeleteCourse(courseId uint64) (DeletedCourseInfo, error) {
 				return err
 			}
 			// 评价物理删除（状态机用 status 表达隔离窗口，物理删除彻底移除）。
+			// 先清理 review 级来源映射（否则重导 checksum 相同会静默不重建评价）。
+			if err := tx.Unscoped().Table((&course.SourceRefEntity{}).TableName()).
+				Where("entity_type = ? AND local_id IN (SELECT id FROM course_review WHERE offering_id IN ?)", course.EntityTypeReview, offeringIds).
+				Delete(&course.SourceRefEntity{}).Error; err != nil {
+				return err
+			}
 			if err := tx.Unscoped().Table((&course.ReviewEntity{}).TableName()).
 				Where("offering_id IN ?", offeringIds).
 				Delete(&course.ReviewEntity{}).Error; err != nil {

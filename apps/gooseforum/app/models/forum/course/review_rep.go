@@ -287,8 +287,9 @@ func ListReviewsForAdmin(q AdminReviewQuery) (entities []ReviewEntity, err error
 	if size <= 0 {
 		size = 20
 	}
-	if size > 50 {
-		size = 50
+	// 上限放宽到 51：service 层用 pageSize+1 探测 hasNext，pageSize=50 时需多取一条。
+	if size > 51 {
+		size = 51
 	}
 	err = b.Order("course_review.id DESC").Limit(size).Find(&entities).Error
 	return

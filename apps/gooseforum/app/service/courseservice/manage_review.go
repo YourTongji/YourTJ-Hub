@@ -45,6 +45,14 @@ type AdminReviewUpdateInput struct {
 	Content *string `json:"content"`
 }
 
+// DeletedReviewInfo 硬删除评价后的快照（供控制器写审计日志）。
+type DeletedReviewInfo struct {
+	Id         uint64 `json:"id"`
+	OfferingId uint64 `json:"offeringId"`
+	Rating     *int   `json:"rating"`
+	Status     int8   `json:"status"`
+}
+
 // AdminReviewList 返回管理端评价分页（含隐藏/删除状态，跨课程名/课号/正文搜索）。
 func AdminReviewList(q AdminReviewQuery) (AdminReviewPage, error) {
 	pageSize := q.PageSize
@@ -54,9 +62,14 @@ func AdminReviewList(q AdminReviewQuery) (AdminReviewPage, error) {
 	if pageSize > 50 {
 		pageSize = 50
 	}
+	// status 契约范围 -1..2，越界按“全部”处理，避免静默返回空列表。
+	status := q.Status
+	if status < -1 || status > 2 {
+		status = -1
+	}
 	entities, err := course.ListReviewsForAdmin(course.AdminReviewQuery{
-		Keyword:  q.Keyword,
-		Status:   q.Status,
+		Keyword:  Normalize(q.Keyword),
+		Status:   status,
 		Cursor:   q.Cursor,
 		PageSize: pageSize + 1,
 	})
@@ -135,6 +148,9 @@ func AdminUpdateReview(reviewId uint64, input AdminReviewUpdateInput) (ReviewPay
 	if input.Rating != nil && (*input.Rating < 1 || *input.Rating > 5) {
 		return ReviewPayload{}, ErrRatingOutOfRange
 	}
+	if input.Content != nil && len([]rune(*input.Content)) == 0 {
+		return ReviewPayload{}, ErrReviewContentEmpty
+	}
 	if input.Content != nil && len([]rune(*input.Content)) > ReviewContentMaxLength {
 		return ReviewPayload{}, ErrReviewContentTooLong
 	}
@@ -207,13 +223,20 @@ func AdminUpdateReview(reviewId uint64, input AdminReviewUpdateInput) (ReviewPay
 	return ReviewPayload{}, errReviewRatingConflict
 }
 
-// AdminDeleteReview 管理端硬删除评价（物理删除 + helpful 清理），同步 stats delta；幂等。
+// AdminDeleteReview 管理端硬删除评价（物理删除 + helpful + 来源映射清理），同步 stats delta。
 // 隔离窗口内（status=deleted）的评价仅物理清理；可见评价扣减 stats，隐藏评价不重复扣减。
-func AdminDeleteReview(reviewId uint64) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+func AdminDeleteReview(reviewId uint64) (DeletedReviewInfo, error) {
+	var info DeletedReviewInfo
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		entity, err := course.GetReviewTx(tx, reviewId)
 		if err != nil {
 			return ErrReviewNotFound
+		}
+		info = DeletedReviewInfo{
+			Id:         entity.Id,
+			OfferingId: entity.OfferingId,
+			Rating:     entity.Rating,
+			Status:     entity.Status,
 		}
 		if entity.Status == course.ReviewStatusVisible {
 			offering, err := course.GetOfferingTx(tx, entity.OfferingId)
@@ -242,13 +265,24 @@ func AdminDeleteReview(reviewId uint64) error {
 		}
 		return hardDeleteReviewTx(tx, reviewId)
 	})
+	if err != nil {
+		return DeletedReviewInfo{}, err
+	}
+	return info, nil
 }
 
-// hardDeleteReviewTx 事务内物理删除评价及其 helpful 标记。
+// hardDeleteReviewTx 事务内物理删除评价及其 helpful 标记与来源映射。
 func hardDeleteReviewTx(tx *gorm.DB, reviewId uint64) error {
 	if err := tx.Unscoped().Table((&course.HelpfulEntity{}).TableName()).
 		Where("review_id = ?", reviewId).
 		Delete(&course.HelpfulEntity{}).Error; err != nil {
+		return err
+	}
+	// 来源映射清理：否则重导时 review 级 source_ref 指向已删评价，checksum 相同会
+	// 走 Skipped 提前返回而静默永不重建。
+	if err := tx.Unscoped().Table((&course.SourceRefEntity{}).TableName()).
+		Where("entity_type = ? AND local_id = ?", course.EntityTypeReview, reviewId).
+		Delete(&course.SourceRefEntity{}).Error; err != nil {
 		return err
 	}
 	return tx.Unscoped().Table((&course.ReviewEntity{}).TableName()).

@@ -16,6 +16,8 @@ func (receiver OptEnum) TargetTypeEnum() TargetTypeEnum {
 		return CourseReview
 	case CreateCourse, UpdateCourse, DeleteCourse:
 		return Course
+	case UpdateReview, DeleteReview:
+		return CourseReview
 	}
 	return System
 }
@@ -36,6 +38,10 @@ func (receiver OptEnum) Name() string {
 		return "编辑课程"
 	case DeleteCourse:
 		return "删除课程"
+	case UpdateReview:
+		return "编辑课评"
+	case DeleteReview:
+		return "删除课评"
 	}
 	return ""
 }
@@ -52,6 +58,8 @@ const (
 	CreateCourse
 	UpdateCourse
 	DeleteCourse
+	UpdateReview
+	DeleteReview
 )
 
 type TargetTypeEnum int

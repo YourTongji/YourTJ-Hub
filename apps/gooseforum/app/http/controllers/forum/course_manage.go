@@ -186,6 +186,11 @@ func AdminReviewUpdate(req component.BetterRequest[AdminReviewUpdateReq]) compon
 	if err != nil {
 		return courseManageErrorResponse(err)
 	}
+	optlogger.UserOptCode(req.UserId, optlogger.UpdateReview, payload.Id, "review.updated", optlogger.MessageParams{
+		"reviewId":   payload.Id,
+		"offeringId": payload.OfferingId,
+		"rating":     payload.Rating,
+	})
 	return component.SuccessResponse(payload)
 }
 
@@ -199,9 +204,16 @@ func AdminReviewDelete(req component.BetterRequest[AdminReviewDeleteReq]) compon
 	if !canModerateCourseReviews(req.UserId) {
 		return component.FailResponseCode(component.MessagePermissionDenied, nil)
 	}
-	if err := courseservice.AdminDeleteReview(req.Params.ReviewId); err != nil {
+	info, err := courseservice.AdminDeleteReview(req.Params.ReviewId)
+	if err != nil {
 		return courseManageErrorResponse(err)
 	}
+	optlogger.UserOptCode(req.UserId, optlogger.DeleteReview, info.Id, "review.deleted", optlogger.MessageParams{
+		"reviewId":   info.Id,
+		"offeringId": info.OfferingId,
+		"rating":     info.Rating,
+		"status":     info.Status,
+	})
 	return component.SuccessResponse(true)
 }
 
@@ -269,6 +281,9 @@ func courseManageErrorResponse(err error) component.Response {
 	case errors.Is(err, courseservice.ErrRatingOutOfRange):
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageReviewRatingInvalid, nil))
+	case errors.Is(err, courseservice.ErrReviewContentEmpty):
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageReviewContentEmpty, nil))
 	case errors.Is(err, courseservice.ErrReviewContentTooLong):
 		return component.BuildResponse(http.StatusBadRequest,
 			component.FailDataCode(component.MessageReviewContentTooLong,

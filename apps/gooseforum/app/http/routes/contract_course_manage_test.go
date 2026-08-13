@@ -195,6 +195,17 @@ func TestCourseManageReviewWriteEndpoints(t *testing.T) {
 	if env := decodeContractEnvelope(t, recorder); env.Code != 0 {
 		t.Fatalf("delete review code = %d, messageCode=%q", env.Code, env.MessageCode)
 	}
+
+	// 审计日志：编辑与删除各写一条（review.updated / review.deleted）。
+	for _, code := range []string{"review.updated", "review.deleted"} {
+		var cnt int64
+		if err := conn.Model(&optRecord.Entity{}).Where("opt_user_id = ? AND opt_info LIKE ?", manager.Id, "%"+code+"%").Count(&cnt).Error; err != nil {
+			t.Fatalf("count %s audit: %v", code, err)
+		}
+		if cnt == 0 {
+			t.Fatalf("expected %s audit log", code)
+		}
+	}
 }
 
 // TestCourseManageReviewWritePermissionDenied 非 CourseManager 访问评价写端点返回 permission.denied。

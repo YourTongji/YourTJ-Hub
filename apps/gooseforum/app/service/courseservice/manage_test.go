@@ -158,6 +158,9 @@ func TestDeleteCourseCascades(t *testing.T) {
 	if err := conn.Create(&course.SourceRefEntity{Source: "s", EntityType: course.EntityTypeCourse, ExternalId: "e1", LocalId: c.Id}).Error; err != nil {
 		t.Fatalf("create source ref: %v", err)
 	}
+	if err := conn.Create(&course.SourceRefEntity{Source: "s", EntityType: course.EntityTypeReview, ExternalId: "r1", LocalId: review.Id}).Error; err != nil {
+		t.Fatalf("create review source ref: %v", err)
+	}
 
 	info, err := DeleteCourse(c.Id)
 	if err != nil {
@@ -170,17 +173,18 @@ func TestDeleteCourseCascades(t *testing.T) {
 	if got := course.GetCourseByIdTx(conn, c.Id); got.Id != 0 {
 		t.Fatalf("course still present: %+v", got)
 	}
-	var offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, courseStatsCount, offeringStatsCount int64
+	var offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount int64
 	conn.Unscoped().Table("course_offering").Where("id = ?", offering.Id).Count(&offeringCount)
 	conn.Unscoped().Table("course_review").Where("id = ?", review.Id).Count(&reviewCount)
 	conn.Unscoped().Table("course_review_helpful").Where("review_id = ?", review.Id).Count(&helpfulCount)
 	conn.Unscoped().Table("course_alias").Where("course_id = ?", c.Id).Count(&aliasCount)
 	conn.Unscoped().Table("course_source_ref").Where("local_id = ?", c.Id).Count(&sourceRefCount)
+	conn.Unscoped().Table("course_source_ref").Where("entity_type = ? AND local_id = ?", course.EntityTypeReview, review.Id).Count(&reviewSourceRefCount)
 	conn.Unscoped().Table("course_review_stats").Where("course_id = ?", c.Id).Count(&courseStatsCount)
 	conn.Unscoped().Table("offering_review_stats").Where("offering_id = ?", offering.Id).Count(&offeringStatsCount)
-	if offeringCount+reviewCount+helpfulCount+aliasCount+sourceRefCount+courseStatsCount+offeringStatsCount != 0 {
-		t.Fatalf("cascade delete left rows: offering=%d review=%d helpful=%d alias=%d sourceRef=%d courseStats=%d offeringStats=%d",
-			offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, courseStatsCount, offeringStatsCount)
+	if offeringCount+reviewCount+helpfulCount+aliasCount+sourceRefCount+reviewSourceRefCount+courseStatsCount+offeringStatsCount != 0 {
+		t.Fatalf("cascade delete left rows: offering=%d review=%d helpful=%d alias=%d sourceRef=%d reviewSourceRef=%d courseStats=%d offeringStats=%d",
+			offeringCount, reviewCount, helpfulCount, aliasCount, sourceRefCount, reviewSourceRefCount, courseStatsCount, offeringStatsCount)
 	}
 	if countTasksByType(t, "course-search.") == 0 {
 		t.Fatal("expected search delete task enqueued")
@@ -350,6 +354,9 @@ func TestAdminDeleteReviewSyncsStats(t *testing.T) {
 			if err := conn.Create(&review).Error; err != nil {
 				t.Fatalf("create review: %v", err)
 			}
+			if err := conn.Create(&course.SourceRefEntity{Source: "s", EntityType: course.EntityTypeReview, ExternalId: "r1", LocalId: review.Id}).Error; err != nil {
+				t.Fatalf("create review source ref: %v", err)
+			}
 			if err := course.UpsertCourseStatsTx(conn, c.Id, tc.initCount, tc.initSum, 1); err != nil {
 				t.Fatalf("upsert course stats: %v", err)
 			}
@@ -357,7 +364,7 @@ func TestAdminDeleteReviewSyncsStats(t *testing.T) {
 				t.Fatalf("upsert offering stats: %v", err)
 			}
 
-			if err := AdminDeleteReview(review.Id); err != nil {
+			if _, err := AdminDeleteReview(review.Id); err != nil {
 				t.Fatalf("delete review: %v", err)
 			}
 			stats, err := course.GetCourseStats(c.Id)
@@ -382,6 +389,13 @@ func TestAdminDeleteReviewSyncsStats(t *testing.T) {
 			}
 			if remaining != 0 {
 				t.Fatalf("review not physically deleted")
+			}
+			var refRemaining int64
+			if err := conn.Unscoped().Table("course_source_ref").Where("entity_type = ? AND local_id = ?", course.EntityTypeReview, review.Id).Count(&refRemaining).Error; err != nil {
+				t.Fatalf("count review source refs: %v", err)
+			}
+			if refRemaining != 0 {
+				t.Fatalf("review source ref not cleaned up")
 			}
 		})
 	}
