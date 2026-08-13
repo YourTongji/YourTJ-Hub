@@ -314,24 +314,29 @@ findCourseDetails:
       content:
         application/json:
           schema:
-            type: object
-            required: [calendarId]
-            anyOf:
-              - required: [courseCode]
-              - required: [courseCodes]
-            properties:
-              calendarId:
-                type: integer
-                minimum: 1
-              courseCode:
-                type: string
-                description: Single course code; returns a teaching-class array.
-              courseCodes:
-                type: array
-                items:
-                  type: string
-                description: Batch course codes; returns a courseCode -> classes dict.
-            additionalProperties: false
+            oneOf:
+              - type: object
+                required: [calendarId, courseCode]
+                additionalProperties: false
+                properties:
+                  calendarId:
+                    type: integer
+                    minimum: 1
+                  courseCode:
+                    type: string
+                    description: Single course code; returns a teaching-class array.
+              - type: object
+                required: [calendarId, courseCodes]
+                additionalProperties: false
+                properties:
+                  calendarId:
+                    type: integer
+                    minimum: 1
+                  courseCodes:
+                    type: array
+                    items:
+                      type: string
+                    description: Batch course codes; returns a courseCode -> classes dict.
     responses:
       '200':
         description: Teaching-class details; array for a single code, dict for batch.

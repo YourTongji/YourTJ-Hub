@@ -41,14 +41,14 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
-      - name: Upload deploy script to dev host
+      - name: Upload deploy scripts to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
           host: ${{ secrets.VM_HOST }}
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh"
           target: "/tmp"
           strip_components: 2
       - name: Deploy to dev (sync db from main + build image + restart + smoke)
@@ -60,8 +60,12 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
-            # 0. 同步仓库最新 deploy.sh 到服务器(install 保证可执行位)
+            # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
+            #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
+            #    set -e 下 source 失败阻断部署(review W2)。
             install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
+            install -m 0755 /tmp/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
+            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235

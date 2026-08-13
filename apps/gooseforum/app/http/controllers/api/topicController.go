@@ -6,6 +6,7 @@ import (
 	"strings"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
@@ -28,6 +29,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"gorm.io/gorm"
 )
 
 // checkContentPolicy 检查内容是否命中敏感词。
@@ -210,14 +212,61 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
-		if err := topics.Save(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
+	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
+	isEdit := topic.Id > 0
+	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
+	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
+	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+		if isEdit {
+			if err := topics.SaveTx(tx, &topic); err != nil {
+				return err
+			}
+			if err := posts.SaveTx(tx, &firstPost); err != nil {
+				return err
+			}
+		} else {
+			topic.PostCount = 1
+			topic.PostSeq = 1
+			topic.Posters = []topics.Poster{{UserID: req.UserId}}
+			if err := topics.CreateTx(tx, &topic); err != nil {
+				return err
+			}
+			firstPost = posts.Entity{
+				TopicId:         topic.Id,
+				PostNo:          1,
+				UserId:          req.UserId,
+				Content:         req.Params.Content,
+				RenderedHTML:    "",
+				RenderedVersion: markdown2html.GetPostVersion(),
+				ProcessStatus:   posts.ProcessStatusNormal,
+			}
+			if pendingReview {
+				firstPost.ProcessStatus = posts.ProcessStatusPending
+			}
+			if err := posts.CreateTx(tx, &firstPost); err != nil {
+				return err
+			}
+			topic.FirstPostId = firstPost.Id
+			topic.LastPostId = firstPost.Id
+			now := time.Now()
+			topic.LastPostedAt = &now
+			if err := topics.SaveTx(tx, &topic); err != nil {
+				return err
+			}
 		}
-		if err := posts.Save(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-		hotdataserve.ClearTopicListCache()
+		return topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId)
+	})
+	if err != nil {
+		slog.Error("topic write transaction failed", "topicId", topic.Id, "isEdit", isEdit, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+
+	// ---- 事务已提交：此后才允许缓存失效、统计与事件发布 ----
+	fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
+	hotdataserve.ClearTopicListCache()
+	if isEdit {
 		// 编辑分支：无条件重建搜索索引——下架（TopicStatus=0）或转入待审
 		// （ProcessStatus=Pending）时 BuildSingleTopicSearchDocument 会把文档
 		// 从索引删除，避免非公开内容残留在公共搜索（issue #132）。
@@ -231,47 +280,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
-		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
 	} else {
-		topic.PostCount = 1
-		topic.PostSeq = 1
-		topic.Posters = []topics.Poster{{UserID: req.UserId}}
-		if err := topics.Create(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		firstPost = posts.Entity{
-			TopicId:         topic.Id,
-			PostNo:          1,
-			UserId:          req.UserId,
-			Content:         req.Params.Content,
-			RenderedHTML:    "",
-			RenderedVersion: markdown2html.GetPostVersion(),
-			ProcessStatus:   posts.ProcessStatusNormal,
-		}
-		if pendingReview {
-			firstPost.ProcessStatus = posts.ProcessStatusPending
-		}
-		if err := posts.Create(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		topic.FirstPostId = firstPost.Id
-		topic.LastPostId = firstPost.Id
-		now := time.Now()
-		topic.LastPostedAt = &now
-		if err := topics.Save(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		if topic.Status == 1 && !pendingReview {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
-		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		hotdataserve.ClearTopicListCache()
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}

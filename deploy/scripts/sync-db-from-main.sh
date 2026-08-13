@@ -12,8 +12,10 @@ DEV_FILE_DB="$ROOT/dev/storage/database/file.db"
 ENV_FILE="$ROOT/.env"
 COMPOSE_FILE="$ROOT/docker-compose.yaml"
 
-# 停 dev 容器, 避免覆盖已打开数据库文件导致数据写丢
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" stop dev >/dev/null 2>&1 || true
+# 共享 PostgreSQL DSN 解析库(支持 postgres:// URL 与 key=value 两种格式, issue #134)
+SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+# shellcheck source=pgdsn.sh
+source "$SCRIPT_DIR/pgdsn.sh"
 
 db_mode() {
   local cfg="$1"
@@ -25,13 +27,40 @@ db_mode() {
   fi
 }
 
+# 从实例 config.toml 提取 [db.default] url 并解析数据库名(URL / key=value 均可)。
+# 解析失败输出错误并返回非零。
+# 注: pg_toml_url 同时负责剥离 TOML 行尾内联注释(review W1)。
 pg_dbname() {
-  local cfg="$1"
-  grep -E '^\s*url\s*=' "$cfg" | grep -oE 'dbname=[^ ]+' | cut -d= -f2 || true
+  local cfg="$1" url
+  url="$(pg_toml_url "$cfg")"
+  [ -n "$url" ] || { echo "sync-db: $cfg 未配置 [db.default].url" >&2; return 1; }
+  pg_dsn_dbname "$url"
 }
 
 MAIN_MODE="$(db_mode "$ROOT/main/config.toml")"
 DEV_MODE="$(db_mode "$ROOT/dev/config.toml")"
+
+# 关键顺序(issue #134): 任何 DB 操作(包括停 dev 容器)之前先解析 DSN。
+# 若 PG 模式配置非法, 必须在此报错退出, 绝不能让服务停留在停止状态。
+MAIN_PG=""
+DEV_PG=""
+if [ "$MAIN_MODE" = "postgres" ] || [ "$DEV_MODE" = "postgres" ]; then
+  if [ "$MAIN_MODE" = "postgres" ]; then
+    MAIN_PG="$(pg_dbname "$ROOT/main/config.toml")" || exit 1
+  fi
+  if [ "$DEV_MODE" = "postgres" ]; then
+    DEV_PG="$(pg_dbname "$ROOT/dev/config.toml")" || exit 1
+  fi
+  # 仅单边为 postgres 属配置错误: 同步无法进行, 且不允许先停服务
+  if [ "$MAIN_MODE" != "$DEV_MODE" ]; then
+    echo "sync-db: main/dev 主库模式不一致 (main=$MAIN_MODE dev=$DEV_MODE), 配置错误, 中止" >&2
+    exit 1
+  fi
+fi
+
+# 停 dev 容器, 避免覆盖已打开数据库文件导致数据写丢。
+# 注意: 此步骤必须在上面 DSN 解析成功之后, 解析失败时不能触碰服务状态。
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" stop dev >/dev/null 2>&1 || true
 
 sync_one() {
   local src="$1" dst="$2" label="$3"
@@ -48,20 +77,23 @@ sync_one() {
 }
 
 if [ "$MAIN_MODE" = "postgres" ] && [ "$DEV_MODE" = "postgres" ]; then
-  MAIN_PG="$(pg_dbname "$ROOT/main/config.toml")"
-  DEV_PG="$(pg_dbname "$ROOT/dev/config.toml")"
-  if [ -z "$MAIN_PG" ] || [ -z "$DEV_PG" ]; then
-    echo "sync-db: cannot parse PG dbnames from configs" >&2
-    exit 1
-  fi
   echo "sync-db: PG mode ($MAIN_PG -> $DEV_PG)"
   if [ -f "$DEV_FILE_DB" ]; then
     mkdir -p "$ROOT/snapshots/dev-prev"
     cp -f "$DEV_FILE_DB" "$ROOT/snapshots/dev-prev/file-$(date +%Y%m%d_%H%M%S).db"
   fi
-  docker exec yourtj-postgres psql -U yourtj -d postgres \
-    -c "DROP DATABASE IF EXISTS \"$DEV_PG\";" -c "CREATE DATABASE \"$DEV_PG\";" >/dev/null
-  docker exec yourtj-postgres sh -c "pg_dump -U yourtj -d \"$MAIN_PG\" | psql -U yourtj -d \"$DEV_PG\"" >/dev/null
+  # 参数化(review S3): dbname 经 psql -v 变量传递, :"devpg" 由 psql 做
+  # SQL 标识符引用(内部引号转义), 消除 dbname 插值进 SQL 字符串的注入面。
+  docker exec -e DEV_PG="$DEV_PG" yourtj-postgres psql -U yourtj -d postgres \
+    -v devpg="$DEV_PG" \
+    -c 'DROP DATABASE IF EXISTS :"devpg";' \
+    -c 'CREATE DATABASE :"devpg";' >/dev/null
+  # 命令注入防护(review S3): dbname 经环境变量(-e)传入容器, 内层 sh -c
+  # 只做变量展开不做语法解析, 恶意 dbname(如 %22%3B touch /tmp/PWN %3B)
+  # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
+  # shell 从环境变量读取, 而非拼接进命令字符串。
+  docker exec -e MAIN_PG="$MAIN_PG" -e DEV_PG="$DEV_PG" yourtj-postgres sh -c \
+    'pg_dump -U yourtj -d "$MAIN_PG" | psql -U yourtj -d "$DEV_PG"' >/dev/null
   echo "sync-db: dev PG db synced from main"
   sync_one "$MAIN_FILE_DB" "$DEV_FILE_DB" "file"
   chown -R 1000:1000 "$ROOT/dev/storage" 2>/dev/null || true
