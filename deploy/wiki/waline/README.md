@@ -12,19 +12,19 @@ docker compose up -d
 
 ## 存储选择
 
-- **SQLite**（默认）：`SQLITE_PATH=/app/data/waline.db`，开箱即用，适合低流量。
-- **MySQL**（生产推荐）：取消 docker-compose.yml 中 `MYSQL_*` 注释并填 `.env`。
-  Waline 启动时自动建表。
+- **SQLite**（默认）：`SQLITE_PATH=/app/data`（数据目录，不是文件路径），开箱即用，适合低流量。
+- **MySQL**（生产推荐）：取消 docker-compose.yml 中 `MYSQL_*` 注释并填 `.env`；
+  需先导入建表 SQL（waline 仓库 `assets/waline.sql`，见 .env.example），Waline 不会自动建表。
 
 ## 登录（OIDC）
 
-Waline 本身不存密码；登录走 `AUTH_SERVER`（OAuth Center）提供的第三方登录：
+Waline 本身不存密码；登录走 `OAUTH_URL`（OAuth Center）提供的第三方登录：
 
 ```
-Waline 登录页 → AUTH_SERVER（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
+Waline 登录页 → OAUTH_URL（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
 ```
 
-- `AUTH_SERVER=https://auth.example.com` 指向 OAuth Center。
+- `OAUTH_URL=https://auth.example.com` 指向 OAuth Center。
 - OAuth Center 再对接 Hub OIDC（见 `../oauth-center/` 与
   [wiki 部署文档](../../../wiki/docs/deployment/oauth-center-oidc.md)）。
 
@@ -33,7 +33,8 @@ Waline 登录页 → AUTH_SERVER（walinejs/auth）→ YourTJ-Hub OIDC → 回�
 | 变量 | 必填 | 说明 |
 |---|---|---|
 | `SITE_URL` | 是 | 站点地址（用于校验来源） |
-| `AUTH_SERVER` | 是 | OAuth Center 地址 |
+| `OAUTH_URL` | 是 | OAuth Center 地址 |
+| `JWT_TOKEN` | 是 | 登录 token 密钥（`openssl rand -hex 32` 生成） |
 | `SQLITE_PATH` / `MYSQL_*` | 二选一 | 存储 |
 | `SITE_NAME` | 否 | 站点名（评论框展示） |
 | `SECURE_DOMAINS` | 否 | 允许评论的域名白名单，防跨站刷评 |

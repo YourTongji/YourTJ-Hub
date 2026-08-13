@@ -35,10 +35,10 @@ wiki/
     guide/                # 使用指南
     deployment/           # 部署运维（CF Pages / Waline / OAuth Center）
     feishu/               # 飞书同步文档（脚本自动生成索引）
+    public/               # 静态资源（srcDir=docs，publicDir 跟随 docs）
+      favicon.svg
   scripts/
-    sync-feishu.mjs       # 飞书 CMS 同步脚本骨架
-  public/
-    favicon.svg
+    sync-feishu.mjs       # 飞书 CMS 同步脚本（完整实现）
   package.json
 ```
 
@@ -56,5 +56,5 @@ wiki/
 pnpm sync:feishu   # dry-run（未配置凭据时演示模式）
 ```
 
-配置 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_FOLDER_TOKEN` 后为真实同步，
+配置 `FEISHU_APP_ID` / `FEISHU_APP_SECRET` / `FEISHU_DOC_TOKENS` 后为真实同步，
 详见 [docs/feishu/](docs/feishu/)。

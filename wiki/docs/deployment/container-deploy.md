@@ -29,7 +29,7 @@ CI wiki-build job: node20 + pnpm → cd wiki && pnpm build → tar 打包 dist
 - **`deploy/build/wiki.nginx.conf`**：
   - `try_files $uri $uri/ /index.html`（VitePress SPA 路由回退）
   - `/assets/` 30 天 immutable 长缓存（内容 hash）
-  - `/pagefind/` 1 天缓存（离线搜索索引随内容更新）
+  - `/pagefind/` 1 小时缓存（离线搜索索引随内容更新，新版本部署后索引延迟可见）
   - 其余 html `no-cache`（内容更新即时可见）+ gzip
 - **docker-compose.yaml**：`wiki-main` / `wiki-dev` 服务，127.0.0.1 暴露，
   wget 容器内 80 端口健康检查

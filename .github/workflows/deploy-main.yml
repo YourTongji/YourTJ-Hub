@@ -77,7 +77,9 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "wiki-dist/wiki-dist.tar.gz"
           target: "/tmp"
-          strip_components: 2
+          # 路径仅 2 层(wiki-dist/wiki-dist.tar.gz), strip 1 恰好剩文件名;
+          # strip 2 会剥光路径导致解包为空目录(review 实测)
+          strip_components: 1
       - name: Upload deploy scripts to prod host
         uses: appleboy/scp-action@v0.1.7
         with:

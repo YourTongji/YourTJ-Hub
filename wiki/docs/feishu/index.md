@@ -13,7 +13,8 @@
 `wiki/scripts/sync-feishu.mjs` 是完整实现（非骨架）：
 
 - **tenant_access_token 获取**：`POST /open-apis/auth/v3/tenant_access_token/internal`，错误处理 + 进程内缓存。
-- **docx 文档拉取**：`GET /docx/v1/documents/:id/blocks` 分页拉取全部块，实现块→Markdown 转换
+- **docx 文档拉取**：`GET /docx/v1/documents/:doc_id/blocks/:block_id/children` 递归分页
+  拉取全部块（含子块，如表格单元格/嵌套列表），实现块→Markdown 转换
   （标题 1-6 / 段落 / 无序·有序列表 / 待办 / 引用 / 高亮块 / 代码块（带语言）/ 分割线 /
   表格（单元格 `|` 转义）/ 图片·文件·表格·流程图等降级为 HTML 注释占位）。
 - **多维表格**（可选）：`GET /bitable/v1/apps/:token/tables/:id/records` 分页拉取记录，
