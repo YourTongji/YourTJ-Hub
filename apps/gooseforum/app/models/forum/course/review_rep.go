@@ -125,16 +125,6 @@ func FindLegacyReviewByOfferingTx(tx *gorm.DB, offeringId uint64) (entity Review
 	return
 }
 
-// SaveReviewTx 事务内更新评价。
-func SaveReviewTx(tx *gorm.DB, entity *ReviewEntity) error {
-	return tx.Table(reviewTableName).Save(entity).Error
-}
-
-// UpdateReviewStatusTx 事务内更新评价状态。
-func UpdateReviewStatusTx(tx *gorm.DB, id uint64, status int8) error {
-	return tx.Table(reviewTableName).Where("id = ?", id).Update("status", status).Error
-}
-
 // UpdateReviewStatusFromTx 事务内带旧状态条件的 CAS 状态转换：
 // 仅当当前 status 仍为 from 时更新为 to，返回是否成功转换。
 // 并发 hide/delete 双写时只有一个事务能拿到转换权，另一个 RowsAffected=0，
@@ -240,16 +230,6 @@ func FindReviewByOfferingAndUser(offeringId, userId uint64) (entity ReviewEntity
 		Where(queryopt.Eq("author_user_id", userId)).
 		First(&entity).Error
 	return
-}
-
-// SaveReview 更新评价（Save 会写全部字段）。
-func SaveReview(entity *ReviewEntity) error {
-	return reviewBuilder().Save(entity).Error
-}
-
-// UpdateReviewStatus 更新评价状态（隐藏/恢复/删除）。
-func UpdateReviewStatus(id uint64, status int8) error {
-	return reviewBuilder().Where("id = ?", id).Update("status", status).Error
 }
 
 // ListReviewsByOffering 按 offering 列出可见评价（时间倒序）。

@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"gorm.io/gorm"
 )
 
 // TaskTypeCourseReviewCleanup 是 course-review-cleanup worker 的任务类型前缀
@@ -36,11 +37,13 @@ const reviewCleanupBatchSize = 500
 //     不变（清理不改锚点）
 //
 // 窗口判定：deleted_at 显式锚点（MarkReviewDeletedFromTx 写入），存量行
-// （本功能上线前删除）回退 updated_at 近似（COALESCE，与 topics/posts
-// 墓碑口径一致）。
+// （本功能上线前删除）由 v17 数据迁移回填，上线后新删除均写入锚点；
+// COALESCE(deleted_at, updated_at) 仅兜底回填遗漏的存量行。
 // 已清理行的唯一标记是 author_user_id IS NULL：扫描条件带该谓词保证幂等。
 // 统计投影无需修正：删除时已扣减 stats，清理不改 status（仍非 visible）。
 // 更新带 status 谓词：防止与 ReactivateReviewTx（恢复重写）并发竞态。
+// 扫描+更新在同一事务内（security O2）：SELECT-then-UPDATE 原子化，避免
+// 与并发恢复交错、崩溃残留脏行；扫描只取 id（security Y4），不带 PII 进内存。
 func CleanupExpiredReviewsBatch(limit int, cutoff time.Time) (int, error) {
 	if limit <= 0 {
 		return 0, nil
@@ -48,32 +51,37 @@ func CleanupExpiredReviewsBatch(limit int, cutoff time.Time) (int, error) {
 	conn := dbconnect.Connect()
 	table := (&course.ReviewEntity{}).TableName()
 
-	var rows []course.ReviewEntity
-	if err := conn.Table(table).
-		Where("status = ? AND author_user_id IS NOT NULL AND COALESCE(deleted_at, updated_at) < ?",
-			course.ReviewStatusDeleted, cutoff).
-		Limit(limit).
-		Find(&rows).Error; err != nil {
+	cleaned := 0
+	err := conn.Transaction(func(tx *gorm.DB) error {
+		var ids []uint64
+		if err := tx.Table(table).
+			Select("id").
+			Where("status = ? AND author_user_id IS NOT NULL AND COALESCE(deleted_at, updated_at) < ?",
+				course.ReviewStatusDeleted, cutoff).
+			Limit(limit).
+			Pluck("id", &ids).Error; err != nil {
+			return err
+		}
+		if len(ids) == 0 {
+			return nil
+		}
+		res := tx.Table(table).
+			Where(queryopt.In("id", ids)).
+			Where("status = ?", course.ReviewStatusDeleted).
+			Updates(map[string]any{
+				"content":        "",
+				"author_user_id": nil,
+			})
+		if res.Error != nil {
+			return res.Error
+		}
+		cleaned = int(res.RowsAffected)
+		return nil
+	})
+	if err != nil {
 		return 0, err
 	}
-	if len(rows) == 0 {
-		return 0, nil
-	}
-	ids := make([]uint64, 0, len(rows))
-	for _, r := range rows {
-		ids = append(ids, r.Id)
-	}
-	res := conn.Table(table).
-		Where(queryopt.In("id", ids)).
-		Where("status = ?", course.ReviewStatusDeleted).
-		Updates(map[string]any{
-			"content":        "",
-			"author_user_id": nil,
-		})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	return int(res.RowsAffected), nil
+	return cleaned, nil
 }
 
 // CleanupDeletedReviews 全量清理（CLI 手动触发）：循环分批直到无剩余过期行。
@@ -104,7 +112,10 @@ type CleanupReviewTask struct {
 }
 
 // EnqueueCleanupTask 入队一次课评清理任务（cron 每日调用，或 CLI 手动触发）。
-// 幂等：已有 pending/retrying 的清理任务时跳过，避免 cron 与手动触发叠加。
+// 幂等：已有 pending/retrying/running 的清理任务时跳过，避免 cron 与手动
+// 触发叠加（security Y5：Running 中的任务由租约 worker（#147）处理，cron
+// 无需叠加新任务；崩溃遗留的 Running 由 RecoverStaleRunning 兜底复活，
+// 最坏延迟一次 cron 周期入队，清理本身幂等）。
 func EnqueueCleanupTask() error {
 	payload, err := json.Marshal(CleanupReviewTask{})
 	if err != nil {
@@ -113,7 +124,7 @@ func EnqueueCleanupTask() error {
 	var count int64
 	if err := dbconnect.Connect().Table((&taskQueue.Entity{}).TableName()).
 		Where("type LIKE ?", TaskTypeCourseReviewCleanup+"%").
-		Where("status IN ?", []int{taskQueue.StatusPending, taskQueue.StatusRetrying}).
+		Where("status IN ?", []int{taskQueue.StatusPending, taskQueue.StatusRetrying, taskQueue.StatusRunning}).
 		Count(&count).Error; err != nil {
 		return err
 	}

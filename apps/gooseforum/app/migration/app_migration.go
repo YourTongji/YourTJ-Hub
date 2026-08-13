@@ -184,5 +184,18 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(16)
 		currentVersion = 16
 	}
+	if currentVersion < 17 {
+		// 课评删除隔离窗口锚点回填（PR #194, issue #175 B3）：旧删除路径
+		// 不写 deleted_at，存量 deleted 行若回退 updated_at 会窗口塌缩、
+		// 部署后首轮清理即被清空。回填 now() 给存量 cohort 完整新窗口。
+		anchorResult := datamigration.BackfillCourseReviewDeleteAnchors()
+		slog.Info("app migration course review delete anchor backfill done", "backfilled", anchorResult.Backfilled, "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
+		if anchorResult.Failed > 0 {
+			slog.Error("app migration course review delete anchor backfill has failures", "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(17)
+		currentVersion = 17
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

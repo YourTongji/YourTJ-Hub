@@ -435,3 +435,69 @@ func createAndDeleteReview(t *testing.T, offeringId, authorId uint64, content st
 	}
 	return p.Id
 }
+
+// TestCleanupCutoffOverrideAffectsWindow 锁定 spec 复审 N2（判别性）：cutoff
+// 参数必须真实生效——10 天前删除的行在 30 天窗口内不清、在 1 天窗口内被清。
+// 此前 CleanupDeletedReviews 丢弃参数（_ = cutoff），运维的加速清理意图被
+// 静默忽略（PII 保留远超预期）。
+func TestCleanupCutoffOverrideAffectsWindow(t *testing.T) {
+	_, offeringId := setupReviewTest(t)
+	payload, err := CreateReview(1001, CreateReviewInput{OfferingId: offeringId, Rating: 4, Content: "窗口覆盖正文", IsAnonymous: false})
+	if err != nil {
+		t.Fatalf("create review: %v", err)
+	}
+	if err := DeleteReview(1001, payload.Id); err != nil {
+		t.Fatalf("delete review: %v", err)
+	}
+	backdateReviewDelete(t, payload.Id, 10*24*time.Hour)
+
+	// 30 天窗口：10 天前删除 → 不清
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
+	if err != nil {
+		t.Fatalf("cleanup(30d): %v", err)
+	}
+	if cleaned != 0 {
+		t.Fatalf("cleanup(30d) cleaned = %d, want 0（10 天前删除仍在窗口内）", cleaned)
+	}
+	// 1 天窗口覆盖：10 天前删除 → 超窗被清（cutoff 参数真实生效）
+	cleaned, err = CleanupExpiredReviewsBatch(10, time.Now().Add(-24*time.Hour))
+	if err != nil {
+		t.Fatalf("cleanup(1d): %v", err)
+	}
+	if cleaned != 1 {
+		t.Fatalf("cleanup(1d) cleaned = %d, want 1（1 天窗口覆盖应清理 10 天前的行）", cleaned)
+	}
+	ent := loadReviewRow(t, payload.Id)
+	if ent.Content != "" || ent.AuthorID() != 0 {
+		t.Fatalf("override cleanup did not anonymize: %+v", ent)
+	}
+}
+
+// TestEnqueueCleanupTaskDedupeRunning 锁定 security Y5：Running 状态的任务
+// 同样阻止入队（cron 触发时任务正被租约 worker 处理，避免重复入队叠加）。
+func TestEnqueueCleanupTaskDedupeRunning(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&taskQueue.Entity{}); err != nil {
+		t.Fatalf("migrate task queue: %v", err)
+	}
+	if err := conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{}).Error; err != nil {
+		t.Fatalf("clean task queue: %v", err)
+	}
+	if err := taskQueue.Create(&taskQueue.Entity{
+		Type:     TaskTypeCourseReviewCleanup + ".run",
+		TaskJson: `{}`,
+		Status:   taskQueue.StatusRunning,
+	}); err != nil {
+		t.Fatalf("create running task: %v", err)
+	}
+	if err := EnqueueCleanupTask(); err != nil {
+		t.Fatalf("enqueue: %v", err)
+	}
+	var count int64
+	if err := conn.Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeCourseReviewCleanup+"%").Count(&count).Error; err != nil {
+		t.Fatalf("count tasks: %v", err)
+	}
+	if count != 1 {
+		t.Fatalf("cleanup tasks = %d, want 1（Running 任务应阻止重复入队）", count)
+	}
+}
