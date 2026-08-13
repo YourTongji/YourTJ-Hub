@@ -47,6 +47,10 @@ export const adminRouter = createRouter({
       component: () => import('@/admin/pages/management/LinksManagementPage.vue'),
     },
     {
+      path: '/admin/wiki',
+      component: () => import('@/admin/pages/WikiManage.vue'),
+    },
+    {
       path: '/admin/sponsors',
       component: () => import('@/admin/pages/management/SponsorsManagementPage.vue'),
     },

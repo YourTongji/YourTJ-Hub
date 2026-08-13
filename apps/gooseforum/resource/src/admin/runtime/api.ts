@@ -37,19 +37,35 @@ import type {
   StorageSettings,
   TermsOfServiceConfig,
   UserBadgeOptions,
+  WikiEditor,
+  WikiNamespace,
+  WikiNamespaceTree,
+  WikiRevision,
+  WikiTreeOp,
 } from '@/admin/types'
 
 function responseMessage(data: ApiEnvelope<unknown>, fallback: string) {
   return resolveApiMessage(data, fallback)
 }
 
+function apiError(data: ApiEnvelope<unknown>, fallback: string) {
+  const error = new Error(responseMessage(data, fallback)) as Error & { messageCode?: string }
+  if (typeof data.messageCode === 'string') {
+    error.messageCode = data.messageCode
+  }
+  return error
+}
+
 async function readApiResponse<T>(response: Response, fallback: string): Promise<T> {
   if (!response.ok) {
     throw new Error(`HTTP ${response.status}`)
   }
+  if (response.status === 204) {
+    return undefined as T
+  }
   const data = (await response.json()) as ApiEnvelope<T>
   if (data.code !== undefined && data.code !== 0) {
-    throw new Error(responseMessage(data, fallback))
+    throw apiError(data, fallback)
   }
   const result = data.result ?? data.data
   return result as T
@@ -100,6 +116,38 @@ async function postEnvelope<T>(url: string, body?: unknown, fallback = adminText
     throw new Error(responseMessage(data, fallback))
   }
   return data
+}
+
+async function writeJson<T>(method: 'PUT' | 'DELETE', url: string, body?: unknown, fallback = adminText('k000l')): Promise<T> {
+  const response = await fetch(url, {
+    method,
+    headers: {
+      Accept: 'application/json',
+      'Content-Type': 'application/json',
+    },
+    body: body === undefined ? undefined : JSON.stringify(body),
+  })
+  if (!response.ok) {
+    let envelopeError: Error | null = null
+    try {
+      const data = (await response.json()) as ApiEnvelope<unknown>
+      if (data.code !== undefined && data.code !== 0) {
+        envelopeError = apiError(data, fallback)
+      }
+    } catch {
+      // Not a JSON envelope; fall back to the generic HTTP status error below.
+    }
+    if (envelopeError) throw envelopeError
+  }
+  return readApiResponse<T>(response, fallback)
+}
+
+function putJson<T>(url: string, body?: unknown, fallback = adminText('k000l')): Promise<T> {
+  return writeJson<T>('PUT', url, body, fallback)
+}
+
+function deleteJson<T>(url: string, fallback = adminText('k000l')): Promise<T> {
+  return writeJson<T>('DELETE', url, undefined, fallback)
 }
 
 export async function getSiteStatistics(): Promise<SiteStatistics> {
@@ -426,4 +474,44 @@ export function rotateAgentToken(agentId: number) {
 
 export function disableAgent(agentId: number) {
   return postJson<unknown>('/api/admin/agent-disable', { agentId }, adminText('k00k6'))
+}
+
+export function getWikiNamespaces() {
+  return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
+}
+
+export function createWikiNamespace(data: { name: string, description: string }) {
+  return postJson<unknown>('/api/admin/wiki/namespaces', data, adminText('k00n0'))
+}
+
+export function updateWikiNamespace(name: string, description: string) {
+  return putJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, { description }, adminText('k00n0'))
+}
+
+export function deleteWikiNamespace(name: string) {
+  return deleteJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, adminText('k00n0'))
+}
+
+export function getWikiEditors(namespace: string) {
+  return getJson<WikiEditor[]>(`/api/admin/wiki/namespaces/${encodeURIComponent(namespace)}/editors`, adminText('k00n1'))
+}
+
+export function saveWikiEditors(namespace: string, userIds: number[]) {
+  return putJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(namespace)}/editors`, { userIds }, adminText('k00n1'))
+}
+
+export function getWikiTree() {
+  return getJson<WikiNamespaceTree[]>('/api/admin/wiki/tree', adminText('k00n2'))
+}
+
+export function saveWikiTree(ops: WikiTreeOp[]) {
+  return putJson<unknown>('/api/admin/wiki/tree', { ops }, adminText('k00n2'))
+}
+
+export function getWikiRevisions(status: string) {
+  return getJson<WikiRevision[]>(`/api/admin/wiki/revisions?status=${encodeURIComponent(status)}`, adminText('k00n3'))
+}
+
+export function reviewWikiRevision(revisionId: number, action: 'approve' | 'reject') {
+  return postJson<unknown>(`/api/wiki/revisions/${revisionId}/review`, { action }, adminText('k00n3'))
 }
