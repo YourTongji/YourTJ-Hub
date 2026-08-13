@@ -372,6 +372,7 @@ export default {
     allDepartments: '全部院系',
     clearFilters: '清除筛选',
     rating: '{score} 分',
+    noRating: '暂无评分',
     reviewCount: '{count} 条评价',
   },
   schedule: {

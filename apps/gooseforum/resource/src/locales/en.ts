@@ -372,6 +372,7 @@ export default {
     allDepartments: 'All departments',
     clearFilters: 'Clear filters',
     rating: '{score}',
+    noRating: 'No rating yet',
     reviewCount: '{count} reviews',
   },
   schedule: {

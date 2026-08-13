@@ -225,3 +225,81 @@ func TestListDistinctDepartments(t *testing.T) {
 		}
 	}
 }
+
+// TestListCoursesLikeEscaping Instructor 的 LIKE 通配符（%/_）被转义：输入 % 只按字面匹配，不会命中全部课程。
+func TestListCoursesLikeEscaping(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	zhang := createTestInstructor(t, conn, "张三", "zhangsan", "zhangsan", "zs")
+	li := createTestInstructor(t, conn, "李四", "lisi", "lisi", "ls")
+	cA := createCourse(t, conn, "100040", "CS")
+	cB := createCourse(t, conn, "100041", "CS")
+	linkCourseInstructor(t, conn, cA, zhang)
+	linkCourseInstructor(t, conn, cB, li)
+
+	// "%" 转义后按字面匹配，两个教师名均不含 %，应返回 0；未转义则 %% 会命中全部。
+	got, total, err := ListCourses(ListCourseQuery{Instructor: "%", Size: 50})
+	if err != nil {
+		t.Fatalf("ListCourses(instructor=%%) err = %v", err)
+	}
+	if total != 0 || len(got) != 0 {
+		t.Fatalf("instructor=%%: total=%d len=%d, want 0/0", total, len(got))
+	}
+}
+
+// TestListCoursesSoftDeletedCourseExcluded 软删课程既不出现在列表，也不计入 total（Count 与 Find 口径一致）。
+func TestListCoursesSoftDeletedCourseExcluded(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	_ = createCourse(t, conn, "100050", "CS")
+	ghost := createCourse(t, conn, "100051", "CS")
+	if err := conn.Delete(&Entity{Id: ghost}).Error; err != nil {
+		t.Fatalf("soft-delete course: %v", err)
+	}
+
+	got, total, err := ListCourses(ListCourseQuery{Size: 50})
+	if err != nil {
+		t.Fatalf("ListCourses err = %v", err)
+	}
+	if total != 1 || len(got) != 1 {
+		t.Fatalf("ListCourses total=%d len=%d, want 1/1 (soft-deleted excluded)", total, len(got))
+	}
+}
+
+// TestListCoursesInstructorHiddenOfferingExcluded 隐藏开课（offering.status=hidden）的教师不被 instructor 搜出。
+func TestListCoursesInstructorHiddenOfferingExcluded(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	ins := createTestInstructor(t, conn, "王五", "wangwu", "wangwu", "ww")
+	c := createCourse(t, conn, "100060", "CS")
+	hiddenOffering := OfferingEntity{CourseId: c, Status: OfferingStatusHidden}
+	if err := conn.Create(&hiddenOffering).Error; err != nil {
+		t.Fatalf("create hidden offering: %v", err)
+	}
+	if err := conn.Create(&OfferingInstructorEntity{OfferingId: hiddenOffering.Id, InstructorId: ins}).Error; err != nil {
+		t.Fatalf("link instructor: %v", err)
+	}
+
+	got, total, err := ListCourses(ListCourseQuery{Instructor: "王五", Size: 50})
+	if err != nil {
+		t.Fatalf("ListCourses(instructor=王五) err = %v", err)
+	}
+	if total != 0 || len(got) != 0 {
+		t.Fatalf("hidden offering: total=%d len=%d, want 0/0", total, len(got))
+	}
+}
+
+// TestListCoursesHasReviewSoftDeletedStatsExcluded HasReview 忽略软删的统计行。
+func TestListCoursesHasReviewSoftDeletedStatsExcluded(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100070", "CS")
+	setCourseStats(t, conn, c, 2, 8, 3)
+	if err := conn.Delete(&CourseStatsEntity{CourseId: c}).Error; err != nil {
+		t.Fatalf("soft-delete stats: %v", err)
+	}
+
+	got, total, err := ListCourses(ListCourseQuery{HasReview: true, Size: 50})
+	if err != nil {
+		t.Fatalf("ListCourses(HasReview) err = %v", err)
+	}
+	if total != 0 || len(got) != 0 {
+		t.Fatalf("soft-deleted stats: total=%d len=%d, want 0/0", total, len(got))
+	}
+}

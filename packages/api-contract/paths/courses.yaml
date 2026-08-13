@@ -32,7 +32,7 @@ listCourses:
         in: query
         schema:
           type: boolean
-          description: When true, return only courses that have at least one visible review.
+          description: When true, return only courses that have at least one visible review. Accepts true/1/on (case-insensitive) as truthy values.
       - name: sortBy
         in: query
         schema:

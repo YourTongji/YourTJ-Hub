@@ -372,6 +372,7 @@ export default {
     allDepartments: 'Tutti i dipartimenti',
     clearFilters: 'Cancella i filtri',
     rating: '{score}',
+    noRating: 'Nessuna valutazione',
     reviewCount: '{count} recensioni',
   },
   schedule: {

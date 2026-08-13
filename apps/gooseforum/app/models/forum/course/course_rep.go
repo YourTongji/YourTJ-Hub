@@ -1,6 +1,8 @@
 package course
 
 import (
+	"strings"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
 )
@@ -40,7 +42,7 @@ type ListCourseQuery struct {
 // ListCourses 返回课程列表（canonical course 一页），并返回总条数。
 // 排序固定为 id 倒序（新课程优先），保证分页稳定。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
-	b := courseBuilder().Where(queryopt.Eq("status", StatusVisible))
+	b := courseBuilder().Where(queryopt.Eq("status", StatusVisible)).Where("course.deleted_at IS NULL")
 	if q.Department != "" {
 		b = b.Where(queryopt.Eq("department", q.Department))
 	}
@@ -53,24 +55,24 @@ OR EXISTS (
 	SELECT 1 FROM course_offering
 	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
 	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
-	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
 	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
 ))`,
-			kw, kw, kw, kw, kw, kw, kw, kw, kw, kw,
+			kw, kw, kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
 		)
 	}
 	if q.Instructor != "" {
-		ins := "%" + q.Instructor + "%"
+		ins := "%" + escapeLike(q.Instructor) + "%"
 		b = b.Where(`EXISTS (
 	SELECT 1 FROM course_offering
 	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
 	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
-	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL
-	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
-)`, ins, ins, ins, ins)
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
+	  AND (course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')
+)`, OfferingStatusVisible, ins, ins, ins, ins)
 	}
 	if q.HasReview {
-		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0)`)
+		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0 AND course_review_stats.deleted_at IS NULL)`)
 	}
 	if q.TermCode != "" || q.Campus != "" {
 		ob := offeringBuilder()
@@ -106,6 +108,14 @@ OR EXISTS (
 	}
 	err = b.Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
 	return
+}
+
+// escapeLike 转义 LIKE 模式中的通配符（%/_）与转义字符（!）本身，
+// 配合 ESCAPE '!' 使输入按字面匹配，避免 %/_ 改变搜索语义。
+// 用 '!' 而非 '\' 作转义字符，规避 MySQL/SQLite/PostgreSQL 三方言
+// 对反斜杠字符串字面量的解析差异（MySQL 需 '\\'，SQLite/PG 需 '\'）。
+func escapeLike(s string) string {
+	return strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(s)
 }
 
 // ListDistinctDepartments 返回所有可见课程的去重院系列表（非空、按字典序），供目录页筛选下拉。

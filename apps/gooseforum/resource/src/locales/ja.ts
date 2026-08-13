@@ -372,6 +372,7 @@ export default {
     allDepartments: 'すべての学部・学科',
     clearFilters: '絞り込みを解除',
     rating: '{score} 点',
+    noRating: '評価なし',
     reviewCount: '{count} 件の評価',
   },
   schedule: {
