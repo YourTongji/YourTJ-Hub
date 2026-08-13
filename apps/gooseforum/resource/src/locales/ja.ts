@@ -491,6 +491,7 @@ export default {
     templateChange: 'テンプレートを変更',
     templateSelectorTitle: 'レビューテンプレートを選択',
     templateSelectorHint: 'テンプレートを選んで開始できます。内容は編集できます。',
+    templateContentNotEmpty: '本文が空ではありません。テンプレートを適用するには先にクリアしてください。',
     confirmDeleteTitle: 'レビューを削除',
     reviewDeleted: 'レビューを削除しました',
     templates: {

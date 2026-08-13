@@ -97,6 +97,20 @@ const reviewTotal = ref(0)
 const reviewNextCursor = ref('')
 const reviewLoadingMore = ref(false)
 const reviewLoading = ref(false)
+// reviewsLoadSeq 列表加载代际：写操作（创建/编辑/删除）成功后递增，使 in-flight 的
+// 旧列表响应失效——否则初次 loadReviews 的旧快照会在写成功后返回并覆盖刚发布的
+// 评价（unshift 内容消失、计数回退，直到刷新）。
+let reviewsLoadSeq = 0
+
+// invalidateReviews 写操作成功后调用：使 in-flight 列表加载失效；若仍有加载在途或
+// 列表从未成功加载，触发一次静默重拉对账（此时服务端已包含本次写入），保证列表完整
+// （丢弃旧快照后不重拉会只剩本地写入的一条、旧评价丢失）。
+function invalidateReviews() {
+  reviewsLoadSeq += 1
+  if (reviewLoading.value || !reviewLoaded.value) {
+    void loadReviews()
+  }
+}
 const reviewError = ref('')
 const reviewLoaded = ref(false)
 const helpfulBusyIds = ref<number[]>([])
@@ -106,30 +120,42 @@ const helpfulBusyIds = ref<number[]>([])
 const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
 
 async function loadReviews() {
+  const seq = ++reviewsLoadSeq
   reviewLoading.value = true
   reviewError.value = ''
   try {
     const reviewPage = await listCourseReviews(page.props.course.id)
+    // 代际守卫：期间有写操作（创建/编辑）成功，丢弃这份旧快照，不覆盖客户端最新态。
+    if (seq !== reviewsLoadSeq) return
     reviews.value = reviewPage.list
     reviewTotal.value = reviewPage.total
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
+    // 旧代际的失败不覆盖新状态（避免已成功的写操作被错误提示淹没）。
+    if (seq !== reviewsLoadSeq) return
     reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
-    reviewLoading.value = false
-    reviewLoaded.value = true
+    // 仅当前代际可动 loading/loaded：旧代际完成时新代际仍在途，保留其 loading 状态。
+    if (seq === reviewsLoadSeq) {
+      reviewLoading.value = false
+      reviewLoaded.value = true
+    }
   }
 }
 
 // 加载更多（B2 cursor 分页，issue #174）
 async function loadMoreReviews() {
   if (!reviewNextCursor.value || reviewLoadingMore.value) return
+  const seq = reviewsLoadSeq
   reviewLoadingMore.value = true
   try {
     const reviewPage = await listCourseReviews(page.props.course.id, 0, reviewNextCursor.value)
+    // 代际守卫：写操作已失效本代（旧 cursor 数据可能含已删除/旧内容），丢弃不 concat。
+    if (seq !== reviewsLoadSeq) return
     reviews.value = reviews.value.concat(reviewPage.list)
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
+    if (seq !== reviewsLoadSeq) return
     reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
     reviewLoadingMore.value = false
@@ -187,6 +213,11 @@ function cancelForm() {
 }
 
 function applyTemplate(id: string, content: string) {
+  // 保护：模板只应用于空正文，避免静默覆盖用户已输入/编辑中的内容。
+  if (formContent.value.trim()) {
+    pushFlash(t('courseDetailPage.templateContentNotEmpty'), 'warning')
+    return
+  }
   formTemplateId.value = id
   formContent.value = content
   templateSelectorOpen.value = false
@@ -234,6 +265,7 @@ async function submitForm() {
       reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
       reviewLoaded.value = true
     }
+    invalidateReviews()
     formVisible.value = false
     editingReviewId.value = null
   } catch (error) {
@@ -269,6 +301,7 @@ async function confirmRemoveReview() {
     reviewTotal.value = nextReviewTotalOnDelete(reviewTotal.value)
     pendingDelete.value = null
     pushFlash(t('courseDetailPage.reviewDeleted'), 'success')
+    invalidateReviews()
   } catch (error) {
     pendingDelete.value = null
     pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewDeleteFailed'), 'error')

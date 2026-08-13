@@ -491,6 +491,7 @@ export default {
     templateChange: 'Change template',
     templateSelectorTitle: 'Choose a review template',
     templateSelectorHint: 'Pick a template to get started; you can keep editing the content.',
+    templateContentNotEmpty: 'The content is not empty. Clear it first to apply a template.',
     confirmDeleteTitle: 'Delete review',
     reviewDeleted: 'Review deleted',
     templates: {

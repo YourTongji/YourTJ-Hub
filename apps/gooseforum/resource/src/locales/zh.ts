@@ -491,6 +491,7 @@ export default {
     templateChange: '更换模板',
     templateSelectorTitle: '选择评价模板',
     templateSelectorHint: '选择一个模板快速开始，正文可继续编辑。',
+    templateContentNotEmpty: '正文已有内容，请先清空后再套用模板。',
     confirmDeleteTitle: '删除评价',
     reviewDeleted: '评价已删除',
     templates: {

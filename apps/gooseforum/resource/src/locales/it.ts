@@ -491,6 +491,7 @@ export default {
     templateChange: 'Cambia modello',
     templateSelectorTitle: 'Scegli un modello di recensione',
     templateSelectorHint: 'Scegli un modello per iniziare; puoi continuare a modificare il contenuto.',
+    templateContentNotEmpty: 'Il contenuto non è vuoto. Svuotalo prima di applicare un modello.',
     confirmDeleteTitle: 'Elimina recensione',
     reviewDeleted: 'Recensione eliminata',
     templates: {
