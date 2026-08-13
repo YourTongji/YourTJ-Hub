@@ -96,6 +96,10 @@ const reviewError = ref('')
 const reviewLoaded = ref(false)
 const helpfulBusyIds = ref<number[]>([])
 
+// 统计卡评论数：评价列表加载完成后以 reviewTotal（客户端、删除/创建后实时更新）为准，
+// 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
+const statsReviewCount = computed(() => (reviewLoaded.value ? reviewTotal.value : reviewCount.value))
+
 async function loadReviews() {
   reviewLoading.value = true
   reviewError.value = ''
@@ -231,18 +235,24 @@ async function submitForm() {
 
 // ---- 删除确认（受控 Dialog，替代 window.confirm）----
 const pendingDelete = ref<ReviewPayload | null>(null)
+// deleting 防 in-flight 双击：删除请求未返回前禁止重复提交/取消，
+// 避免 pendingDelete 被中途置 null 导致"删 A 后误关 B 的 Dialog"竞态。
+const deleting = ref(false)
 
 function askRemoveReview(review: ReviewPayload) {
+  if (deleting.value) return
   pendingDelete.value = review
 }
 
 function cancelRemoveReview() {
+  if (deleting.value) return
   pendingDelete.value = null
 }
 
 async function confirmRemoveReview() {
   const review = pendingDelete.value
-  if (!review) return
+  if (!review || deleting.value) return
+  deleting.value = true
   try {
     await deleteCourseReview(review.id)
     reviews.value = reviews.value.filter((item) => item.id !== review.id)
@@ -252,6 +262,8 @@ async function confirmRemoveReview() {
   } catch (error) {
     pendingDelete.value = null
     pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewDeleteFailed'), 'error')
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -356,7 +368,7 @@ onMounted(() => {
           </div>
           <div class="mt-0.5 text-[12px] text-base-content/50">{{ t('courseDetailPage.ratingOutOf') }}</div>
           <div class="mt-1.5 text-[13px] text-base-content/60">
-            {{ t('courseDetailPage.reviewCountLabel', { count: reviewCount }, reviewCount) }}
+            {{ t('courseDetailPage.reviewCountLabel', { count: statsReviewCount }, statsReviewCount) }}
           </div>
         </div>
 
@@ -835,11 +847,12 @@ onMounted(() => {
           </div>
           <p class="mt-3 text-sm text-base-content/75">{{ t('courseDetailPage.confirmDeleteReview') }}</p>
           <div class="mt-4 flex justify-end gap-2">
-            <button type="button" class="gf-button gf-button-md gf-button-muted" @click="cancelRemoveReview">
+            <button type="button" class="gf-button gf-button-md gf-button-muted" :disabled="deleting" @click="cancelRemoveReview">
               {{ t('common.cancel') }}
             </button>
-            <button type="button" class="gf-button gf-button-md gf-button-danger" @click="confirmRemoveReview">
-              <Trash2 class="h-4 w-4" />
+            <button type="button" class="gf-button gf-button-md gf-button-danger" :disabled="deleting" @click="confirmRemoveReview">
+              <Loader2 v-if="deleting" class="h-4 w-4 animate-spin" />
+              <Trash2 v-else class="h-4 w-4" />
               {{ t('courseDetailPage.delete') }}
             </button>
           </div>
