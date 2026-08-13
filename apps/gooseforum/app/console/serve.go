@@ -148,9 +148,11 @@ func ginServe() {
 	captchaOpt.StartCleanup()
 	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
-	// 启动时回收进程崩溃遗留的 Running 任务（taskQueue 无租约机制，
-	// 崩溃时任务卡在 Running 将永久不可见，投影更新丢失）。
-	// 邮件/文件迁移/导出 worker 共用同一恢复逻辑，各按类型前缀处理。
+	// 启动时立即回收租约过期的 Running 任务（issue #138）：任务领取采用
+	// 原子 CAS + processed_at 租约，worker 执行期间心跳续租，worker 循环内
+	// 也会周期性回收过期租约；此处是启动时的即时清扫，让崩溃遗留任务尽快
+	// 回到 Pending 重新领取。邮件/文件迁移/导出 worker 共用同一恢复逻辑，
+	// 各按类型前缀处理。
 	mailservice.RecoverStaleTasks()
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
