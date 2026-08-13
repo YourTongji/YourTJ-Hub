@@ -200,10 +200,14 @@ const fetchLogStaleWindow = time.Hour
 //
 // 并发防护三层（review HIGH「唯一/租约」）：
 //  1. 应用层按 StartedAt 时间窗拒绝未陈旧的并发；
-//  2. 续跑（stale running / failed）用 ClaimFetchLog 原子 CAS 认领，两进程同时读到同一行时
-//     仅一个能成功，另一进程返回「并发续跑冲突」，避免复用同一行导致 double-delete；
-//  3. 新建用 (calendar_id) WHERE status='running' partial unique index 兜底，消除「两进程同时
-//     读不到 running → 各自 CreateFetchLog 成功」的 TOCTOU 竞态。
+//  2. 续跑（stale running / failed）用 ClaimFetchLog 原子认领（lease_version 精确 CAS，
+//     WHERE lease_version=<旧值> SET lease_version=lease_version+1，RowsAffected 判定胜负），
+//     两进程同时读到同一行时仅一个能成功，另一进程返回「并发续跑冲突」，避免复用同一行导致
+//     double-delete；
+//  3. 新建用 running_key 唯一索引兜底（running 行 running_key=calendar_id，其余为 NULL），
+//     消除「两进程同时读不到 running → 各自 CreateFetchLog 成功」的 TOCTOU 竞态。三种数据库
+//     均允许唯一索引含多个 NULL，故 completed/failed 行永不冲突，但同一 calendar 的两条
+//     running 行必然冲突（跨方言，不依赖 PG 专属 partial unique index）。
 func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) {
 	latest, ok := pk.LatestFetchLogByCalendar(calendarId)
 	if ok {
@@ -212,8 +216,8 @@ func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) 
 			if latest.StartedAt != nil && time.Since(*latest.StartedAt) < fetchLogStaleWindow {
 				return nil, false, errors.New("该学期同步正在进行中（fetchlog running），请勿并发运行；若确已中断请稍后再试")
 			}
-			// stale running：原子认领（CAS 比较 started_at 旧值），防止并发续跑同一行。
-			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusRunning, latest.StartedAt)
+			// stale running：原子认领（lease_version CAS，赢家 +1 后旧版本失效），防止并发续跑同一行。
+			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusRunning, latest.LeaseVersion)
 			if err != nil {
 				return nil, false, err
 			}
@@ -222,10 +226,11 @@ func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) 
 			}
 			now := time.Now()
 			latest.StartedAt = &now
+			latest.LeaseVersion++
 			return &latest, true, nil
 		case pk.FetchStatusFailed:
-			// failed：原子改回 running 认领（状态转换即串行化），防止并发续跑同一行。
-			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusFailed, nil)
+			// failed：原子改回 running 认领（状态转换 + lease_version CAS 双重串行化），防止并发续跑同一行。
+			claimed, err := pk.ClaimFetchLog(latest.Id, pk.FetchStatusFailed, latest.LeaseVersion)
 			if err != nil {
 				return nil, false, err
 			}
@@ -235,6 +240,7 @@ func beginOrResumeFetchLog(calendarId uint64) (*pk.FetchLogEntity, bool, error) 
 			now := time.Now()
 			latest.Status = pk.FetchStatusRunning
 			latest.StartedAt = &now
+			latest.LeaseVersion++
 			return &latest, true, nil
 		}
 	}

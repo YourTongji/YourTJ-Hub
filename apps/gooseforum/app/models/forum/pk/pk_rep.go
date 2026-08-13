@@ -33,9 +33,16 @@ func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
 }
 
 // CreateFetchLog 新建同步日志（running 初始态），返回带主键的实体。
+// 新建即占用 running_key 唯一索引（running_key=calendar_id），兜底「两进程同时读不到 running、
+// 各自 Create」的 TOCTOU 竞态（见 FetchLogEntity 注释）。
 func CreateFetchLog(calendarId uint64) (*FetchLogEntity, error) {
 	now := time.Now()
-	entity := &FetchLogEntity{CalendarId: calendarId, Status: FetchStatusRunning, StartedAt: &now}
+	entity := &FetchLogEntity{
+		CalendarId: calendarId,
+		RunningKey: &calendarId,
+		Status:     FetchStatusRunning,
+		StartedAt:  &now,
+	}
 	if err := fetchLogBuilder().Create(entity).Error; err != nil {
 		return nil, fmt.Errorf("pk: create fetch log: %w", err)
 	}
@@ -43,28 +50,42 @@ func CreateFetchLog(calendarId uint64) (*FetchLogEntity, error) {
 }
 
 // SaveFetchLog 更新同步日志游标/状态（不重建行，更新 CreatedAt 之外的字段）。
+// running_key 由 status 派生：running 时置 calendar_id，其余（completed/failed）置 NULL——
+// 调用方不可能写出行与 running_key 不一致的脏状态。
 func SaveFetchLog(entity *FetchLogEntity) error {
-	if err := fetchLogBuilder().Where("id = ?", entity.Id).Select("status", "total_pages", "last_committed_page", "rows_written", "error_msg", "started_at", "finished_at", "updated_at").Updates(entity).Error; err != nil {
+	if entity.Status == FetchStatusRunning {
+		entity.RunningKey = &entity.CalendarId
+	} else {
+		entity.RunningKey = nil
+	}
+	if err := fetchLogBuilder().Where("id = ?", entity.Id).Select(
+		"status", "total_pages", "last_committed_page", "rows_written", "error_msg", "started_at", "finished_at", "running_key", "updated_at",
+	).Updates(entity).Error; err != nil {
 		return fmt.Errorf("pk: save fetch log: %w", err)
 	}
 	return nil
 }
 
-// ClaimFetchLog 原子认领一条可续跑日志：仅当其当前状态等于 expectedStatus（且若给出 expectedStartedAt，
-// 其 started_at 也须相等）时，将其置为 running 并刷新 started_at。返回是否认领成功（RowsAffected==1）。
+// ClaimFetchLog 原子认领一条可续跑日志：仅当其当前状态等于 expectedStatus 且 lease_version 等于
+// expectedVersion 时，将其置为 running、刷新 started_at 并把 lease_version 加 1。返回是否认领成功
+// （RowsAffected==1）。
 //
 // 用于消除「两进程同时读到同一条 stale-running / failed 日志并都续跑」的 double-delete 竞态
-// （review HIGH「唯一/租约」的租约部分）。对 stale-running 必须传 expectedStartedAt 做真正的 CAS：
-// 认领后 started_at 被刷新，第二个认领者用旧 started_at 的 WHERE 不再匹配，故只会有一个成功；
-// 若仅按 status 过滤，running→running 不变会导致两进程都拿到 RowsAffected==1（CAS 失效）。
-// 对 failed 可传 nil：failed→running 的状态转换本身就足以串行化。
-func ClaimFetchLog(id uint64, expectedStatus string, expectedStartedAt *time.Time) (bool, error) {
+// （review HIGH「唯一/租约」的租约部分）。lease_version 是单调递增的精确 CAS/lease token：赢家把
+// 它递增，并发者用旧 version 重试时 WHERE lease_version=<旧值> 不再匹配，RowsAffected==0，故只有
+// 一个成功。不用 started_at 时间戳做 token——不同方言时间精度不一致，可能两进程读到同一值导致
+// CAS 失效（review P1）。对 failed 也传当前 version：状态转换 failed→running 本身可串行化，
+// 加上 version 匹配更精确。
+func ClaimFetchLog(id uint64, expectedStatus string, expectedVersion int) (bool, error) {
 	now := time.Now()
-	q := fetchLogBuilder().Where("id = ? AND status = ?", id, expectedStatus)
-	if expectedStartedAt != nil {
-		q = q.Where("started_at = ?", expectedStartedAt)
-	}
-	res := q.Updates(map[string]any{"status": FetchStatusRunning, "started_at": now})
+	res := fetchLogBuilder().
+		Where("id = ? AND status = ? AND lease_version = ?", id, expectedStatus, expectedVersion).
+		Updates(map[string]any{
+			"status":        FetchStatusRunning,
+			"lease_version": gorm.Expr("lease_version + 1"),
+			"started_at":    now,
+			"running_key":   gorm.Expr("calendar_id"), // 认领后即 running：占用 running 唯一索引。
+		})
 	if res.Error != nil {
 		return false, fmt.Errorf("pk: claim fetch log: %w", res.Error)
 	}

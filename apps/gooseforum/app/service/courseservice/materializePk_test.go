@@ -2,6 +2,7 @@ package courseservice
 
 import (
 	"context"
+	"fmt"
 	"testing"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -134,4 +135,56 @@ func TestMaterializeFromPkIdempotent(t *testing.T) {
 		t.Errorf("courses after 2nd run = %d, want 1", courseCount)
 	}
 	_ = first
+}
+
+// TestMaterializeFromPkInstructorNormalizedNameIdempotent 回归 #199：教师名含空格/中点/全角字符时
+// 归一化前后不同（如 "John Smith"→"johnsmith"），此前第二次物化仍按原始姓名查找 normalized_name
+// 导致必然 miss、重复创建教师。断言第二次 InstructorsInserted == 0。
+func TestMaterializeFromPkInstructorNormalizedNameIdempotent(t *testing.T) {
+	migrateMaterializeTables(t)
+	conn := db.Connect()
+	credit := 3.0
+	if err := conn.Create(&pk.CourseDetailEntity{
+		Id: 1, CalendarId: 1, CourseCode: "B101", CourseName: "数据科学导论", Code: "B10101",
+		NewCourseCode: "B101N", NewCode: "B101N01", Credit: &credit, Faculty: "数学科学学院",
+	}).Error; err != nil {
+		t.Fatalf("seed course detail: %v", err)
+	}
+	// 含空格、中点、全角字符的教师名：归一化值分别 johnsmith / 爱丽丝史密斯 / john，与原始姓名不同。
+	for i, raw := range []string{"John Smith", "爱丽丝·史密斯", "Ｊｏｈｎ"} {
+		teacher := pk.TeacherEntity{
+			Id: uint64(200 + i), TeachingClassId: 1, TeacherCode: fmt.Sprintf("T2%02d", i),
+			TeacherName: raw,
+		}
+		if err := conn.Create(&teacher).Error; err != nil {
+			t.Fatalf("seed teacher %q: %v", raw, err)
+		}
+	}
+	if err := conn.Create(&pk.FacultyEntity{Faculty: "数学科学学院", FacultyI18n: "数学科学学院"}).Error; err != nil {
+		t.Fatalf("seed faculty: %v", err)
+	}
+
+	first, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("first materialize: %v", err)
+	}
+	if first.InstructorsInserted != 3 {
+		t.Fatalf("first instructorsInserted = %d, want 3", first.InstructorsInserted)
+	}
+
+	second, err := MaterializeFromPk(context.Background(), []uint64{1})
+	if err != nil {
+		t.Fatalf("second materialize: %v", err)
+	}
+	if second.InstructorsInserted != 0 {
+		t.Errorf("second instructorsInserted = %d, want 0（归一化姓名未命中导致重复创建）", second.InstructorsInserted)
+	}
+
+	var total int64
+	if err := conn.Model(&course.InstructorEntity{}).Count(&total).Error; err != nil {
+		t.Fatalf("count instructors: %v", err)
+	}
+	if total != 3 {
+		t.Errorf("instructors after 2 runs = %d, want 3", total)
+	}
 }

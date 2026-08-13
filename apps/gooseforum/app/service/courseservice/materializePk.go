@@ -214,14 +214,15 @@ func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]
 	return &entity, inserted, nil
 }
 
-// upsertPkInstructorsTx 按 (name, department) 缺教师则创建，name|dept 缓存避免重复查询。
+// upsertPkInstructorsTx 按 (normalized_name, department) 缺教师则创建，norm|dept 缓存避免重复查询。
 func upsertPkInstructorsTx(tx *gorm.DB, names []string, department string, cache map[string]uint64, report *MaterializeReport) error {
 	for _, name := range names {
-		key := name + "\x00" + department
+		norm := Normalize(name)
+		key := norm + "\x00" + department
 		if _, ok := cache[key]; ok {
 			continue
 		}
-		entity, err := course.FindInstructorByNameDeptTx(tx, name, department)
+		entity, err := course.FindInstructorByNameDeptTx(tx, norm, department)
 		switch {
 		case err == nil:
 			cache[key] = entity.Id

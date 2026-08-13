@@ -5,6 +5,7 @@ import (
 	"os"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
@@ -80,6 +81,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasColumn(&users.EntityComplete{}, "actor_type") {
 		t.Error("users.actor_type column missing after postgres migration")
 	}
+	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 }
 
@@ -178,6 +180,7 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	if !db.Migrator().HasIndex(&users.EntityComplete{}, "uniq_users_username") {
 		t.Error("users username unique index missing after upgrade migration")
 	}
+	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
 	var legacyPointsCount int64
 	if err := db.Model(&pointsRecord.Entity{}).Where("action = ? AND points_change = ?", "init", 100).Count(&legacyPointsCount).Error; err != nil {
@@ -185,6 +188,25 @@ func TestSchemaUpgradeCreatesNewTablesOnPostgreSQL(t *testing.T) {
 	}
 	if legacyPointsCount != 1 {
 		t.Errorf("legacy points record count after upgrade = %d, want 1", legacyPointsCount)
+	}
+}
+
+// assertPkFetchLogLeaseSchema 校验 pk_fetch_log 的跨方言租约列/索引（issue #186 review P1）：
+// lease_version（精确 CAS token）与 running_key 唯一索引（同一 calendar 至多一条 running，
+// 不依赖 PG 专属 partial unique index）；旧 partial index idx_pk_fetch_log_running 不得再创建。
+func assertPkFetchLogLeaseSchema(t *testing.T, db *gorm.DB) {
+	t.Helper()
+	if !db.Migrator().HasColumn(&pk.FetchLogEntity{}, "lease_version") {
+		t.Error("pk_fetch_log.lease_version column missing after postgres migration")
+	}
+	if !db.Migrator().HasColumn(&pk.FetchLogEntity{}, "running_key") {
+		t.Error("pk_fetch_log.running_key column missing after postgres migration")
+	}
+	if !db.Migrator().HasIndex(&pk.FetchLogEntity{}, "uniq_pk_fetch_log_running_key") {
+		t.Error("pk_fetch_log.uniq_pk_fetch_log_running_key unique index missing after postgres migration")
+	}
+	if db.Migrator().HasIndex(&pk.FetchLogEntity{}, "idx_pk_fetch_log_running") {
+		t.Error("stale partial index idx_pk_fetch_log_running must not be created after postgres migration")
 	}
 }
 

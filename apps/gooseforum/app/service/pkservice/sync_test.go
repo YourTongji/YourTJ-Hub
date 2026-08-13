@@ -406,24 +406,29 @@ func TestSyncDepthSyncsConsecutiveCalendars(t *testing.T) {
 }
 
 func TestFetchLogRunningUniqueConstraint(t *testing.T) {
-	// 并发防护（review HIGH）：同一学期只允许一条 running 日志，(status='running')
-	// partial unique index 按 calendar_id 限定，兜底消除 TOCTOU 竞态——同一学期第二条 running 必须冲突失败。
+	// 并发防护（review HIGH）：同一学期只允许一条 running 日志。实现是可空 running_key
+	// （running 时=calendar_id，其余=NULL）+ 普通 UNIQUE 索引：同一学期第二条 running 冲突失败；
+	// completed/failed（NULL）行之间永不冲突。跨方言，不依赖 PG 专属 partial unique index。
 	migratePkTables(t)
 	const calendarID = uint64(121)
 
-	if _, err := pk.CreateFetchLog(calendarID); err != nil {
+	first, err := pk.CreateFetchLog(calendarID)
+	if err != nil {
 		t.Fatalf("first create: %v", err)
 	}
-	// 不同学期可各自拥有一条 running（索引按 calendar_id 限定，而非全局唯一）。
+	if first.RunningKey == nil || *first.RunningKey != calendarID {
+		t.Errorf("fresh running running_key = %v, want %d", first.RunningKey, calendarID)
+	}
+	// 不同学期可各自拥有一条 running（唯一索引按 running_key 值区分，而非全局唯一）。
 	if _, err := pk.CreateFetchLog(122); err != nil {
 		t.Fatalf("different calendar running should coexist: %v", err)
 	}
-	// 同一学期第二条 running 冲突失败。
+	// 同一学期第二条 running 冲突失败（两行 running_key 同为 calendarID）。
 	if _, err := pk.CreateFetchLog(calendarID); !errors.Is(err, gorm.ErrDuplicatedKey) {
 		t.Fatalf("second running create error = %v, want gorm.ErrDuplicatedKey", err)
 	}
 
-	// 标记 completed 后 running 唯一约束释放，可再建新 running（幂等重跑路径）。
+	// 标记 completed 后 running_key 置 NULL，唯一约束释放，可再建新 running（幂等重跑路径）。
 	var log pk.FetchLogEntity
 	if err := db.Connect().Where("calendar_id = ?", calendarID).First(&log).Error; err != nil {
 		t.Fatalf("load log: %v", err)
@@ -432,42 +437,65 @@ func TestFetchLogRunningUniqueConstraint(t *testing.T) {
 	if err := pk.SaveFetchLog(&log); err != nil {
 		t.Fatalf("mark completed: %v", err)
 	}
+	if log.RunningKey != nil {
+		t.Errorf("completed running_key = %v, want nil", log.RunningKey)
+	}
 	if _, err := pk.CreateFetchLog(calendarID); err != nil {
 		t.Fatalf("create after completed should succeed: %v", err)
 	}
 }
 
 func TestClaimFetchLogCAS(t *testing.T) {
-	// 续跑原子认领（review HIGH 租约）：ClaimFetchLog 用 started_at 旧值做 CAS，
+	// 续跑原子认领（review HIGH 租约 + P1）：ClaimFetchLog 用 lease_version 精确 CAS，
 	// 防止两进程同时读到同一条 stale-running/failed 日志并都续跑造成 double-delete。
+	// 不用 started_at 时间戳做 token——方言时间精度不一致（如 MySQL DATETIME 秒精度），
+	// 两次写入可能取同一值，旧实现第二次 claim 仍成功。
 	migratePkTables(t)
 
 	running, err := pk.CreateFetchLog(121)
 	if err != nil {
 		t.Fatalf("create running: %v", err)
 	}
-	oldStartedAt := running.StartedAt
+	if running.LeaseVersion != 0 {
+		t.Fatalf("fresh log lease_version = %d, want 0", running.LeaseVersion)
+	}
+	oldVersion := running.LeaseVersion
 
-	// stale running 认领：用旧 started_at 做 CAS，第一次成功（刷新 started_at）。
-	claimed, err := pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldStartedAt)
+	// stale running 认领：用当前 lease_version 认领，第一次成功（version 0→1）。
+	claimed, err := pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldVersion)
 	if err != nil || !claimed {
 		t.Fatalf("claim stale running = (%v, %v), want (true, nil)", claimed, err)
 	}
-	// 第二次用同一个旧 started_at 认领（模拟并发者）：started_at 已被刷新，CAS 不匹配，应失败。
-	claimed, err = pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldStartedAt)
+	// 第二个并发者仍用同一个旧 version 认领：赢家已把 lease_version 置为 1，
+	// WHERE lease_version=0 不再匹配，应失败（RowsAffected==0）。
+	claimed, err = pk.ClaimFetchLog(running.Id, pk.FetchStatusRunning, oldVersion)
 	if err != nil || claimed {
-		t.Fatalf("second claim stale running = (%v, %v), want (false, nil)", claimed, err)
+		t.Fatalf("second claim with stale version = (%v, %v), want (false, nil)", claimed, err)
+	}
+	// 重新读取：lease_version 已递增，用新版本可再次认领（模拟陈旧窗口后的下一轮续跑）。
+	gotRunning, _ := pk.LatestFetchLogByCalendar(121)
+	if gotRunning.LeaseVersion != oldVersion+1 {
+		t.Fatalf("after claim lease_version = %d, want %d", gotRunning.LeaseVersion, oldVersion+1)
+	}
+	claimed, err = pk.ClaimFetchLog(gotRunning.Id, pk.FetchStatusRunning, gotRunning.LeaseVersion)
+	if err != nil || !claimed {
+		t.Fatalf("reclaim with fresh version = (%v, %v), want (true, nil)", claimed, err)
 	}
 
-	// failed 状态可认领（状态转换即串行化），认领后置回 running。
+	// failed 状态可认领（状态转换 + version CAS 双重串行化），认领后置回 running。
 	failed, err := pk.CreateFetchLog(122)
 	if err != nil {
 		t.Fatalf("create 122: %v", err)
 	}
-	if err := db.Connect().Model(&pk.FetchLogEntity{}).Where("id = ?", failed.Id).Update("status", pk.FetchStatusFailed).Error; err != nil {
-		t.Fatalf("mark failed: %v", err)
+	failed.Status = pk.FetchStatusFailed
+	if err := pk.SaveFetchLog(failed); err != nil {
+		t.Fatalf("mark failed via SaveFetchLog: %v", err)
 	}
-	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, nil); err != nil || !claimed {
+	if failed.RunningKey != nil {
+		t.Errorf("failed running_key = %v, want nil", failed.RunningKey)
+	}
+	failedVersion := failed.LeaseVersion // SaveFetchLog 不改 lease_version
+	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, failedVersion); err != nil || !claimed {
 		t.Fatalf("claim failed = (%v, %v), want (true, nil)", claimed, err)
 	}
 	var got pk.FetchLogEntity
@@ -477,8 +505,45 @@ func TestClaimFetchLogCAS(t *testing.T) {
 	if got.Status != pk.FetchStatusRunning {
 		t.Errorf("claimed status = %q, want running", got.Status)
 	}
-	// failed 认领后状态已转 running，再次按 failed 认领应失败（CAS 不匹配）。
-	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, nil); err != nil || claimed {
-		t.Fatalf("second claim failed = (%v, %v), want (false, nil)", claimed, err)
+	if got.LeaseVersion != failedVersion+1 {
+		t.Errorf("claimed lease_version = %d, want %d", got.LeaseVersion, failedVersion+1)
+	}
+	if got.RunningKey == nil || *got.RunningKey != 122 {
+		t.Errorf("claimed running_key = %v, want 122", got.RunningKey)
+	}
+	// failed 认领后状态已转 running 且 version 已递增：再按 failed 用旧 version 认领应失败。
+	if claimed, err = pk.ClaimFetchLog(failed.Id, pk.FetchStatusFailed, failedVersion); err != nil || claimed {
+		t.Fatalf("second claim failed with stale version = (%v, %v), want (false, nil)", claimed, err)
+	}
+}
+
+// TestFetchLogNewRunningAfterCompleted 回归（review P1 MySQL 场景）：某 calendar 的 fetchlog 标记
+// completed 后，必须能为同一 calendar 新建 running log。旧实现用 (calendar_id) WHERE status='running'
+// partial unique index——MySQL migrator 不生成 WHERE 子句，退化为普通 UNIQUE(calendar_id)，completed
+// 行仍占住 calendar_id，重跑新建必失败；新实现用可空 running_key + 普通唯一索引，completed 行
+// running_key=NULL，三种数据库均允许多个 NULL，重跑新建成功。
+func TestFetchLogNewRunningAfterCompleted(t *testing.T) {
+	migratePkTables(t)
+	const calendarID = uint64(121)
+
+	if _, err := pk.CreateFetchLog(calendarID); err != nil {
+		t.Fatalf("first create: %v", err)
+	}
+	// 完整跑完后标记 completed（经 SaveFetchLog，running_key 被置 NULL）。
+	log, _ := pk.LatestFetchLogByCalendar(calendarID)
+	log.Status = pk.FetchStatusCompleted
+	if err := pk.SaveFetchLog(&log); err != nil {
+		t.Fatalf("mark completed: %v", err)
+	}
+	// 同 calendar 新建 running：必须成功（completed 行 running_key 为 NULL，不占唯一索引）。
+	re, err := pk.CreateFetchLog(calendarID)
+	if err != nil {
+		t.Fatalf("create running after completed should succeed: %v", err)
+	}
+	if re.Status != pk.FetchStatusRunning {
+		t.Errorf("new log status = %q, want running", re.Status)
+	}
+	if re.RunningKey == nil || *re.RunningKey != calendarID {
+		t.Errorf("new log running_key = %v, want %d", re.RunningKey, calendarID)
 	}
 }
