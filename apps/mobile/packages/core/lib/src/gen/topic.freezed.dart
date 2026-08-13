@@ -2546,6 +2546,9 @@ mixin _$PostPayload {
   String? get replyToUsername => throw _privateConstructorUsedError;
   bool get isOwnPost => throw _privateConstructorUsedError;
   String? get updatedAt => throw _privateConstructorUsedError;
+  UserBriefPayload? get lastEditor => throw _privateConstructorUsedError;
+  String? get lastEditedAt => throw _privateConstructorUsedError;
+  int get revisionCount => throw _privateConstructorUsedError;
   int get likeCount => throw _privateConstructorUsedError;
   bool get isLiked => throw _privateConstructorUsedError;
   bool get isBookmarked => throw _privateConstructorUsedError;
@@ -2583,12 +2586,16 @@ abstract class $PostPayloadCopyWith<$Res> {
     String? replyToUsername,
     bool isOwnPost,
     String? updatedAt,
+    UserBriefPayload? lastEditor,
+    String? lastEditedAt,
+    int revisionCount,
     int likeCount,
     bool isLiked,
     bool isBookmarked,
   });
 
   $UserBriefPayloadCopyWith<$Res> get author;
+  $UserBriefPayloadCopyWith<$Res>? get lastEditor;
 }
 
 /// @nodoc
@@ -2621,6 +2628,9 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
     Object? replyToUsername = freezed,
     Object? isOwnPost = null,
     Object? updatedAt = freezed,
+    Object? lastEditor = freezed,
+    Object? lastEditedAt = freezed,
+    Object? revisionCount = null,
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
@@ -2687,6 +2697,18 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
                 ? _value.updatedAt
                 : updatedAt // ignore: cast_nullable_to_non_nullable
                       as String?,
+            lastEditor: freezed == lastEditor
+                ? _value.lastEditor
+                : lastEditor // ignore: cast_nullable_to_non_nullable
+                      as UserBriefPayload?,
+            lastEditedAt: freezed == lastEditedAt
+                ? _value.lastEditedAt
+                : lastEditedAt // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            revisionCount: null == revisionCount
+                ? _value.revisionCount
+                : revisionCount // ignore: cast_nullable_to_non_nullable
+                      as int,
             likeCount: null == likeCount
                 ? _value.likeCount
                 : likeCount // ignore: cast_nullable_to_non_nullable
@@ -2711,6 +2733,20 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
   $UserBriefPayloadCopyWith<$Res> get author {
     return $UserBriefPayloadCopyWith<$Res>(_value.author, (value) {
       return _then(_value.copyWith(author: value) as $Val);
+    });
+  }
+
+  /// Create a copy of PostPayload
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @pragma('vm:prefer-inline')
+  $UserBriefPayloadCopyWith<$Res>? get lastEditor {
+    if (_value.lastEditor == null) {
+      return null;
+    }
+
+    return $UserBriefPayloadCopyWith<$Res>(_value.lastEditor!, (value) {
+      return _then(_value.copyWith(lastEditor: value) as $Val);
     });
   }
 }
@@ -2740,6 +2776,9 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
     String? replyToUsername,
     bool isOwnPost,
     String? updatedAt,
+    UserBriefPayload? lastEditor,
+    String? lastEditedAt,
+    int revisionCount,
     int likeCount,
     bool isLiked,
     bool isBookmarked,
@@ -2747,6 +2786,8 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
 
   @override
   $UserBriefPayloadCopyWith<$Res> get author;
+  @override
+  $UserBriefPayloadCopyWith<$Res>? get lastEditor;
 }
 
 /// @nodoc
@@ -2778,6 +2819,9 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
     Object? replyToUsername = freezed,
     Object? isOwnPost = null,
     Object? updatedAt = freezed,
+    Object? lastEditor = freezed,
+    Object? lastEditedAt = freezed,
+    Object? revisionCount = null,
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
@@ -2844,6 +2888,18 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
             ? _value.updatedAt
             : updatedAt // ignore: cast_nullable_to_non_nullable
                   as String?,
+        lastEditor: freezed == lastEditor
+            ? _value.lastEditor
+            : lastEditor // ignore: cast_nullable_to_non_nullable
+                  as UserBriefPayload?,
+        lastEditedAt: freezed == lastEditedAt
+            ? _value.lastEditedAt
+            : lastEditedAt // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        revisionCount: null == revisionCount
+            ? _value.revisionCount
+            : revisionCount // ignore: cast_nullable_to_non_nullable
+                  as int,
         likeCount: null == likeCount
             ? _value.likeCount
             : likeCount // ignore: cast_nullable_to_non_nullable
@@ -2880,6 +2936,9 @@ class _$PostPayloadImpl implements _PostPayload {
     this.replyToUsername,
     required this.isOwnPost,
     this.updatedAt,
+    this.lastEditor,
+    this.lastEditedAt,
+    required this.revisionCount,
     required this.likeCount,
     required this.isLiked,
     required this.isBookmarked,
@@ -2919,6 +2978,12 @@ class _$PostPayloadImpl implements _PostPayload {
   @override
   final String? updatedAt;
   @override
+  final UserBriefPayload? lastEditor;
+  @override
+  final String? lastEditedAt;
+  @override
+  final int revisionCount;
+  @override
   final int likeCount;
   @override
   final bool isLiked;
@@ -2927,7 +2992,7 @@ class _$PostPayloadImpl implements _PostPayload {
 
   @override
   String toString() {
-    return 'PostPayload(id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, canModerate: $canModerate, author: $author, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
+    return 'PostPayload(id: $id, topicId: $topicId, postNo: $postNo, content: $content, renderedContent: $renderedContent, processStatus: $processStatus, isHidden: $isHidden, canModerate: $canModerate, author: $author, createdAt: $createdAt, replyToPostId: $replyToPostId, replyToUserId: $replyToUserId, replyToUsername: $replyToUsername, isOwnPost: $isOwnPost, updatedAt: $updatedAt, lastEditor: $lastEditor, lastEditedAt: $lastEditedAt, revisionCount: $revisionCount, likeCount: $likeCount, isLiked: $isLiked, isBookmarked: $isBookmarked)';
   }
 
   @override
@@ -2960,6 +3025,12 @@ class _$PostPayloadImpl implements _PostPayload {
                 other.isOwnPost == isOwnPost) &&
             (identical(other.updatedAt, updatedAt) ||
                 other.updatedAt == updatedAt) &&
+            (identical(other.lastEditor, lastEditor) ||
+                other.lastEditor == lastEditor) &&
+            (identical(other.lastEditedAt, lastEditedAt) ||
+                other.lastEditedAt == lastEditedAt) &&
+            (identical(other.revisionCount, revisionCount) ||
+                other.revisionCount == revisionCount) &&
             (identical(other.likeCount, likeCount) ||
                 other.likeCount == likeCount) &&
             (identical(other.isLiked, isLiked) || other.isLiked == isLiked) &&
@@ -2969,7 +3040,7 @@ class _$PostPayloadImpl implements _PostPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode => Object.hash(
+  int get hashCode => Object.hashAll([
     runtimeType,
     id,
     topicId,
@@ -2986,10 +3057,13 @@ class _$PostPayloadImpl implements _PostPayload {
     replyToUsername,
     isOwnPost,
     updatedAt,
+    lastEditor,
+    lastEditedAt,
+    revisionCount,
     likeCount,
     isLiked,
     isBookmarked,
-  );
+  ]);
 
   /// Create a copy of PostPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3022,6 +3096,9 @@ abstract class _PostPayload implements PostPayload {
     final String? replyToUsername,
     required final bool isOwnPost,
     final String? updatedAt,
+    final UserBriefPayload? lastEditor,
+    final String? lastEditedAt,
+    required final int revisionCount,
     required final int likeCount,
     required final bool isLiked,
     required final bool isBookmarked,
@@ -3060,6 +3137,12 @@ abstract class _PostPayload implements PostPayload {
   bool get isOwnPost;
   @override
   String? get updatedAt;
+  @override
+  UserBriefPayload? get lastEditor;
+  @override
+  String? get lastEditedAt;
+  @override
+  int get revisionCount;
   @override
   int get likeCount;
   @override

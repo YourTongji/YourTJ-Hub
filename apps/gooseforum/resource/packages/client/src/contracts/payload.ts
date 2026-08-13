@@ -348,6 +348,15 @@ export interface PostPayload {
   replyToUsername?: string
   isOwnPost: boolean
   updatedAt?: string
+  lastEditor?: {
+    id: number
+    username: string
+    nickname?: string
+    avatarUrl: string
+    wornBadge?: UserBadgePayload | null
+  }
+  lastEditedAt?: string
+  revisionCount: number
   likeCount: number
   isLiked: boolean
   isBookmarked: boolean

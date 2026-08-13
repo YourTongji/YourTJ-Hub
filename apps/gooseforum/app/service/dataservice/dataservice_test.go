@@ -11,6 +11,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -27,6 +28,7 @@ func setupDataTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&postRevisions.Entity{},
 		&taskQueue.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
@@ -36,6 +38,7 @@ func setupDataTestDB(t *testing.T) {
 	}
 	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
 	conn.Unscoped().Where("1 = 1").Delete(&topics.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&postRevisions.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&taskQueue.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&category.Entity{})

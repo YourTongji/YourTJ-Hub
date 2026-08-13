@@ -35,7 +35,8 @@ abstract class BadgePayload with _$BadgePayload {
     required int sortOrder,
   }) = _BadgePayload;
 
-  factory BadgePayload.fromJson(Map<String, dynamic> json) => _$BadgePayloadFromJson(json);
+  factory BadgePayload.fromJson(Map<String, dynamic> json) =>
+      _$BadgePayloadFromJson(json);
 }
 
 @freezed
@@ -97,7 +98,8 @@ abstract class TopicPayload with _$TopicPayload {
     bool? unseen,
   }) = _TopicPayload;
 
-  factory TopicPayload.fromJson(Map<String, dynamic> json) => _$TopicPayloadFromJson(json);
+  factory TopicPayload.fromJson(Map<String, dynamic> json) =>
+      _$TopicPayloadFromJson(json);
 }
 
 @freezed
@@ -145,12 +147,16 @@ abstract class PostPayload with _$PostPayload {
     String? replyToUsername,
     required bool isOwnPost,
     String? updatedAt,
+    UserBriefPayload? lastEditor,
+    String? lastEditedAt,
+    required int revisionCount,
     required int likeCount,
     required bool isLiked,
     required bool isBookmarked,
   }) = _PostPayload;
 
-  factory PostPayload.fromJson(Map<String, dynamic> json) => _$PostPayloadFromJson(json);
+  factory PostPayload.fromJson(Map<String, dynamic> json) =>
+      _$PostPayloadFromJson(json);
 }
 
 @freezed

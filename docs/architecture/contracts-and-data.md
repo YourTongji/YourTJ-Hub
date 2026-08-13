@@ -93,6 +93,14 @@ than a hand-maintained duplicate baseline.
 - Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
   default deployment database and SQLite the local development/test default; MySQL is not
   supported; the file db stays SQLite.
+- Post content revisions: `post_revisions` is an append-only snapshot table (post_id, version,
+  editor_id, content, rendered_html, process_status, created_at). Every content edit — first post
+  (post_no = 1) and replies alike, by the author — appends a new version inside the edit
+  transaction and updates `posts.last_editor_id` / `last_edited_at`; post creation seeds version 1
+  (editor = author). A row lock serializes concurrent edits so (post_id, version) stays monotonic.
+  History is read-only (`GET /api/forum/posts/revisions?postId=`; pending-review version bodies are
+  hidden from non-moderators). Permanent deletion and privacy erasure blank revision bodies so the
+  snapshot table cannot bypass the deletion lifecycle.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.

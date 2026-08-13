@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -226,6 +227,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 			if err := posts.SaveTx(tx, &firstPost); err != nil {
 				return err
 			}
+			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
+			if err := postservice.AppendPostRevision(tx, &firstPost, req.UserId, firstPost.ProcessStatus); err != nil {
+				return err
+			}
 		} else {
 			topic.PostCount = 1
 			topic.PostSeq = 1
@@ -246,6 +251,10 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				firstPost.ProcessStatus = posts.ProcessStatusPending
 			}
 			if err := posts.CreateTx(tx, &firstPost); err != nil {
+				return err
+			}
+			// 新话题播种版本 v1（editor = 作者）。
+			if err := postservice.SeedPostRevision(tx, &firstPost); err != nil {
 				return err
 			}
 			topic.FirstPostId = firstPost.Id
@@ -506,10 +515,14 @@ type UpdatePostReq struct {
 	Content string `json:"content"`
 }
 
+// UpdatePost 编辑帖子内容。首楼（PostNo=1）与回复同权限：作者本人。
+// 首楼编辑联动话题摘要/首图（列表卡片与搜索文档派生自首楼）并重建
+// 搜索索引；所有内容编辑在同一事务内追加版本历史（post_revisions，
+// 用户只读查看）并更新最后编辑者/时间。
 func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 	postEntity := posts.Get(req.Params.PostId)
-	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
+	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	if postEntity.UserId != req.UserId {
@@ -552,16 +565,60 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postEntity.Content = content
 	postEntity.RenderedHTML = markdown2html.PostMarkdownToHTML(content)
 	postEntity.RenderedVersion = markdown2html.GetPostVersion()
-	if err := posts.Save(&postEntity); err != nil {
+
+	isFirstPost := postEntity.PostNo == 1
+	if isFirstPost {
+		// 首楼是话题正文：摘要/首图与待审状态随正文联动（与 writeTopic
+		// 编辑分支同语义），保证列表卡片、搜索文档与正文一致。
+		topicEntity.Excerpt = markdown2html.ExtractDescription(content, 200)
+		topicEntity.FirstImageURL = markdown2html.ExtractFirstImageURL(content)
+		topicEntity.ImageUrls = markdown2html.ExtractImageURLs(content)
+		if pendingReview {
+			topicEntity.ProcessStatus = topics.ProcessStatusPending
+		}
+	}
+
+	now := time.Now()
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := posts.SaveTx(tx, &postEntity); err != nil {
+			return err
+		}
+		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
+		if err := postservice.AppendPostRevision(tx, &postEntity, req.UserId, postEntity.ProcessStatus); err != nil {
+			return err
+		}
+		if isFirstPost {
+			if err := topics.SaveTx(tx, &topicEntity); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,
 
 			component.MessageParams{"error": err.Error()})
-
 	}
+	postEntity.LastEditorId = req.UserId
+	postEntity.LastEditedAt = &now
+
 	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
-	// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
-	llmsservice.ClearCache()
+	if isFirstPost {
+		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
+		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
+		fileusageservice.ReplaceTopic(topicEntity.Id, req.UserId, postEntity.Content)
+		hotdataserve.ClearTopicListCache()
+		llmsservice.ClearCache()
+		if _, err := searchservice.BuildSingleTopicSearchDocument(&topicEntity, &postEntity); err != nil {
+			slog.Error("failed to rebuild topic search document", "topicId", topicEntity.Id, "err", err)
+		}
+		if topicEntity.Status == 1 && !pendingReview {
+			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topicEntity, FirstPost: &postEntity})
+		}
+	} else {
+		// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
+		llmsservice.ClearCache()
+	}
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
@@ -569,6 +626,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"content":         postEntity.Content,
 		"renderedContent": postEntity.RenderedHTML,
 		"updatedAt":       postEntity.UpdatedAt.Format(time.DateTime),
+		"lastEditorId":    postEntity.LastEditorId,
+		"lastEditedAt":    postEntity.LastEditedAt.Format(time.DateTime),
+		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
 	})
 }
 

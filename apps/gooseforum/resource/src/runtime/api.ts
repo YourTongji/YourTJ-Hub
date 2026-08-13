@@ -1,4 +1,4 @@
-import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -85,6 +85,33 @@ export interface UpdatePostResult {
   content: string
   renderedContent: string
   updatedAt: string
+  lastEditorId: number
+  lastEditedAt: string
+  revisionCount: number
+}
+
+export interface PostRevisionResult {
+  postId: number
+  versions: Array<{
+    version: number
+    editor: PostPayload['author']
+    content: string
+    renderedHTML: string
+    processStatus: number
+    createdAt: string
+  }>
+}
+
+export async function getPostRevisions(postId: number): Promise<PostRevisionResult> {
+  const params = new URLSearchParams({
+    postId: String(postId),
+  })
+  const response = await fetch(`/api/forum/posts/revisions?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<PostRevisionResult>(response, t('api.revisionsLoadFailed'))
 }
 
 

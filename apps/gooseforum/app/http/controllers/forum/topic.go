@@ -5,18 +5,20 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicviewservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
 
@@ -327,4 +329,79 @@ func activeKeyForTopic(topic TopicDetailPayload) string {
 		return "category_" + cast.ToString(topic.Categories[0].ID)
 	}
 	return "topics"
+}
+
+type PostRevisionsReq struct {
+	PostID uint64 `form:"postId"`
+}
+
+// PostRevisions 返回某帖的版本历史（用户只读查看，无回滚/写入接口）。
+// 可见性与楼层窗口一致：话题可见即可读历史；待审（pending）版本正文仅
+// 版主可见，普通用户看到空内容 + 状态标记，避免敏感内容经历史泄露。
+func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Response {
+	postEntity := posts.Get(req.Params.PostID)
+	if postEntity.Id == 0 {
+		postEntity = posts.UnscopedGet(req.Params.PostID)
+	}
+	if postEntity.Id == 0 {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	topicEntity := topics.GetSimple(postEntity.TopicId)
+	if topicEntity.Id == 0 {
+		topicEntity = topics.UnscopedGet(postEntity.TopicId)
+	}
+	if topicEntity.Id == 0 || !CanViewTopicSimple(&topicEntity, req.UserId) {
+		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+
+	versions := postRevisions.ListByPostId(postEntity.Id)
+	canModerate := moderationservice.CanModerateAnyCategory(req.UserId, topicEntity.CategoryIds)
+
+	editorIDs := make([]uint64, 0, len(versions))
+	seen := make(map[uint64]struct{}, len(versions))
+	for _, v := range versions {
+		if v == nil {
+			continue
+		}
+		if _, ok := seen[v.EditorId]; !ok {
+			seen[v.EditorId] = struct{}{}
+			editorIDs = append(editorIDs, v.EditorId)
+		}
+	}
+	userMap := users.GetMapByIds(editorIDs)
+	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
+
+	type revisionPayload struct {
+		Version       uint64             `json:"version"`
+		Editor        TopicAuthorPayload `json:"editor"`
+		Content       string             `json:"content"`
+		RenderedHTML  string             `json:"renderedHTML"`
+		ProcessStatus int8               `json:"processStatus"`
+		CreatedAt     string             `json:"createdAt"`
+	}
+	list := make([]revisionPayload, 0, len(versions))
+	for _, v := range versions {
+		if v == nil {
+			continue
+		}
+		content := v.Content
+		rendered := v.RenderedHTML
+		if v.ProcessStatus == posts.ProcessStatusPending && !canModerate {
+			// 待审版本正文对非版主屏蔽，与楼层窗口过滤同语义
+			content = ""
+			rendered = ""
+		}
+		list = append(list, revisionPayload{
+			Version:       v.Version,
+			Editor:        userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId]),
+			Content:       content,
+			RenderedHTML:  rendered,
+			ProcessStatus: v.ProcessStatus,
+			CreatedAt:     v.CreatedAt.Format(time.DateTime),
+		})
+	}
+	return component.SuccessResponse(map[string]any{
+		"postId":   postEntity.Id,
+		"versions": list,
+	})
 }

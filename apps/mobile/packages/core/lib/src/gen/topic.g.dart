@@ -235,6 +235,13 @@ _$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
       replyToUsername: json['replyToUsername'] as String?,
       isOwnPost: json['isOwnPost'] as bool,
       updatedAt: json['updatedAt'] as String?,
+      lastEditor: json['lastEditor'] == null
+          ? null
+          : UserBriefPayload.fromJson(
+              json['lastEditor'] as Map<String, dynamic>,
+            ),
+      lastEditedAt: json['lastEditedAt'] as String?,
+      revisionCount: (json['revisionCount'] as num).toInt(),
       likeCount: (json['likeCount'] as num).toInt(),
       isLiked: json['isLiked'] as bool,
       isBookmarked: json['isBookmarked'] as bool,
@@ -257,6 +264,9 @@ Map<String, dynamic> _$$PostPayloadImplToJson(_$PostPayloadImpl instance) =>
       'replyToUsername': instance.replyToUsername,
       'isOwnPost': instance.isOwnPost,
       'updatedAt': instance.updatedAt,
+      'lastEditor': instance.lastEditor,
+      'lastEditedAt': instance.lastEditedAt,
+      'revisionCount': instance.revisionCount,
       'likeCount': instance.likeCount,
       'isLiked': instance.isLiked,
       'isBookmarked': instance.isBookmarked,

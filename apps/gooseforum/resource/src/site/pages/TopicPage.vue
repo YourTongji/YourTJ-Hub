@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
-import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, deleteTopic, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, privacyEraseContent } from '@/runtime/api'
+import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, History, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
+import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, privacyEraseContent, type PostRevisionResult } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -60,6 +60,10 @@ const pendingDeletePost = ref<PostPayload | null>(null)
 const pendingDeleteTopic = ref(false)
 const pendingModerationAction = ref<'ban' | 'unban' | null>(null)
 const pendingReport = ref<{ targetType: 'topic' | 'post'; targetId: number; title: string; excerpt: string } | null>(null)
+const historyPost = ref<PostPayload | null>(null)
+const historyVersions = ref<PostRevisionResult['versions'] | null>(null)
+const historyLoading = ref(false)
+const historyError = ref('')
 const reportReason = ref('spam')
 const reportNote = ref('')
 const reportSubmitting = ref(false)
@@ -1264,10 +1268,6 @@ function canDeleteRenderedPost(post: PostPayload) {
 
 function startEditPost(post: PostPayload) {
   if (savingEditPostId.value || deletingPostId.value === post.id) return
-  if (isFirstPost(post)) {
-    window.location.href = `/publish?id=${page.props.topic.id}`
-    return
-  }
   if (!editingPostId.value) {
     postDraftBeforeEdit.value = postContent.value
     targetPostBeforeEdit.value = targetPostId.value
@@ -1317,11 +1317,19 @@ async function savePostEdit() {
     const updated = await updatePost(post.id, content)
     const index = posts.value.findIndex((item) => item.id === post.id)
     if (index >= 0) {
+      // 编辑者即当前用户：lastEditor 缺少昵称等字段时，用 viewer 兜底补全用户对象
       posts.value[index] = {
         ...posts.value[index],
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
+        lastEditor: {
+          id: updated.lastEditorId,
+          username: page.layout.viewer.username,
+          avatarUrl: page.layout.viewer.avatarUrl,
+        },
+        lastEditedAt: updated.lastEditedAt,
+        revisionCount: updated.revisionCount,
       }
     }
     editingPostId.value = 0
@@ -1656,6 +1664,36 @@ async function removePost(postId: number) {
     deletingPostId.value = 0
   }
 }
+
+async function openPostHistory(post: PostPayload) {
+  historyPost.value = post
+  historyVersions.value = null
+  historyError.value = ''
+  historyLoading.value = true
+  try {
+    const result = await getPostRevisions(post.id)
+    historyVersions.value = result.versions
+  } catch (error) {
+    historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
+  } finally {
+    historyLoading.value = false
+  }
+}
+
+function closePostHistory() {
+  if (historyLoading.value) return
+  historyPost.value = null
+  historyVersions.value = null
+  historyError.value = ''
+}
+
+function lastEditedLabel(post: PostPayload) {
+  if (!post.lastEditedAt || !post.lastEditor) return ''
+  return t('topic.lastEditedBy', {
+    time: formatDateTime(post.lastEditedAt),
+    user: authorDisplayName(post.lastEditor),
+  })
+}
 </script>
 
 <template>
@@ -1874,8 +1912,11 @@ async function removePost(postId: number) {
                 <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                   {{ t('topic.hiddenReplyBadge') }}
                 </div>
-                <div v-if="group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                <div v-if="!group.root.lastEditedAt && group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
                   {{ t('topic.editedAt', { time: formatDateTime(group.root.updatedAt) }) }}
+                </div>
+                <div v-if="group.root.lastEditedAt && group.root.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
+                  {{ lastEditedLabel(group.root) }}
                 </div>
                 <div v-if="isFirstPost(group.root)" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <button
@@ -1907,6 +1948,15 @@ async function removePost(postId: number) {
                   >
                     <Bell class="h-4 w-4" :fill="isWatched ? 'currentColor' : 'none'" />
                     {{ isWatched ? t('topic.watched') : t('topic.watch') }}
+                  </button>
+                  <button
+                    v-if="group.root.revisionCount > 1"
+                    type="button"
+                    class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-base-200 hover:text-base-content"
+                    @click="openPostHistory(group.root)"
+                  >
+                    <History class="h-4 w-4" />
+                    {{ t('topic.editHistory') }}
                   </button>
                   <button
                   v-if="!page.props.permissions.isOwnTopic && !isTopicRemoved()"
@@ -1985,8 +2035,11 @@ async function removePost(postId: number) {
                     <div v-if="reply.isHidden && !isPostRemoved(reply) && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                       {{ t('topic.hiddenReplyBadge') }}
                     </div>
-                    <div v-if="reply.updatedAt && reply.updatedAt !== reply.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                    <div v-if="!reply.lastEditedAt && reply.updatedAt && reply.updatedAt !== reply.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
                       {{ t('topic.editedAt', { time: formatDateTime(reply.updatedAt) }) }}
+                    </div>
+                    <div v-if="reply.lastEditedAt && reply.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
+                      {{ lastEditedLabel(reply) }}
                     </div>
                     <div class="mt-2 flex items-center gap-1">
                       <button
@@ -2546,6 +2599,84 @@ async function removePost(postId: number) {
                   <Loader2 v-if="deletingTopic" class="h-4 w-4 animate-spin" aria-hidden="true" />
                   <Trash2 v-else class="h-4 w-4" aria-hidden="true" />
                   {{ deletingTopic ? t('topic.deleting') : t('topic.confirmDelete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="gf-modal">
+        <div
+          v-if="historyPost"
+          class="fixed inset-0 z-[110] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="post-history-title"
+          @click.self="closePostHistory"
+        >
+          <div class="mx-auto flex min-h-full max-w-2xl items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-info/10 text-primary ring-1 ring-info/15">
+                  <History class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="post-history-title" class="text-base font-semibold leading-6 text-base-content">{{ t('topic.editHistory') }}</h2>
+                  <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('topic.historyForPost', { no: formatNumber(historyPost.postNo) }) }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="historyLoading"
+                  :aria-label="t('common.close')"
+                  @click="closePostHistory"
+                >
+                  <X class="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div v-if="historyLoading" class="mt-4 flex items-center justify-center gap-2 py-8 text-sm text-base-content/55">
+                <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
+                {{ t('common.loadingShort') }}
+              </div>
+              <p v-else-if="historyError" class="mt-4 text-sm text-error" role="alert">{{ historyError }}</p>
+              <p v-else-if="!historyVersions || !historyVersions.length" class="mt-4 py-6 text-center text-sm text-base-content/55">
+                {{ t('topic.historyEmpty') }}
+              </p>
+              <div v-else class="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                <div
+                  v-for="version in historyVersions"
+                  :key="version.version"
+                  class="rounded-[var(--gf-radius-field)] border border-line bg-base-200/40 p-3"
+                >
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
+                    <span class="font-semibold tabular-nums text-base-content/75">{{ t('topic.version', { version: formatNumber(version.version) }) }}</span>
+                    <span class="inline-flex min-w-0 items-center gap-1.5">
+                      <UserAvatar :src="version.editor.avatarUrl" :alt="version.editor.username" class="h-4 w-4 shrink-0 rounded-full ring-1 ring-line" img-class="rounded-full" />
+                      <span class="truncate">{{ authorDisplayName(version.editor) }}</span>
+                    </span>
+                    <time class="truncate">{{ formatDateTime(version.createdAt) }}</time>
+                    <span v-if="version.processStatus !== 0 && !version.content" class="rounded bg-warning/10 px-1.5 py-0.5 font-semibold text-warning">
+                      {{ t('topic.historyPending') }}
+                    </span>
+                  </div>
+                  <div v-if="version.content" v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2 border-t border-line/70 pt-2" v-html="version.renderedHTML" />
+                  <p v-else class="mt-2 border-t border-line/70 pt-2 text-xs text-base-content/45">
+                    {{ version.processStatus !== 0 ? t('topic.historyPendingPlaceholder') : t('topic.historyContentEmpty') }}
+                  </p>
+                </div>
+              </div>
+
+              <div class="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-muted active:scale-[0.96]"
+                  @click="closePostHistory"
+                >
+                  {{ t('common.close') }}
                 </button>
               </div>
             </div>
