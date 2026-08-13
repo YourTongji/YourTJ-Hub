@@ -25,21 +25,43 @@ copy_if_diff() {
   cp "$src" "$dst"
 }
 copy_if_diff "$SCRIPT_DIR/../Dockerfile" "$ROOT/build/Dockerfile"
+copy_if_diff "$SCRIPT_DIR/../build/wiki.Dockerfile" "$ROOT/build/wiki.Dockerfile"
+copy_if_diff "$SCRIPT_DIR/../build/wiki.nginx.conf" "$ROOT/build/wiki.nginx.conf"
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 for f in "$SCRIPT_DIR"/*.sh; do
   copy_if_diff "$f" "$ROOT/scripts/$(basename "$f")"
 done
 chmod +x "$ROOT/scripts/"*.sh
-# 4. 生成 .env(不存在时)
+# 4. 生成/补齐 .env:
+#    - 不存在时整文件生成
+#    - 已存在(存量服务器)时逐条追加缺失的 WIKI_* 变量, 保证已有部署
+#      首次 wiki 部署拿到 WIKI_MAIN_TAG 等, 否则 deploy-wiki.sh 的
+#      sed 匹配不到 tag 行 → compose 回退 latest → pull 失败阻断部署(review F2)
 if [ ! -f "$ROOT/.env" ]; then
   cat > "$ROOT/.env" <<EOF
 MAIN_PORT=5234
 DEV_PORT=5235
 MAIN_TAG=latest
 DEV_TAG=latest
+WIKI_MAIN_PORT=5284
+WIKI_DEV_PORT=5285
+WIKI_MAIN_TAG=latest
+WIKI_DEV_TAG=latest
 EOF
   echo "init: $ROOT/.env created"
+else
+  append_if_missing() {
+    local key="$1" val="$2"
+    if ! grep -q "^$key=" "$ROOT/.env"; then
+      printf '%s=%s\n' "$key" "$val" >> "$ROOT/.env"
+      echo "init: $ROOT/.env += $key=$val"
+    fi
+  }
+  append_if_missing WIKI_MAIN_PORT 5284
+  append_if_missing WIKI_DEV_PORT 5285
+  append_if_missing WIKI_MAIN_TAG latest
+  append_if_missing WIKI_DEV_TAG latest
 fi
 
 

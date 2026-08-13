@@ -20,8 +20,19 @@ type client struct {
 func (c *client) GetID() string { return c.cfg.ID }
 
 // RedirectURIs returns the exact configured redirect URIs. The library
-// performs exact matching (no globs), which prevents open redirects.
+// performs exact matching first; clients that configure RedirectURIGlobs get
+// doublestar fallback matching (see HasRedirectGlobs below). Both paths only
+// ever match against registered values, so open redirects stay impossible.
 func (c *client) RedirectURIs() []string { return c.cfg.RedirectURIs }
+
+// RedirectURIGlobs returns the configured doublestar patterns, enabling
+// zitadel/oidc's op.HasRedirectGlobs fallback: after exact matching fails,
+// each pattern is matched with doublestar.Match. Patterns are validated at
+// config load time (fail-closed), so a bad pattern never reaches runtime.
+func (c *client) RedirectURIGlobs() []string { return c.cfg.RedirectURIGlobs }
+
+// PostLogoutRedirectURIGlobs is not supported (no RP-initiated logout).
+func (c *client) PostLogoutRedirectURIGlobs() []string { return nil }
 
 // PostLogoutRedirectURIs is not supported (no RP-initiated logout).
 func (c *client) PostLogoutRedirectURIs() []string { return nil }

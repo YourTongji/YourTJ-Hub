@@ -82,6 +82,9 @@ access_token_ttl = 3600
 auth_request_ttl = 600
 id_token_ttl = 3600
 # 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
+# redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
+# 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)
+# redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
 [[oidc.clients]]
 id = "yourtj-mobile"
 name = "yourtj 移动端"

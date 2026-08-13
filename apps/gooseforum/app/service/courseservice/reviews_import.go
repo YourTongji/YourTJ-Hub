@@ -77,8 +77,11 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 		Errors:       []ImportError{},
 	}
 
-	rows, err := loadReviewFile(filepath.Dir(manifestPath), manifest)
+	rows, fileCounts, err := loadReviewFile(filepath.Dir(manifestPath), manifest)
 	if err != nil {
+		return nil, err
+	}
+	if err := validateManifestCounts(manifest, fileCounts); err != nil {
 		return nil, err
 	}
 	report.TotalLines = len(rows)
@@ -155,29 +158,33 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 
 // loadReviewFile 读取并校验 manifest 中的 reviews JSONL 文件。
 // 文件路径相对 manifest 所在目录解析，拒绝绝对路径与父目录引用。
-func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReviewRow, error) {
+// 返回各文件的解析行数（文件名 -> 非空行数），供 manifest.counts 校验。
+func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReviewRow, map[string]int, error) {
 	var rows []importReviewRow
+	fileCounts := make(map[string]int, len(manifest.Files))
 	for name, wantSum := range manifest.Files {
 		if filepath.IsAbs(name) || strings.Contains(name, "..") {
-			return nil, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
+			return nil, nil, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
 		}
 		if !strings.HasPrefix(name, "reviews") {
-			return nil, fmt.Errorf("unexpected manifest file %s", name)
+			return nil, nil, fmt.Errorf("unexpected manifest file %s", name)
 		}
 		path := filepath.Join(manifestDir, name)
 		data, err := os.ReadFile(path)
 		if err != nil {
-			return nil, fmt.Errorf("read %s: %w", path, err)
+			return nil, nil, fmt.Errorf("read %s: %w", path, err)
 		}
 		sum := sha256.Sum256(data)
 		if got := hex.EncodeToString(sum[:]); got != wantSum {
-			return nil, fmt.Errorf("checksum mismatch for %s: want %s got %s", name, wantSum, got)
+			return nil, nil, fmt.Errorf("checksum mismatch for %s: want %s got %s", name, wantSum, got)
 		}
-		if err := parseJSONL(data, &rows); err != nil {
-			return nil, fmt.Errorf("parse %s: %w", name, err)
+		n, err := parseJSONL(data, &rows)
+		if err != nil {
+			return nil, nil, fmt.Errorf("parse %s: %w", name, err)
 		}
+		fileCounts[name] = n
 	}
-	return rows, nil
+	return rows, fileCounts, nil
 }
 
 // validateReviewRows 统计隔离行（dry-run 与真实导入共用同一判定，保证报告一致）。
