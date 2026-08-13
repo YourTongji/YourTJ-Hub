@@ -8,6 +8,8 @@ on:
       - "research/**"
       - "**.md"
       - ".playwright-mcp/**"
+      # wiki 内容(含飞书同步)变更必须触发部署, 抵消上面 **.md 的忽略
+      - "!wiki/**"
   workflow_dispatch:
 
 concurrency:
@@ -21,8 +23,33 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-binary
 
+  wiki-build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Install pnpm via corepack
+        run: |
+          corepack enable
+          corepack prepare pnpm@9.15.4 --activate
+      - name: Build wiki static site
+        run: |
+          cd wiki
+          COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install --frozen-lockfile
+          VITE_WALINE_SERVER_URL="${{ secrets.WIKI_WALINE_SERVER_URL }}" pnpm build
+      - name: Package wiki dist
+        run: tar -czf wiki-dist.tar.gz -C wiki/.vitepress/dist .
+      - name: Upload wiki dist artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: wiki-dist
+          path: wiki-dist.tar.gz
+          retention-days: 7
+
   deploy:
-    needs: build
+    needs: [build, wiki-build]
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -31,6 +58,10 @@ jobs:
         with:
           name: yourtj-hub
           path: ./bin
+      - uses: actions/download-artifact@v4
+        with:
+          name: wiki-dist
+          path: ./wiki-dist
       - name: Upload binary to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -41,6 +72,16 @@ jobs:
           source: "bin/yourtj-hub"
           target: "/tmp"
           strip_components: 1
+      - name: Upload wiki dist to dev host
+        uses: appleboy/scp-action@v0.1.7
+        with:
+          host: ${{ secrets.VM_HOST }}
+          username: ${{ secrets.VM_USER }}
+          key: ${{ secrets.VM_SSH_KEY }}
+          port: ${{ secrets.VM_SSH_PORT || '22' }}
+          source: "wiki-dist/wiki-dist.tar.gz"
+          target: "/tmp"
+          strip_components: 2
       - name: Upload deploy script to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -48,7 +89,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/scripts/deploy-wiki.sh"
           target: "/tmp"
           strip_components: 2
       - name: Deploy to dev (sync db from main + build image + restart + smoke)
@@ -60,10 +101,17 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
-            # 0. 同步仓库最新 deploy.sh 到服务器(install 保证可执行位)
+            # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
+            #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
+            #    set -e 下 source 失败阻断部署(review W2)。
             install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
+            install -m 0755 /tmp/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
+            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 /tmp/deploy-wiki.sh /opt/yourtj/scripts/deploy-wiki.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
             #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
             IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235
+            # 3. wiki 静态站部署(nginx 镜像, 端口 5285), 同样失败回滚
+            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-${{ github.sha }} 5285

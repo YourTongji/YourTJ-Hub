@@ -25,6 +25,8 @@ copy_if_diff() {
   cp "$src" "$dst"
 }
 copy_if_diff "$SCRIPT_DIR/../Dockerfile" "$ROOT/build/Dockerfile"
+copy_if_diff "$SCRIPT_DIR/../build/wiki.Dockerfile" "$ROOT/build/wiki.Dockerfile"
+copy_if_diff "$SCRIPT_DIR/../build/wiki.nginx.conf" "$ROOT/build/wiki.nginx.conf"
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 for f in "$SCRIPT_DIR"/*.sh; do
@@ -38,6 +40,10 @@ MAIN_PORT=5234
 DEV_PORT=5235
 MAIN_TAG=latest
 DEV_TAG=latest
+WIKI_MAIN_PORT=5284
+WIKI_DEV_PORT=5285
+WIKI_MAIN_TAG=latest
+WIKI_DEV_TAG=latest
 EOF
   echo "init: $ROOT/.env created"
 fi
