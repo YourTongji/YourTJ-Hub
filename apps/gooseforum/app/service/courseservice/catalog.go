@@ -9,7 +9,7 @@ import (
 // ErrCourseNotFound 课程不存在或已隐藏（与存储层错误区分，控制器映射为 404）。
 var ErrCourseNotFound = errors.New("course not found")
 
-// CourseSummary 课程列表卡片（Slice A 只读目录；评价统计在 Slice C 追加）。
+// CourseSummary 课程列表卡片（B1：携带评分聚合）。
 type CourseSummary struct {
 	Id          uint64   `json:"id"`
 	PrimaryCode string   `json:"primaryCode"`
@@ -19,9 +19,12 @@ type CourseSummary struct {
 	Aliases     []string `json:"aliases,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RecentTerms []string `json:"recentTerms,omitempty"`
+	// RatingAvg 非 NULL rating 均分（legacy 0→NULL 不计）；无评分时 null。
+	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
+	ReviewCount int      `json:"reviewCount,omitempty"`
 }
 
-// OfferingSummary 开课实例摘要（详情页）。
+// OfferingSummary 开课实例摘要（详情页；B1 携带 offering 级评分聚合）。
 type OfferingSummary struct {
 	Id          uint64   `json:"id"`
 	TermCode    string   `json:"termCode"`
@@ -29,9 +32,11 @@ type OfferingSummary struct {
 	Campus      string   `json:"campus,omitempty"`
 	Faculty     string   `json:"faculty,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
+	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
+	ReviewCount int      `json:"reviewCount,omitempty"`
 }
 
-// CourseDetail 课程详情页数据。
+// CourseDetail 课程详情页数据（B1：携带评分聚合与分布）。
 type CourseDetail struct {
 	Id          uint64            `json:"id"`
 	PrimaryCode string            `json:"primaryCode"`
@@ -40,6 +45,23 @@ type CourseDetail struct {
 	CreditX10   int               `json:"creditX10"`
 	Aliases     []string          `json:"aliases,omitempty"`
 	Offerings   []OfferingSummary `json:"offerings,omitempty"`
+	RatingAvg   *float64          `json:"ratingAvg,omitempty"`
+	ReviewCount int               `json:"reviewCount,omitempty"`
+	// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星）；
+	// 无评价时省略（security F4：定长数组 omitempty 无效，改用指针）。
+	RatingDistribution *course.RatingDistribution `json:"ratingDistribution,omitempty"`
+}
+
+// ratingAvgPtrFromStats 由统计投影计算均分：无评分（ratingCount==0）时返回 nil。
+// legacy 0→NULL 转换后 rating 恒 1-5，rating_sum/rating_count 均为实际评分数。
+// 命名区别于 related.go 的 float64 版 ratingAvgFromStats（#198 相关课程排序用，
+// 无评分返回 0；本函数用于目录/详情/搜索展示，无评分返回 nil 以省略字段）。
+func ratingAvgPtrFromStats(ratingCount, ratingSum int) *float64 {
+	if ratingCount <= 0 {
+		return nil
+	}
+	avg := float64(ratingSum) / float64(ratingCount)
+	return &avg
 }
 
 // CatalogQuery 目录筛选条件。
@@ -48,6 +70,9 @@ type CatalogQuery struct {
 	Department string
 	TermCode   string
 	Campus     string
+	Instructor string
+	HasReview  bool
+	SortBy     string
 	Page       int
 	Size       int
 }
@@ -61,7 +86,7 @@ type CatalogPage struct {
 	HasNext bool            `json:"hasNext"`
 }
 
-// ListCatalog 返回课程目录分页（canonical course 一页）。
+// ListCatalog 返回课程目录分页（canonical course 一页，B1 携带评分聚合）。
 func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 	page := q.Page
 	if page <= 0 {
@@ -79,6 +104,9 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		Department: q.Department,
 		TermCode:   q.TermCode,
 		Campus:     q.Campus,
+		Instructor: q.Instructor,
+		HasReview:  q.HasReview,
+		SortBy:     q.SortBy,
 		Page:       page,
 		Size:       size,
 	})
@@ -93,6 +121,11 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		return CatalogPage{}, err
 	}
 	return CatalogPage{List: summaries, Page: page, Size: size, Total: total, HasNext: int64(page)*int64(size) < total}, nil
+}
+
+// ListDepartments 返回课程目录可筛选的院系列表（去重、按字典序）。
+func ListDepartments() ([]string, error) {
+	return course.ListDistinctDepartments()
 }
 
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。
@@ -120,6 +153,16 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 	offerings, err := course.ListOfferingsByCourse(entity.Id)
 	if err != nil {
 		return CourseDetail{}, err
+	}
+	// 课程级统计在 offerings 为空（如全部隐藏）时也填充（security F6）。
+	courseStatsMap := course.ListCourseStatsByIDs([]uint64{entity.Id})
+	if stats, ok := courseStatsMap[entity.Id]; ok {
+		detail.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
+		detail.ReviewCount = stats.ReviewCount
+	}
+	if dist := course.GetRatingDistributionsByCourseIds([]uint64{entity.Id})[entity.Id]; dist != (course.RatingDistribution{}) {
+		d := dist
+		detail.RatingDistribution = &d
 	}
 	if len(offerings) == 0 {
 		return detail, nil
@@ -158,12 +201,18 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 			instructorsByOffering[link.OfferingId] = append(instructorsByOffering[link.OfferingId], name)
 		}
 	}
+	// B1：offering 级统计（详情开课列表展示）
+	offeringStats := course.ListOfferingStatsByIDs(offeringIds)
 	for _, o := range offerings {
 		os := OfferingSummary{
 			Id:          o.Id,
 			Campus:      o.Campus,
 			Faculty:     o.Faculty,
 			Instructors: instructorsByOffering[o.Id],
+		}
+		if s, ok := offeringStats[o.Id]; ok {
+			os.RatingAvg = ratingAvgPtrFromStats(s.RatingCount, s.RatingSum)
+			os.ReviewCount = s.ReviewCount
 		}
 		if t, ok := termByID[o.TermId]; ok {
 			os.TermCode = t.Code
@@ -232,6 +281,8 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 		termByID[t.Id] = t
 	}
 	summaries := make([]CourseSummary, 0, len(entities))
+	// B1：课程级统计投影（目录列表展示均分与评论数，N+1 防护）。
+	courseStats := course.ListCourseStatsByIDs(courseIds)
 	for _, e := range entities {
 		s := CourseSummary{
 			Id:          e.Id,
@@ -240,6 +291,10 @@ func buildSummaries(entities []course.Entity) ([]CourseSummary, error) {
 			Department:  e.Department,
 			CreditX10:   e.CreditX10,
 			Aliases:     aliasesByCourse[e.Id],
+		}
+		if stats, ok := courseStats[e.Id]; ok {
+			s.RatingAvg = ratingAvgPtrFromStats(stats.RatingCount, stats.RatingSum)
+			s.ReviewCount = stats.ReviewCount
 		}
 		seen := make(map[string]struct{})
 		seenTerms := make(map[string]struct{})

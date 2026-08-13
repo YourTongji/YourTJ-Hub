@@ -7,7 +7,6 @@ import (
 	"net/http"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
@@ -18,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 )
 
 // ---- 写评 / 编辑 / 删除 / helpful / 举报 ----
@@ -134,20 +134,33 @@ func ReportCourseReview(req component.BetterRequest[ReportCourseReviewReq]) comp
 
 // ---- 公开读：课程评价列表 ----
 
-// ListCourseReviewsReq 课程评价列表（URI courseId；可选 offeringId 过滤）。
+// ListCourseReviewsReq 课程评价列表（URI courseId；可选 offeringId 过滤；
+// B2: cursor/pageSize 分页, issue #174）。
 type ListCourseReviewsReq struct {
 	CourseId   uint64 `uri:"courseId" validate:"required"`
 	OfferingId uint64 `form:"offeringId"`
+	Cursor     string `form:"cursor"`
+	PageSize   int    `form:"pageSize"`
 }
 
-// ListCourseReviews 返回课程（或指定 offering）的可见评价列表；可选 JWT 提供 viewer 状态。
+// ListCourseReviews 返回课程（或指定 offering）的可见评价分页；可选 JWT 提供 viewer 状态。
 // offeringId 路径必须属于 courseId 且可见，否则 404（防止列出隐藏 offering 的评价，
-// 或跨课程指定无归属的 offering）。
+// 或跨课程指定无归属的 offering）。非法 cursor 或 pageSize 超限 → 400（B2, issue #174）。
 func ListCourseReviews(req component.BetterRequest[ListCourseReviewsReq]) component.Response {
-	var (
-		payloads []courseservice.ReviewPayload
-		err      error
-	)
+	// B2：pageSize 上限 50；非法 cursor 格式 → 400 友好提示（非 500）。
+	if req.Params.PageSize > courseservice.MaxReviewPageSize {
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageRequestInvalidParams, nil))
+	}
+	cursor, err := courseservice.DecodeCursor(req.Params.Cursor)
+	if err != nil {
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageRequestInvalidParams, nil))
+	}
+	// offering 过滤时 cursor 只用 reviewId 段（忽略 offering 段）。
+	if req.Params.OfferingId > 0 {
+		cursor.OfferingId = 0
+	}
 	if req.Params.OfferingId > 0 {
 		offering, gErr := course.GetOffering(req.Params.OfferingId)
 		if gErr != nil || offering.Id == 0 ||
@@ -156,16 +169,14 @@ func ListCourseReviews(req component.BetterRequest[ListCourseReviewsReq]) compon
 			return component.BuildResponse(http.StatusNotFound,
 				component.FailDataCode(component.MessageReviewOfferingNotFound, nil))
 		}
-		payloads, err = courseservice.ListReviewsByOffering(req.Params.OfferingId, req.UserId)
-	} else {
-		payloads, err = courseservice.ListReviewsByCourse(req.Params.CourseId, req.UserId)
 	}
+	page, err := courseservice.ListReviewsPage(req.Params.CourseId, req.Params.OfferingId, req.UserId, cursor, req.Params.PageSize)
 	if err != nil {
 		slog.Error("course_review_list_failed", "courseId", req.Params.CourseId, "error", err)
 		return component.BuildResponse(http.StatusInternalServerError,
 			component.FailDataCode(component.MessageReviewListFailed, nil))
 	}
-	return component.SuccessResponse(payloads)
+	return component.SuccessResponse(page)
 }
 
 // ---- 审核：隐藏/恢复、举报队列、身份揭示 ----

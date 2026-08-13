@@ -6,7 +6,7 @@
 
 **Architecture:** Continue using migration-first, replacement-second. The new `topics`, `posts`, `category`, `topic_category_index`, `topic_user_action`, and `topic_user_stat` tables are the source of the next implementation slices; old `articles` and `reply` models stay only as compatibility inputs until each slice is replaced and verified.
 
-**Tech Stack:** Go, Gin, GORM, SQLite/MySQL, Vue 3, TypeScript, Vite, TailwindCSS 4, localcache.
+**Tech Stack:** Go, Gin, GORM, SQLite/PostgreSQL, Vue 3, TypeScript, Vite, TailwindCSS 4, localcache.
 
 ## Global Constraints
 

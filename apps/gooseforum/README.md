@@ -71,7 +71,7 @@ connection = "sqlite"
 path = "./storage/database/sqlite.db"
 ```
 
-See [configuration documentation](docs/user/configuration.md) for MySQL, PostgreSQL, mail, backup, security, and site settings.
+See [configuration documentation](docs/user/configuration.md) for PostgreSQL, SQLite, mail, backup, security, and site settings.
 
 ### Admin Commands
 
@@ -83,7 +83,7 @@ See [configuration documentation](docs/user/configuration.md) for MySQL, Postgre
 
 ## What Is GooseForum?
 
-GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, TypeScript, Vite, and TailwindCSS. It ships as a single executable, supports SQLite/MySQL/PostgreSQL, and provides a payload-driven SPA experience with server-rendered fallback pages for SEO and no-js access.
+GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, TypeScript, Vite, and TailwindCSS. It ships as a single executable, supports SQLite (local dev) and PostgreSQL (deployment default), and provides a payload-driven SPA experience with server-rendered fallback pages for SEO and no-js access.
 
 ## Features
 
@@ -91,7 +91,7 @@ GooseForum is a technical community platform built with Go, Gin, GORM, Vue 3, Ty
 - Role and permission management with a full admin console.
 - Responsive public UI for desktop and mobile.
 - Theme workbench for light/dark theme preview and publishing.
-- SQLite by default, optional MySQL/PostgreSQL, scheduled backups.
+- SQLite by default (local dev), PostgreSQL for deployments, scheduled backups.
 - Payload-driven navigation with no-js GoHTML templates.
 - Brand customization for logo, text, footer, and site assets.
 

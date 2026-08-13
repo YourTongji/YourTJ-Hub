@@ -217,7 +217,7 @@ posts.post_no = 1
 | SEO / Sitemap / RSS | 使用 article title/content/description/first_image_url | title 属于 topic，正文摘要来自首楼 post，URL 不变 | 历史 URL 不变时 SEO 风险较低，但摘要生成路径要改 |
 | HTTP 通知 | payload 使用 `topic` / `post` 字段，`targetType` 使用 `topic/post` | 新接入方只使用新字段，不再扩散旧命名 | 第三方回调消费者升级时需要同步修改字段读取 |
 | 管理后台 | 文章管理、举报管理、审核日志读取 article/reply | 管理文章列表仍以 topic 为主，正文处理以 post 为主 | 文案和操作语义要避免“封禁主题”和“封禁回复”混淆 |
-| 数据迁移 | 当前 `reply_sequence`、article user action 等迁移依赖 article/reply | 新增 posts 回填和 id 映射迁移；旧迁移保留 | SQLite/MySQL 差异、批量回填时间、失败重试需要单独设计 |
+| 数据迁移 | 当前 `reply_sequence`、article user action 等迁移依赖 article/reply | 新增 posts 回填和 id 映射迁移；旧迁移保留 | SQLite/PostgreSQL 差异、批量回填时间、失败重试需要单独设计 |
 | 缓存 | 文章列表缓存、用户缓存、未读缓存等间接依赖 article/reply | 缓存 key 和失效点需要随着 topic/post 写路径调整 | 双写阶段最容易出现旧表新表缓存不一致 |
 
 高风险点：
@@ -312,7 +312,7 @@ idx_topics_status_popular(status, process_status, view_count, id)
 idx_topics_user_status(user_id, status, process_status, id)
 ```
 
-具体索引需要结合 SQLite 和 MySQL 的查询计划再收敛，避免为了假想查询堆过多索引。
+具体索引需要结合 SQLite 和 PostgreSQL 的查询计划再收敛，避免为了假想查询堆过多索引。
 
 ## 关键设计问题
 

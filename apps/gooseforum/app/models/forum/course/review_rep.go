@@ -1,6 +1,7 @@
 package course
 
 import (
+	"log/slog"
 	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -313,6 +314,80 @@ func GetOfferingMapByIds(ids []uint64) map[uint64]OfferingEntity {
 	return result
 }
 
+// ---- B2: cursor 分页（issue #174） ----
+
+// ReviewPageQuery cursor 分页查询条件。排序：course 级按
+// (offering_id DESC, id DESC)，offering 级按 id DESC（时间倒序）。
+// Cursor 语义：返回 (offering_id, id) 严格小于 cursor 的可见评价
+// （位置游标——删除/隐藏行不影响后续页游标稳定性）。
+type ReviewPageQuery struct {
+	CourseId         uint64
+	OfferingId       uint64 // 0 = 课程级全部 offering
+	CursorOfferingId uint64 // cursor 中的 offering_id（offering 级时为 0）
+	CursorReviewId   uint64 // cursor 中的 review_id（无 cursor 时为 0）
+	Limit            int
+}
+
+// ListReviewsPage 按 cursor 分页列出可见评价（时间倒序）。
+func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
+	build := reviewBuilder().Where(queryopt.Eq("status", ReviewStatusVisible)).
+		// 软删条件显式写（spec S1：Table() 模式不依赖 gorm schema 推断，
+		// 与 Count 口径一致，防未来漂移）。
+		Where("deleted_at IS NULL")
+	if q.OfferingId > 0 {
+		build = build.Where(queryopt.Eq("offering_id", q.OfferingId))
+		if q.CursorReviewId > 0 {
+			build = build.Where("id < ?", q.CursorReviewId)
+		}
+		build = build.Order("id DESC")
+	} else {
+		// course 级：仅统计可见 offering——隐藏 offering 的评价不出现，
+		// 与 ListOfferingsByCourse/详情页可见性一致（PR #201 security F1）。
+		build = build.Where(
+			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)",
+			q.CourseId, OfferingStatusVisible,
+		)
+		if q.CursorOfferingId > 0 || q.CursorReviewId > 0 {
+			build = build.Where(
+				"(offering_id < ? OR (offering_id = ? AND id < ?))",
+				q.CursorOfferingId, q.CursorOfferingId, q.CursorReviewId,
+			)
+		}
+		build = build.Order("offering_id DESC, id DESC")
+	}
+	if q.Limit > 0 {
+		build = build.Limit(q.Limit)
+	}
+	err = build.Find(&entities).Error
+	return
+}
+
+// CountVisibleReviewsByCourse 课程下可见评价总数（分页 total）。
+// 与 ListReviewsPage course 级口径一致：仅统计可见 offering 且未软删
+// （PR #201 security F1：隐藏 offering 的评价不计入 total；spec S1：
+// Count 走 *int64 dest 不解析 schema，软删条件必须显式写，防口径漂移）。
+func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
+// CountVisibleReviewsByOffering offering 下可见评价总数（分页 total）。
+// 软删条件显式写（spec S1：Count 不解析 schema，需显式过滤软删行）。
+func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
 // ---- Helpful ----
 
 // CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。
@@ -457,8 +532,9 @@ func RebuildAllCourseStats() error {
 		if err := tx.Table(offeringTableName+" o").
 			Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
 				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
-			Joins("LEFT JOIN " + reviewTableName + " r ON r.offering_id = o.id AND r.deleted_at IS NULL").
-			Where("o.deleted_at IS NULL").
+			Joins("LEFT JOIN "+reviewTableName+" r ON r.offering_id = o.id AND r.deleted_at IS NULL").
+			// 与列表口径一致：隐藏 offering 的评价不计入课程级聚合（security F2）。
+			Where("o.deleted_at IS NULL AND o.status = ?", OfferingStatusVisible).
 			Group("o.course_id").
 			Scan(&courseAggs).Error; err != nil {
 			return err
@@ -476,4 +552,84 @@ func RebuildAllCourseStats() error {
 		}
 		return nil
 	})
+}
+
+// ---- Stats read projection (B1 统计投影对外暴露, issue #173) ----
+
+// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星, index 4 = 5 星）。
+type RatingDistribution [5]int
+
+// ListCourseStatsByIDs 批量读取课程级统计投影（目录列表 N+1 防护）。
+// 无统计行的课程返回空实体（ratingCount=0/reviewCount=0）。
+func ListCourseStatsByIDs(courseIds []uint64) map[uint64]CourseStatsEntity {
+	result := make(map[uint64]CourseStatsEntity, len(courseIds))
+	if len(courseIds) == 0 {
+		return result
+	}
+	var list []CourseStatsEntity
+	if err := courseStatsBuilder().Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
+		slog.Warn("ListCourseStatsByIDs: 查询失败", "courseIds", courseIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.CourseId] = s
+	}
+	return result
+}
+
+// ListOfferingStatsByIDs 批量读取 offering 级统计投影（详情开课列表 N+1 防护）。
+func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity {
+	result := make(map[uint64]OfferingStatsEntity, len(offeringIds))
+	if len(offeringIds) == 0 {
+		return result
+	}
+	var list []OfferingStatsEntity
+	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
+		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.OfferingId] = s
+	}
+	return result
+}
+
+// RatingDistributionRow 评分分布聚合行（group key + 1-5 星计数）。
+type RatingDistributionRow struct {
+	Key   uint64
+	Star1 int
+	Star2 int
+	Star3 int
+	Star4 int
+	Star5 int
+}
+
+// ratingDistributionFromRows 把聚合行转成 map[Key]RatingDistribution。
+func ratingDistributionFromRows(rows []RatingDistributionRow) map[uint64]RatingDistribution {
+	result := make(map[uint64]RatingDistribution, len(rows))
+	for _, r := range rows {
+		result[r.Key] = RatingDistribution{r.Star1, r.Star2, r.Star3, r.Star4, r.Star5}
+	}
+	return result
+}
+
+// GetRatingDistributionsByCourseIds 批量按课程聚合 1-5 星分布（目录列表 N+1 防护）。
+func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDistribution {
+	if len(courseIds) == 0 {
+		return map[uint64]RatingDistribution{}
+	}
+	var rows []RatingDistributionRow
+	if err := db.Connect().Table(reviewTableName+" r").
+		Select("o.course_id AS \"key\", SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
+		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
+		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。
+		Where("o.course_id IN ? AND r.status = ? AND r.deleted_at IS NULL AND o.deleted_at IS NULL AND o.status = ?",
+			courseIds, ReviewStatusVisible, OfferingStatusVisible).
+		Group("o.course_id").
+		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByCourseIds: 聚合失败", "courseIds", courseIds, "err", err)
+		return map[uint64]RatingDistribution{}
+	}
+	return ratingDistributionFromRows(rows)
 }

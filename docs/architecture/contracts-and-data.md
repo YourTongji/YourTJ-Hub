@@ -90,8 +90,9 @@ than a hand-maintained duplicate baseline.
 
 ## Data model
 
-- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); SQLite default, MySQL and
-  PostgreSQL (main db, issue #11) supported; the file db stays SQLite.
+- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
+  default deployment database and SQLite the local development/test default; MySQL is not
+  supported; the file db stays SQLite.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.

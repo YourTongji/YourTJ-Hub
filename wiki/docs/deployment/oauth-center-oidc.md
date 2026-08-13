@@ -24,9 +24,11 @@ signing_key_file = "./storage/oidc/signing_key.pem"
 [[oidc.clients]]
 id = "yourtj-wiki-comment"
 name = "YourTJ Wiki 评论"
-redirect_uris = ["https://auth.example.com/api/oauth/redirect"]
-# 回调带动态 query 参数时用 glob 兜底(doublestar pattern, 精确匹配失败后生效)
-redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
+# 注册的 redirect_uri 是 Waline 服务端的回调(不是 OAuth Center 自身):
+#   {Waline serverURL}/api/oauth?redirect=<页面地址, 动态>&type=oidc
+# 动态 query 用 glob 兜底: \? 转义匹配字面 ?(doublestar), TOML 单引号
+# 字面串保证反斜杠原样传给解析器(双引号串 \? 是非法转义)
+redirect_uris_globs = ['https://comment.example.com/api/oauth\?redirect=*&type=oidc']
 ```
 
 关键点：
@@ -34,11 +36,15 @@ redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
 - **`oidc.enabled` 默认关闭**。开启前确认：生产签名密钥已持久化
   （`signing_key_file` 指向的文件存在且有备份），否则重启会生成新密钥，
   已签发的授权码/token 全部失效。
-- **public 客户端不填 `secret`**，Hub 侧强制 PKCE S256（与 walinejs/auth
-  默认行为一致）。
+- **public 客户端不填 `secret`**，Hub 侧强制 PKCE S256。
+- **注册的 redirect 是 Waline 服务端回调，不是 OAuth Center 自身地址**：
+  auth center 把 Waline 传来的 `redirect` 原样作为 OIDC `redirect_uri`，
+  而 Waline 构造的是 `{comment serverURL}/api/oauth?redirect=<编码后页面>&type=oidc`
+  ——所以 Hub 端必须注册 comment 域的这个回调。
 - **redirect_uris 精确匹配，redirect_uris_globs 兜底**（doublestar pattern，
-  加载时校验、非法即拒绝整个 OIDC 配置）。若回调带动态 query/路径段，
-  用 glob 覆盖；glob 只匹配注册的 pattern，不会放宽成任意跳转。
+  加载时校验、非法即拒绝整个 OIDC 配置）。回调带动态 query 时用 glob；
+  示例 pattern 只匹配 `/api/oauth?redirect=*&type=oidc` 这一形状，
+  不会放宽成任意跳转。
 
 ## 2. 部署 OAuth Center（walinejs/auth）
 
@@ -80,5 +86,5 @@ Dockerfile，以 Vercel 部署为主；自托管需自行 wrap Koa app）。仓�
 ## 验收清单（落地第一步）
 
 - [ ] Hub `oidc.enabled = true` 后，`GET {issuer}/.well-known/openid-configuration` 返回正常
-- [ ] auth 的 OIDC 回调 URL 与 Hub `redirect_uris` 完全一致
-- [ ] 评论页点登录 → 跳 Hub 授权页 → 登录 → 回跳 → 可发评论
+- [ ] auth 的 OIDC 回调 URL 与 Hub 注册的 glob 匹配（回调为 Waline 服务端
+      `/api/oauth?redirect=...&type=oidc`，见上）

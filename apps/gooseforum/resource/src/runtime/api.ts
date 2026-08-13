@@ -1316,16 +1316,25 @@ export async function getCourseRelated(courseId: number): Promise<CourseRelatedR
   return readApiResponse<CourseRelatedResult>(response, t('api.courseRelatedLoadFailed'))
 }
 
-export async function listCourseReviews(courseId: number, offeringId = 0): Promise<ReviewPayload[]> {
+export interface ReviewPage {
+  list: ReviewPayload[]
+  nextCursor?: string
+  total: number
+}
+
+// 默认 pageSize=20（issue #174 验收约定默认 20、上限 50）。
+export async function listCourseReviews(courseId: number, offeringId = 0, cursor = '', pageSize = 20): Promise<ReviewPage> {
   const params = new URLSearchParams()
   if (offeringId > 0) params.set('offeringId', String(offeringId))
+  if (cursor) params.set('cursor', cursor)
+  params.set('pageSize', String(pageSize))
   const query = params.toString()
   const response = await fetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
     headers: {
       Accept: 'application/json',
     },
   })
-  return readApiResponse<ReviewPayload[]>(response, t('api.reviewsLoadFailed'))
+  return readApiResponse<ReviewPage>(response, t('api.reviewsLoadFailed'))
 }
 
 export async function createCourseReview(input: CreateCourseReviewInput): Promise<ReviewPayload> {

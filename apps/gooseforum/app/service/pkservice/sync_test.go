@@ -448,8 +448,7 @@ func TestFetchLogRunningUniqueConstraint(t *testing.T) {
 func TestClaimFetchLogCAS(t *testing.T) {
 	// 续跑原子认领（review HIGH 租约 + P1）：ClaimFetchLog 用 lease_version 精确 CAS，
 	// 防止两进程同时读到同一条 stale-running/failed 日志并都续跑造成 double-delete。
-	// 不用 started_at 时间戳做 token——方言时间精度不一致（如 MySQL DATETIME 秒精度），
-	// 两次写入可能取同一值，旧实现第二次 claim 仍成功。
+	// 不用 started_at 时间戳做 token——方言时间精度不一致，两次写入可能取同一值，旧实现第二次 claim 仍成功。
 	migratePkTables(t)
 
 	running, err := pk.CreateFetchLog(121)
@@ -517,11 +516,11 @@ func TestClaimFetchLogCAS(t *testing.T) {
 	}
 }
 
-// TestFetchLogNewRunningAfterCompleted 回归（review P1 MySQL 场景）：某 calendar 的 fetchlog 标记
+// TestFetchLogNewRunningAfterCompleted 回归（review P1 跨方言场景）：某 calendar 的 fetchlog 标记
 // completed 后，必须能为同一 calendar 新建 running log。旧实现用 (calendar_id) WHERE status='running'
-// partial unique index——MySQL migrator 不生成 WHERE 子句，退化为普通 UNIQUE(calendar_id)，completed
+// partial unique index——部分方言的 migrator 不生成 WHERE 子句，退化为普通 UNIQUE(calendar_id)，completed
 // 行仍占住 calendar_id，重跑新建必失败；新实现用可空 running_key + 普通唯一索引，completed 行
-// running_key=NULL，三种数据库均允许多个 NULL，重跑新建成功。
+// running_key=NULL，两库均允许多个 NULL，重跑新建成功。
 func TestFetchLogNewRunningAfterCompleted(t *testing.T) {
 	migratePkTables(t)
 	const calendarID = uint64(121)
