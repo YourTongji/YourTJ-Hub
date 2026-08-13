@@ -3,6 +3,8 @@
 /// 手写维护，与后端 JSON 形状保持一致；`GfResponse<T>.fromJson` 配合
 /// 各类型的 `fromJson` 工厂解析 `{code, messageCode, params, result}` 信封。
 /// 时间字段统一为 RFC3339 字符串（后端 `time.Time` JSON 序列化格式）。
+library;
+
 
 /// 命名空间摘要（公开 `GET /api/wiki/namespaces` 与首页复用）。
 class WikiNamespace {
