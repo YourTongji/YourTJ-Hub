@@ -118,5 +118,7 @@
   "serverMessages.oauth.token.failed": "Creazione delle credenziali di accesso non riuscita. Riprova più tardi.",
   "meta.courseReviewModeration": "Moderazione recensioni corsi",
   "meta.courseReviewModerationDesc": "Gestisci le segnalazioni delle recensioni e nascondi/ripristina le recensioni.",
+  "meta.courseManagement": "Gestione corsi",
+  "meta.courseManagementDesc": "Gestisci il catalogo dei corsi e le recensioni.",
   "server.common.request.invalidFormat": "Il formato della richiesta non è valido. Controlla e riprova."
 }

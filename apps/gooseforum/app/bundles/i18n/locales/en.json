@@ -118,5 +118,7 @@
   "serverMessages.oauth.token.failed": "Failed to create sign-in credentials. Please try again later.",
   "meta.courseReviewModeration": "Course review moderation",
   "meta.courseReviewModerationDesc": "Handle course review reports and hide/restore reviews.",
+  "meta.courseManagement": "Course management",
+  "meta.courseManagementDesc": "Manage the course catalog and course reviews.",
   "server.common.request.invalidFormat": "The request format is invalid. Please check and try again."
 }

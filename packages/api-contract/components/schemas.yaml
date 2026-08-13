@@ -1573,6 +1573,278 @@ ModerationCourseReviewRevealResponse:
               $ref: '#/CourseReviewAuthorRevealPayload'
     - $ref: '#/ApiFailure'
 
+AdminCourseListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches normalized name, primary code, aliases, pinyin, initials, or instructor names.
+    department:
+      type: string
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+      default: 20
+  additionalProperties: false
+
+AdminCourseItem:
+  type: object
+  required: [id, primaryCode, name, department, creditX10, status, aliases, instructors, reviewCount, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral.
+    status:
+      type: integer
+      enum: [0, 1]
+      description: 0 visible, 1 hidden.
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    reviewCount:
+      type: integer
+    ratingAvg:
+      type: number
+      description: Average rating across visible reviews; omitted when no rated reviews.
+    createdAt:
+      type: string
+  additionalProperties: false
+
+AdminCourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminCourseItem'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminCourseListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseListResult'
+    - $ref: '#/ApiFailure'
+
+AdminCourseItemResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseItem'
+    - $ref: '#/ApiFailure'
+
+AdminCourseCreateRequest:
+  type: object
+  required: [primaryCode, name]
+  properties:
+    primaryCode:
+      type: string
+      minLength: 1
+    name:
+      type: string
+      minLength: 1
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseUpdateRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseDeleteRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+AdminReviewItem:
+  type: object
+  required: [id, offeringId, courseId, courseCode, courseName, content, status, author, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+    status:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 visible, 1 hidden, 2 deleted (quarantine window).
+    author:
+      $ref: '#/ReviewAuthorPayload'
+    createdAt:
+      type: string
+    updatedAt:
+      type: string
+  additionalProperties: false
+
+AdminReviewListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches course name, primary code, or review body.
+    status:
+      type: integer
+      minimum: -1
+      maximum: 2
+      description: -1 all; 0/1/2 filter by status. Defaults to -1.
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+  additionalProperties: false
+
+AdminReviewListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminReviewItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminReviewListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminReviewListResult'
+    - $ref: '#/ApiFailure'
+
+AdminReviewUpdateRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+  additionalProperties: false
+
+AdminReviewDeleteRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
 TopicAuthorPayload:
   type: object
   required: [id, username, avatarUrl]

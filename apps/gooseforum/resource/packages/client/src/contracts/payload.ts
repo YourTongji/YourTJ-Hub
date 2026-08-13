@@ -982,6 +982,10 @@ export interface CourseReviewModerationPageProps {
   // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
 }
 
+export interface CourseManagementPageProps {
+  // 课程/评价管理页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
 export interface SchedulePageProps {
   // 排课器数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts），SSR 仅提供空壳。
 }

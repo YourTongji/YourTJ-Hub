@@ -157,6 +157,16 @@ const (
 	MessageReviewHelpfulFailed    MessageCode = "review.helpful.failed"        // 标记 helpful 失败。
 	MessageReviewReportFailed     MessageCode = "review.report.failed"         // 举报评价失败。
 	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
+
+	// 课程管理（管理端课程/评价管理）
+	MessageCourseNotFound            MessageCode = "course.notFound"            // 课程不存在或已删除。
+	MessageCourseCodeRequired        MessageCode = "course.codeRequired"        // 主课号不能为空。
+	MessageCourseNameRequired        MessageCode = "course.nameRequired"        // 课程名不能为空。
+	MessageCourseCodeConflict        MessageCode = "course.codeConflict"        // 主课号已被其它课程占用。
+	MessageCourseCreditInvalid       MessageCode = "course.creditInvalid"       // 学分格式不正确。
+	MessageCourseListFailed          MessageCode = "course.listFailed"          // 课程列表读取失败。
+	MessageCourseStatsRebuildQueued  MessageCode = "course.statsRebuildQueued"  // 课程统计重建任务已入队。
+	MessageCourseStatsRebuildFailed  MessageCode = "course.statsRebuildFailed"  // 课程统计重建任务入队失败。
 )
 
 const (

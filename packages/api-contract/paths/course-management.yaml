@@ -1,0 +1,277 @@
+adminCourseList:
+  post:
+    tags: [Forum]
+    summary: List courses for management (CourseManager/Admin)
+    operationId: adminCourseList
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped course list including hidden courses. Permission failures are a legacy
+      HTTP 200 business failure (`permission.denied`).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseListRequest
+    responses:
+      '200':
+        description: One page of courses, or a permission business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseListResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseCreate:
+  post:
+    tags: [Forum]
+    summary: Create a course (CourseManager/Admin)
+    operationId: adminCourseCreate
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. The primary code must be unique (409 `course.codeConflict`).
+      The created course is enqueued for search indexing in the same transaction.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseCreateRequest
+    responses:
+      '200':
+        description: The created course item, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Primary code already used by another course.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseUpdate:
+  post:
+    tags: [Forum]
+    summary: Update a course (CourseManager/Admin)
+    operationId: adminCourseUpdate
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped partial update. Field presence is the change signal; omitted fields are
+      left unchanged. Renaming syncs the search index via a transaction-bound outbox enqueue.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseUpdateRequest
+    responses:
+      '200':
+        description: The updated course item, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCourseItemResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Course does not exist or was deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '409':
+        description: Primary code already used by another course.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseDelete:
+  post:
+    tags: [Forum]
+    summary: Delete a course and cascade its reviews/offerings/stats (CourseManager/Admin)
+    operationId: adminCourseDelete
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Physically removes the course plus its offerings, instructor
+      links, aliases, reviews, helpful marks, and stats projections, and enqueues a search deletion.
+      Writes an audit log entry.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCourseDeleteRequest
+    responses:
+      '200':
+        description: Boolean success result, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Course does not exist or was deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminReviewList:
+  post:
+    tags: [Forum]
+    summary: List course reviews for management (CourseManager/Admin)
+    operationId: adminReviewList
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped review list including hidden and quarantine-deleted reviews, searchable
+      by course name/code/review body. Items never expose the reviewed author's identity.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewListRequest
+    responses:
+      '200':
+        description: One page of reviews, or a permission business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminReviewListResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminReviewUpdate:
+  post:
+    tags: [Forum]
+    summary: Edit a course review (CourseManager/Admin)
+    operationId: adminReviewUpdate
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Rating changes adjust stats projections for visible reviews only.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewUpdateRequest
+    responses:
+      '200':
+        description: The updated review payload, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewWriteResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Review does not exist or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminReviewDelete:
+  post:
+    tags: [Forum]
+    summary: Permanently delete a course review (CourseManager/Admin)
+    operationId: adminReviewDelete
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Physically removes the review and its helpful marks; visible
+      reviews decrement stats projections.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewDeleteRequest
+    responses:
+      '200':
+        description: Boolean success result, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: Review does not exist or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+adminCourseStatsRebuild:
+  post:
+    tags: [Forum]
+    summary: Enqueue a full course/offering stats rebuild (CourseManager/Admin)
+    operationId: adminCourseStatsRebuild
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped write. Enqueues a background task that rebuilds all course/offering
+      stats projections from the review fact table (deduplicated against pending tasks).
+    responses:
+      '200':
+        description: Boolean success with a `course.statsRebuildQueued` message code, or a business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
