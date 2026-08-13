@@ -41,11 +41,10 @@ const reviewCleanupBatchSize = 500
 // 已清理行的唯一标记是 author_user_id IS NULL：扫描条件带该谓词保证幂等。
 // 统计投影无需修正：删除时已扣减 stats，清理不改 status（仍非 visible）。
 // 更新带 status 谓词：防止与 ReactivateReviewTx（恢复重写）并发竞态。
-func CleanupExpiredReviewsBatch(limit int) (int, error) {
+func CleanupExpiredReviewsBatch(limit int, cutoff time.Time) (int, error) {
 	if limit <= 0 {
 		return 0, nil
 	}
-	cutoff := time.Now().Add(-time.Duration(ReviewCleanupRetentionDays) * 24 * time.Hour)
 	conn := dbconnect.Connect()
 	table := (&course.ReviewEntity{}).TableName()
 
@@ -78,12 +77,16 @@ func CleanupExpiredReviewsBatch(limit int) (int, error) {
 }
 
 // CleanupDeletedReviews 全量清理（CLI 手动触发）：循环分批直到无剩余过期行。
-// 返回累计清理行数。失败时返回 error。
+// cutoff 为隔离窗口时长（如 30 天），真实生效（spec 复审 N2：RetentionDays
+// 覆盖链修复）；0 或负值时回退默认窗口。返回累计清理行数，失败返回 error。
 func CleanupDeletedReviews(cutoff time.Duration) (int64, error) {
-	_ = cutoff // 窗口由 ReviewCleanupRetentionDays 常量统一；保留参数兼容旧签名
+	if cutoff <= 0 {
+		cutoff = time.Duration(ReviewCleanupRetentionDays) * 24 * time.Hour
+	}
+	cutoffTime := time.Now().Add(-cutoff)
 	total := 0
 	for {
-		n, err := CleanupExpiredReviewsBatch(reviewCleanupBatchSize)
+		n, err := CleanupExpiredReviewsBatch(reviewCleanupBatchSize, cutoffTime)
 		if err != nil {
 			return int64(total), fmt.Errorf("cleanup expired deleted reviews: %w", err)
 		}

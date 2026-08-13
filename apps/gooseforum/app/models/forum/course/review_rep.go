@@ -215,64 +215,6 @@ func DeleteHelpful(reviewId, userId uint64) error {
 		Delete(&HelpfulEntity{}).Error
 }
 
-// CleanupExpiredDeletedReviewsTx 清理删除隔离窗口（issue #175 B3，隐私合规，
-// 吸收 #202 的 NULL 设计）：将 status=deleted 且窗口超期（deleted_at 显式
-// 锚点，存量行回退 updated_at，COALESCE）的课程评价行脱敏——
-//   - content 清空：正文（含用户隐私）不再保留；
-//   - author_user_id 置 NULL：断开与用户的关联，释放 (offering_id,
-//     author_user_id) 唯一索引占位。NULL 在唯一索引中彼此不冲突（SQL 标准，
-//     SQLite/PostgreSQL/MySQL 一致），同 offering 多条已清理行可共存，且
-//     同用户可重新写评新建行——唯一冲突问题从根源消失，无需 SAVEPOINT
-//     绕行（security F1 方案随 NULL 设计移除，isUniqueViolation 兜底不再
-//     需要）；清理后行的唯一标记即 author_user_id IS NULL（幂等）。
-//   - 行本身保留（status 仍为 deleted）：审计可追溯，不会破坏引用；
-//     deleted_at 保持原始删除时刻不变（清理不改锚点）。
-//
-// 扫描条件带 status 谓词：防止与 ReactivateReviewTx（恢复重写）并发竞态——
-// 行被选中后若被并发恢复为 visible，本更新不得把已恢复的评价清空/断开作者
-// （spec S1 的 NULL 语义版本）。统计投影无需修正：删除时已扣减 stats，
-// 清理不改 status（仍非 visible）。
-//
-// 分块（security F4）：limit 上限由调用方传入（默认 500 行/批），避免首启
-// 积压多年删除行时单大事务长持锁；排水率约 500 行/次（每日 cron 触发，
-// 积压多日收敛，spec N3）。
-func CleanupExpiredDeletedReviewsTx(tx *gorm.DB, cutoff time.Time, limit int) (int64, error) {
-	if limit <= 0 {
-		limit = 500
-	}
-	var rows []struct {
-		Id uint64
-	}
-	if err := tx.Table(reviewTableName).
-		Select("id").
-		Where("status = ?", ReviewStatusDeleted).
-		Where("author_user_id IS NOT NULL").
-		Where("COALESCE(deleted_at, updated_at) < ?", cutoff).
-		Limit(limit).
-		Scan(&rows).Error; err != nil {
-		return 0, err
-	}
-	if len(rows) == 0 {
-		return 0, nil
-	}
-	ids := make([]uint64, 0, len(rows))
-	for _, r := range rows {
-		ids = append(ids, r.Id)
-	}
-	// 更新带 status 条件：防并发恢复竞态（见上）。
-	res := tx.Table(reviewTableName).
-		Where("id IN ?", ids).
-		Where("status = ?", ReviewStatusDeleted).
-		Updates(map[string]any{
-			"content":        "",
-			"author_user_id": nil,
-		})
-	if res.Error != nil {
-		return 0, res.Error
-	}
-	return res.RowsAffected, nil
-}
-
 // ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID
 // （教师变更后 fan-out 入队课程搜索同步用）。
 func ListCourseIDsByInstructorTx(tx *gorm.DB, instructorId uint64) ([]uint64, error) {

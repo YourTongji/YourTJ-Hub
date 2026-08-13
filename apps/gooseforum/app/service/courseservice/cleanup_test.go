@@ -49,7 +49,7 @@ func TestCleanupExpiredReviewClearsContentAndAuthor(t *testing.T) {
 	}
 	backdateReviewDelete(t, payload.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
 
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -78,7 +78,7 @@ func TestCleanupExpiredReviewClearsContentAndAuthor(t *testing.T) {
 		t.Fatalf("stats corrupted by cleanup: %+v", courseStats)
 	}
 	// 幂等：再次清理不再选中该行（author_user_id IS NULL 谓词）。
-	again, err := CleanupExpiredReviewsBatch(10)
+	again, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("second cleanup: %v", err)
 	}
@@ -99,7 +99,7 @@ func TestCleanupSkipsRecentDelete(t *testing.T) {
 	}
 	// 不回拨：deleted_at 为当前时间（窗口内）。
 
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -130,7 +130,7 @@ func TestCleanupSkipsVisibleAndLegacy(t *testing.T) {
 	if err := conn.Create(&legacy).Error; err != nil {
 		t.Fatalf("create legacy review: %v", err)
 	}
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -158,7 +158,7 @@ func TestCleanupFallbackToUpdatedAt(t *testing.T) {
 		Updates(map[string]any{"deleted_at": nil, "updated_at": old}).Error; err != nil {
 		t.Fatalf("clear deleted_at: %v", err)
 	}
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -183,7 +183,7 @@ func TestCleanupAllowsRecreateAfterCleanup(t *testing.T) {
 		t.Fatalf("delete review: %v", err)
 	}
 	backdateReviewDelete(t, first.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
-	if _, err := CleanupExpiredReviewsBatch(10); err != nil {
+	if _, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour)); err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
 
@@ -219,7 +219,7 @@ func TestDeleteReviewIdempotentAfterCleanup(t *testing.T) {
 		t.Fatalf("delete review: %v", err)
 	}
 	backdateReviewDelete(t, payload.Id, ReviewCleanupRetentionDays*24*time.Hour+24*time.Hour)
-	if _, err := CleanupExpiredReviewsBatch(10); err != nil {
+	if _, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour)); err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
 	if err := DeleteReview(1001, payload.Id); err != nil {
@@ -247,7 +247,7 @@ func TestCleanupSameOfferingMultipleCleanedRows(t *testing.T) {
 	id1 := create(1001)
 	id2 := create(1002)
 
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
@@ -369,7 +369,7 @@ func TestCleanupWindowAnchorIsDeleteTime(t *testing.T) {
 	}
 
 	// 清理运行：30 天窗口内 → 不清
-	cleaned, err := CleanupExpiredReviewsBatch(10)
+	cleaned, err := CleanupExpiredReviewsBatch(10, time.Now().Add(-time.Duration(ReviewCleanupRetentionDays)*24*time.Hour))
 	if err != nil {
 		t.Fatalf("cleanup: %v", err)
 	}
