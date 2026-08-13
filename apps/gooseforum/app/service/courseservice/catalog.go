@@ -70,6 +70,9 @@ type CatalogQuery struct {
 	Department string
 	TermCode   string
 	Campus     string
+	Instructor string
+	HasReview  bool
+	SortBy     string
 	Page       int
 	Size       int
 }
@@ -101,6 +104,9 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		Department: q.Department,
 		TermCode:   q.TermCode,
 		Campus:     q.Campus,
+		Instructor: q.Instructor,
+		HasReview:  q.HasReview,
+		SortBy:     q.SortBy,
 		Page:       page,
 		Size:       size,
 	})
@@ -115,6 +121,11 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 		return CatalogPage{}, err
 	}
 	return CatalogPage{List: summaries, Page: page, Size: size, Total: total, HasNext: int64(page)*int64(size) < total}, nil
+}
+
+// ListDepartments 返回课程目录可筛选的院系列表（去重、按字典序）。
+func ListDepartments() ([]string, error) {
+	return course.ListDistinctDepartments()
 }
 
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。

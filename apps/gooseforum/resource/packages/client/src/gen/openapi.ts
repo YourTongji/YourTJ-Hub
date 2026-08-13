@@ -2517,6 +2517,9 @@ export interface operations {
                 department?: string;
                 term?: string;
                 campus?: string;
+                instructor?: string;
+                onlyWithReviews?: boolean;
+                sortBy?: string;
                 page?: number;
                 size?: number;
             };

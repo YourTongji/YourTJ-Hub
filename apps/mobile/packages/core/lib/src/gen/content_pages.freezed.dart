@@ -2572,6 +2572,7 @@ mixin _$CourseCatalogPageProps {
   CourseCatalogQueryPayload get query => throw _privateConstructorUsedError;
   List<CourseSummaryPayload> get courses => throw _privateConstructorUsedError;
   PaginationPayload get pagination => throw _privateConstructorUsedError;
+  List<String> get departments => throw _privateConstructorUsedError;
 
   /// Serializes this CourseCatalogPageProps to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -2594,6 +2595,7 @@ abstract class $CourseCatalogPagePropsCopyWith<$Res> {
     CourseCatalogQueryPayload query,
     List<CourseSummaryPayload> courses,
     PaginationPayload pagination,
+    List<String> departments,
   });
 
   $CourseCatalogQueryPayloadCopyWith<$Res> get query;
@@ -2621,6 +2623,7 @@ class _$CourseCatalogPagePropsCopyWithImpl<
     Object? query = null,
     Object? courses = null,
     Object? pagination = null,
+    Object? departments = null,
   }) {
     return _then(
       _value.copyWith(
@@ -2636,6 +2639,10 @@ class _$CourseCatalogPagePropsCopyWithImpl<
                 ? _value.pagination
                 : pagination // ignore: cast_nullable_to_non_nullable
                       as PaginationPayload,
+            departments: null == departments
+                ? _value.departments
+                : departments // ignore: cast_nullable_to_non_nullable
+                      as List<String>,
           )
           as $Val,
     );
@@ -2675,6 +2682,7 @@ abstract class _$$CourseCatalogPagePropsImplCopyWith<$Res>
     CourseCatalogQueryPayload query,
     List<CourseSummaryPayload> courses,
     PaginationPayload pagination,
+    List<String> departments,
   });
 
   @override
@@ -2701,6 +2709,7 @@ class __$$CourseCatalogPagePropsImplCopyWithImpl<$Res>
     Object? query = null,
     Object? courses = null,
     Object? pagination = null,
+    Object? departments = null,
   }) {
     return _then(
       _$CourseCatalogPagePropsImpl(
@@ -2716,6 +2725,10 @@ class __$$CourseCatalogPagePropsImplCopyWithImpl<$Res>
             ? _value.pagination
             : pagination // ignore: cast_nullable_to_non_nullable
                   as PaginationPayload,
+        departments: null == departments
+            ? _value._departments
+            : departments // ignore: cast_nullable_to_non_nullable
+                  as List<String>,
       ),
     );
   }
@@ -2728,7 +2741,9 @@ class _$CourseCatalogPagePropsImpl implements _CourseCatalogPageProps {
     required this.query,
     required final List<CourseSummaryPayload> courses,
     required this.pagination,
-  }) : _courses = courses;
+    required final List<String> departments,
+  }) : _courses = courses,
+       _departments = departments;
 
   factory _$CourseCatalogPagePropsImpl.fromJson(Map<String, dynamic> json) =>
       _$$CourseCatalogPagePropsImplFromJson(json);
@@ -2745,10 +2760,17 @@ class _$CourseCatalogPagePropsImpl implements _CourseCatalogPageProps {
 
   @override
   final PaginationPayload pagination;
+  final List<String> _departments;
+  @override
+  List<String> get departments {
+    if (_departments is EqualUnmodifiableListView) return _departments;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_departments);
+  }
 
   @override
   String toString() {
-    return 'CourseCatalogPageProps(query: $query, courses: $courses, pagination: $pagination)';
+    return 'CourseCatalogPageProps(query: $query, courses: $courses, pagination: $pagination, departments: $departments)';
   }
 
   @override
@@ -2759,7 +2781,11 @@ class _$CourseCatalogPagePropsImpl implements _CourseCatalogPageProps {
             (identical(other.query, query) || other.query == query) &&
             const DeepCollectionEquality().equals(other._courses, _courses) &&
             (identical(other.pagination, pagination) ||
-                other.pagination == pagination));
+                other.pagination == pagination) &&
+            const DeepCollectionEquality().equals(
+              other._departments,
+              _departments,
+            ));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
@@ -2769,6 +2795,7 @@ class _$CourseCatalogPagePropsImpl implements _CourseCatalogPageProps {
     query,
     const DeepCollectionEquality().hash(_courses),
     pagination,
+    const DeepCollectionEquality().hash(_departments),
   );
 
   /// Create a copy of CourseCatalogPageProps
@@ -2794,6 +2821,7 @@ abstract class _CourseCatalogPageProps implements CourseCatalogPageProps {
     required final CourseCatalogQueryPayload query,
     required final List<CourseSummaryPayload> courses,
     required final PaginationPayload pagination,
+    required final List<String> departments,
   }) = _$CourseCatalogPagePropsImpl;
 
   factory _CourseCatalogPageProps.fromJson(Map<String, dynamic> json) =
@@ -2805,6 +2833,8 @@ abstract class _CourseCatalogPageProps implements CourseCatalogPageProps {
   List<CourseSummaryPayload> get courses;
   @override
   PaginationPayload get pagination;
+  @override
+  List<String> get departments;
 
   /// Create a copy of CourseCatalogPageProps
   /// with the given fields replaced by the non-null parameter values.
@@ -2826,6 +2856,9 @@ mixin _$CourseCatalogQueryPayload {
   String? get department => throw _privateConstructorUsedError;
   String? get term => throw _privateConstructorUsedError;
   String? get campus => throw _privateConstructorUsedError;
+  String? get instructor => throw _privateConstructorUsedError;
+  bool? get onlyWithReviews => throw _privateConstructorUsedError;
+  String? get sortBy => throw _privateConstructorUsedError;
   int get page => throw _privateConstructorUsedError;
   int get size => throw _privateConstructorUsedError;
 
@@ -2851,6 +2884,9 @@ abstract class $CourseCatalogQueryPayloadCopyWith<$Res> {
     String? department,
     String? term,
     String? campus,
+    String? instructor,
+    bool? onlyWithReviews,
+    String? sortBy,
     int page,
     int size,
   });
@@ -2878,6 +2914,9 @@ class _$CourseCatalogQueryPayloadCopyWithImpl<
     Object? department = freezed,
     Object? term = freezed,
     Object? campus = freezed,
+    Object? instructor = freezed,
+    Object? onlyWithReviews = freezed,
+    Object? sortBy = freezed,
     Object? page = null,
     Object? size = null,
   }) {
@@ -2898,6 +2937,18 @@ class _$CourseCatalogQueryPayloadCopyWithImpl<
             campus: freezed == campus
                 ? _value.campus
                 : campus // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            instructor: freezed == instructor
+                ? _value.instructor
+                : instructor // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            onlyWithReviews: freezed == onlyWithReviews
+                ? _value.onlyWithReviews
+                : onlyWithReviews // ignore: cast_nullable_to_non_nullable
+                      as bool?,
+            sortBy: freezed == sortBy
+                ? _value.sortBy
+                : sortBy // ignore: cast_nullable_to_non_nullable
                       as String?,
             page: null == page
                 ? _value.page
@@ -2927,6 +2978,9 @@ abstract class _$$CourseCatalogQueryPayloadImplCopyWith<$Res>
     String? department,
     String? term,
     String? campus,
+    String? instructor,
+    bool? onlyWithReviews,
+    String? sortBy,
     int page,
     int size,
   });
@@ -2954,6 +3008,9 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
     Object? department = freezed,
     Object? term = freezed,
     Object? campus = freezed,
+    Object? instructor = freezed,
+    Object? onlyWithReviews = freezed,
+    Object? sortBy = freezed,
     Object? page = null,
     Object? size = null,
   }) {
@@ -2974,6 +3031,18 @@ class __$$CourseCatalogQueryPayloadImplCopyWithImpl<$Res>
         campus: freezed == campus
             ? _value.campus
             : campus // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        instructor: freezed == instructor
+            ? _value.instructor
+            : instructor // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        onlyWithReviews: freezed == onlyWithReviews
+            ? _value.onlyWithReviews
+            : onlyWithReviews // ignore: cast_nullable_to_non_nullable
+                  as bool?,
+        sortBy: freezed == sortBy
+            ? _value.sortBy
+            : sortBy // ignore: cast_nullable_to_non_nullable
                   as String?,
         page: null == page
             ? _value.page
@@ -2996,6 +3065,9 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
     this.department,
     this.term,
     this.campus,
+    this.instructor,
+    this.onlyWithReviews,
+    this.sortBy,
     required this.page,
     required this.size,
   });
@@ -3012,13 +3084,19 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
   @override
   final String? campus;
   @override
+  final String? instructor;
+  @override
+  final bool? onlyWithReviews;
+  @override
+  final String? sortBy;
+  @override
   final int page;
   @override
   final int size;
 
   @override
   String toString() {
-    return 'CourseCatalogQueryPayload(keyword: $keyword, department: $department, term: $term, campus: $campus, page: $page, size: $size)';
+    return 'CourseCatalogQueryPayload(keyword: $keyword, department: $department, term: $term, campus: $campus, instructor: $instructor, onlyWithReviews: $onlyWithReviews, sortBy: $sortBy, page: $page, size: $size)';
   }
 
   @override
@@ -3031,6 +3109,11 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
                 other.department == department) &&
             (identical(other.term, term) || other.term == term) &&
             (identical(other.campus, campus) || other.campus == campus) &&
+            (identical(other.instructor, instructor) ||
+                other.instructor == instructor) &&
+            (identical(other.onlyWithReviews, onlyWithReviews) ||
+                other.onlyWithReviews == onlyWithReviews) &&
+            (identical(other.sortBy, sortBy) || other.sortBy == sortBy) &&
             (identical(other.page, page) || other.page == page) &&
             (identical(other.size, size) || other.size == size));
   }
@@ -3038,7 +3121,18 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
   int get hashCode =>
-      Object.hash(runtimeType, keyword, department, term, campus, page, size);
+      Object.hash(
+        runtimeType,
+        keyword,
+        department,
+        term,
+        campus,
+        instructor,
+        onlyWithReviews,
+        sortBy,
+        page,
+        size,
+      );
 
   /// Create a copy of CourseCatalogQueryPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3063,6 +3157,9 @@ abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
     final String? department,
     final String? term,
     final String? campus,
+    final String? instructor,
+    final bool? onlyWithReviews,
+    final String? sortBy,
     required final int page,
     required final int size,
   }) = _$CourseCatalogQueryPayloadImpl;
@@ -3078,6 +3175,12 @@ abstract class _CourseCatalogQueryPayload implements CourseCatalogQueryPayload {
   String? get term;
   @override
   String? get campus;
+  @override
+  String? get instructor;
+  @override
+  bool? get onlyWithReviews;
+  @override
+  String? get sortBy;
   @override
   int get page;
   @override

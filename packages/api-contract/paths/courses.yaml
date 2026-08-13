@@ -23,6 +23,21 @@ listCourses:
         in: query
         schema:
           type: string
+      - name: instructor
+        in: query
+        schema:
+          type: string
+          description: Teacher name matched against course_instructor name, normalized name, pinyin, and initials.
+      - name: onlyWithReviews
+        in: query
+        schema:
+          type: boolean
+          description: When true, return only courses that have at least one visible review. Accepts true/1/on (case-insensitive) as truthy values.
+      - name: sortBy
+        in: query
+        schema:
+          type: string
+          description: Sort order. "rating" sorts by average rating descending with unrated courses last; any other value or empty keeps the default id-descending order.
       - name: page
         in: query
         schema:

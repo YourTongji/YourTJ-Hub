@@ -151,6 +151,7 @@ abstract class CourseCatalogPageProps with _$CourseCatalogPageProps {
     required CourseCatalogQueryPayload query,
     required List<CourseSummaryPayload> courses,
     required PaginationPayload pagination,
+    required List<String> departments,
   }) = _CourseCatalogPageProps;
 
   factory CourseCatalogPageProps.fromJson(Map<String, dynamic> json) =>
@@ -164,6 +165,9 @@ abstract class CourseCatalogQueryPayload with _$CourseCatalogQueryPayload {
     String? department,
     String? term,
     String? campus,
+    String? instructor,
+    bool? onlyWithReviews,
+    String? sortBy,
     required int page,
     required int size,
   }) = _CourseCatalogQueryPayload;

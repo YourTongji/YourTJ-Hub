@@ -1,6 +1,8 @@
 package course
 
 import (
+	"strings"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"gorm.io/gorm"
 )
@@ -30,6 +32,9 @@ type ListCourseQuery struct {
 	Department string // 院系精确
 	TermCode   string // 学期（通过 offering 关联）
 	Campus     string // 校区（通过 offering 关联）
+	Instructor string // 教师姓名包含（%v% LIKE course_instructor.name/归一化/拼音/首字母）
+	HasReview  bool   // 仅看有评价（course_review_stats.review_count > 0）
+	SortBy     string // 排序：rating 按评分降序（零评分排末尾）；其它值/空串 id 倒序
 	Page       int
 	Size       int
 }
@@ -37,7 +42,7 @@ type ListCourseQuery struct {
 // ListCourses 返回课程列表（canonical course 一页），并返回总条数。
 // 排序固定为 id 倒序（新课程优先），保证分页稳定。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
-	b := courseBuilder().Where(queryopt.Eq("status", StatusVisible))
+	b := courseBuilder().Where(queryopt.Eq("status", StatusVisible)).Where("course.deleted_at IS NULL")
 	if q.Department != "" {
 		b = b.Where(queryopt.Eq("department", q.Department))
 	}
@@ -50,11 +55,24 @@ OR EXISTS (
 	SELECT 1 FROM course_offering
 	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
 	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
-	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
 	  AND (course_instructor.name LIKE ? OR course_instructor.normalized_name LIKE ? OR course_instructor.name_pinyin LIKE ? OR course_instructor.name_initials LIKE ?)
 ))`,
-			kw, kw, kw, kw, kw, kw, kw, kw, kw, kw,
+			kw, kw, kw, kw, kw, kw, OfferingStatusVisible, kw, kw, kw, kw,
 		)
+	}
+	if q.Instructor != "" {
+		ins := "%" + escapeLike(q.Instructor) + "%"
+		b = b.Where(`EXISTS (
+	SELECT 1 FROM course_offering
+	JOIN course_offering_instructor ON course_offering_instructor.offering_id = course_offering.id
+	JOIN course_instructor ON course_instructor.id = course_offering_instructor.instructor_id AND course_instructor.deleted_at IS NULL
+	WHERE course_offering.course_id = course.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?
+	  AND (course_instructor.name LIKE ? ESCAPE '!' OR course_instructor.normalized_name LIKE ? ESCAPE '!' OR course_instructor.name_pinyin LIKE ? ESCAPE '!' OR course_instructor.name_initials LIKE ? ESCAPE '!')
+)`, OfferingStatusVisible, ins, ins, ins, ins)
+	}
+	if q.HasReview {
+		b = b.Where(`EXISTS (SELECT 1 FROM course_review_stats WHERE course_review_stats.course_id = course.id AND course_review_stats.review_count > 0 AND course_review_stats.deleted_at IS NULL)`)
 	}
 	if q.TermCode != "" || q.Campus != "" {
 		ob := offeringBuilder()
@@ -79,8 +97,38 @@ OR EXISTS (
 	if q.Page <= 0 {
 		q.Page = 1
 	}
-	err = b.Order("id DESC").Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
+	// 排序：仅 SortBy=rating 时按评分降序（LEFT JOIN course_review_stats，
+	// 其 course_id 主键唯一故不放大行数）；否则保持 id 倒序保证分页稳定。
+	// COUNT 已在上方按同一套 WHERE 过滤完成，JOIN 只影响排序不影响计数。
+	if q.SortBy == "rating" {
+		b = b.Joins("LEFT JOIN course_review_stats s ON s.course_id = course.id AND s.deleted_at IS NULL").
+			Order("CASE WHEN s.rating_count > 0 THEN 0 ELSE 1 END ASC, COALESCE(s.rating_sum * 1.0 / NULLIF(s.rating_count, 0), 0) DESC, course.id DESC")
+	} else {
+		b = b.Order("id DESC")
+	}
+	err = b.Offset((q.Page - 1) * q.Size).Limit(q.Size).Find(&entities).Error
 	return
+}
+
+// escapeLike 转义 LIKE 模式中的通配符（%/_）与转义字符（!）本身，
+// 配合 ESCAPE '!' 使输入按字面匹配，避免 %/_ 改变搜索语义。
+// 用 '!' 而非 '\' 作转义字符，规避 MySQL/SQLite/PostgreSQL 三方言
+// 对反斜杠字符串字面量的解析差异（MySQL 需 '\\'，SQLite/PG 需 '\'）。
+func escapeLike(s string) string {
+	return strings.NewReplacer("!", "!!", "%", "!%", "_", "!_").Replace(s)
+}
+
+// ListDistinctDepartments 返回所有可见课程的去重院系列表（非空、按字典序），供目录页筛选下拉。
+func ListDistinctDepartments() ([]string, error) {
+	var departments []string
+	err := courseBuilder().
+		Where(queryopt.Eq("status", StatusVisible)).
+		Where(queryopt.IsNull("deleted_at")).
+		Where(queryopt.Ne("department", "")).
+		Distinct().
+		Order("department ASC").
+		Pluck("department", &departments).Error
+	return departments, err
 }
 
 // ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。

@@ -922,6 +922,9 @@ export interface CourseCatalogPageProps {
     department?: string
     term?: string
     campus?: string
+    instructor?: string
+    onlyWithReviews?: boolean
+    sortBy?: string
     page: number
     size: number
   }
@@ -932,6 +935,7 @@ export interface CourseCatalogPageProps {
     hasNext: boolean
     nextUrl: string
   }
+  departments: string[]
 }
 
 export interface CourseSummaryPayload {

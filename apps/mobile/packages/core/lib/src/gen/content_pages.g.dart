@@ -225,6 +225,9 @@ _$CourseCatalogPagePropsImpl _$$CourseCatalogPagePropsImplFromJson(
   pagination: PaginationPayload.fromJson(
     json['pagination'] as Map<String, dynamic>,
   ),
+  departments: (json['departments'] as List<dynamic>)
+      .map((e) => e as String)
+      .toList(),
 );
 
 Map<String, dynamic> _$$CourseCatalogPagePropsImplToJson(
@@ -233,6 +236,7 @@ Map<String, dynamic> _$$CourseCatalogPagePropsImplToJson(
   'query': instance.query,
   'courses': instance.courses,
   'pagination': instance.pagination,
+  'departments': instance.departments,
 };
 
 _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
@@ -242,6 +246,9 @@ _$CourseCatalogQueryPayloadImpl _$$CourseCatalogQueryPayloadImplFromJson(
   department: json['department'] as String?,
   term: json['term'] as String?,
   campus: json['campus'] as String?,
+  instructor: json['instructor'] as String?,
+  onlyWithReviews: json['onlyWithReviews'] as bool?,
+  sortBy: json['sortBy'] as String?,
   page: (json['page'] as num).toInt(),
   size: (json['size'] as num).toInt(),
 );
@@ -253,6 +260,9 @@ Map<String, dynamic> _$$CourseCatalogQueryPayloadImplToJson(
   'department': instance.department,
   'term': instance.term,
   'campus': instance.campus,
+  'instructor': instance.instructor,
+  'onlyWithReviews': instance.onlyWithReviews,
+  'sortBy': instance.sortBy,
   'page': instance.page,
   'size': instance.size,
 };
