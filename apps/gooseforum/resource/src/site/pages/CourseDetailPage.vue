@@ -16,6 +16,7 @@ import {
 import { formatDateTime } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
+import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
 import {
@@ -587,6 +588,8 @@ onMounted(() => {
         </div>
       </div>
     </section>
+
+    <AISummaryCard :course-id="page.props.course.id" class="mt-6" />
 
     <section class="mt-6">
       <div class="mb-3 flex items-center justify-between gap-2">

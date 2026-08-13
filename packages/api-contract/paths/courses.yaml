@@ -191,3 +191,101 @@ getCourseRelated:
             examples:
               internalError:
                 externalValue: ../fixtures/course-internal-error.json
+
+getCourseSummary:
+  get:
+    tags: [Forum]
+    summary: Get the AI-generated summary of a course (B7, issue #181)
+    security: []
+    operationId: getCourseSummary
+    description: |
+      Public read endpoint. Returns the cached AI summary when available (status `cached`),
+      generates and persists a fresh one on first request (status `generated`), or reports
+      `insufficient_data` when the course has fewer than 10 visible reviews with content.
+      When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
+      `?refresh=true` forces regeneration, subject to per-course and global generation rate
+      limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
+      affects the course page main flow. The summary schema is provider-independent
+      (OpenAI-compatible chat/completions; qwen/OpenRouter/local Ollama are configuration-only).
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+      - name: refresh
+        in: query
+        schema:
+          type: boolean
+          default: false
+          description: When true, force a fresh generation instead of returning the DB cache.
+    responses:
+      '200':
+        description: |
+          Summary result. `status` is one of `cached` / `generated` / `insufficient_data` /
+          `disabled`; `summary` is present for `cached` and `generated`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CourseSummaryResponse
+            examples:
+              cached:
+                summary: An existing summary served from the DB cache.
+                externalValue: ../fixtures/course-summary-cached.json
+              generated:
+                summary: A freshly generated summary persisted to the DB.
+                externalValue: ../fixtures/course-summary-generated.json
+              insufficientData:
+                summary: Fewer than 10 visible reviews with content; nothing is persisted.
+                externalValue: ../fixtures/course-summary-insufficient-data.json
+              disabled:
+                summary: The AI summary feature is disabled.
+                externalValue: ../fixtures/course-summary-disabled.json
+      '400':
+        description: Malformed or zero course id.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/course-parse-failed.json
+      '404':
+        description: Course does not exist or is hidden.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-not-found.json
+      '429':
+        description: |
+          Generation rate limit hit (global per-minute or per-course 10-minute window).
+          The `Retry-After` header carries the seconds until the window resets; the body
+          params carry the same value as `retryAfterSeconds` for clients that cannot read headers.
+        headers:
+          Retry-After:
+            description: Seconds until the rate-limit window resets. Integer seconds as specified by RFC 9110.
+            schema:
+              type: integer
+              format: int32
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/course-summary-rate-limited.json
+      '500':
+        description: LLM provider failure, timeout, or unparsable output. Nothing is persisted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              internalError:
+                externalValue: ../fixtures/course-internal-error.json

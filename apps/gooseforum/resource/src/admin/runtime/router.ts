@@ -9,6 +9,7 @@ const settingsPages = {
   '/admin/settings/posting': 'posting',
   '/admin/settings/rate-limit': 'rate-limit',
   '/admin/settings/mcp': 'mcp',
+  '/admin/settings/ai-summary': 'ai-summary',
   '/admin/settings/announcement': 'announcement',
   '/admin/settings/http-notify': 'http-notify',
   '/admin/settings/storage': 'storage',

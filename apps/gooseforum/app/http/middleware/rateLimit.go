@@ -52,6 +52,9 @@ const (
 	// per-IP 60 / per-User 30（issue #176 B4）。比写接口宽松（审核是低频
 	// 操作但需批量处理举报），同时防止单账号刷审核接口。
 	RateLimitReviewModerate = "course.review.moderate"
+	// RateLimitCourseSummary 课程 AI 总结端点（B7, issue #181）：
+	// 读缓存免费，生成动作另有 service 内全局/单课限流，此处仅防脚本高频打端点。
+	RateLimitCourseSummary = "course.summary"
 )
 
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。

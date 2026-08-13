@@ -34,6 +34,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&course.CourseAiSummaryEntity{},
 	); err != nil {
 		t.Fatalf("migrate course contract tables: %v", err)
 	}
@@ -50,6 +51,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.AliasEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&course.CourseAiSummaryEntity{},
 		&course.Entity{},
 	} {
 		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
@@ -61,6 +63,7 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	router.GET("/api/forum/courses", UpQueryReq(forum.CourseListJSON))
 	router.GET("/api/forum/courses/:courseId", UpUriQueryReq(forum.CourseDetailJSON))
 	router.GET("/api/forum/courses/:courseId/related", UpUriQueryReq(forum.CourseRelatedJSON))
+	router.GET("/api/forum/courses/:courseId/summary", UpUriQueryReq(forum.GetCourseSummary))
 	return conn, router
 }
 
@@ -380,9 +383,9 @@ func seedCourseFilterData(t *testing.T, conn *gorm.DB) {
 // 不引用后端 Go 结构体。
 type courseListContract struct {
 	List []struct {
-		Id          uint64  `json:"id"`
+		Id          uint64   `json:"id"`
 		RatingAvg   *float64 `json:"ratingAvg,omitempty"`
-		ReviewCount int     `json:"reviewCount"`
+		ReviewCount int      `json:"reviewCount"`
 	} `json:"list"`
 }
 
@@ -466,9 +469,8 @@ func TestCourseListSortByRatingHTTPContract(t *testing.T) {
 	want := []uint64{46, 45, 42}
 	if got := courseListIDs(list); !reflect.DeepEqual(got, want) {
 		t.Fatalf("sortBy=rating ids = %v, want %v", got, want)
-		}
 	}
-
+}
 
 // TestCourseStatsProjectionHTTPContract 验证 B1 统计投影对外暴露（issue #173 验收）：
 //  1. 3 条评价（5/4/NULL）→ ratingAvg=4.5、reviewCount=3（NULL 不计均分但计评论数）；
@@ -682,6 +684,5 @@ func TestCourseStatsSecurityFindings(t *testing.T) {
 	}
 	if got := detail["ratingAvg"]; got != 4.5 {
 		t.Fatalf("ratingAvg with hidden offering = %#v, want 4.5", got)
-		}
 	}
-
+}

@@ -131,6 +131,10 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
 				return err
 			}
+			// 恢复重写改变了 summary 输入 → 失效 AI 总结缓存。
+			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+				return err
+			}
 			refreshed, err := course.GetReviewTx(tx, existing.Id)
 			if err != nil {
 				return err
@@ -162,6 +166,10 @@ func CreateReview(userId uint64, input CreateReviewInput) (ReviewPayload, error)
 			return err
 		}
 		if err := course.UpsertOfferingStatsTx(tx, offering.Id, 1, rating, 1); err != nil {
+			return err
+		}
+		// 新评价进入 summary 输入 → 失效 AI 总结缓存。
+		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
 			return err
 		}
 		payload = buildReviewPayload(entity, userId, int64(0))
@@ -246,6 +254,14 @@ func UpdateReview(userId, reviewId uint64, input UpdateReviewInput) (ReviewPaylo
 					return err
 				}
 			}
+			// 正文/评分变更改变了 summary 输入 → 失效 AI 总结缓存。
+			offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+			if err != nil {
+				return err
+			}
+			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+				return err
+			}
 			refreshed, err := course.GetReviewTx(tx, reviewId)
 			if err != nil {
 				return err
@@ -317,6 +333,10 @@ func DeleteReview(userId, reviewId uint64) error {
 				if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, 0, -1); err != nil {
 					return err
 				}
+			}
+			// 删除改变 summary 输入 → 失效 AI 总结缓存。
+			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+				return err
 			}
 		}
 		return nil
@@ -565,6 +585,10 @@ func SetReviewVisibility(reviewId uint64, hidden bool) error {
 			if err := course.UpsertOfferingStatsTx(tx, offering.Id, 0, 0, delta); err != nil {
 				return err
 			}
+		}
+		// 可见性变化改变 summary 输入 → 失效 AI 总结缓存。
+		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+			return err
 		}
 		return nil
 	})

@@ -733,4 +733,12 @@ export default {
   "k00mo": "Se abilitato, gli strumenti create_topic / create_post sono disponibili (soggetti ai limiti di frequenza topic.write / post.create); disattivato di default, così l'AI può solo leggere.",
   "k00ms": "Migrati {processed} / {total}",
   "k00mt": "Falliti: {failed}",
+  "k00n0": "Riepilogo corsi AI",
+  "k00n1": "Gestisci l'interruttore di generazione del riepilogo corsi AI e il limite di frequenza globale.",
+  "k00n2": "Caricamento delle impostazioni del riepilogo corsi AI non riuscito",
+  "k00n3": "Salvataggio delle impostazioni del riepilogo corsi AI non riuscito",
+  "k00n4": "Abilita riepilogo corsi AI",
+  "k00n5": "Se abilitato, le pagine dei corsi possono richiedere riepiloghi generati dall'AI; se disabilitato, l'endpoint restituisce status=disabled.",
+  "k00n6": "Riepiloghi globali al minuto",
+  "k00n7": "Numero massimo di riepiloghi generati al minuto su tutti i corsi; 0 usa il valore predefinito di 5.",
 } as const

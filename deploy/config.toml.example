@@ -99,3 +99,17 @@ id = "yourtj-mobile"
 name = "yourtj 移动端"
 redirect_uris = ["yourtj://callback"]
 # secret = ""
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 均走同一协议，
+# 切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# 生产环境请通过环境注入或密钥管理替换为真实密钥
+api_key = ""
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024
