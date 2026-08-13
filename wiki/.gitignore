@@ -1,0 +1,11 @@
+node_modules/
+.vitepress/dist/
+.vitepress/cache/
+# 飞书同步产物由 cron/GA 定期 commit 进 git（docs/feishu/ 是站点内容源，
+# 必须可被提交，否则 git add docs/feishu 永远没有可提交内容）
+
+
+# 本地凭据（飞书同步用，不入 git）
+.env
+.env.local
+.env.*.local
