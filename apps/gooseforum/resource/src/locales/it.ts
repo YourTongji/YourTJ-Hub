@@ -484,6 +484,41 @@ export default {
     relatedReviews: '{count} recensione | {count} recensioni',
     relatedExpand: 'Mostra corsi correlati',
     relatedCollapse: 'Nascondi corsi correlati',
+    ratingOutOf: '/ 5.0',
+    reviewCountLabel: '{count} recensione | {count} recensioni',
+    template: 'Modello',
+    chooseTemplate: 'Scegli modello',
+    templateChange: 'Cambia modello',
+    templateSelectorTitle: 'Scegli un modello di recensione',
+    templateSelectorHint: 'Scegli un modello per iniziare; puoi continuare a modificare il contenuto.',
+    confirmDeleteTitle: 'Elimina recensione',
+    reviewDeleted: 'Recensione eliminata',
+    templates: {
+      comprehensive: {
+        name: 'Recensione completa',
+        description: 'Copre contenuti del corso, stile didattico, valutazione e altro',
+      },
+      quick: {
+        name: 'Recensione rapida',
+        description: 'Una recensione concisa e veloce',
+      },
+      teacherFocused: {
+        name: 'Recensione docente',
+        description: 'Focus su qualità e stile didattico',
+      },
+      examFocused: {
+        name: 'Guida all\'esame',
+        description: 'Focus su formato d\'esame e suggerimenti',
+      },
+      workload: {
+        name: 'Valutazione del carico',
+        description: 'Focus su carico di lavoro e tempo richiesto',
+      },
+      blank: {
+        name: 'Vuoto',
+        description: 'Parti da zero',
+      },
+    },
   },
   courseReviewModeration: {
     title: 'Moderazione recensioni corsi',

@@ -950,6 +950,11 @@ export interface CourseDetailPageProps {
     department: string
     creditX10: number
     aliases?: string[]
+    // B1 统计投影（PRD §5.1）：均分 / 评论数 / 1-5 星各档计数（index 0 = 1 星）。
+    // 无评分/无评价时省略（omitempty），前端按 undefined 降级展示。
+    ratingAvg?: number
+    reviewCount?: number
+    ratingDistribution?: number[]
     offerings?: Array<{
       id: number
       termCode: string
@@ -957,6 +962,8 @@ export interface CourseDetailPageProps {
       campus?: string
       faculty?: string
       instructors?: string[]
+      ratingAvg?: number
+      reviewCount?: number
     }>
   }
 }

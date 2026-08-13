@@ -484,6 +484,41 @@ export default {
     relatedReviews: '{count} 件の評価',
     relatedExpand: '関連コースを表示',
     relatedCollapse: '関連コースを隠す',
+    ratingOutOf: '/ 5.0',
+    reviewCountLabel: '{count} 件のレビュー',
+    template: 'テンプレート',
+    chooseTemplate: 'テンプレートを選択',
+    templateChange: 'テンプレートを変更',
+    templateSelectorTitle: 'レビューテンプレートを選択',
+    templateSelectorHint: 'テンプレートを選んで開始できます。内容は編集できます。',
+    confirmDeleteTitle: 'レビューを削除',
+    reviewDeleted: 'レビューを削除しました',
+    templates: {
+      comprehensive: {
+        name: '総合評価',
+        description: '授業内容・教授法・評価方法などを網羅',
+      },
+      quick: {
+        name: 'クイックレビュー',
+        description: '簡潔で素早いレビュー',
+      },
+      teacherFocused: {
+        name: '教員評価',
+        description: '教員の指導力・スタイルに重点',
+      },
+      examFocused: {
+        name: '試験対策',
+        description: '試験形式・対策に重点',
+      },
+      workload: {
+        name: '負担評価',
+        description: '課題量・時間投資に重点',
+      },
+      blank: {
+        name: '白紙',
+        description: 'ゼロから自由に書く',
+      },
+    },
   },
   courseReviewModeration: {
     title: 'コース評価モデレーション',

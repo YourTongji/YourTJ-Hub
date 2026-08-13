@@ -484,6 +484,41 @@ export default {
     relatedReviews: '{count} review | {count} reviews',
     relatedExpand: 'Show related courses',
     relatedCollapse: 'Hide related courses',
+    ratingOutOf: '/ 5.0',
+    reviewCountLabel: '{count} review | {count} reviews',
+    template: 'Template',
+    chooseTemplate: 'Choose template',
+    templateChange: 'Change template',
+    templateSelectorTitle: 'Choose a review template',
+    templateSelectorHint: 'Pick a template to get started; you can keep editing the content.',
+    confirmDeleteTitle: 'Delete review',
+    reviewDeleted: 'Review deleted',
+    templates: {
+      comprehensive: {
+        name: 'Comprehensive review',
+        description: 'Covers course content, teaching style, assessment, and more',
+      },
+      quick: {
+        name: 'Quick review',
+        description: 'A concise, quick review',
+      },
+      teacherFocused: {
+        name: 'Teacher review',
+        description: 'Focus on teaching quality and style',
+      },
+      examFocused: {
+        name: 'Exam guide',
+        description: 'Focus on exam format and preparation tips',
+      },
+      workload: {
+        name: 'Workload assessment',
+        description: 'Focus on workload and time commitment',
+      },
+      blank: {
+        name: 'Blank',
+        description: 'Start from scratch',
+      },
+    },
   },
   courseReviewModeration: {
     title: 'Course review moderation',
