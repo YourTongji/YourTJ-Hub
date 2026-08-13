@@ -149,7 +149,7 @@ abstract class PostPayload with _$PostPayload {
     String? updatedAt,
     UserBriefPayload? lastEditor,
     String? lastEditedAt,
-    required int revisionCount,
+    int? revisionCount,
     required int likeCount,
     required bool isLiked,
     required bool isBookmarked,

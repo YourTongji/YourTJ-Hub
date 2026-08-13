@@ -241,7 +241,7 @@ _$PostPayloadImpl _$$PostPayloadImplFromJson(Map<String, dynamic> json) =>
               json['lastEditor'] as Map<String, dynamic>,
             ),
       lastEditedAt: json['lastEditedAt'] as String?,
-      revisionCount: (json['revisionCount'] as num).toInt(),
+      revisionCount: (json['revisionCount'] as num?)?.toInt(),
       likeCount: (json['likeCount'] as num).toInt(),
       isLiked: json['isLiked'] as bool,
       isBookmarked: json['isBookmarked'] as bool,

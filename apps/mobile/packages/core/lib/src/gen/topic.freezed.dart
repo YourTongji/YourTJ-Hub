@@ -2548,7 +2548,7 @@ mixin _$PostPayload {
   String? get updatedAt => throw _privateConstructorUsedError;
   UserBriefPayload? get lastEditor => throw _privateConstructorUsedError;
   String? get lastEditedAt => throw _privateConstructorUsedError;
-  int get revisionCount => throw _privateConstructorUsedError;
+  int? get revisionCount => throw _privateConstructorUsedError;
   int get likeCount => throw _privateConstructorUsedError;
   bool get isLiked => throw _privateConstructorUsedError;
   bool get isBookmarked => throw _privateConstructorUsedError;
@@ -2588,7 +2588,7 @@ abstract class $PostPayloadCopyWith<$Res> {
     String? updatedAt,
     UserBriefPayload? lastEditor,
     String? lastEditedAt,
-    int revisionCount,
+    int? revisionCount,
     int likeCount,
     bool isLiked,
     bool isBookmarked,
@@ -2630,7 +2630,7 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
     Object? updatedAt = freezed,
     Object? lastEditor = freezed,
     Object? lastEditedAt = freezed,
-    Object? revisionCount = null,
+    Object? revisionCount = freezed,
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
@@ -2705,10 +2705,10 @@ class _$PostPayloadCopyWithImpl<$Res, $Val extends PostPayload>
                 ? _value.lastEditedAt
                 : lastEditedAt // ignore: cast_nullable_to_non_nullable
                       as String?,
-            revisionCount: null == revisionCount
+            revisionCount: freezed == revisionCount
                 ? _value.revisionCount
                 : revisionCount // ignore: cast_nullable_to_non_nullable
-                      as int,
+                      as int?,
             likeCount: null == likeCount
                 ? _value.likeCount
                 : likeCount // ignore: cast_nullable_to_non_nullable
@@ -2778,7 +2778,7 @@ abstract class _$$PostPayloadImplCopyWith<$Res>
     String? updatedAt,
     UserBriefPayload? lastEditor,
     String? lastEditedAt,
-    int revisionCount,
+    int? revisionCount,
     int likeCount,
     bool isLiked,
     bool isBookmarked,
@@ -2821,7 +2821,7 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
     Object? updatedAt = freezed,
     Object? lastEditor = freezed,
     Object? lastEditedAt = freezed,
-    Object? revisionCount = null,
+    Object? revisionCount = freezed,
     Object? likeCount = null,
     Object? isLiked = null,
     Object? isBookmarked = null,
@@ -2896,10 +2896,10 @@ class __$$PostPayloadImplCopyWithImpl<$Res>
             ? _value.lastEditedAt
             : lastEditedAt // ignore: cast_nullable_to_non_nullable
                   as String?,
-        revisionCount: null == revisionCount
+        revisionCount: freezed == revisionCount
             ? _value.revisionCount
             : revisionCount // ignore: cast_nullable_to_non_nullable
-                  as int,
+                  as int?,
         likeCount: null == likeCount
             ? _value.likeCount
             : likeCount // ignore: cast_nullable_to_non_nullable
@@ -2938,7 +2938,7 @@ class _$PostPayloadImpl implements _PostPayload {
     this.updatedAt,
     this.lastEditor,
     this.lastEditedAt,
-    required this.revisionCount,
+    this.revisionCount,
     required this.likeCount,
     required this.isLiked,
     required this.isBookmarked,
@@ -2982,7 +2982,7 @@ class _$PostPayloadImpl implements _PostPayload {
   @override
   final String? lastEditedAt;
   @override
-  final int revisionCount;
+  final int? revisionCount;
   @override
   final int likeCount;
   @override
@@ -3098,7 +3098,7 @@ abstract class _PostPayload implements PostPayload {
     final String? updatedAt,
     final UserBriefPayload? lastEditor,
     final String? lastEditedAt,
-    required final int revisionCount,
+    final int? revisionCount,
     required final int likeCount,
     required final bool isLiked,
     required final bool isBookmarked,
@@ -3142,7 +3142,7 @@ abstract class _PostPayload implements PostPayload {
   @override
   String? get lastEditedAt;
   @override
-  int get revisionCount;
+  int? get revisionCount;
   @override
   int get likeCount;
   @override
