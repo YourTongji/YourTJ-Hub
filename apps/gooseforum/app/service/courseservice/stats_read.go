@@ -31,13 +31,7 @@ func GetCourseStatsByPrimaryCodes(codes []string) (map[string]CourseStatsBrief, 
 	}
 	stats := make(map[uint64]course.CourseStatsEntity)
 	if len(ids) > 0 {
-		list, err := course.ListCourseStatsByIDs(ids)
-		if err != nil {
-			return nil, err
-		}
-		for i := range list {
-			stats[list[i].CourseId] = list[i]
-		}
+		stats = course.ListCourseStatsByIDs(ids)
 	}
 	for _, e := range entities {
 		brief := CourseStatsBrief{

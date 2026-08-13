@@ -99,7 +99,7 @@ func UpdateStatus(id uint64, status string, resolution string, handlerId uint64)
 // Open reports are never cleared. Returns number of rows updated.
 //
 // 跨库注意：evidence_snapshot 是 json 列。不要在 SQL 里直接与字符串比较
-// （PostgreSQL 对 json 列的 `!= ''` 会报 `42883 json <> unknown`，MySQL 行为也不同），
+// （PostgreSQL 对 json 列的 `!= ”` 会报 `42883 json <> unknown`），
 // 因此"空快照"过滤放在 Go 层用 evidenceSnapshotIsEmpty 完成（NULL/`{}` 反序列化后
 // 均为零值快照，会被跳过）。
 func ClearExpiredEvidenceSnapshots(before time.Time, limit int) (int, error) {

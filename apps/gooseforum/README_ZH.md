@@ -71,7 +71,7 @@ connection = "sqlite"
 path = "./storage/database/sqlite.db"
 ```
 
-MySQL、PostgreSQL、邮件、备份、安全和站点配置见 [配置文档](docs/user/configuration.md)。
+PostgreSQL、SQLite、邮件、备份、安全和站点配置见 [配置文档](docs/user/configuration.md)。
 
 ### 管理命令
 
@@ -83,7 +83,7 @@ MySQL、PostgreSQL、邮件、备份、安全和站点配置见 [配置文档](d
 
 ## GooseForum 是什么？
 
-GooseForum 是一个技术社区平台，使用 Go、Gin、GORM、Vue 3、TypeScript、Vite 和 TailwindCSS 构建。它以单个可执行文件发布，支持 SQLite/MySQL/PostgreSQL，并通过服务端 payload 驱动 SPA 体验，同时保留 no-js/SEO 友好的 GoHTML 页面。
+GooseForum 是一个技术社区平台，使用 Go、Gin、GORM、Vue 3、TypeScript、Vite 和 TailwindCSS 构建。它以单个可执行文件发布，支持 SQLite（本地开发）与 PostgreSQL（部署默认），并通过服务端 payload 驱动 SPA 体验，同时保留 no-js/SEO 友好的 GoHTML 页面。
 
 ## 核心特性
 
@@ -91,7 +91,7 @@ GooseForum 是一个技术社区平台，使用 Go、Gin、GORM、Vue 3、TypeSc
 - 角色和权限管理，内置完整管理后台。
 - 桌面端与移动端响应式主站界面。
 - 主题工作台，支持浅色/深色主题预览和发布。
-- 默认 SQLite，可选 MySQL/PostgreSQL，支持定时备份。
+- 本地开发默认 SQLite，部署默认 PostgreSQL，支持定时备份。
 - Payload 驱动站内导航，并保留 no-js GoHTML 降级模板。
 - 支持站点 Logo、品牌文案、Footer 和资源自定义。
 

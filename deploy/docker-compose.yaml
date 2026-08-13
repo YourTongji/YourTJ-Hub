@@ -11,6 +11,9 @@ services:
     volumes:
       - ./main/config.toml:/app/config.toml:ro
       - ./main/storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
       interval: 10s
@@ -27,6 +30,9 @@ services:
     volumes:
       - ./dev/config.toml:/app/config.toml:ro
       - ./dev/storage:/app/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
     healthcheck:
       test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:5234/health >/dev/null 2>&1 || exit 1"]
       interval: 10s

@@ -22,6 +22,7 @@ const (
 	PageComponentCourse                 PageComponent = "course.index"
 	PageComponentCourseDetail           PageComponent = "course.detail"
 	PageComponentCourseReviewModeration PageComponent = "course.reviewModeration"
+	PageComponentCourseManagement       PageComponent = "course.management"
 	PageComponentSchedule               PageComponent = "course.schedule"
 	PageComponentLogin                  PageComponent = "auth.login"
 	PageComponentResetPassword          PageComponent = "auth.resetPassword"

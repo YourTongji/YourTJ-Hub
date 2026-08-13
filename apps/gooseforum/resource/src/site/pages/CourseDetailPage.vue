@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
-import { ArrowLeft, BookOpen, Building2, CalendarDays, ChevronDown, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
+import { ArrowLeft, BookOpen, Building2, CalendarDays, ChevronDown, FileText, Flag, Loader2, MessageSquareText, Pencil, Star, ThumbsUp, Trash2, UsersRound, X } from '@lucide/vue'
 import {
   createCourseReview,
   deleteCourseReview,
@@ -14,7 +14,16 @@ import {
   type ReviewPayload,
 } from '@/runtime/api'
 import { formatDateTime } from '@/runtime/format'
+import { useFlashMessages } from '@/runtime/flash-message'
+import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
+import {
+  nextReviewTotalOnCreate,
+  nextReviewTotalOnDelete,
+  resolveStatsReviewCount,
+} from '@/site/utils/course-review-count'
+import { createReviewPageLoader } from '@/site/utils/course-review-loader'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseDetailPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -23,6 +32,7 @@ const page = defineProps<{
   props: CourseDetailPageProps
 }>()
 const { t } = useI18n()
+const { push: pushFlash } = useFlashMessages()
 
 const loginHref = computed(() => {
   const next = encodeURIComponent(window.location.pathname + window.location.search + window.location.hash)
@@ -43,6 +53,17 @@ function offeringLabel(id: number) {
 function formatRating(avg: number) {
   return avg > 0 ? avg.toFixed(1) : '—'
 }
+
+// ---- 顶部统计区（B1：ratingAvg / reviewCount / ratingDistribution）----
+// ratingDistribution 为 [1星, 2星, 3星, 4星, 5星] 各档计数（index 0 = 1 星）。
+const ratingAvg = computed(() => page.props.course.ratingAvg ?? null)
+const reviewCount = computed(() => page.props.course.reviewCount ?? 0)
+const ratingDistribution = computed(() => page.props.course.ratingDistribution ?? [0, 0, 0, 0, 0])
+// 分布行按 5 星 → 1 星降序展示；基准取最大值（至少 1，避免除零）。
+const distributionRows = computed(() =>
+  [5, 4, 3, 2, 1].map((star) => ({ star, count: ratingDistribution.value[star - 1] ?? 0 })),
+)
+const distributionMax = computed(() => Math.max(...ratingDistribution.value, 1))
 
 // ---- 相关课程（同教师其他课 / 同课程其他教师）----
 const related = ref<CourseRelatedResult | null>(null)
@@ -73,21 +94,80 @@ function authorLabel(author: ReviewPayload['author']) {
 
 // ---- 评价列表 ----
 const reviews = ref<ReviewPayload[]>([])
+const reviewTotal = ref(0)
+const reviewNextCursor = ref('')
+const reviewLoadingMore = ref(false)
 const reviewLoading = ref(false)
+// reviewsLoadSeq 列表加载代际：写操作（创建/编辑/删除）成功后递增，使 in-flight 的
+// 旧列表响应失效——否则初次 loadReviews 的旧快照会在写成功后返回并覆盖刚发布的
+// 评价（unshift 内容消失、计数回退，直到刷新）。
+let reviewsLoadSeq = 0
+
+// invalidateReviews 写操作成功后调用：使 in-flight 列表加载失效；若仍有加载在途或
+// 列表从未成功加载，触发一次静默重拉对账（此时服务端已包含本次写入），保证列表完整
+// （丢弃旧快照后不重拉会只剩本地写入的一条、旧评价丢失）。
+function invalidateReviews() {
+  reviewsLoadSeq += 1
+  if (reviewLoading.value || !reviewLoaded.value) {
+    void loadReviews()
+  }
+}
 const reviewError = ref('')
 const reviewLoaded = ref(false)
 const helpfulBusyIds = ref<number[]>([])
 
+// 统计卡评论数：评价列表加载完成后以 reviewTotal（客户端、删除/创建后实时更新）为准，
+// 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
+const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
+
+// 列表加载协调器：用请求版本号避免 onMounted 的首屏 GET 在创建/删除后返回旧快照
+// 覆盖本地状态（issue #178 review P1 竞态）。
+const reviewLoader = createReviewPageLoader((offeringId, cursor) =>
+  listCourseReviews(page.props.course.id, offeringId, cursor),
+)
+
 async function loadReviews() {
+  const seq = ++reviewsLoadSeq
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    reviews.value = await listCourseReviews(page.props.course.id)
+    const reviewPage = await reviewLoader.load(0, '')
+    if (reviewPage === null) return // 过期响应：期间发生写操作，丢弃以保留本地状态
+    // 代际守卫：期间有更新加载（写操作触发的重拉）发起，本结果作废。
+    if (seq !== reviewsLoadSeq) return
+    reviews.value = reviewPage.list
+    reviewTotal.value = reviewPage.total
+    reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
+    // 旧代际的失败不覆盖新状态（避免已成功的写操作被错误提示淹没）。
+    if (seq !== reviewsLoadSeq) return
     reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
-    reviewLoading.value = false
-    reviewLoaded.value = true
+    // 仅当前代际可动 loading/loaded：旧代际完成时新代际仍在途，保留其 loading 状态。
+    if (seq === reviewsLoadSeq) {
+      reviewLoading.value = false
+      reviewLoaded.value = true
+    }
+  }
+}
+
+// 加载更多（B2 cursor 分页，issue #174）
+async function loadMoreReviews() {
+  if (!reviewNextCursor.value || reviewLoadingMore.value) return
+  const seq = reviewsLoadSeq
+  reviewLoadingMore.value = true
+  try {
+    const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
+    if (reviewPage === null) return // 过期响应：丢弃
+    // 代际守卫：写操作已失效本代（旧 cursor 数据可能含已删除/旧内容），丢弃不 concat。
+    if (seq !== reviewsLoadSeq) return
+    reviews.value = reviews.value.concat(reviewPage.list)
+    reviewNextCursor.value = reviewPage.nextCursor ?? ''
+  } catch (error) {
+    if (seq !== reviewsLoadSeq) return
+    reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
+  } finally {
+    reviewLoadingMore.value = false
   }
 }
 
@@ -105,6 +185,8 @@ const formAnonymous = ref(true)
 const formSubmitting = ref(false)
 const formError = ref('')
 const editingReviewId = ref<number | null>(null)
+const templateSelectorOpen = ref(false)
+const formTemplateId = ref('')
 
 function openCreateForm() {
   editingReviewId.value = null
@@ -113,6 +195,8 @@ function openCreateForm() {
   formContent.value = ''
   formAnonymous.value = true
   formError.value = ''
+  formTemplateId.value = ''
+  templateSelectorOpen.value = false
   formVisible.value = true
 }
 
@@ -125,6 +209,8 @@ function startEdit(review: ReviewPayload) {
   formContent.value = review.content ?? ''
   formAnonymous.value = review.author.kind === 'anonymous'
   formError.value = ''
+  formTemplateId.value = ''
+  templateSelectorOpen.value = false
   formVisible.value = true
 }
 
@@ -132,6 +218,23 @@ function cancelForm() {
   formVisible.value = false
   editingReviewId.value = null
   formError.value = ''
+  templateSelectorOpen.value = false
+}
+
+function applyTemplate(id: string, content: string) {
+  // 保护：模板只应用于空正文，避免静默覆盖用户已输入/编辑中的内容。
+  if (formContent.value.trim()) {
+    pushFlash(t('courseDetailPage.templateContentNotEmpty'), 'warning')
+    return
+  }
+  formTemplateId.value = id
+  formContent.value = content
+  templateSelectorOpen.value = false
+}
+
+function templateName(id: string) {
+  const template = COURSE_REVIEW_TEMPLATES.find((item) => item.id === id)
+  return template ? t(template.nameKey) : ''
 }
 
 async function submitForm() {
@@ -164,8 +267,15 @@ async function submitForm() {
         content: formContent.value,
         isAnonymous: formAnonymous.value,
       })
+      reviewLoader.invalidate() // 使进行中的首屏 GET 过期，避免旧快照覆盖刚创建的评价
       reviews.value.unshift(created)
+      // 同步计数：创建后 +1（与下方删除路径递减口径一致），否则统计卡/评价区标题
+      // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
+      // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
+      reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      reviewLoaded.value = true
     }
+    invalidateReviews()
     formVisible.value = false
     editingReviewId.value = null
   } catch (error) {
@@ -175,13 +285,39 @@ async function submitForm() {
   }
 }
 
-async function removeReview(review: ReviewPayload) {
-  if (!window.confirm(t('courseDetailPage.confirmDeleteReview'))) return
+// ---- 删除确认（受控 Dialog，替代 window.confirm）----
+const pendingDelete = ref<ReviewPayload | null>(null)
+// deleting 防 in-flight 双击：删除请求未返回前禁止重复提交/取消，
+// 避免 pendingDelete 被中途置 null 导致"删 A 后误关 B 的 Dialog"竞态。
+const deleting = ref(false)
+
+function askRemoveReview(review: ReviewPayload) {
+  if (deleting.value) return
+  pendingDelete.value = review
+}
+
+function cancelRemoveReview() {
+  if (deleting.value) return
+  pendingDelete.value = null
+}
+
+async function confirmRemoveReview() {
+  const review = pendingDelete.value
+  if (!review || deleting.value) return
+  deleting.value = true
   try {
     await deleteCourseReview(review.id)
+    reviewLoader.invalidate() // 使进行中的 GET 过期，避免旧快照覆盖删除后的状态
     reviews.value = reviews.value.filter((item) => item.id !== review.id)
+    reviewTotal.value = nextReviewTotalOnDelete(reviewTotal.value)
+    pendingDelete.value = null
+    pushFlash(t('courseDetailPage.reviewDeleted'), 'success')
+    invalidateReviews()
   } catch (error) {
-    window.alert(error instanceof Error ? error.message : t('courseDetailPage.reviewDeleteFailed'))
+    pendingDelete.value = null
+    pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewDeleteFailed'), 'error')
+  } finally {
+    deleting.value = false
   }
 }
 
@@ -199,7 +335,7 @@ async function toggleHelpful(review: ReviewPayload) {
     review.viewer.isHelpful = next
     review.helpfulCount += next ? 1 : -1
   } catch (error) {
-    window.alert(error instanceof Error ? error.message : t('courseDetailPage.reviewHelpfulFailed'))
+    pushFlash(error instanceof Error ? error.message : t('courseDetailPage.reviewHelpfulFailed'), 'error')
   } finally {
     helpfulBusyIds.value = helpfulBusyIds.value.filter((id) => id !== review.id)
   }
@@ -276,6 +412,55 @@ onMounted(() => {
         {{ alias }}
       </span>
     </div>
+
+    <!-- 顶部统计区：平均分 + 评论数 + 评分分布条形 + 写评 CTA（B1 数据） -->
+    <section class="gf-panel mb-6 p-5">
+      <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
+        <div class="flex flex-col items-center sm:min-w-28">
+          <div class="text-4xl font-bold tracking-tight tabular-nums text-warning">
+            {{ ratingAvg != null ? ratingAvg.toFixed(1) : '—' }}
+          </div>
+          <div class="mt-0.5 text-[12px] text-base-content/50">{{ t('courseDetailPage.ratingOutOf') }}</div>
+          <div class="mt-1.5 text-[13px] text-base-content/60">
+            {{ t('courseDetailPage.reviewCountLabel', { count: statsReviewCount }, statsReviewCount) }}
+          </div>
+        </div>
+
+        <div class="min-w-0 flex-1 space-y-1.5">
+          <div v-for="row in distributionRows" :key="row.star" class="flex items-center gap-2">
+            <span class="w-8 shrink-0 text-right text-[12px] tabular-nums text-base-content/55">
+              {{ row.star }} {{ t('courseDetailPage.stars') }}
+            </span>
+            <div class="h-2 flex-1 overflow-hidden rounded-full bg-base-300/60">
+              <div
+                class="h-full rounded-full bg-warning"
+                :style="{ width: `${(row.count / distributionMax) * 100}%` }"
+              />
+            </div>
+            <span class="w-6 shrink-0 text-[12px] tabular-nums text-base-content/45">{{ row.count }}</span>
+          </div>
+        </div>
+
+        <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-center">
+          <button
+            v-if="page.layout.viewer.isAuthenticated && props.course.offerings?.length"
+            type="button"
+            class="gf-button gf-button-md gf-button-primary"
+            @click="openCreateForm"
+          >
+            <MessageSquareText class="h-4 w-4" />
+            {{ t('courseDetailPage.writeReview') }}
+          </button>
+          <a
+            v-else-if="!page.layout.viewer.isAuthenticated"
+            :href="loginHref"
+            class="gf-button gf-button-md gf-button-outline"
+          >
+            {{ t('courseDetailPage.loginToReview') }}
+          </a>
+        </div>
+      </div>
+    </section>
 
     <section class="gf-panel p-4">
       <h2 class="mb-3 text-base font-semibold text-base-content">
@@ -407,7 +592,7 @@ onMounted(() => {
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
-          <span v-if="reviews.length" class="ml-1 text-[13px] font-normal text-base-content/45">{{ reviews.length }}</span>
+          <span v-if="reviewTotal" class="ml-1 text-[13px] font-normal text-base-content/45">{{ reviewTotal }}</span>
         </h2>
         <button
           v-if="page.layout.viewer.isAuthenticated && props.course.offerings?.length"
@@ -493,6 +678,23 @@ onMounted(() => {
               maxlength="50000"
               :placeholder="t('courseDetailPage.contentPlaceholder')"
             />
+          </div>
+
+          <div>
+            <span class="mb-1.5 block text-[13px] text-base-content/70">{{ t('courseDetailPage.template') }}</span>
+            <div class="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                class="gf-button gf-button-sm gf-button-ghost"
+                @click="templateSelectorOpen = true"
+              >
+                <FileText class="h-4 w-4" />
+                {{ formTemplateId ? t('courseDetailPage.templateChange') : t('courseDetailPage.chooseTemplate') }}
+              </button>
+              <span v-if="formTemplateId" class="gf-badge gf-badge-muted text-[11px]">
+                {{ templateName(formTemplateId) }}
+              </span>
+            </div>
           </div>
 
           <label class="flex cursor-pointer items-center gap-2 text-[13px] text-base-content/75">
@@ -588,7 +790,7 @@ onMounted(() => {
               v-if="review.viewer.canDelete"
               type="button"
               class="gf-button gf-button-sm gf-button-ghost text-error"
-              @click="removeReview(review)"
+              @click="askRemoveReview(review)"
             >
               <Trash2 class="h-3.5 w-3.5" />
               {{ t('courseDetailPage.delete') }}
@@ -605,6 +807,16 @@ onMounted(() => {
           </div>
         </li>
       </ul>
+      <div v-if="reviewNextCursor" class="mt-4 flex justify-center">
+        <button
+          type="button"
+          class="btn btn-sm btn-ghost"
+          :disabled="reviewLoadingMore"
+          @click="loadMoreReviews"
+        >
+          {{ reviewLoadingMore ? t('courseDetailPage.reviewsLoading') : t('courseDetailPage.loadMoreReviews') }}
+        </button>
+      </div>
     </section>
 
     <!-- 举报弹窗 -->
@@ -665,5 +877,48 @@ onMounted(() => {
         </div>
       </div>
     </Teleport>
+
+    <!-- 删除确认 Dialog（受控，替代 window.confirm） -->
+    <Teleport to="body">
+      <div
+        v-if="pendingDelete"
+        class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
+        role="alertdialog"
+        aria-modal="true"
+        @click.self="cancelRemoveReview"
+      >
+        <div class="w-full max-w-sm rounded-[var(--gf-radius-box)] bg-base-100 p-5 shadow-lg ring-1 ring-line">
+          <div class="flex items-start justify-between gap-3">
+            <h2 class="text-base font-bold text-base-content">{{ t('courseDetailPage.confirmDeleteTitle') }}</h2>
+            <button
+              type="button"
+              class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75"
+              :aria-label="t('common.close')"
+              @click="cancelRemoveReview"
+            >
+              <X class="h-4 w-4" />
+            </button>
+          </div>
+          <p class="mt-3 text-sm text-base-content/75">{{ t('courseDetailPage.confirmDeleteReview') }}</p>
+          <div class="mt-4 flex justify-end gap-2">
+            <button type="button" class="gf-button gf-button-md gf-button-muted" :disabled="deleting" @click="cancelRemoveReview">
+              {{ t('common.cancel') }}
+            </button>
+            <button type="button" class="gf-button gf-button-md gf-button-danger" :disabled="deleting" @click="confirmRemoveReview">
+              <Loader2 v-if="deleting" class="h-4 w-4 animate-spin" />
+              <Trash2 v-else class="h-4 w-4" />
+              {{ t('courseDetailPage.delete') }}
+            </button>
+          </div>
+        </div>
+      </div>
+    </Teleport>
+
+    <!-- 写评模板选择器 -->
+    <CourseReviewTemplateSelector
+      :open="templateSelectorOpen"
+      @close="templateSelectorOpen = false"
+      @select="applyTemplate($event.id, $event.content)"
+    />
   </div>
 </template>

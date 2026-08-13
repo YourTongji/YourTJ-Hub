@@ -17,7 +17,7 @@ import (
 // TestSchemaMigratesOnPostgreSQL 验证全部主库模型能在 PostgreSQL 上完成 AutoMigrate。
 //
 // 回归背景（issue #8）：user_sessions / user_totp / user_totp_recovery_codes 曾硬编码
-// MySQL 专用类型（bigint unsigned / datetime / tinyint），在 PostgreSQL 上建表失败，
+// 方言专属类型（bigint unsigned / datetime / tinyint），在 PostgreSQL 上建表失败，
 // 而迁移错误只记日志不退出，服务带着残缺 schema 启动，登录/注册接口运行期才报错。
 //
 // 通过环境变量 YOURTJ_TEST_PG_URL 提供 PostgreSQL DSN；未设置时跳过。

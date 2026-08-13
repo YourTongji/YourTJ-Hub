@@ -988,6 +988,174 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/course-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List courses for management (CourseManager/Admin)
+         * @description CourseManager-scoped course list including hidden courses. Permission failures are a legacy
+         *     HTTP 200 business failure (`permission.denied`).
+         */
+        post: operations["adminCourseList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a course (CourseManager/Admin)
+         * @description CourseManager-scoped write. The primary code must be unique (409 `course.codeConflict`).
+         *     The created course is enqueued for search indexing in the same transaction.
+         */
+        post: operations["adminCourseCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update a course (CourseManager/Admin)
+         * @description CourseManager-scoped partial update. Field presence is the change signal; omitted fields are
+         *     left unchanged. Renaming syncs the search index via a transaction-bound outbox enqueue.
+         */
+        post: operations["adminCourseUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a course and cascade its reviews/offerings/stats (CourseManager/Admin)
+         * @description CourseManager-scoped write. Physically removes the course plus its offerings, instructor
+         *     links, aliases, reviews, helpful marks, and stats projections, and enqueues a search deletion.
+         *     Writes an audit log entry.
+         */
+        post: operations["adminCourseDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List course reviews for management (CourseManager/Admin)
+         * @description CourseManager-scoped review list including hidden and quarantine-deleted reviews, searchable
+         *     by course name/code/review body. Items never expose the reviewed author's identity.
+         */
+        post: operations["adminReviewList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a course review (CourseManager/Admin)
+         * @description CourseManager-scoped write. Rating changes adjust stats projections for visible reviews only.
+         */
+        post: operations["adminReviewUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-review-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently delete a course review (CourseManager/Admin)
+         * @description CourseManager-scoped write. Physically removes the review and its helpful marks; visible
+         *     reviews decrement stats projections.
+         */
+        post: operations["adminReviewDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/course-stats-rebuild": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a full course/offering stats rebuild (CourseManager/Admin)
+         * @description CourseManager-scoped write. Enqueues a background task that rebuilds all course/offering
+         *     stats projections from the review fact table (deduplicated against pending tasks).
+         */
+        post: operations["adminCourseStatsRebuild"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
@@ -1400,6 +1568,13 @@ export interface components {
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         CourseListResult: {
             list: components["schemas"]["CourseSummary"][];
@@ -1420,6 +1595,13 @@ export interface components {
             campus?: string;
             faculty?: string;
             instructors?: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average for this offering; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews for this offering. */
+            reviewCount?: number;
         };
         CourseDetail: {
             /** Format: uint64 */
@@ -1430,6 +1612,18 @@ export interface components {
             creditX10: number;
             aliases?: string[];
             offerings?: components["schemas"]["OfferingSummary"][];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+            /**
+             * @description Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+             *     Omitted when the course has no visible reviews.
+             */
+            ratingDistribution?: number[];
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
@@ -1471,9 +1665,31 @@ export interface components {
             createdAt: string;
             /** Format: date-time */
             updatedAt: string;
+            /**
+             * Format: double
+             * @description Non-NULL rating average of the review's offering (PRD §5.1 B1).
+             *     Present only when the listing is scoped to a single offering and the
+             *     offering has at least one rated review.
+             */
+            offeringRatingAvg?: number;
+            /** @description Number of visible reviews of the review's offering (offering-scoped listing only). */
+            offeringReviewCount?: number;
         };
-        /** @description The raw review array; an empty listing is an empty array, never null. */
-        ReviewListResult: components["schemas"]["ReviewPayload"][];
+        ReviewListResult: {
+            /** @description The current page of visible reviews; an empty listing is an empty array, never null. */
+            list: components["schemas"]["ReviewPayload"][];
+            /**
+             * @description Cursor for the next page, present only when more reviews exist.
+             *     Format is "offeringId:reviewId" of the last item of the current page
+             *     (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+             */
+            nextCursor?: string;
+            /**
+             * Format: int64
+             * @description Total number of visible reviews matching the current scope (course or offering filter).
+             */
+            total: number;
+        };
         ReviewListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["ReviewListResult"];
         }) | components["schemas"]["ApiFailure"];
@@ -1588,6 +1804,119 @@ export interface components {
         ModerationCourseReviewRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseReviewAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        AdminCourseListRequest: {
+            /** @description Matches normalized name, primary code, aliases, pinyin, initials, or instructor names. */
+            keyword?: string;
+            department?: string;
+            /** @default 1 */
+            page: number;
+            /** @default 20 */
+            pageSize: number;
+        };
+        AdminCourseItem: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral. */
+            creditX10: number;
+            /**
+             * @description 0 visible, 1 hidden.
+             * @enum {integer}
+             */
+            status: 0 | 1;
+            aliases: string[];
+            instructors: string[];
+            reviewCount: number;
+            /** @description Average rating across visible reviews; omitted when no rated reviews. */
+            ratingAvg?: number;
+            createdAt: string;
+        };
+        AdminCourseListResult: {
+            list: components["schemas"]["AdminCourseItem"][];
+            page: number;
+            size: number;
+            /** Format: int64 */
+            total: number;
+            hasNext: boolean;
+        };
+        AdminCourseListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseItemResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminCourseItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCourseCreateRequest: {
+            primaryCode: string;
+            name: string;
+            department?: string;
+            creditX10?: number;
+            aliases?: string[];
+            instructors?: string[];
+        };
+        AdminCourseUpdateRequest: {
+            /** Format: uint64 */
+            courseId: number;
+            primaryCode?: string;
+            name?: string;
+            department?: string;
+            creditX10?: number;
+            aliases?: string[];
+            instructors?: string[];
+        };
+        AdminCourseDeleteRequest: {
+            /** Format: uint64 */
+            courseId: number;
+        };
+        AdminReviewItem: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            offeringId: number;
+            /** Format: uint64 */
+            courseId: number;
+            courseCode: string;
+            courseName: string;
+            rating?: number;
+            content: string;
+            /**
+             * @description 0 visible, 1 hidden, 2 deleted (quarantine window).
+             * @enum {integer}
+             */
+            status: 0 | 1 | 2;
+            author: components["schemas"]["ReviewAuthorPayload"];
+            createdAt: string;
+            updatedAt: string;
+        };
+        AdminReviewListRequest: {
+            /** @description Matches course name, primary code, or review body. */
+            keyword?: string;
+            /** @description -1 all; 0/1/2 filter by status. Defaults to -1. */
+            status?: number;
+            /** Format: uint64 */
+            cursor?: number;
+            pageSize?: number;
+        };
+        AdminReviewListResult: {
+            items: components["schemas"]["AdminReviewItem"][];
+            /** Format: uint64 */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        AdminReviewListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminReviewListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminReviewUpdateRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+            rating?: number;
+            content?: string;
+        };
+        AdminReviewDeleteRequest: {
+            /** Format: uint64 */
+            reviewId: number;
+        };
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -1931,6 +2260,13 @@ export interface components {
             instructors: string[];
             terms: string[];
             campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
         };
         PaginationPayload: {
             page: number;
@@ -2879,6 +3215,9 @@ export interface operations {
                 department?: string;
                 term?: string;
                 campus?: string;
+                instructor?: string;
+                onlyWithReviews?: boolean;
+                sortBy?: string;
                 page?: number;
                 size?: number;
             };
@@ -3019,6 +3358,8 @@ export interface operations {
         parameters: {
             query?: {
                 offeringId?: number;
+                cursor?: string;
+                pageSize?: number;
             };
             header?: never;
             path: {
@@ -4161,6 +4502,320 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    adminCourseList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of courses, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description The created course item, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Primary code already used by another course. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated course item, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCourseItemResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or was deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Primary code already used by another course. */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCourseDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or was deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewListRequest"];
+            };
+        };
+        responses: {
+            /** @description One page of reviews, or a permission business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description The updated review payload, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewWriteResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Review does not exist or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Boolean success result, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Review does not exist or is deleted. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCourseStatsRebuild: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Boolean success with a `course.statsRebuildQueued` message code, or a business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReviewActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
