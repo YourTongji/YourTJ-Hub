@@ -84,6 +84,13 @@ log "built wiki image $IMAGE:$IMAGE_TAG"
 
 # 3. 更新 .env tag 并启动 wiki 实例
 sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$IMAGE_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+# 写入断言(security N2): 若运维漏跑 init-server 补齐 WIKI_* 变量, sed 无匹配
+# 会静默成功 → compose 回退 latest → pull 失败; 这里显式检查写入结果,
+# 失败立即报错(FATAL 前置检查覆盖)
+if ! grep -q "^$TAG_VAR=$IMAGE_TAG$" "$ENV_FILE"; then
+  log "FATAL: $ENV_FILE 缺少 $TAG_VAR 行或写入失败(需重跑 init-server.sh 补齐 WIKI_* 变量)"
+  exit 1
+fi
 docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "$SERVICE"
 log "compose up $SERVICE with $IMAGE_TAG"
 

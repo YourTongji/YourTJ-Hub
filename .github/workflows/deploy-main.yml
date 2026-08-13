@@ -28,7 +28,12 @@ jobs:
         run: |
           cd wiki
           COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install --frozen-lockfile
-          VITE_WALINE_SERVER_URL="${{ secrets.WIKI_WALINE_SERVER_URL }}" pnpm build
+          pnpm build
+        # secret 经 env 映射注入(security N1): 避免内联 shell 展开
+        # 引入命令注入面(secret 内容变化时); 未配置时为空串,
+        # Layout.vue trim 后判定为无评论, 构建不失败
+        env:
+          VITE_WALINE_SERVER_URL: ${{ secrets.WIKI_WALINE_SERVER_URL }}
       - name: Package wiki dist
         run: tar -czf wiki-dist.tar.gz -C wiki/.vitepress/dist .
       - name: Upload wiki dist artifact
