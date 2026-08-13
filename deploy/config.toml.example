@@ -29,8 +29,10 @@ spec = "0 3 * * *"
 [db.default]
 # 主库连接类型: postgres（部署默认）/ sqlite（本地开发；文件库 [db.file] 固定 sqlite）
 connection = "postgres"
-# postgres: "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
-url = "host=db_host user=db_user password=db_pass dbname=db_name port=5432 sslmode=disable"
+# 部署时由 init-server.sh 用 .env 的 POSTGRES_* 生成真实 DSN 替换
+# （main/dev 分别使用 yourtj_main / yourtj_dev 数据库）。
+# postgres: "host=postgres user=... password=... dbname=... port=5432 sslmode=disable"
+url = "REPLACE_POSTGRES_DSN"
 path = "./storage/database/sqlite.db"
 maxIdleConnections = 3
 maxOpenConnections = 5

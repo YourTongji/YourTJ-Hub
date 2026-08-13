@@ -253,29 +253,31 @@ BLOBs) is fixed SQLite. MySQL is **not supported** and its connection driver was
 
 ### Deploy on PostgreSQL
 
-1. The `postgres` service is defined in `deploy/docker-compose.yaml` (enabled by default); set
-   `POSTGRES_USER` / `POSTGRES_PASSWORD` in `/opt/yourtj/.env` (see `deploy/env.example`).
-2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
-   SQLite deployment model (dev is one-way synced from main, never written directly):
-   ```bash
-   # 在 postgres 容器内执行
-   docker compose exec postgres psql -U yourtj -d postgres -c \
-     "CREATE DATABASE yourtj_main; CREATE DATABASE yourtj_dev;"
-   ```
-   Do **not** point both instances at the same database — dev migrations/writes would land on
-   production data.
-3. In `main/config.toml` set:
+Fresh installs default to PostgreSQL end to end — `init-server.sh` does the
+provisioning automatically:
+
+1. Generates `POSTGRES_USER` / a random `POSTGRES_PASSWORD` / `POSTGRES_DB` into
+   `/opt/yourtj/.env` (missing keys are appended on existing servers; empty
+   `POSTGRES_PASSWORD` is replaced with a random value).
+2. Starts the `postgres` service (defined in `deploy/docker-compose.yaml`) and waits for it,
+   then creates **two separate databases** — `yourtj_main` and `yourtj_dev` — so main
+   (production) and dev (test) stay isolated (dev is one-way synced from main, never written
+   directly). Do **not** point both instances at the same database — dev migrations/writes
+   would land on production data.
+3. Generates `main/config.toml` / `dev/config.toml` from `deploy/config.toml.example`,
+   substituting `REPLACE_POSTGRES_DSN` with a real DSN per instance:
    ```toml
    [db.default]
    connection = "postgres"
-   url = "host=postgres user=yourtj password=<secret> dbname=yourtj_main port=5432 sslmode=disable"
+   url = "host=postgres user=<user> password=<secret> dbname=yourtj_main port=5432 sslmode=disable"  # dev 用 yourtj_dev
    ```
-   In `dev/config.toml` use the same DSN but `dbname=yourtj_dev`. `host=postgres` is the Compose
-   service name: the forum and postgres containers share the compose network, so `127.0.0.1` inside
-   the forum container would point at the forum container itself and fail to connect.
-   `url` accepts libpq key=value or URL DSN formats.
-4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
-   versioned data migrations v1-v12 from scratch, then serves.
+   `host=postgres` is the Compose service name: the forum and postgres containers share the
+   compose network, so `127.0.0.1` inside the forum container would point at the forum
+   container itself and fail to connect. `url` accepts libpq key=value or URL DSN formats.
+4. Start the instance (`deploy.sh` / `docker compose up -d main dev`; compose starts
+   `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
+   AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
+   serves.
 
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
