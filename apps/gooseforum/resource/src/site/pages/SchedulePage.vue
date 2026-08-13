@@ -3,7 +3,7 @@
 // 桌面双栏（选课列表 + 课程班级）+ 下方课表；移动端三 tab（课表/选课/详情）。
 // 数据全部走 /api/pk/* JSON API 异步加载（SSR 空壳）；localStorage 持久化由 store 负责。
 // 数据过期提示 + 「同步最新」：P11 latest-update 对比本地 updateTime，P12 course-info-sync 增量保留已选。
-import { computed, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { Download, RefreshCw } from '@lucide/vue'
 import PageHeader from '@/site/components/PageHeader.vue'
@@ -37,6 +37,24 @@ const pickerOpen = ref(false)
 const conflictDetail = ref<PkCourseDetail | null>(null)
 const conflictList = ref<PkConflictItem[]>([])
 const detailCourse = ref<PkCourseOnTable | null>(null)
+
+// ---- 导出菜单（gf-menu-surface 受控模式，参照 SiteSelect.vue / AppShell.vue）----
+const exportOpen = ref(false)
+const exportMenuRoot = ref<HTMLElement | null>(null)
+
+function closeExportMenu() {
+  exportOpen.value = false
+}
+
+function handleExportMenuPointerDown(event: PointerEvent) {
+  const target = event.target
+  if (target instanceof Node && exportMenuRoot.value?.contains(target)) return
+  closeExportMenu()
+}
+
+function handleExportMenuKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') closeExportMenu()
+}
 
 const dataOutdated = computed(() => store.state.flags.isDataOutdated)
 
@@ -173,7 +191,14 @@ onMounted(() => {
   }
   apply()
   query.addEventListener('change', apply)
+  document.addEventListener('pointerdown', handleExportMenuPointerDown)
+  window.addEventListener('keydown', handleExportMenuKeydown)
   void checkDataOutdated()
+})
+
+onBeforeUnmount(() => {
+  document.removeEventListener('pointerdown', handleExportMenuPointerDown)
+  window.removeEventListener('keydown', handleExportMenuKeydown)
 })
 </script>
 
@@ -191,23 +216,29 @@ onMounted(() => {
             <RefreshCw class="h-4 w-4" />
             {{ t('schedule.syncLatest') }}
           </button>
-          <div class="dropdown dropdown-end">
-            <button type="button" tabindex="0" class="gf-button gf-button-md gf-button-outline">
+          <div ref="exportMenuRoot" class="relative">
+            <button
+              type="button"
+              class="gf-button gf-button-md gf-button-outline"
+              :aria-expanded="exportOpen"
+              @click="exportOpen = !exportOpen"
+            >
               <Download class="h-4 w-4" />
               {{ t('schedule.export') }}
             </button>
-            <ul tabindex="0" class="menu dropdown-content z-30 mt-1 w-48 rounded-box border border-line/70 bg-base-100 p-1 shadow-lg">
-              <li>
-                <button type="button" class="gf-menu-item" @click="exportCsv">
+            <Transition name="gf-menu">
+              <div
+                v-if="exportOpen"
+                class="gf-menu-surface absolute right-0 top-[calc(100%+0.375rem)] z-30 w-48 overflow-hidden p-1"
+              >
+                <button type="button" class="gf-menu-item w-full" @click="exportCsv">
                   {{ t('schedule.exportCsv') }}
                 </button>
-              </li>
-              <li>
-                <button type="button" class="gf-menu-item" @click="exportXls">
+                <button type="button" class="gf-menu-item w-full" @click="exportXls">
                   {{ t('schedule.exportXls') }}
                 </button>
-              </li>
-            </ul>
+              </div>
+            </Transition>
           </div>
         </div>
       </template>
