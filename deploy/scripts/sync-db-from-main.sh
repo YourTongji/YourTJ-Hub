@@ -84,10 +84,16 @@ if [ "$MAIN_MODE" = "postgres" ] && [ "$DEV_MODE" = "postgres" ]; then
   fi
   # 参数化(review S3): dbname 经 psql -v 变量传递, :"devpg" 由 psql 做
   # SQL 标识符引用(内部引号转义), 消除 dbname 插值进 SQL 字符串的注入面。
-  docker exec -e DEV_PG="$DEV_PG" yourtj-postgres psql -U yourtj -d postgres \
-    -v devpg="$DEV_PG" \
-    -c 'DROP DATABASE IF EXISTS :"devpg";' \
-    -c 'CREATE DATABASE :"devpg";' >/dev/null
+  # 注(fix #163 回归): psql -c 传入的 SQL 不做 psql 变量插值(官方文档:
+  # -c 内容必须可被服务端完整解析、不含 psql 特有特性), :"devpg" 会被
+  # 原样发给服务端报 syntax error at or near ":"; SQL 必须经 stdin 喂给
+  # psql(:var 插值仅在 stdin/-f/交互输入路径生效)。ON_ERROR_STOP=1 保证
+  # 任一语句失败立即非零退出, 配合 set -e 阻断后续部署。
+  docker exec -i yourtj-postgres psql -U yourtj -d postgres \
+    -v devpg="$DEV_PG" -v ON_ERROR_STOP=1 >/dev/null <<'SQL'
+DROP DATABASE IF EXISTS :"devpg";
+CREATE DATABASE :"devpg";
+SQL
   # 命令注入防护(review S3): dbname 经环境变量(-e)传入容器, 内层 sh -c
   # 只做变量展开不做语法解析, 恶意 dbname(如 %22%3B touch /tmp/PWN %3B)
   # 无法逃逸引号执行任意命令; 管道两侧的 $MAIN_PG/$DEV_PG 均由容器内
