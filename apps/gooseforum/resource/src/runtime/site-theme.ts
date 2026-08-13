@@ -101,6 +101,19 @@ export function setTheme(theme: SiteTheme) {
     // Ignore storage failures in private or restricted browsing contexts.
   }
 }
+// 引用计数：连续快速切换时，每个进行中的 view transition 占一个引用，
+// 只有最后一个完成（或全部失败回退）才移除抑制 class。
+let themeSwitchingRefs = 0
+
+function setThemeSwitching(active: boolean) {
+  themeSwitchingRefs = Math.max(0, themeSwitchingRefs + (active ? 1 : -1))
+  const root = document.documentElement
+  if (themeSwitchingRefs > 0) {
+    root.classList.add(THEME_SWITCHING_CLASS)
+  } else {
+    root.classList.remove(THEME_SWITCHING_CLASS)
+  }
+}
 
 function applyThemeWithTransition(theme: SiteTheme) {
   const apply = () => setTheme(theme)
@@ -111,16 +124,15 @@ function applyThemeWithTransition(theme: SiteTheme) {
   // 抑制元素级 CSS transition（导航/标签/按钮上并发 color/background 过渡，
   // 与 view transition 叠加会拥塞主线程样式与绘制），只保留 view transition 自身。
   // 在 startViewTransition 之前同步加上，确保新旧快照捕获时都处于抑制状态。
-  const root = document.documentElement
-  root.classList.add(THEME_SWITCHING_CLASS)
+  setThemeSwitching(true)
   try {
     const transition = document.startViewTransition(apply)
     transition.finished
       .catch(() => {})
-      .finally(() => root.classList.remove(THEME_SWITCHING_CLASS))
+      .finally(() => setThemeSwitching(false))
   } catch {
     apply()
-    root.classList.remove(THEME_SWITCHING_CLASS)
+    setThemeSwitching(false)
   }
 }
 
