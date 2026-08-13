@@ -8,10 +8,10 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
+	"github.com/gin-gonic/gin"
 	"github.com/spf13/cast"
 )
 
@@ -106,6 +106,31 @@ func CourseDetailJSON(req component.BetterRequest[CourseDetailReq]) component.Re
 			component.FailDataCode(component.MessageOperationFailed, nil))
 	}
 	return component.SuccessResponse(detail)
+}
+
+// CourseRelatedReq 相关课程 JSON API 请求参数。
+type CourseRelatedReq struct {
+	CourseId uint64 `uri:"courseId"`
+}
+
+// CourseRelatedJSON 相关课程 JSON API（公开只读）：同教师其他课 + 同课程其他教师，
+// 各前 5 条带评分与评论数。课程不存在或已隐藏时返回 404（与 CourseDetailJSON 一致）。
+func CourseRelatedJSON(req component.BetterRequest[CourseRelatedReq]) component.Response {
+	if req.Params.CourseId == 0 {
+		return component.BuildResponse(http.StatusBadRequest,
+			component.FailDataCode(component.MessageRequestInvalidParams, nil))
+	}
+	related, err := courseservice.GetCourseRelated(req.Params.CourseId)
+	if err != nil {
+		if errors.Is(err, courseservice.ErrCourseNotFound) {
+			return component.BuildResponse(http.StatusNotFound,
+				component.FailDataCode(component.MessagePageNotFound, nil))
+		}
+		slog.Error("course_related_read_failed", "courseId", req.Params.CourseId, "error", err)
+		return component.BuildResponse(http.StatusInternalServerError,
+			component.FailDataCode(component.MessageOperationFailed, nil))
+	}
+	return component.SuccessResponse(related)
 }
 
 // buildCourseCatalogProps 构建课程目录 SSR props；分页与分页回显以 service 归一化后的结果为准。

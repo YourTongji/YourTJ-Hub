@@ -2207,3 +2207,897 @@ abstract class _CourseReviewAuthorRevealPayload
   >
   get copyWith => throw _privateConstructorUsedError;
 }
+
+RelatedCourseItem _$RelatedCourseItemFromJson(Map<String, dynamic> json) {
+  return _RelatedCourseItem.fromJson(json);
+}
+
+/// @nodoc
+mixin _$RelatedCourseItem {
+  int get id => throw _privateConstructorUsedError;
+  String get primaryCode => throw _privateConstructorUsedError;
+  String get name => throw _privateConstructorUsedError;
+  String get department => throw _privateConstructorUsedError;
+  List<String>? get instructors => throw _privateConstructorUsedError;
+  double get ratingAvg => throw _privateConstructorUsedError;
+  int get ratingCount => throw _privateConstructorUsedError;
+  int get reviewCount => throw _privateConstructorUsedError;
+
+  /// Serializes this RelatedCourseItem to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of RelatedCourseItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $RelatedCourseItemCopyWith<RelatedCourseItem> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $RelatedCourseItemCopyWith<$Res> {
+  factory $RelatedCourseItemCopyWith(
+    RelatedCourseItem value,
+    $Res Function(RelatedCourseItem) then,
+  ) = _$RelatedCourseItemCopyWithImpl<$Res, RelatedCourseItem>;
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    List<String>? instructors,
+    double ratingAvg,
+    int ratingCount,
+    int reviewCount,
+  });
+}
+
+/// @nodoc
+class _$RelatedCourseItemCopyWithImpl<$Res, $Val extends RelatedCourseItem>
+    implements $RelatedCourseItemCopyWith<$Res> {
+  _$RelatedCourseItemCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of RelatedCourseItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? instructors = freezed,
+    Object? ratingAvg = null,
+    Object? ratingCount = null,
+    Object? reviewCount = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            id: null == id
+                ? _value.id
+                : id // ignore: cast_nullable_to_non_nullable
+                      as int,
+            primaryCode: null == primaryCode
+                ? _value.primaryCode
+                : primaryCode // ignore: cast_nullable_to_non_nullable
+                      as String,
+            name: null == name
+                ? _value.name
+                : name // ignore: cast_nullable_to_non_nullable
+                      as String,
+            department: null == department
+                ? _value.department
+                : department // ignore: cast_nullable_to_non_nullable
+                      as String,
+            instructors: freezed == instructors
+                ? _value.instructors
+                : instructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            ratingAvg: null == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double,
+            ratingCount: null == ratingCount
+                ? _value.ratingCount
+                : ratingCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            reviewCount: null == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$RelatedCourseItemImplCopyWith<$Res>
+    implements $RelatedCourseItemCopyWith<$Res> {
+  factory _$$RelatedCourseItemImplCopyWith(
+    _$RelatedCourseItemImpl value,
+    $Res Function(_$RelatedCourseItemImpl) then,
+  ) = __$$RelatedCourseItemImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int id,
+    String primaryCode,
+    String name,
+    String department,
+    List<String>? instructors,
+    double ratingAvg,
+    int ratingCount,
+    int reviewCount,
+  });
+}
+
+/// @nodoc
+class __$$RelatedCourseItemImplCopyWithImpl<$Res>
+    extends _$RelatedCourseItemCopyWithImpl<$Res, _$RelatedCourseItemImpl>
+    implements _$$RelatedCourseItemImplCopyWith<$Res> {
+  __$$RelatedCourseItemImplCopyWithImpl(
+    _$RelatedCourseItemImpl _value,
+    $Res Function(_$RelatedCourseItemImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RelatedCourseItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? id = null,
+    Object? primaryCode = null,
+    Object? name = null,
+    Object? department = null,
+    Object? instructors = freezed,
+    Object? ratingAvg = null,
+    Object? ratingCount = null,
+    Object? reviewCount = null,
+  }) {
+    return _then(
+      _$RelatedCourseItemImpl(
+        id: null == id
+            ? _value.id
+            : id // ignore: cast_nullable_to_non_nullable
+                  as int,
+        primaryCode: null == primaryCode
+            ? _value.primaryCode
+            : primaryCode // ignore: cast_nullable_to_non_nullable
+                  as String,
+        name: null == name
+            ? _value.name
+            : name // ignore: cast_nullable_to_non_nullable
+                  as String,
+        department: null == department
+            ? _value.department
+            : department // ignore: cast_nullable_to_non_nullable
+                  as String,
+        instructors: freezed == instructors
+            ? _value._instructors
+            : instructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        ratingAvg: null == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double,
+        ratingCount: null == ratingCount
+            ? _value.ratingCount
+            : ratingCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        reviewCount: null == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$RelatedCourseItemImpl implements _RelatedCourseItem {
+  const _$RelatedCourseItemImpl({
+    required this.id,
+    required this.primaryCode,
+    required this.name,
+    required this.department,
+    final List<String>? instructors,
+    required this.ratingAvg,
+    required this.ratingCount,
+    required this.reviewCount,
+  }) : _instructors = instructors;
+
+  factory _$RelatedCourseItemImpl.fromJson(Map<String, dynamic> json) =>
+      _$$RelatedCourseItemImplFromJson(json);
+
+  @override
+  final int id;
+  @override
+  final String primaryCode;
+  @override
+  final String name;
+  @override
+  final String department;
+  final List<String>? _instructors;
+  @override
+  List<String>? get instructors {
+    final value = _instructors;
+    if (value == null) return null;
+    if (_instructors is EqualUnmodifiableListView) return _instructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  final double ratingAvg;
+  @override
+  final int ratingCount;
+  @override
+  final int reviewCount;
+
+  @override
+  String toString() {
+    return 'RelatedCourseItem(id: $id, primaryCode: $primaryCode, name: $name, department: $department, instructors: $instructors, ratingAvg: $ratingAvg, ratingCount: $ratingCount, reviewCount: $reviewCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RelatedCourseItemImpl &&
+            (identical(other.id, id) || other.id == id) &&
+            (identical(other.primaryCode, primaryCode) ||
+                other.primaryCode == primaryCode) &&
+            (identical(other.name, name) || other.name == name) &&
+            (identical(other.department, department) ||
+                other.department == department) &&
+            const DeepCollectionEquality().equals(
+              other._instructors,
+              _instructors,
+            ) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.ratingCount, ratingCount) ||
+                other.ratingCount == ratingCount) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    id,
+    primaryCode,
+    name,
+    department,
+    const DeepCollectionEquality().hash(_instructors),
+    ratingAvg,
+    ratingCount,
+    reviewCount,
+  );
+
+  /// Create a copy of RelatedCourseItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$RelatedCourseItemImplCopyWith<_$RelatedCourseItemImpl> get copyWith =>
+      __$$RelatedCourseItemImplCopyWithImpl<_$RelatedCourseItemImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$RelatedCourseItemImplToJson(this);
+  }
+}
+
+abstract class _RelatedCourseItem implements RelatedCourseItem {
+  const factory _RelatedCourseItem({
+    required final int id,
+    required final String primaryCode,
+    required final String name,
+    required final String department,
+    final List<String>? instructors,
+    required final double ratingAvg,
+    required final int ratingCount,
+    required final int reviewCount,
+  }) = _$RelatedCourseItemImpl;
+
+  factory _RelatedCourseItem.fromJson(Map<String, dynamic> json) =
+      _$RelatedCourseItemImpl.fromJson;
+
+  @override
+  int get id;
+  @override
+  String get primaryCode;
+  @override
+  String get name;
+  @override
+  String get department;
+  @override
+  List<String>? get instructors;
+  @override
+  double get ratingAvg;
+  @override
+  int get ratingCount;
+  @override
+  int get reviewCount;
+
+  /// Create a copy of RelatedCourseItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$RelatedCourseItemImplCopyWith<_$RelatedCourseItemImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+RelatedTeacherOfferingItem _$RelatedTeacherOfferingItemFromJson(
+  Map<String, dynamic> json,
+) {
+  return _RelatedTeacherOfferingItem.fromJson(json);
+}
+
+/// @nodoc
+mixin _$RelatedTeacherOfferingItem {
+  int get offeringId => throw _privateConstructorUsedError;
+  String? get termCode => throw _privateConstructorUsedError;
+  String? get termName => throw _privateConstructorUsedError;
+  String? get campus => throw _privateConstructorUsedError;
+  List<String>? get instructors => throw _privateConstructorUsedError;
+  double get ratingAvg => throw _privateConstructorUsedError;
+  int get ratingCount => throw _privateConstructorUsedError;
+  int get reviewCount => throw _privateConstructorUsedError;
+
+  /// Serializes this RelatedTeacherOfferingItem to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of RelatedTeacherOfferingItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $RelatedTeacherOfferingItemCopyWith<RelatedTeacherOfferingItem>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $RelatedTeacherOfferingItemCopyWith<$Res> {
+  factory $RelatedTeacherOfferingItemCopyWith(
+    RelatedTeacherOfferingItem value,
+    $Res Function(RelatedTeacherOfferingItem) then,
+  ) =
+      _$RelatedTeacherOfferingItemCopyWithImpl<
+        $Res,
+        RelatedTeacherOfferingItem
+      >;
+  @useResult
+  $Res call({
+    int offeringId,
+    String? termCode,
+    String? termName,
+    String? campus,
+    List<String>? instructors,
+    double ratingAvg,
+    int ratingCount,
+    int reviewCount,
+  });
+}
+
+/// @nodoc
+class _$RelatedTeacherOfferingItemCopyWithImpl<
+  $Res,
+  $Val extends RelatedTeacherOfferingItem
+>
+    implements $RelatedTeacherOfferingItemCopyWith<$Res> {
+  _$RelatedTeacherOfferingItemCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of RelatedTeacherOfferingItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? offeringId = null,
+    Object? termCode = freezed,
+    Object? termName = freezed,
+    Object? campus = freezed,
+    Object? instructors = freezed,
+    Object? ratingAvg = null,
+    Object? ratingCount = null,
+    Object? reviewCount = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            offeringId: null == offeringId
+                ? _value.offeringId
+                : offeringId // ignore: cast_nullable_to_non_nullable
+                      as int,
+            termCode: freezed == termCode
+                ? _value.termCode
+                : termCode // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            termName: freezed == termName
+                ? _value.termName
+                : termName // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            campus: freezed == campus
+                ? _value.campus
+                : campus // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            instructors: freezed == instructors
+                ? _value.instructors
+                : instructors // ignore: cast_nullable_to_non_nullable
+                      as List<String>?,
+            ratingAvg: null == ratingAvg
+                ? _value.ratingAvg
+                : ratingAvg // ignore: cast_nullable_to_non_nullable
+                      as double,
+            ratingCount: null == ratingCount
+                ? _value.ratingCount
+                : ratingCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+            reviewCount: null == reviewCount
+                ? _value.reviewCount
+                : reviewCount // ignore: cast_nullable_to_non_nullable
+                      as int,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$RelatedTeacherOfferingItemImplCopyWith<$Res>
+    implements $RelatedTeacherOfferingItemCopyWith<$Res> {
+  factory _$$RelatedTeacherOfferingItemImplCopyWith(
+    _$RelatedTeacherOfferingItemImpl value,
+    $Res Function(_$RelatedTeacherOfferingItemImpl) then,
+  ) = __$$RelatedTeacherOfferingItemImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    int offeringId,
+    String? termCode,
+    String? termName,
+    String? campus,
+    List<String>? instructors,
+    double ratingAvg,
+    int ratingCount,
+    int reviewCount,
+  });
+}
+
+/// @nodoc
+class __$$RelatedTeacherOfferingItemImplCopyWithImpl<$Res>
+    extends
+        _$RelatedTeacherOfferingItemCopyWithImpl<
+          $Res,
+          _$RelatedTeacherOfferingItemImpl
+        >
+    implements _$$RelatedTeacherOfferingItemImplCopyWith<$Res> {
+  __$$RelatedTeacherOfferingItemImplCopyWithImpl(
+    _$RelatedTeacherOfferingItemImpl _value,
+    $Res Function(_$RelatedTeacherOfferingItemImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of RelatedTeacherOfferingItem
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? offeringId = null,
+    Object? termCode = freezed,
+    Object? termName = freezed,
+    Object? campus = freezed,
+    Object? instructors = freezed,
+    Object? ratingAvg = null,
+    Object? ratingCount = null,
+    Object? reviewCount = null,
+  }) {
+    return _then(
+      _$RelatedTeacherOfferingItemImpl(
+        offeringId: null == offeringId
+            ? _value.offeringId
+            : offeringId // ignore: cast_nullable_to_non_nullable
+                  as int,
+        termCode: freezed == termCode
+            ? _value.termCode
+            : termCode // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        termName: freezed == termName
+            ? _value.termName
+            : termName // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        campus: freezed == campus
+            ? _value.campus
+            : campus // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        instructors: freezed == instructors
+            ? _value._instructors
+            : instructors // ignore: cast_nullable_to_non_nullable
+                  as List<String>?,
+        ratingAvg: null == ratingAvg
+            ? _value.ratingAvg
+            : ratingAvg // ignore: cast_nullable_to_non_nullable
+                  as double,
+        ratingCount: null == ratingCount
+            ? _value.ratingCount
+            : ratingCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+        reviewCount: null == reviewCount
+            ? _value.reviewCount
+            : reviewCount // ignore: cast_nullable_to_non_nullable
+                  as int,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$RelatedTeacherOfferingItemImpl implements _RelatedTeacherOfferingItem {
+  const _$RelatedTeacherOfferingItemImpl({
+    required this.offeringId,
+    this.termCode,
+    this.termName,
+    this.campus,
+    final List<String>? instructors,
+    required this.ratingAvg,
+    required this.ratingCount,
+    required this.reviewCount,
+  }) : _instructors = instructors;
+
+  factory _$RelatedTeacherOfferingItemImpl.fromJson(
+    Map<String, dynamic> json,
+  ) => _$$RelatedTeacherOfferingItemImplFromJson(json);
+
+  @override
+  final int offeringId;
+  @override
+  final String? termCode;
+  @override
+  final String? termName;
+  @override
+  final String? campus;
+  final List<String>? _instructors;
+  @override
+  List<String>? get instructors {
+    final value = _instructors;
+    if (value == null) return null;
+    if (_instructors is EqualUnmodifiableListView) return _instructors;
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(value);
+  }
+
+  @override
+  final double ratingAvg;
+  @override
+  final int ratingCount;
+  @override
+  final int reviewCount;
+
+  @override
+  String toString() {
+    return 'RelatedTeacherOfferingItem(offeringId: $offeringId, termCode: $termCode, termName: $termName, campus: $campus, instructors: $instructors, ratingAvg: $ratingAvg, ratingCount: $ratingCount, reviewCount: $reviewCount)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$RelatedTeacherOfferingItemImpl &&
+            (identical(other.offeringId, offeringId) ||
+                other.offeringId == offeringId) &&
+            (identical(other.termCode, termCode) ||
+                other.termCode == termCode) &&
+            (identical(other.termName, termName) ||
+                other.termName == termName) &&
+            (identical(other.campus, campus) || other.campus == campus) &&
+            const DeepCollectionEquality().equals(
+              other._instructors,
+              _instructors,
+            ) &&
+            (identical(other.ratingAvg, ratingAvg) ||
+                other.ratingAvg == ratingAvg) &&
+            (identical(other.ratingCount, ratingCount) ||
+                other.ratingCount == ratingCount) &&
+            (identical(other.reviewCount, reviewCount) ||
+                other.reviewCount == reviewCount));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    offeringId,
+    termCode,
+    termName,
+    campus,
+    const DeepCollectionEquality().hash(_instructors),
+    ratingAvg,
+    ratingCount,
+    reviewCount,
+  );
+
+  /// Create a copy of RelatedTeacherOfferingItem
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$RelatedTeacherOfferingItemImplCopyWith<_$RelatedTeacherOfferingItemImpl>
+  get copyWith =>
+      __$$RelatedTeacherOfferingItemImplCopyWithImpl<
+        _$RelatedTeacherOfferingItemImpl
+      >(this, _$identity);
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$RelatedTeacherOfferingItemImplToJson(this);
+  }
+}
+
+abstract class _RelatedTeacherOfferingItem
+    implements RelatedTeacherOfferingItem {
+  const factory _RelatedTeacherOfferingItem({
+    required final int offeringId,
+    final String? termCode,
+    final String? termName,
+    final String? campus,
+    final List<String>? instructors,
+    required final double ratingAvg,
+    required final int ratingCount,
+    required final int reviewCount,
+  }) = _$RelatedTeacherOfferingItemImpl;
+
+  factory _RelatedTeacherOfferingItem.fromJson(Map<String, dynamic> json) =
+      _$RelatedTeacherOfferingItemImpl.fromJson;
+
+  @override
+  int get offeringId;
+  @override
+  String? get termCode;
+  @override
+  String? get termName;
+  @override
+  String? get campus;
+  @override
+  List<String>? get instructors;
+  @override
+  double get ratingAvg;
+  @override
+  int get ratingCount;
+  @override
+  int get reviewCount;
+
+  /// Create a copy of RelatedTeacherOfferingItem
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$RelatedTeacherOfferingItemImplCopyWith<_$RelatedTeacherOfferingItemImpl>
+  get copyWith => throw _privateConstructorUsedError;
+}
+
+CourseRelatedResult _$CourseRelatedResultFromJson(Map<String, dynamic> json) {
+  return _CourseRelatedResult.fromJson(json);
+}
+
+/// @nodoc
+mixin _$CourseRelatedResult {
+  List<RelatedCourseItem> get teacherOtherCourses =>
+      throw _privateConstructorUsedError;
+  List<RelatedTeacherOfferingItem> get sameCourseOtherTeachers =>
+      throw _privateConstructorUsedError;
+
+  /// Serializes this CourseRelatedResult to a JSON map.
+  Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
+
+  /// Create a copy of CourseRelatedResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  $CourseRelatedResultCopyWith<CourseRelatedResult> get copyWith =>
+      throw _privateConstructorUsedError;
+}
+
+/// @nodoc
+abstract class $CourseRelatedResultCopyWith<$Res> {
+  factory $CourseRelatedResultCopyWith(
+    CourseRelatedResult value,
+    $Res Function(CourseRelatedResult) then,
+  ) = _$CourseRelatedResultCopyWithImpl<$Res, CourseRelatedResult>;
+  @useResult
+  $Res call({
+    List<RelatedCourseItem> teacherOtherCourses,
+    List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+  });
+}
+
+/// @nodoc
+class _$CourseRelatedResultCopyWithImpl<$Res, $Val extends CourseRelatedResult>
+    implements $CourseRelatedResultCopyWith<$Res> {
+  _$CourseRelatedResultCopyWithImpl(this._value, this._then);
+
+  // ignore: unused_field
+  final $Val _value;
+  // ignore: unused_field
+  final $Res Function($Val) _then;
+
+  /// Create a copy of CourseRelatedResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? teacherOtherCourses = null,
+    Object? sameCourseOtherTeachers = null,
+  }) {
+    return _then(
+      _value.copyWith(
+            teacherOtherCourses: null == teacherOtherCourses
+                ? _value.teacherOtherCourses
+                : teacherOtherCourses // ignore: cast_nullable_to_non_nullable
+                      as List<RelatedCourseItem>,
+            sameCourseOtherTeachers: null == sameCourseOtherTeachers
+                ? _value.sameCourseOtherTeachers
+                : sameCourseOtherTeachers // ignore: cast_nullable_to_non_nullable
+                      as List<RelatedTeacherOfferingItem>,
+          )
+          as $Val,
+    );
+  }
+}
+
+/// @nodoc
+abstract class _$$CourseRelatedResultImplCopyWith<$Res>
+    implements $CourseRelatedResultCopyWith<$Res> {
+  factory _$$CourseRelatedResultImplCopyWith(
+    _$CourseRelatedResultImpl value,
+    $Res Function(_$CourseRelatedResultImpl) then,
+  ) = __$$CourseRelatedResultImplCopyWithImpl<$Res>;
+  @override
+  @useResult
+  $Res call({
+    List<RelatedCourseItem> teacherOtherCourses,
+    List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+  });
+}
+
+/// @nodoc
+class __$$CourseRelatedResultImplCopyWithImpl<$Res>
+    extends _$CourseRelatedResultCopyWithImpl<$Res, _$CourseRelatedResultImpl>
+    implements _$$CourseRelatedResultImplCopyWith<$Res> {
+  __$$CourseRelatedResultImplCopyWithImpl(
+    _$CourseRelatedResultImpl _value,
+    $Res Function(_$CourseRelatedResultImpl) _then,
+  ) : super(_value, _then);
+
+  /// Create a copy of CourseRelatedResult
+  /// with the given fields replaced by the non-null parameter values.
+  @pragma('vm:prefer-inline')
+  @override
+  $Res call({
+    Object? teacherOtherCourses = null,
+    Object? sameCourseOtherTeachers = null,
+  }) {
+    return _then(
+      _$CourseRelatedResultImpl(
+        teacherOtherCourses: null == teacherOtherCourses
+            ? _value._teacherOtherCourses
+            : teacherOtherCourses // ignore: cast_nullable_to_non_nullable
+                  as List<RelatedCourseItem>,
+        sameCourseOtherTeachers: null == sameCourseOtherTeachers
+            ? _value._sameCourseOtherTeachers
+            : sameCourseOtherTeachers // ignore: cast_nullable_to_non_nullable
+                  as List<RelatedTeacherOfferingItem>,
+      ),
+    );
+  }
+}
+
+/// @nodoc
+@JsonSerializable()
+class _$CourseRelatedResultImpl implements _CourseRelatedResult {
+  const _$CourseRelatedResultImpl({
+    required final List<RelatedCourseItem> teacherOtherCourses,
+    required final List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+  }) : _teacherOtherCourses = teacherOtherCourses,
+       _sameCourseOtherTeachers = sameCourseOtherTeachers;
+
+  factory _$CourseRelatedResultImpl.fromJson(Map<String, dynamic> json) =>
+      _$$CourseRelatedResultImplFromJson(json);
+
+  final List<RelatedCourseItem> _teacherOtherCourses;
+  @override
+  List<RelatedCourseItem> get teacherOtherCourses {
+    if (_teacherOtherCourses is EqualUnmodifiableListView) {
+      return _teacherOtherCourses;
+    }
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_teacherOtherCourses);
+  }
+
+  final List<RelatedTeacherOfferingItem> _sameCourseOtherTeachers;
+  @override
+  List<RelatedTeacherOfferingItem> get sameCourseOtherTeachers {
+    if (_sameCourseOtherTeachers is EqualUnmodifiableListView) {
+      return _sameCourseOtherTeachers;
+    }
+    // ignore: implicit_dynamic_type
+    return EqualUnmodifiableListView(_sameCourseOtherTeachers);
+  }
+
+  @override
+  String toString() {
+    return 'CourseRelatedResult(teacherOtherCourses: $teacherOtherCourses, sameCourseOtherTeachers: $sameCourseOtherTeachers)';
+  }
+
+  @override
+  bool operator ==(Object other) {
+    return identical(this, other) ||
+        (other.runtimeType == runtimeType &&
+            other is _$CourseRelatedResultImpl &&
+            const DeepCollectionEquality().equals(
+              other._teacherOtherCourses,
+              _teacherOtherCourses,
+            ) &&
+            const DeepCollectionEquality().equals(
+              other._sameCourseOtherTeachers,
+              _sameCourseOtherTeachers,
+            ));
+  }
+
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  int get hashCode => Object.hash(
+    runtimeType,
+    const DeepCollectionEquality().hash(_teacherOtherCourses),
+    const DeepCollectionEquality().hash(_sameCourseOtherTeachers),
+  );
+
+  /// Create a copy of CourseRelatedResult
+  /// with the given fields replaced by the non-null parameter values.
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  @override
+  @pragma('vm:prefer-inline')
+  _$$CourseRelatedResultImplCopyWith<_$CourseRelatedResultImpl> get copyWith =>
+      __$$CourseRelatedResultImplCopyWithImpl<_$CourseRelatedResultImpl>(
+        this,
+        _$identity,
+      );
+
+  @override
+  Map<String, dynamic> toJson() {
+    return _$$CourseRelatedResultImplToJson(this);
+  }
+}
+
+abstract class _CourseRelatedResult implements CourseRelatedResult {
+  const factory _CourseRelatedResult({
+    required final List<RelatedCourseItem> teacherOtherCourses,
+    required final List<RelatedTeacherOfferingItem> sameCourseOtherTeachers,
+  }) = _$CourseRelatedResultImpl;
+
+  factory _CourseRelatedResult.fromJson(Map<String, dynamic> json) =
+      _$CourseRelatedResultImpl.fromJson;
+
+  @override
+  List<RelatedCourseItem> get teacherOtherCourses;
+  @override
+  List<RelatedTeacherOfferingItem> get sameCourseOtherTeachers;
+
+  /// Create a copy of CourseRelatedResult
+  /// with the given fields replaced by the non-null parameter values.
+  @override
+  @JsonKey(includeFromJson: false, includeToJson: false)
+  _$$CourseRelatedResultImplCopyWith<_$CourseRelatedResultImpl> get copyWith =>
+      throw _privateConstructorUsedError;
+}

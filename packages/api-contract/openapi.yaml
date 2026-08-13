@@ -72,6 +72,9 @@ paths:
   /api/forum/courses/{courseId}:
     get:
       $ref: ./paths/courses.yaml#/getCourse/get
+  /api/forum/courses/{courseId}/related:
+    get:
+      $ref: ./paths/courses.yaml#/getCourseRelated/get
   /api/forum/courses/{courseId}/reviews:
     get:
       $ref: ./paths/course-reviews.yaml#/listCourseReviews/get

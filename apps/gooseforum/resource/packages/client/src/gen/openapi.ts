@@ -534,6 +534,30 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/{courseId}/related": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Related courses and teachers for a canonical course
+         * @description Public read endpoint. Returns up to 5 other visible courses sharing any teacher with the
+         *     requested course (`teacherOtherCourses`) and up to 5 offerings of the same course taught by
+         *     a different teacher arrangement (`sameCourseOtherTeachers`), each with rating stats. Hub
+         *     keeps one canonical course per primary_code, so "other teachers for the same course" is
+         *     expressed at the offering level.
+         */
+        get: operations["getCourseRelated"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}/reviews": {
         parameters: {
             query?: never;
@@ -1494,6 +1518,46 @@ export interface components {
             nextPage: number;
             hasNext: boolean;
             nextUrl: string;
+        };
+        /** @description A canonical course taught by a teacher shared with the requested course. */
+        RelatedCourseItem: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            instructors?: string[];
+            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
+            ratingAvg: number;
+            /** @description Number of visible reviews carrying a rating. */
+            ratingCount: number;
+            /** @description Number of visible reviews for this course. */
+            reviewCount: number;
+        };
+        /**
+         * @description An offering of the requested course taught by a teacher arrangement different from the most
+         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
+         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
+         */
+        RelatedTeacherOfferingItem: {
+            /** Format: uint64 */
+            offeringId: number;
+            termCode: string;
+            termName?: string;
+            campus?: string;
+            instructors?: string[];
+            ratingAvg: number;
+            ratingCount: number;
+            reviewCount: number;
+        };
+        CourseRelatedResult: {
+            /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
+            teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
+            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
+            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
+        };
+        CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseRelatedResult"];
         };
         /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
         ReportHandlerPayload: {
@@ -2473,6 +2537,55 @@ export interface operations {
                 };
             };
             /** @description Course detail query failed (aliases, offerings, instructors, or terms). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getCourseRelated: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Related courses and same-course other-teacher offerings, each list ordered by review count desc and capped at 5. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseRelatedResponse"];
+                };
+            };
+            /** @description Malformed or zero course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Related query failed (instructors, stats, terms, or offerings). */
             500: {
                 headers: {
                     [name: string]: unknown;
