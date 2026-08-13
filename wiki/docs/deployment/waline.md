@@ -28,6 +28,10 @@ docker compose up -d
 
 - 端口 `8360`（仅 `127.0.0.1` 回环绑定），反向代理到 `https://comment.example.com`。
 - 存储：SQLite（默认）或 MySQL（生产推荐，避免 LeanCloud 停服风险）。
+- **SQLite 首次启动必须手动导入建表 SQL**：Waline 不会自动建表（空库报
+  `no such table: wl_Comment`），执行
+  `docker cp waline.sqlite.sql waline-waline-1:/tmp/ && docker compose exec waline node -e 'require("better-sqlite3")("/app/data/waline.sqlite").exec(require("fs").readFileSync("/tmp/waline.sqlite.sql","utf8"))'`
+  （幂等，`CREATE TABLE IF NOT EXISTS`）。
 - 登录：`OAUTH_URL` 指向 OAuth Center（walinejs/auth），OAuth Center 再
   对接 YourTJ-Hub OIDC provider。
 
