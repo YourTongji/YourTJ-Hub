@@ -37,8 +37,8 @@ listCourseReviews:
           type: integer
           minimum: 1
           maximum: 50
-          default: 50
-          description: Page size (default 50, max 50; server/client default aligned).
+          default: 20
+          description: Page size (default 20, max 50).
     responses:
       '200':
         description: Visible reviews ordered newest first.
