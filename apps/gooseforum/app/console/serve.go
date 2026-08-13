@@ -23,6 +23,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/job"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
@@ -157,12 +158,15 @@ func ginServe() {
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
 	searchservice.RecoverStaleTasks()
+	courseservice.RecoverCourseStatsRebuildTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
+	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

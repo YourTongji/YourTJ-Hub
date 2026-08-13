@@ -239,6 +239,63 @@ func ListReviewsByOfferings(offeringIds []uint64) (entities []ReviewEntity, err 
 	return
 }
 
+// AdminReviewQuery 管理端评价检索条件（含隐藏/删除状态，跨课程名/课号/正文搜索）。
+type AdminReviewQuery struct {
+	Keyword  string // 课程名/主课号/评价正文（归一化/原文 LIKE）
+	Status   int8   // -1 = 全部状态；0/1/2 = visible/hidden/deleted
+	Cursor   uint64 // id 游标（id < cursor，倒序分页）
+	PageSize int
+}
+
+// ListReviewsForAdmin 返回管理端评价列表（含隐藏与隔离窗口内已删除评价），按 id 倒序。
+// 通过 offering 关联课程以支持按课程名/课号检索；评价正文走 content LIKE。
+func ListReviewsForAdmin(q AdminReviewQuery) (entities []ReviewEntity, err error) {
+	b := reviewBuilder().
+		Select("course_review.*").
+		Joins("JOIN course_offering ON course_offering.id = course_review.offering_id AND course_offering.deleted_at IS NULL").
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL")
+	if q.Status >= 0 {
+		b = b.Where(queryopt.Eq("course_review.status", q.Status))
+	}
+	if q.Keyword != "" {
+		kw := "%" + q.Keyword + "%"
+		b = b.Where(
+			`(course.primary_code LIKE ? OR course.name LIKE ? OR course.normalized_name LIKE ? OR course_review.content LIKE ?)`,
+			kw, kw, kw, kw,
+		)
+	}
+	if q.Cursor > 0 {
+		b = b.Where("course_review.id < ?", q.Cursor)
+	}
+	size := q.PageSize
+	if size <= 0 {
+		size = 20
+	}
+	if size > 50 {
+		size = 50
+	}
+	err = b.Order("course_review.id DESC").Limit(size).Find(&entities).Error
+	return
+}
+
+// ---- Offering ----
+
+// GetOfferingMapByIds 批量返回开课实例映射（管理端评价列表 hydration 用）。
+func GetOfferingMapByIds(ids []uint64) map[uint64]OfferingEntity {
+	result := make(map[uint64]OfferingEntity, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+	var entities []OfferingEntity
+	if err := offeringBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error; err != nil {
+		return result
+	}
+	for _, e := range entities {
+		result[e.Id] = e
+	}
+	return result
+}
+
 // ---- Helpful ----
 
 // CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。

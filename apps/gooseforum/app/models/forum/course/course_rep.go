@@ -13,6 +13,12 @@ func GetCourse(id uint64) (entity Entity) {
 	return
 }
 
+// GetCourseByIdTx 事务内按主键读取课程（含 soft-delete 过滤），未命中返回零值。
+func GetCourseByIdTx(tx *gorm.DB, id uint64) (entity Entity) {
+	tx.Table(tableName).Where("id = ?", id).First(&entity)
+	return
+}
+
 // GetCourseByPrimaryCode 按主课号精确查找（含 soft-delete 过滤）。
 func GetCourseByPrimaryCode(code string) (entity Entity, err error) {
 	return GetCourseByPrimaryCodeTx(courseBuilder(), code)
@@ -32,12 +38,17 @@ type ListCourseQuery struct {
 	Campus     string // 校区（通过 offering 关联）
 	Page       int
 	Size       int
+	// IncludeHidden 为 true 时不过滤 status（管理端查看隐藏课程）；false 仅返回可见课程。
+	IncludeHidden bool
 }
 
 // ListCourses 返回课程列表（canonical course 一页），并返回总条数。
 // 排序固定为 id 倒序（新课程优先），保证分页稳定。
 func ListCourses(q ListCourseQuery) (entities []Entity, total int64, err error) {
-	b := courseBuilder().Where(queryopt.Eq("status", StatusVisible))
+	b := courseBuilder()
+	if !q.IncludeHidden {
+		b = b.Where(queryopt.Eq("status", StatusVisible))
+	}
 	if q.Department != "" {
 		b = b.Where(queryopt.Eq("department", q.Department))
 	}
@@ -179,6 +190,15 @@ func ListOfferingsByCourse(courseId uint64) (entities []OfferingEntity, err erro
 		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
 		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
 		Find(&entities).Error
+	return
+}
+
+// ListOfferingIdsByCourseAllTx 事务内返回课程的全体开课实例 ID（含隐藏），级联删除用。
+func ListOfferingIdsByCourseAllTx(tx *gorm.DB, courseId uint64) (ids []uint64, err error) {
+	err = tx.Table(offeringTableName).
+		Where(queryopt.Eq("course_id", courseId)).
+		Where("deleted_at IS NULL").
+		Pluck("id", &ids).Error
 	return
 }
 

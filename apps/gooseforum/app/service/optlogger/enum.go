@@ -14,6 +14,8 @@ func (receiver OptEnum) TargetTypeEnum() TargetTypeEnum {
 		return Category
 	case RevealCourseReviewAuthor:
 		return CourseReview
+	case CreateCourse, UpdateCourse, DeleteCourse:
+		return Course
 	}
 	return System
 }
@@ -28,6 +30,12 @@ func (receiver OptEnum) Name() string {
 		return "编辑分类"
 	case RevealCourseReviewAuthor:
 		return "揭示课评匿名作者"
+	case CreateCourse:
+		return "新增课程"
+	case UpdateCourse:
+		return "编辑课程"
+	case DeleteCourse:
+		return "删除课程"
 	}
 	return ""
 }
@@ -41,6 +49,9 @@ const (
 	EditTopic
 	EditCategory
 	RevealCourseReviewAuthor
+	CreateCourse
+	UpdateCourse
+	DeleteCourse
 )
 
 type TargetTypeEnum int
@@ -63,6 +74,8 @@ func (receiver TargetTypeEnum) Name() string {
 		return "分类"
 	case CourseReview:
 		return "课评"
+	case Course:
+		return "课程"
 	default:
 		return ""
 	}
@@ -81,4 +94,5 @@ const (
 	DocContent                  = iota
 	Category                    = iota
 	CourseReview                = iota
+	Course                      = iota
 )
