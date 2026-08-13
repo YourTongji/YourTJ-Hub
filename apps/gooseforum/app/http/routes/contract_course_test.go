@@ -28,6 +28,8 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.OfferingInstructorEntity{},
 		&course.ImportRunEntity{},
 		&course.SourceRefEntity{},
+		&course.ReviewEntity{},
+		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
 	); err != nil {
@@ -35,6 +37,8 @@ func setupCourseContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	}
 	// 清空课程域表，保证 fixture 断言确定性。
 	for _, model := range []any{
+		&course.HelpfulEntity{},
+		&course.ReviewEntity{},
 		&course.SourceRefEntity{},
 		&course.ImportRunEntity{},
 		&course.OfferingInstructorEntity{},

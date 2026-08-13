@@ -333,10 +333,7 @@ func TestCourseReviewOfferingStatsHTTPContract(t *testing.T) {
 	if response.Code != 0 {
 		t.Fatalf("review list code = %d, want 0: %s", rec.Code, rec.Body.String())
 	}
-	var items []map[string]any
-	if err := json.Unmarshal(response.Result, &items); err != nil {
-		t.Fatalf("decode review list result %q: %v", response.Result, err)
-	}
+	items := decodeReviewPageList(t, response)
 	if len(items) != 3 {
 		t.Fatalf("review list length = %d, want 3", len(items))
 	}
@@ -350,17 +347,12 @@ func TestCourseReviewOfferingStatsHTTPContract(t *testing.T) {
 	}
 
 	// --- 场景 2：无评分评价的 offering → avg 省略（omitempty）、count 仍计数 ---
-	// 注意：必须先置 nil 再 Unmarshal——否则 Go 复用场景 1 的底层 map，
-	// JSON 未出现的 offeringRatingAvg 键会残留旧值造成假阳性。
-	items = nil
 	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/courses/42/reviews?offeringId=902", "", "")
 	if rec.Code != http.StatusOK {
 		t.Fatalf("no-rating review list status = %d, want 200: %s", rec.Code, rec.Body.String())
 	}
 	response = decodeContractEnvelope(t, rec)
-	if err := json.Unmarshal(response.Result, &items); err != nil {
-		t.Fatalf("decode no-rating review list result %q: %v", response.Result, err)
-	}
+	items = decodeReviewPageList(t, response)
 	if len(items) != 1 {
 		t.Fatalf("no-rating review list length = %d, want 1", len(items))
 	}
