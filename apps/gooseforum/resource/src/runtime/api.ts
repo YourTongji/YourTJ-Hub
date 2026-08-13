@@ -1558,3 +1558,52 @@ export async function rebuildCourseStats(): Promise<boolean> {
   })
   return readApiResponse<boolean>(response, t('api.adminCourseStatsRebuildFailed'))
 }
+
+// ---- B7: AI 课程总结（issue #181） ----
+
+export type CourseSummaryStatus = 'cached' | 'generated' | 'insufficient_data' | 'disabled' | 'error' | 'rateLimited'
+
+export type CourseSummarySentiment = 'positive' | 'neutral' | 'negative'
+
+export interface CourseSummaryRepresentativeReview {
+  excerpt: string
+  sentiment: CourseSummarySentiment
+}
+
+export interface CourseSummaryPayload {
+  consensus: string
+  keywords: string[]
+  pros: string[]
+  cons: string[]
+  representativeReviews: CourseSummaryRepresentativeReview[]
+}
+
+export interface CourseSummaryResult {
+  status: CourseSummaryStatus
+  summary?: CourseSummaryPayload
+  generatedAt?: string
+  model?: string
+  retryAfterSeconds?: number
+}
+
+export async function getCourseSummary(courseId: number, refresh = false): Promise<CourseSummaryResult> {
+  const query = refresh ? '?refresh=true' : ''
+  const response = await fetch(`/api/forum/courses/${courseId}/summary${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 429) {
+    const retryHeader = Number(response.headers.get('Retry-After'))
+    const retryAfterSeconds = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined
+    return { status: 'rateLimited', retryAfterSeconds }
+  }
+  if (!response.ok) {
+    return { status: 'error' }
+  }
+  const data = (await response.json().catch(() => undefined)) as
+    | { code?: number; result?: CourseSummaryResult; data?: CourseSummaryResult }
+    | undefined
+  if (!data) return { status: 'error' }
+  const result = (data.result ?? data.data) as CourseSummaryResult | undefined
+  if (!result) return { status: 'error' }
+  return result
+}
