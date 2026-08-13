@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
-	jose "github.com/go-jose/go-jose/v4"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/oidcprovider"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	jose "github.com/go-jose/go-jose/v4"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )
@@ -72,6 +72,7 @@ func configKey(cfg Config) string {
 			secretHash,
 			fmt.Sprintf("%v", c.DevMode),
 			strings.Join(c.RedirectURIs, ","),
+			strings.Join(c.RedirectURIGlobs, ","),
 		}, ":") + "|"
 	}
 	return fmt.Sprintf("%v|%s|%s|%s|%s|%s|%s|%s",
