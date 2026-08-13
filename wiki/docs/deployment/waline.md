@@ -26,7 +26,7 @@ cp .env.example .env
 docker compose up -d
 ```
 
-- 端口 `8360`，反向代理到 `https://comment.example.com`。
+- 端口 `8360`（仅 `127.0.0.1` 回环绑定），反向代理到 `https://comment.example.com`。
 - 存储：SQLite（默认）或 MySQL（生产推荐，避免 LeanCloud 停服风险）。
 - 登录：`OAUTH_URL` 指向 OAuth Center（walinejs/auth），OAuth Center 再
   对接 YourTJ-Hub OIDC provider。

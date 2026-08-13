@@ -3,7 +3,7 @@
 # 用法：
 #   1. 复制 .env.example 为 .env 并填写（SQLite 或 MySQL 二选一）。
 #   2. docker compose up -d
-#   3. 反向代理 https://comment.example.com -> :8360
+#   3. 反向代理 https://comment.example.com -> 127.0.0.1:8360（仅回环暴露）
 #
 # 存储：SQLite（零依赖）或 MySQL（生产推荐，需先导入建表 SQL，见 README）。
 #       不使用 LeanCloud（停服风险）。
@@ -18,7 +18,8 @@ services:
     image: lizheming/waline:latest
     restart: unless-stopped
     ports:
-      - "8360:8360"
+      # 仅回环暴露, 公网一律经反向代理(与 forum 后端一致的姿势)
+      - "127.0.0.1:8360:8360"
     environment:
       # --- 必填 ---
       # 登录 token 密钥：请替换为强随机值（openssl rand -hex 32）

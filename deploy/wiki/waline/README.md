@@ -8,7 +8,8 @@ cp .env.example .env      # 按需编辑（SQLite 零配置即可跑）
 docker compose up -d
 ```
 
-反向代理 `https://comment.example.com` → `:8360`。
+反向代理 `https://comment.example.com` → `127.0.0.1:8360`（compose 仅回环绑定，
+公网入口由宿主反代统一管理，与 forum 后端一致）。
 
 ## 存储选择
 

@@ -21,11 +21,12 @@ enabled = true
 # issuer = "https://forum.example.com/api/oauth"
 signing_key_file = "./storage/oidc/signing_key.pem"
 
-# Waline 评论的 OAuth Center（public 客户端：不填 secret，强制 PKCE S256）
 [[oidc.clients]]
 id = "yourtj-wiki-comment"
 name = "YourTJ Wiki 评论"
 redirect_uris = ["https://auth.example.com/api/oauth/redirect"]
+# 回调带动态 query 参数时用 glob 兜底(doublestar pattern, 精确匹配失败后生效)
+redirect_uris_globs = ["https://auth.example.com/api/oauth/redirect*"]
 ```
 
 关键点：
@@ -35,8 +36,9 @@ redirect_uris = ["https://auth.example.com/api/oauth/redirect"]
   已签发的授权码/token 全部失效。
 - **public 客户端不填 `secret`**，Hub 侧强制 PKCE S256（与 walinejs/auth
   默认行为一致）。
-- **redirect_uris 必须与 walinejs/auth 的实际回调完全一致**（大小写、
-  路径都算），落地第一步先验证这条。
+- **redirect_uris 精确匹配，redirect_uris_globs 兜底**（doublestar pattern，
+  加载时校验、非法即拒绝整个 OIDC 配置）。若回调带动态 query/路径段，
+  用 glob 覆盖；glob 只匹配注册的 pattern，不会放宽成任意跳转。
 
 ## 2. 部署 OAuth Center（walinejs/auth）
 

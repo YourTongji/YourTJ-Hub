@@ -8,6 +8,6 @@ cp .env.example .env
 docker compose up -d
 ```
 
-- 服务端口：`8360`
+- 服务端口：`8360`（compose 仅 `127.0.0.1` 回环绑定，公网一律经反代）
 - 管理后台：`/ui`
 - 登录：经 `OAUTH_URL`（OAuth Center）走 YourTJ-Hub OIDC
