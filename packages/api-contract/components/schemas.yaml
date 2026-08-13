@@ -897,6 +897,13 @@ CourseSearchPayload:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
   additionalProperties: false
 
 PaginationPayload:
@@ -1030,6 +1037,13 @@ CourseSummary:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
   additionalProperties: false
 
 CourseListResult:
@@ -1079,6 +1093,13 @@ OfferingSummary:
       type: array
       items:
         type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average for this offering; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this offering.
   additionalProperties: false
 
 CourseDetail:
@@ -1104,6 +1125,20 @@ CourseDetail:
       type: array
       items:
         $ref: '#/OfferingSummary'
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
+    ratingDistribution:
+      type: array
+      description: |
+        Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+        Omitted when the course has no visible reviews.
+      items:
+        type: integer
   additionalProperties: false
 
 CourseDetailResponse:

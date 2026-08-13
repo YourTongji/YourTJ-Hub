@@ -60,9 +60,7 @@ type ReviewPayload struct {
 	HelpfulCount int64               `json:"helpfulCount"`
 	CreatedAt    string              `json:"createdAt"`
 	UpdatedAt    string              `json:"updatedAt"`
-	// OfferingRatingAvg / OfferingReviewCount：offering 级统计
-	// （PRD §5.1 B1，reviews?offeringId= 端点展示；依赖 #195 字段定义，
-	// 合入顺序 #195 先于 #201）。
+	// OfferingRatingAvg / OfferingReviewCount：offering 级统计（PRD §5.1 B1，reviews?offeringId= 端点展示）。
 	OfferingRatingAvg   *float64 `json:"offeringRatingAvg,omitempty"`
 	OfferingReviewCount int      `json:"offeringReviewCount,omitempty"`
 }
@@ -466,7 +464,13 @@ func ListReviewsByOffering(offeringId, viewerId uint64) ([]ReviewPayload, error)
 	if len(entities) > ReviewListMaxItems {
 		entities = entities[:ReviewListMaxItems]
 	}
-	return listReviewPayloads(entities, viewerId)
+	payloads, err := listReviewPayloads(entities, viewerId)
+	if err != nil {
+		return nil, err
+	}
+	// offering 级统计（PRD §5.1 B1：reviews?offeringId= 端点展示；spec F1）。
+	fillOfferingStats(payloads)
+	return payloads, nil
 }
 
 // ListReviewsByCourse 返回课程下所有可见 offering 的评价（时间倒序，匿名 DTO，
@@ -606,8 +610,7 @@ func listReviewPayloads(entities []course.ReviewEntity, viewerId uint64) ([]Revi
 	return payloads, nil
 }
 
-// fillOfferingStats 为评价 payload 批量填充 offering 级统计
-// （PRD §5.1 B1：reviews?offeringId= 端点展示；跨 PR 接线，依赖 #195 字段定义）。
+// fillOfferingStats 为评价 payload 批量填充 offering 级统计（PRD §5.1 B1，reviews?offeringId= 端点展示）。
 // 数据来自 offering_review_stats 投影；查询错误由 ListOfferingStatsByIDs
 // 内部 slog.Warn 记录（fail-open：不阻断列表返回）。
 func fillOfferingStats(payloads []ReviewPayload) {

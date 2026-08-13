@@ -367,26 +367,6 @@ func GetOfferingStats(offeringId uint64) (entity OfferingStatsEntity, err error)
 	return
 }
 
-// ListOfferingStatsByIDs 批量读取 offering 级统计投影（分页响应 offering 统计 N+1 防护）。
-// 无统计行的 offering 返回空实体（ratingCount=0/reviewCount=0）。
-// 依赖说明（PR #195 跨 PR 接线）：字段名与 #195 ReviewPayload 的
-// offeringRatingAvg/offeringReviewCount 对齐；#195 先于 #201 合入。
-func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity {
-	result := make(map[uint64]OfferingStatsEntity, len(offeringIds))
-	if len(offeringIds) == 0 {
-		return result
-	}
-	var list []OfferingStatsEntity
-	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
-		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
-		return result
-	}
-	for _, s := range list {
-		result[s.OfferingId] = s
-	}
-	return result
-}
-
 // UpsertCourseStatsTx 事务内课程级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
 // 用 SQL 表达式做原子增量，而非事务内 read-modify-write：两笔并发事务同时读到同一行再
 // 各自 Save 会互相覆盖、丢一次更新，使 review 计数/评分合计低于实际。重建命令可对账，
@@ -478,8 +458,9 @@ func RebuildAllCourseStats() error {
 		if err := tx.Table(offeringTableName+" o").
 			Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
 				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
-			Joins("LEFT JOIN " + reviewTableName + " r ON r.offering_id = o.id AND r.deleted_at IS NULL").
-			Where("o.deleted_at IS NULL").
+			Joins("LEFT JOIN "+reviewTableName+" r ON r.offering_id = o.id AND r.deleted_at IS NULL").
+			// 与列表口径一致：隐藏 offering 的评价不计入课程级聚合（security F2）。
+			Where("o.deleted_at IS NULL AND o.status = ?", OfferingStatusVisible).
 			Group("o.course_id").
 			Scan(&courseAggs).Error; err != nil {
 			return err
@@ -497,4 +478,103 @@ func RebuildAllCourseStats() error {
 		}
 		return nil
 	})
+}
+
+// ---- Stats read projection (B1 统计投影对外暴露, issue #173) ----
+
+// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星, index 4 = 5 星）。
+type RatingDistribution [5]int
+
+// ListCourseStatsByIDs 批量读取课程级统计投影（目录列表 N+1 防护）。
+// 无统计行的课程返回空实体（ratingCount=0/reviewCount=0）。
+func ListCourseStatsByIDs(courseIds []uint64) map[uint64]CourseStatsEntity {
+	result := make(map[uint64]CourseStatsEntity, len(courseIds))
+	if len(courseIds) == 0 {
+		return result
+	}
+	var list []CourseStatsEntity
+	if err := courseStatsBuilder().Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
+		slog.Warn("ListCourseStatsByIDs: 查询失败", "courseIds", courseIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.CourseId] = s
+	}
+	return result
+}
+
+// ListOfferingStatsByIDs 批量读取 offering 级统计投影（详情开课列表 N+1 防护）。
+func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity {
+	result := make(map[uint64]OfferingStatsEntity, len(offeringIds))
+	if len(offeringIds) == 0 {
+		return result
+	}
+	var list []OfferingStatsEntity
+	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
+		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.OfferingId] = s
+	}
+	return result
+}
+
+// RatingDistributionRow 评分分布聚合行（group key + 1-5 星计数）。
+type RatingDistributionRow struct {
+	Key   uint64
+	Star1 int
+	Star2 int
+	Star3 int
+	Star4 int
+	Star5 int
+}
+
+// ratingDistributionFromRows 把聚合行转成 map[Key]RatingDistribution。
+func ratingDistributionFromRows(rows []RatingDistributionRow) map[uint64]RatingDistribution {
+	result := make(map[uint64]RatingDistribution, len(rows))
+	for _, r := range rows {
+		result[r.Key] = RatingDistribution{r.Star1, r.Star2, r.Star3, r.Star4, r.Star5}
+	}
+	return result
+}
+
+// GetRatingDistributionsByOfferings 批量按 offering 聚合 1-5 星分布
+// （仅 status=visible 且未软删行，与统计投影口径一致；评价列表 N+1 防护）。
+func GetRatingDistributionsByOfferings(offeringIds []uint64) map[uint64]RatingDistribution {
+	if len(offeringIds) == 0 {
+		return map[uint64]RatingDistribution{}
+	}
+	var rows []RatingDistributionRow
+	if err := db.Connect().Table(reviewTableName).
+		Select("offering_id AS key, SUM(CASE WHEN rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN rating = 5 THEN 1 ELSE 0 END) AS star5").
+		// 与 RebuildAllCourseStats 口径一致：status=visible 且未软删（security F1）。
+		Where("offering_id IN ? AND status = ? AND deleted_at IS NULL", offeringIds, ReviewStatusVisible).
+		Group("offering_id").
+		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByOfferings: 聚合失败", "offeringIds", offeringIds, "err", err)
+		return map[uint64]RatingDistribution{}
+	}
+	return ratingDistributionFromRows(rows)
+}
+
+// GetRatingDistributionsByCourseIds 批量按课程聚合 1-5 星分布（目录列表 N+1 防护）。
+func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDistribution {
+	if len(courseIds) == 0 {
+		return map[uint64]RatingDistribution{}
+	}
+	var rows []RatingDistributionRow
+	if err := db.Connect().Table(reviewTableName+" r").
+		Select("o.course_id AS key, SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
+		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
+		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。
+		Where("o.course_id IN ? AND r.status = ? AND r.deleted_at IS NULL AND o.deleted_at IS NULL AND o.status = ?",
+			courseIds, ReviewStatusVisible, OfferingStatusVisible).
+		Group("o.course_id").
+		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByCourseIds: 聚合失败", "courseIds", courseIds, "err", err)
+		return map[uint64]RatingDistribution{}
+	}
+	return ratingDistributionFromRows(rows)
 }
