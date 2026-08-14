@@ -146,6 +146,12 @@ function computeLineDiff(fromText: string, toText: string): DiffRow[] {
   const b = toText.split('\n')
   const n = a.length
   const m = b.length
+  if (n * m > 250_000) {
+    return [
+      ...a.map((text) => ({ kind: 'removed' as const, text })),
+      ...b.map((text) => ({ kind: 'added' as const, text })),
+    ]
+  }
   const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
   for (let i = n - 1; i >= 0; i--) {
     for (let j = m - 1; j >= 0; j--) {

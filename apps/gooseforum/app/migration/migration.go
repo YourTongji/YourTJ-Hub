@@ -83,6 +83,10 @@ func migrateSchema() {
 		slog.Error("dbconnect course_review legacy upgrade failed", "err", err)
 		os.Exit(1)
 	}
+	if err = dedupeWikiRevisionNumbers(db); err != nil {
+		slog.Error("dbconnect wiki revision dedupe failed", "err", err)
+		os.Exit(1)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -354,3 +358,50 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 }
 
 const courseReviewTableName = "course_review"
+
+// dedupeWikiRevisionNumbers 在 AutoMigrate 创建 uniq_wiki_rev_page_no 唯一索引前，
+// 清理存量 wiki_page_revisions 中 (page_id, revision_no) 重复的行（旧版并发写入
+// 或回滚残留可能产生同号修订；唯一索引不区分 deleted_at，软删行同样占用索引槽，
+// 因此对全部行含软删去重）。每组保留 id 最大（最新写入）的一行，其余物理删除。
+func dedupeWikiRevisionNumbers(db *gorm.DB) error {
+	if !db.Migrator().HasTable("wiki_page_revisions") {
+		return nil
+	}
+	var dups []struct {
+		PageId     uint64
+		RevisionNo int
+		Cnt        int64
+	}
+	if err := db.Table("wiki_page_revisions").Unscoped().
+		Select("page_id, revision_no, COUNT(*) AS cnt").
+		Group("page_id, revision_no").
+		Having("COUNT(*) > 1").
+		Scan(&dups).Error; err != nil {
+		return fmt.Errorf("inspect duplicate wiki revisions: %w", err)
+	}
+	if len(dups) == 0 {
+		return nil
+	}
+	slog.Warn("migration: found duplicate wiki revision numbers", "groups", len(dups))
+	for _, d := range dups {
+		var keepID uint64
+		if err := db.Table("wiki_page_revisions").Unscoped().
+			Where("page_id = ?", d.PageId).
+			Where("revision_no = ?", d.RevisionNo).
+			Order("id DESC").
+			Limit(1).
+			Pluck("id", &keepID).Error; err != nil {
+			return fmt.Errorf("find keep wiki revision: %w", err)
+		}
+		// Unscoped + Delete = 物理删除：软删行仍占用唯一索引，必须真正删除。
+		if err := db.Table("wiki_page_revisions").Unscoped().
+			Where("page_id = ?", d.PageId).
+			Where("revision_no = ?", d.RevisionNo).
+			Where("id <> ?", keepID).
+			Delete(&wikiPageRevisions.Entity{}).Error; err != nil {
+			return fmt.Errorf("dedupe wiki revisions (page=%d rev=%d): %w", d.PageId, d.RevisionNo, err)
+		}
+	}
+	slog.Info("migration: wiki revision dedupe done", "groups", len(dups))
+	return nil
+}

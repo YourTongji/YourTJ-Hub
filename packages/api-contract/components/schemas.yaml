@@ -2787,8 +2787,10 @@ WikiCreatePageRequest:
     title:
       type: string
       minLength: 1
+      maxLength: 512
     content:
       type: string
+      minLength: 1
       description: Raw wiki markup content.
   additionalProperties: false
 
@@ -2822,8 +2824,10 @@ WikiUpdatePageRequest:
     title:
       type: string
       minLength: 1
+      maxLength: 512
     content:
       type: string
+      minLength: 1
       description: Raw wiki markup content.
     baseRevisionNo:
       type: integer

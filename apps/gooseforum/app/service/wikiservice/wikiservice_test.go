@@ -768,3 +768,160 @@ func TestReviewApproveSyncsTopicMeta(t *testing.T) {
 		t.Fatalf("excerpt after approve=%q, want new content", topic.Excerpt)
 	}
 }
+
+// TestEditRejectsEmptyContentAndLongTitle 写即发布无审核兜底：空内容与超长标题
+// 必须拒绝（review #219：此前空 content 可清空页面、超长 title 语义混淆）。
+func TestEditRejectsEmptyContentAndLongTitle(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/guard", Title: "G", Content: "内容", UserId: editor})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "G", Content: "   ", UserId: editor}); err != ErrContentEmpty {
+		t.Fatalf("blank content err=%v, want ErrContentEmpty", err)
+	}
+	long := strings.Repeat("长", 513)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: long, Content: "内容", UserId: editor}); err != ErrTitleTooLong {
+		t.Fatalf("long title err=%v, want ErrTitleTooLong", err)
+	}
+	// 空内容/长标题被拒后页面保持原状。
+	page = wikiPages.Get(page.Id)
+	if page.PublishedRevisionNo != 1 {
+		t.Fatalf("published_revision_no after rejected edits=%d, want 1", page.PublishedRevisionNo)
+	}
+}
+
+// TestSetEditorsRejectsGhostUser 贡献者必须指向真实用户（review #219：此前
+// 不存在的 userId 也会写入 wiki_namespace_editors，产生幽灵贡献者行）。
+func TestSetEditorsRejectsGhostUser(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := SetEditors("guide", []uint64{99999999}, manager); err != ErrUserNotFound {
+		t.Fatalf("SetEditors ghost user err=%v, want ErrUserNotFound", err)
+	}
+	// 真实用户（manager 自己）设置成功。
+	if err := SetEditors("guide", []uint64{manager}, manager); err != nil {
+		t.Fatalf("SetEditors real user: %v", err)
+	}
+}
+
+// TestRollbackConcurrentEditSerialized 回滚与编辑行锁串行化：回滚后指针回到
+// 目标版本，且不会与并发编辑交错产生指针指向已删版本（review High）。
+func TestRollbackConcurrentEditSerialized(t *testing.T) {
+	setupWikiTestDB(t)
+	reviewer := seedWikiUser(t, true)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{reviewer}, reviewer); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/lock", Title: "v1", Content: "c1", UserId: reviewer})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: reviewer}); err != nil {
+		t.Fatalf("edit: %v", err)
+	}
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: reviewer}); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	page = wikiPages.Get(page.Id)
+	if page.PublishedRevisionNo != 1 {
+		t.Fatalf("published_revision_no after rollback=%d, want 1", page.PublishedRevisionNo)
+	}
+	// 回滚后继续编辑：nextNo = 指针+1 = 2（无空洞、无同号冲突）。
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v3", Content: "c3", UserId: reviewer}); err != nil {
+		t.Fatalf("edit after rollback: %v", err)
+	}
+	revs := wikiPageRevisions.ListByPage(page.Id)
+	if len(revs) != 2 || revs[0].RevisionNo != 2 {
+		t.Fatalf("revisions after rollback+edit: count=%d first=%d, want 2/2", len(revs), revs[0].RevisionNo)
+	}
+}
+
+// TestRevisionNumberUniqueIndex (page_id, revision_no) 唯一索引：同号修订不得
+// 重复插入（review #219：旧版并发写入/回滚残留可产生同号修订）。
+func TestRevisionNumberUniqueIndex(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/uniq", Title: "U", Content: "内容", UserId: editor})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	// 直接插入同号修订（绕过 service）：必须被唯一索引拒绝。
+	dup := wikiPageRevisions.Entity{
+		PageId:     page.Id,
+		RevisionNo: 1,
+		Title:      "U-dup",
+		Content:    "dup",
+		Status:     wikiPageRevisions.StatusApproved,
+		EditorId:   editor,
+	}
+	if err := wikiPageRevisions.Create(&dup); err == nil {
+		t.Fatal("duplicate (page_id, revision_no) insert should fail unique index")
+	}
+}
+
+// TestPublicTreeFiltersDeletedTopic 公开导航树/首页不得展示 topic 已被治理删除的
+// 页面（review #219：此前仅靠 wiki_pages 自身软删，topic 删除后页面仍泄漏）。
+func TestPublicTreeFiltersDeletedTopic(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/visible", Title: "V", Content: "内容", UserId: editor})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	tree := BuildTree("")
+	found := false
+	for _, ns := range tree {
+		for _, p := range ns.Pages {
+			if p.PageId == page.Id {
+				found = true
+			}
+		}
+	}
+	if !found {
+		t.Fatal("visible page should appear in public tree")
+	}
+	// 治理删除 topic（MODERATOR_REMOVED）→ 公开树过滤。
+	topic := topics.Get(page.TopicId)
+	if err := topics.MarkModeratorRemoved(topic.Id, editor, "review test"); err != nil {
+		t.Fatalf("mark moderator removed: %v", err)
+	}
+	tree = BuildTree("")
+	for _, ns := range tree {
+		for _, p := range ns.Pages {
+			if p.PageId == page.Id {
+				t.Fatal("deleted topic page should be filtered from public tree")
+			}
+		}
+	}
+}

@@ -62,7 +62,7 @@ func BuildTree(activePath string) []TreeNamespace {
 	if len(namespaces) == 0 {
 		return []TreeNamespace{}
 	}
-	allPages := wikiPages.ListAll()
+	allPages := filterPublicPages(wikiPages.ListAll())
 	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
 		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
@@ -88,6 +88,32 @@ func BuildTree(activePath string) []TreeNamespace {
 		})
 	}
 	return result
+}
+
+// filterPublicPages 过滤出 topic 仍公开的页面：删除/隐藏的 wiki 页面不得
+// 出现在公开导航树、首页与摘要（review：此前仅靠 wiki_pages 自身软删，
+// topic 被治理删除而页面行仍可见时树/首页会泄漏）。
+func filterPublicPages(pages []*wikiPages.Entity) []*wikiPages.Entity {
+	if len(pages) == 0 {
+		return pages
+	}
+	ids := make([]uint64, 0, len(pages))
+	for _, p := range pages {
+		ids = append(ids, p.TopicId)
+	}
+	topicMap := topics.GetMapByIds(ids)
+	filtered := make([]*wikiPages.Entity, 0, len(pages))
+	for _, p := range pages {
+		t, ok := topicMap[p.TopicId]
+		if !ok {
+			continue
+		}
+		if t.Status != 1 || t.VisibilityStatus != topics.VisibilityActive {
+			continue
+		}
+		filtered = append(filtered, p)
+	}
+	return filtered
 }
 
 func pageTitles(pages []*wikiPages.Entity) map[uint64]string {
@@ -120,7 +146,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 	if len(namespaces) == 0 {
 		return []TreeNamespace{}
 	}
-	allPages := wikiPages.ListAll()
+	allPages := filterPublicPages(wikiPages.ListAll())
 	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
 		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
@@ -243,7 +269,7 @@ type NamespaceSummary struct {
 // BuildNamespaceSummaries 返回 namespace 摘要列表（含 approved 页面数与最近更新时间）。
 func BuildNamespaceSummaries() []NamespaceSummary {
 	namespaces := wikiNamespaces.List()
-	pages := wikiPages.ListAll()
+	pages := filterPublicPages(wikiPages.ListAll())
 	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, p := range pages {
 		byNamespace[p.Namespace] = append(byNamespace[p.Namespace], p)
@@ -302,7 +328,7 @@ type HomeData struct {
 
 // BuildHome 组装 wiki 首页数据。
 func BuildHome() HomeData {
-	pages := wikiPages.ListAll()
+	pages := filterPublicPages(wikiPages.ListAll())
 
 	summaries := BuildNamespaceSummaries()
 	// 最近更新：全部页面最新 approved 修订，按时间降序取 10。

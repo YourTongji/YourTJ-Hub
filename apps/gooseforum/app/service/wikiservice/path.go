@@ -22,6 +22,12 @@ var (
 	ErrConflict = errors.New("wiki: revision conflict")
 	// ErrSensitiveBlocked 内容命中敏感词被拦截（写即发布无审核兜底，直接拒绝）。
 	ErrSensitiveBlocked = errors.New("wiki: content sensitive blocked")
+	// ErrTitleTooLong 标题超过 512 上限（独立哨兵，避免与 ErrPathInvalid 混淆）。
+	ErrTitleTooLong = errors.New("wiki: title too long")
+	// ErrContentEmpty 创建/编辑内容为空（契约 content minLength:1，写即发布无审核兜底）。
+	ErrContentEmpty = errors.New("wiki: content empty")
+	// ErrUserNotFound 贡献者设置引用了不存在的用户（避免幽灵贡献者行）。
+	ErrUserNotFound = errors.New("wiki: user not found")
 )
 
 var (

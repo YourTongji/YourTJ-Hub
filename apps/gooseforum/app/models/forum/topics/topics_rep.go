@@ -74,6 +74,21 @@ func UpdateTopicEditableTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
+// UpdateWikiSyncedMetaTx 事务内只更新由 wiki 修订派生的话题字段
+// （标题/摘要/首图/水印/更新时间）。不触碰并发回复/点赞/浏览维护的统计与
+// 指针字段——整行 Save 会把 post_count/post_seq/posters/last_post_id/
+// last_posted_at 回写成事务外旧值（与 UpdateFirstPostDerivedTx 同源问题）。
+func UpdateWikiSyncedMetaTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"title":                   entity.Title,
+			"excerpt":                 entity.Excerpt,
+			"first_image_url":         entity.FirstImageURL,
+			"wiki_synced_revision_no": entity.WikiSyncedRevisionNo,
+			"updated_at":              time.Now(),
+		}).Error
+}
+
 func SaveNoUpdate(entity *Entity) error {
 	return builder().Omit("updated_at").Save(entity).Error
 }

@@ -231,5 +231,29 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(19)
 		currentVersion = 19
 	}
+	if currentVersion < 20 {
+		// 话题搜索索引文档补齐 topicType 字段（review：存量部署的索引在
+		// topicType 加入前构建，聚合搜索按 topicType 过滤会失败/漏检；
+		// 全量重建写入新字段，filterable 属性由启动 EnsureTopicIndexConfigured 保证）。
+		// Meilisearch 不可用时跳过且不推进版本，下次启动重试（与 v13 同模式）。
+		topicIndexResult := datamigration.MigrateTopicSearchIndex()
+		slog.Info("app migration topic search index topicType rebuild done",
+			"skipped", topicIndexResult.Skipped,
+			"rebuilt", topicIndexResult.Rebuilt,
+			"processed", topicIndexResult.ProcessedCount,
+			"failedCount", topicIndexResult.FailedCount,
+			"failed", topicIndexResult.Failed,
+			"lastFailed", topicIndexResult.LastFailed)
+		if topicIndexResult.Skipped {
+			slog.Warn("app migration topic search index topicType rebuild skipped (meilisearch unavailable), will retry on next start")
+			return
+		}
+		if topicIndexResult.Failed > 0 || topicIndexResult.FailedCount > 0 {
+			slog.Error("app migration topic search index topicType rebuild has failures", "failed", topicIndexResult.Failed, "failedCount", topicIndexResult.FailedCount, "lastFailed", topicIndexResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(20)
+		currentVersion = 20
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

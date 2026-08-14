@@ -128,7 +128,10 @@ func Create(params CreateParams) (*CreateResult, error) {
 		return nil, ErrPathExists
 	}
 	if len(params.Title) > 512 {
-		return nil, ErrPathInvalid
+		return nil, ErrTitleTooLong
+	}
+	if strings.TrimSpace(params.Content) == "" {
+		return nil, ErrContentEmpty
 	}
 
 	// 嵌套路径（>=3 段）时校验父页面存在并记录 parent_id（review P2：
@@ -250,7 +253,10 @@ func Edit(params EditParams) (*EditResult, error) {
 		return nil, ErrForbidden
 	}
 	if len(params.Title) > 512 {
-		return nil, ErrPathInvalid
+		return nil, ErrTitleTooLong
+	}
+	if strings.TrimSpace(params.Content) == "" {
+		return nil, ErrContentEmpty
 	}
 	// 写时敏感词拦截：写即发布无审核兜底，命中直接拒绝（review 决策）。
 	if hit, word := moderationservice.CheckContentAllowed(params.Title + "\n" + params.Content); hit {
@@ -305,14 +311,14 @@ func Edit(params EditParams) (*EditResult, error) {
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
 		firstPost.WikiSyncedRevisionNo = nextNo
-		if err := posts.SaveTx(tx, &firstPost); err != nil {
+		if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
 			return err
 		}
 		topic.Title = params.Title
 		topic.Excerpt = markdown2html.ExtractDescription(params.Content, 200)
 		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(params.Content)
 		topic.WikiSyncedRevisionNo = nextNo
-		return topics.SaveTx(tx, &topic)
+		return topics.UpdateWikiSyncedMetaTx(tx, &topic)
 	})
 	if err != nil {
 		return nil, err
@@ -353,6 +359,13 @@ func Rollback(params RollbackParams) error {
 	var topic topics.Entity
 	var firstPost posts.Entity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		// 行锁 page 行：与 Edit 的 CAS/指针前移串行化（review High：回滚与并发
+		// 编辑交错会丢失已提交的编辑，或让指针指向被硬删的版本）。
+		var locked wikiPages.Entity
+		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+			Table("wiki_pages").Where("id = ?", page.Id).First(&locked).Error; err != nil {
+			return err
+		}
 		// 硬删目标之后全部修订（不可撤销，永久丢弃）：模型含 DeletedAt 后普通
 		// Delete 会变成软删，回滚语义要求物理删除（Unscoped），否则页面恢复时
 		// 被回滚的版本会复活。
@@ -381,14 +394,14 @@ func Rollback(params RollbackParams) error {
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
 		firstPost.WikiSyncedRevisionNo = params.ToRevisionNo
-		if err := posts.SaveTx(tx, &firstPost); err != nil {
+		if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
 			return err
 		}
 		topic.Title = target.Title
 		topic.Excerpt = markdown2html.ExtractDescription(target.Content, 200)
 		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(target.Content)
 		topic.WikiSyncedRevisionNo = params.ToRevisionNo
-		return topics.SaveTx(tx, &topic)
+		return topics.UpdateWikiSyncedMetaTx(tx, &topic)
 	})
 	if err != nil {
 		return err

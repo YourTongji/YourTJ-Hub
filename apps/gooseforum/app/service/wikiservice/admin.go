@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"context"
+	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
@@ -20,6 +22,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
 )
 
 // EditorView 贡献者视图（契约：userId/username/avatarUrl）。
@@ -31,6 +34,19 @@ type EditorView struct {
 
 // SetEditors 整表替换某 namespace 的贡献者列表（PageManager/Admin）。
 func SetEditors(namespace string, userIds []uint64, addedBy uint64) error {
+	if len(userIds) > 0 {
+		// 贡献者必须指向真实用户：一次性批量校验，避免幽灵贡献者行
+		// （review：此前不存在的 userId 也会写入 wiki_namespace_editors）。
+		existing := users.GetMapByIds(userIds)
+		for _, userId := range userIds {
+			if userId == 0 {
+				continue
+			}
+			if _, ok := existing[userId]; !ok {
+				return ErrUserNotFound
+			}
+		}
+	}
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		return wikiNamespaceEditors.SetEditorsTx(tx, namespace, userIds, addedBy)
 	})
@@ -58,9 +74,16 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 	var renamedTopics []topics.Entity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		for _, op := range ops {
-			page := wikiPages.GetTx(tx, op.PageId)
-			if page.Id == 0 {
-				return ErrPageNotFound
+			// 行锁 page 行：与 Edit/Rollback 的指针更新串行化，避免整行 SaveTx
+			// 把并发编辑刚前移的 published_revision_no 回写成旧值（review High
+			// 同源问题：树操作此前不加锁，rename/move 可与编辑交错）。
+			var page wikiPages.Entity
+			if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+				Table("wiki_pages").Where("id = ?", op.PageId).First(&page).Error; err != nil {
+				if errors.Is(err, gorm.ErrRecordNotFound) {
+					return ErrPageNotFound
+				}
+				return err
 			}
 			switch op.Op {
 			case "move":
@@ -195,6 +218,10 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 				if deleted.Id != 0 {
 					deletedPages = append(deletedPages, deleted)
 				}
+				// 删除后重排兄弟 sort_order 为 1..N，闭合空洞（review：删除会留下空洞/并列）。
+				if err := renumberSiblingsTx(tx, page.ParentId); err != nil {
+					return err
+				}
 			default:
 				return ErrPathInvalid
 			}
@@ -243,10 +270,13 @@ func updatePageTitleTx(tx *gorm.DB, pageId uint64, title string) (topics.Entity,
 	if topic.Id == 0 {
 		return topics.Entity{}, nil
 	}
-	topic.Title = title
-	if err := topics.SaveTx(tx, &topic); err != nil {
+	// 只更新 title 列：整行 SaveTx 会把并发回复写入的统计/指针字段回写为
+	// 旧值（与 UpdateWikiSyncedMetaTx 同源问题；rename 只改标题）。
+	if err := tx.Table("topics").Where("id = ?", topic.Id).
+		Update("title", title).Error; err != nil {
 		return topics.Entity{}, err
 	}
+	topic.Title = title
 	return topic, nil
 }
 
@@ -296,9 +326,10 @@ func deletePageSideEffects(page wikiPages.Entity) {
 // 以下为 ApplyTreeOps/deletePageTree 在事务内使用的 Tx 变体（本地实现，避免修改
 // 各 repo 文件）：单连接测试库下事务内必须走 tx 句柄，否则全局连接会死锁。
 
-// getPageByPathTx 事务内按完整 path 查询页面。
 func getPageByPathTx(tx *gorm.DB, path string) (entity wikiPages.Entity) {
-	tx.Table("wiki_pages").Where("path = ?", path).First(&entity)
+	// 行锁：move 读取父路径后基于它重写子 path，父页 rename 并发时锁串行化。
+	tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Table("wiki_pages").Where("path = ?", path).First(&entity)
 	return
 }
 
@@ -442,11 +473,13 @@ func markModeratorRemovedTx(tx *gorm.DB, id uint64, deletedBy uint64, reason str
 }
 
 // renameChildPathsTx 重命名页面路径时级联更新其后代页面的 path 前缀，
-// 保持 path 层级与 parent_id 层级一致（一次前缀替换覆盖全部层级）。
 func renameChildPathsTx(tx *gorm.DB, oldPath, newPath string) error {
 	prefix := oldPath + "/"
 	var children []wikiPages.Entity
-	if err := tx.Table("wiki_pages").
+	// 行锁读取：子页面可能正被并发编辑（published_revision_no 前移），
+	// 不加锁的整行 SaveTx 会把指针回写为旧值（review High 同源问题）。
+	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
+		Table("wiki_pages").
 		Where("path LIKE ?", prefix+"%").
 		Find(&children).Error; err != nil {
 		return err
@@ -464,10 +497,10 @@ func renameChildPathsTx(tx *gorm.DB, oldPath, newPath string) error {
 // 避免 wikiservice → contentdeleteservice 的包级依赖（review N3 事件广播）。
 const contentDeleteEventTypeTopic = "topic"
 
-// DeleteNamespace 删除 namespace 及其贡献者记录（PageManager/Admin；存在页面时 409）。
 func DeleteNamespace(name string) error {
+	// 贡献者记录清理失败必须中止删除（review：吞错会留下孤儿贡献者行）。
 	if err := wikiNamespaceEditors.DeleteByNamespace(name); err != nil {
-		slog.Error("wiki delete namespace editors failed", "namespace", name, "error", err)
+		return err
 	}
 	return wikiNamespaces.DeleteByName(name)
 }

@@ -105,6 +105,21 @@ func ResetPendingReview(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("process_status", ProcessStatusNormal).Error
 }
 
+// UpdateWikiSyncedContentTx 事务内只更新由 wiki 修订派生的首楼字段
+// （正文/渲染/版本/待审状态/水印/更新时间）。不得整行保存事务外读取的
+// 帖子——整行 Save 会把并发回复写入的统计字段回写成旧值（review High）。
+func UpdateWikiSyncedContentTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"content":                 entity.Content,
+			"rendered_html":           entity.RenderedHTML,
+			"rendered_version":        entity.RenderedVersion,
+			"process_status":          entity.ProcessStatus,
+			"wiki_synced_revision_no": entity.WikiSyncedRevisionNo,
+			"updated_at":              time.Now(),
+		}).Error
+}
+
 func DeleteEntity(entity *Entity) int64 {
 	return builder().Delete(entity).RowsAffected
 }
@@ -600,7 +615,8 @@ func PagePendingReview(page, pageSize int) struct {
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
 		// wiki 首楼由 wiki 修订审核队列管理，不进入论坛审核（review N1，
 		// 避免绕过 wiki 修订流程直接审核/拒绝）；wiki 分站评论（post_no>1）仍走论坛审核队列。
-		// 论坛话题的帖子已由第一个子句覆盖，OR 并集安全。
+		// 字面量 0 == topics.TopicTypeForum（论坛话题）。不能 import topics：
+		// topics 的测试包已 import posts，反向导入会构成测试编译环。
 		Where("(topic_id IN (SELECT id FROM topics WHERE topic_type = ?) OR post_no > ?)", 0, 1).
 		Order(queryopt.Desc("id"))
 	var total int64

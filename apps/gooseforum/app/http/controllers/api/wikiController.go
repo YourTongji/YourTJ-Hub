@@ -336,6 +336,8 @@ func wikiErrorResponse(err error) component.Response {
 		return component.FailResponseCode(component.MessageWikiPageHasChildren, nil)
 	case errors.Is(err, wikiservice.ErrNamespaceNameInvalid):
 		return component.FailResponseCode(component.MessageWikiNamespaceNameInvalid, nil)
+	case errors.Is(err, wikiservice.ErrTitleTooLong), errors.Is(err, wikiservice.ErrContentEmpty), errors.Is(err, wikiservice.ErrUserNotFound):
+		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 	default:
 		slog.Error("wiki operation failed", "error", err)
 		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)

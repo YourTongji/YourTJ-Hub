@@ -61,6 +61,8 @@ func WikiDetail(c *gin.Context) {
 	}
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
+	// 路径一律小写归一：path 存库为小写 slug，大写 URL 直接查询会 404（review）。
+	path = strings.ToLower(path)
 	if path == "" || strings.Contains(path, "//") {
 		renderNotFound(c)
 		return
