@@ -1,10 +1,12 @@
 <script setup lang="ts">
 // 选课列表/备选池：展示 stagedCourses，提供「选择课程」「保存课表」与退课/清除操作。
 // 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
+import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Save } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import { queueFlashMessage } from '@/runtime/flash-message'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
@@ -16,6 +18,12 @@ const pendingDrop = ref<PkStagedCourse | null>(null)
 const emit = defineEmits<{
   openPicker: []
 }>()
+
+const { panelRef } = useDialogAccessibility(computed(() => pendingDrop.value !== null), {
+  onClose: () => {
+    pendingDrop.value = null
+  },
+})
 
 function statusLabel(course: PkStagedCourse): string {
   if (course.status === 2) return t('schedule.statusSelected')
@@ -47,8 +55,13 @@ function confirmDrop() {
 }
 
 function saveTimetable() {
-  store.saveSelectedCourses()
-  store.solidify()
+  try {
+    store.saveSelectedCourses()
+    store.solidify()
+    queueFlashMessage(t('schedule.saveSuccess'), 'success')
+  } catch {
+    queueFlashMessage(t('schedule.saveFailed'), 'error')
+  }
 }
 
 /** 课表里已排入的班级数（用于展示）。 */
@@ -73,7 +86,7 @@ function arrangedClassCount(course: PkStagedCourse): number {
       v-if="!store.state.commonLists.stagedCourses.length"
       class="gf-panel"
       :icon="BookOpen"
-      :title="t('schedule.empty')"
+      :title="t('schedule.emptyStaged')"
     />
 
     <ul v-else class="gf-panel divide-y divide-line/60">
@@ -108,11 +121,18 @@ function arrangedClassCount(course: PkStagedCourse): number {
 
     <!-- 退课确认弹窗 -->
     <Teleport to="body">
-      <div v-if="pendingDrop" class="fixed inset-0 z-[2100]">
+      <div
+        v-if="pendingDrop"
+        ref="panelRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-drop-title"
+        class="fixed inset-0 z-[2100]"
+      >
         <div class="absolute inset-0 bg-black/40" @click="pendingDrop = null"></div>
         <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2">
           <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
-            <h3 class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
+            <h3 id="schedule-drop-title" class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
             <p class="mt-2 text-[13px] text-base-content/70">
               {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
             </p>

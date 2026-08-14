@@ -87,12 +87,12 @@ const { t } = useI18n()
     <div class="mt-3 flex items-center gap-1 border-t border-line/70 pt-2.5 text-xs text-base-content/55">
       <span
         class="inline-flex h-7 items-center gap-1.5 rounded-md px-2"
-        :title="t('topicList.replies') + ': ' + formatNumber(topic.replyCount)"
+        :title="t('topicList.columns.replies') + ': ' + formatNumber(topic.replyCount)"
       >
         <MessageSquare class="h-4 w-4" />
         <span class="tabular-nums">{{ formatNumber(topic.replyCount) }}</span>
       </span>
-      <span class="inline-flex h-7 items-center gap-1.5 rounded-md px-2" :title="t('topicList.views')">
+      <span class="inline-flex h-7 items-center gap-1.5 rounded-md px-2" :title="t('topicList.columns.views')">
         <Eye class="h-4 w-4" />
         <span class="tabular-nums">{{ formatNumber(topic.viewCount) }}</span>
       </span>

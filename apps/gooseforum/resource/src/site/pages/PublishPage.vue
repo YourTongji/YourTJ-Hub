@@ -315,7 +315,7 @@ async function save() {
     window.location.href = `/p/post/${id}`
   } catch (err) {
     if (challengeFromError(err)) {
-      error.value = t('auth.captcha.invalid')
+      error.value = t('server.auth.captcha.invalid')
     } else {
       error.value = err instanceof Error ? err.message : t('publish.saveFailed')
     }

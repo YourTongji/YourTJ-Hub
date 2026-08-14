@@ -26,9 +26,33 @@
   /* Tooltip：浅色/深色主题统一深灰底 + 近白字（对齐编辑器 vditor-tooltipped 配色） */
   --gf-color-tooltip-bg: oklch(30.5% 0.007 250);
   --gf-color-tooltip-content: oklch(97% 0 0);
+  /* 排课器课程块色阶（issue #226）：课程按稳定 hash 映射 6 槽位。
+     浅色主题：深底 + 近白字（全部对比 ≥4.5:1）；深色主题见下方覆盖。 */
+  --gf-color-course-1: oklch(45% 0.19 268);
+  --gf-color-course-1-content: oklch(98% 0.003 247);
+  --gf-color-course-2: oklch(42% 0.12 200);
+  --gf-color-course-2-content: oklch(98% 0.003 247);
+  --gf-color-course-3: oklch(44% 0.13 155);
+  --gf-color-course-3-content: oklch(98% 0.003 247);
+  --gf-color-course-4: oklch(45% 0.15 50);
+  --gf-color-course-4-content: oklch(98% 0.003 247);
+  --gf-color-course-5: oklch(46% 0.2 20);
+  --gf-color-course-5-content: oklch(98% 0.003 247);
+  --gf-color-course-6: oklch(40% 0.14 280);
+  --gf-color-course-6-content: oklch(98% 0.003 247);
+  --gf-color-course-7: oklch(43% 0.17 230);
+  --gf-color-course-7-content: oklch(98% 0.003 247);
+  --gf-color-course-8: oklch(47% 0.12 330);
+  --gf-color-course-8-content: oklch(98% 0.003 247);
   --gf-radius-selector: 0.5rem;
   --gf-radius-field: 0.5rem;
   --gf-radius-box: 0.5rem;
+  /* 字号尺度 token（issue #229）：排课/课评界面正文下限 11px（--gf-text-xs），
+     避免 arbitrary 字号（text-[8px] 等）低于可读下限 */
+  --gf-text-xs: 0.6875rem;
+  --gf-text-sm: 0.75rem;
+  --gf-text-base: 0.875rem;
+  --gf-text-lg: 1rem;
   --gf-size-selector: 0.25rem;
   --gf-size-field: 0.25rem;
   --gf-border: 1px;
@@ -59,6 +83,23 @@
   --gf-color-warning-content: oklch(12.8% 0 0);
   --gf-color-error: oklch(71.2% 0.194 13.428);
   --gf-color-error-content: oklch(12.8% 0 0);
+  /* 排课器课程块色阶（issue #226）深色主题：亮底 + 近黑字（对比 ≥4.5:1） */
+  --gf-color-course-1: oklch(72% 0.15 262);
+  --gf-color-course-1-content: oklch(16% 0.02 265);
+  --gf-color-course-2: oklch(72% 0.1 200);
+  --gf-color-course-2-content: oklch(16% 0.02 265);
+  --gf-color-course-3: oklch(70% 0.12 155);
+  --gf-color-course-3-content: oklch(16% 0.02 265);
+  --gf-color-course-4: oklch(74% 0.13 80);
+  --gf-color-course-4-content: oklch(16% 0.02 265);
+  --gf-color-course-5: oklch(70% 0.16 25);
+  --gf-color-course-5-content: oklch(16% 0.02 265);
+  --gf-color-course-6: oklch(70% 0.12 285);
+  --gf-color-course-6-content: oklch(16% 0.02 265);
+  --gf-color-course-7: oklch(72% 0.13 230);
+  --gf-color-course-7-content: oklch(16% 0.02 265);
+  --gf-color-course-8: oklch(70% 0.13 330);
+  --gf-color-course-8-content: oklch(16% 0.02 265);
 }
 
 @theme inline {

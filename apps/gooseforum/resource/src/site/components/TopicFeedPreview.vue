@@ -55,7 +55,7 @@ const singleImageClass = computed(() => {
         :alt="topic.title"
         loading="lazy"
         decoding="async"
-        class="shrink-0 self-center object-cover ring-1 ring-black/5 dark:ring-white/10"
+        class="shrink-0 self-center object-cover ring-1 ring-black/5 [data-theme='gf-dark']:ring-white/10"
         :class="singleImageClass"
       />
     </div>
@@ -77,7 +77,7 @@ const singleImageClass = computed(() => {
               :alt="topic.title"
               loading="lazy"
               decoding="async"
-              class="min-h-0 w-full object-cover ring-1 ring-black/5 dark:ring-white/10"
+              class="min-h-0 w-full object-cover ring-1 ring-black/5 [data-theme='gf-dark']:ring-white/10"
               :class="multiImageClass"
             />
           </div>
