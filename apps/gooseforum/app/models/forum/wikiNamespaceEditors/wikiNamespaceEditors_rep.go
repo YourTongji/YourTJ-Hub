@@ -1,0 +1,54 @@
+package wikiNamespaceEditors
+
+import (
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
+)
+
+// ListByNamespace 返回某 namespace 的贡献者列表。
+func ListByNamespace(namespace string) []*Entity {
+	var entities []*Entity
+	builder().
+		Where(queryopt.Eq("namespace", namespace)).
+		Order(queryopt.Asc("id")).
+		Find(&entities)
+	return entities
+}
+
+func IsEditor(namespace string, userId uint64) bool {
+	var count int64
+	builder().
+		Where(queryopt.Eq("namespace", namespace)).
+		Where(queryopt.Eq("user_id", userId)).
+		Count(&count)
+	return count > 0
+}
+
+// SetEditorsTx 在给定事务内整表替换某 namespace 的贡献者列表。
+func SetEditorsTx(tx *gorm.DB, namespace string, userIds []uint64, addedBy uint64) error {
+	if err := tx.Table(tableName).
+		Where(queryopt.Eq("namespace", namespace)).
+		Delete(&Entity{}).Error; err != nil {
+		return err
+	}
+	for _, userId := range userIds {
+		if userId == 0 {
+			continue
+		}
+		entity := &Entity{
+			Namespace: namespace,
+			UserId:    userId,
+			AddedBy:   addedBy,
+		}
+		if err := tx.Table(tableName).Create(entity).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// DeleteByNamespace 删除某 namespace 的全部贡献者记录（namespace 删除时清理，
+// 避免贡献者表残留孤儿行，review N1）。
+func DeleteByNamespace(namespace string) error {
+	return builder().Where(queryopt.Eq("namespace", namespace)).Delete(&Entity{}).Error
+}

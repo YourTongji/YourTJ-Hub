@@ -63,6 +63,34 @@ func TestScopeQueries(t *testing.T) {
 	}
 }
 
+// TestScopeQueriesTopicTypeFilter review B1：topics 域 filter 必须是 Meilisearch
+// filter 表达式（字符串或字符串数组），不能是 {"filter": [...]} 包装对象
+// （后者会被 SDK 直接序列化导致 400 失败）。
+func TestScopeQueriesTopicTypeFilter(t *testing.T) {
+	topicType := topics.TopicTypeForum
+	queries := scopeQueries(AggregateSearchRequest{Query: "hello", Scope: ScopeTopics, Limit: 10, TopicType: &topicType})
+	if len(queries) != 1 {
+		t.Fatalf("topics scope should produce 1 query, got %d", len(queries))
+	}
+	filter := queries[0].Filter
+	if filter == nil {
+		t.Fatalf("topic type filter missing: %+v", queries[0])
+	}
+	// 断言 shape：[]string 表达式（review B1 修复后）。
+	exprs, ok := filter.([]string)
+	if !ok {
+		t.Fatalf("filter shape = %T (%#v), want []string", filter, filter)
+	}
+	if len(exprs) != 1 || exprs[0] != "topicType = 0" {
+		t.Fatalf("filter exprs = %#v, want [topicType = 0]", exprs)
+	}
+	// nil TopicType 不产生 filter。
+	noFilter := scopeQueries(AggregateSearchRequest{Query: "hello", Scope: ScopeTopics, Limit: 10})
+	if noFilter[0].Filter != nil {
+		t.Fatalf("filter should be nil when TopicType is nil, got %#v", noFilter[0].Filter)
+	}
+}
+
 func TestAggregateSearchEmptyQuery(t *testing.T) {
 	resp, err := AggregateSearch(AggregateSearchRequest{Query: "   ", Scope: ScopeAll})
 	if err != nil {

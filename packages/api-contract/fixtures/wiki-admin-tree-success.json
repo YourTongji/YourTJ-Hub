@@ -1,0 +1,29 @@
+{
+  "result": [
+    {
+      "name": "guide",
+      "label": "guide",
+      "pages": [
+        {
+          "pageId": 1001,
+          "path": "guide/getting-started",
+          "title": "快速开始",
+          "sortOrder": 1
+        },
+        {
+          "pageId": 1002,
+          "path": "guide/content",
+          "title": "内容规范",
+          "sortOrder": 2
+        },
+        {
+          "pageId": 1003,
+          "path": "guide/draft/ideas",
+          "title": "草稿想法",
+          "sortOrder": 3
+        }
+      ]
+    }
+  ],
+  "code": 0
+}

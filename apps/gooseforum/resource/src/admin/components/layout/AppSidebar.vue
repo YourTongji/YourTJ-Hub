@@ -1,6 +1,7 @@
 <script lang="ts" setup>
 import { adminText } from '@/admin/runtime/i18n-text'
 import {
+  BookOpen,
   Award,
   Bot,
   Database,
@@ -82,6 +83,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k005l'), url: '/admin/categories', icon: Tags, permission: AdminPermission.TopicsManager },
       { title: adminText('k005u'), url: '/admin/posts', icon: FileText, permission: AdminPermission.TopicsManager },
       { title: adminText('k002j'), url: '/admin/links', icon: Link, permission: AdminPermission.PageManager },
+      { title: adminText('k00n4'), url: '/admin/wiki', icon: BookOpen, permission: AdminPermission.PageManager },
       { title: adminText('k004o'), url: '/admin/sponsors', icon: Heart, permission: AdminPermission.PageManager },
       { title: adminText('k0058'), url: '/admin/badges', icon: Award, permission: AdminPermission.SiteManager },
       { title: adminText('k00f6'), url: '/admin/files/resources', icon: Files, permission: AdminPermission.SiteManager },
@@ -100,7 +102,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k007w'), url: '/admin/settings/posting', icon: FileText, permission: AdminPermission.SiteManager },
       { title: adminText('k00ig'), url: '/admin/settings/rate-limit', icon: Shield, permission: AdminPermission.SiteManager },
       { title: adminText('k00mj'), url: '/admin/settings/mcp', icon: Cpu, permission: AdminPermission.SiteManager },
-      { title: adminText('k00n0'), url: '/admin/settings/ai-summary', icon: Sparkles, permission: AdminPermission.SiteManager },
+      { title: adminText('k00p0'), url: '/admin/settings/ai-summary', icon: Sparkles, permission: AdminPermission.SiteManager },
       { title: adminText('k0009'), url: '/admin/settings/announcement', icon: Megaphone, permission: AdminPermission.PageManager },
       { title: adminText('k00cj'), url: '/admin/settings/http-notify', icon: Webhook, permission: AdminPermission.SiteManager },
       { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },

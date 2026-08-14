@@ -17,12 +17,12 @@
           "username": "campus-bot",
           "avatarUrl": "/static/img/avatar/1.png"
         },
-        "createdAt": "2025-06-15 10:00:00",
+        "createdAt": "2025-06-15T10:00:00Z",
         "replyToPostId": 9099,
         "replyToUserId": 1002,
         "replyToUsername": "alumni",
         "isOwnPost": false,
-        "updatedAt": "2025-06-15 10:00:00",
+        "updatedAt": "2025-06-15T10:00:00Z",
         "likeCount": 2,
         "isLiked": true,
         "isBookmarked": false

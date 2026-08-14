@@ -339,7 +339,7 @@ func UploadAvatar(c *gin.Context) {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.UploadControl.NewUserUploadCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.UploadControl.NewUserUploadCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			c.JSON(200, component.FailDataCode(
 				component.MessageUploadCooldown,
 

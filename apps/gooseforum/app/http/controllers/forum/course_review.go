@@ -408,11 +408,11 @@ func buildModerationCourseReviewReportItems(records []reports.Entity) []Moderati
 			Resolution:  record.Resolution,
 			Reporter:    userPayload(record.ReporterId, userMap),
 			Handler:     userPayload(record.HandlerId, userMap),
-			CreatedAt:   record.CreatedAt.Format(time.DateTime),
+			CreatedAt:   record.CreatedAt.Format(time.RFC3339),
 			ReportCount: reportCountByReview[record.TargetId],
 		}
 		if record.HandledAt != nil {
-			item.HandledAt = record.HandledAt.Format(time.DateTime)
+			item.HandledAt = record.HandledAt.Format(time.RFC3339)
 		}
 		if review, ok := reviewMap[record.TargetId]; ok {
 			item.Excerpt = moderationExcerpt(review.Content)

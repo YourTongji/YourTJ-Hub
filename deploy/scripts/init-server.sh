@@ -25,8 +25,6 @@ copy_if_diff() {
   cp "$src" "$dst"
 }
 copy_if_diff "$SCRIPT_DIR/../Dockerfile" "$ROOT/build/Dockerfile"
-copy_if_diff "$SCRIPT_DIR/../build/wiki.Dockerfile" "$ROOT/build/wiki.Dockerfile"
-copy_if_diff "$SCRIPT_DIR/../build/wiki.nginx.conf" "$ROOT/build/wiki.nginx.conf"
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 for f in "$SCRIPT_DIR"/*.sh; do
@@ -35,9 +33,7 @@ done
 chmod +x "$ROOT/scripts/"*.sh
 # 4. 生成/补齐 .env:
 #    - 不存在时整文件生成
-#    - 已存在(存量服务器)时逐条追加缺失的 WIKI_*/POSTGRES_* 变量, 保证已有部署
-#      首次 wiki 部署拿到 WIKI_MAIN_TAG 等, 否则 deploy-wiki.sh 的
-#      sed 匹配不到 tag 行 → compose 回退 latest → pull 失败阻断部署(review F2)
+#    - 已存在(存量服务器)时逐条追加缺失的 POSTGRES_* 变量, 保证已有部署
 #      POSTGRES_PASSWORD 由 init 生成随机值(compose 要求非空; 部署默认 PG 主库)
 PG_PASS="$(openssl rand -hex 16)"
 if [ ! -f "$ROOT/.env" ]; then
@@ -49,10 +45,6 @@ DEV_TAG=latest
 POSTGRES_USER=yourtj
 POSTGRES_PASSWORD=$PG_PASS
 POSTGRES_DB=postgres
-WIKI_MAIN_PORT=5284
-WIKI_DEV_PORT=5285
-WIKI_MAIN_TAG=latest
-WIKI_DEV_TAG=latest
 EOF
   echo "init: $ROOT/.env created"
 else
@@ -63,10 +55,10 @@ else
       echo "init: $ROOT/.env += $key=$val"
     fi
   }
-  append_if_missing WIKI_MAIN_PORT 5284
-  append_if_missing WIKI_DEV_PORT 5285
-  append_if_missing WIKI_MAIN_TAG latest
-  append_if_missing WIKI_DEV_TAG latest
+  append_if_missing MAIN_PORT 5234
+  append_if_missing DEV_PORT 5235
+  append_if_missing MAIN_TAG latest
+  append_if_missing DEV_TAG latest
   append_if_missing POSTGRES_USER yourtj
   if grep -q "^POSTGRES_PASSWORD=" "$ROOT/.env" && [ -z "$(grep '^POSTGRES_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)" ]; then
     sed -i.bak -E "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" "$ROOT/.env" && rm -f "$ROOT/.env.bak"

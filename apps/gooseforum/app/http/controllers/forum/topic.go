@@ -423,7 +423,7 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			Content:       content,
 			RenderedHTML:  rendered,
 			ProcessStatus: v.ProcessStatus,
-			CreatedAt:     v.CreatedAt.Format(time.DateTime),
+			CreatedAt:     v.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	nextCursor := uint64(0)

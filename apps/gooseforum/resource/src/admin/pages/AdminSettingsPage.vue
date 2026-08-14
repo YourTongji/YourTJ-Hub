@@ -248,7 +248,7 @@ const pageMeta = computed(() => {
     posting: { title: adminText('k0007'), description: adminText('k0008') },
     'rate-limit': { title: adminText('k00ig'), description: adminText('k00ij') },
     mcp: { title: adminText('k00mj'), description: adminText('k00mk') },
-    'ai-summary': { title: adminText('k00n0'), description: adminText('k00n1') },
+    'ai-summary': { title: adminText('k00p0'), description: adminText('k00p1') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -1008,15 +1008,15 @@ onMounted(load)
       <form v-else-if="kind === 'ai-summary'" class="max-w-2xl space-y-8" @submit.prevent="save">
         <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
           <div>
-            <div class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ adminText('k00n4') }}</div>
-            <p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00n5') }}</p>
+            <div class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ adminText('k00p4') }}</div>
+            <p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00p5') }}</p>
           </div>
           <Switch v-model="aiSummaryForm.enabled" />
         </div>
         <label class="grid gap-2 text-sm font-medium">
-          {{ adminText('k00n6') }}
+          {{ adminText('k00p6') }}
           <Input v-model.number="aiSummaryForm.globalPerMinute" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
-          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00n7') }}</span>
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00p7') }}</span>
         </label>
       </form>
 

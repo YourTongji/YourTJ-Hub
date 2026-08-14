@@ -1,0 +1,15 @@
+{
+  "result": [
+    {
+      "userId": 3001,
+      "username": "alice",
+      "avatarUrl": "https://example.test/avatars/alice.png"
+    },
+    {
+      "userId": 3002,
+      "username": "bob",
+      "avatarUrl": "https://example.test/avatars/bob.png"
+    }
+  ],
+  "code": 0
+}

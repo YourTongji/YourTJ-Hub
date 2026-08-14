@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 # deploy.sh — 容器版部署: 构建镜像 → compose 更新 → 健康检查 → 失败回滚。
+#   compose up 带 --remove-orphans: 不在当前 compose 文件中定义的服务容器
+#   (如旧 VitePress wiki 的 yourtj-wiki-main/-dev) 会被停止并移除。
 #   部署成功后自动清理本实例前缀的旧镜像与构建缓存, 防止磁盘无限膨胀。
 # usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]
 #   instance: main 或 dev
@@ -77,8 +79,8 @@ log "built image $IMAGE:$IMAGE_TAG"
 
 # 3. 更新 .env tag 并启动实例
 sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$IMAGE_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "$INSTANCE"
-log "compose up $INSTANCE with $IMAGE_TAG"
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
+log "compose up $INSTANCE with $IMAGE_TAG (--remove-orphans)"
 
 # 4. 健康检查(覆盖启动 + AutoMigrate 大库迁移)
 for ((i = 1; i <= 60; i++)); do
@@ -95,7 +97,7 @@ done
 log "FATAL: health check failed, rolling back"
 if [ -n "$OLD_TAG" ]; then
   sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d "$INSTANCE"
+  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
   log "rolled back to $OLD_TAG"
 fi
 exit 1

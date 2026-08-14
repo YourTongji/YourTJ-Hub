@@ -46,6 +46,12 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
+// GetTx 事务内按 id 获取帖子（避免单连接测试库下事务内走全局连接死锁）。
+func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
+	tx.Table(tableName).First(&entity, id)
+	return
+}
+
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)
@@ -97,6 +103,21 @@ func UpdateProcessStatus(id uint64, processStatus int8) error {
 // 语义叠加导致审核队列出现幽灵项。
 func ResetPendingReview(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("process_status", ProcessStatusNormal).Error
+}
+
+// UpdateWikiSyncedContentTx 事务内只更新由 wiki 修订派生的首楼字段
+// （正文/渲染/版本/待审状态/水印/更新时间）。不得整行保存事务外读取的
+// 帖子——整行 Save 会把并发回复写入的统计字段回写成旧值（review High）。
+func UpdateWikiSyncedContentTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"content":                 entity.Content,
+			"rendered_html":           entity.RenderedHTML,
+			"rendered_version":        entity.RenderedVersion,
+			"process_status":          entity.ProcessStatus,
+			"wiki_synced_revision_no": entity.WikiSyncedRevisionNo,
+			"updated_at":              time.Now(),
+		}).Error
 }
 
 func DeleteEntity(entity *Entity) int64 {
@@ -592,6 +613,11 @@ func PagePendingReview(page, pageSize int) struct {
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		// wiki 首楼由 wiki 修订审核队列管理，不进入论坛审核（review N1，
+		// 避免绕过 wiki 修订流程直接审核/拒绝）；wiki 分站评论（post_no>1）仍走论坛审核队列。
+		// 字面量 0 == topics.TopicTypeForum（论坛话题）。不能 import topics：
+		// topics 的测试包已 import posts，反向导入会构成测试编译环。
+		Where("(topic_id IN (SELECT id FROM topics WHERE topic_type = ?) OR post_no > ?)", 0, 1).
 		Order(queryopt.Desc("id"))
 	var total int64
 	b.Session(&gorm.Session{}).Count(&total)

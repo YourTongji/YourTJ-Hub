@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-14
 
 ## Deployment shape
 
@@ -27,23 +27,49 @@
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
-- **Wiki static site** (VitePress + Pagefind, separate from the binary): two nginx containers
-  `wiki-main` (127.0.0.1:5284) / `wiki-dev` (127.0.0.1:5285) in the same compose project, deployed by
-  `deploy-wiki.sh` from the `wiki-dist` artifact built in CI. Public reverse-proxy DNS for the wiki is
-  a post-merge ops task.
+- **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
+  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。
+  **存量服务器一次性退役旧 wiki 容器/镜像**（PR #219 后，旧 bootstrap 流程初始化过的服务器
+  `/opt/yourtj/docker-compose.yaml` 仍可能保留 `wiki-main`/`wiki-dev` 服务定义与运行中的
+  `yourtj-wiki-main`(127.0.0.1:5284)/`yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
+  - 当前 CI 部署只下发 `deploy/scripts/*.sh` 与二进制，**不替换**远程 compose 文件；只要远程
+    compose 仍定义 `wiki-main`/`wiki-dev`，这两个容器就不是孤儿，`deploy.sh` 的
+    `up -d --remove-orphans` 不会动它们。需先手动把 `/opt/yourtj/docker-compose.yaml` 换成
+    不含 wiki 服务的当前版本（取仓库 `deploy/docker-compose.yaml`，或直接删除文件中
+    `wiki-main`/`wiki-dev` 两个 service 块），之后下一次部署的 `--remove-orphans` 会停删它们。
+  - 想在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
+    （`restart: unless-stopped` 不会复活已 `rm` 的容器）；残留镜像手动清理
+    `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
+    （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
+  - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
+
+### 旧 VitePress wiki 内容重建（PR #219 后）
+
+论坛内嵌 wiki 是全新实现，**没有**自动导入旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）
+内容的迁移通道。旧站内容如需保留，需手动重建：
+
+1. 旧 VitePress 站点仓库仍保留 `docs/`（Markdown 源文件）。按
+   `docs/product/current-state.md` 的 wiki 使用说明，在管理端创建 namespace，
+   然后把每个 Markdown 文件作为新页面手动发布（正文粘贴原 Markdown，标题取
+   front-matter 的 `title`；旧站路径映射为 `<namespace>/<slug>`）。
+2. 旧站的静态资源（图片/附件）若在仓库内，随正文重新上传；若引用旧域名
+   （如 `https://wiki.example.com/...`），需先下载到本地再上传，或改写为
+   相对路径后上传到新站附件。
+3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
+   后以人工方式并入对应新页面（wiki 无评论表，评论仍走论坛回复流）。
+4. 重建期间旧站可继续在线（只读），全部内容迁移完成、新站 `/wiki` 导航树
+   核对无误后再按上方步骤退役旧容器与路由。
 
 ## Server layout (1Panel container orchestration)
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/WIKI_*_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev + meili + wiki-main + wiki-dev services (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
+  docker-compose.yaml     # main + dev + meili services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
   build/
     Dockerfile            # alpine + binary
-    wiki.Dockerfile       # nginx + wiki static dist
-    wiki-dist/            # unpacked wiki dist (deploy-wiki.sh)
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, bootstrap-wiki-assets.sh, pgdsn.sh
+  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
     storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
@@ -67,16 +93,12 @@
      `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
      rollback tag) and build cache older than 72h.
      The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
-  4. SSH: `deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-<sha> 5285` → build nginx image from the
-     unpacked static dist, compose up, health check, rollback (the `wiki-build` job builds the site
-     and uploads the `wiki-dist` artifact).
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
      auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
      (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
-  4. SSH: `deploy-wiki.sh main /tmp/wiki-dist.tar.gz wiki-main-<sha> 5284` → same as dev, on 5284.
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -95,12 +117,6 @@
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
-- Wiki deploy assets are also CI-provisioned: each deploy uploads
-  `deploy/build/wiki.Dockerfile` / `wiki.nginx.conf` / `docker-compose.yaml` and runs
-  `bootstrap-wiki-assets.sh`, which idempotently installs them under `/opt/yourtj/build` and appends
-  missing `WIKI_*` vars to `/opt/yourtj/.env`. Existing servers therefore need no manual
-  `init-server.sh` re-run before the first wiki deploy; the compose file is only replaced when the
-  `wiki-*` services are missing (preserving any server-side local edits).
 
 ## GitHub Actions secrets
 
@@ -109,7 +125,6 @@
 | `VM_HOST` | server public IP or hostname (`20.205.27.178`) |
 | `VM_USER` | SSH user (e.g. `yourtj`) |
 | `VM_SSH_KEY` | private key for that user (full PEM, including `-----BEGIN ...` lines) |
-| `WIKI_WALINE_SERVER_URL` | optional Waline comment server URL, injected at wiki build time (`VITE_WALINE_SERVER_URL`); empty = comments disabled |
 
 Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
 

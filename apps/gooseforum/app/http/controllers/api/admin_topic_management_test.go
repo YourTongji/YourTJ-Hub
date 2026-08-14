@@ -277,3 +277,102 @@ func TestAdminRestoreTopicRejectsNonModeratorRemoved(t *testing.T) {
 	// 作者删除（USER_DELETED）话题不可由管理端恢复端点接管。
 	_ = conn
 }
+
+// review N1：wiki 分站页面话题禁止经论坛管理端删除，避免软删话题后残留
+// wiki_pages/wiki_page_revisions 孤儿页面。
+func TestAdminDeleteTopicRejectsWikiTopic(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	now := time.Date(2026, 7, 7, 15, 0, 0, 0, time.UTC)
+	const topicID = uint64(925001)
+	if err := conn.Create(&users.EntityComplete{Id: 925001, Username: "wiki-author"}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := conn.Create(&posts.Entity{Id: 925101, TopicId: topicID, PostNo: 1, UserId: 925001, Content: "wiki body", CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki first post: %v", err)
+	}
+	if err := conn.Create(&topics.Entity{
+		Id:            topicID,
+		Title:         "Wiki page",
+		UserId:        925001,
+		Status:        1,
+		ProcessStatus: topics.ProcessStatusNormal,
+		TopicType:     topics.TopicTypeWiki,
+		PostCount:     1,
+		PostSeq:       1,
+		FirstPostId:   925101,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}).Error; err != nil {
+		t.Fatalf("create wiki topic: %v", err)
+	}
+
+	res := DeleteTopic(component.BetterRequest[DeleteTopicReq]{
+		UserId: 77,
+		Params: DeleteTopicReq{TopicId: topicID, Reason: "policy violation"},
+	})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicOperationDenied {
+		t.Fatalf("DeleteTopic wiki = code=%v msg=%v, want FAIL/MessageTopicOperationDenied", res.Data.Code, res.Data.MessageCode)
+	}
+	topic := topics.UnscopedGet(topicID)
+	if topic.VisibilityStatus != topics.VisibilityActive {
+		t.Fatalf("wiki topic visibility = %s, want ACTIVE", topic.VisibilityStatus)
+	}
+}
+
+// review N1 死区修复：ReviewAction(kind=post) 仅对 wiki 首楼（post_no<=1）拒绝，
+// wiki 分站评论（post_no>1）应放行进论坛审核流程。
+func TestReviewActionPostGuardNarrowsWikiToFirstPost(t *testing.T) {
+	conn := setupAdminTopicTestDB(t)
+	now := time.Date(2026, 7, 7, 15, 0, 0, 0, time.UTC)
+	const (
+		wikiTopicID  = uint64(926001)
+		firstPostID  = uint64(926101)
+		replyPostID  = uint64(926102)
+		forumTopicID = uint64(926002)
+		forumPostID  = uint64(926201)
+	)
+	for _, topic := range []topics.Entity{
+		{Id: wikiTopicID, Title: "wiki", TopicType: topics.TopicTypeWiki, CreatedAt: now, UpdatedAt: now},
+		{Id: forumTopicID, Title: "forum", TopicType: topics.TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+	} {
+		if err := conn.Create(&topic).Error; err != nil {
+			t.Fatalf("create topic %d: %v", topic.Id, err)
+		}
+	}
+	for _, post := range []posts.Entity{
+		{Id: firstPostID, TopicId: wikiTopicID, PostNo: 1, UserId: 1, Content: "wiki first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: replyPostID, TopicId: wikiTopicID, PostNo: 2, UserId: 2, Content: "wiki reply", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+		{Id: forumPostID, TopicId: forumTopicID, PostNo: 1, UserId: 3, Content: "forum first", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now},
+	} {
+		if err := conn.Create(&post).Error; err != nil {
+			t.Fatalf("create post %d: %v", post.Id, err)
+		}
+	}
+
+	// wiki 首楼：即使非 pending 也应被 wiki 修订流程拦截。
+	first := ReviewAction(component.BetterRequest[ReviewActionReq]{
+		Params: ReviewActionReq{Kind: "post", Id: firstPostID, Approve: true},
+	})
+	if first.Data.Code != component.FAIL || first.Data.MessageCode != component.MessageAdminReviewTargetInvalid {
+		t.Fatalf("review wiki first post = code=%v msg=%v, want FAIL/MessageAdminReviewTargetInvalid", first.Data.Code, first.Data.MessageCode)
+	}
+
+	// wiki 评论（post_no>1）：越过 wiki 拦截，进入论坛流程；非 pending 时报"已处理"。
+	reply := ReviewAction(component.BetterRequest[ReviewActionReq]{
+		Params: ReviewActionReq{Kind: "post", Id: replyPostID, Approve: true},
+	})
+	if reply.Data.MessageCode == component.MessageAdminReviewTargetInvalid {
+		t.Fatalf("review wiki reply was wrongly blocked as targetInvalid: %#v", reply)
+	}
+	if reply.Data.MessageCode != component.MessageAdminReviewProcessed {
+		t.Fatalf("review wiki reply = code=%v msg=%v, want MessageAdminReviewProcessed", reply.Data.Code, reply.Data.MessageCode)
+	}
+
+	// 论坛首楼不受 wiki 拦截影响。
+	forum := ReviewAction(component.BetterRequest[ReviewActionReq]{
+		Params: ReviewActionReq{Kind: "post", Id: forumPostID, Approve: true},
+	})
+	if forum.Data.MessageCode == component.MessageAdminReviewTargetInvalid {
+		t.Fatalf("review forum first post was wrongly blocked: %#v", forum)
+	}
+}

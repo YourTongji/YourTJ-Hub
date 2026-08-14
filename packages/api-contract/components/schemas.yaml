@@ -2578,3 +2578,629 @@ ResetPasswordResponse:
   oneOf:
     - $ref: '#/ResetPasswordSuccess'
     - $ref: '#/ApiFailure'
+WikiTreePage:
+  type: object
+  required: [pageId, path, title, active]
+  properties:
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    path:
+      type: string
+      description: Canonical page path within the namespace (slash-separated).
+    title:
+      type: string
+    active:
+      type: boolean
+      description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+  additionalProperties: false
+
+WikiTreeNamespace:
+  type: object
+  required: [name, label, pages]
+  properties:
+    name:
+      type: string
+    label:
+      type: string
+      description: Display label of the namespace.
+    pages:
+      type: array
+      items:
+        $ref: '#/WikiTreePage'
+  additionalProperties: false
+
+WikiTreeResult:
+  type: object
+  required: [namespaces]
+  properties:
+    namespaces:
+      type: array
+      items:
+        $ref: '#/WikiTreeNamespace'
+  additionalProperties: false
+
+WikiTreeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiTreeResult'
+    - $ref: '#/ApiFailure'
+
+WikiNamespaceSummary:
+  type: object
+  required: [name, description, sortOrder, pageCount, updatedAt]
+  properties:
+    name:
+      type: string
+    description:
+      type: string
+    sortOrder:
+      type: integer
+      description: Ordering key; smaller values come first.
+    pageCount:
+      type: integer
+      format: int64
+      description: Number of pages with at least one approved revision.
+    updatedAt:
+      type: string
+      format: date-time
+    firstPagePath:
+      type: string
+      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
+  additionalProperties: false
+
+WikiNamespaceListResult:
+  type: array
+  items:
+    $ref: '#/WikiNamespaceSummary'
+  description: The raw namespace array; an empty listing is an empty array, never null.
+
+WikiNamespaceListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiNamespaceListResult'
+    - $ref: '#/ApiFailure'
+
+WikiRecentPage:
+  type: object
+  required: [pageId, path, title, updatedAt, editorId, editorName]
+  properties:
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    path:
+      type: string
+      description: Full path (namespace/slug) for direct linking (review P2).
+    title:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+    editorId:
+      type: integer
+      format: uint64
+      minimum: 1
+    editorName:
+      type: string
+      description: Display name of the last approved-revision editor.
+  additionalProperties: false
+
+WikiHomeResult:
+  type: object
+  required: [namespaces, recent]
+  properties:
+    namespaces:
+      type: array
+      items:
+        $ref: '#/WikiNamespaceSummary'
+    recent:
+      type: array
+      items:
+        $ref: '#/WikiRecentPage'
+  additionalProperties: false
+
+WikiHomeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiHomeResult'
+    - $ref: '#/ApiFailure'
+
+WikiRevision:
+  type: object
+  required: [revisionId, pageId, revisionNo, title, content, status, editorId, editorName, updatedAt]
+  properties:
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    revisionNo:
+      type: integer
+      description: 1-based revision number of the page, incremented per edit.
+    title:
+      type: string
+    content:
+      type: string
+      description: Raw wiki markup content.
+    status:
+      type: string
+      enum: [approved, pending, rejected, superseded]
+    editorId:
+      type: integer
+      format: uint64
+      minimum: 1
+    editorName:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+WikiRevisionListResult:
+  type: array
+  items:
+    $ref: '#/WikiRevision'
+  description: The raw revision array; an empty listing is an empty array, never null.
+
+WikiRevisionListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiRevisionListResult'
+    - $ref: '#/ApiFailure'
+
+WikiCreatePageRequest:
+  type: object
+  required: [namespace, path, title, content]
+  properties:
+    namespace:
+      type: string
+      minLength: 1
+    path:
+      type: string
+      minLength: 1
+      description: Page path within the namespace; the parent segment must reference an existing page when present.
+    title:
+      type: string
+      minLength: 1
+      maxLength: 512
+    content:
+      type: string
+      minLength: 1
+      description: Raw wiki markup content.
+  additionalProperties: false
+
+WikiCreatePageResult:
+  type: object
+  required: [pageId, path]
+  properties:
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    path:
+      type: string
+  additionalProperties: false
+
+WikiCreatePageResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiCreatePageResult'
+    - $ref: '#/ApiFailure'
+
+WikiUpdatePageRequest:
+  type: object
+  required: [title, content, baseRevisionNo]
+  properties:
+    title:
+      type: string
+      minLength: 1
+      maxLength: 512
+    content:
+      type: string
+      minLength: 1
+      description: Raw wiki markup content.
+    baseRevisionNo:
+      type: integer
+      minimum: 1
+      description: |
+        The published revision number the editor based this edit on (optimistic lock).
+        REQUIRED: the API rejects edits without it (model-1 edit lock; a missing value
+        would let a stale client silently overwrite newer published content). When it no
+        longer equals the page's current published revision, the request fails with
+        `wiki.revision.conflict` (409 semantics) and the client must reload the latest
+        revision and re-edit.
+  additionalProperties: false
+
+WikiUpdatePageResult:
+  type: object
+  required: [revisionId, status, revisionNo]
+  properties:
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    status:
+      type: string
+      const: approved
+      description: "Write-publish: the new revision is immediately approved and visible."
+    revisionNo:
+      type: integer
+      minimum: 1
+      description: The newly published revision number (previous published number + 1).
+  additionalProperties: false
+
+WikiUpdatePageResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiUpdatePageResult'
+    - $ref: '#/ApiFailure'
+
+WikiRollbackRequest:
+  type: object
+  required: [toRevisionNo]
+  properties:
+    toRevisionNo:
+      type: integer
+      minimum: 1
+      description: Target revision number; every revision with a higher number is permanently deleted.
+  additionalProperties: false
+
+WikiRollbackResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiRollbackResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiRollbackResult'
+    - $ref: '#/ApiFailure'
+
+WikiDiffSide:
+  type: object
+  required: [revisionNo, title, content, editorId, createdAt]
+  properties:
+    revisionNo:
+      type: integer
+      minimum: 1
+    title:
+      type: string
+    content:
+      type: string
+      description: Raw wiki markup content of the revision.
+    editorId:
+      type: integer
+      format: uint64
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+WikiDiffResult:
+  type: object
+  required: [from, to]
+  properties:
+    from:
+      oneOf:
+        - $ref: '#/WikiDiffSide'
+        - type: 'null'
+      description: Older side; null when the `from` query parameter was absent (empty baseline before the page existed).
+    to:
+      $ref: '#/WikiDiffSide'
+  additionalProperties: false
+
+WikiDiffResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiDiffResult'
+    - $ref: '#/ApiFailure'
+
+WikiCreateNamespaceRequest:
+  type: object
+  required: [name, description]
+  properties:
+    name:
+      type: string
+      minLength: 1
+      pattern: '^[a-z0-9-]+$'
+      description: Namespace key, lowercase letters, digits, and hyphens.
+    description:
+      type: string
+  additionalProperties: false
+
+WikiUpdateNamespaceRequest:
+  type: object
+  required: [description]
+  properties:
+    description:
+      type: string
+  additionalProperties: false
+
+WikiNamespaceActionResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiNamespaceActionResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiNamespaceActionResult'
+    - $ref: '#/ApiFailure'
+
+WikiEditorSummary:
+  type: object
+  required: [userId, username, avatarUrl]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    avatarUrl:
+      type: string
+  additionalProperties: false
+
+WikiEditorListResult:
+  type: array
+  items:
+    $ref: '#/WikiEditorSummary'
+  description: The raw editor array; an empty listing is an empty array, never null.
+
+WikiEditorListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiEditorListResult'
+    - $ref: '#/ApiFailure'
+
+WikiUpdateEditorsRequest:
+  type: object
+  required: [userIds]
+  properties:
+    userIds:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      description: Replaces the namespace editor set; an empty array removes all editors.
+  additionalProperties: false
+
+WikiAdminTreePage:
+  type: object
+  required: [pageId, path, title, sortOrder]
+  properties:
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    path:
+      type: string
+    title:
+      type: string
+    sortOrder:
+      type: integer
+  additionalProperties: false
+
+WikiAdminTreeNamespace:
+  type: object
+  required: [name, label, pages]
+  properties:
+    name:
+      type: string
+    label:
+      type: string
+    pages:
+      type: array
+      items:
+        $ref: '#/WikiAdminTreePage'
+  additionalProperties: false
+
+WikiAdminTreeResult:
+  type: array
+  items:
+    $ref: '#/WikiAdminTreeNamespace'
+  description: The raw namespace tree array; an empty listing is an empty array, never null.
+
+WikiAdminTreeResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAdminTreeResult'
+    - $ref: '#/ApiFailure'
+
+WikiTreeOp:
+  type: object
+  required: [op, pageId]
+  properties:
+    op:
+      type: string
+      enum: [move, rename, sort, delete]
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    parentPath:
+      type: string
+      description: Target parent path for move operations; empty or absent means the namespace root.
+    newPath:
+      type: string
+      description: New page path for rename operations.
+    newTitle:
+      type: string
+      description: New page title for rename operations.
+    sortOrder:
+      type: integer
+      description: New sort order for sort operations.
+  additionalProperties: false
+
+WikiTreeOpsRequest:
+  type: object
+  required: [ops]
+  properties:
+    ops:
+      type: array
+      minItems: 1
+      items:
+        $ref: '#/WikiTreeOp'
+      description: Applied in order; any failure aborts the batch before further operations run.
+  additionalProperties: false
+
+WikiTreeOpsResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiTreeOpsResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiTreeOpsResult'
+    - $ref: '#/ApiFailure'
+
+WikiAdminRevision:
+  type: object
+  required: [revisionId, pageId, revisionNo, path, title, content, status, editorId, editorName, updatedAt]
+  properties:
+    revisionId:
+      type: integer
+      format: uint64
+      minimum: 1
+    pageId:
+      type: integer
+      format: uint64
+      minimum: 1
+    revisionNo:
+      type: integer
+      minimum: 1
+      description: 1-based revision number of the page (the version number used by the diff and rollback endpoints).
+    path:
+      type: string
+    title:
+      type: string
+    content:
+      type: string
+    status:
+      type: string
+      enum: [approved, pending, rejected, superseded]
+      description: Approved for all revisions created after write-publish; legacy values only for pre-v19 rows.
+    editorId:
+      type: integer
+      format: uint64
+      minimum: 1
+    editorName:
+      type: string
+    updatedAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+WikiAdminRevisionListResult:
+  type: object
+  required: [list, page, pageSize, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/WikiAdminRevision'
+      description: Revisions on the current page ordered by creation time desc.
+    page:
+      type: integer
+      minimum: 1
+      description: The 1-based page number returned.
+    pageSize:
+      type: integer
+      minimum: 1
+      description: The page size applied to this page.
+    hasNext:
+      type: boolean
+      description: Whether more pages follow the current one.
+  additionalProperties: false
+  description: Paged revision listing; an empty page is an empty `list`, never null.
+
+WikiAdminRevisionListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAdminRevisionListResult'
+    - $ref: '#/ApiFailure'

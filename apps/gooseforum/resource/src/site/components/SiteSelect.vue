@@ -64,13 +64,20 @@ function handleTriggerKeydown(event: KeyboardEvent) {
   }
   if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    if (open.value) {
-      // 焦点已移入 option（openList 后），此处仅在焦点被外部拉回 trigger 时兜底：
-      // 重新聚焦当前高亮项，让列表键盘流程继续。
-      focusOption(highlightIndex.value)
+    if (!open.value) {
+      openList()
       return
     }
-    openList()
+    if (event.key === 'ArrowDown') {
+      // 已打开且焦点在 trigger：移动高亮并跟随焦点（完整 combobox 流程）
+      const next = (highlightIndex.value + 1) % props.options.length
+      highlightIndex.value = next
+      focusOption(next)
+      return
+    }
+    // 已打开且焦点在 trigger：Enter/Space 选中当前高亮项
+    const option = props.options[highlightIndex.value]
+    if (option) selectOption(option.value)
     return
   }
   if (event.key === 'ArrowUp') {

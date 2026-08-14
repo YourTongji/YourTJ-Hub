@@ -158,6 +158,9 @@ func ginServe() {
 	filemigrateservice.RecoverStaleTasks()
 	dataservice.RecoverStaleTasks()
 	searchservice.RecoverStaleTasks()
+	// 启动时确保话题索引的 filterable 属性配置（topicType 过滤依赖；见
+	// EnsureTopicIndexConfigured 注释，review N2：仅手动 rebuild 不覆盖存量部署）。
+	searchservice.EnsureTopicIndexConfigured()
 	courseservice.RecoverStaleTasks()
 	courseservice.RecoverCourseStatsRebuildTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务

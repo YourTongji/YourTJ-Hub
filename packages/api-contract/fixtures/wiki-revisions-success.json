@@ -1,0 +1,27 @@
+{
+  "result": [
+    {
+      "revisionId": 5002,
+      "pageId": 1001,
+      "revisionNo": 2,
+      "title": "快速开始",
+      "content": "欢迎来到 YourTJ Wiki。",
+      "status": "approved",
+      "editorId": 3001,
+      "editorName": "alice",
+      "updatedAt": "2026-08-10T14:30:00+08:00"
+    },
+    {
+      "revisionId": 5001,
+      "pageId": 1001,
+      "revisionNo": 1,
+      "title": "快速开始",
+      "content": "初始版本。",
+      "status": "approved",
+      "editorId": 3001,
+      "editorName": "alice",
+      "updatedAt": "2026-08-01T10:00:00+08:00"
+    }
+  ],
+  "code": 0
+}

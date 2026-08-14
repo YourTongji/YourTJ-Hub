@@ -179,9 +179,9 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 				Value: roleEntity.Id,
 			})
 		}
-		LastActiveTime := t.CreatedAt.Format(time.DateTime)
+		LastActiveTime := t.CreatedAt.Format(time.RFC3339)
 		if usItem, ok := usMap[t.Id]; ok {
-			LastActiveTime = usItem.LastActiveTime.Format(time.DateTime)
+			LastActiveTime = usItem.LastActiveTime.Format(time.RFC3339)
 		}
 		return UserItem{
 			UserId:         t.Id,
@@ -194,7 +194,7 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 			Prestige:       t.Prestige,
 			RoleList:       roleList,
 			RoleId:         t.RoleId,
-			CreateTime:     t.CreatedAt.Format(time.DateTime),
+			CreateTime:     t.CreatedAt.Format(time.RFC3339),
 			LastActiveTime: LastActiveTime,
 			Badges:         badgeservice.GetUserBadges(t.Id),
 		}
@@ -470,8 +470,8 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 					UserId:        t.UserId,
 					TopicStatus:   t.Status,
 					ProcessStatus: t.ProcessStatus,
-					CreatedAt:     t.CreatedAt.Format(time.DateTime),
-					UpdatedAt:     t.UpdatedAt.Format(time.DateTime),
+					CreatedAt:     t.CreatedAt.Format(time.RFC3339),
+					UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
 				},
 				Username:      username,
 				UserAvatarUrl: userAvatarUrl,
@@ -506,8 +506,8 @@ func TopicSource(req component.BetterRequest[TopicSourceReq]) component.Response
 			UserId:        topic.UserId,
 			TopicStatus:   topic.Status,
 			ProcessStatus: topic.ProcessStatus,
-			CreatedAt:     topic.CreatedAt.Format(time.DateTime),
-			UpdatedAt:     topic.UpdatedAt.Format(time.DateTime),
+			CreatedAt:     topic.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:     topic.UpdatedAt.Format(time.RFC3339),
 		},
 		Content: firstPost.Content,
 	})
@@ -606,6 +606,11 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 	topic := topics.UnscopedGet(req.Params.TopicId)
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+	// wiki 分站页面话题由 wiki 修订审核流程管理，禁止经论坛管理端删除，
+	// 避免软删话题后残留 wiki_pages/wiki_page_revisions 孤儿页面。
+	if topic.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	// 幂等：已处于管理端删除状态时直接成功，避免重复删除重置 deleted_at / 重复广播。
 	if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
@@ -748,7 +753,7 @@ func RoleList(req component.BetterRequest[RoleListReq]) component.Response {
 			RoleName:    t.RoleName,
 			Effective:   t.Effective,
 			Permissions: permissionItemList,
-			CreateTime:  t.CreatedAt.Format(time.DateTime),
+			CreateTime:  t.CreatedAt.Format(time.RFC3339),
 		}
 	})
 
@@ -1360,7 +1365,7 @@ type SaveAnnouncementReq struct {
 
 // SaveAnnouncement 保存公告设置
 func SaveAnnouncement(req component.BetterRequest[SaveAnnouncementReq]) component.Response {
-	req.Params.Settings.PublishedAt = time.Now().Format(time.DateTime)
+	req.Params.Settings.PublishedAt = time.Now().Format(time.RFC3339)
 	return savePageConfig(pageConfig.Announcement, req.Params.Settings, hotdataserve.ClearAnnouncementConfigCache)
 }
 
@@ -1737,7 +1742,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				Id: t.Id, Title: t.Title, Excerpt: excerpt,
 				UserId: t.UserId, Username: username,
 				ProcessStatus: t.ProcessStatus,
-				CreatedAt:     t.CreatedAt.Format(time.DateTime),
+				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 			})
 		}
 	} else {
@@ -1770,7 +1775,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				Id: p.Id, Title: title, Excerpt: excerpt,
 				UserId: p.UserId, Username: username,
 				ProcessStatus: p.ProcessStatus,
-				CreatedAt:     p.CreatedAt.Format(time.DateTime),
+				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
 			})
 		}
@@ -1796,6 +1801,11 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		topic := topics.Get(req.Params.Id)
 		if topic.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		// wiki 分站内容走 wiki 修订审核流程（review N1）：禁止在论坛审核队列
+		// 直接通过/拒绝 wiki 主题，避免绕过 wiki_page_revisions 状态流转。
+		if topic.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageAdminReviewTargetInvalid, nil)
 		}
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
@@ -1832,6 +1842,11 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		post := posts.Get(req.Params.Id)
 		if post.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		// 仅 wiki 首楼（post_no<=1）由 wiki 修订审核流程管理，禁止在论坛队列直接审核；
+		// wiki 分站评论（post_no>1）仍走论坛审核队列（review N1）。
+		if topicEntity := topics.GetSimple(post.TopicId); topicEntity.TopicType == topics.TopicTypeWiki && post.PostNo <= 1 {
+			return component.FailResponseCode(component.MessageAdminReviewTargetInvalid, nil)
 		}
 		if post.ProcessStatus != posts.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)

@@ -458,3 +458,81 @@ func TestAuthorCanUpdatePostOnOwnHiddenTopic(t *testing.T) {
 		t.Fatalf("updated post content = %q", post.Content)
 	}
 }
+
+// review N1：wiki 分站页面话题禁止经论坛编辑端点改写，防止绕过 wiki_page_revisions
+// 版本流直接改 topic 行/首楼。即便页面创建者是请求者，也应被拒绝。
+func TestWriteTopicRejectsWikiTopicEdit(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	createTopicWriteUser(t, conn, 1501, "wiki-author")
+	now := time.Now().Add(-time.Hour)
+	topic := topics.Entity{Id: 5201, Title: "Wiki page", UserId: 1501, Status: 1, TopicType: topics.TopicTypeWiki, PostCount: 1, PostSeq: 1, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create wiki topic: %v", err)
+	}
+	firstPost := posts.Entity{Id: 6201, TopicId: topic.Id, PostNo: 1, UserId: 1501, Content: "wiki body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create wiki first post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("first_post_id", firstPost.Id).Error; err != nil {
+		t.Fatalf("set first_post_id: %v", err)
+	}
+
+	res := WriteTopic(component.BetterRequest[WriteTopicReq]{
+		UserId: 1501,
+		Params: WriteTopicReq{
+			TopicId:     topic.Id,
+			Title:       "Hacked title",
+			Content:     "hacked body with enough words",
+			CategoryId:  []uint64{2001},
+			TopicStatus: 1,
+		},
+	})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicOperationDenied {
+		t.Fatalf("WriteTopic edit wiki = code=%v msg=%v, want FAIL/MessageTopicOperationDenied", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := topics.Get(topic.Id); got.Title != "Wiki page" {
+		t.Fatalf("wiki topic title mutated = %q", got.Title)
+	}
+	if got := posts.Get(firstPost.Id); got.Content != "wiki body" {
+		t.Fatalf("wiki first post content mutated = %q", got.Content)
+	}
+}
+
+// review 第三轮（WALKERKILLER）：UpdatePost 的 wiki 拦截必须只挡首楼
+// （PostNo<=1），wiki 页面下的评论（post_no>1）是受支持功能，作者仍可编辑
+// 自己的回复；同时确认首楼编辑仍被拒绝（不回归第二轮 High 修复）。
+func TestUpdatePostWikiReplyEditableFirstPostBlocked(t *testing.T) {
+	conn := setupTopicWriteTestDB(t)
+	createTopicWriteUser(t, conn, 1601, "wiki-author")
+	now := time.Now().Add(-time.Hour)
+	topic := topics.Entity{Id: 5301, Title: "Wiki page", UserId: 1601, Status: 1, TopicType: topics.TopicTypeWiki, PostCount: 1, PostSeq: 1, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create wiki topic: %v", err)
+	}
+	firstPost := posts.Entity{Id: 6301, TopicId: topic.Id, PostNo: 1, UserId: 1601, Content: "wiki body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create wiki first post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Update("first_post_id", firstPost.Id).Error; err != nil {
+		t.Fatalf("set first_post_id: %v", err)
+	}
+	createTopicReply(t, conn, 6302, topic.Id, 2, 1601, "wiki comment")
+
+	// wiki 首楼编辑仍被拒绝（版本流独占）。
+	res := UpdatePost(component.BetterRequest[UpdatePostReq]{UserId: 1601, Params: UpdatePostReq{PostId: 6301, Content: "hacked first post with enough words"}})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicOperationDenied {
+		t.Fatalf("UpdatePost wiki first post = code=%v msg=%v, want FAIL/MessageTopicOperationDenied", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := posts.Get(6301).Content; got != "wiki body" {
+		t.Fatalf("wiki first post content mutated = %q", got)
+	}
+
+	// wiki 评论（post_no=2）作者仍可编辑自己的回复。
+	res = UpdatePost(component.BetterRequest[UpdatePostReq]{UserId: 1601, Params: UpdatePostReq{PostId: 6302, Content: "updated wiki comment with enough words"}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("UpdatePost wiki reply = code=%v msg=%v, want SUCCESS", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := posts.Get(6302).Content; got != "updated wiki comment with enough words" {
+		t.Fatalf("wiki reply content = %q", got)
+	}
+}
