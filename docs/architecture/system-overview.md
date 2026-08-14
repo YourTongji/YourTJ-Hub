@@ -91,22 +91,22 @@
 Wiki 已原生化进论坛单二进制（同二进制内嵌视图，不再是独立 VitePress 静态站；旧 wiki 站点与部署已废弃）。
 
 - **后端分层**: `app/models/forum/wikiNamespaces` / `wikiNamespaceEditors` / `wikiPages` /
-  `wikiPageRevisions` → `app/service/wikiservice`（Create/Edit/Review 审核流、BuildTree/BuildHome/
-  ListRevisions、贡献者；admin 树操作/命名空间管理/编辑者管理）→ controllers：
+  `wikiPageRevisions` → `app/service/wikiservice`（Create/Edit 写即发布 + CAS 编辑锁、Rollback/Diff、
+  BuildTree/BuildHome/ListRevisions、贡献者；admin 树操作/命名空间管理/编辑者管理）→ controllers：
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
   `app/http/controllers/api/wikiController.go`（公开 API + `/api/admin/wiki/*` 管理端）。
 - **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；公开 API
   `GET /api/wiki/{tree,namespaces,home,revisions}`；登录写
-  `POST /api/wiki/pages`、`PUT /api/wiki/pages/:pageId`、`POST /api/wiki/revisions/:revisionId/review`
-  （PageManager/Admin 审核）；管理端 `/api/admin/wiki/*`（PageManager 权限：namespaces CRUD、editors、
-  tree、tree ops、revisions 队列）。
+  `POST /api/wiki/pages`、`PUT /api/wiki/pages/:pageId`（写即发布，`baseRevisionNo` CAS 冲突 409）；
+  管理端 `/api/admin/wiki/*`（PageManager 权限：namespaces CRUD、editors、tree、tree ops、
+  revisions 版本历史、rollback（不可撤销硬删后续修订）、diff（任意两版本对比））。
 - **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` / `WikiPageActions`
   组件（`PostStream` 从 TopicPage 抽取共享），AppShell 侧栏 wiki 模式；admin 区 `WikiManage.vue`
   （`/admin/wiki`，PageManager）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
-  sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；wiki 审核通过向订阅者发
-  `wiki_updated` 通知（`notifications.templates.wikiUpdated`）。
-- **契约**: OpenAPI wiki 域已覆盖（15 操作，`paths/wiki.yaml`），生成 TS
+  sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；编辑/回滚后向订阅者发
+  `wiki_updated` 通知（`notifications.templates.wikiUpdated`，同页面 10 分钟节流）。
+- **契约**: OpenAPI wiki 域已覆盖（16 操作，`paths/wiki.yaml`），生成 TS
   类型 + 手写 Dart mirror（`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 ### Points (phase 2)
