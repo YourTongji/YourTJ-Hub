@@ -2,6 +2,7 @@ package pkservice
 
 import (
 	"testing"
+	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -94,6 +95,45 @@ func TestWriteBatchTxUpsertsAllDimensions(t *testing.T) {
 	if got := countWhere(t, &pk.TeacherEntity{}, "id = ?", 100); got != 1 {
 		t.Errorf("teacher = %d, want 1", got)
 	}
+}
+
+// TestWriteBatchTxPopulatesMetadataColumns issue #185：同步写入的所有表必须
+// 填充 schema_version/synced_at 元数据列（重建/部分更新判断依据）。
+func TestWriteBatchTxPopulatesMetadataColumns(t *testing.T) {
+	migratePkTables(t)
+	if _, err := writeBatchTx(121, []CourseRaw{richCourse()}); err != nil {
+		t.Fatalf("writeBatchTx: %v", err)
+	}
+	conn := db.Connect()
+
+	check := func(table, query string, args ...any) {
+		t.Helper()
+		var row struct {
+			SchemaVersion string     `gorm:"column:schema_version"`
+			SyncedAt      *time.Time `gorm:"column:synced_at"`
+		}
+		if err := conn.Table(table).Select("schema_version, synced_at").Where(query, args...).Scan(&row).Error; err != nil {
+			t.Fatalf("read %s metadata: %v", table, err)
+		}
+		if row.SchemaVersion != pk.PKDataSchemaVersion {
+			t.Errorf("%s schema_version = %q, want %q", table, row.SchemaVersion, pk.PKDataSchemaVersion)
+		}
+		if row.SyncedAt == nil {
+			t.Errorf("%s synced_at is nil, want set", table)
+		}
+	}
+
+	check("pk_calendar", "calendar_id = ?", 121)
+	check("pk_language", "teaching_language = ?", "zh")
+	check("pk_course_nature", "course_label_id = ?", 9001)
+	check("pk_course_nature_by_calendar", "course_label_id = ? AND calendar_id = ?", 9001, 121)
+	check("pk_assessment", "assessment_mode = ?", "exam")
+	check("pk_campus", "campus = ?", "campus1")
+	check("pk_faculty", "faculty = ?", "fac1")
+	check("pk_major", "name = ?", "2025(03074 土木工程(国际班))")
+	check("pk_major_course", "course_id = ?", 1)
+	check("pk_course_detail", "id = ?", 1)
+	check("pk_teacher", "id = ?", 100)
 }
 
 func TestWriteBatchTxSkipsRowsWithoutIDs(t *testing.T) {

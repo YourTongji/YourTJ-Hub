@@ -3,6 +3,7 @@ package pkservice
 import (
 	"context"
 	"fmt"
+	"time"
 
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
@@ -34,6 +35,7 @@ func rebuildTimeslots(ctx context.Context, calendarIds []uint64) (int, error) {
 
 func buildTimeslotRows(source []pk.TeacherTimeslotSourceRow) ([]pk.TeacherTimeslotEntity, error) {
 	seen := map[string]bool{}
+	now := time.Now()
 	var rows []pk.TeacherTimeslotEntity
 	for _, r := range source {
 		if r.CalendarId == 0 || r.TeachingClassId == 0 {
@@ -60,6 +62,8 @@ func buildTimeslotRows(source []pk.TeacherTimeslotSourceRow) ([]pk.TeacherTimesl
 					OccupySection:   section,
 					TeacherCode:     r.TeacherCode,
 					TeacherName:     r.TeacherName,
+					SchemaVersion:   pk.PKDataSchemaVersion,
+					SyncedAt:        &now,
 				})
 			}
 		}

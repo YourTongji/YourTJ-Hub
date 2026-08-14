@@ -39,6 +39,8 @@ type FetchLogEntity struct {
 	ErrorMsg          string         `gorm:"column:error_msg;type:text;not null;default:'';" json:"errorMsg"`
 	StartedAt         *time.Time     `gorm:"column:started_at;" json:"startedAt"`
 	FinishedAt        *time.Time     `gorm:"column:finished_at;" json:"finishedAt"`
+	SchemaVersion     string         `gorm:"column:schema_version;type:varchar(64);not null;default:'';" json:"-"`
+	SyncedAt          *time.Time     `gorm:"column:synced_at;" json:"-"`
 	CreatedAt         time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 	UpdatedAt         time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	DeletedAt         gorm.DeletedAt `json:"-"`
