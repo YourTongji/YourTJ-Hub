@@ -1479,17 +1479,19 @@ export async function createWikiPage(input: CreateWikiPageInput): Promise<Create
 
 export interface UpdateWikiPageResult {
   revisionId: number
-  /** 契约：pending/approved/rejected/superseded 字符串（review P2）。 */
+  /** 契约：approved（写即发布，无审核状态）。 */
   status: string
+  /** 新发布的版本号。 */
+  revisionNo: number
 }
 
-export async function updateWikiPage(pageId: number, title: string, content: string): Promise<UpdateWikiPageResult> {
+export async function updateWikiPage(pageId: number, title: string, content: string, baseRevisionNo?: number): Promise<UpdateWikiPageResult> {
   const response = await fetch(`/api/wiki/pages/${pageId}`, {
     method: 'PUT',
     headers: {
       'Content-Type': 'application/json',
     },
-    body: JSON.stringify({ title, content }),
+    body: JSON.stringify({ title, content, baseRevisionNo }),
   })
   return readApiResponse<UpdateWikiPageResult>(response, t('api.operationFailed'))
 }

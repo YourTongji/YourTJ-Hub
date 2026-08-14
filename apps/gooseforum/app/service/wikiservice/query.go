@@ -13,7 +13,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
-// 修订状态字符串（OpenAPI 契约枚举：approved/pending/rejected/superseded）。
+// 修订状态字符串（契约枚举：approved 为写即发布的当前状态；pending/rejected/superseded
+// 仅为 v19 前遗留数据的兼容展示，新写入一律 approved）。
 const (
 	StatusStringPending    = "pending"
 	StatusStringApproved   = "approved"
@@ -32,22 +33,6 @@ func RevisionStatusString(s int8) string {
 		return StatusStringSuperseded
 	default:
 		return StatusStringPending
-	}
-}
-
-// ParseRevisionStatus 将契约状态字符串映射为 int8；未知返回 false。
-func ParseRevisionStatus(s string) (int8, bool) {
-	switch s {
-	case StatusStringPending:
-		return wikiPageRevisions.StatusPending, true
-	case StatusStringApproved:
-		return wikiPageRevisions.StatusApproved, true
-	case StatusStringRejected:
-		return wikiPageRevisions.StatusRejected, true
-	case StatusStringSuperseded:
-		return wikiPageRevisions.StatusSuperseded, true
-	default:
-		return 0, false
 	}
 }
 
@@ -470,25 +455,24 @@ func BuildContributors(pageId uint64) []Contributor {
 
 // PageDetail 详情页数据（公开渲染 approved 快照）。
 type PageDetail struct {
-	Id         uint64       `json:"id"`
-	TopicId    uint64       `json:"topicId"`
-	Namespace  string       `json:"namespace"`
-	Path       string       `json:"path"`
-	Title      string       `json:"title"`
-	Content    string       `json:"content"`
-	Toc        []TocItem    `json:"toc"`
-	UpdatedAt  string       `json:"updatedAt"`
-	EditorId   uint64       `json:"editorId"`
-	EditorName string       `json:"editorName"`
-	LikeCount  uint64       `json:"likeCount"`
-	ViewCount  uint64       `json:"viewCount"`
-	PostCount  uint64       `json:"postCount"`
-	Liked      bool         `json:"liked"`
-	Bookmarked bool         `json:"bookmarked"`
-	Watched    bool         `json:"watched"`
-	CanEdit    bool         `json:"canEdit"`
-	CanReview  bool         `json:"canReview"`
-	Pending    *PendingView `json:"pending"`
+	Id                  uint64    `json:"id"`
+	TopicId             uint64    `json:"topicId"`
+	Namespace           string    `json:"namespace"`
+	Path                string    `json:"path"`
+	Title               string    `json:"title"`
+	Content             string    `json:"content"`
+	Toc                 []TocItem `json:"toc"`
+	UpdatedAt           string    `json:"updatedAt"`
+	EditorId            uint64    `json:"editorId"`
+	EditorName          string    `json:"editorName"`
+	LikeCount           uint64    `json:"likeCount"`
+	ViewCount           uint64    `json:"viewCount"`
+	PostCount           uint64    `json:"postCount"`
+	Liked               bool      `json:"liked"`
+	Bookmarked          bool      `json:"bookmarked"`
+	Watched             bool      `json:"watched"`
+	PublishedRevisionNo int       `json:"publishedRevisionNo"`
+	CanEdit             bool      `json:"canEdit"`
 }
 
 // TocItem 目录条目（渲染到前端）。
@@ -506,17 +490,18 @@ func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, e
 		rev = wikiPageRevisions.Entity{Title: topic.Title}
 	}
 	detail := PageDetail{
-		Id:        page.Id,
-		TopicId:   topic.Id,
-		Namespace: page.Namespace,
-		Path:      page.Path,
-		Title:     rev.Title,
-		Content:   rev.RenderedHTML,
-		UpdatedAt: rev.CreatedAt.Format(time.RFC3339),
-		EditorId:  rev.EditorId,
-		LikeCount: topic.LikeCount,
-		ViewCount: topic.ViewCount,
-		PostCount: topic.PostCount,
+		Id:                  page.Id,
+		TopicId:             topic.Id,
+		Namespace:           page.Namespace,
+		Path:                page.Path,
+		Title:               rev.Title,
+		Content:             rev.RenderedHTML,
+		UpdatedAt:           rev.CreatedAt.Format(time.RFC3339),
+		EditorId:            rev.EditorId,
+		LikeCount:           topic.LikeCount,
+		ViewCount:           topic.ViewCount,
+		PostCount:           topic.PostCount,
+		PublishedRevisionNo: page.PublishedRevisionNo,
 	}
 	if rev.Toc != "" {
 		var items []TocItem
@@ -534,49 +519,21 @@ func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, e
 	return detail, nil
 }
 
-// PendingView 待审中的编辑（编辑者/审核者可见）。
-type PendingView struct {
-	Title      string `json:"title"`
-	Content    string `json:"content"`
-	UpdatedAt  string `json:"updatedAt"`
-	EditorId   uint64 `json:"editorId"`
-	EditorName string `json:"editorName"`
-}
-
-// LoadPending 返回页面当前 pending 修订（无则 nil）。
-func LoadPending(pageId uint64) *PendingView {
-	rev := wikiPageRevisions.GetLatestPending(pageId)
-	if rev.Id == 0 {
-		return nil
-	}
-	editorName := ""
-	if rev.EditorId != 0 {
-		if u, ok := users.GetMapByIds([]uint64{rev.EditorId})[rev.EditorId]; ok && u != nil {
-			editorName = u.Username
-		}
-	}
-	return &PendingView{
-		Title:      rev.Title,
-		Content:    rev.Content,
-		UpdatedAt:  rev.CreatedAt.Format(time.RFC3339),
-		EditorId:   rev.EditorId,
-		EditorName: editorName,
-	}
-}
-
-// AdminRevision 审核队列条目（契约形状：updatedAt 为 RFC3339 字符串）。
+// AdminRevision 管理端版本历史条目（契约形状：updatedAt 为 RFC3339 字符串）。
 type AdminRevision struct {
 	RevisionId uint64 `json:"revisionId"`
 	PageId     uint64 `json:"pageId"`
+	RevisionNo int    `json:"revisionNo"`
 	Path       string `json:"path"`
 	Title      string `json:"title"`
 	Content    string `json:"content"`
+	Status     string `json:"status"`
 	EditorId   uint64 `json:"editorId"`
 	EditorName string `json:"editorName"`
 	UpdatedAt  string `json:"updatedAt"`
 }
 
-// AdminRevisionPage 审核队列分页结果（契约形状：{list, page, pageSize, hasNext}）。
+// AdminRevisionPage 版本历史分页结果（契约形状：{list, page, pageSize, hasNext}）。
 type AdminRevisionPage struct {
 	List     []AdminRevision `json:"list"`
 	Page     int             `json:"page"`
@@ -584,8 +541,10 @@ type AdminRevisionPage struct {
 	HasNext  bool            `json:"hasNext"`
 }
 
-// ListAdminRevisions 分页返回指定状态的修订队列（附 path/编辑者）。
-func ListAdminRevisions(status int8, page, pageSize int) AdminRevisionPage {
+// ListAdminRevisions 分页返回版本历史（pageId>0 时只列该页；附 path/编辑者/版本号）。
+// 写即发布后无审核队列：管理端版本历史 = 全部修订（含回滚截断后的剩余版本），
+// 供 diff 对比与回滚选择目标版本。
+func ListAdminRevisions(pageId uint64, page, pageSize int) AdminRevisionPage {
 	if page < 1 {
 		page = 1
 	}
@@ -594,7 +553,7 @@ func ListAdminRevisions(status int8, page, pageSize int) AdminRevisionPage {
 	}
 	// pageSize+1 探测 hasNext（与 topics_rep.PageForModeration 一致），
 	// 避免额外的 COUNT 查询。
-	revisions := wikiPageRevisions.ListByStatus(status, page, pageSize+1)
+	revisions := wikiPageRevisions.ListRecent(pageId, page, pageSize+1)
 	total := len(revisions)
 	hasNext := total > pageSize
 	if total > pageSize {
@@ -633,9 +592,11 @@ func ListAdminRevisions(status int8, page, pageSize int) AdminRevisionPage {
 		result = append(result, AdminRevision{
 			RevisionId: r.Id,
 			PageId:     r.PageId,
+			RevisionNo: r.RevisionNo,
 			Path:       path,
 			Title:      r.Title,
 			Content:    r.Content,
+			Status:     RevisionStatusString(r.Status),
 			EditorId:   r.EditorId,
 			EditorName: editorName,
 			UpdatedAt:  r.CreatedAt.Format(time.RFC3339),

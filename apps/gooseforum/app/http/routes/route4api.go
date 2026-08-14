@@ -229,7 +229,6 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiLoginApi := wikiApi.Use(middleware.JWTAuthCheck)
 	wikiLoginApi.POST("pages", middleware.CheckWritableAccount, UpJsonReq(api.WikiCreatePage))
 	wikiLoginApi.PUT("pages/:pageId", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiEditPage))
-	wikiLoginApi.POST("revisions/:revisionId/review", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiReview))
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
@@ -368,7 +367,9 @@ func apiRoute(ginApp *gin.Engine) {
 		PUT("wiki/namespaces/:name/editors", UpUriJsonReq(api.WikiSetEditors)).
 		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
 		PUT("wiki/tree", UpJsonReq(api.WikiAdminTreeOps)).
-		GET("wiki/revisions", UpQueryReq(api.WikiAdminRevisions))
+		GET("wiki/revisions", UpQueryReq(api.WikiAdminRevisions)).
+		POST("wiki/pages/:pageId/rollback", UpUriJsonReq(api.WikiRollback)).
+		GET("wiki/pages/:pageId/diff", UpUriQueryReq(api.WikiDiff))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).

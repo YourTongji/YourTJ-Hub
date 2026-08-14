@@ -3,7 +3,6 @@ package wikiservice
 import (
 	"context"
 	"encoding/json"
-	"errors"
 	"log/slog"
 	"strings"
 	"time"
@@ -21,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
@@ -50,30 +50,21 @@ type EditParams struct {
 	Title   string
 	Content string
 	UserId  uint64
+	// BaseRevisionNo 编辑基线版本号（前端打开编辑器时的 published_revision_no）。
+	// 0 = 不校验（兼容旧客户端）；非 0 时后端 CAS 比对，过期返回 ErrConflict。
+	BaseRevisionNo int
 }
 
-// EditResult 编辑结果（契约：status 为 pending 字符串）。
+// EditResult 编辑结果（契约：status 为 approved 字符串 + 新版本号）。
 type EditResult struct {
 	RevisionId uint64 `json:"revisionId"`
 	Status     string `json:"status"`
+	RevisionNo int    `json:"revisionNo"`
 }
 
 // ActionResult 通用动作成功响应（契约 {ok:true}）。
 type ActionResult struct {
 	Ok bool `json:"ok"`
-}
-
-// ReviewResult 审核结果（契约：revisionId + 状态字符串）。
-type ReviewResult struct {
-	RevisionId uint64 `json:"revisionId"`
-	Status     string `json:"status"`
-}
-
-// ReviewParams 审核 wiki 修订的入参。
-type ReviewParams struct {
-	RevisionID uint64
-	Action     string // "approve" | "reject"
-	UserId     uint64
 }
 
 // CanManageNamespace 判断用户是否可管理某 namespace（贡献者 / PageManager / Admin）。
@@ -167,6 +158,8 @@ func Create(params CreateParams) (*CreateResult, error) {
 	var page wikiPages.Entity
 	var revision wikiPageRevisions.Entity
 
+	topic.WikiSyncedRevisionNo = 1
+	firstPost.WikiSyncedRevisionNo = 1
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := topics.CreateTx(tx, &topic); err != nil {
 			return err
@@ -192,10 +185,11 @@ func Create(params CreateParams) (*CreateResult, error) {
 			return err
 		}
 		page = wikiPages.Entity{
-			TopicId:   topic.Id,
-			Namespace: namespaceName,
-			Path:      path,
-			ParentId:  parentID,
+			TopicId:             topic.Id,
+			Namespace:           namespaceName,
+			Path:                path,
+			ParentId:            parentID,
+			PublishedRevisionNo: 1,
 		}
 		if err := wikiPages.CreateTx(tx, &page); err != nil {
 			return err
@@ -234,7 +228,15 @@ func Create(params CreateParams) (*CreateResult, error) {
 	return &CreateResult{PageId: page.Id, Path: path}, nil
 }
 
-// Edit 编辑 wiki 页面：生成 pending 修订，置 post#1 为待审（topic 行不动）。
+// Edit 编辑 wiki 页面：写即发布（追加一条 approved 修订 + CAS 前移版本指针）。
+// 模型 1（编辑锁）以乐观锁 CAS 实现：前端打开编辑器时记录 baseRevisionNo，
+// 提交时后端执行
+//
+//	UPDATE wiki_pages SET published_revision_no = base+1
+//	WHERE id = ? AND published_revision_no = base
+//
+// 影响 0 行 = 页面已被他人更新 → 409；影响 1 行 = 独占提交，同事务插入修订。
+// 零内容丢失、无应用层锁、数据库原子。敏感词写时拦截，命中直接拒绝发布。
 func Edit(params EditParams) (*EditResult, error) {
 	if params.UserId == 0 {
 		return nil, ErrForbidden
@@ -250,182 +252,219 @@ func Edit(params EditParams) (*EditResult, error) {
 	if len(params.Title) > 512 {
 		return nil, ErrPathInvalid
 	}
+	// 写时敏感词拦截：写即发布无审核兜底，命中直接拒绝（review 决策）。
+	if hit, word := moderationservice.CheckContentAllowed(params.Title + "\n" + params.Content); hit {
+		moderationservice.SensitiveContentBlocked(params.UserId, "wiki", params.PageID, word, markdown2html.ExtractDescription(params.Content, 200))
+		return nil, ErrSensitiveBlocked
+	}
 
 	var revision wikiPageRevisions.Entity
+	var firstPost posts.Entity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		// 行锁保证 revision_no 单调 + 至多一条 pending 不变式。
+		// 行锁 page 行：同一页面并发编辑串行化（模型 1 编辑锁）。
 		var locked wikiPages.Entity
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Table("wiki_pages").Where("id = ?", page.Id).First(&locked).Error; err != nil {
 			return err
 		}
-		// 计算下一个 revision_no。
-		revisions := wikiPageRevisions.ListByPageTx(tx, page.Id)
-		nextNo := 1
-		if len(revisions) > 0 && revisions[0].RevisionNo > 0 {
-			nextNo = revisions[0].RevisionNo + 1
+		// CAS：编辑基线版本号必须等于当前发布指针。
+		if params.BaseRevisionNo != 0 && locked.PublishedRevisionNo != params.BaseRevisionNo {
+			return ErrConflict
 		}
-		// 旧的 pending 置 superseded。
-		if err := wikiPageRevisions.SupersedePendingTx(tx, page.Id); err != nil {
+		nextNo := locked.PublishedRevisionNo + 1
+		renderedHTML := markdown2html.PostMarkdownToHTML(params.Content)
+		toc, err := encodeTOC(markdown2html.ExtractHeadings(params.Content))
+		if err != nil {
 			return err
 		}
 		revision = wikiPageRevisions.Entity{
-			PageId:     page.Id,
-			RevisionNo: nextNo,
-			Title:      params.Title,
-			Content:    params.Content,
-			Status:     wikiPageRevisions.StatusPending,
-			EditorId:   params.UserId,
+			PageId:       page.Id,
+			RevisionNo:   nextNo,
+			Title:        params.Title,
+			Content:      params.Content,
+			RenderedHTML: renderedHTML,
+			Toc:          toc,
+			Status:       wikiPageRevisions.StatusApproved, // 写即发布
+			EditorId:     params.UserId,
 		}
 		if err := wikiPageRevisions.CreateTx(tx, &revision); err != nil {
 			return err
 		}
-		// 同步首楼 post 为待审内容（topic 行 ProcessStatus 不动，评论保持可用）。
-		firstPost := posts.GetTx(tx, topic.FirstPostId)
+		// 版本指针前移（唯一跨表写点）。
+		if err := tx.Table("wiki_pages").Where("id = ?", page.Id).
+			Update("published_revision_no", nextNo).Error; err != nil {
+			return err
+		}
+		// 物化视图同步（同一事务内，水印 = 新版本号）。
+		firstPost = posts.GetTx(tx, topic.FirstPostId)
 		if firstPost.Id == 0 {
 			return ErrPageNotFound
 		}
 		firstPost.Content = params.Content
-		firstPost.RenderedHTML = ""
+		firstPost.RenderedHTML = renderedHTML
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
-		firstPost.ProcessStatus = posts.ProcessStatusPending
-		return posts.SaveTx(tx, &firstPost)
-	})
-	if err != nil {
-		return nil, err
-	}
-
-	// 提交后：搜索文档删除（firstPost pending → isIndexable=false）。
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &posts.Entity{
-		TopicId:       topic.Id,
-		PostNo:        1,
-		Content:       params.Content,
-		ProcessStatus: posts.ProcessStatusPending,
-	}); err != nil {
-		slog.Warn("wiki edit: search index sync failed", "topicId", topic.Id, "error", err)
-	}
-	return &EditResult{RevisionId: revision.Id, Status: StatusStringPending}, nil
-}
-
-// Review 审核修订：approve 发布（渲染快照 + 通知 watcher）；reject 回滚上一 approved。
-func Review(params ReviewParams) (*ReviewResult, error) {
-	if params.UserId == 0 || !HasPageManagerPermission(params.UserId) {
-		return nil, ErrForbidden
-	}
-
-	var page wikiPages.Entity
-	var topic topics.Entity
-	var firstPost posts.Entity
-	action := params.Action
-
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		// 行锁 revision 行：仅 pending 可审，重复审核 409。
-		var revision wikiPageRevisions.Entity
-		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
-			Table("wiki_page_revisions").Where("id = ?", params.RevisionID).First(&revision).Error; err != nil {
-			if errors.Is(err, gorm.ErrRecordNotFound) {
-				return ErrRevisionNotFound
-			}
+		firstPost.ProcessStatus = posts.ProcessStatusNormal
+		firstPost.WikiSyncedRevisionNo = nextNo
+		if err := posts.SaveTx(tx, &firstPost); err != nil {
 			return err
 		}
-		if revision.Status != wikiPageRevisions.StatusPending {
-			return ErrRevisionNotPending
-		}
-		page = wikiPages.GetTx(tx, revision.PageId)
-		if page.Id == 0 {
-			return ErrPageNotFound
-		}
-		topic = topics.GetTx(tx, page.TopicId)
-		firstPost = posts.GetTx(tx, topic.FirstPostId)
-		if firstPost.Id == 0 {
-			// review：与 Edit 一致，FirstPostId 悬空/首楼已删时拒绝继续。
-			return ErrPageNotFound
-		}
-
-		switch action {
-		case "approve":
-			renderedHTML := markdown2html.PostMarkdownToHTML(revision.Content)
-			toc, err := encodeTOC(markdown2html.ExtractHeadings(revision.Content))
-			if err != nil {
-				return err
-			}
-			if err := tx.Table("wiki_page_revisions").Where("id = ?", revision.Id).Updates(map[string]any{
-				"status":        wikiPageRevisions.StatusApproved,
-				"rendered_html": renderedHTML,
-				"toc":           toc,
-				"reviewed_by":   params.UserId,
-				"reviewed_at":   time.Now(),
-			}).Error; err != nil {
-				return err
-			}
-			// 首楼 post 同步为已发布内容 + topic 标题同步。
-			firstPost.Content = revision.Content
-			firstPost.RenderedHTML = renderedHTML
-			firstPost.RenderedVersion = markdown2html.GetPostVersion()
-			firstPost.ProcessStatus = posts.ProcessStatusNormal
-			if err := posts.SaveTx(tx, &firstPost); err != nil {
-				return err
-			}
-			topic.Title = revision.Title
-			// 同步摘要/首图（review：approve 后 topic 行此前未刷新 Excerpt/
-			// FirstImageURL，列表展示的摘要与首图停留在创建时内容）。
-			topic.Excerpt = markdown2html.ExtractDescription(revision.Content, 200)
-			topic.FirstImageURL = markdown2html.ExtractFirstImageURL(revision.Content)
-			return topics.SaveTx(tx, &topic)
-		case "reject":
-			if err := wikiPageRevisions.UpdateStatusTx(tx, revision.Id, wikiPageRevisions.StatusRejected, params.UserId, time.Now()); err != nil {
-				return err
-			}
-			// 回滚为上一 approved 内容。
-			prev := wikiPageRevisions.GetLatestApprovedTx(tx, page.Id)
-			content := ""
-			title := topic.Title
-			if prev.Id != 0 {
-				content = prev.Content
-				title = prev.Title
-			}
-			firstPost.Content = content
-			firstPost.RenderedHTML = ""
-			firstPost.RenderedVersion = markdown2html.GetPostVersion()
-			firstPost.ProcessStatus = posts.ProcessStatusNormal
-			if err := posts.SaveTx(tx, &firstPost); err != nil {
-				return err
-			}
-			topic.Title = title
-			return topics.SaveTx(tx, &topic)
-		default:
-			return ErrPathInvalid
-		}
+		topic.Title = params.Title
+		topic.Excerpt = markdown2html.ExtractDescription(params.Content, 200)
+		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(params.Content)
+		topic.WikiSyncedRevisionNo = nextNo
+		return topics.SaveTx(tx, &topic)
 	})
 	if err != nil {
 		return nil, err
 	}
 
-	// 提交后副作用。
-	reviewed := wikiPageRevisions.Get(params.RevisionID)
+	// 提交后副作用：文件引用 + 搜索 + 通知（节流）。
+	fileusageservice.ReplaceTopic(topic.Id, params.UserId, params.Content)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki review: search index sync failed", "topicId", topic.Id, "error", err)
+		slog.Warn("wiki edit: search index sync failed", "topicId", topic.Id, "error", err)
 	}
-	status := StatusStringRejected
-	if action == "approve" {
-		status = StatusStringApproved
-		// 附件引用同步为新内容（review P2：Edit/Review 路径此前从未更新
-		// file_usage，审核通过后旧附件引用残留）。
-		fileusageservice.ReplaceTopic(topic.Id, reviewed.EditorId, reviewed.Content)
-		// watcher 通知的 actor 应为修订编辑者而非首楼作者（review P2）。
-		notifyWatchers(topic.Id, page.Path, topic.Title, reviewed.EditorId)
-	} else {
-		// reject：附件引用回滚为上一 approved 内容。
-		prev := wikiPageRevisions.GetLatestApproved(page.Id)
-		editorID := uint64(0)
-		content := ""
-		if prev.Id != 0 {
-			editorID = prev.EditorId
-			content = prev.Content
+	notifyWatchersThrottled(topic.Id, page.Path, topic.Title, params.UserId)
+	return &EditResult{RevisionId: revision.Id, Status: StatusStringApproved, RevisionNo: revision.RevisionNo}, nil
+}
+
+// RollbackParams 回滚 wiki 页面的入参。
+type RollbackParams struct {
+	PageID uint64
+	// ToRevisionNo 回滚目标版本号：该版本之后的修订全部永久删除（不可撤销），
+	// 指针回到该版本，物化视图重同步。版本号自然无空洞（下次编辑 = N+1）。
+	ToRevisionNo int
+	UserId       uint64
+}
+
+// Rollback 管理员回滚 wiki 页面（唯一的管理员写路径）。
+// 不可撤销：ToRevisionNo 之后的修订硬删（DELETE），版本历史截断。
+func Rollback(params RollbackParams) error {
+	if params.UserId == 0 || !HasPageManagerPermission(params.UserId) {
+		return ErrForbidden
+	}
+	page := wikiPages.Get(params.PageID)
+	if page.Id == 0 {
+		return ErrPageNotFound
+	}
+	target := wikiPageRevisions.GetByPageAndRevisionNo(page.Id, params.ToRevisionNo)
+	if target.Id == 0 {
+		return ErrRevisionNotFound
+	}
+	var topic topics.Entity
+	var firstPost posts.Entity
+	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		// 硬删目标之后全部修订（不可撤销，永久丢弃）：模型含 DeletedAt 后普通
+		// Delete 会变成软删，回滚语义要求物理删除（Unscoped），否则页面恢复时
+		// 被回滚的版本会复活。
+		if err := tx.Table("wiki_page_revisions").Unscoped().
+			Where("page_id = ?", page.Id).
+			Where("revision_no > ?", params.ToRevisionNo).
+			Delete(&wikiPageRevisions.Entity{}).Error; err != nil {
+			return err
 		}
-		fileusageservice.ReplaceTopic(topic.Id, editorID, content)
+		// 版本指针回退。
+		if err := tx.Table("wiki_pages").Where("id = ?", page.Id).
+			Update("published_revision_no", params.ToRevisionNo).Error; err != nil {
+			return err
+		}
+		// 物化视图重同步为回滚目标版本。
+		topic = topics.GetTx(tx, page.TopicId)
+		if topic.Id == 0 {
+			return ErrPageNotFound
+		}
+		firstPost = posts.GetTx(tx, topic.FirstPostId)
+		if firstPost.Id == 0 {
+			return ErrPageNotFound
+		}
+		firstPost.Content = target.Content
+		firstPost.RenderedHTML = target.RenderedHTML
+		firstPost.RenderedVersion = markdown2html.GetPostVersion()
+		firstPost.ProcessStatus = posts.ProcessStatusNormal
+		firstPost.WikiSyncedRevisionNo = params.ToRevisionNo
+		if err := posts.SaveTx(tx, &firstPost); err != nil {
+			return err
+		}
+		topic.Title = target.Title
+		topic.Excerpt = markdown2html.ExtractDescription(target.Content, 200)
+		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(target.Content)
+		topic.WikiSyncedRevisionNo = params.ToRevisionNo
+		return topics.SaveTx(tx, &topic)
+	})
+	if err != nil {
+		return err
 	}
-	return &ReviewResult{RevisionId: params.RevisionID, Status: status}, nil
+	// 提交后副作用：文件引用 + 搜索 + 通知 watcher。
+	fileusageservice.ReplaceTopic(topic.Id, target.EditorId, target.Content)
+	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+		slog.Warn("wiki rollback: search index sync failed", "topicId", topic.Id, "error", err)
+	}
+	notifyWatchersThrottled(topic.Id, page.Path, topic.Title, params.UserId)
+	return nil
+}
+
+// DiffRevision 返回两版本修订的 markdown 原文（管理端 diff 视图数据源）。
+// 前端以 jsdiff 渲染 side-by-side / inline diff。
+type DiffRevision struct {
+	From *RevisionDiffSide `json:"from"`
+	To   *RevisionDiffSide `json:"to"`
+}
+
+// RevisionDiffSide 单侧版本快照。
+type RevisionDiffSide struct {
+	RevisionNo int       `json:"revisionNo"`
+	Title      string    `json:"title"`
+	Content    string    `json:"content"`
+	EditorId   uint64    `json:"editorId"`
+	CreatedAt  time.Time `json:"createdAt"`
+}
+
+// Diff 返回页面两个版本的内容差异（from/to 均可为 0 = 空版本，用于对比创建前）。
+func Diff(pageID uint64, fromNo, toNo int) (*DiffRevision, error) {
+	page := wikiPages.Get(pageID)
+	if page.Id == 0 {
+		return nil, ErrPageNotFound
+	}
+	result := &DiffRevision{}
+	if fromNo > 0 {
+		from := wikiPageRevisions.GetByPageAndRevisionNo(pageID, fromNo)
+		if from.Id == 0 {
+			return nil, ErrRevisionNotFound
+		}
+		result.From = &RevisionDiffSide{
+			RevisionNo: from.RevisionNo,
+			Title:      from.Title,
+			Content:    from.Content,
+			EditorId:   from.EditorId,
+			CreatedAt:  from.CreatedAt,
+		}
+	}
+	if toNo > 0 {
+		to := wikiPageRevisions.GetByPageAndRevisionNo(pageID, toNo)
+		if to.Id == 0 {
+			return nil, ErrRevisionNotFound
+		}
+		result.To = &RevisionDiffSide{
+			RevisionNo: to.RevisionNo,
+			Title:      to.Title,
+			Content:    to.Content,
+			EditorId:   to.EditorId,
+			CreatedAt:  to.CreatedAt,
+		}
+	}
+	return result, nil
+}
+
+// wikiNotifyThrottleWindow 同页面 wiki_updated 通知的节流窗口（review 决策：
+// 写即发布后每次编辑都是发布，watcher 会收到大量通知；窗口内只发首条）。
+const wikiNotifyThrottleWindow = 10 * time.Minute
+
+// notifyWatchersThrottled 节流后通知 watcher：窗口内已有通知则跳过本次。
+func notifyWatchersThrottled(topicId uint64, pagePath string, title string, editorId uint64) {
+	latest := eventNotification.GetLatestByTopicAndType(topicId, eventNotification.EventTypeWikiUpdated)
+	if latest.Id != 0 && time.Since(latest.CreatedAt) < wikiNotifyThrottleWindow {
+		return
+	}
+	notifyWatchers(topicId, pagePath, title, editorId)
 }
 
 // notifyWatchers 给全部 watcher 发送 wiki_updated 通知。
@@ -463,7 +502,7 @@ func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint
 		}
 		if len(notifications) > 0 {
 			if err := eventNotification.CreateBatch(notifications, 100); err != nil {
-				slog.Warn("wiki review: notify watchers failed", "topicId", topicId, "error", err)
+				slog.Warn("wiki: notify watchers failed", "topicId", topicId, "error", err)
 			} else {
 				for _, userId := range watchers {
 					if userId != editorId {

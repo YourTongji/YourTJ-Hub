@@ -64,6 +64,8 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 			}
 			switch op.Op {
 			case "move":
+				oldParentID := page.ParentId
+				newPath := page.Path
 				if op.ParentPath != "" {
 					parent := getPageByPathTx(tx, op.ParentPath)
 					if parent.Id == 0 {
@@ -86,12 +88,50 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 							return ErrPathInvalid
 						}
 					}
+					// 移动到父页面下：path 重写为 父路径 + "/" + 原 path 末段，
+					// 与 rename 一样级联重写全部后代，保持 path 层级与 parent_id
+					// 层级一致（此前只改 ParentId，path 层级与父指针分叉）。
+					if basename := pathBaseName(page.Path); basename != "" {
+						newPath = parent.Path + "/" + basename
+					}
 					page.ParentId = parent.Id
 				} else {
+					// 移动到根（无 ParentPath）：wiki path 必须保持
+					// "namespace/…" 形态（path 首段 == namespace 不变量），
+					// 新 path = namespace + "/" + 末段，不允许裸 slug。
+					if basename := pathBaseName(page.Path); basename != "" {
+						newPath = page.Namespace + "/" + basename
+					}
 					page.ParentId = 0
+				}
+				if newPath != page.Path {
+					// 目标 path 必须合法且空闲：精确冲突 + 前缀冲突（其他页面
+					// 不得是新 path 的后代），否则重写后出现 path 层级交叠。
+					if normalized, ok := ValidatePath(newPath); !ok {
+						return ErrPathInvalid
+					} else {
+						newPath = normalized
+					}
+					if pathExistsTx(tx, newPath, page.Id) || pathPrefixConflictTx(tx, newPath, page.Id, page.Path) {
+						return ErrPathExists
+					}
+					if err := renameChildPathsTx(tx, page.Path, newPath); err != nil {
+						return err
+					}
+					page.Path = newPath
 				}
 				if err := wikiPages.SaveTx(tx, &page); err != nil {
 					return err
+				}
+				// 移动后规范化排序：源父与目标父的兄弟 sort_order 都重排为 1..N
+				//（同父内移动时两次重排同一集合，幂等）。
+				if err := renumberSiblingsTx(tx, oldParentID); err != nil {
+					return err
+				}
+				if page.ParentId != oldParentID {
+					if err := renumberSiblingsTx(tx, page.ParentId); err != nil {
+						return err
+					}
 				}
 			case "rename":
 				if op.NewPath != "" {
@@ -110,6 +150,11 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 						return ErrPathInvalid
 					}
 					if normalized != page.Path && pathExistsTx(tx, normalized, page.Id) {
+						return ErrPathExists
+					}
+					// 前缀冲突预检：其他页面不得是新 path 的后代（被重写子树
+					// 自身除外），否则重写后出现 path 层级交叠（review B2）。
+					if normalized != page.Path && pathPrefixConflictTx(tx, normalized, page.Id, page.Path) {
 						return ErrPathExists
 					}
 					if normalized != page.Path {
@@ -133,8 +178,10 @@ func ApplyTreeOps(ops []TreeOp, userId uint64) error {
 					return err
 				}
 			case "sort":
-				page.SortOrder = op.SortOrder
-				if err := wikiPages.SaveTx(tx, &page); err != nil {
+				// sortOrder 是目标索引（1-based）：把页面移动到该位置，其余兄弟
+				// 保持相对顺序，随后整组兄弟重排为 1..N（此前直接赋值会留下
+				// 0/空洞/并列，客户端无法表达"排第一"）。
+				if err := reorderSiblingsTx(tx, page.ParentId, page.Id, op.SortOrder); err != nil {
 					return err
 				}
 			case "delete":
@@ -256,6 +303,8 @@ func getPageByPathTx(tx *gorm.DB, path string) (entity wikiPages.Entity) {
 }
 
 // pathExistsTx 事务内判断 path 是否已被占用（排除指定 id）。
+// Count 绕过软删 scope，但软删行仍占用 path（path 唯一索引 + 恢复路径需要
+// 原 path 空闲），因此不过滤 deleted_at，与 wikiPages.PathExists 语义一致。
 func pathExistsTx(tx *gorm.DB, path string, excludeID uint64) bool {
 	var count int64
 	q := tx.Table("wiki_pages").Where("path = ?", path)
@@ -266,19 +315,112 @@ func pathExistsTx(tx *gorm.DB, path string, excludeID uint64) bool {
 	return count > 0
 }
 
+// pathPrefixConflictTx 判断是否存在其他页面的 path 是新 path 本身或其子路径
+// （path = newPath OR LIKE newPath+"/%"），排除被重写子树自身（excludeID 及
+// 其 oldPath 后代）。与 pathExistsTx 一致：软删行仍占用 path，不过滤 deleted_at。
+func pathPrefixConflictTx(tx *gorm.DB, newPath string, excludeID uint64, oldPath string) bool {
+	var count int64
+	q := tx.Table("wiki_pages").
+		Where("(path = ? OR path LIKE ?)", newPath, newPath+"/%")
+	if excludeID != 0 {
+		q = q.Where("id <> ?", excludeID)
+	}
+	if oldPath != "" {
+		q = q.Where("NOT (path = ? OR path LIKE ?)", oldPath, oldPath+"/%")
+	}
+	q.Count(&count)
+	return count > 0
+}
+
+// pathBaseName 返回 path 的末段 slug（"docs/guide/tips" → "tips"）。
+func pathBaseName(path string) string {
+	if idx := strings.LastIndexByte(path, '/'); idx >= 0 {
+		return path[idx+1:]
+	}
+	return path
+}
+
+// reorderSiblingsTx 将 pageId 移动到其父节点下兄弟列表的 targetIndex
+// （1-based，越界钳制到两端），其余兄弟保持相对顺序，随后把整组兄弟的
+// sort_order 规范化为 1..N。sort op 使用；软删兄弟不在列表内（Find 带 scope）。
+func reorderSiblingsTx(tx *gorm.DB, parentID uint64, pageId uint64, targetIndex int) error {
+	var siblings []wikiPages.Entity
+	if err := tx.Table("wiki_pages").
+		Where("parent_id = ?", parentID).
+		Order("sort_order ASC").
+		Order("id ASC").
+		Find(&siblings).Error; err != nil {
+		return err
+	}
+	idx := -1
+	for i := range siblings {
+		if siblings[i].Id == pageId {
+			idx = i
+			break
+		}
+	}
+	if idx >= 0 {
+		page := siblings[idx]
+		siblings = append(siblings[:idx], siblings[idx+1:]...)
+		if targetIndex < 1 {
+			targetIndex = 1
+		}
+		if targetIndex > len(siblings)+1 {
+			targetIndex = len(siblings) + 1
+		}
+		siblings = append(siblings, wikiPages.Entity{})
+		copy(siblings[targetIndex:], siblings[targetIndex-1:])
+		siblings[targetIndex-1] = page
+	}
+	return writeSiblingSortOrdersTx(tx, siblings)
+}
+
+// renumberSiblingsTx 将某父节点下全部子页面的 sort_order 规范化为 1..N
+// （按当前 sort_order, id 序），无空洞、无并列。move op 后源父/目标父各调一次。
+func renumberSiblingsTx(tx *gorm.DB, parentID uint64) error {
+	var siblings []wikiPages.Entity
+	if err := tx.Table("wiki_pages").
+		Where("parent_id = ?", parentID).
+		Order("sort_order ASC").
+		Order("id ASC").
+		Find(&siblings).Error; err != nil {
+		return err
+	}
+	return writeSiblingSortOrdersTx(tx, siblings)
+}
+
+// writeSiblingSortOrdersTx 按切片顺序把兄弟 sort_order 写为 1..N（只写变化行）。
+func writeSiblingSortOrdersTx(tx *gorm.DB, siblings []wikiPages.Entity) error {
+	for i := range siblings {
+		if siblings[i].SortOrder == i+1 {
+			continue
+		}
+		if err := tx.Table("wiki_pages").Where("id = ?", siblings[i].Id).
+			Update("sort_order", i+1).Error; err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 // countChildrenTx 事务内统计某页面的直接子页面数。
+// Count 绕过软删 scope：软删子页已不在公开树中，不应阻塞父页面删除
+// （否则子页软删后父页永远删不掉），显式排除 deleted_at。
 func countChildrenTx(tx *gorm.DB, parentID uint64) int64 {
 	var count int64
-	tx.Table("wiki_pages").Where("parent_id = ?", parentID).Count(&count)
+	tx.Table("wiki_pages").Where("parent_id = ?", parentID).
+		Where("deleted_at IS NULL").Count(&count)
 	return count
 }
 
-// deletePageTx 事务内物理删除页面行（wiki_pages 无软删）。
+// deletePageTx 事务内软删除页面行：Delete 携带模型，GORM 对含 DeletedAt 的
+// 模型执行软删（UPDATE deleted_at），不做物理删除。
 func deletePageTx(tx *gorm.DB, id uint64) error {
 	return tx.Table("wiki_pages").Where("id = ?", id).Delete(&wikiPages.Entity{}).Error
 }
 
-// deleteRevisionsByPageTx 事务内删除某页面的全部修订。
+// deleteRevisionsByPageTx 事务内软删除某页面的全部修订（模型含 DeletedAt，
+// Delete 走软删）。
 func deleteRevisionsByPageTx(tx *gorm.DB, pageID uint64) error {
 	return tx.Table("wiki_page_revisions").Where("page_id = ?", pageID).Delete(&wikiPageRevisions.Entity{}).Error
 }

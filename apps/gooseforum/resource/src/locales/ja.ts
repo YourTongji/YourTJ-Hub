@@ -1884,7 +1884,7 @@ export default {
     'wiki.page.hasChildren': 'このページには子ページがあるため削除できません。',
     'wiki.forbidden': 'Wiki の操作権限がありません。',
     'wiki.revision.notFound': '改訂が見つかりません。',
-    'wiki.revision.notPending': 'この改訂は保留中ではありません。',
+    'wiki.revision.conflict': 'ページが他のユーザーによって更新されました。最新版に基づいて再編集してください。',
     'wiki.saveFailed': 'Wiki の保存に失敗しました。後でもう一度お試しください。',
   },
   serverActions: {
@@ -1934,10 +1934,9 @@ export default {
     contentPlaceholder: 'ページの内容を入力...',
     contentRequired: '内容は必須です',
     contentEmpty: 'このページにはまだ内容がありません。',
-    editSubmitted: '編集を送信しました。審査待ちです。',
+    editSubmitted: '編集を保存し、公開しました。',
     editFailed: '保存に失敗しました',
-    pendingBanner: '未審査の編集があります',
-    pendingEditor: '{editor} による送信',
+    revisionConflict: 'ページが他のユーザーによって更新されました。最新版を読み込みました。草稿はそのまま残っています。最新版に基づいて再送信してください。',
     sidebarEmpty: 'ページはまだありません。',
   },
 }

@@ -210,5 +210,26 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(18)
 		currentVersion = 18
 	}
+	if currentVersion < 19 {
+		// 单一事件源架构（wiki 写即发布 + 版本指针 + 物化水印）：
+		// 为存量 wiki 页面回填 published_revision_no（= 最新 approved revision_no），
+		// 并初始化 topics/posts 的 wiki_synced_revision_no 水印（当前内容即最新版）。
+		// 幂等：指针已 >0 的页面跳过。部署前已存在的 wiki 页面（发布即通过）
+		// 不先回填指针，CAS 编辑将永远无法匹配 published_revision_no=0 的基线。
+		singleSourceResult := datamigration.BackfillWikiSingleSource()
+		slog.Info("app migration wiki single source backfill done",
+			"pages", singleSourceResult.PagesSeeded,
+			"topics", singleSourceResult.TopicsSeeded,
+			"posts", singleSourceResult.PostsSeeded,
+			"skipped", singleSourceResult.Skipped,
+			"failed", singleSourceResult.Failed,
+			"lastFailed", singleSourceResult.LastFailed)
+		if singleSourceResult.Failed > 0 {
+			slog.Error("app migration wiki single source backfill has failures", "failed", singleSourceResult.Failed, "lastFailed", singleSourceResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(19)
+		currentVersion = 19
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

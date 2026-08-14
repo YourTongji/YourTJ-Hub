@@ -1893,7 +1893,7 @@ export default {
     'wiki.page.hasChildren': 'The page has children and cannot be deleted.',
     'wiki.forbidden': 'No wiki permission.',
     'wiki.revision.notFound': 'Revision not found.',
-    'wiki.revision.notPending': 'The revision is not pending.',
+    'wiki.revision.conflict': 'The page was updated by someone else. Please re-edit based on the latest version.',
     'wiki.saveFailed': 'Failed to save wiki. Please try again later.',
   },
   serverActions: {
@@ -1943,10 +1943,9 @@ export default {
     contentPlaceholder: 'Write the page content...',
     contentRequired: 'Content cannot be empty',
     contentEmpty: 'This page has no content yet.',
-    editSubmitted: 'Your edit was submitted and is pending review.',
+    editSubmitted: 'Your edit was saved and published.',
     editFailed: 'Save failed',
-    pendingBanner: 'Pending edit',
-    pendingEditor: 'submitted by {editor}',
+    revisionConflict: 'The page was updated by someone else. Latest content loaded — your draft is still here; re-submit to save on top of the new version.',
     sidebarEmpty: 'No pages yet.',
   },
 }

@@ -16,9 +16,12 @@ var (
 	ErrPageNotFound         = errors.New("wiki: page not found")
 	ErrForbidden            = errors.New("wiki: forbidden")
 	ErrRevisionNotFound     = errors.New("wiki: revision not found")
-	ErrRevisionNotPending   = errors.New("wiki: revision not pending")
 	ErrPageHasChildren      = errors.New("wiki: page has children")
 	ErrNamespaceNameInvalid = errors.New("wiki: namespace name invalid")
+	// ErrConflict 版本 CAS 冲突：编辑基于的版本号已过期，需基于最新版本重编（409）。
+	ErrConflict = errors.New("wiki: revision conflict")
+	// ErrSensitiveBlocked 内容命中敏感词被拦截（写即发布无审核兜底，直接拒绝）。
+	ErrSensitiveBlocked = errors.New("wiki: content sensitive blocked")
 )
 
 var (

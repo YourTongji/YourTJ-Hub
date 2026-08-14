@@ -182,7 +182,7 @@ createWikiPage:
 updateWikiPage:
   put:
     tags: [Wiki]
-    summary: Update an existing wiki page (submits a new pending revision)
+    summary: "Update an existing wiki page (write-publish: the new revision is immediately approved)"
     operationId: updateWikiPage
     security:
       - bearerAuth: []
@@ -204,11 +204,14 @@ updateWikiPage:
     responses:
       '200':
         description: |
-          New pending revision created for the page. Business failures are returned as
-          legacy HTTP 200 envelopes with stable message codes: request-level validation
-          failures (`common.request.invalidParams`), the page or its namespace missing or
-          the account not being an editor (`wiki.namespace.notFound`, `wiki.page.notFound`),
-          and a path collision (`wiki.page.pathConflict`).
+          New revision is created and immediately published (write-publish; no review step).
+          The caller must be the page creator, a namespace editor, or a PageManager/Admin.
+          Business failures are returned as legacy HTTP 200 envelopes with stable message
+          codes: request-level validation failures (`common.request.invalidParams`), the
+          page or its namespace missing or the account not being an editor
+          (`wiki.namespace.notFound`, `wiki.page.notFound`), a version conflict when
+          `baseRevisionNo` no longer matches the published revision (`wiki.revision.conflict`),
+          and content hitting the sensitive-word filter (`content.sensitive.blocked`).
         content:
           application/json:
             schema:
@@ -225,6 +228,12 @@ updateWikiPage:
               pageNotFound:
                 summary: Unknown page (legacy HTTP 200 envelope).
                 externalValue: ../fixtures/wiki-page-not-found.json
+              revisionConflict:
+                summary: baseRevisionNo no longer matches the published revision (legacy HTTP 200 envelope, 409 semantics).
+                externalValue: ../fixtures/wiki-revision-conflict.json
+              sensitiveBlocked:
+                summary: Content hits the sensitive-word filter (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/wiki-content-sensitive-blocked.json
       '400':
         description: Malformed URI or JSON request body (strict binding failure).
         content:
@@ -250,16 +259,16 @@ updateWikiPage:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
 
-reviewWikiRevision:
+rollbackWikiPage:
   post:
-    tags: [Wiki]
-    summary: Approve or reject a pending wiki revision (PageManager or Admin only)
-    operationId: reviewWikiRevision
+    tags: [Wiki Admin]
+    summary: Roll back a wiki page to an earlier revision (PageManager or Admin only)
+    operationId: rollbackWikiPage
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     parameters:
-      - name: revisionId
+      - name: pageId
         in: path
         required: true
         schema:
@@ -271,34 +280,27 @@ reviewWikiRevision:
       content:
         application/json:
           schema:
-            $ref: ../components/schemas.yaml#/WikiReviewRevisionRequest
+            $ref: ../components/schemas.yaml#/WikiRollbackRequest
     responses:
       '200':
         description: |
-          Review recorded. Business failures are returned as legacy HTTP 200 envelopes with
-          stable message codes: an unknown action (`common.request.invalidParams`), the
-          caller lacking PageManager/Admin (`permission.denied`), an unknown revision
-          (`wiki.revision.notFound`), and a revision that is no longer pending
-          (`wiki.revision.notPending`).
+          Rollback executed and cannot be undone: every revision with a revision number
+          greater than the target is permanently deleted, the page's published revision
+          pointer moves back to the target, and materialized views (forum post, topic
+          metadata, search index) are resynchronized. Business failures are returned as
+          legacy HTTP 200 envelopes: a caller lacking PageManager/Admin
+          (`permission.denied`), an unknown page (`wiki.page.notFound`), and an unknown
+          target revision (`wiki.revision.notFound`).
         content:
           application/json:
             schema:
-              $ref: ../components/schemas.yaml#/WikiReviewRevisionResponse
+              $ref: ../components/schemas.yaml#/WikiRollbackResponse
             examples:
               success:
-                externalValue: ../fixtures/wiki-revision-review-success.json
-              invalidParams:
-                summary: Unknown action (legacy HTTP 200 envelope).
-                externalValue: ../fixtures/wiki-revision-review-invalid-params.json
-              forbidden:
-                summary: Caller lacks PageManager/Admin (legacy HTTP 200 envelope).
-                externalValue: ../fixtures/wiki-revision-review-forbidden.json
+                externalValue: ../fixtures/wiki-rollback-success.json
               notFound:
-                summary: Unknown revision (legacy HTTP 200 envelope).
+                summary: Unknown page or target revision (legacy HTTP 200 envelope).
                 externalValue: ../fixtures/wiki-revision-not-found.json
-              notPending:
-                summary: Revision is no longer pending (legacy HTTP 200 envelope).
-                externalValue: ../fixtures/wiki-revision-review-conflict.json
       '400':
         description: Malformed URI or JSON request body (strict binding failure).
         content:
@@ -318,11 +320,88 @@ reviewWikiRevision:
               unauthenticated:
                 externalValue: ../fixtures/wiki-unauthenticated.json
       '403':
-        description: Authenticated account is frozen or its account information cannot be resolved.
+        description: The account is not a PageManager or Admin (or it is frozen).
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+diffWikiPage:
+  get:
+    tags: [Wiki Admin]
+    summary: Fetch two revisions of a wiki page for diffing (PageManager or Admin only)
+    operationId: diffWikiPage
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: pageId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+      - name: from
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+        description: Revision number of the older side; absent means an empty baseline (page before creation).
+      - name: to
+        in: query
+        required: true
+        schema:
+          type: integer
+          minimum: 1
+    responses:
+      '200':
+        description: |
+          Raw markdown of the two requested revisions (or an empty baseline when `from`
+          is absent) for rendering a diff in the admin UI. Business failures are returned
+          as legacy HTTP 200 envelopes: an unknown page (`wiki.page.notFound`) and an
+          unknown revision number (`wiki.revision.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiDiffResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-diff-success.json
+              notFound:
+                summary: Unknown page or revision (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/wiki-revision-not-found.json
+      '400':
+        description: Malformed query string (strict binding failure).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/wiki-parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
 
 createWikiNamespace:
   post:
@@ -739,18 +818,20 @@ updateAdminWikiTree:
 listAdminWikiRevisions:
   get:
     tags: [Wiki Admin]
-    summary: List wiki revisions across namespaces with page path (PageManager or Admin only)
+    summary: List wiki revision history with page path (PageManager or Admin only)
     operationId: listAdminWikiRevisions
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     parameters:
-      - name: status
+      - name: pageId
         in: query
-        required: true
+        required: false
         schema:
-          type: string
-          enum: [pending, approved, rejected, superseded]
+          type: integer
+          format: uint64
+          minimum: 1
+        description: When present, only revisions of this page are listed (per-page version history for the diff/rollback view).
       - name: page
         in: query
         required: false
@@ -758,7 +839,7 @@ listAdminWikiRevisions:
           type: integer
           minimum: 1
           default: 1
-        description: 1-based page number for the revision queue; values below 1 are treated as 1.
+        description: 1-based page number for the revision history; values below 1 are treated as 1.
       - name: pageSize
         in: query
         required: false
@@ -767,25 +848,27 @@ listAdminWikiRevisions:
           minimum: 1
           maximum: 100
           default: 20
-        description: Page size for the revision queue. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input.
+        description: Page size for the revision history. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input.
     responses:
       '200':
         description: |
-          Revisions matching the status ordered by creation time desc, paginated by the
+          Revision history (all revisions; write-publish means every revision is an
+          approved published version) ordered by creation time desc, paginated by the
           `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
           Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
-          paging metadata so consumers can detect the next page. An invalid status is
-          returned as a legacy HTTP 200 envelope `common.request.invalidParams`.
+          paging metadata so consumers can detect the next page. This listing feeds the
+          admin version-history view: pick any two revisions for the diff endpoint or a
+          target revision for the rollback endpoint.
         content:
           application/json:
             schema:
               $ref: ../components/schemas.yaml#/WikiAdminRevisionListResponse
             examples:
               success:
-                externalValue: ../fixtures/wiki-admin-revisions-pending-success.json
-              invalidParams:
-                summary: Missing or invalid status (legacy HTTP 200 envelope).
-                externalValue: ../fixtures/wiki-admin-revisions-invalid-params.json
+                externalValue: ../fixtures/wiki-admin-revisions-success.json
+              empty:
+                summary: Empty history for an unknown page id (legacy HTTP 200 envelope, empty list).
+                externalValue: ../fixtures/wiki-admin-revisions-empty.json
       '400':
         description: Malformed query string (strict binding failure).
         content:

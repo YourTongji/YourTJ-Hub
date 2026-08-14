@@ -60,7 +60,6 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	wikiLoginApi := wikiApi.Use(middleware.JWTAuthCheck)
 	wikiLoginApi.POST("pages", middleware.CheckWritableAccount, UpJsonReq(api.WikiCreatePage))
 	wikiLoginApi.PUT("pages/:pageId", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiEditPage))
-	wikiLoginApi.POST("revisions/:revisionId/review", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiReview))
 	adminWiki := router.Group("/api/admin/wiki", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.PageManager))
 	adminWiki.POST("namespaces", UpButterReq(api.WikiCreateNamespace))
 	adminWiki.PUT("namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace))
@@ -70,6 +69,8 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	adminWiki.GET("tree", UpButterReq(api.WikiAdminTree))
 	adminWiki.PUT("tree", UpButterReq(api.WikiAdminTreeOps))
 	adminWiki.GET("revisions", UpQueryReq(api.WikiAdminRevisions))
+	adminWiki.POST("pages/:pageId/rollback", UpUriJsonReq(api.WikiRollback))
+	adminWiki.GET("pages/:pageId/diff", UpUriQueryReq(api.WikiDiff))
 	// 视图路由（与 route4api.go viewRoute 注册一致；JWTAuth 可选登录）。
 	wikiView := router.Group("/wiki")
 	wikiView.Use(middleware.JWTAuth)
@@ -129,7 +130,7 @@ func TestWikiHomeSSRPayload(t *testing.T) {
 	}
 }
 
-func TestWikiDetailSSRPayloadAndPendingGate(t *testing.T) {
+func TestWikiDetailSSRPayload(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	alice := createHTTPContractUser(t, conn, contractTestID())
 	seedWikiContract(t, conn, alice.Id)
@@ -150,7 +151,7 @@ func TestWikiDetailSSRPayloadAndPendingGate(t *testing.T) {
 		return rec.Code, payload
 	}
 
-	t.Run("anonymous sees approved snapshot without pending", func(t *testing.T) {
+	t.Run("anonymous sees approved snapshot", func(t *testing.T) {
 		code, payload := fetch("")
 		if code != http.StatusOK {
 			t.Fatalf("anonymous wiki detail status = %d, want 200: %v", code, payload)
@@ -163,12 +164,12 @@ func TestWikiDetailSSRPayloadAndPendingGate(t *testing.T) {
 		if page["title"] != "快速开始" || page["path"] != "guide/getting-started" {
 			t.Fatalf("wiki detail page = %#v, want 快速开始/guide/getting-started", page)
 		}
-		if page["canEdit"] != false || page["canReview"] != false {
-			t.Fatalf("anonymous canEdit/canReview = %v/%v, want false/false", page["canEdit"], page["canReview"])
+		if page["canEdit"] != false {
+			t.Fatalf("anonymous canEdit = %v, want false", page["canEdit"])
 		}
-		// 蓝图风险项：pending 内容对公开用户不可见。
-		if pending, exists := page["pending"]; !exists || pending != nil {
-			t.Fatalf("anonymous wiki detail pending = %#v, want null (leak guard)", pending)
+		// 写即发布后无 pending 字段：不再存在待审内容，也就不存在泄漏面。
+		if _, exists := page["pending"]; exists {
+			t.Fatalf("anonymous wiki detail pending = %#v, want field removed", page["pending"])
 		}
 		layout, _ := payload["layout"].(map[string]any)
 		sidebar, _ := layout["sidebar"].(map[string]any)
@@ -177,7 +178,7 @@ func TestWikiDetailSSRPayloadAndPendingGate(t *testing.T) {
 		}
 	})
 
-	t.Run("editor sees pending banner data", func(t *testing.T) {
+	t.Run("editor sees page with canEdit", func(t *testing.T) {
 		aliceToken := contractSessionToken(t, alice)
 		code, payload := fetch(aliceToken)
 		if code != http.StatusOK {
@@ -188,9 +189,8 @@ func TestWikiDetailSSRPayloadAndPendingGate(t *testing.T) {
 		if page["canEdit"] != true {
 			t.Fatalf("editor canEdit = %v, want true", page["canEdit"])
 		}
-		pending, ok := page["pending"].(map[string]any)
-		if !ok || pending["title"] != "快速开始" || pending["content"] != "更新后的内容。" {
-			t.Fatalf("editor pending = %#v, want pending revision view", page["pending"])
+		if _, exists := page["pending"]; exists {
+			t.Fatalf("editor wiki detail pending = %#v, want field removed", page["pending"])
 		}
 	})
 }
@@ -241,7 +241,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 		if err := conn.Create(&firstPost).Error; err != nil {
 			t.Fatalf("create wiki first post %d: %v", id, err)
 		}
-		if err := conn.Create(&wikiPages.Entity{Id: id, TopicId: topic.Id, Namespace: "guide", Path: path, SortOrder: sortOrder, CreatedAt: createdAt, UpdatedAt: createdAt}).Error; err != nil {
+		if err := conn.Create(&wikiPages.Entity{Id: id, TopicId: topic.Id, Namespace: "guide", Path: path, SortOrder: sortOrder, PublishedRevisionNo: 1, CreatedAt: createdAt, UpdatedAt: createdAt}).Error; err != nil {
 			t.Fatalf("create wiki page %d: %v", id, err)
 		}
 		if err := conn.Create(&wikiPageRevisions.Entity{
@@ -393,7 +393,7 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 	aliceToken := contractSessionToken(t, alice)
 	managerToken := contractSessionToken(t, manager)
 
-	t.Run("editor creates a pending revision", func(t *testing.T) {
+	t.Run("editor edits page (write-publish)", func(t *testing.T) {
 		rec := serveAuthSecurityJSON(router, http.MethodPut, "/api/wiki/pages/1002",
 			`{"title":"内容规范 v2","content":"更新后的内容。"}`, aliceToken)
 		if rec.Code != http.StatusOK {
@@ -406,12 +406,18 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 		var result struct {
 			RevisionId uint64 `json:"revisionId"`
 			Status     string `json:"status"`
+			RevisionNo int    `json:"revisionNo"`
 		}
 		if err := json.Unmarshal(env.Result, &result); err != nil {
 			t.Fatalf("decode wiki edit result: %v", err)
 		}
-		if result.RevisionId == 0 || result.Status != "pending" {
-			t.Fatalf("wiki edit result = %+v, want non-zero revisionId + pending", result)
+		// 写即发布：编辑立即生成 approved 修订（revisionNo=2），无需审核。
+		if result.RevisionId == 0 || result.Status != "approved" || result.RevisionNo != 2 {
+			t.Fatalf("wiki edit result = %+v, want revisionId + approved + revisionNo 2", result)
+		}
+		// 版本指针前移。
+		if got := wikiPages.Get(1002).PublishedRevisionNo; got != 2 {
+			t.Fatalf("published_revision_no after edit = %d, want 2", got)
 		}
 	})
 
@@ -443,44 +449,57 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 		}
 	})
 
-	t.Run("non-manager cannot review", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/wiki/revisions/6001/review",
-			`{"action":"approve"}`, aliceToken)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("wiki review denied status = %d, want 200 envelope: %s", rec.Code, rec.Body.String())
+	t.Run("non-manager cannot rollback", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/pages/1001/rollback",
+			`{"toRevisionNo":1}`, aliceToken)
+		// admin 路由由 CheckPermission 中间件拦截：非 PageManager 直接 403 信封。
+		if rec.Code != http.StatusForbidden {
+			t.Fatalf("wiki rollback denied status = %d, want 403: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-revision-review-forbidden.json"))
+		env := decodeContractEnvelope(t, rec)
+		if env.MessageCode != "permission.denied" {
+			t.Fatalf("wiki rollback denied messageCode = %q, want permission.denied", env.MessageCode)
+		}
 	})
 
-	t.Run("manager approves the pending revision", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/wiki/revisions/6001/review",
-			`{"action":"approve"}`, managerToken)
+	t.Run("manager rolls back page to v1", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/pages/1001/rollback",
+			`{"toRevisionNo":1}`, managerToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("wiki review status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("wiki rollback status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		env := decodeContractEnvelope(t, rec)
 		if env.Code != 0 {
-			t.Fatalf("wiki review code = %d, want 0: %s", env.Code, rec.Body.String())
+			t.Fatalf("wiki rollback code = %d, want 0: %s", env.Code, rec.Body.String())
 		}
-		var result struct {
-			RevisionId uint64 `json:"revisionId"`
-			Status     string `json:"status"`
+		// 回滚后版本指针回到 v1，v2（6001）被硬删。
+		if got := wikiPages.Get(1001).PublishedRevisionNo; got != 1 {
+			t.Fatalf("published_revision_no after rollback = %d, want 1", got)
 		}
-		if err := json.Unmarshal(env.Result, &result); err != nil {
-			t.Fatalf("decode wiki review result: %v", err)
-		}
-		if result.RevisionId != 6001 || result.Status != "approved" {
-			t.Fatalf("wiki review result = %+v, want revisionId 6001 + approved", result)
+		if got := wikiPageRevisions.Get(6001); got.Id != 0 {
+			t.Fatalf("revision 6001 should be hard-deleted after rollback, got %+v", got)
 		}
 	})
 
-	t.Run("already-reviewed revision conflicts", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/wiki/revisions/6001/review",
-			`{"action":"reject"}`, managerToken)
+	t.Run("diff returns both revision sides", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/pages/1002/diff?from=1&to=2", "", managerToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("wiki review conflict status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("wiki diff status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-revision-review-conflict.json"))
+		env := decodeContractEnvelope(t, rec)
+		var result struct {
+			From map[string]any `json:"from"`
+			To   map[string]any `json:"to"`
+		}
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode wiki diff result: %v", err)
+		}
+		if result.From["revisionNo"] != float64(1) || result.To["revisionNo"] != float64(2) {
+			t.Fatalf("wiki diff = %+v, want from v1 to v2", result)
+		}
+		if result.To["content"] != "更新后的内容。" {
+			t.Fatalf("wiki diff to.content = %v, want 更新后的内容。", result.To["content"])
+		}
 	})
 }
 

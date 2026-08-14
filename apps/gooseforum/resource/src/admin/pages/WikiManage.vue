@@ -4,16 +4,17 @@ import { adminText } from '@/admin/runtime/i18n-text'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
   BookOpen,
-  Check,
   ChevronDown,
   ChevronUp,
   ExternalLink,
-  Eye,
   FileText,
+  GitCompareArrows,
+  History,
   Loader2,
   Pencil,
   Plus,
   RefreshCw,
+  RotateCcw,
   Save,
   Trash2,
   UserPlus,
@@ -29,10 +30,8 @@ import { Button } from '@/admin/components/ui/button'
 import {
   Dialog,
   DialogContent,
-  DialogDescription,
   DialogFooter,
   DialogHeader,
-  DialogScrollContent,
   DialogTitle,
 } from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
@@ -62,12 +61,13 @@ import {
   createWikiNamespace,
   createWikiPage,
   deleteWikiNamespace,
+  diffWikiPage,
   getWikiEditors,
   getWikiNamespaces,
-  getWikiRevisions,
   getWikiTree,
   getUserList,
-  reviewWikiRevision,
+  listAdminWikiRevisions,
+  rollbackWikiPage,
   saveWikiEditors,
   saveWikiTree,
   updateWikiNamespace,
@@ -81,8 +81,8 @@ import type {
   WikiNamespace,
   WikiNamespaceTree,
   WikiPageNode,
-  WikiRevision,
 } from '@/admin/types'
+import type { AdminWikiDiff, AdminWikiRevision } from '@/admin/runtime/api'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -124,16 +124,60 @@ const newPageTitle = ref('')
 const newPageContent = ref('')
 const newPageSaving = ref(false)
 
-const revisions = ref<WikiRevision[]>([])
-const reviewLoading = ref(false)
-const reviewError = ref('')
-const reviewPage = ref(1)
-const reviewHasNext = ref(false)
-const viewingRevision = ref<WikiRevision | null>(null)
-const reviewActionRow = ref<{ item: WikiRevision, approve: boolean } | null>(null)
-const reviewSaving = ref(false)
+const historyPage = ref<WikiPageNode | null>(null)
+const revisions = ref<AdminWikiRevision[]>([])
+const historyLoading = ref(false)
+const historyError = ref('')
+const historyPageNo = ref(1)
+const historyHasNext = ref(false)
+const diffFromNo = ref('')
+const diffToNo = ref('')
+const diffRows = ref<DiffRow[] | null>(null)
+const diffLoading = ref(false)
+const rollbackRow = ref<AdminWikiRevision | null>(null)
+const rollbackSaving = ref(false)
 
-const globalLoading = computed(() => nsLoading.value || treeLoading.value || reviewLoading.value)
+const globalLoading = computed(() => nsLoading.value || treeLoading.value || historyLoading.value)
+
+type DiffRow = { kind: 'equal' | 'removed' | 'added', text: string }
+
+function computeLineDiff(fromText: string, toText: string): DiffRow[] {
+  const a = fromText.split('\n')
+  const b = toText.split('\n')
+  const n = a.length
+  const m = b.length
+  const dp: number[][] = Array.from({ length: n + 1 }, () => new Array<number>(m + 1).fill(0))
+  for (let i = n - 1; i >= 0; i--) {
+    for (let j = m - 1; j >= 0; j--) {
+      dp[i][j] = a[i] === b[j] ? dp[i + 1][j + 1] + 1 : Math.max(dp[i + 1][j], dp[i][j + 1])
+    }
+  }
+  const rows: DiffRow[] = []
+  let i = 0
+  let j = 0
+  while (i < n && j < m) {
+    if (a[i] === b[j]) {
+      rows.push({ kind: 'equal', text: a[i] })
+      i++
+      j++
+    } else if (dp[i + 1][j] >= dp[i][j + 1]) {
+      rows.push({ kind: 'removed', text: a[i] })
+      i++
+    } else {
+      rows.push({ kind: 'added', text: b[j] })
+      j++
+    }
+  }
+  while (i < n) {
+    rows.push({ kind: 'removed', text: a[i] })
+    i++
+  }
+  while (j < m) {
+    rows.push({ kind: 'added', text: b[j] })
+    j++
+  }
+  return rows
+}
 
 function formatTime(value: string) {
   if (!value) return '-'
@@ -388,13 +432,10 @@ async function movePage(group: WikiNamespaceTree, page: WikiPageNode, direction:
   const index = pages.findIndex(item => item.pageId === page.pageId)
   const targetIndex = direction === 'up' ? index - 1 : index + 1
   if (index < 0 || targetIndex < 0 || targetIndex >= pages.length) return
-  const target = pages[targetIndex]
   treeBusy.value = true
   try {
-    await saveWikiTree([
-      { op: 'sort', pageId: page.pageId, sortOrder: target.sortOrder },
-      { op: 'sort', pageId: target.pageId, sortOrder: page.sortOrder },
-    ])
+    // sortOrder 是目标位置（1-based 兄弟序号），服务端会重排兄弟为 1..N。
+    await saveWikiTree([{ op: 'sort', pageId: page.pageId, sortOrder: targetIndex + 1 }])
     await loadTree()
     adminToast.success(adminText('k000e'))
   } catch (err) {
@@ -459,58 +500,86 @@ async function confirmNewPage() {
   }
 }
 
-// ---------- Review ----------
-async function loadRevisions() {
-  reviewLoading.value = true
-  reviewError.value = ''
+// ---------- Version history / diff / rollback ----------
+function openHistory(page: WikiPageNode) {
+  historyPage.value = page
+  activeTab.value = 'history'
+  void loadHistory(1)
+}
+
+async function loadHistory(pageNo = 1) {
+  if (!historyPage.value) return
+  historyLoading.value = true
+  historyError.value = ''
   try {
-    const page = await getWikiRevisions('pending', 1, 20)
-    revisions.value = page.list
-    reviewPage.value = 1
-    reviewHasNext.value = page.hasNext
+    const result = await listAdminWikiRevisions(historyPage.value.pageId, pageNo, 20)
+    if (pageNo === 1) {
+      revisions.value = result.list
+    } else {
+      revisions.value = [...revisions.value, ...result.list]
+    }
+    historyPageNo.value = result.page
+    historyHasNext.value = result.hasNext
+    diffRows.value = null
   } catch (err) {
-    reviewError.value = err instanceof Error ? err.message : adminText('k00n3')
+    historyError.value = err instanceof Error ? err.message : adminText('k00p9')
   } finally {
-    reviewLoading.value = false
+    historyLoading.value = false
   }
 }
 
-async function loadMoreRevisions() {
-  if (reviewLoading.value || !reviewHasNext.value) return
-  reviewLoading.value = true
-  reviewError.value = ''
+async function loadMoreHistory() {
+  if (historyLoading.value || !historyHasNext.value || !historyPage.value) return
+  await loadHistory(historyPageNo.value + 1)
+}
+
+async function runDiff() {
+  if (!historyPage.value) return
+  const from = diffFromNo.value ? Number(diffFromNo.value) : undefined
+  const to = Number(diffToNo.value)
+  if (!to || (diffFromNo.value && !from)) {
+    adminToast.warning(adminText('k00pk'))
+    return
+  }
+  diffLoading.value = true
   try {
-    const page = await getWikiRevisions('pending', reviewPage.value + 1, 20)
-    revisions.value = [...revisions.value, ...page.list]
-    reviewPage.value = page.page
-    reviewHasNext.value = page.hasNext
+    const result: AdminWikiDiff = await diffWikiPage(historyPage.value.pageId, from, to)
+    diffRows.value = computeLineDiff(result.from?.content ?? '', result.to.content)
   } catch (err) {
-    reviewError.value = err instanceof Error ? err.message : adminText('k00n3')
+    adminToast.error(err, adminText('k00p9'))
   } finally {
-    reviewLoading.value = false
+    diffLoading.value = false
   }
 }
 
-async function confirmReviewAction() {
-  if (!reviewActionRow.value) return
-  const { item, approve } = reviewActionRow.value
-  reviewSaving.value = true
+function requestRollback(item: AdminWikiRevision) {
+  rollbackRow.value = item
+}
+
+async function confirmRollback() {
+  if (!rollbackRow.value || !historyPage.value) return
+  const target = rollbackRow.value
+  rollbackSaving.value = true
   try {
-    await reviewWikiRevision(item.revisionId, approve ? 'approve' : 'reject')
-    reviewActionRow.value = null
-    if (viewingRevision.value?.revisionId === item.revisionId) viewingRevision.value = null
-    await loadRevisions()
-    adminToast.success(approve ? adminText('k00gj') : adminText('k00gk'))
+    await rollbackWikiPage(historyPage.value.pageId, target.revisionNo)
+    rollbackRow.value = null
+    await Promise.all([loadTree(), loadHistory(1)])
+    adminToast.success(adminText('k00pe'))
   } catch (err) {
-    adminToast.error(err, adminText('k00n3'))
+    adminToast.error(err, adminText('k00p9'))
   } finally {
-    reviewSaving.value = false
+    rollbackSaving.value = false
   }
+}
+
+function isLatestRevision(item: AdminWikiRevision) {
+  return revisions.value.length > 0 && item.revisionNo === Math.max(...revisions.value.map(r => r.revisionNo))
 }
 
 async function loadAll() {
-  await Promise.all([loadNamespaces(), loadTree(), loadRevisions()])
+  await Promise.all([loadNamespaces(), loadTree()])
 }
+
 
 onMounted(() => {
   void loadAll()
@@ -531,7 +600,7 @@ onMounted(() => {
         <TabsTrigger value="namespaces">{{ adminText('k00n6') }}</TabsTrigger>
         <TabsTrigger value="editors">{{ adminText('k00n7') }}</TabsTrigger>
         <TabsTrigger value="pages">{{ adminText('k00n8') }}</TabsTrigger>
-        <TabsTrigger value="review">{{ adminText('k00n9') }}</TabsTrigger>
+        <TabsTrigger value="history">{{ adminText('k00p8') }}</TabsTrigger>
       </TabsList>
 
       <TabsContent value="namespaces">
@@ -740,6 +809,9 @@ onMounted(() => {
                       <AdminActionButton compact :title="adminText('k00nr')" @click="openRename(group, page)">
                         <Pencil class="size-3.5" />
                       </AdminActionButton>
+                      <AdminActionButton compact :title="adminText('k00p8')" @click="openHistory(page)">
+                        <History class="size-3.5" />
+                      </AdminActionButton>
                       <AdminActionButton compact tone="danger" :title="adminText('k005i')" @click="deletingPage = { group, page }">
                         <Trash2 class="size-3.5" />
                       </AdminActionButton>
@@ -761,66 +833,123 @@ onMounted(() => {
         </AdminSection>
       </TabsContent>
 
-      <TabsContent value="review">
+      <TabsContent value="history">
         <AdminSection>
-          <Table>
-            <TableHeader>
-              <TableRow>
-                <TableHead>{{ adminText('k00g1') }}</TableHead>
-                <TableHead>{{ adminText('k00i5') }}</TableHead>
-                <TableHead>{{ adminText('k00nz') }}</TableHead>
-                <TableHead>{{ adminText('k003b') }}</TableHead>
-                <TableHead class="w-56 text-right">{{ adminText('k007m') }}</TableHead>
-              </TableRow>
-            </TableHeader>
-            <TableBody>
-              <TableRow v-if="reviewLoading && revisions.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
-              </TableRow>
-              <TableRow v-else-if="reviewError">
-                <TableCell colspan="5" class="h-28 text-center text-destructive">{{ reviewError }}</TableCell>
-              </TableRow>
-              <TableRow v-else-if="revisions.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k00o1') }}</TableCell>
-              </TableRow>
-              <template v-else>
-                <TableRow v-for="item in revisions" :key="item.revisionId">
-                  <TableCell class="font-mono text-xs text-muted-foreground">{{ item.path }}</TableCell>
-                  <TableCell class="font-medium">{{ item.title || '-' }}</TableCell>
-                  <TableCell>{{ item.editorName || '-' }}</TableCell>
-                  <TableCell class="text-xs text-muted-foreground">{{ formatTime(item.updatedAt) }}</TableCell>
-                  <TableCell>
-                    <div class="flex justify-end gap-1.5">
-                      <Button type="button" size="sm" variant="outline" class="h-8 text-xs" @click="viewingRevision = item">
-                        <Eye class="size-3.5" />
-                        {{ adminText('k00o0') }}
-                      </Button>
-                      <Button type="button" size="sm" variant="outline" class="h-8 text-xs" @click="reviewActionRow = { item, approve: true }">
-                        <Check class="size-3.5" />
-                        {{ adminText('k00gj') }}
-                      </Button>
-                      <Button
-                        type="button"
-                        size="sm"
-                        variant="outline"
-                        class="h-8 text-xs text-destructive hover:text-destructive"
-                        @click="reviewActionRow = { item, approve: false }"
-                      >
-                        <X class="size-3.5" />
-                        {{ adminText('k00gk') }}
-                      </Button>
-                    </div>
-                  </TableCell>
+          <template #header>
+            <AdminToolbar class="border-b-0">
+              <div class="flex flex-wrap items-center gap-3">
+                <History class="size-4 shrink-0 text-muted-foreground" />
+                <span v-if="historyPage" class="text-sm font-medium">{{ historyPage.title || historyPage.path }}</span>
+                <span v-else class="text-sm text-muted-foreground">{{ adminText('k00pa') }}</span>
+                <div v-if="historyPage" class="flex flex-wrap items-center gap-2">
+                  <Select v-model="diffFromNo">
+                    <SelectTrigger class="h-8 w-40">
+                      <SelectValue :placeholder="adminText('k00ph')" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="">{{ adminText('k00ps') }}</SelectItem>
+                      <SelectItem v-for="item in revisions" :key="`from-${item.revisionNo}`" :value="String(item.revisionNo)">
+                        #{{ item.revisionNo }} {{ item.title || item.path }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Select v-model="diffToNo">
+                    <SelectTrigger class="h-8 w-40">
+                      <SelectValue :placeholder="adminText('k00pi')" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem v-for="item in revisions" :key="`to-${item.revisionNo}`" :value="String(item.revisionNo)">
+                        #{{ item.revisionNo }} {{ item.title || item.path }}
+                      </SelectItem>
+                    </SelectContent>
+                  </Select>
+                  <Button type="button" size="sm" variant="outline" class="h-8 text-xs" :disabled="diffLoading || !diffToNo" @click="runDiff">
+                    <GitCompareArrows class="size-3.5" />
+                    {{ adminText('k00pc') }}
+                  </Button>
+                </div>
+              </div>
+            </AdminToolbar>
+          </template>
+          <div v-if="!historyPage" class="px-4 py-10 text-center text-sm text-muted-foreground">{{ adminText('k00pa') }}</div>
+          <template v-else>
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead class="w-20">{{ adminText('k00pb') }}</TableHead>
+                  <TableHead>{{ adminText('k00i5') }}</TableHead>
+                  <TableHead>{{ adminText('k00nz') }}</TableHead>
+                  <TableHead class="w-40">{{ adminText('k003b') }}</TableHead>
+                  <TableHead class="w-44 text-right">{{ adminText('k007m') }}</TableHead>
                 </TableRow>
-              </template>
-            </TableBody>
-          </Table>
-          <div v-if="revisions.length > 0 && reviewHasNext" class="flex justify-center pt-3">
-            <Button type="button" size="sm" variant="outline" class="h-8 text-xs" :disabled="reviewLoading" @click="loadMoreRevisions">
-              <Loader2 v-if="reviewLoading" class="size-3.5 animate-spin" aria-hidden="true" />
-              {{ reviewLoading ? adminText('k0046') : adminText('k00av') }}
-            </Button>
-          </div>
+              </TableHeader>
+              <TableBody>
+                <TableRow v-if="historyLoading && revisions.length === 0">
+                  <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
+                </TableRow>
+                <TableRow v-else-if="historyError">
+                  <TableCell colspan="5" class="h-28 text-center text-destructive">{{ historyError }}</TableCell>
+                </TableRow>
+                <TableRow v-else-if="revisions.length === 0">
+                  <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k00pt') }}</TableCell>
+                </TableRow>
+                <template v-else>
+                  <TableRow v-for="item in revisions" :key="item.revisionId">
+                    <TableCell class="font-mono text-xs text-muted-foreground">#{{ item.revisionNo }}</TableCell>
+                    <TableCell class="font-medium">{{ item.title || '-' }}</TableCell>
+                    <TableCell>{{ item.editorName || '-' }}</TableCell>
+                    <TableCell class="text-xs text-muted-foreground">{{ formatTime(item.updatedAt) }}</TableCell>
+                    <TableCell>
+                      <div class="flex justify-end gap-1.5">
+                        <Button
+                          type="button"
+                          size="sm"
+                          variant="outline"
+                          class="h-8 text-xs"
+                          :disabled="isLatestRevision(item)"
+                          @click="requestRollback(item)"
+                        >
+                          <RotateCcw class="size-3.5" />
+                          {{ adminText('k00pd') }}
+                        </Button>
+                      </div>
+                    </TableCell>
+                  </TableRow>
+                </template>
+              </TableBody>
+            </Table>
+            <div v-if="revisions.length > 0 && historyHasNext" class="flex justify-center pt-3">
+              <Button type="button" size="sm" variant="outline" class="h-8 text-xs" :disabled="historyLoading" @click="loadMoreHistory">
+                <Loader2 v-if="historyLoading" class="size-3.5 animate-spin" aria-hidden="true" />
+                {{ historyLoading ? adminText('k0046') : adminText('k00av') }}
+              </Button>
+            </div>
+            <div v-if="diffRows" class="border-t">
+              <div class="flex items-center justify-between gap-3 px-4 py-2">
+                <span class="text-sm font-medium">
+                  <GitCompareArrows class="mr-1 inline size-3.5" />
+                  {{ adminText('k00pr') }}
+                </span>
+                <Button type="button" size="sm" variant="ghost" class="h-8 text-xs" @click="diffRows = null">
+                  <X class="size-3.5" />
+                  {{ adminText('k009q') }}
+                </Button>
+              </div>
+              <div class="max-h-96 overflow-auto border-t">
+                <div
+                  v-for="(row, index) in diffRows"
+                  :key="index"
+                  class="flex items-start gap-2 border-b px-4 py-1 font-mono text-xs leading-5"
+                  :class="row.kind === 'added' ? 'bg-emerald-500/10 text-emerald-700' : row.kind === 'removed' ? 'bg-destructive/10 text-destructive' : 'text-muted-foreground'"
+                >
+                  <span class="w-6 shrink-0 select-none text-right">
+                    {{ row.kind === 'added' ? '+' : row.kind === 'removed' ? '-' : ' ' }}
+                  </span>
+                  <pre class="min-w-0 flex-1 whitespace-pre-wrap break-words">{{ row.text || ' ' }}</pre>
+                </div>
+              </div>
+            </div>
+          </template>
         </AdminSection>
       </TabsContent>
     </Tabs>
@@ -915,29 +1044,15 @@ onMounted(() => {
       </DialogContent>
     </Dialog>
 
-    <Dialog :open="viewingRevision !== null" @update:open="(open) => !open && (viewingRevision = null)">
-      <DialogScrollContent class="max-w-3xl">
-        <DialogHeader>
-          <DialogTitle>{{ viewingRevision?.title || '-' }}</DialogTitle>
-          <DialogDescription>
-            {{ viewingRevision?.path }} · {{ viewingRevision?.editorName }} · {{ formatTime(viewingRevision?.updatedAt || '') }}
-          </DialogDescription>
-        </DialogHeader>
-        <pre class="max-h-[60vh] overflow-auto whitespace-pre-wrap break-words rounded-md border bg-muted/20 p-3 font-mono text-xs leading-5">{{ viewingRevision?.content || '' }}</pre>
-        <DialogFooter>
-          <Button variant="outline" type="button" @click="viewingRevision = null">{{ adminText('k009q') }}</Button>
-        </DialogFooter>
-      </DialogScrollContent>
-    </Dialog>
 
     <AdminConfirmDialog
-      :open="reviewActionRow !== null"
-      :title="reviewActionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
-      :description="reviewActionRow?.approve ? adminText('k00o2') : adminText('k00o3')"
-      :confirm-text="reviewActionRow?.approve ? adminText('k00gj') : adminText('k00gk')"
-      :loading="reviewSaving"
-      @update:open="(open) => !open && (reviewActionRow = null)"
-      @confirm="confirmReviewAction"
+      :open="rollbackRow !== null"
+      :title="adminText('k00pd')"
+      :description="adminText('k00pf', { revisionNo: rollbackRow?.revisionNo, title: rollbackRow?.title || rollbackRow?.path })"
+      :confirm-text="adminText('k00pd')"
+      :loading="rollbackSaving"
+      @update:open="(open) => !open && (rollbackRow = null)"
+      @confirm="confirmRollback"
     />
   </BasicPage>
 </template>

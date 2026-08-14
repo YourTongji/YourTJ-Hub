@@ -1077,14 +1077,7 @@ export interface WikiPageDetailPayload {
   bookmarked: boolean
   watched: boolean
   canEdit: boolean
-  canReview: boolean
-  pending: {
-    title: string
-    content: string
-    updatedAt: string
-    editorId: number
-    editorName: string
-  } | null
+  publishedRevisionNo: number
 }
 
 export interface WikiDetailProps {

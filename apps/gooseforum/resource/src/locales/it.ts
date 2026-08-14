@@ -1880,7 +1880,7 @@ export default {
     'wiki.page.hasChildren': 'La pagina ha sottopagine e non può essere eliminata.',
     'wiki.forbidden': 'Nessun permesso wiki.',
     'wiki.revision.notFound': 'Revisione non trovata.',
-    'wiki.revision.notPending': 'La revisione non è in attesa.',
+    'wiki.revision.conflict': 'La pagina è stata aggiornata da qualcun altro. Modifica in base alla versione più recente.',
     'wiki.saveFailed': 'Salvataggio wiki non riuscito. Riprova più tardi.',
   },
   serverActions: {
@@ -1930,10 +1930,9 @@ export default {
     contentPlaceholder: 'Scrivi il contenuto della pagina...',
     contentRequired: 'Il contenuto non può essere vuoto',
     contentEmpty: 'Questa pagina non ha ancora contenuti.',
-    editSubmitted: 'Modifica inviata, in attesa di revisione.',
+    editSubmitted: 'La modifica è stata salvata e pubblicata.',
     editFailed: 'Salvataggio non riuscito',
-    pendingBanner: 'Modifica in attesa di revisione',
-    pendingEditor: 'inviata da {editor}',
+    revisionConflict: 'La pagina è stata aggiornata da qualcun altro. È stato caricato il contenuto più recente: la bozza è ancora qui; invia di nuovo per salvarla sulla nuova versione.',
     sidebarEmpty: 'Nessuna pagina.',
   },
 }

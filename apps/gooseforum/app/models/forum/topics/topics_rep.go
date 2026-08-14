@@ -440,6 +440,9 @@ func PageForModeration(q ModerationPageQuery) struct {
 }
 
 // PagePendingReview 列出待审（ProcessStatus=2）的主题。
+// 显式排除软删主题：Count 绕过 GORM 软删 scope（见 pathExists 同类问题），
+// 若只靠 scope，Count 会把已删除话题计入 total 而 Find 不返回，分页错位
+// （review：subquery passes on soft-deleted topics）。
 func PagePendingReview(page, pageSize int) struct {
 	Page     int
 	PageSize int
@@ -452,6 +455,7 @@ func PagePendingReview(page, pageSize int) struct {
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
+		Where(queryopt.IsNull("deleted_at")).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id"))
 	var total int64

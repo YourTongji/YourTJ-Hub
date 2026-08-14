@@ -581,6 +581,64 @@ func TestDeleteWikiTopicByModeratorCascadesPage(t *testing.T) {
 	}
 }
 
+// wiki 软删对齐：恢复 wiki 话题时必须一并恢复 wiki_pages 与修订（清除
+// deleted_at），否则出现"话题可见、页面消失"的幽灵状态。作者恢复路径验证。
+func TestRestoreWikiTopicRestoresPageAndRevisions(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	const authorID = uint64(949501)
+	const topicID = uint64(949500)
+	pageID := seedWikiTopic(t, conn, topicID, authorID)
+
+	if err := DeleteTopicByUser(authorID, topicID); err != nil {
+		t.Fatalf("DeleteTopicByUser: %v", err)
+	}
+	if page := wikiPages.GetByTopicId(topicID); page.Id != 0 {
+		t.Fatalf("wiki page still visible after delete: %#v", page)
+	}
+	var deletedPage wikiPages.Entity
+	conn.Unscoped().Table("wiki_pages").Where("id = ?", pageID).First(&deletedPage)
+	if !deletedPage.DeletedAt.Valid {
+		t.Fatal("wiki page should be soft-deleted (deleted_at set) after topic delete")
+	}
+
+	if err := RestoreContent(authorID, ContentTypeTopic, topicID); err != nil {
+		t.Fatalf("RestoreContent: %v", err)
+	}
+	topic := topics.UnscopedGet(topicID)
+	if topic.VisibilityStatus != topics.VisibilityActive || topic.DeletedAt.Valid {
+		t.Fatalf("restored topic state = %s deleted=%v, want ACTIVE/no deleted_at", topic.VisibilityStatus, topic.DeletedAt.Valid)
+	}
+	if page := wikiPages.GetByTopicId(topicID); page.Id == 0 {
+		t.Fatal("wiki page not restored after topic restore")
+	}
+	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 1 {
+		t.Fatalf("wiki revisions not restored after topic restore: %d", len(revs))
+	}
+}
+
+// 管理端恢复治理删除的 wiki 话题同样级联恢复 wiki_pages 与修订（同一 helper）。
+func TestRestoreWikiTopicAsModeratorRestoresPageAndRevisions(t *testing.T) {
+	conn := setupContentDeleteTestDB(t)
+	const authorID = uint64(949601)
+	const moderatorID = uint64(949602)
+	const topicID = uint64(949600)
+	pageID := seedWikiTopic(t, conn, topicID, authorID)
+
+	topic := topics.Get(topicID)
+	if err := DeleteTopicAs(topic, moderatorID, topics.VisibilityModeratorRemoved, "policy violation"); err != nil {
+		t.Fatalf("DeleteTopicAs: %v", err)
+	}
+	if err := RestoreTopicAsModerator(moderatorID, topicID); err != nil {
+		t.Fatalf("RestoreTopicAsModerator: %v", err)
+	}
+	if page := wikiPages.GetByTopicId(topicID); page.Id == 0 {
+		t.Fatal("wiki page not restored after moderator topic restore")
+	}
+	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 1 {
+		t.Fatalf("wiki revisions not restored after moderator topic restore: %d", len(revs))
+	}
+}
+
 // review P1：注销删除全部内容时，他人 wiki 页面上 editor_id=注销者 的修订也必须
 // 清理（DeleteAllUserContent 现只按本人页面 DeleteByPage，未覆盖他人页面上的本人
 // 修订），否则修订正文与 editorId 仍从公开 API 输出，与"删除全部本人内容"语义不符。

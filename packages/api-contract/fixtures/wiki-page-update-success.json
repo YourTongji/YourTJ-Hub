@@ -1,7 +1,8 @@
 {
   "result": {
     "revisionId": 6001,
-    "status": "pending"
+    "status": "approved",
+    "revisionNo": 2
   },
   "code": 0
 }

@@ -41,8 +41,6 @@ import type {
   WikiEditor,
   WikiNamespace,
   WikiNamespaceTree,
-  WikiRevision,
-  WikiRevisionPage,
   WikiTreeOp,
 } from '@/admin/types'
 
@@ -522,13 +520,54 @@ export function saveWikiTree(ops: WikiTreeOp[]) {
   return putJson<unknown>('/api/admin/wiki/tree', { ops }, adminText('k00n2'))
 }
 
-export function getWikiRevisions(status: string, page = 1, pageSize = 20) {
-  return getJson<WikiRevisionPage>(
-    `/api/admin/wiki/revisions?status=${encodeURIComponent(status)}&page=${page}&pageSize=${pageSize}`,
-    adminText('k00n3'),
-  )
+export interface AdminWikiRevision {
+  revisionId: number
+  pageId: number
+  revisionNo: number
+  path: string
+  title: string
+  content: string
+  status: string
+  editorId: number
+  editorName: string
+  updatedAt: string
 }
 
-export function reviewWikiRevision(revisionId: number, action: 'approve' | 'reject') {
-  return postJson<unknown>(`/api/wiki/revisions/${revisionId}/review`, { action }, adminText('k00n3'))
+export interface AdminWikiRevisionPage {
+  list: AdminWikiRevision[]
+  page: number
+  pageSize: number
+  hasNext: boolean
+}
+
+export interface AdminWikiDiffSide {
+  revisionNo: number
+  title: string
+  content: string
+  editorId: number
+  createdAt: string
+}
+
+export interface AdminWikiDiff {
+  from: AdminWikiDiffSide | null
+  to: AdminWikiDiffSide
+}
+
+export function listAdminWikiRevisions(pageId?: number, page = 1, pageSize = 20) {
+  const params = new URLSearchParams()
+  if (pageId !== undefined) params.set('pageId', String(pageId))
+  params.set('page', String(page))
+  params.set('pageSize', String(pageSize))
+  return getJson<AdminWikiRevisionPage>(`/api/admin/wiki/revisions?${params.toString()}`, adminText('k00p9'))
+}
+
+export function rollbackWikiPage(pageId: number, toRevisionNo: number) {
+  return postJson<{ ok: true }>(`/api/admin/wiki/pages/${pageId}/rollback`, { toRevisionNo }, adminText('k00p9'))
+}
+
+export function diffWikiPage(pageId: number, from: number | undefined, to: number) {
+  const params = new URLSearchParams()
+  if (from !== undefined) params.set('from', String(from))
+  params.set('to', String(to))
+  return getJson<AdminWikiDiff>(`/api/admin/wiki/pages/${pageId}/diff?${params.toString()}`, adminText('k00p9'))
 }

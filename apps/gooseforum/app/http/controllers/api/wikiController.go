@@ -87,18 +87,20 @@ func WikiCreatePage(req component.BetterRequest[WikiCreatePageReq]) component.Re
 
 // WikiEditPageReq 编辑页面请求。
 type WikiEditPageReq struct {
-	PageId  uint64 `uri:"pageId" json:"-" validate:"required"`
-	Title   string `json:"title" validate:"required"`
-	Content string `json:"content"`
+	PageId         uint64 `uri:"pageId" json:"-" validate:"required"`
+	Title          string `json:"title" validate:"required"`
+	Content        string `json:"content"`
+	BaseRevisionNo int    `json:"baseRevisionNo"`
 }
 
-// WikiEditPage 编辑 wiki 页面（创建者/贡献者/PageManager/Admin）→ pending 修订。
+// WikiEditPage 编辑 wiki 页面（创建者/贡献者/PageManager/Admin）→ 写即发布。
 func WikiEditPage(req component.BetterRequest[WikiEditPageReq]) component.Response {
 	result, err := wikiservice.Edit(wikiservice.EditParams{
-		PageID:  req.Params.PageId,
-		Title:   req.Params.Title,
-		Content: req.Params.Content,
-		UserId:  req.UserId,
+		PageID:         req.Params.PageId,
+		Title:          req.Params.Title,
+		Content:        req.Params.Content,
+		UserId:         req.UserId,
+		BaseRevisionNo: req.Params.BaseRevisionNo,
 	})
 	if err != nil {
 		if errors.Is(err, wikiservice.ErrForbidden) {
@@ -109,29 +111,51 @@ func WikiEditPage(req component.BetterRequest[WikiEditPageReq]) component.Respon
 			// 契约：非法路径/超长标题 → common.request.invalidParams。
 			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 		}
+		if errors.Is(err, wikiservice.ErrConflict) {
+			// 版本 CAS 冲突：页面已被他人更新，需基于最新版本重编（409）。
+			return component.FailResponseCode(component.MessageWikiRevisionConflict, nil)
+		}
+		if errors.Is(err, wikiservice.ErrSensitiveBlocked) {
+			// 写时敏感词拦截：内容命中敏感词，拒绝发布。
+			return component.FailResponseCode(component.MessageContentSensitiveBlocked, nil)
+		}
 		return wikiErrorResponse(err)
 	}
 	return component.SuccessResponse(result)
 }
 
-// WikiReviewReq 审核请求。
-type WikiReviewReq struct {
-	RevisionId uint64 `uri:"revisionId" json:"-" validate:"required"`
-	Action     string `json:"action" validate:"required,oneof=approve reject"`
+// WikiRollbackReq 回滚请求。
+type WikiRollbackReq struct {
+	PageId       uint64 `uri:"pageId" json:"-" validate:"required"`
+	ToRevisionNo int    `json:"toRevisionNo" validate:"required,min=1"`
 }
 
-// WikiReview 审核修订（PageManager/Admin）。
-func WikiReview(req component.BetterRequest[WikiReviewReq]) component.Response {
-	result, err := wikiservice.Review(wikiservice.ReviewParams{
-		RevisionID: req.Params.RevisionId,
-		Action:     req.Params.Action,
-		UserId:     req.UserId,
-	})
-	if err != nil {
+// WikiRollback 管理员回滚 wiki 页面（PageManager/Admin；不可撤销）。
+func WikiRollback(req component.BetterRequest[WikiRollbackReq]) component.Response {
+	if err := wikiservice.Rollback(wikiservice.RollbackParams{
+		PageID:       req.Params.PageId,
+		ToRevisionNo: req.Params.ToRevisionNo,
+		UserId:       req.UserId,
+	}); err != nil {
 		if errors.Is(err, wikiservice.ErrForbidden) {
-			// 契约：无 PageManager → permission.denied。
 			return component.FailResponseCode(component.MessagePermissionDenied, nil)
 		}
+		return wikiErrorResponse(err)
+	}
+	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
+}
+
+// WikiDiffReq 版本 diff 请求。
+type WikiDiffReq struct {
+	PageId uint64 `uri:"pageId" json:"-" validate:"required"`
+	From   int    `form:"from" json:"-"`
+	To     int    `form:"to" json:"-" validate:"required,min=1"`
+}
+
+// WikiDiff 返回页面两个版本的 markdown 原文（管理端 diff 视图数据源）。
+func WikiDiff(req component.BetterRequest[WikiDiffReq]) component.Response {
+	result, err := wikiservice.Diff(req.Params.PageId, req.Params.From, req.Params.To)
+	if err != nil {
 		return wikiErrorResponse(err)
 	}
 	return component.SuccessResponse(result)
@@ -275,20 +299,17 @@ func WikiAdminTreeOps(req component.BetterRequest[WikiAdminTreeOpReq]) component
 	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
 }
 
-// WikiAdminRevisionsReq 审核队列请求。
+// WikiAdminRevisionsReq 版本历史请求。
 type WikiAdminRevisionsReq struct {
-	Status   string `form:"status"`
+	PageId   uint64 `form:"pageId"`
 	Page     int    `form:"page"`
 	PageSize int    `form:"pageSize"`
 }
 
-// WikiAdminRevisions 返回审核队列（PageManager/Admin；status 必填且须为契约枚举）。
+// WikiAdminRevisions 返回版本历史（PageManager/Admin；pageId 可选，分页）。
+// 写即发布后无审核队列：全部修订即版本历史，供 diff 对比与回滚选择目标版本。
 func WikiAdminRevisions(req component.BetterRequest[WikiAdminRevisionsReq]) component.Response {
-	status, ok := wikiservice.ParseRevisionStatus(req.Params.Status)
-	if !ok {
-		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
-	}
-	list := wikiservice.ListAdminRevisions(status, req.Params.Page, req.Params.PageSize)
+	list := wikiservice.ListAdminRevisions(req.Params.PageId, req.Params.Page, req.Params.PageSize)
 	return component.SuccessResponse(list)
 }
 
@@ -311,8 +332,6 @@ func wikiErrorResponse(err error) component.Response {
 		return component.FailResponseCode(component.MessageWikiForbidden, nil)
 	case errors.Is(err, wikiservice.ErrRevisionNotFound):
 		return component.FailResponseCode(component.MessageWikiRevisionNotFound, nil)
-	case errors.Is(err, wikiservice.ErrRevisionNotPending):
-		return component.FailResponseCode(component.MessageWikiRevisionNotPending, nil)
 	case errors.Is(err, wikiservice.ErrPageHasChildren):
 		return component.FailResponseCode(component.MessageWikiPageHasChildren, nil)
 	case errors.Is(err, wikiservice.ErrNamespaceNameInvalid):

@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { ChevronDown, ChevronRight, Clock, Eye, History, Loader2, MessageSquare, X } from '@lucide/vue'
-import { getWikiRevisions, updateWikiPage } from '@/runtime/api'
+import { ChevronDown, ChevronRight, Clock, Eye, Loader2, MessageSquare, X } from '@lucide/vue'
+import { ApiResponseError, getWikiRevisions, updateWikiPage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -12,7 +12,7 @@ import VditorEditor from '@/site/components/VditorEditor.vue'
 import WikiPageActions from '@/site/components/WikiPageActions.vue'
 import WikiToc from '@/site/components/WikiToc.vue'
 import { htmlToMarkdown } from '@/runtime/rich-paste'
-import type { LayoutPayload, WikiDetailProps, WikiPageDetailPayload } from '@gooseforum/client'
+import type { LayoutPayload, WikiDetailProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
 const page = defineProps<{
@@ -24,20 +24,17 @@ const { t } = useI18n()
 const { push: pushFlash } = useFlashMessages()
 const markdownImageViewer = ref<InstanceType<typeof MarkdownImageViewer> | null>(null)
 
-// 兼容后端 props 顶层 canEdit/canReview/pending（并行分支实现）与契约 page 内字段两种形状。
+// 兼容后端 props 顶层 canEdit（并行分支实现）与契约 page 内字段两种形状。
 type WikiDetailPropsWithTopLevel = WikiDetailProps & {
   canEdit?: boolean
-  canReview?: boolean
-  pending?: WikiPageDetailPayload['pending']
 }
 const detailProps = page.props as WikiDetailPropsWithTopLevel
 
 const canEdit = computed(() => detailProps.page.canEdit ?? detailProps.canEdit ?? false)
-const canReview = computed(() => detailProps.page.canReview ?? detailProps.canReview ?? false)
-const pending = computed(() => detailProps.page.pending ?? detailProps.pending ?? null)
 
 const editing = ref(false)
 const mobileTocOpen = ref(false)
+const baseRevisionNo = ref(0)
 const editTitle = ref('')
 const editContent = ref('')
 const saving = ref(false)
@@ -63,6 +60,7 @@ async function startEdit() {
   editTitle.value = detailProps.page.title
   editContent.value = ''
   editError.value = ''
+  baseRevisionNo.value = detailProps.page.publishedRevisionNo ?? 0
   editing.value = true
   // review P1：编辑应加载原始 Markdown（rendered HTML 反解有损）。
   // 公开修订历史接口返回最新 approved 修订的原始 markdown。
@@ -101,11 +99,24 @@ async function saveEdit() {
   saving.value = true
   editError.value = ''
   try {
-    await updateWikiPage(detailProps.page.id, title, content)
+    const result = await updateWikiPage(detailProps.page.id, title, content, baseRevisionNo.value)
+    baseRevisionNo.value = result.revisionNo
     editing.value = false
     pushFlash(t('wiki.editSubmitted'), 'success')
     await refreshCurrentPage()
   } catch (error) {
+    if (error instanceof ApiResponseError && error.messageCode === 'wiki.revision.conflict') {
+      // 页面已被他人更新：提示并加载最新版本，保留当前草稿与编辑态，
+      // 刷新 baseRevisionNo 后允许用户基于新版本继续编辑。
+      editError.value = t('wiki.revisionConflict')
+      try {
+        const payload = await refreshCurrentPage()
+        baseRevisionNo.value = (payload.props as WikiDetailProps).page.publishedRevisionNo ?? 0
+      } catch {
+        // 刷新失败时保留冲突提示，用户可手动刷新页面后重试。
+      }
+      return
+    }
     editError.value = error instanceof Error ? error.message : t('wiki.editFailed')
   } finally {
     saving.value = false
@@ -116,6 +127,7 @@ async function refreshCurrentPage() {
   const { fetchPage } = await import('@/runtime/router')
   const payload = await fetchPage(new URL(window.location.href))
   window.dispatchEvent(new CustomEvent('goose:page', { detail: payload }))
+  return payload
 }
 
 function handleInteractionChange(state: { likeCount: number; isLiked: boolean; isBookmarked: boolean; isWatched: boolean }) {
@@ -250,20 +262,6 @@ function sameUrl(left: string, right: string) {
               </div>
             </div>
 
-            <!-- pending 横幅：有未审核编辑且当前用户可编辑/可审核时提示 -->
-            <div
-              v-if="pending && (canEdit || canReview)"
-              class="mx-4 mb-4 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-warning/25 bg-warning/10 px-3 py-2.5 sm:mx-5"
-              role="status"
-            >
-              <History class="mt-0.5 h-4 w-4 shrink-0 text-warning" aria-hidden="true" />
-              <div class="min-w-0 text-[13px] leading-5 text-base-content/75">
-                <span class="font-semibold text-base-content">{{ t('wiki.pendingBanner') }}</span>
-                <span class="ml-1">
-                  {{ t('wiki.pendingEditor', { editor: pending.editorName || `#${pending.editorId}` }) }}
-                </span>
-              </div>
-            </div>
 
             <div v-if="!editing" class="border-t border-line/70 px-4 py-4 sm:px-5 sm:py-5">
               <div

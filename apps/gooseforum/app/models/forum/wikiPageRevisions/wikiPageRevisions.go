@@ -1,6 +1,10 @@
 package wikiPageRevisions
 
-import "time"
+import (
+	"time"
+
+	"gorm.io/gorm"
+)
 
 const tableName = "wiki_page_revisions"
 
@@ -13,18 +17,19 @@ const (
 )
 
 type Entity struct {
-	Id           uint64     `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
-	PageId       uint64     `gorm:"column:page_id;not null;default:0;index:idx_wiki_rev_page,priority:1;index:idx_wiki_rev_status,priority:2;" json:"pageId"`
-	RevisionNo   int        `gorm:"column:revision_no;type:int;not null;default:0;" json:"revisionNo"`
-	Title        string     `gorm:"column:title;type:varchar(512);not null;default:'';" json:"title"`
-	Content      string     `gorm:"column:content;type:text;" json:"content"`
-	RenderedHTML string     `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
-	Toc          string     `gorm:"column:toc;type:text;" json:"toc"`
-	Status       int8       `gorm:"column:status;not null;default:0;index:idx_wiki_rev_status,priority:1;" json:"status"`
-	EditorId     uint64     `gorm:"column:editor_id;not null;default:0;" json:"editorId"`
-	ReviewedBy   uint64     `gorm:"column:reviewed_by;not null;default:0;" json:"reviewedBy"`
-	ReviewedAt   *time.Time `gorm:"column:reviewed_at;" json:"reviewedAt"`
-	CreatedAt    time.Time  `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
+	Id           uint64         `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
+	PageId       uint64         `gorm:"column:page_id;not null;default:0;index:idx_wiki_rev_page,priority:1;index:idx_wiki_rev_status,priority:2;" json:"pageId"`
+	RevisionNo   int            `gorm:"column:revision_no;type:int;not null;default:0;" json:"revisionNo"`
+	Title        string         `gorm:"column:title;type:varchar(512);not null;default:'';" json:"title"`
+	Content      string         `gorm:"column:content;type:text;" json:"content"`
+	RenderedHTML string         `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
+	Toc          string         `gorm:"column:toc;type:text;" json:"toc"`
+	Status       int8           `gorm:"column:status;not null;default:0;index:idx_wiki_rev_status,priority:1;" json:"status"`
+	EditorId     uint64         `gorm:"column:editor_id;not null;default:0;" json:"editorId"`
+	ReviewedBy   uint64         `gorm:"column:reviewed_by;not null;default:0;" json:"reviewedBy"`
+	ReviewedAt   *time.Time     `gorm:"column:reviewed_at;" json:"reviewedAt"`
+	DeletedAt    gorm.DeletedAt `gorm:"column:deleted_at;" json:"-"`
+	CreatedAt    time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 }
 
 func (itself *Entity) TableName() string {

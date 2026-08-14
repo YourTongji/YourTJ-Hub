@@ -2825,11 +2825,19 @@ WikiUpdatePageRequest:
     content:
       type: string
       description: Raw wiki markup content.
+    baseRevisionNo:
+      type: integer
+      minimum: 1
+      description: |
+        The published revision number the editor based this edit on (optimistic lock).
+        When present and no longer equal to the page's current published revision, the
+        request fails with `wiki.revision.conflict` (409 semantics) and the client must
+        reload the latest revision and re-edit.
   additionalProperties: false
 
 WikiUpdatePageResult:
   type: object
-  required: [revisionId, status]
+  required: [revisionId, status, revisionNo]
   properties:
     revisionId:
       type: integer
@@ -2837,7 +2845,12 @@ WikiUpdatePageResult:
       minimum: 1
     status:
       type: string
-      const: pending
+      const: approved
+      description: "Write-publish: the new revision is immediately approved and visible."
+    revisionNo:
+      type: integer
+      minimum: 1
+      description: The newly published revision number (previous published number + 1).
   additionalProperties: false
 
 WikiUpdatePageResponse:
@@ -2851,29 +2864,26 @@ WikiUpdatePageResponse:
               $ref: '#/WikiUpdatePageResult'
     - $ref: '#/ApiFailure'
 
-WikiReviewRevisionRequest:
+WikiRollbackRequest:
   type: object
-  required: [action]
+  required: [toRevisionNo]
   properties:
-    action:
-      type: string
-      enum: [approve, reject]
-  additionalProperties: false
-
-WikiReviewRevisionResult:
-  type: object
-  required: [revisionId, status]
-  properties:
-    revisionId:
+    toRevisionNo:
       type: integer
-      format: uint64
       minimum: 1
-    status:
-      type: string
-      enum: [approved, rejected]
+      description: Target revision number; every revision with a higher number is permanently deleted.
   additionalProperties: false
 
-WikiReviewRevisionResponse:
+WikiRollbackResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiRollbackResponse:
   oneOf:
     - allOf:
         - $ref: '#/ApiSuccess'
@@ -2881,7 +2891,52 @@ WikiReviewRevisionResponse:
           required: [result]
           properties:
             result:
-              $ref: '#/WikiReviewRevisionResult'
+              $ref: '#/WikiRollbackResult'
+    - $ref: '#/ApiFailure'
+
+WikiDiffSide:
+  type: object
+  required: [revisionNo, title, content, editorId, createdAt]
+  properties:
+    revisionNo:
+      type: integer
+      minimum: 1
+    title:
+      type: string
+    content:
+      type: string
+      description: Raw wiki markup content of the revision.
+    editorId:
+      type: integer
+      format: uint64
+      minimum: 1
+    createdAt:
+      type: string
+      format: date-time
+  additionalProperties: false
+
+WikiDiffResult:
+  type: object
+  required: [from, to]
+  properties:
+    from:
+      oneOf:
+        - $ref: '#/WikiDiffSide'
+        - type: 'null'
+      description: Older side; null when the `from` query parameter was absent (empty baseline before the page existed).
+    to:
+      $ref: '#/WikiDiffSide'
+  additionalProperties: false
+
+WikiDiffResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiDiffResult'
     - $ref: '#/ApiFailure'
 
 WikiCreateNamespaceRequest:
@@ -3075,7 +3130,7 @@ WikiTreeOpsResponse:
 
 WikiAdminRevision:
   type: object
-  required: [revisionId, pageId, path, title, content, editorId, editorName, updatedAt]
+  required: [revisionId, pageId, revisionNo, path, title, content, status, editorId, editorName, updatedAt]
   properties:
     revisionId:
       type: integer
@@ -3085,12 +3140,20 @@ WikiAdminRevision:
       type: integer
       format: uint64
       minimum: 1
+    revisionNo:
+      type: integer
+      minimum: 1
+      description: 1-based revision number of the page (the version number used by the diff and rollback endpoints).
     path:
       type: string
     title:
       type: string
     content:
       type: string
+    status:
+      type: string
+      enum: [approved, pending, rejected, superseded]
+      description: Approved for all revisions created after write-publish; legacy values only for pre-v19 rows.
     editorId:
       type: integer
       format: uint64

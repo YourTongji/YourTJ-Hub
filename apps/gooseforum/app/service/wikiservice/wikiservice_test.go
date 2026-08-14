@@ -171,47 +171,46 @@ func TestCreateEditApproveFlow(t *testing.T) {
 		t.Fatalf("revision#1 not approved: %+v", rev)
 	}
 
-	// 编辑 → pending。
+	// 编辑 → 写即发布（approved revision#2，公开立即可见）。
 	edited, err := Edit(EditParams{PageID: page.Id, Title: "快速开始 v2", Content: "# 新标题\n\n新内容", UserId: editor})
 	if err != nil {
 		t.Fatalf("edit wiki page: %v", err)
 	}
-	if edited.Status != StatusStringPending {
-		t.Fatalf("edit status=%q, want pending", edited.Status)
+	if edited.Status != StatusStringApproved {
+		t.Fatalf("edit status=%q, want approved", edited.Status)
 	}
-	// 公开视图仍显示旧内容（latest approved）。
+	if edited.RevisionNo != 2 {
+		t.Fatalf("edit revisionNo=%d, want 2", edited.RevisionNo)
+	}
+	// 公开视图立即显示新内容（写即发布）。
 	detail, err := LoadPageDetail(&page, &topic)
 	if err != nil {
 		t.Fatalf("load detail: %v", err)
 	}
-	if detail.Title != "快速开始" {
-		t.Fatalf("public title=%q, want old title", detail.Title)
+	if detail.Title != "快速开始 v2" {
+		t.Fatalf("public title=%q, want new title", detail.Title)
 	}
-	pending := LoadPending(page.Id)
-	if pending == nil || pending.Title != "快速开始 v2" {
-		t.Fatalf("pending not visible to editors: %+v", pending)
-	}
-
-	// approve → 公开可见新内容。
-	if _, err := Review(ReviewParams{RevisionID: edited.RevisionId, Action: "approve", UserId: editor}); err != nil {
-		t.Fatalf("approve: %v", err)
-	}
+	// topic 标题/摘要/首图同步 + 物化水印。
 	topic = topics.Get(page.TopicId)
 	if topic.Title != "快速开始 v2" {
-		t.Fatalf("topic title after approve=%q", topic.Title)
+		t.Fatalf("topic title after edit=%q", topic.Title)
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	if firstPost.ProcessStatus != posts.ProcessStatusNormal {
 		t.Fatalf("first post process_status=%d, want normal", firstPost.ProcessStatus)
 	}
-	detail, _ = LoadPageDetail(&page, &topic)
-	if detail.Title != "快速开始 v2" {
-		t.Fatalf("public title after approve=%q", detail.Title)
+	if firstPost.WikiSyncedRevisionNo != 2 || topic.WikiSyncedRevisionNo != 2 {
+		t.Fatalf("watermark post=%d topic=%d, want 2/2", firstPost.WikiSyncedRevisionNo, topic.WikiSyncedRevisionNo)
+	}
+	page = wikiPages.Get(page.Id)
+	if page.PublishedRevisionNo != 2 {
+		t.Fatalf("page published_revision_no after edit=%d, want 2", page.PublishedRevisionNo)
 	}
 }
 
-// TestEditSupersedeInvariant 每页至多一条 pending；新编辑 supersede 旧 pending。
-func TestEditSupersedeInvariant(t *testing.T) {
+// TestEditAppendsApprovedRevisions 写即发布：每次编辑追加一条 approved 修订，
+// revision_no 单调递增，无 pending/superseded 状态。
+func TestEditAppendsApprovedRevisions(t *testing.T) {
 	setupWikiTestDB(t)
 	editor := seedWikiUser(t, false)
 
@@ -235,35 +234,28 @@ func TestEditSupersedeInvariant(t *testing.T) {
 	}
 
 	revisions := wikiPageRevisions.ListByPage(page.Id)
-	pendingCount := 0
-	supersededCount := 0
-	for _, r := range revisions {
-		switch r.Status {
-		case wikiPageRevisions.StatusPending:
-			pendingCount++
-		case wikiPageRevisions.StatusSuperseded:
-			supersededCount++
-		}
-	}
-	if pendingCount != 1 {
-		t.Fatalf("pending count=%d, want 1", pendingCount)
-	}
-	if supersededCount != 1 {
-		t.Fatalf("superseded count=%d, want 1", supersededCount)
-	}
-	// revision_no 单调递增（approved#1 + superseded#2 + pending#3）。
 	if len(revisions) != 3 {
 		t.Fatalf("revision count=%d, want 3", len(revisions))
 	}
+	for _, r := range revisions {
+		if r.Status != wikiPageRevisions.StatusApproved {
+			t.Fatalf("revision#%d status=%d, want approved (no pending/superseded)", r.RevisionNo, r.Status)
+		}
+	}
+	// revision_no 单调递增（approved#1 + #2 + #3）。
 	if revisions[0].RevisionNo != 3 || revisions[1].RevisionNo != 2 || revisions[2].RevisionNo != 1 {
 		t.Fatalf("revision_no order=%d,%d,%d", revisions[0].RevisionNo, revisions[1].RevisionNo, revisions[2].RevisionNo)
 	}
+	if got := wikiPages.Get(page.Id).PublishedRevisionNo; got != 3 {
+		t.Fatalf("published_revision_no=%d, want 3", got)
+	}
 }
 
-// TestReviewRejectRollback reject 回滚为上一 approved 内容。
-func TestReviewRejectRollback(t *testing.T) {
+// TestRollbackRestoresVersion 管理员回滚到指定版本：该版本之后的修订硬删（不可撤销），
+// 内容回退为该版本，版本指针回到目标号。
+func TestRollbackRestoresVersion(t *testing.T) {
 	setupWikiTestDB(t)
-	reviewer := seedWikiUser(t, true) // 审核者（PageManager）
+	reviewer := seedWikiUser(t, true) // PageManager
 
 	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
 		t.Fatalf("create namespace: %v", err)
@@ -276,33 +268,36 @@ func TestReviewRejectRollback(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	page := wikiPages.Get(created.PageId)
-	edited, err := Edit(EditParams{PageID: page.Id, Title: "被拒版", Content: "新内容", UserId: reviewer})
+	edited, err := Edit(EditParams{PageID: page.Id, Title: "被回滚版", Content: "新内容", UserId: reviewer})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
-	if _, err := Review(ReviewParams{RevisionID: edited.RevisionId, Action: "reject", UserId: reviewer}); err != nil {
-		t.Fatalf("reject: %v", err)
+	if edited.RevisionNo != 2 {
+		t.Fatalf("edited revisionNo=%d, want 2", edited.RevisionNo)
 	}
 
+	// 回滚到 v1 → v2 硬删、内容回退。
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: reviewer}); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
 	topic := topics.Get(page.TopicId)
 	firstPost := posts.Get(topic.FirstPostId)
 	if firstPost.Content != "原内容" {
-		t.Fatalf("first post content after reject=%q, want original", firstPost.Content)
+		t.Fatalf("first post content after rollback=%q, want original", firstPost.Content)
 	}
 	if topic.Title != "原版" {
-		t.Fatalf("topic title after reject=%q, want original", topic.Title)
+		t.Fatalf("topic title after rollback=%q, want original", topic.Title)
 	}
-	if LoadPending(page.Id) != nil {
-		t.Fatal("pending should be cleared after reject")
+	rev2 := wikiPageRevisions.Get(edited.RevisionId)
+	if rev2.Id != 0 {
+		t.Fatalf("revision v2 should be hard-deleted after rollback, got %+v", rev2)
 	}
-	// 状态流转经 UpdateStatusTx 记录审核人（review：reject 不再内联表名更新）。
-	rejected := wikiPageRevisions.Get(edited.RevisionId)
-	if rejected.Status != wikiPageRevisions.StatusRejected || rejected.ReviewedBy != reviewer {
-		t.Fatalf("rejected revision=%+v, want status=rejected reviewed_by=%d", rejected, reviewer)
+	if got := wikiPages.Get(page.Id).PublishedRevisionNo; got != 1 {
+		t.Fatalf("published_revision_no after rollback=%d, want 1", got)
 	}
 }
 
-// TestPermissionMatrix 权限边界：非贡献者创建被拒；非 PageManager 审核被拒。
+// TestPermissionMatrix 权限边界：非贡献者创建被拒；非 PageManager 回滚被拒。
 func TestPermissionMatrix(t *testing.T) {
 	setupWikiTestDB(t)
 	editor := seedWikiUser(t, false)   // 贡献者，无 PageManager
@@ -311,11 +306,11 @@ func TestPermissionMatrix(t *testing.T) {
 	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
 		t.Fatalf("create namespace: %v", err)
 	}
-	// userId=2 非贡献者 → 创建被拒。
+	// 非贡献者 → 创建被拒。
 	if _, err := Create(CreateParams{Namespace: "guide", Path: "guide/x", Title: "X", Content: "x", UserId: outsider}); err != ErrForbidden {
 		t.Fatalf("non-editor create err=%v, want ErrForbidden", err)
 	}
-	// 贡献者 userId=1 创建成功。
+	// 贡献者创建成功。
 	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
 		t.Fatalf("set editors: %v", err)
 	}
@@ -324,13 +319,9 @@ func TestPermissionMatrix(t *testing.T) {
 		t.Fatalf("editor create: %v", err)
 	}
 	page := wikiPages.Get(created.PageId)
-	// 非 PageManager（userId=2）审核被拒。
-	edited, err := Edit(EditParams{PageID: page.Id, Title: "X2", Content: "x2", UserId: editor})
-	if err != nil {
-		t.Fatalf("edit: %v", err)
-	}
-	if _, err := Review(ReviewParams{RevisionID: edited.RevisionId, Action: "approve", UserId: outsider}); err != ErrForbidden {
-		t.Fatalf("non-manager review err=%v, want ErrForbidden", err)
+	// 非 PageManager 回滚被拒。
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: outsider}); err != ErrForbidden {
+		t.Fatalf("non-manager rollback err=%v, want ErrForbidden", err)
 	}
 }
 
@@ -494,6 +485,127 @@ func TestRenameCascadesChildPaths(t *testing.T) {
 	}
 }
 
+// TestSortRenumbersSiblingOrders sort op 的 SortOrder 是目标索引（1-based）：
+// 移动后整组兄弟按 sort_order 规范化为 1..N，无空洞/0/并列（此前直接赋值
+// 无法表达"排第一"，默认 0 与 omitempty 组合会留下并列序）。
+func TestSortRenumbersSiblingOrders(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	pages := wikiSeedTestPages(t, manager, []string{"docs/a", "docs/b", "docs/c"})
+	aID, bID, cID := pages["docs/a"], pages["docs/b"], pages["docs/c"]
+
+	// 初始全部 sort_order=0，按 id 序 a,b,c；把 a 移到第 3 位，其余保持相对顺序。
+	if err := ApplyTreeOps([]TreeOp{{Op: "sort", PageId: aID, SortOrder: 3}}, manager); err != nil {
+		t.Fatalf("sort a to 3: %v", err)
+	}
+	if got := wikiPages.Get(aID).SortOrder; got != 3 {
+		t.Fatalf("a sort_order=%d, want 3", got)
+	}
+	if got := wikiPages.Get(bID).SortOrder; got != 1 {
+		t.Fatalf("b sort_order=%d, want 1", got)
+	}
+	if got := wikiPages.Get(cID).SortOrder; got != 2 {
+		t.Fatalf("c sort_order=%d, want 2", got)
+	}
+
+	// 前端交换模式：两连 sort（互相把对方当前 sortOrder 作为目标索引）→ 顺序互换。
+	if err := ApplyTreeOps([]TreeOp{
+		{Op: "sort", PageId: cID, SortOrder: wikiPages.Get(bID).SortOrder},
+		{Op: "sort", PageId: bID, SortOrder: wikiPages.Get(cID).SortOrder},
+	}, manager); err != nil {
+		t.Fatalf("swap b/c: %v", err)
+	}
+	if got := wikiPages.Get(cID).SortOrder; got != 1 {
+		t.Fatalf("c sort_order after swap=%d, want 1", got)
+	}
+	if got := wikiPages.Get(bID).SortOrder; got != 2 {
+		t.Fatalf("b sort_order after swap=%d, want 2", got)
+	}
+	if got := wikiPages.Get(aID).SortOrder; got != 3 {
+		t.Fatalf("a sort_order after swap=%d, want 3", got)
+	}
+}
+
+// TestMoveRewritesPathsAndDescendants move 操作重写页面 path 与全部后代 path，
+// 保持 path 层级与 parent_id 层级一致；移动到根时保留 namespace 前缀
+// （"namespace/…" 形态，不允许裸 slug）。
+func TestMoveRewritesPathsAndDescendants(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	pages := wikiSeedTestPages(t, manager, []string{"docs/home", "docs/guide", "docs/guide/tips"})
+	homeID, guideID, tipsID := pages["docs/home"], pages["docs/guide"], pages["docs/guide/tips"]
+
+	// 把 guide 移到 home 下：guide.path → docs/home/guide，tips.path 级联 → docs/home/guide/tips。
+	if err := ApplyTreeOps([]TreeOp{{Op: "move", PageId: guideID, ParentPath: "docs/home"}}, manager); err != nil {
+		t.Fatalf("move guide under home: %v", err)
+	}
+	if got := wikiPages.Get(guideID).Path; got != "docs/home/guide" {
+		t.Fatalf("guide path after move=%q, want docs/home/guide", got)
+	}
+	if got := wikiPages.Get(tipsID).Path; got != "docs/home/guide/tips" {
+		t.Fatalf("tips path after move=%q, want docs/home/guide/tips", got)
+	}
+	if got := wikiPages.Get(guideID).ParentId; got != homeID {
+		t.Fatalf("guide parent after move=%d, want %d", got, homeID)
+	}
+
+	// 移到根（无 ParentPath）：新 path = namespace + "/" + 末段。
+	if err := ApplyTreeOps([]TreeOp{{Op: "move", PageId: guideID}}, manager); err != nil {
+		t.Fatalf("move guide to root: %v", err)
+	}
+	if got := wikiPages.Get(guideID).Path; got != "docs/guide" {
+		t.Fatalf("guide path after root move=%q, want docs/guide", got)
+	}
+	if got := wikiPages.Get(guideID).ParentId; got != 0 {
+		t.Fatalf("guide parent after root move=%d, want 0", got)
+	}
+	if got := wikiPages.Get(tipsID).Path; got != "docs/guide/tips" {
+		t.Fatalf("tips path after root move=%q, want docs/guide/tips", got)
+	}
+}
+
+// TestMoveRejectsPathCollision move 目标 path 被占用（精确冲突）时返回 ErrPathExists
+// 且不落库（批次事务回滚）。
+func TestMoveRejectsPathCollision(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	pages := wikiSeedTestPages(t, manager, []string{"docs/home", "docs/home/guide", "docs/guide"})
+	guideID := pages["docs/guide"]
+
+	// docs/guide 移到 docs/home 下 → 目标 docs/home/guide 已存在。
+	if err := ApplyTreeOps([]TreeOp{{Op: "move", PageId: guideID, ParentPath: "docs/home"}}, manager); err != ErrPathExists {
+		t.Fatalf("move guide under home err=%v, want ErrPathExists", err)
+	}
+	if got := wikiPages.Get(guideID).Path; got != "docs/guide" {
+		t.Fatalf("guide path after rejected move=%q, want docs/guide", got)
+	}
+	if got := wikiPages.Get(guideID).ParentId; got != 0 {
+		t.Fatalf("guide parent after rejected move=%d, want 0", got)
+	}
+}
+
+// TestRenameRejectsPrefixConflict rename 目标 path 是其他页面 path 的前缀时返回
+// ErrPathExists（重写后会出现 path 层级交叠）。正常数据下 Create 的父存在校验会先
+// 命中精确冲突，此为脏数据/并发场景的纵深防御（review B2）。
+func TestRenameRejectsPrefixConflict(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	pages := wikiSeedTestPages(t, manager, []string{"docs/guide", "docs/guide/tips"})
+	guideID := pages["docs/guide"]
+	// 直接造一条"父缺失"的脏数据：docs/orphan/sub 存在但 docs/orphan 不存在。
+	if err := dbconnect.Connect().Create(&wikiPages.Entity{
+		TopicId: 999999, Namespace: "docs", Path: "docs/orphan/sub",
+	}).Error; err != nil {
+		t.Fatalf("seed orphan descendant: %v", err)
+	}
+	if err := ApplyTreeOps([]TreeOp{{Op: "rename", PageId: guideID, NewPath: "docs/orphan"}}, manager); err != ErrPathExists {
+		t.Fatalf("rename to occupied descendant err=%v, want ErrPathExists", err)
+	}
+	if got := wikiPages.Get(guideID).Path; got != "docs/guide" {
+		t.Fatalf("guide path after rejected rename=%q, want docs/guide", got)
+	}
+}
+
 // TestBuildAdminTreeReturnsFullPaths 管理树 path 为完整路径（含 namespace 段），
 // 保证前端 href="/wiki/${page.path}" 可直接解析，不再产生相对 slug 的 404（review #219）。
 func TestBuildAdminTreeReturnsFullPaths(t *testing.T) {
@@ -559,7 +671,7 @@ func TestListRevisionsApprovedOnly(t *testing.T) {
 	}
 	page := wikiPages.Get(created.PageId)
 
-	// 追加 pending 修订（编辑生成），再直接插入一条 rejected 修订。
+	// 编辑即发布（approved#2），再直接插入一条 rejected 修订。
 	if _, err := Edit(EditParams{PageID: page.Id, Title: "待审", Content: "PENDING-SECRET", UserId: editor}); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -571,11 +683,11 @@ func TestListRevisionsApprovedOnly(t *testing.T) {
 	}
 
 	items := ListRevisions(page.Id)
-	if len(items) != 1 {
-		t.Fatalf("ListRevisions count=%d, want 1 (pending/rejected excluded): %+v", len(items), items)
+	if len(items) != 2 {
+		t.Fatalf("ListRevisions count=%d, want 2 (approved#1/#2, rejected excluded): %+v", len(items), items)
 	}
-	if items[0].RevisionNo != 1 || items[0].Status != StatusStringApproved || items[0].Content != "PUBLISHED-CONTENT" {
-		t.Fatalf("ListRevisions[0]=%+v, want approved#1 published content", items[0])
+	if items[0].RevisionNo != 2 || items[0].Status != StatusStringApproved || items[0].Content != "PENDING-SECRET" {
+		t.Fatalf("ListRevisions[0]=%+v, want approved#2 published content", items[0])
 	}
 }
 
@@ -641,8 +753,8 @@ func TestReviewApproveSyncsTopicMeta(t *testing.T) {
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
-	if _, err := Review(ReviewParams{RevisionID: edited.RevisionId, Action: "approve", UserId: reviewer}); err != nil {
-		t.Fatalf("approve: %v", err)
+	if edited.RevisionNo != 2 {
+		t.Fatalf("edited revisionNo=%d, want 2", edited.RevisionNo)
 	}
 
 	topic = topics.Get(page.TopicId)

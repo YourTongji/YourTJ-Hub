@@ -5,7 +5,6 @@
 /// 时间字段统一为 RFC3339 字符串（后端 `time.Time` JSON 序列化格式）。
 library;
 
-
 /// 命名空间摘要（公开 `GET /api/wiki/namespaces` 与首页复用）。
 class WikiNamespace {
   const WikiNamespace({
@@ -381,69 +380,55 @@ class WikiCreatePageResponse {
 
 /// 更新页面请求体（`PUT /api/wiki/pages/{pageId}`）。
 class WikiUpdatePageRequest {
-  const WikiUpdatePageRequest({required this.title, required this.content});
+  const WikiUpdatePageRequest({
+    required this.title,
+    required this.content,
+    this.baseRevisionNo,
+  });
 
   final String title;
   final String content;
 
+  /// 编辑基线版本号（乐观锁）：与页面当前发布版本不一致时后端返回 409 冲突。
+  final int? baseRevisionNo;
+
   Map<String, dynamic> toJson() {
-    return {'title': title, 'content': content};
+    return {
+      'title': title,
+      'content': content,
+      if (baseRevisionNo != null) 'baseRevisionNo': baseRevisionNo,
+    };
   }
 }
 
-/// 更新页面响应 result（`{revisionId, status: pending}`）。
+/// 更新页面响应 result（`{revisionId, status: approved, revisionNo}`）。
 class WikiUpdatePageResponse {
   const WikiUpdatePageResponse({
     required this.revisionId,
     required this.status,
+    required this.revisionNo,
   });
 
   final int revisionId;
+
+  /// 写即发布：新修订立即为 approved。
   final String status;
+  final int revisionNo;
 
   factory WikiUpdatePageResponse.fromJson(Map<String, dynamic> json) {
     return WikiUpdatePageResponse(
       revisionId: (json['revisionId'] as num?)?.toInt() ?? 0,
       status: json['status'] as String? ?? '',
+      revisionNo: (json['revisionNo'] as num?)?.toInt() ?? 0,
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'revisionId': revisionId, 'status': status};
-  }
-}
-
-/// 审阅修订请求体（`POST /api/wiki/revisions/{revisionId}/review`）。
-class WikiReviewRevisionRequest {
-  const WikiReviewRevisionRequest({required this.action});
-
-  /// approve | reject
-  final String action;
-
-  Map<String, dynamic> toJson() {
-    return {'action': action};
-  }
-}
-
-/// 审阅修订响应 result（`{revisionId, status: approved|rejected}`）。
-class WikiReviewRevisionResponse {
-  const WikiReviewRevisionResponse({
-    required this.revisionId,
-    required this.status,
-  });
-
-  final int revisionId;
-  final String status;
-
-  factory WikiReviewRevisionResponse.fromJson(Map<String, dynamic> json) {
-    return WikiReviewRevisionResponse(
-      revisionId: (json['revisionId'] as num?)?.toInt() ?? 0,
-      status: json['status'] as String? ?? '',
-    );
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'revisionId': revisionId, 'status': status};
+    return {
+      'revisionId': revisionId,
+      'status': status,
+      'revisionNo': revisionNo,
+    };
   }
 }
 
@@ -647,14 +632,16 @@ class WikiTreeOpsResponse {
   }
 }
 
-/// 管理端修订条目（`GET /api/admin/wiki/revisions?status=`）。
+/// 管理端修订条目（`GET /api/admin/wiki/revisions`）。
 class WikiAdminRevision {
   const WikiAdminRevision({
     required this.revisionId,
     required this.pageId,
+    required this.revisionNo,
     required this.path,
     required this.title,
     required this.content,
+    required this.status,
     required this.editorId,
     required this.editorName,
     required this.updatedAt,
@@ -662,9 +649,15 @@ class WikiAdminRevision {
 
   final int revisionId;
   final int pageId;
+
+  /// 1-based 版本号（diff/回滚端点使用的版本号）。
+  final int revisionNo;
   final String path;
   final String title;
   final String content;
+
+  /// approved | pending | rejected | superseded（写即发布后新修订均为 approved）。
+  final String status;
   final int editorId;
   final String editorName;
   final String updatedAt;
@@ -673,9 +666,11 @@ class WikiAdminRevision {
     return WikiAdminRevision(
       revisionId: (json['revisionId'] as num?)?.toInt() ?? 0,
       pageId: (json['pageId'] as num?)?.toInt() ?? 0,
+      revisionNo: (json['revisionNo'] as num?)?.toInt() ?? 0,
       path: json['path'] as String? ?? '',
       title: json['title'] as String? ?? '',
       content: json['content'] as String? ?? '',
+      status: json['status'] as String? ?? '',
       editorId: (json['editorId'] as num?)?.toInt() ?? 0,
       editorName: json['editorName'] as String? ?? '',
       updatedAt: json['updatedAt'] as String? ?? '',
@@ -686,12 +681,99 @@ class WikiAdminRevision {
     return {
       'revisionId': revisionId,
       'pageId': pageId,
+      'revisionNo': revisionNo,
       'path': path,
       'title': title,
       'content': content,
+      'status': status,
       'editorId': editorId,
       'editorName': editorName,
       'updatedAt': updatedAt,
     };
+  }
+}
+
+/// 回滚请求体（`POST /api/admin/wiki/pages/{pageId}/rollback`）。
+class WikiRollbackRequest {
+  const WikiRollbackRequest({required this.toRevisionNo});
+
+  /// 回滚目标版本号：该版本之后的修订全部永久删除（不可撤销）。
+  final int toRevisionNo;
+
+  Map<String, dynamic> toJson() {
+    return {'toRevisionNo': toRevisionNo};
+  }
+}
+
+/// 回滚统一 result（`{ok: true}`）。
+class WikiRollbackResponse {
+  const WikiRollbackResponse({required this.ok});
+
+  final bool ok;
+
+  factory WikiRollbackResponse.fromJson(Map<String, dynamic> json) {
+    return WikiRollbackResponse(ok: json['ok'] as bool? ?? false);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'ok': ok};
+  }
+}
+
+/// 版本 diff 单侧快照（`GET /api/admin/wiki/pages/{pageId}/diff`）。
+class WikiDiffSide {
+  const WikiDiffSide({
+    required this.revisionNo,
+    required this.title,
+    required this.content,
+    required this.editorId,
+    required this.createdAt,
+  });
+
+  final int revisionNo;
+  final String title;
+  final String content;
+  final int editorId;
+  final String createdAt;
+
+  factory WikiDiffSide.fromJson(Map<String, dynamic> json) {
+    return WikiDiffSide(
+      revisionNo: (json['revisionNo'] as num?)?.toInt() ?? 0,
+      title: json['title'] as String? ?? '',
+      content: json['content'] as String? ?? '',
+      editorId: (json['editorId'] as num?)?.toInt() ?? 0,
+      createdAt: json['createdAt'] as String? ?? '',
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {
+      'revisionNo': revisionNo,
+      'title': title,
+      'content': content,
+      'editorId': editorId,
+      'createdAt': createdAt,
+    };
+  }
+}
+
+/// 版本 diff result（`{from, to}`；from 为 null 表示对比创建前的空基线）。
+class WikiDiffResult {
+  const WikiDiffResult({required this.from, required this.to});
+
+  final WikiDiffSide? from;
+  final WikiDiffSide to;
+
+  factory WikiDiffResult.fromJson(Map<String, dynamic> json) {
+    return WikiDiffResult(
+      from: json['from'] == null
+          ? null
+          : WikiDiffSide.fromJson(json['from'] as Map<String, dynamic>),
+      to: WikiDiffSide.fromJson(json['to'] as Map<String, dynamic>),
+    );
+  }
+
+  Map<String, dynamic> toJson() {
+    return {if (from != null) 'from': from!.toJson(), 'to': to.toJson()};
   }
 }

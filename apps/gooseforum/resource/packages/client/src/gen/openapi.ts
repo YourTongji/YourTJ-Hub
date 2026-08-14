@@ -870,7 +870,7 @@ export interface paths {
             cookie?: never;
         };
         get?: never;
-        /** Update an existing wiki page (submits a new pending revision) */
+        /** Update an existing wiki page (write-publish: the new revision is immediately approved) */
         put: operations["updateWikiPage"];
         post?: never;
         delete?: never;
@@ -879,7 +879,7 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/wiki/revisions/{revisionId}/review": {
+    "/api/admin/wiki/pages/{pageId}/rollback": {
         parameters: {
             query?: never;
             header?: never;
@@ -888,8 +888,25 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Approve or reject a pending wiki revision (PageManager or Admin only) */
-        post: operations["reviewWikiRevision"];
+        /** Roll back a wiki page to an earlier revision (PageManager or Admin only) */
+        post: operations["rollbackWikiPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/pages/{pageId}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch two revisions of a wiki page for diffing (PageManager or Admin only) */
+        get: operations["diffWikiPage"];
+        put?: never;
+        post?: never;
         delete?: never;
         options?: never;
         head?: never;
@@ -974,7 +991,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** List wiki revisions across namespaces with page path (PageManager or Admin only) */
+        /** List wiki revision history with page path (PageManager or Admin only) */
         get: operations["listAdminWikiRevisions"];
         put?: never;
         post?: never;
@@ -2346,28 +2363,56 @@ export interface components {
             title: string;
             /** @description Raw wiki markup content. */
             content: string;
+            /**
+             * @description The published revision number the editor based this edit on (optimistic lock).
+             *     When present and no longer equal to the page's current published revision, the
+             *     request fails with `wiki.revision.conflict` (409 semantics) and the client must
+             *     reload the latest revision and re-edit.
+             */
+            baseRevisionNo?: number;
         };
         WikiUpdatePageResult: {
             /** Format: uint64 */
             revisionId: number;
-            /** @constant */
-            status: "pending";
+            /**
+             * @description Write-publish: the new revision is immediately approved and visible.
+             * @constant
+             */
+            status: "approved";
+            /** @description The newly published revision number (previous published number + 1). */
+            revisionNo: number;
         };
         WikiUpdatePageResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiUpdatePageResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiReviewRevisionRequest: {
-            /** @enum {string} */
-            action: "approve" | "reject";
+        WikiRollbackRequest: {
+            /** @description Target revision number; every revision with a higher number is permanently deleted. */
+            toRevisionNo: number;
         };
-        WikiReviewRevisionResult: {
+        WikiRollbackResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiRollbackResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiRollbackResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiDiffSide: {
+            revisionNo: number;
+            title: string;
+            /** @description Raw wiki markup content of the revision. */
+            content: string;
             /** Format: uint64 */
-            revisionId: number;
-            /** @enum {string} */
-            status: "approved" | "rejected";
+            editorId: number;
+            /** Format: date-time */
+            createdAt: string;
         };
-        WikiReviewRevisionResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiReviewRevisionResult"];
+        WikiDiffResult: {
+            /** @description Older side; null when the `from` query parameter was absent (empty baseline before the page existed). */
+            from: components["schemas"]["WikiDiffSide"] | null;
+            to: components["schemas"]["WikiDiffSide"];
+        };
+        WikiDiffResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiDiffResult"];
         }) | components["schemas"]["ApiFailure"];
         WikiCreateNamespaceRequest: {
             /** @description Namespace key, lowercase letters, digits, and hyphens. */
@@ -2446,9 +2491,16 @@ export interface components {
             revisionId: number;
             /** Format: uint64 */
             pageId: number;
+            /** @description 1-based revision number of the page (the version number used by the diff and rollback endpoints). */
+            revisionNo: number;
             path: string;
             title: string;
             content: string;
+            /**
+             * @description Approved for all revisions created after write-publish; legacy values only for pre-v19 rows.
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected" | "superseded";
             /** Format: uint64 */
             editorId: number;
             editorName: string;
@@ -4699,11 +4751,14 @@ export interface operations {
         };
         responses: {
             /**
-             * @description New pending revision created for the page. Business failures are returned as
-             *     legacy HTTP 200 envelopes with stable message codes: request-level validation
-             *     failures (`common.request.invalidParams`), the page or its namespace missing or
-             *     the account not being an editor (`wiki.namespace.notFound`, `wiki.page.notFound`),
-             *     and a path collision (`wiki.page.pathConflict`).
+             * @description New revision is created and immediately published (write-publish; no review step).
+             *     The caller must be the page creator, a namespace editor, or a PageManager/Admin.
+             *     Business failures are returned as legacy HTTP 200 envelopes with stable message
+             *     codes: request-level validation failures (`common.request.invalidParams`), the
+             *     page or its namespace missing or the account not being an editor
+             *     (`wiki.namespace.notFound`, `wiki.page.notFound`), a version conflict when
+             *     `baseRevisionNo` no longer matches the published revision (`wiki.revision.conflict`),
+             *     and content hitting the sensitive-word filter (`content.sensitive.blocked`).
              */
             200: {
                 headers: {
@@ -4742,34 +4797,36 @@ export interface operations {
             };
         };
     };
-    reviewWikiRevision: {
+    rollbackWikiPage: {
         parameters: {
             query?: never;
             header?: never;
             path: {
-                revisionId: number;
+                pageId: number;
             };
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WikiReviewRevisionRequest"];
+                "application/json": components["schemas"]["WikiRollbackRequest"];
             };
         };
         responses: {
             /**
-             * @description Review recorded. Business failures are returned as legacy HTTP 200 envelopes with
-             *     stable message codes: an unknown action (`common.request.invalidParams`), the
-             *     caller lacking PageManager/Admin (`permission.denied`), an unknown revision
-             *     (`wiki.revision.notFound`), and a revision that is no longer pending
-             *     (`wiki.revision.notPending`).
+             * @description Rollback executed and cannot be undone: every revision with a revision number
+             *     greater than the target is permanently deleted, the page's published revision
+             *     pointer moves back to the target, and materialized views (forum post, topic
+             *     metadata, search index) are resynchronized. Business failures are returned as
+             *     legacy HTTP 200 envelopes: a caller lacking PageManager/Admin
+             *     (`permission.denied`), an unknown page (`wiki.page.notFound`), and an unknown
+             *     target revision (`wiki.revision.notFound`).
              */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WikiReviewRevisionResponse"];
+                    "application/json": components["schemas"]["WikiRollbackResponse"];
                 };
             };
             /** @description Malformed URI or JSON request body (strict binding failure). */
@@ -4790,7 +4847,65 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    diffWikiPage: {
+        parameters: {
+            query: {
+                /** @description Revision number of the older side; absent means an empty baseline (page before creation). */
+                from?: number;
+                to: number;
+            };
+            header?: never;
+            path: {
+                pageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Raw markdown of the two requested revisions (or an empty baseline when `from`
+             *     is absent) for rendering a diff in the admin UI. Business failures are returned
+             *     as legacy HTTP 200 envelopes: an unknown page (`wiki.page.notFound`) and an
+             *     unknown revision number (`wiki.revision.notFound`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiDiffResponse"];
+                };
+            };
+            /** @description Malformed query string (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
                 headers: {
                     [name: string]: unknown;
@@ -5164,11 +5279,12 @@ export interface operations {
     };
     listAdminWikiRevisions: {
         parameters: {
-            query: {
-                status: "pending" | "approved" | "rejected" | "superseded";
-                /** @description 1-based page number for the revision queue; values below 1 are treated as 1. */
+            query?: {
+                /** @description When present, only revisions of this page are listed (per-page version history for the diff/rollback view). */
+                pageId?: number;
+                /** @description 1-based page number for the revision history; values below 1 are treated as 1. */
                 page?: number;
-                /** @description Page size for the revision queue. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input. */
+                /** @description Page size for the revision history. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input. */
                 pageSize?: number;
             };
             header?: never;
@@ -5178,11 +5294,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description Revisions matching the status ordered by creation time desc, paginated by the
+             * @description Revision history (all revisions; write-publish means every revision is an
+             *     approved published version) ordered by creation time desc, paginated by the
              *     `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
              *     Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
-             *     paging metadata so consumers can detect the next page. An invalid status is
-             *     returned as a legacy HTTP 200 envelope `common.request.invalidParams`.
+             *     paging metadata so consumers can detect the next page. This listing feeds the
+             *     admin version-history view: pick any two revisions for the diff endpoint or a
+             *     target revision for the rollback endpoint.
              */
             200: {
                 headers: {

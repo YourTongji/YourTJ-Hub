@@ -104,11 +104,6 @@ func WikiDetail(c *gin.Context) {
 		props.Page.Watched = action.WatchedAt != nil
 	}
 	props.Page.CanEdit = wikiservice.CanEditPage(loginUserID, &page, &topic)
-	props.Page.CanReview = wikiservice.HasPageManagerPermission(loginUserID)
-	// 契约：pending 内容仅对可编辑/可审核者可见（蓝图风险项「待审内容泄漏给公众」）。
-	if props.Page.CanEdit || props.Page.CanReview {
-		props.Page.Pending = wikiservice.LoadPending(page.Id)
-	}
 
 	payload := PagePayload{
 		Component: PageComponentWikiDetail,

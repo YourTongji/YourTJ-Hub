@@ -10,6 +10,15 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
+// GetByPageAndRevisionNo 按页面 + 版本号取修订（回滚目标/diff 单侧用）。
+func GetByPageAndRevisionNo(pageID uint64, revisionNo int) (entity Entity) {
+	builder().
+		Where(queryopt.Eq("page_id", pageID)).
+		Where(queryopt.Eq("revision_no", revisionNo)).
+		First(&entity)
+	return
+}
+
 // GetLatestApproved 返回某页面最新 approved 修订；无则返回零值。
 func GetLatestApproved(pageID uint64) (entity Entity) {
 	builder().
@@ -26,17 +35,6 @@ func GetLatestApprovedTx(tx *gorm.DB, pageID uint64) (entity Entity) {
 	tx.Table(tableName).
 		Where(queryopt.Eq("page_id", pageID)).
 		Where(queryopt.Eq("status", StatusApproved)).
-		Order(queryopt.Desc("revision_no")).
-		Order(queryopt.Desc("id")).
-		First(&entity)
-	return
-}
-
-// GetLatestPending 返回某页面最新 pending 修订；无则返回零值。
-func GetLatestPending(pageID uint64) (entity Entity) {
-	builder().
-		Where(queryopt.Eq("page_id", pageID)).
-		Where(queryopt.Eq("status", StatusPending)).
 		Order(queryopt.Desc("revision_no")).
 		Order(queryopt.Desc("id")).
 		First(&entity)
@@ -106,12 +104,15 @@ func LatestByPages(pageIDs []uint64, statuses ...int8) map[uint64]*Entity {
 	return result
 }
 
-// ListByStatus 分页返回指定状态的修订（降序）。
-func ListByStatus(status int8, page, pageSize int) []*Entity {
+// ListRecent 分页返回全站修订（可选按页面过滤；管理端版本历史数据源，降序）。
+// 写即发布后不再有状态队列，版本历史 = 全部修订；pageID>0 时只列该页历史。
+func ListRecent(pageID uint64, page, pageSize int) []*Entity {
 	var entities []*Entity
-	builder().
-		Where(queryopt.Eq("status", status)).
-		Order(queryopt.Desc("created_at")).
+	b := builder()
+	if pageID > 0 {
+		b = b.Where(queryopt.Eq("page_id", pageID))
+	}
+	b.Order(queryopt.Desc("created_at")).
 		Order(queryopt.Desc("id")).
 		Offset((page - 1) * pageSize).
 		Limit(pageSize).
@@ -139,33 +140,6 @@ func Create(entity *Entity) error {
 
 func CreateTx(tx *gorm.DB, entity *Entity) error {
 	return tx.Table(tableName).Create(entity).Error
-}
-
-// UpdateStatusTx 事务内更新修订状态（审核流转）。
-func UpdateStatusTx(tx *gorm.DB, id uint64, status int8, reviewedBy uint64, reviewedAt interface{}) error {
-	updates := map[string]any{
-		"status":      status,
-		"reviewed_by": reviewedBy,
-	}
-	if reviewedAt != nil {
-		updates["reviewed_at"] = reviewedAt
-	}
-	return tx.Table(tableName).Where(queryopt.Eq("id", id)).Updates(updates).Error
-}
-
-// SupersedePendingTx 将某页面所有 pending 修订置为 superseded（新编辑提交时）。
-func SupersedePendingTx(tx *gorm.DB, pageID uint64) error {
-	return tx.Table(tableName).
-		Where(queryopt.Eq("page_id", pageID)).
-		Where(queryopt.Eq("status", StatusPending)).
-		Update("status", StatusSuperseded).Error
-}
-
-// CountByStatus 统计指定状态的修订总数（审核队列分页元信息）。
-func CountByStatus(status int8) int64 {
-	var count int64
-	builder().Where(queryopt.Eq("status", status)).Count(&count)
-	return count
 }
 
 // DeleteByPage 删除某页面的全部修订（页面删除时清理，避免 pending 修订

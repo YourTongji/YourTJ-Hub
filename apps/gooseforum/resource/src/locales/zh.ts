@@ -1893,7 +1893,7 @@ export default {
     'wiki.page.hasChildren': '该页面存在子页面，无法删除。',
     'wiki.forbidden': '无 Wiki 操作权限。',
     'wiki.revision.notFound': '修订不存在。',
-    'wiki.revision.notPending': '修订不在待审状态。',
+    'wiki.revision.conflict': '页面已被他人更新，请基于最新版本重新编辑。',
     'wiki.saveFailed': 'Wiki 保存失败，请稍后重试。',
   },
   serverActions: {
@@ -1943,10 +1943,9 @@ export default {
     contentPlaceholder: '编写页面内容...',
     contentRequired: '内容不能为空',
     contentEmpty: '此页面暂无内容。',
-    editSubmitted: '编辑已提交，等待审核。',
+    editSubmitted: '编辑已保存并发布。',
     editFailed: '保存失败',
-    pendingBanner: '有未审核编辑',
-    pendingEditor: '由 {editor} 提交',
+    revisionConflict: '页面已被他人更新，已为你加载最新内容；你的草稿仍在编辑器中，请基于最新版本重新提交。',
     sidebarEmpty: '暂无页面。',
   },
 }

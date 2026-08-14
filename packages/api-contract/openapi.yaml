@@ -130,9 +130,12 @@ paths:
   /api/wiki/pages/{pageId}:
     put:
       $ref: ./paths/wiki.yaml#/updateWikiPage/put
-  /api/wiki/revisions/{revisionId}/review:
+  /api/admin/wiki/pages/{pageId}/rollback:
     post:
-      $ref: ./paths/wiki.yaml#/reviewWikiRevision/post
+      $ref: ./paths/wiki.yaml#/rollbackWikiPage/post
+  /api/admin/wiki/pages/{pageId}/diff:
+    get:
+      $ref: ./paths/wiki.yaml#/diffWikiPage/get
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -493,12 +496,18 @@ components:
       $ref: ./components/schemas.yaml#/WikiUpdatePageResult
     WikiUpdatePageResponse:
       $ref: ./components/schemas.yaml#/WikiUpdatePageResponse
-    WikiReviewRevisionRequest:
-      $ref: ./components/schemas.yaml#/WikiReviewRevisionRequest
-    WikiReviewRevisionResult:
-      $ref: ./components/schemas.yaml#/WikiReviewRevisionResult
-    WikiReviewRevisionResponse:
-      $ref: ./components/schemas.yaml#/WikiReviewRevisionResponse
+    WikiRollbackRequest:
+      $ref: ./components/schemas.yaml#/WikiRollbackRequest
+    WikiRollbackResult:
+      $ref: ./components/schemas.yaml#/WikiRollbackResult
+    WikiRollbackResponse:
+      $ref: ./components/schemas.yaml#/WikiRollbackResponse
+    WikiDiffSide:
+      $ref: ./components/schemas.yaml#/WikiDiffSide
+    WikiDiffResult:
+      $ref: ./components/schemas.yaml#/WikiDiffResult
+    WikiDiffResponse:
+      $ref: ./components/schemas.yaml#/WikiDiffResponse
     WikiCreateNamespaceRequest:
       $ref: ./components/schemas.yaml#/WikiCreateNamespaceRequest
     WikiUpdateNamespaceRequest:

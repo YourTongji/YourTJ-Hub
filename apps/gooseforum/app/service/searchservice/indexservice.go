@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
@@ -230,17 +231,31 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 // （review N2：topicType 过滤上线后，configureIndex 只在手动 rebuild-search-index
 // 与一次性迁移中调用；已迁移的存量部署不会再走迁移路径，若索引缺 topicType
 // filterable，带 topicType=0 过滤的论坛搜索会 400 进入 failedScopes 降级）。
-// Meilisearch 不可用时静默跳过（配置失败仅警告，不阻断启动）。
+// 带有限重试（3 次 × 5s 退避）：部署重启时 Meilisearch 可能尚未就绪，首次
+// 配置失败不能直接放弃，否则 filterable 属性要等手动 rebuild 才补齐；
+// 最终失败仅警告，不阻断启动。
 func EnsureTopicIndexConfigured() {
-	if !meiliconnect.IsAvailable() {
+	client := meiliconnect.GetClient()
+	if client == nil {
 		return
 	}
-	index := meiliconnect.GetClient().Index(TopicIndex)
-	if err := configureIndex(index); err != nil {
-		slog.Warn("search: ensure topic index filterable failed", "error", err)
-		return
+	index := client.Index(TopicIndex)
+	const (
+		maxAttempts  = 3
+		retryBackoff = 5 * time.Second
+	)
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err = configureIndex(index); err == nil {
+			slog.Info("search: topic index filterable attributes ensured")
+			return
+		}
+		slog.Warn("search: ensure topic index filterable attributes failed",
+			"attempt", attempt, "maxAttempts", maxAttempts, "error", err)
+		if attempt < maxAttempts {
+			time.Sleep(retryBackoff)
+		}
 	}
-	slog.Info("search: topic index filterable attributes ensured")
 }
 
 // configureIndex applies searchable, filterable, sortable and displayed fields.
