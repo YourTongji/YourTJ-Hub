@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
+import { isValidNamespaceName } from '@/admin/utils/wiki'
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -225,6 +226,12 @@ function openEditNs(row: WikiNamespace) {
 async function submitNamespace() {
   if (!nsForm.name.trim()) {
     adminToast.warning(adminText('k00ng'))
+    return
+  }
+  // 创建时名称需符合后端规则：小写字母、数字、连字符（与
+  // wikiservice.ValidateNamespace 对齐，见 app/service/wikiservice/path.go:47）。
+  if (nsDialog.value?.mode === 'create' && !isValidNamespaceName(nsForm.name)) {
+    adminToast.warning(adminText('k00o5'))
     return
   }
   nsSaving.value = true
@@ -968,7 +975,7 @@ onMounted(() => {
         <form class="grid gap-4" @submit.prevent="submitNamespace">
           <label v-if="nsDialog?.mode === 'create'" class="grid gap-2 text-sm font-medium">
             {{ adminText('k00af') }}
-            <Input v-model="nsForm.name" :placeholder="adminText('k00nh')" />
+            <Input v-model="nsForm.name" :placeholder="adminText('k00o6')" />
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ag') }}
