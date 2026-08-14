@@ -179,9 +179,9 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 				Value: roleEntity.Id,
 			})
 		}
-		LastActiveTime := t.CreatedAt.Format(time.DateTime)
+		LastActiveTime := t.CreatedAt.Format(time.RFC3339)
 		if usItem, ok := usMap[t.Id]; ok {
-			LastActiveTime = usItem.LastActiveTime.Format(time.DateTime)
+			LastActiveTime = usItem.LastActiveTime.Format(time.RFC3339)
 		}
 		return UserItem{
 			UserId:         t.Id,
@@ -194,7 +194,7 @@ func UserList(req component.BetterRequest[UserListReq]) component.Response {
 			Prestige:       t.Prestige,
 			RoleList:       roleList,
 			RoleId:         t.RoleId,
-			CreateTime:     t.CreatedAt.Format(time.DateTime),
+			CreateTime:     t.CreatedAt.Format(time.RFC3339),
 			LastActiveTime: LastActiveTime,
 			Badges:         badgeservice.GetUserBadges(t.Id),
 		}
@@ -470,8 +470,8 @@ func TopicsList(req component.BetterRequest[TopicsListReq]) component.Response {
 					UserId:        t.UserId,
 					TopicStatus:   t.Status,
 					ProcessStatus: t.ProcessStatus,
-					CreatedAt:     t.CreatedAt.Format(time.DateTime),
-					UpdatedAt:     t.UpdatedAt.Format(time.DateTime),
+					CreatedAt:     t.CreatedAt.Format(time.RFC3339),
+					UpdatedAt:     t.UpdatedAt.Format(time.RFC3339),
 				},
 				Username:      username,
 				UserAvatarUrl: userAvatarUrl,
@@ -506,8 +506,8 @@ func TopicSource(req component.BetterRequest[TopicSourceReq]) component.Response
 			UserId:        topic.UserId,
 			TopicStatus:   topic.Status,
 			ProcessStatus: topic.ProcessStatus,
-			CreatedAt:     topic.CreatedAt.Format(time.DateTime),
-			UpdatedAt:     topic.UpdatedAt.Format(time.DateTime),
+			CreatedAt:     topic.CreatedAt.Format(time.RFC3339),
+			UpdatedAt:     topic.UpdatedAt.Format(time.RFC3339),
 		},
 		Content: firstPost.Content,
 	})
@@ -748,7 +748,7 @@ func RoleList(req component.BetterRequest[RoleListReq]) component.Response {
 			RoleName:    t.RoleName,
 			Effective:   t.Effective,
 			Permissions: permissionItemList,
-			CreateTime:  t.CreatedAt.Format(time.DateTime),
+			CreateTime:  t.CreatedAt.Format(time.RFC3339),
 		}
 	})
 
@@ -1360,7 +1360,7 @@ type SaveAnnouncementReq struct {
 
 // SaveAnnouncement 保存公告设置
 func SaveAnnouncement(req component.BetterRequest[SaveAnnouncementReq]) component.Response {
-	req.Params.Settings.PublishedAt = time.Now().Format(time.DateTime)
+	req.Params.Settings.PublishedAt = time.Now().Format(time.RFC3339)
 	return savePageConfig(pageConfig.Announcement, req.Params.Settings, hotdataserve.ClearAnnouncementConfigCache)
 }
 
@@ -1737,7 +1737,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				Id: t.Id, Title: t.Title, Excerpt: excerpt,
 				UserId: t.UserId, Username: username,
 				ProcessStatus: t.ProcessStatus,
-				CreatedAt:     t.CreatedAt.Format(time.DateTime),
+				CreatedAt:     t.CreatedAt.Format(time.RFC3339),
 			})
 		}
 	} else {
@@ -1770,7 +1770,7 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 				Id: p.Id, Title: title, Excerpt: excerpt,
 				UserId: p.UserId, Username: username,
 				ProcessStatus: p.ProcessStatus,
-				CreatedAt:     p.CreatedAt.Format(time.DateTime),
+				CreatedAt:     p.CreatedAt.Format(time.RFC3339),
 				TopicId:       p.TopicId, PostNo: p.PostNo,
 			})
 		}

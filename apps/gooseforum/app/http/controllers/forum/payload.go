@@ -1262,7 +1262,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			editor := authorPayload(item.LastEditorId)
 			lastEditor = &editor
 			if item.LastEditedAt != nil {
-				lastEditedAt = item.LastEditedAt.Format(time.DateTime)
+				lastEditedAt = item.LastEditedAt.Format(time.RFC3339)
 			}
 		}
 		res = append(res, PostPayload{
@@ -1277,12 +1277,12 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			IsModeratorRemoved: isModeratorRemoved,
 			CanModerate:        canModerate,
 			Author:             author,
-			CreatedAt:          item.CreatedAt.Format(time.DateTime),
+			CreatedAt:          item.CreatedAt.Format(time.RFC3339),
 			ReplyToPostID:      item.ReplyToPostId,
 			ReplyToUserID:      replyToUserID,
 			ReplyToUsername:    replyToName,
 			IsOwnPost:          currentUserID == item.UserId,
-			UpdatedAt:          item.UpdatedAt.Format(time.DateTime),
+			UpdatedAt:          item.UpdatedAt.Format(time.RFC3339),
 			LastEditor:         lastEditor,
 			LastEditedAt:       lastEditedAt,
 		})
@@ -1407,8 +1407,8 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		IsLiked:          isLiked,
 		IsBookmarked:     isBookmarked,
 		IsWatched:        isWatched,
-		CreatedAt:        createdAt.Format(time.DateTime),
-		UpdatedAt:        updatedAt.Format(time.DateTime),
+		CreatedAt:        createdAt.Format(time.RFC3339),
+		UpdatedAt:        updatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -1881,7 +1881,7 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			TopicID: ref.TopicID,
 			Title:   topic.Title,
 			URL:     urlconfig.PostDetail(ref.TopicID),
-			LikedAt: ref.LikedAt.Format(time.DateTime),
+			LikedAt: ref.LikedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -1907,7 +1907,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			URL:          urlconfig.PostDetail(ref.TopicID),
-			BookmarkedAt: ref.BookmarkedAt.Format(time.DateTime),
+			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2044,7 +2044,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
 				URL:          urlconfig.PostDetail(ref.topicID),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		case "post":
 			post := postMap[ref.postID]
@@ -2064,7 +2064,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Title:        topic.Title,
 				Excerpt:      bookmarkExcerpt(post.Content),
 				URL:          buildPostAnchorURL(post.TopicId, post.PostNo, post.Id),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		}
 	}
@@ -2106,7 +2106,7 @@ func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayl
 			ContentPreview: contentPreview,
 			URL:            userActivityURL(activity, replyByID),
 			Label:          userActivityLabel(activity.Action),
-			CreatedAt:      activity.CreatedAt.Format(time.DateTime),
+			CreatedAt:      activity.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2462,8 +2462,8 @@ func buildDraftPayloads(entities []*topics.Entity) []DraftPayload {
 			ReplyCount:    entity.ReplyCount,
 			ViewCount:     entity.ViewCount,
 			ProcessStatus: entity.ProcessStatus,
-			UpdatedAt:     entity.UpdatedAt.Format(time.DateTime),
-			CreatedAt:     entity.CreatedAt.Format(time.DateTime),
+			UpdatedAt:     entity.UpdatedAt.Format(time.RFC3339),
+			CreatedAt:     entity.CreatedAt.Format(time.RFC3339),
 			Categories:    categories,
 		})
 	}
@@ -2502,7 +2502,7 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 		ID:        notification.Id,
 		EventType: notification.EventType,
 		IsRead:    notification.IsRead,
-		CreatedAt: notification.CreatedAt.Format(time.DateTime),
+		CreatedAt: notification.CreatedAt.Format(time.RFC3339),
 		Title:     notificationTitle(notification.EventType, payload),
 		Content:   payload.Content,
 		Actor: TopicAuthorPayload{
@@ -2570,7 +2570,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			LikeReceivedCount: stats.LikeReceivedCount,
 			LikeGivenCount:    stats.LikeGivenCount,
 			CollectionCount:   stats.CollectionCount,
-			CreatedAt:         user.CreatedAt.Format(time.DateTime),
+			CreatedAt:         user.CreatedAt.Format(time.RFC3339),
 		},
 		Tabs: settingsTabs(),
 	}
