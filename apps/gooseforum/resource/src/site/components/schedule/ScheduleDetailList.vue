@@ -69,7 +69,7 @@ function tryStage(detail: PkCourseDetail) {
         <h3 class="truncate text-[13px] font-bold text-base-content">
           {{ currentCourse.courseNameReserved }}
         </h3>
-        <p class="text-[11px] text-base-content/50">{{ currentCourse.courseCode }} · {{ currentCourse.credit }} 学分</p>
+        <p class="text-[11px] text-base-content/50">{{ currentCourse.courseCode }} · {{ t('schedule.credit', { credit: currentCourse.credit }) }}</p>
       </div>
       <ul v-if="currentCourse.courseDetail.length" class="divide-y divide-line/60">
         <li
@@ -87,7 +87,7 @@ function tryStage(detail: PkCourseDetail) {
               <span :class="statusClass(detail.status)">{{ statusLabel(detail.status) }}</span>
             </div>
             <p v-if="teacherText(detail)" class="mt-0.5 text-[12px] text-base-content/60">
-              {{ t('schedule.teacher') }}：{{ teacherText(detail) }}
+              {{ t('schedule.teacherWith', { value: teacherText(detail) }) }}
             </p>
             <p class="mt-0.5 line-clamp-2 text-[12px] text-base-content/60">
               {{ arrangementText(detail) }}

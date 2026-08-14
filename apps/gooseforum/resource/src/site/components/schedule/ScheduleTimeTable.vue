@@ -92,7 +92,7 @@ function compactName(name: string): string {
     .replace(/[（(][^()（）]*[）)]/g, '')
     .replace(/\s+/g, '')
     .trim()
-  if (!cleaned) return '课程'
+  if (!cleaned) return t('schedule.courseFallback')
   const chars = Array.from(cleaned)
   return chars.length > 7 ? `${chars.slice(0, 6).join('')}…` : cleaned
 }
@@ -136,8 +136,8 @@ function formatCourseLines(course: PkCourseOnTable): CourseLineInfo {
     }
   }
   return {
-    title: course.courseName || course.code || '课程',
-    mobileTitle: compactName(course.courseName || course.code || '课程'),
+    title: course.courseName || course.code || t('schedule.courseFallback'),
+    mobileTitle: compactName(course.courseName || course.code || t('schedule.courseFallback')),
     mobileMeta: course.code || '',
     sub: raw,
     meta: course.code || '',

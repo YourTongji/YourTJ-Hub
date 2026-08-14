@@ -38,7 +38,7 @@ const parsed = computed(() => {
   }
   return {
     teacherAndCode: '',
-    name: props.course?.courseName || '课程',
+    name: props.course?.courseName || t('schedule.courseFallback'),
     code: props.course?.code || '',
     arrangement: raw,
   }
