@@ -25,13 +25,19 @@ jobs:
           name: yourtj-hub
           path: ./bin
       - name: Stage binary into build context
-        run: cp bin/yourtj-hub deploy/yourtj-hub
+        run: |
+          cp bin/yourtj-hub deploy/yourtj-hub
+          # upload/download-artifact 不保留 Unix 执行位, 必须显式恢复,
+          # 否则镜像入口 /app/yourtj-hub 无执行权限导致部署回滚
+          chmod +x deploy/yourtj-hub
       - name: Log in to GHCR
         uses: docker/login-action@v3
         with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR 包首次创建默认 private: 首次运行后需手动把包设为 public,
+      # 否则服务器匿名 pull 401(见 docs/operations/deployment.md 迁移 runbook)
       - name: Build and push image
         uses: docker/build-push-action@v6
         with:
@@ -54,7 +60,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/docker-compose.yaml,deploy/nginx/yourtj.conf"
           target: "/tmp"
           strip_components: 2
       - name: Deploy to main (backup db + pull image + restart + smoke + rollback)
@@ -72,6 +78,10 @@ jobs:
             install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
             install -m 0755 /tmp/backup-db.sh /opt/yourtj/scripts/backup-db.sh
             install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
+            # 0.5 同步新 compose + nginx 反代配置(存量服务器升级 GHCR 流必需,
+            #     旧 compose 引用本地镜像 yourtj-hub:* 与 pull 流不兼容)
+            install -m 0644 /tmp/docker-compose.yaml /opt/yourtj/docker-compose.yaml
+            install -D -m 0644 /tmp/yourtj.conf /opt/yourtj/nginx/yourtj.conf
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234

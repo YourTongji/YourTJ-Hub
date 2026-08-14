@@ -18,7 +18,6 @@ ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
 ENV_FILE="$ROOT/.env"
 COMPOSE_FILE="$ROOT/docker-compose.yaml"
 TAG_VAR="$([ "$INSTANCE" = "main" ] && echo MAIN_TAG || echo DEV_TAG)"
-IMAGE="${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}"
 
 log() { echo "[deploy:$INSTANCE] $*"; }
 
@@ -62,6 +61,11 @@ prune_old_images() {
 
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$COMPOSE_FILE" ] || { log "FATAL: $COMPOSE_FILE missing (run init-server.sh first)"; exit 1; }
+
+# IMAGE_REPO 优先取 .env(与 compose 一致), 未设置时用默认 GHCR 公开仓库
+IMAGE="$(grep -E '^IMAGE_REPO=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+IMAGE="${IMAGE:-ghcr.io/yourtongji/yourtj-hub}"
+log "image repo: $IMAGE"
 
 # 1. 记录当前 tag 用于回滚
 OLD_TAG="$(grep -E "^$TAG_VAR=" "$ENV_FILE" | cut -d= -f2 || true)"

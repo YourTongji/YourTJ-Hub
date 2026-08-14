@@ -27,6 +27,15 @@ copy_if_diff() {
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
 copy_if_diff "$SCRIPT_DIR/../nginx/yourtj.conf" "$ROOT/nginx/yourtj.conf"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
+
+# nginx server_name 参数化: 从传入域名提取 host 并替换默认值
+MAIN_HOST="$(echo "$MAIN_DOMAIN" | sed -E 's|^https?://||; s|/.*$||')"
+DEV_HOST="$(echo "$DEV_DOMAIN" | sed -E 's|^https?://||; s|/.*$||')"
+sed -i.bak -E \
+  -e "s|server_name forum\.yourtj\.de;|server_name $MAIN_HOST;|" \
+  -e "s|server_name dev\.yourtj\.de;|server_name $DEV_HOST;|" \
+  "$ROOT/nginx/yourtj.conf" && rm -f "$ROOT/nginx/yourtj.conf.bak"
+echo "init: nginx server_name -> $MAIN_HOST / $DEV_HOST"
 for f in "$SCRIPT_DIR"/*.sh; do
   copy_if_diff "$f" "$ROOT/scripts/$(basename "$f")"
 done
@@ -91,6 +100,15 @@ for inst in main dev; do
         -e "s|REPLACE_MEILI_KEY|$MEILI_KEY|" \
       "$ROOT/config.toml.example" > "$ROOT/$inst/config.toml"
     echo "init: $ROOT/$inst/config.toml created (domain: $domain, db: yourtj_$inst)"
+  fi
+done
+
+# 5.2 存量 config 同步 MEILI key: init 为 .env 补 MEILI_MASTER_KEY 后,
+#     旧 config 的 masterkey 若为空/占位符, 搜索会 401; 仅替换空/占位符值
+for inst in main dev; do
+  if [ -f "$ROOT/$inst/config.toml" ] && grep -qE '^\s*masterkey\s*=\s*""|^\s*masterkey\s*=\s*"REPLACE_MEILI_KEY"' "$ROOT/$inst/config.toml"; then
+    sed -i.bak -E "s|^(\s*masterkey\s*=\s*)\"\"|\1\"$MEILI_KEY\"|; s|^(\s*masterkey\s*=\s*)\"REPLACE_MEILI_KEY\"|\1\"$MEILI_KEY\"|" "$ROOT/$inst/config.toml" && rm -f "$ROOT/$inst/config.toml.bak"
+    echo "init: $ROOT/$inst/config.toml masterkey 已同步 .env 的 MEILI_MASTER_KEY"
   fi
 done
 

@@ -404,7 +404,11 @@ instance:
 
 - 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
   也可手动拷贝 `deploy/` 后在服务器执行）。
-- 仓库侧 GHCR 镜像流 PR 已合并；GHCR 镜像为公开（repo 公开），服务器匿名 pull。
+- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先更新 GitHub Secrets（`VM_HOST` → 新机 IP、
+  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**；若 dev 在更新前自动部署到旧机，
+  会因 :80 被 1Panel openresty 占用导致 nginx 容器启动失败（部署报错，旧服务不受影响，重跑即可）。
+- **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
+  Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
 - 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
 
 ### 1. 新机初始化
@@ -424,37 +428,52 @@ sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.your
 在旧机（1Panel 部署）上导出，再导入新机。**旧机 / 新机 PostgreSQL 版本一致（16）**。
 
 ```bash
-# 旧机: 导出主库(在 postgres 容器内)
-docker compose exec postgres sh -c \
-  'pg_dump -U yourtj -d yourtj_main > /tmp/yourtj_main.sql'
-docker compose exec postgres sh -c \
-  'pg_dump -U yourtj -d yourtj_dev > /tmp/yourtj_dev.sql'
-scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/tmp/yourtj_*.sql /tmp/
+# 旧机: 导出主库到宿主机 /tmp(exec -T 流式输出, 重定向在宿主机执行;
+#       若在容器内重定向, 文件落在容器 /tmp, 宿主机 scp 找不到)
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_main' > /tmp/yourtj_main.sql
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_dev' > /tmp/yourtj_dev.sql
+
+# 旧机 → 新机: 直传
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/yourtj_main.sql /tmp/yourtj_dev.sql \
+  root@43.108.84.213:/tmp/
 
 # 新机: 导入(在 postgres 容器内)
 docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_main' < /tmp/yourtj_main.sql
 docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_dev' < /tmp/yourtj_dev.sql
 ```
 
-文件库 `file.db`（SQLite，附件 BLOB）直接拷贝：
+文件库 `file.db`（SQLite，附件 BLOB）直接拷贝。**注意实际路径是
+`storage/database/file.db`**（见 config.toml `[db.file].path`）：
 
 ```bash
-# 旧机
-scp -i ~/Documents/YourTJ_Korean.pem -r root@<旧机>:/opt/yourtj/main/storage/file.db /tmp/main-file.db
-scp -i ~/Documents/YourTJ_Korean.pem -r root@<旧机>:/opt/yourtj/dev/storage/file.db /tmp/dev-file.db
+# 旧机: 拷贝文件库
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/storage/database/file.db /tmp/main-file.db
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/storage/database/file.db /tmp/dev-file.db
 # 新机
-install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/file.db
-install -m 0664 /tmp/dev-file.db /opt/yourtj/dev/storage/file.db
+install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/database/file.db
+install -m 0664 /tmp/dev-file.db /opt/yourtj/dev/storage/database/file.db
+# 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
+chown 1000:1000 /opt/yourtj/main/storage/database/file.db /opt/yourtj/dev/storage/database/file.db
 ```
 
-### 3. signingKey / 配置复制（关键！）
+### 3. 配置迁移（完整拷贝 + reconcile，关键！）
+
+**不要只复制 signingKey**：`config.toml` 还包含 GitHub OAuth `client_id`/`client_secret`、
+OIDC 设置（含 signing_key_file PEM）、一系统同步 Cookie 密文等，全部需要原样迁移：
 
 ```bash
-# 旧机: 读取两个 config.toml 的 signingKey
-ssh root@<旧机> 'grep signingKey /opt/yourtj/main/config.toml /opt/yourtj/dev/config.toml'
-# 新机: 把相同的 signingKey 写入 main/config.toml 与 dev/config.toml
-#   同时确保 server.trusted_proxies 含 docker 网段(模板已默认 ["172.16.0.0/12"])
-#   server.url 保持 https://forum.yourtj.de / https://dev.yourtj.de
+# 旧机: 完整拷贝两个 config.toml 与 OIDC 密钥文件
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/config.toml /tmp/main-config.toml
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /tmp/dev-config.toml
+# 若 [oidc] signing_key_file 启用, 一并拷贝对应 PEM
+
+# 新机: 用旧配置覆盖, 然后 reconcile 以下部署相关键:
+#   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
+#   - [server] trusted_proxies: 包含 docker 网段 ["172.16.0.0/12"]
+#   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
+#   - [server] url: 保持 https://forum.yourtj.de / https://dev.yourtj.de
+install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
+install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
 ```
 
 ### 4. 首次部署 + 健康检查
@@ -470,17 +489,34 @@ curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
 curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 nginx
 ```
 
-### 5. DNS 切换 + 收尾
+### 5. Cloudflare SSL 模式 + DNS 切换
 
-1. Cloudflare DNS：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）改为新机 IP（43.108.84.213）。
-2. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、登录/发帖/附件/搜索 spot-check。
-3. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
-4. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
+**先改 SSL/TLS 模式，再切 DNS**（否则切换瞬间 521/525）：
+
+1. **Cloudflare SSL/TLS 模式**：旧机由 1Panel 提供 origin 证书，当前模式很可能是
+   Full (strict)（Cloudflare → origin 走 HTTPS:443）。新机 nginx 只监听 :80，
+   切换前把 `SSL/TLS → Overview → SSL/TLS encryption mode` 改为 **Flexible**
+   （Cloudflare → origin 走 HTTP:80）。若必须保持端到端加密，需在新机 nginx
+   配置 443 监听 + Cloudflare origin 证书（本仓库 compose 默认只暴露 80）。
+2. **DNS**：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
+   改为新机 IP（43.108.84.213）。
+3. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、
+   登录/发帖/附件/搜索 spot-check。
+4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
+5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
 
 ### 风险与回滚
 
-- 迁移窗口内的新写入不会进入 dump；**切换前在旧机再跑一次 `backup-db.sh main`** 生成最新快照，接受分钟级数据窗口。
-- 若新机异常：Cloudflare A 记录切回旧机 IP（旧机仍运行）即可回滚，数据无损。
+- 迁移窗口内的新写入不会进入 dump；**切换前在旧机再跑一次 `backup-db.sh main`** 生成最新快照，
+  接受分钟级数据窗口。
+- **回滚不是简单的 DNS 切回**：DNS 切换到新机后，新机接受了新的发帖/注册/附件写入。
+  若此时切回旧机，这些新写入会丢失。因此回滚前必须**反向同步**：
+  1. 停写：临时把 Cloudflare 页面规则或新机 nginx 置为维护模式（或直接切 DNS 前先接受
+     "最近写入可能丢失" 的窗口）；
+  2. 从新机 `pg_dump yourtj_main/yourtj_dev` 回灌旧机对应库（与 §2 相同方式反向）；
+  3. 把新机 `storage/database/file.db` 拷回旧机对应路径并 `chown 1000:1000`；
+  4. 再切 DNS 回旧机。
+  - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
 - Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
 
 ## Runbooks to write
