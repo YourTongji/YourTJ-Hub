@@ -116,8 +116,8 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 	if err := conn.Order("id desc").First(&run).Error; err != nil {
 		t.Fatalf("load import run: %v", err)
 	}
-	if run.Status != course.ImportStatusCompleted {
-		t.Fatalf("import run status = %s, want completed", run.Status)
+	if run.Status != course.ImportStatusCompleted || run.Kind != course.ImportKindCatalog {
+		t.Fatalf("import run status/kind = %s/%s, want completed/catalog", run.Status, run.Kind)
 	}
 
 	// 3) reviews dry-run：0 冲突。
@@ -137,6 +137,14 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 	// 5) 统计重建成功。
 	if err := course.RebuildAllCourseStats(); err != nil {
 		t.Fatalf("rebuild course stats: %v", err)
+	}
+	// reviews 导入落 kind=reviews 的独立 run（与 catalog run 同 manifest_hash 共存）。
+	var reviewRun course.ImportRunEntity
+	if err := conn.Where("kind = ?", course.ImportKindReviews).First(&reviewRun).Error; err != nil {
+		t.Fatalf("load reviews import run: %v", err)
+	}
+	if reviewRun.Status != course.ImportStatusCompleted || reviewRun.ManifestHash != run.ManifestHash {
+		t.Fatalf("reviews run = %s/%s, want completed + same manifest hash %s", reviewRun.Status, reviewRun.ManifestHash, run.ManifestHash)
 	}
 
 	// 6) 目录抽查：2 门课可见，高数（rating 4 唯一有效评分）均分 4.0。

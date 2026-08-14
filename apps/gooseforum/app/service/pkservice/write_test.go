@@ -1,6 +1,7 @@
 package pkservice
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -134,6 +135,11 @@ func TestWriteBatchTxPopulatesMetadataColumns(t *testing.T) {
 	check("pk_major_course", "course_id = ?", 1)
 	check("pk_course_detail", "id = ?", 1)
 	check("pk_teacher", "id = ?", 100)
+	// teacher_timeslots 由 arrange_info_text 解析重建（懒构建路径），同样必须打标。
+	if _, err := rebuildTimeslots(context.Background(), []uint64{121}); err != nil {
+		t.Fatalf("rebuild timeslots: %v", err)
+	}
+	check("pk_teacher_timeslot", "calendar_id = ? AND teaching_class_id = ?", 121, 1)
 }
 
 func TestWriteBatchTxSkipsRowsWithoutIDs(t *testing.T) {

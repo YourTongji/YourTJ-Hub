@@ -187,6 +187,11 @@ func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReview
 		}
 		fileCounts[name] = n
 	}
+	// 残缺包防护（与 catalog 侧对称）：manifest 声明了文件但没有任何 reviews 文件
+	// （例如误把 catalog-only 包交给 course-import reviews），直接报错而不是静默空成功。
+	if len(rows) == 0 && len(manifest.Files) > 0 {
+		return nil, nil, fmt.Errorf("manifest contains no reviews file")
+	}
 	return rows, fileCounts, nil
 }
 
