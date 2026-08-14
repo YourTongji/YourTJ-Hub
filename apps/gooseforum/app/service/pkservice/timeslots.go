@@ -41,14 +41,14 @@ func buildTimeslotRows(source []pk.TeacherTimeslotSourceRow) ([]pk.TeacherTimesl
 		}
 		for _, line := range splitEndline(r.ArrangeInfoText) {
 			info := arrangementTextToObj(line)
-			if info.OccupyDay <= 0 || len(info.OccupyTime) == 0 {
+			if info.OccupyDay == nil || *info.OccupyDay <= 0 || len(info.OccupyTime) == 0 {
 				continue
 			}
 			for _, section := range info.OccupyTime {
 				if section <= 0 {
 					continue
 				}
-				key := fmt.Sprintf("%d|%d|%d|%d|%s|%s", r.CalendarId, r.TeachingClassId, info.OccupyDay, section, r.TeacherCode, r.TeacherName)
+				key := fmt.Sprintf("%d|%d|%d|%d|%s|%s", r.CalendarId, r.TeachingClassId, *info.OccupyDay, section, r.TeacherCode, r.TeacherName)
 				if seen[key] {
 					continue
 				}
@@ -56,7 +56,7 @@ func buildTimeslotRows(source []pk.TeacherTimeslotSourceRow) ([]pk.TeacherTimesl
 				rows = append(rows, pk.TeacherTimeslotEntity{
 					CalendarId:      r.CalendarId,
 					TeachingClassId: r.TeachingClassId,
-					OccupyDay:       info.OccupyDay,
+					OccupyDay:       *info.OccupyDay,
 					OccupySection:   section,
 					TeacherCode:     r.TeacherCode,
 					TeacherName:     r.TeacherName,

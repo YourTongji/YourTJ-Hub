@@ -23,6 +23,8 @@ tags:
     description: Wiki public reading and logged-in writing operations.
   - name: Wiki Admin
     description: Wiki administration operations restricted to PageManager or Admin accounts.
+  - name: PK
+    description: 排课模拟器（PK）公开只读端点，统一 {code,msg,data} 信封。
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
@@ -152,6 +154,49 @@ paths:
   /api/admin/wiki/revisions:
     get:
       $ref: ./paths/wiki.yaml#/listAdminWikiRevisions/get
+  # PK 排课器 13 端点（Issue #187）。
+  /api/pk/calendars:
+    get:
+      $ref: ./paths/pk.yaml#/listCalendars/get
+  /api/pk/campuses:
+    get:
+      $ref: ./paths/pk.yaml#/listCampuses/get
+  /api/pk/faculties:
+    get:
+      $ref: ./paths/pk.yaml#/listFaculties/get
+  /api/pk/grades:
+    post:
+      $ref: ./paths/pk.yaml#/findGrades/post
+  /api/pk/majors:
+    post:
+      $ref: ./paths/pk.yaml#/findMajors/post
+  /api/pk/courses-by-major:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByMajor/post
+  /api/pk/optional-types:
+    post:
+      $ref: ./paths/pk.yaml#/findOptionalTypes/post
+  /api/pk/courses-by-nature:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByNature/post
+  /api/pk/course-details:
+    post:
+      $ref: ./paths/pk.yaml#/findCourseDetails/post
+  /api/pk/course-search:
+    post:
+      $ref: ./paths/pk.yaml#/searchCourses/post
+  /api/pk/courses-by-time:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByTime/post
+  /api/pk/latest-update:
+    get:
+      $ref: ./paths/pk.yaml#/getLatestUpdate/get
+  /api/pk/course-info-sync:
+    post:
+      $ref: ./paths/pk.yaml#/syncCourseInfo/post
+  /api/pk/course-review-brief:
+    get:
+      $ref: ./paths/pk.yaml#/getCourseReviewBrief/get
   /api/forum/moderation/course-list:
     post:
       $ref: ./paths/course-management.yaml#/adminCourseList/post
@@ -492,3 +537,69 @@ components:
       $ref: ./components/schemas.yaml#/WikiAdminRevisionListResult
     WikiAdminRevisionListResponse:
       $ref: ./components/schemas.yaml#/WikiAdminRevisionListResponse
+    PkSuccess:
+      $ref: ./components/schemas.yaml#/PkSuccess
+    PkFailure:
+      $ref: ./components/schemas.yaml#/PkFailure
+    PkCalendarItem:
+      $ref: ./components/schemas.yaml#/PkCalendarItem
+    PkCampusItem:
+      $ref: ./components/schemas.yaml#/PkCampusItem
+    PkFacultyItem:
+      $ref: ./components/schemas.yaml#/PkFacultyItem
+    PkGradesResult:
+      $ref: ./components/schemas.yaml#/PkGradesResult
+    PkMajorItem:
+      $ref: ./components/schemas.yaml#/PkMajorItem
+    PkTeacherRef:
+      $ref: ./components/schemas.yaml#/PkTeacherRef
+    PkArrangementInfo:
+      $ref: ./components/schemas.yaml#/PkArrangementInfo
+    PkCourseClassItem:
+      $ref: ./components/schemas.yaml#/PkCourseClassItem
+    PkCourseByMajorItem:
+      $ref: ./components/schemas.yaml#/PkCourseByMajorItem
+    PkOptionalTypeItem:
+      $ref: ./components/schemas.yaml#/PkOptionalTypeItem
+    PkNatureCourseItem:
+      $ref: ./components/schemas.yaml#/PkNatureCourseItem
+    PkCourseByNatureItem:
+      $ref: ./components/schemas.yaml#/PkCourseByNatureItem
+    PkCourseDetailBrief:
+      $ref: ./components/schemas.yaml#/PkCourseDetailBrief
+    PkSearchCourseItem:
+      $ref: ./components/schemas.yaml#/PkSearchCourseItem
+    PkSearchResult:
+      $ref: ./components/schemas.yaml#/PkSearchResult
+    PkCoursesByTimeResult:
+      $ref: ./components/schemas.yaml#/PkCoursesByTimeResult
+    PkReviewBrief:
+      $ref: ./components/schemas.yaml#/PkReviewBrief
+    PkCalendarListResponse:
+      $ref: ./components/schemas.yaml#/PkCalendarListResponse
+    PkCampusListResponse:
+      $ref: ./components/schemas.yaml#/PkCampusListResponse
+    PkFacultyListResponse:
+      $ref: ./components/schemas.yaml#/PkFacultyListResponse
+    PkGradesResponse:
+      $ref: ./components/schemas.yaml#/PkGradesResponse
+    PkMajorsResponse:
+      $ref: ./components/schemas.yaml#/PkMajorsResponse
+    PkCoursesByMajorResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByMajorResponse
+    PkOptionalTypesResponse:
+      $ref: ./components/schemas.yaml#/PkOptionalTypesResponse
+    PkCoursesByNatureResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByNatureResponse
+    PkCourseDetailsResponse:
+      $ref: ./components/schemas.yaml#/PkCourseDetailsResponse
+    PkCourseSearchResponse:
+      $ref: ./components/schemas.yaml#/PkCourseSearchResponse
+    PkCoursesByTimeResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByTimeResponse
+    PkLatestUpdateResponse:
+      $ref: ./components/schemas.yaml#/PkLatestUpdateResponse
+    PkCourseInfoSyncResponse:
+      $ref: ./components/schemas.yaml#/PkCourseInfoSyncResponse
+    PkReviewBriefResponse:
+      $ref: ./components/schemas.yaml#/PkReviewBriefResponse

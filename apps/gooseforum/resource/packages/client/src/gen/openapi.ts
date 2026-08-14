@@ -984,6 +984,244 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/pk/calendars": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List the most recent 8 semesters for the PK scheduler */
+        get: operations["pkListCalendars"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/campuses": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List PK campus dictionary */
+        get: operations["pkListCampuses"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/faculties": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List PK faculty dictionary */
+        get: operations["pkListFaculties"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/grades": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List available grades for a semester */
+        post: operations["pkFindGrades"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/majors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List majors for a grade (optionally within a semester) */
+        post: operations["pkFindMajors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/courses-by-major": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List planned courses for a major (including earlier grades) */
+        post: operations["pkFindCoursesByMajor"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/optional-types": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List general-elective course nature options for a semester */
+        post: operations["pkFindOptionalTypes"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/courses-by-nature": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** List courses by course nature ids, merged by nature label */
+        post: operations["pkFindCoursesByNature"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/course-details": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Fetch teaching-class details by one courseCode (array) or many (dict) */
+        post: operations["pkFindCourseDetails"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/course-search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Advanced course search (LIMIT 100) */
+        post: operations["pkSearchCourses"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/courses-by-time": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Find courses occupying a day and section */
+        post: operations["pkFindCoursesByTime"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/latest-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Latest PK sync date */
+        get: operations["pkGetLatestUpdate"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/course-info-sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Incrementally refresh selected courses' teaching-class info */
+        post: operations["pkSyncCourseInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/pk/course-review-brief": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Course review summary for the PK scheduler popup */
+        get: operations["pkGetCourseReviewBrief"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/moderation/course-list": {
         parameters: {
             query?: never;
@@ -2220,6 +2458,185 @@ export interface components {
         WikiAdminRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAdminRevisionListResult"];
         }) | components["schemas"]["ApiFailure"];
+        PkSuccess: {
+            /**
+             * @description PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
+             * @constant
+             */
+            code: 0;
+            /** @description 可读的中文说明。 */
+            msg: string;
+            data: unknown;
+        };
+        PkFailure: {
+            /** @description 非零错误码，与 HTTP 状态码对齐（400/404/500）。 */
+            code: number;
+            /** @description 可读的中文错误说明。 */
+            msg: string;
+            data: {
+                [key: string]: unknown;
+            };
+        };
+        PkCalendarItem: {
+            calendarId: number;
+            calendarName: string;
+        };
+        PkCampusItem: {
+            campusId: string;
+            campusName: string;
+        };
+        PkFacultyItem: {
+            facultyId: string;
+            facultyName: string;
+        };
+        PkGradesResult: {
+            gradeList: number[];
+        };
+        PkMajorItem: {
+            code: string;
+            name: string;
+        };
+        PkTeacherRef: {
+            teacherCode: string;
+            teacherName: string;
+        };
+        PkArrangementInfo: {
+            /** @description 原始安排文本（不含教师名与代码前缀）。 */
+            arrangementText: string;
+            /** @description 星期（1-7）。 */
+            occupyDay?: number | null;
+            /** @description 节次集合。 */
+            occupyTime?: number[] | null;
+            /** @description 周次集合。 */
+            occupyWeek?: number[] | null;
+            occupyRoom?: string | null;
+            /** @description 教师名与代码前缀（如 "张伟(T001)"）。 */
+            teacherAndCode?: string | null;
+        };
+        PkCourseClassItem: {
+            /** @description 教学班内部编号。 */
+            code: string;
+            teachers: components["schemas"]["PkTeacherRef"][];
+            campus: string;
+            teachingLanguage: string;
+            arrangementInfo: components["schemas"]["PkArrangementInfo"][];
+            /** @description 是否当前年级专业的专属课程。 */
+            isExclusive: boolean;
+        };
+        PkCourseByMajorItem: {
+            courseCode: string;
+            courseName: string;
+            faculty: string;
+            facultyI18n: string;
+            credit: number;
+            grade: number;
+            courseNature: string[];
+            courses: components["schemas"]["PkCourseClassItem"][];
+        };
+        PkOptionalTypeItem: {
+            courseLabelId: number;
+            courseLabelName: string;
+        };
+        PkNatureCourseItem: {
+            campus: string[];
+            courseCode: string;
+            courseName: string;
+            faculty: string;
+            facultyI18n: string;
+            credit: number;
+            courseLabelName: string;
+            crossDiscipline: boolean;
+        };
+        PkCourseByNatureItem: {
+            courseLabelId: number;
+            courseLabelIds: number[];
+            courseLabelName: string;
+            crossDiscipline: boolean;
+            courses: components["schemas"]["PkNatureCourseItem"][];
+        };
+        PkCourseDetailBrief: {
+            code: string;
+            teachers: components["schemas"]["PkTeacherRef"][];
+            campus: string;
+            teachingLanguage: string;
+            arrangementInfo: components["schemas"]["PkArrangementInfo"][];
+            /** @description 仅 course-info-sync 的 major 课程带该字段。 */
+            isExclusive?: boolean;
+        };
+        PkSearchCourseItem: {
+            courseCode: string;
+            courseName: string;
+            faculty: string;
+            facultyI18n: string;
+            courseNature: string[];
+            campus: string[];
+            /** @description 与 campus 相同的兼容字段（对齐上游）。 */
+            campus_list: string[];
+            credit: number;
+        };
+        PkSearchResult: {
+            courses: components["schemas"]["PkSearchCourseItem"][];
+            sizeLimit: number;
+        };
+        PkCoursesByTimeResult: {
+            /** @description teacher_timeslots 辅助表是否就绪；未就绪时本次为降级 LIKE 结果并已触发后台构建。 */
+            auxiliaryReady: boolean;
+            courses: components["schemas"]["PkSearchCourseItem"][];
+        };
+        PkReviewBrief: {
+            courseCode: string;
+            courseName?: string;
+            teacherName: string;
+            ratingAvg?: number | null;
+            reviewCount: number;
+        };
+        PkCalendarListResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCalendarItem"][];
+        };
+        PkCampusListResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCampusItem"][];
+        };
+        PkFacultyListResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkFacultyItem"][];
+        };
+        PkGradesResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkGradesResult"];
+        };
+        PkMajorsResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkMajorItem"][];
+        };
+        PkCoursesByMajorResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCourseByMajorItem"][];
+        };
+        PkOptionalTypesResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkOptionalTypeItem"][];
+        };
+        PkCoursesByNatureResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCourseByNatureItem"][];
+        };
+        PkCourseDetailsResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCourseDetailBrief"][] | {
+                [key: string]: components["schemas"]["PkCourseDetailBrief"][];
+            };
+        };
+        PkCourseSearchResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkSearchResult"];
+        };
+        PkCoursesByTimeResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkCoursesByTimeResult"];
+        };
+        PkLatestUpdateResponse: components["schemas"]["PkSuccess"] & {
+            /** @description 最近同步日期 YYYY-MM-DD；无记录为 null。 */
+            data: string | null;
+        };
+        PkCourseInfoSyncResponse: components["schemas"]["PkSuccess"] & {
+            data: {
+                [key: string]: components["schemas"]["PkCourseDetailBrief"][];
+            };
+        };
+        PkReviewBriefResponse: components["schemas"]["PkSuccess"] & {
+            data: components["schemas"]["PkReviewBrief"];
+        };
         PostPayload: {
             /** Format: uint64 */
             id: number;
@@ -4774,6 +5191,587 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    pkListCalendars: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent semesters ordered by calendarId descending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCalendarListResponse"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkListCampuses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Campus dictionary items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCampusListResponse"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkListFaculties: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Faculty dictionary items. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFacultyListResponse"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindGrades: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Grades present in the semester's planned courses, descending. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkGradesResponse"];
+                };
+            };
+            /** @description Missing or invalid calendarId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindMajors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    grade: number;
+                    /** @description Optional; limits majors to those with planned courses in the semester. */
+                    calendarId?: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Major candidates ordered by code. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkMajorsResponse"];
+                };
+            };
+            /** @description Missing or invalid grade. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindCoursesByMajor: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    grade: number;
+                    /** @description Major code. */
+                    code: string;
+                    calendarId: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Course groups with their teaching classes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCoursesByMajorResponse"];
+                };
+            };
+            /** @description Missing grade, code or calendarId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindOptionalTypes: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                };
+            };
+        };
+        responses: {
+            /** @description General-elective course natures. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkOptionalTypesResponse"];
+                };
+            };
+            /** @description Missing calendarId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindCoursesByNature: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                    ids: number[];
+                };
+            };
+        };
+        responses: {
+            /** @description Courses grouped and merged by nature label. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCoursesByNatureResponse"];
+                };
+            };
+            /** @description Missing calendarId or empty ids. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindCourseDetails: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                    /** @description Single course code; returns a teaching-class array. */
+                    courseCode: string;
+                } | {
+                    calendarId: number;
+                    /** @description Batch course codes; returns a courseCode -> classes dict. */
+                    courseCodes: string[];
+                };
+            };
+        };
+        responses: {
+            /** @description Teaching-class details; array for a single code, dict for batch. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCourseDetailsResponse"];
+                };
+            };
+            /** @description Missing calendarId or courseCode(s). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkSearchCourses: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                    courseName?: string;
+                    courseCode?: string;
+                    teacherCode?: string;
+                    teacherName?: string;
+                    campus?: string;
+                    faculty?: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Matching courses aggregated by courseCode. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCourseSearchResponse"];
+                };
+            };
+            /** @description Missing calendarId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkFindCoursesByTime: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                    /** @description Weekday 1-7 (Monday-Sunday). */
+                    day: number;
+                    /** @description PK row group 1-6 (maps to sections 1-2/3-4/5-6/7-8/9/10). */
+                    section: number;
+                };
+            };
+        };
+        responses: {
+            /** @description Courses in the time slot; auxiliaryReady marks the timeslot projection state. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCoursesByTimeResponse"];
+                };
+            };
+            /** @description Missing or invalid calendarId/day/section. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkGetLatestUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Latest sync date YYYY-MM-DD, or null when no sync record exists. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkLatestUpdateResponse"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkSyncCourseInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": {
+                    calendarId: number;
+                    majorCourseCodes?: string[];
+                    otherCourseCodes?: string[];
+                    majorInfo?: {
+                        grade?: number;
+                        code?: string;
+                    };
+                };
+            };
+        };
+        responses: {
+            /** @description courseCode -> teaching-class array; isExclusive present only for major courses. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkCourseInfoSyncResponse"];
+                };
+            };
+            /** @description Missing calendarId. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+        };
+    };
+    pkGetCourseReviewBrief: {
+        parameters: {
+            query: {
+                courseCode: string;
+                teacherName?: string;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Course review summary matched by courseCode (falls back to newCourseCode / primary_code). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkReviewBriefResponse"];
+                };
+            };
+            /** @description Missing courseCode. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
+                };
+            };
+            /** @description Internal error. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PkFailure"];
                 };
             };
         };
