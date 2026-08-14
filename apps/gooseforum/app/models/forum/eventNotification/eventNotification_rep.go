@@ -22,6 +22,17 @@ func CreateBatch(entities []*Entity, batchSize int) error {
 	return builder().CreateInBatches(entities, batchSize).Error
 }
 
+// GetLatestByTopicAndType 返回某话题某类型的最新一条通知（wiki 通知节流用：
+// 窗口内已有通知则跳过本次编辑的 fan-out）。
+func GetLatestByTopicAndType(topicId uint64, eventType string) (entity Entity) {
+	builder().
+		Where(queryopt.Eq("topic_id", topicId)).
+		Where(queryopt.Eq("event_type", eventType)).
+		Order(queryopt.Desc("id")).
+		First(&entity)
+	return
+}
+
 // QueryByUserId 获取用户的通知列表
 func QueryByUserId(userId uint64, limit int, startId uint64, unreadOnly bool) (notifications []*Entity, err error) {
 	db := builder().Where(queryopt.Eq("user_id", userId))

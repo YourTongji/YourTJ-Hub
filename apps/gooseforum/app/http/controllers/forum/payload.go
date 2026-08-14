@@ -200,6 +200,25 @@ type SidebarPayload struct {
 	Groups     []SidebarGroupPayload `json:"groups,omitempty"`
 	Categories []CategoryNavPayload  `json:"categories"`
 	ActiveKey  string                `json:"activeKey"`
+	// Mode 指示当前视图：forum（默认）/ wiki。
+	Mode string `json:"mode,omitempty"`
+	// WikiTree 在 wiki 模式下填充（左栏导航树）。
+	WikiTree []WikiTreeNamespacePayload `json:"wikiTree,omitempty"`
+}
+
+// WikiTreeNamespacePayload wiki 导航树的 namespace 分组。
+type WikiTreeNamespacePayload struct {
+	Name  string                `json:"name"`
+	Label string                `json:"label"`
+	Pages []WikiTreePagePayload `json:"pages"`
+}
+
+// WikiTreePagePayload wiki 导航树的一页。
+type WikiTreePagePayload struct {
+	PageId uint64 `json:"pageId"`
+	Path   string `json:"path"`
+	Title  string `json:"title"`
+	Active bool   `json:"active"`
 }
 
 type FooterPayload struct {
@@ -2516,7 +2535,10 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	}
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
-		if payload.PostId > 0 {
+		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
+		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+			topicURL = payload.Extra.ProfileURL
+		} else if payload.PostId > 0 {
 			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
 		}
 		item.Topic = &NotificationTopicPayload{
@@ -2665,10 +2687,11 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		offset = (page - 1) * pageSize
 	}
 	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
-		Query:  query,
-		Scope:  normalizedScope,
-		Limit:  limit,
-		Offset: offset,
+		Query:     query,
+		Scope:     normalizedScope,
+		Limit:     limit,
+		Offset:    offset,
+		TopicType: topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true

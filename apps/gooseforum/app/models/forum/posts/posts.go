@@ -45,9 +45,12 @@ type Entity struct {
 	UpdatedAt       time.Time `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	// 最后编辑者/时间（首楼与回复编辑均记录；未编辑过则为 0/NULL，
 	// 展示层据此渲染"最后编辑于 …"）
-	LastEditorId uint64         `gorm:"column:last_editor_id;not null;default:0;" json:"lastEditorId"`
-	LastEditedAt *time.Time     `gorm:"column:last_edited_at;" json:"lastEditedAt"`
-	DeletedAt    gorm.DeletedAt `json:"-"`
+	LastEditorId uint64     `gorm:"column:last_editor_id;not null;default:0;" json:"lastEditorId"`
+	LastEditedAt *time.Time `gorm:"column:last_edited_at;" json:"lastEditedAt"`
+	// wiki 页首楼的物化水印：本行内容对应 wiki 页面第几版（单一事件源架构）。
+	// synced < wiki_pages.published_revision_no 时表示快照过期，读取前需重物化。
+	WikiSyncedRevisionNo int            `gorm:"column:wiki_synced_revision_no;type:int;not null;default:0;" json:"wikiSyncedRevisionNo"`
+	DeletedAt            gorm.DeletedAt `json:"-"`
 
 	// 删除生命周期状态（visibility_status × retention_status）
 	VisibilityStatus string `gorm:"column:visibility_status;type:varchar(32);not null;default:'ACTIVE';index:idx_posts_visibility_retention,priority:1;" json:"-"`

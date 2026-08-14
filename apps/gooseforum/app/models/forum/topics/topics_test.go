@@ -5,10 +5,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/glebarez/sqlite"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -224,5 +224,37 @@ func TestTopicRepositoryParity(t *testing.T) {
 	}
 	if got := Get(10); got.ReplyCount != 2 || got.LastPostId != 100 || got.LastPostedAt == nil || !got.LastPostedAt.Equal(previousPostedAt) {
 		t.Fatalf("after DecrementPostFast() topic=%#v", got)
+	}
+}
+
+// PagePendingReview 必须显式排除软删话题：Count 绕过 GORM 软删 scope，
+// 只靠 scope 会导致 total 计入已删话题而 Data 不含（review：subquery passes
+// on soft-deleted topics）。
+func TestPagePendingReviewExcludesSoftDeletedTopics(t *testing.T) {
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&Entity{}); err != nil {
+		t.Fatalf("migrate pending review tables: %v", err)
+	}
+	conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id IN ?", []uint64{210, 220, 230}).Delete(&Entity{})
+	})
+
+	now := time.Now()
+	conn.Create(&[]Entity{
+		{Id: 210, Title: "pending live", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+		{Id: 220, Title: "pending soft-deleted", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeForum, CreatedAt: now, UpdatedAt: now},
+		{Id: 230, Title: "pending wiki", Status: 1, ProcessStatus: ProcessStatusPending, TopicType: TopicTypeWiki, CreatedAt: now, UpdatedAt: now},
+	})
+	// 软删 220：直接置 deleted_at（保留 process_status=pending 模拟历史脏数据）。
+	conn.Unscoped().Table("topics").Where("id = ?", 220).
+		Update("deleted_at", now)
+
+	page := PagePendingReview(1, 50)
+	if page.Total != 1 {
+		t.Fatalf("PagePendingReview total=%d, want 1 (soft-deleted excluded from count)", page.Total)
+	}
+	if len(page.Data) != 1 || page.Data[0].Id != 210 {
+		t.Fatalf("PagePendingReview data=%+v, want only live pending topic 210", page.Data)
 	}
 }

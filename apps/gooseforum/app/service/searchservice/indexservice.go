@@ -4,6 +4,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
@@ -37,6 +38,7 @@ func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity)
 		Category:      topic.CategoryIds,
 		TopicStatus:   topic.Status,
 		ProcessStatus: topic.ProcessStatus,
+		TopicType:     topic.TopicType,
 		CreatedAt:     topic.CreatedAt.Unix(),
 		UpdatedAt:     topic.UpdatedAt.Unix(),
 	}
@@ -225,6 +227,37 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 	return result, nil
 }
 
+// EnsureTopicIndexConfigured 服务启动时幂等保证话题索引的 filterable 属性配置
+// （review N2：topicType 过滤上线后，configureIndex 只在手动 rebuild-search-index
+// 与一次性迁移中调用；已迁移的存量部署不会再走迁移路径，若索引缺 topicType
+// filterable，带 topicType=0 过滤的论坛搜索会 400 进入 failedScopes 降级）。
+// 带有限重试（3 次 × 5s 退避）：部署重启时 Meilisearch 可能尚未就绪，首次
+// 配置失败不能直接放弃，否则 filterable 属性要等手动 rebuild 才补齐；
+// 最终失败仅警告，不阻断启动。
+func EnsureTopicIndexConfigured() {
+	client := meiliconnect.GetClient()
+	if client == nil {
+		return
+	}
+	index := client.Index(TopicIndex)
+	const (
+		maxAttempts  = 3
+		retryBackoff = 5 * time.Second
+	)
+	var err error
+	for attempt := 1; attempt <= maxAttempts; attempt++ {
+		if err = configureIndex(index); err == nil {
+			slog.Info("search: topic index filterable attributes ensured")
+			return
+		}
+		slog.Warn("search: ensure topic index filterable attributes failed",
+			"attempt", attempt, "maxAttempts", maxAttempts, "error", err)
+		if attempt < maxAttempts {
+			time.Sleep(retryBackoff)
+		}
+	}
+}
+
 // configureIndex applies searchable, filterable, sortable and displayed fields.
 func configureIndex(index meilisearch.IndexManager) error {
 	searchableAttributes := []string{
@@ -238,6 +271,7 @@ func configureIndex(index meilisearch.IndexManager) error {
 
 	filterableAttributes := []any{
 		"category",
+		"topicType",
 	}
 	_, err = index.UpdateFilterableAttributes(&filterableAttributes)
 	if err != nil {

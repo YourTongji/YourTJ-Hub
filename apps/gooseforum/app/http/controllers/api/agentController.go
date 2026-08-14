@@ -264,6 +264,7 @@ func AgentTopicList(req component.BetterRequest[AgentTopicListReq]) component.Re
 		FilterStatus: true,
 		CategoryId:   req.Params.CategoryId,
 		Sort:         req.Params.Sort,
+		TopicType:    topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	list := make([]AgentTopicItem, 0, len(pageResult.Data))
 	for _, entity := range pageResult.Data {

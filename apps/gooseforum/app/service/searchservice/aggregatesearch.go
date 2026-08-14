@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
+	"github.com/spf13/cast"
 )
 
 // Search scope values.
@@ -32,6 +33,8 @@ type AggregateSearchRequest struct {
 	Scope  string // all / topics / users / categories / courses
 	Limit  int
 	Offset int
+	// TopicType 仅过滤 topics scope；nil=不过滤（默认论坛聚合搜索应排除 wiki，由调用方传 0）。
+	TopicType *int8
 }
 
 // UserSearchResult 用户搜索结果（展示数据由 DB 重构填充）
@@ -100,13 +103,19 @@ func scopeQueries(req AggregateSearchRequest) []*meilisearch.SearchRequest {
 		limit = MaxAggregateLimit
 	}
 	if req.Scope == ScopeAll || req.Scope == ScopeTopics {
-		queries = append(queries, &meilisearch.SearchRequest{
+		topicQuery := &meilisearch.SearchRequest{
 			IndexUID:             TopicIndex,
 			Query:                req.Query,
 			Limit:                int64(limit),
 			Offset:               int64(req.Offset),
 			AttributesToRetrieve: []string{"id", "title"},
-		})
+		}
+		if req.TopicType != nil {
+			// Meilisearch filter 接受字符串或字符串数组（filter 表达式本身），
+			// 不接受 {"filter": [...]} 包装对象（review B1：会导致 topics 域 400 失败）。
+			topicQuery.Filter = []string{"topicType = " + cast.ToString(*req.TopicType)}
+		}
+		queries = append(queries, topicQuery)
 	}
 	if req.Scope == ScopeAll || req.Scope == ScopeUsers {
 		queries = append(queries, &meilisearch.SearchRequest{

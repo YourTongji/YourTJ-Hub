@@ -101,6 +101,8 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/notifications", middleware.CheckLogin, forum.Notifications)
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
+	viewRouteApp.GET("/wiki", forum.WikiHome)
+	viewRouteApp.GET("/wiki/*path", forum.WikiDetail)
 	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
 	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
 	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
@@ -217,6 +219,16 @@ func apiRoute(ginApp *gin.Engine) {
 	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
+	// wiki 分站：公开读。
+	wikiApi := baseApi.Group("wiki")
+	wikiApi.GET("tree", UpButterReq(api.WikiTree))
+	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
+	wikiApi.GET("home", UpButterReq(api.WikiHome))
+	wikiApi.GET("revisions", UpQueryReq(api.WikiRevisions))
+	// wiki 分站：登录写。
+	wikiLoginApi := wikiApi.Use(middleware.JWTAuthCheck)
+	wikiLoginApi.POST("pages", middleware.CheckWritableAccount, UpJsonReq(api.WikiCreatePage))
+	wikiLoginApi.PUT("pages/:pageId", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiEditPage))
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
@@ -347,7 +359,17 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("sponsors", UpButterReq(api.GetSponsors)).
 		POST("save-sponsors", UpButterReq(api.SaveSponsors)).
 		GET("announcement", UpButterReq(api.GetAnnouncement)).
-		POST("save-announcement", UpButterReq(api.SaveAnnouncement))
+		POST("save-announcement", UpButterReq(api.SaveAnnouncement)).
+		POST("wiki/namespaces", UpButterReq(api.WikiCreateNamespace)).
+		PUT("wiki/namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace)).
+		DELETE("wiki/namespaces/:name", UpUriReq(api.WikiDeleteNamespace)).
+		GET("wiki/namespaces/:name/editors", UpUriReq(api.WikiNamespaceEditors)).
+		PUT("wiki/namespaces/:name/editors", UpUriJsonReq(api.WikiSetEditors)).
+		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
+		PUT("wiki/tree", UpJsonReq(api.WikiAdminTreeOps)).
+		GET("wiki/revisions", UpQueryReq(api.WikiAdminRevisions)).
+		POST("wiki/pages/:pageId/rollback", UpUriJsonReq(api.WikiRollback)).
+		GET("wiki/pages/:pageId/diff", UpUriQueryReq(api.WikiDiff))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).

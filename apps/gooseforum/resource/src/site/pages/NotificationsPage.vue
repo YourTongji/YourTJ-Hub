@@ -215,6 +215,8 @@ function notificationTemplateText(item: NotificationPayload) {
       return t('notifications.templates.follow')
     case 'notifications.templates.badge':
       return t('notifications.templates.badge', { badge: item.payload.templateParams?.badgeName || item.payload.metadata?.badgeName || '' })
+    case 'notifications.templates.wikiUpdated':
+      return t('notifications.templates.wikiUpdated')
     default:
       return ''
   }

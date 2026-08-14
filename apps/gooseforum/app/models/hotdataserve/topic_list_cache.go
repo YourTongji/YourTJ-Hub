@@ -73,6 +73,7 @@ func loadLatestTopicsSimpleVoPaginated(page int, sort string) TopicSimpleVoPage 
 		PageSize:     20,
 		FilterStatus: true,
 		Sort:         sort,
+		TopicType:    topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	return TopicSimpleVoPage{
 		Topics:  transform.Topics2Vo(topicEntitiesToPointers(res.Data), CategoryMap()),
@@ -87,6 +88,7 @@ func loadTopicsByCategorySimpleVo(categoryId uint64, sort string, page int) Topi
 		CategoryId:   categoryId,
 		FilterStatus: true,
 		Sort:         sort,
+		TopicType:    topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	return TopicSimpleVoPage{
 		Topics:  transform.Topics2Vo(topicEntitiesToPointers(res.Data), CategoryMap()),

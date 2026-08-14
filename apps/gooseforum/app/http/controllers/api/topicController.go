@@ -184,6 +184,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	var firstPost posts.Entity
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
+		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
+		// topic 行/首楼，避免绕过 wiki_page_revisions 版本流（review N1）。
+		if topic.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+		}
 		if topic.UserId != req.UserId {
 			return component.FailResponseCode(component.MessageTopicOwnerMismatch, nil)
 		}
@@ -329,6 +334,10 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	topic := topics.Get(req.Params.TopicId)
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+	// wiki 分站页面上下架/发布由 wiki 修订流程管理，禁止经论坛端点操作。
+	if topic.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	if topic.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
@@ -547,6 +556,13 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	topicEntity := topics.GetSimple(postEntity.TopicId)
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
+	}
+	// wiki 分站首楼由 wiki_page_revisions 版本流独占（review High：此前
+	// UpdatePost 可直改 wiki 首楼，绕过版本流 + 写时敏感词拦截，导致 posts
+	// 行与 published_revision_no 指向的修订脱同步，下次 wiki Edit 静默覆盖）。
+	// 回复流（post_no>1）不受影响。
+	if topicEntity.TopicType == topics.TopicTypeWiki && postEntity.PostNo <= 1 {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 
 	content := strings.TrimSpace(req.Params.Content)

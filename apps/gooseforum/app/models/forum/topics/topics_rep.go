@@ -74,12 +74,33 @@ func UpdateTopicEditableTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
+// UpdateWikiSyncedMetaTx 事务内只更新由 wiki 修订派生的话题字段
+// （标题/摘要/首图/水印/更新时间）。不触碰并发回复/点赞/浏览维护的统计与
+// 指针字段——整行 Save 会把 post_count/post_seq/posters/last_post_id/
+// last_posted_at 回写成事务外旧值（与 UpdateFirstPostDerivedTx 同源问题）。
+func UpdateWikiSyncedMetaTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"title":                   entity.Title,
+			"excerpt":                 entity.Excerpt,
+			"first_image_url":         entity.FirstImageURL,
+			"wiki_synced_revision_no": entity.WikiSyncedRevisionNo,
+			"updated_at":              time.Now(),
+		}).Error
+}
+
 func SaveNoUpdate(entity *Entity) error {
 	return builder().Omit("updated_at").Save(entity).Error
 }
 
 func Get(id uint64) (entity Entity) {
 	builder().First(&entity, id)
+	return
+}
+
+// GetTx 事务内按 id 获取话题（避免单连接测试库下事务内走全局连接死锁）。
+func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
+	tx.Table(tableName).First(&entity, id)
 	return
 }
 
@@ -148,6 +169,7 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -164,6 +186,7 @@ func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err err
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Asc("id")).
 		Limit(limit).
@@ -182,6 +205,7 @@ func GetPublishedBeforeID(beforeID uint64, limit int) (entities []*Entity, err e
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -207,6 +231,7 @@ func GetLatestPublishedByUserId(userId uint64, limit int) ([]*Entity, error) {
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
 		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
 		Limit(limit).
@@ -220,7 +245,8 @@ func GetPublishedByUserBeforeId(userId uint64, beforeId uint64, limit int) ([]*E
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
 		Where(queryopt.Eq("process_status", 0)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive))
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
 	if beforeId > 0 {
 		query = query.Where(queryopt.Lt("id", beforeId))
 	}
@@ -245,7 +271,26 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 	b := builder().
 		Where(queryopt.Eq("user_id", userId)).
 		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive))
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
+// GetActiveWikiByUserPage 分页返回本人仍公开（status=1 且 ACTIVE）的 wiki 分站页面话题
+// （topic_type=wiki）。注销账号删除全部内容时与论坛话题分开遍历（review P1：
+// GetActiveByUserPage 的 topic_type=forum 过滤会导致 wiki 页面漏删）。
+func GetActiveWikiByUserPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeWiki))
 	if cursorID != 0 {
 		b = b.Where(queryopt.Lt("id", cursorID))
 	}
@@ -268,6 +313,8 @@ type PageQuery struct {
 	FilterStatus   bool
 	CategoryId     uint64
 	Sort           string
+	// TopicType 按话题类型过滤；nil=不过滤（兼容既有调用）。
+	TopicType *int8
 }
 
 type AdminPageQuery struct {
@@ -299,6 +346,9 @@ func Page(q PageQuery) struct {
 	}
 	if q.UserId != 0 {
 		b.Where(queryopt.Eq("user_id", q.UserId))
+	}
+	if q.TopicType != nil {
+		b.Where(queryopt.Eq("topic_type", *q.TopicType))
 	}
 	if q.FilterStatus {
 		b.Where(queryopt.Eq("status", 1))
@@ -370,7 +420,12 @@ func PageForModeration(q ModerationPageQuery) struct {
 	q.Page = max(q.Page-1, 0)
 	q.PageSize = pageutil.BoundPageSize(q.PageSize)
 	queryLimit := q.PageSize + 1
-	b := builder().Where(queryopt.Eq("status", 1))
+	// 版主话题管理列表只含论坛话题：wiki 分站页面走 wiki 修订审核流程，
+	// 不混入论坛版主列表（review N1，避免版主对 wiki 主题执行隐藏/删除等
+	// moderation 动作，与删除级联缺失是同一孤儿问题的另一入口）。
+	b := builder().
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
 	if q.FilterProcessStatus {
 		b.Where(queryopt.Eq("process_status", q.ProcessStatus))
 	}
@@ -400,6 +455,9 @@ func PageForModeration(q ModerationPageQuery) struct {
 }
 
 // PagePendingReview 列出待审（ProcessStatus=2）的主题。
+// 显式排除软删主题：Count 绕过 GORM 软删 scope（见 pathExists 同类问题），
+// 若只靠 scope，Count 会把已删除话题计入 total 而 Find 不返回，分页错位
+// （review：subquery passes on soft-deleted topics）。
 func PagePendingReview(page, pageSize int) struct {
 	Page     int
 	PageSize int
@@ -411,6 +469,8 @@ func PagePendingReview(page, pageSize int) struct {
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
+		Where(queryopt.IsNull("deleted_at")).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id"))
 	var total int64
@@ -650,3 +710,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 		"image_urls":        "[]",
 	}).Error
 }
+
+// TopicTypePtr 返回话题类型指针，供 PageQuery.TopicType 显式过滤使用。
+func TopicTypePtr(t int8) *int8 { return &t }

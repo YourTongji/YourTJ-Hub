@@ -257,6 +257,23 @@ export interface SidebarPayload {
   }>
   categories: CategoryNavPayload[]
   activeKey: string
+  /** 侧栏模式：wiki 模式下替换左栏为 wiki 导航树。 */
+  mode?: 'forum' | 'wiki'
+  /** wiki 模式下的左栏导航树（wiki 模式才填充）。 */
+  wikiTree?: WikiTreeNamespace[]
+}
+
+export interface WikiTreePage {
+  pageId: number
+  path: string
+  title: string
+  active: boolean
+}
+
+export interface WikiTreeNamespace {
+  name: string
+  label: string
+  pages: WikiTreePage[]
 }
 
 export interface FooterPayload {
@@ -731,6 +748,7 @@ export type NotificationTemplateKey =
   | 'notifications.templates.topicPost'
   | 'notifications.templates.follow'
   | 'notifications.templates.badge'
+  | 'notifications.templates.wikiUpdated'
 
 export interface DraftsPageProps {
   total: number
@@ -997,4 +1015,74 @@ export interface CourseManagementPageProps {
 
 export interface SchedulePageProps {
   // 排课器数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts），SSR 仅提供空壳。
+}
+
+// ---- wiki 分站 ----
+
+export interface WikiNamespacePayload {
+  name: string
+  description: string
+  pageCount: number
+  updatedAt: string
+  /** 首个 approved 页面的完整路径（namespace/slug），供首页 namespace 卡跳转。 */
+  firstPagePath?: string
+}
+
+export interface WikiRecentPagePayload {
+  pageId: number
+  path: string
+  title: string
+  updatedAt: string
+  editorId: number
+  editorName: string
+}
+
+export interface WikiHomeProps {
+  namespaces: WikiNamespacePayload[]
+  recent: WikiRecentPagePayload[]
+  /** PageManager/Admin 可见「前往管理端」。 */
+  canManage: boolean
+}
+
+export interface WikiTocItem {
+  level: number
+  id: string
+  text: string
+}
+
+export interface WikiContributorPayload {
+  userId: number
+  username: string
+  avatarUrl: string
+  count: number
+  lastEditedAt: string
+}
+
+export interface WikiPageDetailPayload {
+  id: number
+  topicId: number
+  namespace: string
+  path: string
+  title: string
+  /** 服务端 goldmark 输出的渲染 HTML。 */
+  content: string
+  toc: WikiTocItem[]
+  updatedAt: string
+  editorId: number
+  editorName: string
+  likeCount: number
+  viewCount: number
+  postCount: number
+  liked: boolean
+  bookmarked: boolean
+  watched: boolean
+  canEdit: boolean
+  publishedRevisionNo: number
+}
+
+export interface WikiDetailProps {
+  page: WikiPageDetailPayload
+  contributors: WikiContributorPayload[]
+  /** 复用现有 TopicPayload 类型（TopicPage 的 hotTopics 同型）。 */
+  hotTopics: TopicPayload[]
 }
