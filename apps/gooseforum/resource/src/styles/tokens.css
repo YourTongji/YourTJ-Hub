@@ -43,6 +43,12 @@
   --gf-radius-selector: 0.5rem;
   --gf-radius-field: 0.5rem;
   --gf-radius-box: 0.5rem;
+  /* 字号尺度 token（issue #229）：排课/课评界面正文下限 11px（--gf-text-xs），
+     避免 arbitrary 字号（text-[8px] 等）低于可读下限 */
+  --gf-text-xs: 0.6875rem;
+  --gf-text-sm: 0.75rem;
+  --gf-text-base: 0.875rem;
+  --gf-text-lg: 1rem;
   --gf-size-selector: 0.25rem;
   --gf-size-field: 0.25rem;
   --gf-border: 1px;

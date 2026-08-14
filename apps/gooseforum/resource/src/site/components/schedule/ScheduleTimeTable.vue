@@ -269,7 +269,7 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-sm"
+      class="overflow-x-auto rounded-2xl border border-line/70 bg-base-100 shadow-sm"
       :style="{ minHeight: (isMobile ? 620 : 820) + 'px' }"
     >
       <div
@@ -277,7 +277,7 @@ onBeforeUnmount(() => {
         class="relative border-b border-line/70 bg-base-200/45 px-3 py-2"
       >
         <span
-          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-warning-content"
+          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[11px] font-black leading-none text-warning-content"
           :title="t('schedule.creditNote')"
         >
           !
@@ -290,16 +290,16 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <table class="w-full border-collapse table-fixed">
+      <table class="w-full border-collapse table-fixed" :class="isMobile ? 'min-w-[400px]' : ''">
         <thead>
           <tr class="bg-base-200/60">
-            <th class="w-[42px] border border-line/70 p-1 text-[10px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
+            <th class="w-[42px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
               {{ t('schedule.arrangement') }}
             </th>
             <th
               v-for="day in WEEKDAY_KEYS"
               :key="day"
-              class="border border-line/70 p-1 text-[10px] font-semibold text-base-content/70 md:p-2 md:text-xs"
+              class="border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
             >
               {{ t(`schedule.weekdays.${day}`) }}
             </th>
@@ -312,7 +312,7 @@ onBeforeUnmount(() => {
             :class="[index === timeTable.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
           >
             <td
-              class="border border-line/70 p-1 text-center text-[10px] font-semibold text-base-content/70 md:p-2 md:text-xs"
+              class="border border-line/70 p-1 text-center text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
             >
               {{ t('schedule.sectionLabel', { section: index + 1 }) }}
             </td>
@@ -337,7 +337,7 @@ onBeforeUnmount(() => {
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight md:px-2 md:py-2 md:text-[11px]"
+                    class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
                     :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '']"
                     :style="courseCardStyle(course)"
                     @touchstart.stop="onPressStart(course, $event)"
@@ -355,8 +355,8 @@ onBeforeUnmount(() => {
                     @keydown.space.stop.prevent="emit('openDetail', course)"
                   >
                     <template v-if="isMobile">
-                      <span class="max-w-full truncate text-[9.5px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
-                      <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[8px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
+                      <span class="max-w-full truncate text-[11px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
+                      <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
                     </template>
                     <template v-else>
                       <span class="break-words font-extrabold tracking-tight">{{ formatCourseLines(course).title }}</span>
