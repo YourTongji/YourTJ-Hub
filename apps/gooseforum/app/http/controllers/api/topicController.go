@@ -163,7 +163,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			return component.FailResponseCode(
 				component.MessageTopicPostCooldown,
 
@@ -431,7 +431,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			return component.FailResponseCode(
 				component.MessageCommentPostCooldown,
 

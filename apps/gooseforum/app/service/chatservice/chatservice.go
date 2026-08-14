@@ -132,7 +132,7 @@ func GetChatList(userId uint64) ([]*vo.ChatItemVo, error) {
 
 		if conv != nil {
 			chatItem.LastMsg = conv.LastMsgContent
-			chatItem.LastMsgTime = conv.LastMsgTime.Format("2006-01-02 15:04:05")
+			chatItem.LastMsgTime = conv.LastMsgTime.Format(time.RFC3339)
 		}
 
 		return chatItem
@@ -182,7 +182,7 @@ func GetMessages(userId, convId uint64, beforeId, afterId uint64, limit int) (*M
 			Content:   m.Content,
 			MsgType:   m.MsgType,
 			IsRead:    m.IsRead,
-			CreatedAt: m.CreatedAt.Format("2006-01-02 15:04:05"),
+			CreatedAt: m.CreatedAt.Format(time.RFC3339),
 			IsSelf:    m.SenderId == userId,
 		}
 	})
