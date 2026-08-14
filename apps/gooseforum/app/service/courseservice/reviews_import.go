@@ -35,7 +35,11 @@ type ReviewsImportReport struct {
 
 // importReviewRow reviews.jsonl 单行（JSONL 一行一个对象）。
 // 仅消费以下字段；行内其它字段（reviewer 名称/头像/钱包/IP/编辑令牌等）一律忽略。
+// ID 为可选的行级幂等键：带 id 的行以 author_user_id=NULL 落库（同 offering 可
+// 多条 legacy 评价共存，唯一索引不冲突）；不带 id 的旧格式行维持"每 offering
+// 至多一条"语义（author_user_id=0 占位，原地更新）。
 type importReviewRow struct {
+	ID                 string `json:"id,omitempty"`
 	OfferingExternalID string `json:"offering_external_id"`
 	Rating             int    `json:"rating"`
 	Content            string `json:"content"`
@@ -48,8 +52,8 @@ type importReviewRow struct {
 // dryRun=true 时只校验 manifest、解析全部行并报告计数，不写库。
 // 幂等：manifest 内容哈希已存在且状态为 completed 时直接返回已存在报告；
 // 行级幂等：course_source_ref（entity_type=review）checksum 不变的行跳过；
-// 每个 offering 至多一条 legacy 评价（author_user_id=0 且 source=legacy-import），
-// 已存在时原地更新 content/rating/legacy_helpful_count/created_at。
+// 带 id 的行以 author_user_id=NULL 落库（唯一索引不冲突，同 offering 多条共存）；
+// 不带 id 的旧格式行每 offering 至多一条（author_user_id=0 占位），已存在时原地更新。
 func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*ReviewsImportReport, error) {
 	manifestBytes, err := os.ReadFile(manifestPath)
 	if err != nil {
@@ -195,40 +199,42 @@ func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReview
 	return rows, fileCounts, nil
 }
 
-// validateReviewRows 统计隔离行（dry-run 与真实导入共用同一判定，保证报告一致）。
-// 只读访问数据库（offering 解析），不写库。
-// source 为 reviews manifest 来源标识，offering 解析限定在该来源下（与目录导入同源）。
-// 除行级校验外，同一文件内重复的 offering_external_id 只有第一行可导入，
-// 其余进入隔离区（与目录导入的重复 external id 语义一致），避免第二行
-// 静默覆盖第一行内容、报告却记为 Updated。
 func validateReviewRows(rows []importReviewRow, source string) (quarantined int, errs []ImportError) {
 	db := dbconnect.Connect()
 	dupKeys := duplicateReviewKeys(rows)
+	seen := make(map[string]bool, len(rows))
 	for _, row := range rows {
 		if reason := reviewRowQuarantined(db, source, row); reason != "" {
 			quarantined++
 			errs = append(errs, ImportError{Entity: "review", Reason: reason})
 			continue
 		}
-		if dupKeys[strings.TrimSpace(row.OfferingExternalID)] {
+		if markReviewRowSeen(row, dupKeys, seen) {
 			quarantined++
 			errs = append(errs, ImportError{
 				Entity: "review",
-				Reason: fmt.Sprintf("duplicate offering_external_id %q in the same manifest", strings.TrimSpace(row.OfferingExternalID)),
+				Reason: fmt.Sprintf("duplicate review row %q in the same manifest", reviewRowKey(row)),
 			})
 		}
 	}
 	return
 }
 
-// duplicateReviewKeys 返回同一文件内重复出现的 offering_external_id 集合
-// （第一行保留，后续行全部进入隔离区）。
+// reviewRowKey 行级去重/幂等键：带 id 的行按 id（同一外部评价只有一行），
+// 不带 id 的旧格式行按 offering_external_id（维持每 offering 一条 legacy 语义）。
+func reviewRowKey(row importReviewRow) string {
+	if id := strings.TrimSpace(row.ID); id != "" {
+		return "id|" + id
+	}
+	return "offering|" + strings.TrimSpace(row.OfferingExternalID)
+}
+
 func duplicateReviewKeys(rows []importReviewRow) map[string]bool {
 	seen := make(map[string]struct{}, len(rows))
 	dup := make(map[string]bool)
 	for _, row := range rows {
-		key := strings.TrimSpace(row.OfferingExternalID)
-		if key == "" {
+		key := reviewRowKey(row)
+		if key == "id|" || key == "offering|" {
 			continue
 		}
 		if _, ok := seen[key]; ok {
@@ -239,7 +245,21 @@ func duplicateReviewKeys(rows []importReviewRow) map[string]bool {
 	return dup
 }
 
-// reviewRowQuarantined 返回该行隔离原因；空串表示可导入。
+// markReviewRowSeen 判定该行是否"重复键的后续行"：仅对 dup 集合中的键做
+// 第二次出现检查，保证第一行保留、后续行隔离（与目录导入重复 external id
+// 语义一致）。返回 true 表示应隔离本行。
+func markReviewRowSeen(row importReviewRow, dupKeys map[string]bool, seen map[string]bool) bool {
+	key := reviewRowKey(row)
+	if !dupKeys[key] {
+		return false
+	}
+	if seen[key] {
+		return true
+	}
+	seen[key] = true
+	return false
+}
+
 // 字段非法（rating 越界/helpful 为负/created_at 非 RFC3339）或
 // offering_external_id 无法解析为已导入 offering 时隔离，不中断整个 run。
 func reviewRowQuarantined(db *gorm.DB, source string, row importReviewRow) string {
@@ -261,13 +281,11 @@ func reviewRowQuarantined(db *gorm.DB, source string, row importReviewRow) strin
 	return ""
 }
 
-// applyReviewRows 实际写入：先做行级校验（与 dry-run 一致），每批 500 行一个事务。
-// 同一文件内重复的 offering_external_id 只有第一行可导入，其余隔离
-// （validateReviewRows 已统计），避免第二行静默覆盖第一行内容。
 func applyReviewRows(runID uint64, source string, rows []importReviewRow, report *ReviewsImportReport) error {
 	const batchSize = 500
 	db := dbconnect.Connect()
 	dupKeys := duplicateReviewKeys(rows)
+	seen := make(map[string]bool, len(rows))
 	for i := 0; i < len(rows); i += batchSize {
 		end := i + batchSize
 		if end > len(rows) {
@@ -278,7 +296,7 @@ func applyReviewRows(runID uint64, source string, rows []importReviewRow, report
 		snapshot := *report
 		if err := db.Transaction(func(tx *gorm.DB) error {
 			for _, row := range batch {
-				if err := applyReviewRow(tx, runID, source, row, report, dupKeys); err != nil {
+				if err := applyReviewRow(tx, runID, source, row, report, dupKeys, seen); err != nil {
 					return err
 				}
 			}
@@ -293,17 +311,19 @@ func applyReviewRows(runID uint64, source string, rows []importReviewRow, report
 
 // applyReviewRow 事务内写入/更新一条 legacy 评价，并 touch 行级 source_ref checksum。
 // 内容未变化（checksum 相同）时跳过，不入队搜索任务。
-func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRow, report *ReviewsImportReport, dupKeys map[string]bool) error {
+// 带 id 的行按 id 幂等（author_user_id=NULL，同 offering 多条共存）；
+// 不带 id 的旧格式行按 offering 幂等（author_user_id=0，每 offering 至多一条）。
+func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRow, report *ReviewsImportReport, dupKeys map[string]bool, seen map[string]bool) error {
 	if reason := reviewRowQuarantined(tx, source, row); reason != "" {
 		report.Quarantined++
 		report.Errors = append(report.Errors, ImportError{Entity: "review", Reason: reason})
 		return nil
 	}
-	if dupKeys[strings.TrimSpace(row.OfferingExternalID)] {
+	if markReviewRowSeen(row, dupKeys, seen) {
 		report.Quarantined++
 		report.Errors = append(report.Errors, ImportError{
 			Entity: "review",
-			Reason: fmt.Sprintf("duplicate offering_external_id %q in the same manifest", strings.TrimSpace(row.OfferingExternalID)),
+			Reason: fmt.Sprintf("duplicate review row %q in the same manifest", reviewRowKey(row)),
 		})
 		return nil
 	}
@@ -313,17 +333,36 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 	}
 	rating, createdAt, helpful, content := parseReviewRow(row)
 	checksum := rowChecksum(row)
-	ref, refErr := sourceRefByExternal(tx, source, row.OfferingExternalID, course.EntityTypeReview)
+	// review source_ref 的 external_id：带 id 行用行 id，旧格式行用 offering 外部 id
+	// （向后兼容，两种模式互不覆盖）。
+	refKey := strings.TrimSpace(row.OfferingExternalID)
+	if id := strings.TrimSpace(row.ID); id != "" {
+		refKey = id
+	}
+	ref, refErr := sourceRefByExternal(tx, source, refKey, course.EntityTypeReview)
 	if refErr == nil && ref.Checksum == checksum {
 		report.Skipped++ // 行内容未变化
 		return nil
 	}
 
 	var reviewID uint64
+	if strings.TrimSpace(row.ID) == "" {
+		reviewID, err = upsertLegacyReviewByOfferingTx(tx, offeringLocalID, rating, content, helpful, createdAt, report)
+	} else {
+		reviewID, err = upsertLegacyReviewByRefTx(tx, ref, refErr, offeringLocalID, rating, content, helpful, createdAt, report)
+	}
+	if err != nil {
+		return err
+	}
+	return touchSourceRef(tx, runID, source, refKey, reviewID, course.EntityTypeReview, checksum)
+}
+
+// upsertLegacyReviewByOfferingTx 旧格式（行无 id）：按 offering 查 legacy 行
+// （author_user_id=0），有则原地更新、无则创建（每 offering 至多一条）。
+func upsertLegacyReviewByOfferingTx(tx *gorm.DB, offeringLocalID uint64, rating *int, content string, helpful int, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
 	existing, findErr := course.FindLegacyReviewByOfferingTx(tx, offeringLocalID)
 	switch {
 	case findErr == nil:
-		// 已有 legacy 评价：原地更新，不重复插入。
 		updates := map[string]any{
 			"rating":               rating,
 			"content":              content,
@@ -331,15 +370,14 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 			"created_at":           createdAt,
 		}
 		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
-			return fmt.Errorf("update legacy review for offering %s: %w", row.OfferingExternalID, err)
+			return 0, fmt.Errorf("update legacy review for offering %d: %w", offeringLocalID, err)
 		}
-		reviewID = existing.Id
 		report.Updated++
+		return existing.Id, nil
 	case errors.Is(findErr, gorm.ErrRecordNotFound):
 		entity := course.ReviewEntity{
-			OfferingId:   offeringLocalID,
-			AuthorUserId: uint64Ptr(0), // legacy 行以 0 占位（清理置 NULL 后同 offering 可共存）
-
+			OfferingId:         offeringLocalID,
+			AuthorUserId:       uint64Ptr(0), // 旧格式以 0 占位（清理置 NULL 后同 offering 可共存）
 			Rating:             rating,
 			Content:            content,
 			IsAnonymous:        true,
@@ -349,19 +387,57 @@ func applyReviewRow(tx *gorm.DB, runID uint64, source string, row importReviewRo
 			CreatedAt:          createdAt,
 		}
 		if err := tx.Model(&course.ReviewEntity{}).Create(&entity).Error; err != nil {
-			return fmt.Errorf("create legacy review for offering %s: %w", row.OfferingExternalID, err)
+			return 0, fmt.Errorf("create legacy review for offering %d: %w", offeringLocalID, err)
 		}
-		reviewID = entity.Id
 		report.Inserted++
+		return entity.Id, nil
 	default:
-		return fmt.Errorf("lookup legacy review for offering %s: %w", row.OfferingExternalID, findErr)
+		return 0, fmt.Errorf("lookup legacy review for offering %d: %w", offeringLocalID, findErr)
 	}
+}
 
-	if err := touchSourceRef(tx, runID, source, row.OfferingExternalID, reviewID, course.EntityTypeReview, checksum); err != nil {
-		return err
+// upsertLegacyReviewByRefTx 新格式（行带 id）：按 review source_ref 定位本地行，
+// 有则更新、无则创建；author_user_id 置 NULL——NULL 在唯一索引
+// (offering_id, author_user_id) 中彼此不冲突（SQLite/PostgreSQL 一致），
+// 同 offering 多条 legacy 评价可共存。
+func upsertLegacyReviewByRefTx(tx *gorm.DB, ref course.SourceRefEntity, refErr error, offeringLocalID uint64, rating *int, content string, helpful int, createdAt time.Time, report *ReviewsImportReport) (uint64, error) {
+	if refErr == nil {
+		var existing course.ReviewEntity
+		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", ref.LocalId).First(&existing).Error; err != nil {
+			return 0, fmt.Errorf("load legacy review %d: %w", ref.LocalId, err)
+		}
+		updates := map[string]any{
+			"offering_id":          offeringLocalID,
+			"rating":               rating,
+			"content":              content,
+			"legacy_helpful_count": helpful,
+			"created_at":           createdAt,
+		}
+		if err := tx.Model(&course.ReviewEntity{}).Where("id = ?", existing.Id).Updates(updates).Error; err != nil {
+			return 0, fmt.Errorf("update legacy review %d: %w", existing.Id, err)
+		}
+		report.Updated++
+		return existing.Id, nil
 	}
-	// legacy 评价导入不改变课程搜索文档内容（文档不含课评字段），不入队搜索任务。
-	return nil
+	if !errors.Is(refErr, gorm.ErrRecordNotFound) {
+		return 0, fmt.Errorf("lookup legacy review source ref: %w", refErr)
+	}
+	entity := course.ReviewEntity{
+		OfferingId:         offeringLocalID,
+		AuthorUserId:       nil, // NULL：同 offering 多条 legacy 共存的关键
+		Rating:             rating,
+		Content:            content,
+		IsAnonymous:        true,
+		Status:             course.ReviewStatusVisible,
+		LegacyHelpfulCount: helpful,
+		Source:             course.ReviewSourceLegacyImport,
+		CreatedAt:          createdAt,
+	}
+	if err := tx.Model(&course.ReviewEntity{}).Create(&entity).Error; err != nil {
+		return 0, fmt.Errorf("create legacy review: %w", err)
+	}
+	report.Inserted++
+	return entity.Id, nil
 }
 
 // parseReviewRow 将行字段转为落库值：rating 0 → NULL（不计平均），content 去首尾空白。
