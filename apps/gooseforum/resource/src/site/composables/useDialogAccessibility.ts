@@ -80,7 +80,12 @@ export function useDialogAccessibility(
             const panel = panelRef.value
             if (!panel) return
             const focusables = focusablesOf(panel)
-            if (!focusables.length) return
+            if (!focusables.length) {
+              // 无可聚焦元素：圈禁在面板自身，焦点不逃逸（WAI-ARIA APG）
+              e.preventDefault()
+              panel.focus()
+              return
+            }
             const first = focusables[0]
             const last = focusables[focusables.length - 1]
             const active = document.activeElement instanceof HTMLElement ? document.activeElement : null

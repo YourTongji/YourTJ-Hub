@@ -109,6 +109,14 @@ describe('useScheduleStore', () => {
     expect(store.state.commonLists.stagedCourses[0].status).toBe(2)
   })
 
+  test('saveSelectedCourses 无可保存课程时为空操作（不抛错）', () => {
+    const store = useScheduleStore()
+
+    // 备选池为空：保存应为 no-op，不产生已选课程。
+    expect(() => store.saveSelectedCourses()).not.toThrow()
+    expect(store.state.commonLists.selectedCourses).toEqual([])
+  })
+
   test('损坏的 localStorage 恢复后清理（验收标准 5）', () => {
     vi.stubGlobal('window', {
       localStorage: {

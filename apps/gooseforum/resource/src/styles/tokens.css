@@ -40,6 +40,10 @@
   --gf-color-course-5-content: oklch(98% 0.003 247);
   --gf-color-course-6: oklch(40% 0.14 280);
   --gf-color-course-6-content: oklch(98% 0.003 247);
+  --gf-color-course-7: oklch(43% 0.17 230);
+  --gf-color-course-7-content: oklch(98% 0.003 247);
+  --gf-color-course-8: oklch(47% 0.12 330);
+  --gf-color-course-8-content: oklch(98% 0.003 247);
   --gf-radius-selector: 0.5rem;
   --gf-radius-field: 0.5rem;
   --gf-radius-box: 0.5rem;
@@ -92,6 +96,10 @@
   --gf-color-course-5-content: oklch(16% 0.02 265);
   --gf-color-course-6: oklch(70% 0.12 285);
   --gf-color-course-6-content: oklch(16% 0.02 265);
+  --gf-color-course-7: oklch(72% 0.13 230);
+  --gf-color-course-7-content: oklch(16% 0.02 265);
+  --gf-color-course-8: oklch(70% 0.13 330);
+  --gf-color-course-8-content: oklch(16% 0.02 265);
 }
 
 @theme inline {

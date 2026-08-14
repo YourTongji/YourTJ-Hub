@@ -39,6 +39,23 @@ const { panelRef } = useDialogAccessibility(computed(() => props.open), {
 
 type TabKey = 'required' | 'optional' | 'search'
 const activeTab = ref<TabKey>('required')
+
+const TAB_KEYS: TabKey[] = ['required', 'optional', 'search']
+
+/** tablist 方向键切换（WAI-ARIA APG Tabs，issue #227）。 */
+function handleTabKeydown(event: KeyboardEvent) {
+  const current = TAB_KEYS.indexOf(activeTab.value)
+  let next: number | undefined
+  if (event.key === 'ArrowRight') next = (current + 1) % TAB_KEYS.length
+  else if (event.key === 'ArrowLeft') next = (current - 1 + TAB_KEYS.length) % TAB_KEYS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = TAB_KEYS.length - 1
+  if (next === undefined) return
+  event.preventDefault()
+  activeTab.value = TAB_KEYS[next]
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  buttons?.[next]?.focus()
+}
 const selectedKeys = ref<Set<string>>(new Set())
 const submitting = ref(false)
 const error = ref('')
@@ -294,6 +311,7 @@ async function submit() {
               class="gf-tab"
               :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
               @click="activeTab = tab.key"
+              @keydown="handleTabKeydown"
             >
               {{ tab.label }}
             </button>

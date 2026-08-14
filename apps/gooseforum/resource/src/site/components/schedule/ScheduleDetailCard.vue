@@ -98,7 +98,7 @@ watch(
         class="fixed inset-0 z-[2100]"
       >
         <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2">
+        <div class="absolute left-1/2 top-1/2 max-h-[88vh] w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2 overflow-y-auto">
           <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
             <div class="flex items-start justify-between gap-2 px-4 py-3">
               <div class="min-w-0">

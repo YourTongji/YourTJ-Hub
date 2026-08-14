@@ -3,7 +3,10 @@
 // 对齐上游 TimeTable.vue 的渲染算法与交互：点击空格查时段课程、长按课程块看详情。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { BookOpen } from '@lucide/vue'
+import EmptyState from '@/site/components/EmptyState.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { courseColorSlotFor, courseContentVar, courseSlotVar } from '@/site/utils/courseColors'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -78,14 +81,11 @@ function hashColor(input: string): number {
   return h
 }
 
-// 课程块色阶槽位数（issue #226）：课程按稳定 hash 映射槽位，桌面/移动端同课同色。
-const COURSE_COLOR_SLOTS = 6
-
 function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
-  const seed = hashColor(course.code || course.courseName || course.showText || 'course')
-  const slot = (seed % COURSE_COLOR_SLOTS) + 1
-  const bgVar = `--gf-color-course-${slot}`
-  const contentVar = `--gf-color-course-${slot}-content`
+  const seed = course.code || course.courseName || course.showText || 'course'
+  const slot = courseColorSlotFor(seed)
+  const bgVar = courseSlotVar(slot)
+  const contentVar = courseContentVar(slot)
   return {
     // 先给单值底做回退（不支持 color-mix 的浏览器），再覆盖渐变
     background: `var(${bgVar})`,
@@ -240,6 +240,9 @@ const creditSummary = computed(() => {
   return store.creditSummary()
 })
 
+/** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
+const hasCourses = computed(() => timeTable.value.some((row) => row.some((cell) => cell.length > 0)))
+
 function handleCellClick(dayIndex: number, rowIndex: number) {
   if (!store.isMajorSelected()) return
   if ((store.state.occupied?.[rowIndex]?.[dayIndex] ?? []).length > 0) return
@@ -272,7 +275,6 @@ onBeforeUnmount(() => {
 
     <div
       class="overflow-x-auto rounded-2xl border border-line/70 bg-base-100 shadow-sm"
-      :style="{ minHeight: (isMobile ? 620 : 820) + 'px' }"
     >
       <div
         v-if="creditSummary"
@@ -292,7 +294,19 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <table class="w-full border-collapse table-fixed" :class="isMobile ? 'min-w-[400px]' : ''">
+      <EmptyState
+        v-if="timeTable.length > 0 && !hasCourses"
+        class="border-b border-line/60"
+        :icon="BookOpen"
+        :title="t('schedule.timetableEmptyTitle')"
+        :description="t('schedule.timetableEmptyHint')"
+      />
+      <EmptyState v-else-if="timeTable.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
+      <table
+        v-if="hasCourses || timeTable.length === 0"
+        class="w-full border-collapse table-fixed"
+        :class="isMobile ? 'min-w-[400px]' : ''"
+      >
         <thead>
           <tr class="bg-base-200/60">
             <th class="w-[42px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
