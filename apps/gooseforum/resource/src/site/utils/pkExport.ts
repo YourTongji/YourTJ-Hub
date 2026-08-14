@@ -182,8 +182,8 @@ export function downloadXls(filename: string, xml: string): void {
 
 function csvEscape(value: string | number): string {
   let s = String(value)
-  // 防 Excel 公式注入：以 = + - @ 开头的单元格加前导单引号，令其按文本显示。
-  if (/^[=+\-@]/.test(s)) s = `'${s}`
+  // 防 Excel 公式注入：以 = + - @ \t \r 开头的单元格加前导单引号（OWASP CSV-Injection）。
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
   return s
 }

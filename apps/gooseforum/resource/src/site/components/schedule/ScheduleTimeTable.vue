@@ -87,9 +87,11 @@ function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
   const bgVar = `--gf-color-course-${slot}`
   const contentVar = `--gf-color-course-${slot}-content`
   return {
-    background: `linear-gradient(135deg, var(${bgVar}), color-mix(in oklab, var(${bgVar}) 80%, black))`,
+    // 先给单值底做回退（不支持 color-mix 的浏览器），再覆盖渐变
+    background: `var(${bgVar})`,
+    backgroundImage: `linear-gradient(135deg, var(${bgVar}), color-mix(in oklab, var(${bgVar}) 80%, black))`,
     color: `var(${contentVar})`,
-    borderColor: `color-mix(in srgb, var(${contentVar}) 55%, transparent)`,
+    borderColor: `var(${contentVar})`,
   }
 }
 

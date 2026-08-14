@@ -11,17 +11,31 @@ const locales = ['zh', 'en', 'ja', 'it']
 
 /**
  * 粗解析 TS locale 文件为嵌套键集合。
- * 只识别 `key: 'value'` / `key: {` 形式的字面量（忽略类型/注释行），
- * 以 2 空格缩进推断层级。
+ * 支持 `key: 'value'`、`'key': 'value'`（引号键）与行内对象
+ * `weekdays: { mon: 'x', tue: 'y' }`（单行子键展开），以 2 空格缩进推断层级。
+ * 忽略类型标注/注释行。
  */
 function collectKeys(file) {
   const src = readFileSync(file, 'utf8')
   const keys = new Set()
   const stack = []
-  const indentRe = /^([ ]*)([A-Za-z][A-Za-z0-9]*):/
+  const indentRe = /^([ ]*)(?:'?([A-Za-z][A-Za-z0-9]*)'?):/
+  const inlineObjRe = /^[ ]*(?:'?([A-Za-z][A-Za-z0-9]*)'?):\s*\{([^}]*)\},?$/
   for (const raw of src.split('\n')) {
     const line = raw.trimEnd()
     if (line.trimStart().startsWith('//')) continue
+
+    // 行内对象：key: { a: 'x', b: 'y' },  → 展开子键（值内可能含 : 但键模式受限）
+    const inline = inlineObjRe.exec(line)
+    if (inline) {
+      const parentPath = [...stack.map((s) => s.name), inline[1]].join('.')
+      for (const part of inline[2].split(',')) {
+        const km = /^\s*(?:'?([A-Za-z][A-Za-z0-9]*)'?):\s*['"`]/.exec(part)
+        if (km) keys.add(`${parentPath}.${km[1]}`)
+      }
+      continue
+    }
+
     const m = indentRe.exec(line)
     if (!m) continue
     const indent = m[1].length

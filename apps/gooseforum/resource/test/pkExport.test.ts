@@ -1,4 +1,32 @@
-import { describe, expect, test } from 'vitest'
+import { describe, expect, test, vi } from 'vitest'
+
+// Node 测试环境无 document：mock i18n 为固定映射，验证导出 i18n 化逻辑
+// （键存在性由 pnpm check:i18n 门禁保证）。
+vi.mock('../src/runtime/i18n', () => ({
+  i18n: {
+    global: {
+      t: (key: string, named?: Record<string, unknown>) => {
+        const map: Record<string, string> = {
+          'schedule.exportWeekRange': 'Wk {range}',
+          'schedule.exportWeekJoin': ', ',
+          'schedule.exportColCourseName': 'Course Name',
+          'schedule.exportColWeekday': 'Day',
+          'schedule.exportColStart': 'Start Period',
+          'schedule.exportColEnd': 'End Period',
+          'schedule.exportColTeacher': 'Teacher',
+          'schedule.exportColRoom': 'Room',
+          'schedule.exportColWeeks': 'Weeks',
+          'schedule.exportColCode': 'Course Code',
+          'schedule.exportColTeacherName': 'Teacher Name',
+          'schedule.exportSheetName': 'Schedule',
+        }
+        const tmpl = map[key] ?? key
+        return named ? tmpl.replace(/\{(\w+)\}/g, (_, k) => String(named[k] ?? '')) : tmpl
+      },
+    },
+  },
+}))
+
 import {
   codesToCsvRows,
   codesToXlsRows,
