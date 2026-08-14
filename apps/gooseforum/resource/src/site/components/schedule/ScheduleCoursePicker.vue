@@ -309,18 +309,23 @@ async function submit() {
               <EmptyState
                 v-if="!requiredGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.emptyRequired')"
               />
               <section v-for="group in requiredGroups" :key="group.grade">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
                 <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
                   <li v-for="course in group.courses" :key="course.courseCode">
-                    <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
+                    <label
+                      class="flex cursor-pointer items-center gap-2 px-3 py-2"
+                      :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
+                      :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
+                    >
                       <input
                         type="checkbox"
                         class="checkbox checkbox-sm"
                         :checked="isChecked(`必_${group.grade}_${course.courseCode}`)"
                         :disabled="isAlreadyStaged(course.courseCode)"
+                        :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
                         @change="toggleKey(`必_${group.grade}_${course.courseCode}`)"
                       />
                       <span class="min-w-0 flex-1">
@@ -343,7 +348,7 @@ async function submit() {
               <EmptyState
                 v-if="!optionalGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.emptyOptional')"
               />
               <section v-for="group in optionalGroups" :key="group.label">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
@@ -398,14 +403,20 @@ async function submit() {
                 </button>
               </form>
 
+              <EmptyState v-else-if="!searchLoading" :icon="Search" :title="t('schedule.emptySearch')" />
               <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
                 <li v-for="course in searchResults" :key="course.courseCode">
-                  <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
+                  <label
+                    class="flex cursor-pointer items-center gap-2 px-3 py-2"
+                    :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
+                    :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
+                  >
                     <input
                       type="checkbox"
                       class="checkbox checkbox-sm"
                       :checked="isChecked(`查_${course.courseCode}`)"
                       :disabled="isAlreadyStaged(course.courseCode)"
+                      :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
                       @change="toggleKey(`查_${course.courseCode}`)"
                     />
                     <span class="min-w-0 flex-1">

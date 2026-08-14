@@ -66,14 +66,16 @@ function forceReplace() {
             </ul>
 
             <p class="mt-3 text-[12px] text-base-content/55">
-              {{ t('schedule.conflictWith', { course: conflicts[0]?.courseName ?? '' }) }}
+              {{ conflicts.length > 1
+        ? t('schedule.conflictWithMany', { course: conflicts[0]?.courseName ?? '', count: conflicts.length })
+        : t('schedule.conflictWith', { course: conflicts[0]?.courseName ?? '' }) }}
             </p>
 
             <div class="mt-4 flex justify-end gap-2">
               <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="emit('close')">
                 {{ t('schedule.abandon') }}
               </button>
-              <button type="button" class="gf-button gf-button-md gf-button-primary" @click="forceReplace">
+              <button type="button" class="gf-button gf-button-md gf-button-danger" @click="forceReplace">
                 {{ t('schedule.forceReplace') }}
               </button>
             </div>

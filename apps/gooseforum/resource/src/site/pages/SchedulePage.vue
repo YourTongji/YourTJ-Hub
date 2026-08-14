@@ -131,7 +131,7 @@ function handleOpenDetail(course: PkCourseOnTable) {
 
 function handleCellClick(_day: number, _section: number) {
   // 点击课表空格：引导用户通过「选择课程」添加课程（时段查课端点 P10 属 #187）。
-  flash(t('schedule.empty'), 'info')
+  flash(t('schedule.emptyCell'), 'info')
 }
 
 // ---- 导出（与课表一致：含已排入课表的所有班级）----
@@ -190,7 +190,7 @@ function exportCsv() {
   closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
-    flash(t('schedule.empty'), 'warning')
+    flash(t('schedule.exportEmpty'), 'warning')
     return
   }
   const rows = codesToCsvRows(codes, store.state.commonLists.stagedCourses)
@@ -201,7 +201,7 @@ function exportXls() {
   closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
-    flash(t('schedule.empty'), 'warning')
+    flash(t('schedule.exportEmpty'), 'warning')
     return
   }
   const rows = codesToXlsRows(codes, store.state.commonLists.stagedCourses)
@@ -235,7 +235,7 @@ onBeforeUnmount(() => {
           <button
             v-if="dataOutdated"
             type="button"
-            class="gf-button gf-button-md gf-button-danger"
+            class="gf-button gf-button-md gf-button-primary"
             @click="syncLatest"
           >
             <RefreshCw class="h-4 w-4" />
