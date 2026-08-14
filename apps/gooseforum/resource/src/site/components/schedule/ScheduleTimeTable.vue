@@ -303,7 +303,7 @@ onBeforeUnmount(() => {
           <tr
             v-for="(row, index) in timeTable"
             :key="index"
-            :class="[index === timeTable.length - 1 ? 'bg-error/5' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
+            :class="[index === timeTable.length - 1 ? 'bg-base-200/40' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
           >
             <td
               class="border border-line/70 p-1 text-center text-[10px] font-semibold text-base-content/70 md:p-2 md:text-xs"

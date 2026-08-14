@@ -294,7 +294,7 @@ async function submit() {
               <EmptyState
                 v-if="!requiredGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.pickerEmpty')"
               />
               <section v-for="group in requiredGroups" :key="group.grade">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
@@ -328,7 +328,7 @@ async function submit() {
               <EmptyState
                 v-if="!optionalGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.noAlternative')"
               />
               <section v-for="group in optionalGroups" :key="group.label">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
@@ -403,6 +403,7 @@ async function submit() {
                 </li>
               </ul>
               <EmptyState v-else-if="searchLoading" :icon="Search" :title="t('schedule.loading')" loading />
+              <EmptyState v-else :icon="Search" :title="t('schedule.noSearchResult')" />
             </div>
           </div>
 

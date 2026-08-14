@@ -5,6 +5,7 @@ import { ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Save } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import { queueFlashMessage } from '@/runtime/flash-message'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
@@ -47,8 +48,13 @@ function confirmDrop() {
 }
 
 function saveTimetable() {
-  store.saveSelectedCourses()
-  store.solidify()
+  try {
+    store.saveSelectedCourses()
+    store.solidify()
+    queueFlashMessage(t('schedule.saveSuccess'), 'success')
+  } catch {
+    queueFlashMessage(t('schedule.loadFailed'), 'error')
+  }
 }
 
 /** 课表里已排入的班级数（用于展示）。 */
@@ -74,6 +80,7 @@ function arrangedClassCount(course: PkStagedCourse): number {
       class="gf-panel"
       :icon="BookOpen"
       :title="t('schedule.empty')"
+      :description="t('schedule.cellClickHint')"
     />
 
     <ul v-else class="gf-panel divide-y divide-line/60">
