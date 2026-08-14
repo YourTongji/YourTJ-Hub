@@ -5,6 +5,12 @@ import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkCourseOnTable } from '@/site/types/pk'
+import {
+  courseColorSlots,
+  courseColorSlotFor,
+  courseContentVar,
+  courseSlotVar,
+} from '@/site/utils/courseColors'
 
 const { t } = useI18n()
 const store = useScheduleStore()
@@ -72,19 +78,17 @@ function setupMobileDetection() {
 }
 
 // ---- 课程块展示文本解析 ----
-function hashColor(input: string): number {
-  let h = 0
-  for (let i = 0; i < input.length; i++) h = (h * 31 + input.charCodeAt(i)) >>> 0
-  return h
-}
-
+// 课程块配色（issue #226）：颜色由课程稳定标识（code → courseCode → 课程名）
+// hash 到固定色阶槽位，桌面/移动端一致；颜色经 --gf-color-course-* CSS 变量
+// 解析（自定义主题无这些变量时回退默认 oklch 色板），文字色按槽位亮度钳制。
 function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
-  const seed = hashColor(course.code || course.courseName || course.showText || 'course')
-  const hue = seed % 360
-  if (isMobile.value) {
-    return { background: `linear-gradient(135deg, hsl(${hue}, 82%, 52%), hsl(${(hue + 24) % 360}, 82%, 42%))` }
+  const seed = course.code || course.courseName || course.showText || 'course'
+  const slot = courseColorSlotFor(seed)
+  const color = courseColorSlots[slot - 1]
+  return {
+    background: `var(${courseSlotVar(slot)}, ${color.bg})`,
+    color: `var(${courseContentVar(color.darkText)})`,
   }
-  return { background: 'linear-gradient(135deg, #5d57e8, #4b3fd9)' }
 }
 
 function compactName(name: string): string {
@@ -271,7 +275,7 @@ onBeforeUnmount(() => {
         class="relative border-b border-line/70 bg-base-200/45 px-3 py-2"
       >
         <span
-          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-base-100"
+          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-warning-content"
           :title="t('schedule.creditNote')"
         >
           !
@@ -326,8 +330,8 @@ onBeforeUnmount(() => {
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight text-white md:px-2 md:py-2 md:text-[11px]"
-                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed border-white/60' : '']"
+                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight md:px-2 md:py-2 md:text-[11px]"
+                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed border-base-100/60' : '']"
                     :style="courseCardStyle(course)"
                     @touchstart.stop="onPressStart(course, $event)"
                     @touchmove.stop="onPressMove($event)"
