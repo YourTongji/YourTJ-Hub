@@ -95,10 +95,11 @@ func ImportReviews(ctx context.Context, manifestPath string, dryRun bool) (*Revi
 	run := course.ImportRunEntity{
 		Source:       manifest.Source,
 		ManifestHash: manifestHash,
+		Kind:         course.ImportKindReviews,
 		Status:       course.ImportStatusRunning,
 		StartedAt:    &now,
 	}
-	existing, err := course.GetImportRunByManifestHash(manifestHash)
+	existing, err := course.GetImportRunByManifestHash(manifestHash, course.ImportKindReviews)
 	switch {
 	case err == nil && existing.Status == course.ImportStatusCompleted:
 		report.Skipped = 1 // 幂等：该 manifest 已导入完成
@@ -167,7 +168,9 @@ func loadReviewFile(manifestDir string, manifest ImportManifest) ([]importReview
 			return nil, nil, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
 		}
 		if !strings.HasPrefix(name, "reviews") {
-			return nil, nil, fmt.Errorf("unexpected manifest file %s", name)
+			// 同一 manifest 包可能同时携带 catalog 文件（courses/instructors/offerings，
+			// 上游导出器输出单包 4 文件）。本命令只消费 reviews，其余跳过。
+			continue
 		}
 		path := filepath.Join(manifestDir, name)
 		data, err := os.ReadFile(path)

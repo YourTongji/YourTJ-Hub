@@ -130,10 +130,11 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		run := course.ImportRunEntity{
 			Source:       manifest.Source,
 			ManifestHash: manifestHash,
+			Kind:         course.ImportKindCatalog,
 			Status:       course.ImportStatusRunning,
 			StartedAt:    &now,
 		}
-		existing, err := course.GetImportRunByManifestHash(manifestHash)
+		existing, err := course.GetImportRunByManifestHash(manifestHash, course.ImportKindCatalog)
 		switch {
 		case err == nil && existing.Status == course.ImportStatusCompleted:
 			report.Skipped = 1 // 幂等：该 manifest 已导入完成
@@ -230,7 +231,10 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 		case strings.HasPrefix(name, "offerings"):
 			n, err = parseJSONL(data, &rows.offerings)
 		default:
-			return rows, nil, fmt.Errorf("unexpected manifest file %s", name)
+			// 同一 manifest 包可能同时携带其他子命令的文件（如 reviews.jsonl，
+			// 上游导出器 export_legacy_course_package.py 输出单包 4 文件）。
+			// 本命令只消费自己关心的文件，其余跳过（不参与 sha256/counts 校验）。
+			continue
 		}
 		if err != nil {
 			return rows, nil, fmt.Errorf("parse %s: %w", name, err)
@@ -246,8 +250,9 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 // 在 dry-run 阶段即拒绝，避免半包被静默导入。
 // 语义：counts 缺失（yaml 无 counts 键）与显式空 counts（counts: {} 或
 // counts: null，均解析为空 map）等同——都不触发校验，向后兼容旧包；
-// 只要 counts 非空，则每个声明的文件都必须匹配，且 counts 中引用
-// manifest.files 之外的文件同样拒绝。
+// 只要 counts 非空，则每个声明的文件都必须匹配。counts 中引用本次未解析
+// 的文件（同一 manifest 包中属于其他子命令的文件，如 catalog 导入时
+// counts.reviews.jsonl）跳过不校验——它们由对应子命令（course-import reviews）校验。
 func validateManifestCounts(manifest ImportManifest, fileCounts map[string]int) error {
 	if len(manifest.Counts) == 0 {
 		return nil
@@ -255,7 +260,8 @@ func validateManifestCounts(manifest ImportManifest, fileCounts map[string]int) 
 	for name, want := range manifest.Counts {
 		got, ok := fileCounts[name]
 		if !ok {
-			return fmt.Errorf("manifest counts: no rows parsed for %s", name)
+			// 本命令不消费该文件（单包多命令场景），交由对应子命令校验。
+			continue
 		}
 		if got != want {
 			return fmt.Errorf("manifest counts mismatch for %s: want %d got %d", name, want, got)

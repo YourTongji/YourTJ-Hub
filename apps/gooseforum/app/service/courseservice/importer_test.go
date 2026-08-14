@@ -112,12 +112,14 @@ func TestImportCatalogValidatesManifestCounts(t *testing.T) {
 	} else if !strings.Contains(err.Error(), "offerings.jsonl") {
 		t.Fatalf("expected error to name the mismatching file, got %v", err)
 	}
-	// 计数引用了 manifest 中不存在的文件：同样拒绝。
-	badFile := writeManifestFixtureWithCounts(t, files, map[string]int{
+	// counts 引用 manifest 中属于其他子命令的文件（单包多命令：上游导出器
+	// 输出 catalog + reviews 共用一份 manifest）：本命令跳过不校验，交由
+	// course-import reviews 校验——dry-run 必须通过（与包内容一致）。
+	multiCmd := writeManifestFixtureWithCounts(t, files, map[string]int{
 		"courses.jsonl": 2, "instructors.jsonl": 1, "offerings.jsonl": 1, "reviews.jsonl": 1,
 	})
-	if _, err := ImportCatalog(context.Background(), badFile, true); err == nil {
-		t.Fatal("expected error for counts of unknown file")
+	if _, err := ImportCatalog(context.Background(), multiCmd, true); err != nil {
+		t.Fatalf("dry-run with cross-command counts: %v", err)
 	}
 	// 真实导入同样拒绝，确保半包不会被静默导入。
 	if _, err := ImportCatalog(context.Background(), bad, false); err == nil {
