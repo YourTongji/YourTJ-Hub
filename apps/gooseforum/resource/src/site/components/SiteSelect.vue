@@ -42,6 +42,9 @@ function openList(initialIndex?: number) {
   const selectedIndex = props.options.findIndex((option) => option.value === props.modelValue)
   const base = selectedIndex >= 0 ? selectedIndex : 0
   highlightIndex.value = initialIndex ?? base
+  // 打开后立即把焦点移入高亮 option（roving tabindex 模式），
+  // 后续 ArrowDown/Enter 由 listbox handler 处理（issue #235 review P1）。
+  requestAnimationFrame(() => focusOption(highlightIndex.value))
 }
 
 function focusOption(index: number) {
@@ -61,6 +64,12 @@ function handleTriggerKeydown(event: KeyboardEvent) {
   }
   if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
+    if (open.value) {
+      // 焦点已移入 option（openList 后），此处仅在焦点被外部拉回 trigger 时兜底：
+      // 重新聚焦当前高亮项，让列表键盘流程继续。
+      focusOption(highlightIndex.value)
+      return
+    }
     openList()
     return
   }
@@ -137,6 +146,7 @@ onBeforeUnmount(() => {
       aria-haspopup="listbox"
       :aria-expanded="open"
       :aria-controls="listboxId"
+      :aria-activedescendant="open ? `${listboxId}-opt-${highlightIndex}` : undefined"
       :aria-label="props.label || triggerLabel"
       @click="open ? (open = false) : openList()"
       @keydown="handleTriggerKeydown"
@@ -156,8 +166,9 @@ onBeforeUnmount(() => {
         @keydown="handleListKeydown"
       >
         <button
-          v-for="option in options"
+          v-for="(option, optionIndex) in options"
           :key="option.value"
+          :id="`${listboxId}-opt-${optionIndex}`"
           type="button"
           role="option"
           :aria-selected="option.value === modelValue"

@@ -94,8 +94,9 @@ function collectFiles(dir) {
 const staticRefs = new Map() // key -> [files]
 for (const file of collectFiles(join(root, 'src'))) {
   const text = readFileSync(file, 'utf8')
-  // t('a.b.c') / t("a.b.c")；排除 t(`...`) 模板串与 t('...', 带选项的已注册键（含命名参数）
-  for (const m of text.matchAll(/\bt\(['"]([A-Za-z0-9_.-]+)['"]\)/g)) {
+  // t('a.b.c') / t('a.b.c', {named}) / t("a.b.c", ...)：不要求紧跟右括号，
+  // 覆盖带命名参数调用（issue #235 review P1：带参静态键漏检会放行键名泄漏）
+  for (const m of text.matchAll(/\bt\(['"]([A-Za-z0-9_.-]+)['"]/g)) {
     const key = m[1]
     if (!staticRefs.has(key)) staticRefs.set(key, [])
     staticRefs.get(key).push(file)
