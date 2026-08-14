@@ -2,6 +2,7 @@ package pkservice
 
 import (
 	"strings"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"gorm.io/gorm"
@@ -14,9 +15,12 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 		return 0, nil
 	}
 
+	// 元数据列（issue #185）：本批次所有行共享同一 schema 版本与同步时间。
+	now := time.Now()
+
 	// calendar 只需写一次（取首行 i18n）。
 	calendarI18n := strings.TrimSpace(list[0].CalendarIdI18n)
-	if err := pk.UpsertCalendarsTx(tx, []pk.CalendarEntity{{CalendarId: calendarId, CalendarIdI18n: calendarI18n}}); err != nil {
+	if err := pk.UpsertCalendarsTx(tx, []pk.CalendarEntity{{CalendarId: calendarId, CalendarIdI18n: calendarI18n, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now}}); err != nil {
 		return 0, err
 	}
 
@@ -48,7 +52,7 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 		if lang != "" && !seenLang[lang] {
 			seenLang[lang] = true
 			langs = append(langs, pk.LanguageEntity{
-				TeachingLanguage: lang, TeachingLanguageI18n: strings.TrimSpace(course.TeachingLanguageI18n), CalendarId: calendarId,
+				TeachingLanguage: lang, TeachingLanguageI18n: strings.TrimSpace(course.TeachingLanguageI18n), CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now,
 			})
 		}
 		if course.CourseLabelId != nil {
@@ -56,26 +60,26 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 			if !seenNature[cid] {
 				seenNature[cid] = true
 				labelName := strings.TrimSpace(course.CourseLabelName)
-				natures = append(natures, pk.CourseNatureEntity{CourseLabelId: cid, CourseLabelName: labelName, CalendarId: calendarId})
-				naturesByCal = append(naturesByCal, pk.CourseNatureByCalendarEntity{CalendarId: calendarId, CourseLabelId: cid, CourseLabelName: labelName})
+				natures = append(natures, pk.CourseNatureEntity{CourseLabelId: cid, CourseLabelName: labelName, CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
+				naturesByCal = append(naturesByCal, pk.CourseNatureByCalendarEntity{CalendarId: calendarId, CourseLabelId: cid, CourseLabelName: labelName, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
 			}
 		}
 		mode := strings.TrimSpace(course.AssessmentMode)
 		if mode != "" && !seenAssessment[mode] {
 			seenAssessment[mode] = true
 			assessments = append(assessments, pk.AssessmentEntity{
-				AssessmentMode: mode, AssessmentModeI18n: strings.TrimSpace(course.AssessmentModeI18n), CalendarId: calendarId,
+				AssessmentMode: mode, AssessmentModeI18n: strings.TrimSpace(course.AssessmentModeI18n), CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now,
 			})
 		}
 		campus := strings.TrimSpace(course.Campus)
 		if campus != "" && !seenCampus[campus] {
 			seenCampus[campus] = true
-			campuses = append(campuses, pk.CampusEntity{Campus: campus, CampusI18n: strings.TrimSpace(course.CampusI18n), CalendarId: calendarId})
+			campuses = append(campuses, pk.CampusEntity{Campus: campus, CampusI18n: strings.TrimSpace(course.CampusI18n), CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
 		}
 		faculty := strings.TrimSpace(course.Faculty)
 		if faculty != "" && !seenFaculty[faculty] {
 			seenFaculty[faculty] = true
-			faculties = append(faculties, pk.FacultyEntity{Faculty: faculty, FacultyI18n: strings.TrimSpace(course.FacultyI18n), CalendarId: calendarId})
+			faculties = append(faculties, pk.FacultyEntity{Faculty: faculty, FacultyI18n: strings.TrimSpace(course.FacultyI18n), CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
 		}
 
 		var classMajorNames []string
@@ -89,7 +93,7 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 				continue
 			}
 			grade, code, name := parseMajorString(majorName)
-			majors = append(majors, pk.MajorEntity{Code: code, Grade: grade, Name: name, CalendarId: calendarId})
+			majors = append(majors, pk.MajorEntity{Code: code, Grade: grade, Name: name, CalendarId: calendarId, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
 			majorIDCache[majorName] = 0 // 占位，upsert 后回填
 		}
 		if len(classMajorNames) > 0 {
@@ -124,6 +128,8 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 			CalendarId:       calendarId,
 			NewCourseCode:    newCourseCode,
 			NewCode:          newCode,
+			SchemaVersion:    pk.PKDataSchemaVersion,
+			SyncedAt:         &now,
 		})
 
 		arrangeInfo := strings.TrimSpace(course.ArrangeInfo)
@@ -139,6 +145,8 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 				TeacherCode:     strings.TrimSpace(t.TeacherCode),
 				TeacherName:     teacherName,
 				ArrangeInfoText: extractTeacherArrangeInfo(arrangeInfo, teacherName),
+				SchemaVersion:   pk.PKDataSchemaVersion,
+				SyncedAt:        &now,
 			})
 		}
 	}
@@ -185,7 +193,7 @@ func writeBatchTxInner(tx *gorm.DB, calendarId uint64, list []CourseRaw) (int, e
 	for classID, names := range majorNamesByClass {
 		for _, name := range names {
 			if mid, ok := majorIDCache[name]; ok && mid != 0 {
-				majorCourses = append(majorCourses, pk.MajorCourseEntity{MajorId: mid, CourseId: classID})
+				majorCourses = append(majorCourses, pk.MajorCourseEntity{MajorId: mid, CourseId: classID, SchemaVersion: pk.PKDataSchemaVersion, SyncedAt: &now})
 			}
 		}
 	}

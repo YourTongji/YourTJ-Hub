@@ -13,6 +13,8 @@ const calendarTableName = "pk_calendar"
 type CalendarEntity struct {
 	CalendarId     uint64         `gorm:"primaryKey;column:calendar_id;not null;" json:"calendarId"`
 	CalendarIdI18n string         `gorm:"column:calendar_id_i18n;type:varchar(64);not null;default:'';index:idx_pk_calendar_i18n;" json:"calendarIdI18n"`
+	SchemaVersion  string         `gorm:"column:schema_version;type:varchar(64);not null;default:'';" json:"-"`
+	SyncedAt       *time.Time     `gorm:"column:synced_at;" json:"-"`
 	CreatedAt      time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 	UpdatedAt      time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	DeletedAt      gorm.DeletedAt `json:"-"`

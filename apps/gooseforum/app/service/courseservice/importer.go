@@ -130,10 +130,11 @@ func ImportCatalog(ctx context.Context, manifestPath string, dryRun bool) (*Cata
 		run := course.ImportRunEntity{
 			Source:       manifest.Source,
 			ManifestHash: manifestHash,
+			Kind:         course.ImportKindCatalog,
 			Status:       course.ImportStatusRunning,
 			StartedAt:    &now,
 		}
-		existing, err := course.GetImportRunByManifestHash(manifestHash)
+		existing, err := course.GetImportRunByManifestHash(manifestHash, course.ImportKindCatalog)
 		switch {
 		case err == nil && existing.Status == course.ImportStatusCompleted:
 			report.Skipped = 1 // 幂等：该 manifest 已导入完成
@@ -208,6 +209,12 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 	}
 	sort.Strings(names)
 	for _, name := range names {
+		// 同一 manifest 包可能同时携带其他子命令的文件（如 reviews.jsonl，上游
+		// 导出器输出单包 4 文件）。本命令只消费自己关心的文件，其余不读取、不
+		// 校验（文件完整性与计数由对应子命令 course-import reviews 负责）。
+		if !strings.HasPrefix(name, "courses") && !strings.HasPrefix(name, "instructors") && !strings.HasPrefix(name, "offerings") {
+			continue
+		}
 		wantSum := manifest.Files[name]
 		if filepath.IsAbs(name) || strings.Contains(name, "..") {
 			return rows, nil, fmt.Errorf("manifest file %q: absolute and parent paths are not allowed", name)
@@ -229,13 +236,17 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 			n, err = parseJSONL(data, &rows.instructors)
 		case strings.HasPrefix(name, "offerings"):
 			n, err = parseJSONL(data, &rows.offerings)
-		default:
-			return rows, nil, fmt.Errorf("unexpected manifest file %s", name)
 		}
 		if err != nil {
 			return rows, nil, fmt.Errorf("parse %s: %w", name, err)
 		}
 		fileCounts[name] = n
+	}
+	// 残缺包防护：manifest 声明了文件但没有任何本命令可消费的 catalog 文件
+	// （例如误把 reviews-only 包交给 course-import），直接报错而不是"静默空成功"
+	// 落一条 completed 的 run，避免运维误以为目录已导入。
+	if len(rows.courses) == 0 && len(rows.instructors) == 0 && len(rows.offerings) == 0 && len(manifest.Files) > 0 {
+		return rows, nil, fmt.Errorf("manifest contains no catalog files (want courses/instructors/offerings JSONL)")
 	}
 	return rows, fileCounts, nil
 }
@@ -246,16 +257,22 @@ func loadManifestFiles(manifestDir string, manifest ImportManifest) (importRows,
 // 在 dry-run 阶段即拒绝，避免半包被静默导入。
 // 语义：counts 缺失（yaml 无 counts 键）与显式空 counts（counts: {} 或
 // counts: null，均解析为空 map）等同——都不触发校验，向后兼容旧包；
-// 只要 counts 非空，则每个声明的文件都必须匹配，且 counts 中引用
-// manifest.files 之外的文件同样拒绝。
+// 只要 counts 非空，则每个声明的文件都必须匹配。两条例外：
+//   - counts 引用 manifest.files 之外的文件（typo/内部不一致）→ 仍拒绝；
+//   - counts 引用 manifest.files 中属于其他子命令的文件（单包多命令，如
+//     catalog 导入时 counts.reviews.jsonl）→ 跳过，由对应子命令校验。
 func validateManifestCounts(manifest ImportManifest, fileCounts map[string]int) error {
 	if len(manifest.Counts) == 0 {
 		return nil
 	}
 	for name, want := range manifest.Counts {
+		if _, declared := manifest.Files[name]; !declared {
+			return fmt.Errorf("manifest counts: unknown file %s", name)
+		}
 		got, ok := fileCounts[name]
 		if !ok {
-			return fmt.Errorf("manifest counts: no rows parsed for %s", name)
+			// 本命令不消费该文件（单包多命令场景），交由对应子命令校验。
+			continue
 		}
 		if got != want {
 			return fmt.Errorf("manifest counts mismatch for %s: want %d got %d", name, want, got)

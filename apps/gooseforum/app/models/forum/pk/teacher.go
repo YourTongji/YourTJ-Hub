@@ -16,6 +16,8 @@ type TeacherEntity struct {
 	TeacherCode     string         `gorm:"column:teacher_code;type:varchar(64);not null;default:'';index:idx_pk_teacher_code;" json:"teacherCode"`
 	TeacherName     string         `gorm:"column:teacher_name;type:varchar(128);not null;default:'';index:idx_pk_teacher_name;" json:"teacherName"`
 	ArrangeInfoText string         `gorm:"column:arrange_info_text;type:text;not null;default:'';" json:"arrangeInfoText"`
+	SchemaVersion   string         `gorm:"column:schema_version;type:varchar(64);not null;default:'';" json:"-"`
+	SyncedAt        *time.Time     `gorm:"column:synced_at;" json:"-"`
 	CreatedAt       time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 	UpdatedAt       time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	DeletedAt       gorm.DeletedAt `json:"-"`

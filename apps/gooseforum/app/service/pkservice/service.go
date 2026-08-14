@@ -187,11 +187,14 @@ func TriggerPkAuxiliaryBuild() {
 
 // rebuildTeacherTimeslots 全量重建 teacher_timeslots（先在内存解析生成 pending，
 // 解析/读取成功后再清空旧表 → 批量 upsert → 写版本，避免中途失败留下空表）。
+// 重建行同样填充 schema_version/synced_at 元数据列（issue #185），与 course-pk-sync
+// 的同步写入路径保持一致——该路径正是"版本不匹配触发重建"的元数据设计场景。
 func rebuildTeacherTimeslots() error {
 	rows, err := pk.ListTeacherArrangeRows()
 	if err != nil {
 		return err
 	}
+	now := time.Now()
 	pending := map[string]pk.TeacherTimeslotEntity{}
 	for _, row := range rows {
 		if row.TeachingClassId == 0 || row.CalendarId == 0 {
@@ -215,6 +218,8 @@ func rebuildTeacherTimeslots() error {
 					OccupySection:   section,
 					TeacherCode:     teacherCode,
 					TeacherName:     teacherName,
+					SchemaVersion:   pk.PKDataSchemaVersion,
+					SyncedAt:        &now,
 				}
 				pending[timeslotKey(entity)] = entity
 			}
