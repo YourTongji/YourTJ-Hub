@@ -3,6 +3,7 @@ package routes
 import (
 	"encoding/json"
 	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/gin-gonic/gin"
@@ -32,6 +33,7 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&course.InstructorEntity{},
 		&course.OfferingInstructorEntity{},
 		&course.SourceRefEntity{},
+		&course.CourseAiSummaryEntity{},
 		&rolePermissionRs.Entity{},
 		&optRecord.Entity{},
 		&taskQueue.Entity{},
@@ -60,6 +62,9 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 
 	router := gin.New()
 	forumLoginAPI := router.Group("/api/forum").Use(middleware.JWTAuthCheck)
+	// 与 route4api.go 一致：页面路由带 CheckLogin 中间件，测试用 JWTAuthCheck 等价替代。
+	forumLoginAPI.GET("moderation/course-reviews", forum.CourseReviewModeration)
+	forumLoginAPI.GET("moderation/courses", forum.CourseManagement)
 	forumLoginAPI.POST("moderation/course-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminCourseList))
 	forumLoginAPI.POST("moderation/course-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseCreate))
 	forumLoginAPI.POST("moderation/course-update", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseUpdate))
@@ -67,7 +72,6 @@ func setupCourseManageContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	forumLoginAPI.POST("moderation/course-review-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminReviewList))
 	forumLoginAPI.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
 	forumLoginAPI.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
-	forumLoginAPI.POST("moderation/course-stats-rebuild", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseStatsRebuild))
 	return conn, router
 }
 
@@ -81,6 +85,51 @@ func TestCourseManagePermissionDenied(t *testing.T) {
 	envelope := decodeContractEnvelope(t, recorder)
 	if envelope.Code != 1 || envelope.MessageCode != "permission.denied" {
 		t.Fatalf("expected permission.denied, got code=%d messageCode=%q", envelope.Code, envelope.MessageCode)
+	}
+}
+
+// TestCourseModerationPagesSidebarActiveKey 回归 #237：课评审核与课程管理 SSR 页面
+// 下发的 layout.sidebar.activeKey 必须与前端 AppShell.vue 侧边栏菜单 key 一致
+// （courseReviews / courseManage），否则高亮会错位到「课程」（courses）。
+func TestCourseModerationPagesSidebarActiveKey(t *testing.T) {
+	conn, router := setupCourseManageContractTest(t)
+	manager := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, manager.Id, permission.CourseManager)
+	token := contractSessionToken(t, manager)
+
+	tests := []struct {
+		name string
+		path string
+		want string
+	}{
+		{name: "course reviews", path: "/api/forum/moderation/course-reviews", want: "courseReviews"},
+		{name: "course manage", path: "/api/forum/moderation/courses", want: "courseManage"},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			req := httptest.NewRequest(http.MethodGet, tt.path, nil)
+			req.Header.Set("Authorization", "Bearer "+token)
+			req.Header.Set("X-Goose-Page", "true")
+			recorder := httptest.NewRecorder()
+			router.ServeHTTP(recorder, req)
+			if recorder.Code != http.StatusOK {
+				t.Fatalf("GET %s status = %d, want 200: %s", tt.path, recorder.Code, recorder.Body.String())
+			}
+			var payload struct {
+				Layout struct {
+					Sidebar struct {
+						ActiveKey string `json:"activeKey"`
+					} `json:"sidebar"`
+				} `json:"layout"`
+			}
+			if err := json.Unmarshal(recorder.Body.Bytes(), &payload); err != nil {
+				t.Fatalf("decode page payload %q: %v", recorder.Body.String(), err)
+			}
+			if payload.Layout.Sidebar.ActiveKey != tt.want {
+				t.Fatalf("GET %s layout.sidebar.activeKey = %q, want %q（与 AppShell.vue 菜单 key 一致）",
+					tt.path, payload.Layout.Sidebar.ActiveKey, tt.want)
+			}
+		})
 	}
 }
 

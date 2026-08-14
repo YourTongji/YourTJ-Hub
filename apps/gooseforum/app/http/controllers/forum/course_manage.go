@@ -236,6 +236,7 @@ func AdminCourseStatsRebuild(req component.BetterRequest[component.Null]) compon
 
 // CourseManagement 课程/评价管理页面（/moderation/courses）。
 // 独立 CourseManager 权限，数据全部走 JSON API 异步加载。
+// activeKey 与前端 AppShell.vue 侧边栏菜单 key（courseManage）保持一致，避免高亮错位。
 func CourseManagement(c *gin.Context) {
 	if !canModerateCourseReviews(component.LoginUserId(c)) {
 		renderNotFound(c)
@@ -248,7 +249,7 @@ func CourseManagement(c *gin.Context) {
 			Title:       pageTitle(i18n.T(requestLang(c), "meta.courseManagement")),
 			Description: i18n.T(requestLang(c), "meta.courseManagementDesc"),
 		},
-		Layout:  buildLayout(c, "courses"),
+		Layout:  buildLayout(c, "courseManage"),
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}
