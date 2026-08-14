@@ -8,10 +8,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 )
 
 func TestAgentContractUnauthorizedMatchesCanonicalFixture(t *testing.T) {
@@ -161,8 +161,38 @@ func TestAgentContractPostWindowAndCreate(t *testing.T) {
 		}
 		var window struct {
 			Posts []struct {
-				PostNo uint64 `json:"postNo"`
+				ID                 uint64 `json:"id"`
+				TopicID            uint64 `json:"topicId"`
+				PostNo             uint64 `json:"postNo"`
+				Content            string `json:"content"`
+				RenderedContent    string `json:"renderedContent"`
+				ProcessStatus      int8   `json:"processStatus"`
+				IsHidden           bool   `json:"isHidden"`
+				IsAuthorDeleted    bool   `json:"isAuthorDeleted"`
+				IsModeratorRemoved bool   `json:"isModeratorRemoved"`
+				CanModerate        bool   `json:"canModerate"`
+				Author             struct {
+					ID        uint64 `json:"id"`
+					Username  string `json:"username"`
+					AvatarURL string `json:"avatarUrl"`
+				} `json:"author"`
+				CreatedAt    string `json:"createdAt"`
+				IsOwnPost    bool   `json:"isOwnPost"`
+				UpdatedAt    string `json:"updatedAt"`
+				LikeCount    uint64 `json:"likeCount"`
+				IsLiked      bool   `json:"isLiked"`
+				IsBookmarked bool   `json:"isBookmarked"`
 			} `json:"posts"`
+			ReplyTargets []struct {
+				ID uint64 `json:"id"`
+				Author struct {
+					ID uint64 `json:"id"`
+				} `json:"author"`
+				Unavailable bool `json:"unavailable"`
+			} `json:"replyTargets"`
+			HasBefore bool  `json:"hasBefore"`
+			HasAfter  bool  `json:"hasAfter"`
+			Total     int64 `json:"total"`
 			MaxPostNo uint64 `json:"maxPostNo"`
 		}
 		if err := json.Unmarshal(response.Result, &window); err != nil {
@@ -170,6 +200,18 @@ func TestAgentContractPostWindowAndCreate(t *testing.T) {
 		}
 		if len(window.Posts) != 1 || window.Posts[0].PostNo != 1 || window.MaxPostNo != 1 {
 			t.Fatalf("post window = %#v", window)
+		}
+		if window.Posts[0].ID == 0 || window.Posts[0].TopicID != topic.Id || window.Posts[0].Author.ID == 0 || window.Posts[0].Author.Username == "" {
+			t.Fatalf("post window post identity fields missing: %#v", window.Posts[0])
+		}
+		if window.Posts[0].RenderedContent == "" || window.Posts[0].CreatedAt == "" || window.Posts[0].UpdatedAt == "" {
+			t.Fatalf("post window rendered/time fields missing: %#v", window.Posts[0])
+		}
+		if window.Posts[0].IsAuthorDeleted || window.Posts[0].IsModeratorRemoved || window.Posts[0].IsHidden {
+			t.Fatalf("post window first post must not be hidden/removed: %#v", window.Posts[0])
+		}
+		if window.ReplyTargets == nil || window.HasBefore || window.HasAfter || window.Total != 1 {
+			t.Fatalf("post window pagination fields unexpected: %#v", window)
 		}
 	})
 
@@ -260,7 +302,22 @@ func TestAgentContractSearch(t *testing.T) {
 	}
 	var search struct {
 		Query             string   `json:"query"`
+		Scope             string   `json:"scope"`
 		Topics            []any    `json:"topics"`
+		Users             []any    `json:"users"`
+		Categories        []any    `json:"categories"`
+		Courses           []any    `json:"courses"`
+		Total             int64    `json:"total"`
+		UsersTotal        int64    `json:"usersTotal"`
+		CategoriesTotal   int64    `json:"categoriesTotal"`
+		CoursesTotal      int64    `json:"coursesTotal"`
+		TotalPages        int      `json:"totalPages"`
+		Pagination        struct {
+			Page     int    `json:"page"`
+			NextPage int    `json:"nextPage"`
+			HasNext  bool   `json:"hasNext"`
+			NextURL  string `json:"nextUrl"`
+		} `json:"pagination"`
 		SearchUnavailable bool     `json:"searchUnavailable"`
 		FailedScopes      []string `json:"failedScopes"`
 	}
@@ -270,7 +327,17 @@ func TestAgentContractSearch(t *testing.T) {
 	if search.Query != "campus" {
 		t.Fatalf("search query = %q, want campus", search.Query)
 	}
-	if search.Topics == nil {
-		t.Fatal("search topics must be a present array")
+	for name, value := range map[string][]any{
+		"topics":     search.Topics,
+		"users":      search.Users,
+		"categories": search.Categories,
+		"courses":    search.Courses,
+	} {
+		if value == nil {
+			t.Fatalf("search %s must be a present array", name)
+		}
+	}
+	if search.Pagination.Page != 1 {
+		t.Fatalf("search pagination = %#v, want page 1", search.Pagination)
 	}
 }

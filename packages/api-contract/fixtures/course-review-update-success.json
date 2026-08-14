@@ -1,0 +1,22 @@
+{
+  "result": {
+    "id": 300,
+    "offeringId": 901,
+    "rating": 4,
+    "content": "更新后的评价",
+    "contentHtml": "<p>更新后的评价</p>\n",
+    "author": {
+      "kind": "member",
+      "label": "alice"
+    },
+    "viewer": {
+      "canEdit": true,
+      "canDelete": true,
+      "isHelpful": false
+    },
+    "helpfulCount": 0,
+    "createdAt": "2026-08-01T10:00:00+08:00",
+    "updatedAt": "2026-08-01T11:00:00+08:00"
+  },
+  "code": 0
+}

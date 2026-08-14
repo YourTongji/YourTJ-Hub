@@ -20,33 +20,34 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/logincrypto"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/logincrypto"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
-	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
 	"gorm.io/gorm"
 )
 
@@ -77,6 +78,7 @@ func setupHTTPContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 		&topics.Entity{},
+		&postRevisions.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
@@ -152,6 +154,9 @@ func configureHTTPContractTestSettings(t *testing.T, conn *gorm.DB) {
 		Actions: []pageConfig.RateLimitRule{
 			{Action: middleware.RateLimitLogin, WindowSeconds: 60, LimitPerIp: 5},
 			{Action: middleware.RateLimitTopicWrite, WindowSeconds: 60, LimitPerIp: 5},
+			{Action: middleware.RateLimitTotpSetup, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpEnable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
+			{Action: middleware.RateLimitTotpDisable, WindowSeconds: 60, LimitPerIp: 5, LimitPerUser: 5},
 		},
 	})
 	hotdataserve.ClearRateLimitConfigCache()
@@ -317,6 +322,13 @@ func assertFixtureParams(t *testing.T, actual map[string]any, fixture map[string
 		}
 		if !reflect.DeepEqual(actualValue, fixtureValue) {
 			t.Fatalf("params.%s = %#v, want fixture value %#v", name, actualValue, fixtureValue)
+		}
+	}
+	// 断言实际响应不包含 fixture 未声明的额外参数，防止原始解析错误串等敏感信息泄漏回归
+	// （例如 course-parse-failed.json 声明 params:{}，若 400 又带上 params.error 应在此失败）。
+	for name := range actual {
+		if _, declared := fixture[name]; !declared {
+			t.Fatalf("params.%s = %#v is present but not declared in fixture", name, actual[name])
 		}
 	}
 }

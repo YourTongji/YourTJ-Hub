@@ -8,8 +8,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
-	"github.com/leancodebox/GooseForum/app/service/storageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/storageservice"
 
 	"github.com/google/uuid"
 )
@@ -129,6 +129,17 @@ func QueryById(startId uint64, limit int) (entities []*Entity) {
 func CountFiles() int64 {
 	var count int64
 	builder().Count(&count)
+	return count
+}
+
+// CountFilesUpTo returns the number of file rows with id <= cursor. The
+// migration cursor only advances past successfully migrated (or already empty)
+// rows, so this is the task-level cumulative count of migrated objects. It is
+// derived from the persisted cursor instead of per-run local counters, so a
+// worker retry never overwrites the accumulated progress with a partial count.
+func CountFilesUpTo(cursor uint64) int64 {
+	var count int64
+	builder().Where(queryopt.Le("id", cursor)).Count(&count)
 	return count
 }
 

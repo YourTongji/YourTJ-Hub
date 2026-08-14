@@ -36,6 +36,26 @@ abstract class CategorySearchPayload with _$CategorySearchPayload {
 }
 
 @freezed
+abstract class CourseSearchPayload with _$CourseSearchPayload {
+  const factory CourseSearchPayload({
+    required int id,
+    required String primaryCode,
+    required String name,
+    required String department,
+    required int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? terms,
+    List<String>? campus,
+    double? ratingAvg,
+    int? reviewCount,
+  }) = _CourseSearchPayload;
+
+  factory CourseSearchPayload.fromJson(Map<String, dynamic> json) =>
+      _$CourseSearchPayloadFromJson(json);
+}
+
+@freezed
 abstract class SearchPageProps with _$SearchPageProps {
   const factory SearchPageProps({
     required String query,
@@ -43,9 +63,11 @@ abstract class SearchPageProps with _$SearchPageProps {
     required List<TopicPayload> topics,
     required List<UserSearchPayload> users,
     required List<CategorySearchPayload> categories,
+    required List<CourseSearchPayload> courses,
     required int total,
     required int usersTotal,
     required int categoriesTotal,
+    required int coursesTotal,
     required int totalPages,
     required PaginationPayload pagination,
     List<String>? failedScopes,

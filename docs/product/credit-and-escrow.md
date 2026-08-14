@@ -2,7 +2,7 @@
 
 > Doc type: product spec
 >
-> Status: Active (implementation `Planned`, explicitly phase 2)
+> Status: Active (implementation `Partial`: forum-local ledger mechanics are `Current`, durable reward delivery is missing, and cross-platform credit is `Planned`)
 >
 > Owner: Product owner, Platform maintainers
 >
@@ -14,10 +14,10 @@ Points (credit, linux-do) is a **cross-platform settlement center**, not a forum
 Web, mobile, and future campus services (course selection, reviews, etc.) are all **merchants/consumers**
 of the points system, sharing the forum identity (numeric users.id).
 
-- Ledger's only source = credit (PostgreSQL): balances, transactions, transfers, red packets, orders,
+- The target cross-platform ledger's only source = credit (PostgreSQL): balances, transactions, transfers, red packets, orders,
   and merchant settlement all live in credit.
-- The forum only produces points **events** (post, reply, interact), settled via credit's merchant
-  distribution API.
+- After integration, the forum produces points **events** (post, reply, interact), settled via credit's
+  merchant distribution API.
 - credit ships a merchant model: API Key + signature (MD5/Ed25519), `/pay/distribute` for issuing,
   `/pay/submit.php` for collecting, transfers, leaderboards, gamification tasks.
 - Points are a closed-loop virtual entitlement from contribution — **not a rechargeable, withdrawable,
@@ -48,7 +48,12 @@ Forum built-in OIDC Provider (numeric sub = users.id)
 
 ## Current boundary
 
-- **Points are not implemented now**: services/credit holds only deployment config and README; not
-  deployed, not wired.
+- **Forum-local ledger mechanics are `Current`**: accepted topic/reply events update the local
+  `user_points` balance and visible `users.prestige`; source keys make rewards idempotent, reply deletion
+  reverses its reward in the same transaction, and migration v14 reconstructs missing legacy balance rows.
+- **Forum-local delivery is `Partial`**: reward events use the in-memory event bus, so process loss after
+  content persistence can lose a reward; no durable outbox or reconciliation job currently repairs it.
+- **Cross-platform credit is `Planned`**: services/credit holds only deployment config and README; it is
+  not deployed or wired, and the local ledger is not presented as the future settlement source.
 - No top-up/withdrawal/fiat exchange/free transfers.
-- Points events are designed after the forum business stabilizes, to avoid early coupling.
+- Cross-platform settlement events are designed after the forum business stabilizes, to avoid early coupling.

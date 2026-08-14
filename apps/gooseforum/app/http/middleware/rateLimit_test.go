@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
 )
 
 // withUser 在进入被测中间件前注入 userId（模拟已登录请求）。
@@ -118,6 +118,31 @@ func TestRateLimitLLMSFullReturns429(t *testing.T) {
 	}
 	if retry := recorder.Header().Get("Retry-After"); retry == "" {
 		t.Fatal("Retry-After header missing on 429")
+	}
+}
+
+func TestWriteActionsReturn429(t *testing.T) {
+	for _, action := range []string{RateLimitTopicStatus, RateLimitPostDelete, RateLimitPostUpdate} {
+		t.Run(action, func(t *testing.T) {
+			ratelimit.Default().ResetAll()
+			hotdataserve.ClearRateLimitConfigCache()
+			t.Cleanup(func() {
+				ratelimit.Default().ResetAll()
+				hotdataserve.ClearRateLimitConfigCache()
+			})
+			limit := rateLimitQuotaFor(action)
+			if limit <= 0 {
+				t.Fatalf("%s limitPerIp = %d, want > 0", action, limit)
+			}
+			for range limit {
+				if recorder := rateLimitRecorder(RateLimit(action)); recorder.Code != http.StatusOK {
+					t.Fatalf("request within %s limit returned %d", action, recorder.Code)
+				}
+			}
+			if recorder := rateLimitRecorder(RateLimit(action)); recorder.Code != http.StatusTooManyRequests {
+				t.Fatalf("request beyond %s limit returned %d, want 429", action, recorder.Code)
+			}
+		})
 	}
 }
 

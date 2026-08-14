@@ -10,11 +10,11 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/oidcprovider"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	jose "github.com/go-jose/go-jose/v4"
-	"github.com/leancodebox/GooseForum/app/bundles/oidcprovider"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )

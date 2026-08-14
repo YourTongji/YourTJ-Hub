@@ -1,0 +1,695 @@
+listCourseReviews:
+  get:
+    tags: [Forum]
+    summary: List visible course reviews for a course or a single offering
+    security: []
+    operationId: listCourseReviews
+    description: |
+      Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes the
+      `viewer` state (canEdit/canDelete/isHelpful); anonymous callers receive the same reviews
+      with viewer flags false. Review payloads never contain author identity fields
+      (userId/username/avatar): anonymous and legacy reviews expose only a kind/label pair.
+    parameters:
+      - name: courseId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+      - name: offeringId
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+          description: When present, only reviews of this offering are returned.
+      - name: cursor
+        in: query
+        schema:
+          type: string
+          description: |
+            Pagination cursor returned as nextCursor in the previous response
+            (format "offeringId:reviewId"). Omit for the first page.
+      - name: pageSize
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 50
+          default: 20
+          description: Page size (default 20, max 50).
+    responses:
+      '200':
+        description: Visible reviews ordered newest first.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-reviews-list-success.json
+      '400':
+        description: Malformed course id or query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/course-parse-failed.json
+      '404':
+        description: |
+          The offering does not exist, does not belong to the given course, or is not visible.
+          The server validates offering ownership before listing (issue #176 B4), so a caller
+          cannot enumerate reviews of a hidden offering or an offering of another course.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              offeringNotFound:
+                externalValue: ../fixtures/course-review-offering-not-found.json
+      '500':
+        description: Review listing failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              listFailed:
+                externalValue: ../fixtures/course-review-list-failed.json
+
+createCourseReview:
+  post:
+    tags: [Forum]
+    summary: Create a course review for an offering
+    operationId: createCourseReview
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write. Each user can review an offering at most once; a second review for the
+      same offering fails with 409 `review.duplicate`. The offering must exist and be visible
+      (404 `review.offeringNotFound`). Anonymous reviews are stored and returned without any
+      author identity.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ReviewWriteRequest
+    responses:
+      '200':
+        description: |
+          The created review payload. Request-level validation failures (rating outside 1..5,
+          empty content, missing fields) are returned as a legacy HTTP 200 envelope
+          with `common.request.invalidParams` (issue #176 B4: the contract documents the actual
+          route behavior). Over-long content is NOT a request-level failure: it passes the
+          request validator and is rejected by the service layer as 400 `review.content.tooLong`
+          (see below). Service-level errors use their own status codes below.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewWriteResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-create-success.json
+              invalidRequest:
+                summary: Request-level validation failure (legacy HTTP 200 envelope).
+                externalValue: ../fixtures/course-review-invalid-params.json
+      '400':
+        description: |
+          Malformed JSON request body (binding failure), or a service-level validation failure
+          such as over-long content (`review.content.tooLong`). The request-level validator only
+          requires `content` to be present, so content longer than the service limit
+          (50000 chars) is rejected here, not in the legacy 200 envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/course-parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+      '404':
+        description: The offering does not exist or is not visible.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              offeringNotFound:
+                externalValue: ../fixtures/course-review-offering-not-found.json
+      '409':
+        description: The caller already reviewed this offering.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              duplicate:
+                externalValue: ../fixtures/course-review-duplicate.json
+      '429':
+        description: Course-review write rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+updateCourseReview:
+  patch:
+    tags: [Forum]
+    summary: Update the caller's own course review
+    operationId: updateCourseReview
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write. Only the author can update a review (403 `review.notOwned`); hidden or
+      deleted reviews are reported as 404 `review.notFound`. `rating` is optional and must stay in
+      1..5 when present. A review that does not exist is also 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ReviewUpdateRequest
+    responses:
+      '200':
+        description: The updated review payload, or a legacy business failure envelope for validation failures.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewWriteResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-update-success.json
+      '400':
+        description: Rating outside 1..5.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              ratingInvalid:
+                externalValue: ../fixtures/course-review-rating-invalid.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not the review author, or the account is frozen.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notOwned:
+                externalValue: ../fixtures/course-review-not-owned.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Course-review write rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+deleteCourseReview:
+  delete:
+    tags: [Forum]
+    summary: Delete the caller's own course review
+    operationId: deleteCourseReview
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write. Only the author can delete a review (403 `review.notOwned`); the review
+      enters a deletion quarantine window and stops being listed. Deleting is idempotent: repeating
+      DELETE on an already deleted review returns 200 with no further effect, and the author can
+      delete a review hidden by moderation (200). Unknown reviews report 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-delete-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not the review author, or the account is frozen.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notOwned:
+                externalValue: ../fixtures/course-review-not-owned.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Course-review write rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+markReviewHelpful:
+  put:
+    tags: [Forum]
+    summary: Mark a course review as helpful
+    operationId: markReviewHelpful
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: marking an already-helpful review succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-helpful-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Helpful rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+unmarkReviewHelpful:
+  delete:
+    tags: [Forum]
+    summary: Unmark a course review as helpful
+    operationId: unmarkReviewHelpful
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write, idempotent: unmarking a review that is not helpful succeeds. Hidden or
+      deleted reviews report 404 `review.notFound`.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: Boolean success result, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-unhelpful-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '404':
+        description: The review does not exist, is hidden, or is deleted.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Helpful rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+reportCourseReview:
+  post:
+    tags: [Forum]
+    summary: Report a course review
+    operationId: reportCourseReview
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Authenticated write. The caller cannot report their own review
+      (`report.ownContent`); a second open report for the same review is rejected as
+      `report.duplicate`. All report failures are legacy HTTP 200 business failures, matching the
+      existing forum report behavior.
+    parameters:
+      - name: reviewId
+        in: path
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ReviewReportRequest
+    responses:
+      '200':
+        description: Boolean success result or a report business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-report-success.json
+              targetInvalid:
+                externalValue: ../fixtures/course-review-report-target-invalid.json
+              ownContent:
+                externalValue: ../fixtures/course-review-report-own-content.json
+              duplicate:
+                externalValue: ../fixtures/course-review-report-duplicate.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '429':
+        description: Report rate limit exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+moderationCourseReviewStatus:
+  post:
+    tags: [Forum]
+    summary: Hide or show a course review (CourseManager)
+    operationId: moderationCourseReviewStatus
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped moderation. Unknown reviews are legacy HTTP 200 business failures
+      (`review.notFound`); permission failures are rejected by the permission middleware with
+      HTTP 403 `permission.denied` (the middleware runs before the handler). The operation is
+      idempotent and adjusts course/offering stats projections.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationCourseReviewStatusRequest
+    responses:
+      '200':
+        description: Boolean success result, or a business failure envelope (e.g. `review.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ReviewActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-moderation-status-success.json
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not a CourseManager.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/course-review-permission-denied.json
+      '429':
+        description: Course-review moderation rate limit exceeded (60s window).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+moderationCourseReviewReportList:
+  post:
+    tags: [Forum]
+    summary: List the course review report queue (CourseManager)
+    operationId: moderationCourseReviewReportList
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      CourseManager-scoped moderation queue for course review reports. Permission failures are
+      rejected by the permission middleware with HTTP 403 `permission.denied` (the middleware
+      runs before the handler). Items never expose the reviewed author's identity; the
+      reporter/handler author payloads are the standard forum author shape.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationCourseReviewReportListRequest
+    responses:
+      '200':
+        description: One page of open (or filtered) reports.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationCourseReviewReportListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-moderation-reports-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json
+      '403':
+        description: The caller is not a CourseManager.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              permissionDenied:
+                externalValue: ../fixtures/course-review-permission-denied.json
+      '429':
+        description: Course-review moderation rate limit exceeded (60s window).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+
+moderationCourseReviewReveal:
+  post:
+    tags: [Forum]
+    summary: Reveal a course review author identity (Admin only)
+    operationId: moderationCourseReviewReveal
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    description: |
+      Admin-only identity reveal for anonymous course review authors. A reason is required and the
+      reveal is written to the restricted operation log. Permission failures and unknown reviews
+      are legacy HTTP 200 business failures (`permission.denied`, `review.notFound`).
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationCourseReviewRevealRequest
+    responses:
+      '200':
+        description: The revealed author identity, or a moderation business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationCourseReviewRevealResponse
+            examples:
+              success:
+                externalValue: ../fixtures/course-review-moderation-reveal-success.json
+              permissionDenied:
+                externalValue: ../fixtures/course-review-permission-denied.json
+              notFound:
+                externalValue: ../fixtures/course-review-not-found.json
+      '429':
+        description: Identity-reveal rate limit exceeded (1h window).
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/course-review-unauthenticated.json

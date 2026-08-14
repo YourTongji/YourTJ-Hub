@@ -425,6 +425,7 @@
     }
   },
   "commonParseFailed": "页面数据解析失败",
+  "commonLoadFailed": "加载失败",
   "topicEmpty": "暂无话题",
   "settingsAvatarUploaded": "头像已上传:{url}",
   "@settingsAvatarUploaded": {

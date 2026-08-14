@@ -29,7 +29,7 @@ func NewMessageError(code MessageCode, fallback string, params MessageParams) er
 const (
 	MessageRequestInvalidFormat MessageCode = "common.request.invalidFormat" // 请求体或参数格式无法解析。
 	MessageRequestInvalidParams MessageCode = "common.request.invalidParams" // 请求参数未通过业务校验。
-	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败，params.error 可带原始错误。
+	MessageRequestParseFailed   MessageCode = "common.request.parseFailed"   // 参数绑定失败（400；不返回原始解析错误）。
 	MessageOperationSuccess     MessageCode = "common.operation.success"     // 通用操作成功。
 	MessageOperationFailed      MessageCode = "common.operation.failed"      // 通用操作失败。
 	MessageRateLimited          MessageCode = "common.rateLimited"           // 操作过于频繁，params.action/retryAfterSeconds。
@@ -141,6 +141,45 @@ const (
 	MessageReportOwnContent         MessageCode = "report.ownContent"         // 不能举报自己的内容。
 	MessageReportDuplicate          MessageCode = "report.duplicate"          // 已举报，等待处理。
 	MessageReportCreateFailed       MessageCode = "report.createFailed"       // 举报提交失败。
+
+	// 课评（course review）
+	MessageReviewNotFound         MessageCode = "review.notFound"              // 评价不存在或不可见。
+	MessageReviewNotOwned         MessageCode = "review.notOwned"              // 不能修改/删除他人的评价。
+	MessageReviewDuplicate        MessageCode = "review.duplicate"             // 已评价过该开课实例。
+	MessageReviewOfferingNotFound MessageCode = "review.offeringNotFound"      // 开课实例不存在或不可见。
+	MessageReviewRatingInvalid    MessageCode = "review.rating.invalid"        // 评分必须为 1..5 的整数。
+	MessageReviewContentEmpty     MessageCode = "review.content.empty"         // 评价内容不能为空。
+	MessageReviewContentTooLong   MessageCode = "review.content.tooLong"       // 评价内容过长，params.maxLength。
+	MessageReviewCreateFailed     MessageCode = "review.createFailed"          // 评价提交失败，params.error 可带原始错误。
+	MessageReviewUpdateFailed     MessageCode = "review.updateFailed"          // 评价更新失败，params.error 可带原始错误。
+	MessageReviewDeleteFailed     MessageCode = "review.deleteFailed"          // 评价删除失败，params.error 可带原始错误。
+	MessageReviewListFailed       MessageCode = "review.listFailed"            // 评价列表读取失败。
+	MessageReviewHelpfulFailed    MessageCode = "review.helpful.failed"        // 标记 helpful 失败。
+	MessageReviewReportFailed     MessageCode = "review.report.failed"         // 举报评价失败。
+	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
+
+	// 课程管理（管理端课程/评价管理）
+	MessageCourseNotFound           MessageCode = "course.notFound"           // 课程不存在或已删除。
+	MessageCourseCodeRequired       MessageCode = "course.codeRequired"       // 主课号不能为空。
+	MessageCourseNameRequired       MessageCode = "course.nameRequired"       // 课程名不能为空。
+	MessageCourseCodeConflict       MessageCode = "course.codeConflict"       // 主课号已被其它课程占用。
+	MessageCourseCreditInvalid      MessageCode = "course.creditInvalid"      // 学分格式不正确。
+	MessageCourseListFailed         MessageCode = "course.listFailed"         // 课程列表读取失败。
+	MessageCourseStatsRebuildQueued MessageCode = "course.statsRebuildQueued" // 课程统计重建任务已入队。
+	MessageCourseStatsRebuildFailed MessageCode = "course.statsRebuildFailed" // 课程统计重建任务入队失败。
+	MessageCourseSummaryFailed      MessageCode = "course.summary.failed"     // AI 总结生成失败（LLM 超时/输出非法等，不影响课程页主流程）。
+)
+
+const (
+	MessageContentDeleteFailed         MessageCode = "content.delete.failed"               // 删除失败。
+	MessageContentRestoreFailed        MessageCode = "content.restore.failed"              // 恢复失败。
+	MessageContentRestoreSuccess       MessageCode = "content.restore.success"             // 内容已恢复。
+	MessageContentPurgeFailed          MessageCode = "content.purge.failed"                // 永久删除失败。
+	MessageContentPurgeSuccess         MessageCode = "content.purge.success"               // 内容已永久删除。
+	MessageContentRecoveryExpired      MessageCode = "content.recovery.expired"            // 已超出恢复窗口，无法恢复。
+	MessageContentNotRecoverable       MessageCode = "content.notRecoverable"              // 该内容不可由作者恢复。
+	MessageContentPrivacyErased        MessageCode = "content.privacy.erased"              // 隐私内容已彻底删除。
+	MessageContentBatchConfirmRequired MessageCode = "content.batchDelete.confirmRequired" // 短时间内删除过多，需要二次确认，params.count。
 )
 
 const (

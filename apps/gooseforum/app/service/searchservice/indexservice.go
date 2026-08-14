@@ -5,13 +5,14 @@ import (
 	"fmt"
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/meiliconnect"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/meilisearch/meilisearch-go"
 	"github.com/samber/lo"
 	"github.com/spf13/cast"
+	"gorm.io/gorm"
 )
 
 // IndexBuildResult summarizes a Meilisearch rebuild.
@@ -20,6 +21,7 @@ type IndexBuildResult struct {
 	FailedCount    int    `json:"failedCount"`
 	TotalBatches   int    `json:"totalBatches"`
 	IndexName      string `json:"indexName"`
+	GhostRemoved   int    `json:"ghostRemoved"`
 }
 
 // convertTopicToSearchDocument maps a topic and its first post to a search document.
@@ -40,6 +42,20 @@ func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity)
 	}
 }
 
+// isTopicPubliclySearchable 判断话题当前是否应出现在公共搜索：
+// 已发布、未封禁/待审、未软删、可见性正常。
+// 供索引构建（isIndexable）与聚合搜索防御过滤（issue #132）复用，
+// 保证"索引事件未落地"的窗口期也不泄露非公开话题。
+func isTopicPubliclySearchable(topic *topics.Entity) bool {
+	if topic == nil {
+		return false
+	}
+	return topic.Status == 1 &&
+		topic.ProcessStatus == topics.ProcessStatusNormal &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive
+}
+
 func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entity) (*meilisearch.TaskInfo, error) {
 	if !meiliconnect.IsAvailable() {
 		return nil, nil
@@ -53,7 +69,18 @@ func BuildSingleTopicSearchDocument(topic *topics.Entity, firstPost *posts.Entit
 	var task *meilisearch.TaskInfo
 	var err error
 	pk := "id"
-	if topic.Status == 1 && topic.ProcessStatus == 0 {
+	// 仅"已发布、未封禁、未软删、可见性正常"的主题进入索引；其余一律删除文档。
+	// 用户删除（visibility_status=USER_DELETED）与封禁（process_status=1）都走删除分支。
+	isIndexable := topic.Status == 1 &&
+		topic.ProcessStatus == 0 &&
+		!topic.DeletedAt.Valid &&
+		topic.VisibilityStatus == topics.VisibilityActive &&
+		firstPost != nil &&
+		firstPost.Id > 0 &&
+		!firstPost.DeletedAt.Valid &&
+		firstPost.ProcessStatus == posts.ProcessStatusNormal &&
+		firstPost.VisibilityStatus == posts.VisibilityActive
+	if isIndexable {
 		doc := convertTopicToSearchDocument(topic, firstPost)
 		task, err = index.AddDocuments(doc, &meilisearch.DocumentOptions{PrimaryKey: &pk})
 		if err != nil {
@@ -95,6 +122,7 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 	processedCount := 0
 	failedCount := 0
 	totalBatches := 0
+	expectedIDs := make(map[string]struct{})
 
 	for {
 		topicList := topics.QueryById(topicStartID, limit)
@@ -105,6 +133,11 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 			firstPost := posts.Get(topic.FirstPostId)
 			if firstPost.Id == 0 {
 				firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+			}
+			// 先登记应存在于索引的文档 ID：即使本次写入失败，幽灵清理也不得
+			// 删除数据库仍要求保留的文档（写入失败由 failedCount 暴露）。
+			if topic.Status == 1 && topic.ProcessStatus == 0 {
+				expectedIDs[cast.ToString(topic.Id)] = struct{}{}
 			}
 			task, err := BuildSingleTopicSearchDocument(topic, &firstPost)
 			if err != nil {
@@ -123,17 +156,70 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 		}
 	}
 
+	// 幽灵清理删除候选在入队前按数据库最新状态复核，跳过 snapshot 之后
+	// 新创建或恢复为可索引的文档（PR #151 review P1 竞态：线上事件处理器的
+	// upsert 可能晚于 snapshot 到达，不能把它判定为幽灵删除）。
+	revalidateTopicGhost := func(id string) (bool, error) {
+		topicID := cast.ToUint64(id)
+		if topicID == 0 {
+			return false, nil
+		}
+		topic, err := topics.GetWithError(topicID)
+		if err != nil {
+			// 记录不存在 → 确实是幽灵；其他错误（如 DB 瞬时故障）→ 保守保留，
+			// 宁可不删也不误删有效文档。
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return false, nil
+			}
+			return true, err
+		}
+		return topic.Status == 1 && topic.ProcessStatus == 0, nil
+	}
+	deletedIDs, err := cleanupGhostDocuments(index, expectedIDs, revalidateTopicGhost)
+	if err != nil {
+		return nil, fmt.Errorf("清理主题索引幽灵文档失败: %w", err)
+	}
+	ghostRemoved := len(deletedIDs)
+
+	// replay：删除任务入队后、执行前，事件处理器仍可能为新文档入队 upsert；
+	// Meilisearch 同索引任务按入队顺序执行，因此把删除入队期间重新变为可索引
+	// 的文档重新入队 upsert（排在 delete 之后），确保有效文档最终不丢失。
+	replayedCount := 0
+	for _, id := range deletedIDs {
+		topicID := cast.ToUint64(id)
+		if topicID == 0 {
+			continue
+		}
+		topic := topics.Get(topicID)
+		if topic.Id == 0 || !(topic.Status == 1 && topic.ProcessStatus == 0) {
+			continue
+		}
+		firstPost := posts.Get(topic.FirstPostId)
+		if firstPost.Id == 0 {
+			firstPost, _ = posts.GetByTopicPostNoAtOrAfter(topic.Id, 1)
+		}
+		if _, err := BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+			failedCount++
+			slog.Warn("failed to restore topic search document after ghost cleanup", "topicId", topic.Id, "err", err)
+			continue
+		}
+		replayedCount++
+	}
+
 	result := &IndexBuildResult{
 		ProcessedCount: processedCount,
 		FailedCount:    failedCount,
 		TotalBatches:   totalBatches,
 		IndexName:      indexName,
+		GhostRemoved:   ghostRemoved,
 	}
 
 	fmt.Printf("\n=== Meilisearch 索引构建完成 ===\n")
 	fmt.Printf("处理批次: %d\n", result.TotalBatches)
 	fmt.Printf("成功索引: %d 个主题\n", result.ProcessedCount)
 	fmt.Printf("失败数量: %d 个主题\n", result.FailedCount)
+	fmt.Printf("提交幽灵文档删除任务: %d 个\n", result.GhostRemoved)
+	fmt.Printf("清理期间恢复索引文档: %d 个\n", replayedCount)
 	fmt.Printf("索引名称: %s\n", result.IndexName)
 
 	return result, nil

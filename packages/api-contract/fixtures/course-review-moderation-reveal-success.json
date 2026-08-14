@@ -1,0 +1,11 @@
+{
+  "result": {
+    "reviewId": 2,
+    "authorUserId": 9002,
+    "username": "alice",
+    "nickname": "爱丽丝",
+    "isAnonymous": true,
+    "source": ""
+  },
+  "code": 0
+}

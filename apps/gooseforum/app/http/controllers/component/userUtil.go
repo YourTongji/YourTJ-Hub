@@ -3,14 +3,13 @@ package component
 import (
 	"fmt"
 	"regexp"
-	"slices"
 	"strings"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 var (
@@ -122,7 +121,9 @@ func permissionActionParams(action PermissionAction, fallback string) MessagePar
 	}
 }
 
-// ValidateEmailDomain 验证邮箱域名是否符合白名单限制
+// ValidateEmailDomain 验证邮箱域名是否符合白名单限制。
+// 域名匹配大小写不敏感（DNS 域名本不区分大小写），与 OAuth 信任域名
+// 判定（oauthservice.emailInTrustedDomains）语义一致（PR #167 review）。
 func ValidateEmailDomain(email string) error {
 	securityConfig := hotdataserve.GetSecuritySettingsConfigCache()
 	if len(securityConfig.AllowedDomains) == 0 {
@@ -134,9 +135,11 @@ func ValidateEmailDomain(email string) error {
 		return NewMessageError(MessageAuthEmailDomainInvalid, "邮箱格式不正确", nil)
 	}
 
-	domain := parts[1]
-	if slices.Contains(securityConfig.AllowedDomains, domain) {
-		return nil
+	domain := strings.ToLower(parts[1])
+	for _, allowed := range securityConfig.AllowedDomains {
+		if strings.EqualFold(strings.TrimSpace(allowed), domain) {
+			return nil
+		}
 	}
 
 	return NewMessageError(

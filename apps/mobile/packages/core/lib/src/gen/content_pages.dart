@@ -1,4 +1,5 @@
 import 'package:freezed_annotation/freezed_annotation.dart';
+import 'common.dart';
 
 part 'content_pages.freezed.dart';
 part 'content_pages.g.dart';
@@ -106,9 +107,8 @@ abstract class SponsorsContactPayload with _$SponsorsContactPayload {
 
 @freezed
 abstract class SponsorsRulePayload with _$SponsorsRulePayload {
-  const factory SponsorsRulePayload({
-    required String content,
-  }) = _SponsorsRulePayload;
+  const factory SponsorsRulePayload({required String content}) =
+      _SponsorsRulePayload;
 
   factory SponsorsRulePayload.fromJson(Map<String, dynamic> json) =>
       _$SponsorsRulePayloadFromJson(json);
@@ -123,4 +123,100 @@ abstract class TermsPageProps with _$TermsPageProps {
 
   factory TermsPageProps.fromJson(Map<String, dynamic> json) =>
       _$TermsPagePropsFromJson(json);
+}
+
+@freezed
+abstract class CourseSummaryPayload with _$CourseSummaryPayload {
+  const factory CourseSummaryPayload({
+    required int id,
+    required String primaryCode,
+    required String name,
+    required String department,
+    required int creditX10,
+    List<String>? aliases,
+    List<String>? instructors,
+    List<String>? recentTerms,
+    // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+    double? ratingAvg,
+    int? reviewCount,
+  }) = _CourseSummaryPayload;
+
+  factory CourseSummaryPayload.fromJson(Map<String, dynamic> json) =>
+      _$CourseSummaryPayloadFromJson(json);
+}
+
+@freezed
+abstract class CourseCatalogPageProps with _$CourseCatalogPageProps {
+  const factory CourseCatalogPageProps({
+    required CourseCatalogQueryPayload query,
+    required List<CourseSummaryPayload> courses,
+    required PaginationPayload pagination,
+    required List<String> departments,
+  }) = _CourseCatalogPageProps;
+
+  factory CourseCatalogPageProps.fromJson(Map<String, dynamic> json) =>
+      _$CourseCatalogPagePropsFromJson(json);
+}
+
+@freezed
+abstract class CourseCatalogQueryPayload with _$CourseCatalogQueryPayload {
+  const factory CourseCatalogQueryPayload({
+    String? keyword,
+    String? department,
+    String? term,
+    String? campus,
+    String? instructor,
+    bool? onlyWithReviews,
+    String? sortBy,
+    required int page,
+    required int size,
+  }) = _CourseCatalogQueryPayload;
+
+  factory CourseCatalogQueryPayload.fromJson(Map<String, dynamic> json) =>
+      _$CourseCatalogQueryPayloadFromJson(json);
+}
+
+@freezed
+abstract class CourseOfferingPayload with _$CourseOfferingPayload {
+  const factory CourseOfferingPayload({
+    required int id,
+    required String termCode,
+    String? termName,
+    String? campus,
+    String? faculty,
+    List<String>? instructors,
+    double? ratingAvg,
+    int? reviewCount,
+  }) = _CourseOfferingPayload;
+
+  factory CourseOfferingPayload.fromJson(Map<String, dynamic> json) =>
+      _$CourseOfferingPayloadFromJson(json);
+}
+
+@freezed
+abstract class CourseDetailPageProps with _$CourseDetailPageProps {
+  const factory CourseDetailPageProps({required CourseDetailPayload course}) =
+      _CourseDetailPageProps;
+
+  factory CourseDetailPageProps.fromJson(Map<String, dynamic> json) =>
+      _$CourseDetailPagePropsFromJson(json);
+}
+
+@freezed
+abstract class CourseDetailPayload with _$CourseDetailPayload {
+  const factory CourseDetailPayload({
+    required int id,
+    required String primaryCode,
+    required String name,
+    required String department,
+    required int creditX10,
+    List<String>? aliases,
+    List<CourseOfferingPayload>? offerings,
+    double? ratingAvg,
+    int? reviewCount,
+    List<int>? ratingDistribution,
+  }) = _CourseDetailPayload;
+
+  factory CourseDetailPayload.fromJson(Map<String, dynamic> json) =>
+      _$CourseDetailPayloadFromJson(json);
 }

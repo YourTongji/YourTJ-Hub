@@ -2,6 +2,8 @@
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, shallowRef, watch } from 'vue'
 import {
   Bell,
+  BookOpen,
+  CalendarRange,
   FileText,
   Flame,
   Heart,
@@ -20,13 +22,14 @@ import {
   Shield,
   Moon,
   Sun,
+  GraduationCap,
   UserRound,
 } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import GlobalFlash from './GlobalFlash.vue'
 import { setLocale, supportedLocales, type Locale } from '@/runtime/i18n'
 import { queueFlashMessage } from '@/runtime/flash-message'
-import { useSiteTheme } from '@/runtime/site-theme'
+import { useSiteTheme, toggleThemeFromElement } from '@/runtime/site-theme'
 import { useNavigationState } from '@/runtime/navigation-state'
 import { useUnreadStatus } from '@/runtime/unread-status'
 import type { LayoutPayload } from '@gooseforum/client'
@@ -74,7 +77,7 @@ const closeTimers: Record<'lang' | 'user', number | undefined> = {
 }
 const { navigating } = useNavigationState()
 const { t, te, locale } = useI18n()
-const { isDark, toggleTheme } = useSiteTheme()
+const { isDark } = useSiteTheme()
 const unreadStatus = useUnreadStatus()
 const hasUnreadNotification = computed(() => unreadStatus.notifications.value)
 const hasUnreadMessage = computed(() => unreadStatus.messages.value)
@@ -87,6 +90,8 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
     sidebarItem('topics', t('shell.nav.topics'), '/'),
     sidebarItem('hot', t('shell.nav.hot'), '/?sort=hot'),
     sidebarItem('popular', t('shell.nav.popular'), '/?sort=popular'),
+    sidebarItem('courses', t('shell.nav.courses'), '/courses'),
+    sidebarItem('schedule', t('shell.nav.schedule'), '/schedule'),
   ]
   if (props.layout.viewer.isAuthenticated) {
     items.push(
@@ -97,6 +102,11 @@ const primaryItems = computed<SidebarNavItem[]>(() => {
   }
   if (props.layout.viewer.isModerator) {
     items.push(sidebarItem('moderation', t('shell.nav.moderation'), '/moderation'))
+  }
+  // 课评审核入口：CourseManager 权限（Admin 通过 adminPermissions 全量包含，id=6）。
+  if (props.layout.viewer.isAuthenticated && props.layout.viewer.adminPermissions.includes(6)) {
+    items.push(sidebarItem('courseReviews', t('shell.nav.courseReviews'), '/moderation/course-reviews'))
+    items.push(sidebarItem('courseManage', t('shell.nav.courseManage'), '/moderation/courses'))
   }
   return [...items, ...serverSidebarItems(props.layout.sidebar.main)]
 })
@@ -146,10 +156,14 @@ const sidebarIconMap = {
   topics: MessageCircle,
   hot: Flame,
   popular: TrendingUp,
+  courses: BookOpen,
+  schedule: CalendarRange,
   messages: Inbox,
   notifications: Bell,
   drafts: FileText,
   moderation: Scale,
+  courseReviews: GraduationCap,
+  courseManage: BookOpen,
   links: Link,
   sponsors: Heart,
 } as const
@@ -239,6 +253,10 @@ function serverSidebarItems(items: typeof props.layout.sidebar.main): SidebarNav
     url: item.url,
     active: activeSidebarKey.value === item.key,
   }))
+}
+
+function onToggleTheme(event: MouseEvent) {
+  toggleThemeFromElement(event.currentTarget as HTMLElement | null)
 }
 
 function scrollToTop() {
@@ -427,7 +445,7 @@ async function loadUserCard() {
             class="inline-flex h-9 w-9 items-center justify-center rounded-full text-icon-muted transition-colors duration-150 hover:bg-base-300 hover:text-base-content"
             :aria-label="isDark ? 'Switch to light theme' : 'Switch to dark theme'"
             :title="isDark ? 'Light' : 'Dark'"
-            @click="toggleTheme"
+            @click="onToggleTheme"
           >
             <Sun v-if="isDark" class="h-5 w-5" />
             <Moon v-else class="h-5 w-5" />

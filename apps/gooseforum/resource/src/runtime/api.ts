@@ -1,4 +1,4 @@
-import type { ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
+import type { ModerationDeletedContentView, ModerationLogListResponse, ModerationReportListResponse, NotificationFilter, NotificationListResponse, PostPayload, PostWindowPayload, UserCardPayload } from '@gooseforum/client'
 import { i18n } from './i18n'
 import { resolveApiMessage } from './api-message'
 
@@ -85,6 +85,37 @@ export interface UpdatePostResult {
   content: string
   renderedContent: string
   updatedAt: string
+  lastEditorId: number
+  lastEditedAt: string
+  revisionCount: number
+}
+
+export interface PostRevisionResult {
+  postId: number
+  versions: Array<{
+    version: number
+    editor: PostPayload['author']
+    content: string
+    renderedHTML: string
+    processStatus: number
+    createdAt: string
+  }>
+  hasMore: boolean
+  beforeVersion: number
+}
+
+export async function getPostRevisions(postId: number, beforeVersion = 0, limit = 20): Promise<PostRevisionResult> {
+  const params = new URLSearchParams({
+    postId: String(postId),
+    limit: String(limit),
+  })
+  if (beforeVersion > 0) params.set('beforeVersion', String(beforeVersion))
+  const response = await fetch(`/api/forum/posts/revisions?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<PostRevisionResult>(response, t('api.revisionsLoadFailed'))
 }
 
 
@@ -102,7 +133,11 @@ export async function updatePost(postId: number, content: string): Promise<Updat
   return readApiResponse<UpdatePostResult>(response, t('api.replyUpdateFailed'))
 }
 
-export async function deletePost(postId: number): Promise<boolean> {
+export interface DeletePostResult {
+  hasChildren: boolean
+}
+
+export async function deletePost(postId: number): Promise<DeletePostResult> {
   const response = await fetch('/api/forum/posts/delete', {
     method: 'POST',
     headers: {
@@ -112,7 +147,189 @@ export async function deletePost(postId: number): Promise<boolean> {
       postId,
     }),
   })
-  return readApiResponse<boolean>(response, t('api.replyDeleteFailed'))
+  return readApiResponse<DeletePostResult>(response, t('api.replyDeleteFailed'))
+}
+
+export async function deleteTopic(topicId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/topics/delete', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      topicId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.topicDeleteFailed'))
+}
+
+export type DeletedContentType = 'topic' | 'post'
+
+export interface DeletedContentItem {
+  id: number
+  contentType: DeletedContentType
+  title?: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  visibility: string
+  retention: string
+  deletedAt: string
+  canRestore: boolean
+  canPermanent: boolean
+  hasReplies?: boolean
+}
+
+export interface DeletedContentListResult {
+  items: DeletedContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+export async function getDeletedContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<DeletedContentListResult> {
+  const params = new URLSearchParams({
+    contentType,
+    limit: String(limit),
+  })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+
+  const response = await fetch(`/api/forum/user/deleted-content?${params.toString()}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<DeletedContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export async function restoreDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-restore', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentRestoreFailed'))
+}
+
+export async function purgeDeletedContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-purge', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+      reason: 'user_purge',
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
+}
+
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+export async function privacyEraseContent(contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-privacy-erase', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.contentPurgeFailed'))
+}
+
+/** 删除生命周期埋点（PRD R14）：前端点击/确认类事件上报。 */
+export async function reportContentEvent(eventType: 'content_delete_clicked' | 'content_delete_confirmed', contentType: DeletedContentType, contentId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/user/content-event', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({
+      eventType,
+      contentType,
+      contentId,
+    }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
+export interface MyContentItem {
+  id: number
+  contentType: DeletedContentType
+  title: string
+  excerpt?: string
+  topicId?: number
+  postNo?: number
+  createdAt: string
+}
+
+export interface MyContentListResult {
+  items: MyContentItem[]
+  hasMore: boolean
+  nextCursorId: number
+}
+
+/** 我的内容列表（PRD R9）：本人仍公开的话题/回复，供批量删除。 */
+export async function getMyContent(contentType: DeletedContentType, cursorId = 0, limit = 20): Promise<MyContentListResult> {
+  const params = new URLSearchParams({ contentType, limit: String(limit) })
+  if (cursorId > 0) params.set('cursorId', String(cursorId))
+  const response = await fetch(`/api/forum/user/my-content?${params.toString()}`, {
+    headers: { Accept: 'application/json' },
+  })
+  return readApiResponse<MyContentListResult>(response, t('api.deletedContentLoadFailed'))
+}
+
+export interface BatchDeleteResultItem {
+  contentId: number
+  success: boolean
+  message?: string
+}
+
+export interface BatchDeleteContentResult {
+  succeeded: number
+  failed: number
+  results: BatchDeleteResultItem[]
+}
+
+/** 批量删除本人内容（PRD R9）：超过频率阈值时后端要求二次确认。
+ * force=true 时后端强制校验当前用户密码，防止账号被盗后无脑清空内容。 */
+export async function batchDeleteContent(
+  contentType: DeletedContentType,
+  contentIds: number[],
+  force = false,
+  password = '',
+): Promise<BatchDeleteContentResult> {
+  const response = await fetch('/api/forum/user/content-batch-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ contentType, contentIds, force, password }),
+  })
+  return readApiResponse<BatchDeleteContentResult>(response, t('api.topicDeleteFailed'))
+}
+
+/** 注销账号（PRD R10）：mode=anonymize 保留内容匿名化；mode=delete 先删除全部内容再注销。
+ * 注销不可逆，后端强制校验当前密码。 */
+export async function closeAccount(mode: 'anonymize' | 'delete', password: string): Promise<boolean> {
+  const response = await fetch('/api/forum/user/account-close', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ mode, password }),
+  })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
+}
+
+/** 退出登录并吊销当前会话。 */
+export async function logout(): Promise<boolean> {
+  const response = await fetch('/api/logout', { method: 'POST' })
+  return readApiResponse<boolean>(response, t('api.operationFailed'))
 }
 
 export interface PostWindowInput {
@@ -290,6 +507,18 @@ export async function fetchModerationLogs(cursor = 0, pageSize = 20): Promise<Mo
     body: JSON.stringify({ cursor, pageSize }),
   })
   return readApiResponse<ModerationLogListResponse>(response, t('api.moderationLogsFailed'))
+}
+
+/** 版主查看已删除内容原文（PRD R7）：必须提供理由，每次查看都会记审计日志。 */
+export async function viewDeletedContent(contentType: 'topic' | 'post', contentId: number, reason: string): Promise<ModerationDeletedContentView> {
+  const response = await fetch('/api/forum/moderation/view-deleted-content', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ contentType, contentId, reason }),
+  })
+  return readApiResponse<ModerationDeletedContentView>(response, t('api.moderationActionFailed'))
 }
 
 export async function markAllNotificationsRead(): Promise<boolean> {
@@ -1011,4 +1240,401 @@ function arrayBufferToBase64(buffer: ArrayBuffer): string {
     binary += String.fromCharCode(bytes[i])
   }
   return window.btoa(binary)
+}
+
+// ---- 课评（course review）----
+
+export interface ReviewAuthorPayload {
+  kind: 'anonymous' | 'member' | 'legacy'
+  label: string
+}
+
+export interface ReviewViewerPayload {
+  canEdit: boolean
+  canDelete: boolean
+  isHelpful: boolean
+}
+
+export interface ReviewPayload {
+  id: number
+  offeringId: number
+  rating: number | null
+  content: string
+  contentHtml: string
+  author: ReviewAuthorPayload
+  viewer: ReviewViewerPayload
+  helpfulCount: number
+  createdAt: string
+  updatedAt: string
+}
+
+export interface CreateCourseReviewInput {
+  offeringId: number
+  rating: number
+  content: string
+  isAnonymous: boolean
+}
+
+export interface UpdateCourseReviewInput {
+  rating?: number | null
+  content?: string
+  isAnonymous?: boolean
+}
+
+export interface ModerationCourseReviewReportItem {
+  id: number
+  reviewId: number
+  reason: string
+  note: string
+  status: string
+  resolution: string
+  excerpt: string
+  reporter: { id: number; username: string; avatarUrl: string }
+  handler: { id: number; username: string; avatarUrl: string }
+  createdAt: string
+  handledAt?: string
+  reportCount: number
+}
+
+export interface ModerationCourseReviewReportListResponse {
+  items: ModerationCourseReviewReportItem[]
+  nextCursor: number
+  hasNext: boolean
+}
+
+export interface CourseReviewAuthorRevealPayload {
+  reviewId: number
+  authorUserId?: number
+  username?: string
+  nickname?: string
+  isAnonymous: boolean
+  source: string
+}
+
+export interface RelatedCourseItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  instructors?: string[]
+  ratingAvg: number
+  ratingCount: number
+  reviewCount: number
+}
+
+export interface RelatedTeacherOfferingItem {
+  offeringId: number
+  termCode?: string
+  termName?: string
+  campus?: string
+  instructors?: string[]
+  ratingAvg: number
+  ratingCount: number
+  reviewCount: number
+}
+
+export interface CourseRelatedResult {
+  teacherOtherCourses: RelatedCourseItem[]
+  sameCourseOtherTeachers: RelatedTeacherOfferingItem[]
+}
+
+export async function getCourseRelated(courseId: number): Promise<CourseRelatedResult> {
+  const response = await fetch(`/api/forum/courses/${courseId}/related`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<CourseRelatedResult>(response, t('api.courseRelatedLoadFailed'))
+}
+
+export interface ReviewPage {
+  list: ReviewPayload[]
+  nextCursor?: string
+  total: number
+}
+
+// 默认 pageSize=20（issue #174 验收约定默认 20、上限 50）。
+export async function listCourseReviews(courseId: number, offeringId = 0, cursor = '', pageSize = 20): Promise<ReviewPage> {
+  const params = new URLSearchParams()
+  if (offeringId > 0) params.set('offeringId', String(offeringId))
+  if (cursor) params.set('cursor', cursor)
+  params.set('pageSize', String(pageSize))
+  const query = params.toString()
+  const response = await fetch(`/api/forum/courses/${courseId}/reviews${query ? `?${query}` : ''}`, {
+    headers: {
+      Accept: 'application/json',
+    },
+  })
+  return readApiResponse<ReviewPage>(response, t('api.reviewsLoadFailed'))
+}
+
+export async function createCourseReview(input: CreateCourseReviewInput): Promise<ReviewPayload> {
+  const response = await fetch('/api/forum/course-reviews', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.reviewCreateFailed'))
+}
+
+export async function updateCourseReview(reviewId: number, input: UpdateCourseReviewInput): Promise<ReviewPayload> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+    method: 'PATCH',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.reviewUpdateFailed'))
+}
+
+export async function deleteCourseReview(reviewId: number): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}`, {
+    method: 'DELETE',
+  })
+  return readApiResponse<boolean>(response, t('api.reviewDeleteFailed'))
+}
+
+export async function setReviewHelpful(reviewId: number, helpful: boolean): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}/helpful`, {
+    method: helpful ? 'PUT' : 'DELETE',
+  })
+  return readApiResponse<boolean>(response, t('api.reviewHelpfulFailed'))
+}
+
+export async function reportCourseReview(reviewId: number, reason: string, note: string): Promise<boolean> {
+  const response = await fetch(`/api/forum/course-reviews/${reviewId}/reports`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reason, note }),
+  })
+  return readApiResponse<boolean>(response, t('api.reviewReportFailed'))
+}
+
+export async function moderationCourseReviewStatus(reviewId: number, action: 'hide' | 'show'): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-review-status', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reviewId, action }),
+  })
+  return readApiResponse<boolean>(response, t('api.moderationActionFailed'))
+}
+
+export async function fetchModerationCourseReviewReports(
+  status: 'open' | 'resolved' | 'rejected',
+  cursor = 0,
+  pageSize = 20,
+): Promise<ModerationCourseReviewReportListResponse> {
+  const response = await fetch('/api/forum/moderation/course-review-reports', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ status, cursor, pageSize }),
+  })
+  return readApiResponse<ModerationCourseReviewReportListResponse>(response, t('api.moderationCourseReviewReportsFailed'))
+}
+
+export async function revealCourseReviewAuthor(reviewId: number, reason: string): Promise<CourseReviewAuthorRevealPayload> {
+  const response = await fetch('/api/forum/moderation/course-review-reveal', {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+    },
+    body: JSON.stringify({ reviewId, reason }),
+  })
+  return readApiResponse<CourseReviewAuthorRevealPayload>(response, t('api.moderationCourseReviewRevealFailed'))
+}
+
+// ---- 课评管理（课程/评价 CRUD + 统计重建，CourseManager） ----
+
+export interface AdminCourseItem {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  status: number
+  aliases: string[]
+  instructors: string[]
+  reviewCount: number
+  ratingAvg?: number
+  createdAt: string
+}
+
+export interface AdminCourseListResult {
+  list: AdminCourseItem[]
+  page: number
+  size: number
+  total: number
+  hasNext: boolean
+}
+
+export interface AdminCourseCreateInput {
+  primaryCode: string
+  name: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminCourseUpdateInput {
+  primaryCode?: string
+  name?: string
+  department?: string
+  creditX10?: number
+  aliases?: string[]
+  instructors?: string[]
+}
+
+export interface AdminReviewItem {
+  id: number
+  offeringId: number
+  courseId: number
+  courseCode: string
+  courseName: string
+  rating: number | null
+  content: string
+  status: number
+  author: ReviewAuthorPayload
+  createdAt: string
+  updatedAt: string
+}
+
+export interface AdminReviewListResult {
+  items: AdminReviewItem[]
+  nextCursor: number
+  hasNext: boolean
+}
+
+export interface AdminReviewUpdateInput {
+  rating?: number | null
+  content?: string
+}
+
+export async function fetchAdminCourses(keyword = '', department = '', page = 1, pageSize = 20): Promise<AdminCourseListResult> {
+  const response = await fetch('/api/forum/moderation/course-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, department, page, pageSize }),
+  })
+  return readApiResponse<AdminCourseListResult>(response, t('api.adminCourseListFailed'))
+}
+
+export async function createAdminCourse(input: AdminCourseCreateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-create', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify(input),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseCreateFailed'))
+}
+
+export async function updateAdminCourse(courseId: number, input: AdminCourseUpdateInput): Promise<AdminCourseItem> {
+  const response = await fetch('/api/forum/moderation/course-update', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId, ...input }),
+  })
+  return readApiResponse<AdminCourseItem>(response, t('api.adminCourseUpdateFailed'))
+}
+
+export async function deleteAdminCourse(courseId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ courseId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseDeleteFailed'))
+}
+
+export async function fetchAdminReviews(keyword = '', status = -1, cursor = 0, pageSize = 20): Promise<AdminReviewListResult> {
+  const response = await fetch('/api/forum/moderation/course-review-list', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ keyword, status, cursor, pageSize }),
+  })
+  return readApiResponse<AdminReviewListResult>(response, t('api.adminReviewListFailed'))
+}
+
+export async function updateAdminReview(reviewId: number, input: AdminReviewUpdateInput): Promise<ReviewPayload> {
+  const response = await fetch('/api/forum/moderation/course-review-edit', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId, ...input }),
+  })
+  return readApiResponse<ReviewPayload>(response, t('api.adminReviewUpdateFailed'))
+}
+
+export async function deleteAdminReview(reviewId: number): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-review-delete', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ reviewId }),
+  })
+  return readApiResponse<boolean>(response, t('api.adminReviewDeleteFailed'))
+}
+
+export async function rebuildCourseStats(): Promise<boolean> {
+  const response = await fetch('/api/forum/moderation/course-stats-rebuild', {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+  })
+  return readApiResponse<boolean>(response, t('api.adminCourseStatsRebuildFailed'))
+}
+
+// ---- B7: AI 课程总结（issue #181） ----
+
+export type CourseSummaryStatus = 'cached' | 'generated' | 'insufficient_data' | 'disabled' | 'error' | 'rateLimited'
+
+export type CourseSummarySentiment = 'positive' | 'neutral' | 'negative'
+
+export interface CourseSummaryRepresentativeReview {
+  excerpt: string
+  sentiment: CourseSummarySentiment
+}
+
+export interface CourseSummaryPayload {
+  consensus: string
+  keywords: string[]
+  pros: string[]
+  cons: string[]
+  representativeReviews: CourseSummaryRepresentativeReview[]
+}
+
+export interface CourseSummaryResult {
+  status: CourseSummaryStatus
+  summary?: CourseSummaryPayload
+  generatedAt?: string
+  model?: string
+  retryAfterSeconds?: number
+}
+
+export async function getCourseSummary(courseId: number, refresh = false): Promise<CourseSummaryResult> {
+  const query = refresh ? '?refresh=true' : ''
+  const response = await fetch(`/api/forum/courses/${courseId}/summary${query}`, {
+    headers: { Accept: 'application/json' },
+  })
+  if (response.status === 429) {
+    const retryHeader = Number(response.headers.get('Retry-After'))
+    const retryAfterSeconds = Number.isFinite(retryHeader) && retryHeader > 0 ? retryHeader : undefined
+    return { status: 'rateLimited', retryAfterSeconds }
+  }
+  if (!response.ok) {
+    return { status: 'error' }
+  }
+  const data = (await response.json().catch(() => undefined)) as
+    | { code?: number; result?: CourseSummaryResult; data?: CourseSummaryResult }
+    | undefined
+  if (!data) return { status: 'error' }
+  const result = (data.result ?? data.data) as CourseSummaryResult | undefined
+  if (!result) return { status: 'error' }
+  return result
 }

@@ -45,7 +45,7 @@ Before editing, state whether the change affects:
 - forum backend layer (bundles / models / service / http controllers) and cross-layer access;
 - forum frontend (`resource/`, generated types, GoHTML templates);
 - HTTP/OpenAPI compatibility (packages/api-contract);
-- database migration/backfill/concurrency (app/migration, SQLite/MySQL, PostgreSQL pending);
+- database migration/backfill/concurrency (app/migration, SQLite dev / PostgreSQL deployment default);
 - auth (GitHub OAuth current; Casdoor OIDC planned), JWT sessions, PII, privacy, retention, or audit;
 - credit compliance / signatures / replay (phase 2, only when credit work is in scope);
 - search (Meilisearch), cache, counters, notifications, or background jobs;
@@ -89,7 +89,7 @@ Then run the exact gates for changed paths:
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out).
 - **PostgreSQL migration gate (mandatory for any model/migration change):** run the PG migration
-  tests against a real PostgreSQL. The models must not hardcode MySQL-only types
+  tests against a real PostgreSQL. The models must not hardcode dialect-only types
   (`bigint unsigned` / `datetime` / `tinyint`) — GORM generates `bigint unsigned` from such tags and
   PG rejects it, the table is never created, and the service starts with a broken schema (issue #8
   regression). Verify with:

@@ -13,6 +13,7 @@ on:
       - "apps/gooseforum/resource/templates/**"
       - "apps/gooseforum/testdata/markdown-compat/**"
       - "packages/api-contract/**"
+      - "deploy/scripts/**"
       - ".github/workflows/ci-backend.yml"
   # PR 无条件触发, 保证 required status check 稳定存在(不会被 paths 跳过卡死)
   pull_request:
@@ -59,6 +60,9 @@ jobs:
               - 'apps/gooseforum/go.mod'
               - 'apps/gooseforum/go.sum'
               - '.github/workflows/ci-backend.yml'
+            deploy_scripts:
+              - 'deploy/scripts/**'
+              - '.github/workflows/ci-backend.yml'
 
       - uses: actions/setup-go@v5
         if: steps.filter.outputs.backend == 'true'
@@ -76,6 +80,17 @@ jobs:
         if: steps.filter.outputs.backend == 'true'
         working-directory: apps/gooseforum
         run: go build .
+
+      # deploy 运维脚本测试(issue #134): DSN 解析支持 URL/key=value 两种格式,
+      # 非法 DSN 在调用侧于任何 DB 操作前报错; 仅脚本变更时运行。
+      - name: Deploy scripts (bash syntax + DSN parser tests)
+        if: steps.filter.outputs.deploy_scripts == 'true'
+        run: |
+          # bash -n 只语法检查第一个文件参数, 多文件写法会静默跳过其余文件, 必须逐个检查
+          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh; do
+            bash -n "$f"
+          done
+          bash deploy/scripts/pgdsn_test.sh
 
   # 全部主库模型必须在 PostgreSQL 上可迁移。回归背景: issue #8 曾因模型里
   # 硬编码 MySQL 类型(bigint unsigned/datetime/tinyint)导致 PG 建表失败、
@@ -103,8 +118,10 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version: "1.26"
-      - name: Test (PostgreSQL migration)
+      - name: Test (PostgreSQL migration + stats concurrency)
         working-directory: apps/gooseforum
         env:
           YOURTJ_TEST_PG_URL: "host=127.0.0.1 port=5432 user=postgres password=postgres dbname=postgres sslmode=disable"
-        run: go test ./app/migration/ -run 'TestSchema' -v
+        run: |
+          go test ./app/migration/ -run 'TestSchema' -v
+          go test ./app/models/forum/course/ -run 'TestUpsertCourseStatsConcurrentPostgreSQL' -v

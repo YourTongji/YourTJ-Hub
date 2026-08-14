@@ -14,6 +14,8 @@ export 'src/api/repositories/user_repository.dart';
 
 export 'src/gen/agent.dart';
 export 'src/gen/auth.dart';
+export 'src/gen/course_review.dart';
+export 'src/gen/course_summary.dart';
 export 'src/gen/chat.dart';
 export 'src/gen/common.dart';
 export 'src/gen/content_pages.dart';

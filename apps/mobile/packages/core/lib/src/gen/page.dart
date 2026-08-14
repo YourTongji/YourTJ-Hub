@@ -27,7 +27,8 @@ abstract class PagePayload with _$PagePayload {
     required String version,
   }) = _PagePayload;
 
-  factory PagePayload.fromJson(Map<String, dynamic> json) => _$PagePayloadFromJson(json);
+  factory PagePayload.fromJson(Map<String, dynamic> json) =>
+      _$PagePayloadFromJson(json);
 }
 
 /// 页面组件注册表:component 字符串 → props 类型。
@@ -47,6 +48,8 @@ abstract final class PageComponent {
   static const themePreview = 'theme.preview';
   static const publish = 'publish.index';
   static const search = 'search.index';
+  static const course = 'course.index';
+  static const courseDetail = 'course.detail';
   static const login = 'auth.login';
   static const resetPassword = 'auth.resetPassword';
   static const error = 'error.index';
@@ -65,7 +68,8 @@ T? parsePageProps<T>(PagePayload page) {
       PageComponent.category => CategoryPageProps.fromJson(props) as T,
       PageComponent.links => LinksPageProps.fromJson(props) as T,
       PageComponent.sponsors => SponsorsPageProps.fromJson(props) as T,
-      PageComponent.notifications => NotificationsPageProps.fromJson(props) as T,
+      PageComponent.notifications =>
+        NotificationsPageProps.fromJson(props) as T,
       PageComponent.drafts => DraftsPageProps.fromJson(props) as T,
       PageComponent.terms => TermsPageProps.fromJson(props) as T,
       PageComponent.messages => MessagesPageProps.fromJson(props) as T,
@@ -74,8 +78,11 @@ T? parsePageProps<T>(PagePayload page) {
       PageComponent.themePreview => ThemePreviewProps.fromJson(props) as T,
       PageComponent.publish => PublishPageProps.fromJson(props) as T,
       PageComponent.search => SearchPageProps.fromJson(props) as T,
+      PageComponent.course => CourseCatalogPageProps.fromJson(props) as T,
+      PageComponent.courseDetail => CourseDetailPageProps.fromJson(props) as T,
       PageComponent.login => LoginPageProps.fromJson(props) as T,
-      PageComponent.resetPassword => ResetPasswordPageProps.fromJson(props) as T,
+      PageComponent.resetPassword =>
+        ResetPasswordPageProps.fromJson(props) as T,
       PageComponent.error => ErrorPageProps.fromJson(props) as T,
       _ => null,
     };

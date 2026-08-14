@@ -302,6 +302,8 @@ export interface TopicDetailPayload {
   url: string
   topicStatus: number
   processStatus: number
+  authorDeleted: boolean
+  moderatorRemoved: boolean
   author: {
     id: number
     username: string
@@ -330,6 +332,8 @@ export interface PostPayload {
   renderedContent: string
   processStatus: number
   isHidden: boolean
+  isAuthorDeleted: boolean
+  isModeratorRemoved: boolean
   canModerate: boolean
   author: {
     id: number
@@ -344,6 +348,15 @@ export interface PostPayload {
   replyToUsername?: string
   isOwnPost: boolean
   updatedAt?: string
+  lastEditor?: {
+    id: number
+    username: string
+    nickname?: string
+    avatarUrl: string
+    wornBadge?: UserBadgePayload | null
+  }
+  lastEditedAt?: string
+  revisionCount: number
   likeCount: number
   isLiked: boolean
   isBookmarked: boolean
@@ -360,6 +373,8 @@ export interface ReplyTargetPayload {
     wornBadge?: UserBadgePayload | null
   }
   renderedContent?: string
+  isAuthorDeleted?: boolean
+  isModeratorRemoved?: boolean
   unavailable?: boolean
 }
 
@@ -464,12 +479,29 @@ export interface ModerationReportItem {
   categories: Array<{ id: number; name: string; url: string; color: string }>
   createdAt: string
   handledAt?: string
+  targetDeleted?: boolean
 }
 
 export interface ModerationReportListResponse {
   items: ModerationReportItem[]
   nextCursor: number
   hasNext: boolean
+}
+
+export interface ModerationDeletedContentView {
+  contentType: 'topic' | 'post'
+  contentId: number
+  topicId?: number
+  title: string
+  content: string
+  authorId: number
+  authorName: string
+  categories: Array<{ id: number; name: string; url: string; color: string }>
+  deletedBy: number
+  deletedByWho: string
+  deletedAt: string
+  deleteReason: string
+  targetUrl: string
 }
 
 export interface UserCardPayload {
@@ -499,6 +531,7 @@ export interface UserCardPayload {
   wornBadge?: UserBadgePayload | null
   lastActiveTime: string
   createdAt: string
+  isAccountClosed: boolean
 }
 
 export interface UserProfileProps {
@@ -632,6 +665,11 @@ export interface SponsorsPageProps {
 }
 
 export interface TermsPageProps {
+  enabled: boolean
+  contentHtml: string
+}
+
+export interface PrivacyPageProps {
   enabled: boolean
   contentHtml: string
 }
@@ -856,9 +894,11 @@ export interface SearchPageProps {
   topics: TopicPayload[]
   users: UserSearchPayload[]
   categories: CategorySearchPayload[]
+  courses: CourseSearchPayload[]
   total: number
   usersTotal: number
   categoriesTotal: number
+  coursesTotal: number
   totalPages: number
   pagination: {
     page: number
@@ -868,4 +908,93 @@ export interface SearchPageProps {
   }
   failedScopes?: string[]
   searchUnavailable?: boolean
+}
+
+export interface CourseSearchPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  terms?: string[]
+  campus?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
+}
+
+export interface CourseCatalogPageProps {
+  query: {
+    keyword?: string
+    department?: string
+    term?: string
+    campus?: string
+    instructor?: string
+    onlyWithReviews?: boolean
+    sortBy?: string
+    page: number
+    size: number
+  }
+  courses: CourseSummaryPayload[]
+  pagination: {
+    page: number
+    nextPage: number
+    hasNext: boolean
+    nextUrl: string
+  }
+  departments: string[]
+}
+
+export interface CourseSummaryPayload {
+  id: number
+  primaryCode: string
+  name: string
+  department: string
+  creditX10: number
+  aliases?: string[]
+  instructors?: string[]
+  recentTerms?: string[]
+  // B1 统计投影（PRD §5.1）：非 NULL 评分均分 / 可见评价数；无评分时省略。
+  ratingAvg?: number
+  reviewCount?: number
+}
+
+export interface CourseDetailPageProps {
+  course: {
+    id: number
+    primaryCode: string
+    name: string
+    department: string
+    creditX10: number
+    aliases?: string[]
+    // B1 统计投影（PRD §5.1）：均分 / 评论数 / 1-5 星各档计数（index 0 = 1 星）。
+    // 无评分/无评价时省略（omitempty），前端按 undefined 降级展示。
+    ratingAvg?: number
+    reviewCount?: number
+    ratingDistribution?: number[]
+    offerings?: Array<{
+      id: number
+      termCode: string
+      termName?: string
+      campus?: string
+      faculty?: string
+      instructors?: string[]
+      ratingAvg?: number
+      reviewCount?: number
+    }>
+  }
+}
+
+export interface CourseReviewModerationPageProps {
+  // 课评审核页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
+export interface CourseManagementPageProps {
+  // 课程/评价管理页数据全部走 JSON API 异步加载（见 runtime/api.ts），SSR 仅提供空壳。
+}
+
+export interface SchedulePageProps {
+  // 排课器数据全部走 PK JSON API（/api/pk/*）异步加载（见 runtime/pk-api.ts），SSR 仅提供空壳。
 }

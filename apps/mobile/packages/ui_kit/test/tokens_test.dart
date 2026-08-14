@@ -5,9 +5,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:ui_kit/ui_kit.dart';
 
-/// The authoritative 29-token key set, mirrored from
+/// The authoritative site-theme token key set, mirrored from
 /// `apps/gooseforum/resource/packages/client/src/contracts/payload.ts`
-/// (`siteThemeTokenKeys`).
+/// (`siteThemeTokenKeys`). `tokens.json` must cover every key; it may also
+/// carry static UI tokens (see [staticUiTokenKeys]).
 const List<String> siteThemeTokenKeys = <String>[
   'color-base-100',
   'color-base-200',
@@ -40,6 +41,15 @@ const List<String> siteThemeTokenKeys = <String>[
   'depth',
 ];
 
+/// Static UI tokens that `tokens.json` may carry in addition to
+/// [siteThemeTokenKeys]. These mirror web `tokens.css` additions (AGENTS.md
+/// design-token sync rule) that have no site-theme counterpart in
+/// `payload.ts` and no `GfColors` field.
+const List<String> staticUiTokenKeys = <String>[
+  'color-tooltip-bg',
+  'color-tooltip-content',
+];
+
 String colorToHex(Color color) {
   return '#${(color.toARGB32() & 0xFFFFFF).toRadixString(16).padLeft(6, '0')}';
 }
@@ -49,15 +59,24 @@ void main() {
       jsonDecode(File('lib/src/theme/tokens.json').readAsStringSync())
           as Map<String, dynamic>;
 
-  test('tokens.json exposes all 29 keys for light and dark', () {
+  test('tokens.json covers all site theme keys for light and dark', () {
     expect(tokens.keys.toSet(), <String>{'light', 'dark'});
     for (final String theme in <String>['light', 'dark']) {
       final Map<String, dynamic> themeTokens =
           tokens[theme] as Map<String, dynamic>;
+      final Set<String> actual = themeTokens.keys.toSet();
       expect(
-        themeTokens.keys.toSet(),
-        siteThemeTokenKeys.toSet(),
-        reason: '$theme must carry exactly the siteThemeTokenKeys',
+        actual.containsAll(siteThemeTokenKeys),
+        isTrue,
+        reason: '$theme must cover every siteThemeTokenKey',
+      );
+      final Set<String> extra = actual.difference(siteThemeTokenKeys.toSet());
+      expect(
+        extra.difference(staticUiTokenKeys.toSet()),
+        isEmpty,
+        reason:
+            '$theme carries undeclared tokens: '
+            '${extra.difference(staticUiTokenKeys.toSet())}',
       );
       for (final String key in siteThemeTokenKeys) {
         expect(
@@ -73,7 +92,10 @@ void main() {
     for (final String theme in <String>['light', 'dark']) {
       final Map<String, dynamic> themeTokens =
           tokens[theme] as Map<String, dynamic>;
-      for (final String key in siteThemeTokenKeys) {
+      for (final String key in <String>[
+        ...siteThemeTokenKeys,
+        ...staticUiTokenKeys,
+      ]) {
         if (!key.startsWith('color-')) continue;
         final Object value = themeTokens[key]!;
         expect(value, isA<String>(), reason: '$theme/$key');

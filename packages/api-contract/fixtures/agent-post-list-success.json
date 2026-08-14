@@ -9,6 +9,8 @@
         "renderedContent": "<p>First post content</p>",
         "processStatus": 0,
         "isHidden": false,
+        "isAuthorDeleted": false,
+        "isModeratorRemoved": false,
         "canModerate": false,
         "author": {
           "id": 1001,
@@ -16,18 +18,33 @@
           "avatarUrl": "/static/img/avatar/1.png"
         },
         "createdAt": "2025-06-15 10:00:00",
+        "replyToPostId": 9099,
+        "replyToUserId": 1002,
+        "replyToUsername": "alumni",
         "isOwnPost": false,
         "updatedAt": "2025-06-15 10:00:00",
-        "likeCount": 0,
-        "isLiked": false,
+        "likeCount": 2,
+        "isLiked": true,
         "isBookmarked": false
       }
     ],
-    "replyTargets": [],
-    "hasBefore": false,
+    "replyTargets": [
+      {
+        "id": 9099,
+        "postNo": 1,
+        "author": {
+          "id": 1002,
+          "username": "alumni",
+          "avatarUrl": "/static/img/avatar/2.png"
+        },
+        "renderedContent": "<p>Out-of-window parent post</p>",
+        "unavailable": false
+      }
+    ],
+    "hasBefore": true,
     "hasAfter": false,
-    "total": 1,
-    "maxPostNo": 1
+    "total": 3,
+    "maxPostNo": 3
   },
   "code": 0
 }

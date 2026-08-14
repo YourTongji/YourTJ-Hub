@@ -7,7 +7,7 @@ import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -26,6 +26,7 @@ import {
 } from '@/admin/components/ui/dialog'
 import {
   createStorageMigrateTask,
+  getAiSummarySettings,
   getAnnouncement,
   getMCPSettings,
   getMailSettings,
@@ -41,6 +42,7 @@ import {
   saveHttpNotifySettings,
   saveMailSettings,
   savePostingSettings,
+  saveAiSummarySettings,
   saveMCPSettings,
   saveRateLimitSettings,
   saveSecuritySettings,
@@ -55,6 +57,7 @@ import { adminToast } from '@/admin/runtime/toast'
 import { resolveApiMessage } from '@/runtime/api-message'
 import type {
   AdminPayload,
+  AiSummarySettings,
   ManageHomeProps,
   AdminTaskRow,
   AnnouncementConfig,
@@ -70,7 +73,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -93,6 +96,31 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+interface MigrateTaskPayload {
+  lastId?: number
+  total?: number
+  processed?: number
+  failed?: number
+  clearAfterMigrate?: boolean
+}
+
+function parseMigrateTask(task: AdminTaskRow): MigrateTaskPayload {
+  try {
+    const raw = JSON.parse(task.taskJson || '{}') as unknown
+    if (typeof raw === 'object' && raw !== null) {
+      return raw as MigrateTaskPayload
+    }
+    return {}
+  } catch {
+    return {}
+  }
+}
+
+// 渲染用：为每条迁移任务预解析 taskJson，展示进度与失败数，避免模板内重复解析。
+const migrateTaskRows = computed(() =>
+  migrateTasks.value.map((task) => ({ ...task, payload: parseMigrateTask(task) }))
+)
 
 const siteForm = reactive<SiteSettings>({
   siteName: '',
@@ -138,6 +166,10 @@ const rateLimitForm = reactive<RateLimitSettings>({
 const mcpForm = reactive<MCPSettings>({
   enabled: false,
   writes: false,
+})
+const aiSummaryForm = reactive<AiSummarySettings>({
+  enabled: false,
+  globalPerMinute: 5,
 })
 
 const postingForm = reactive<PostingSettings>({
@@ -216,6 +248,7 @@ const pageMeta = computed(() => {
     posting: { title: adminText('k0007'), description: adminText('k0008') },
     'rate-limit': { title: adminText('k00ig'), description: adminText('k00ij') },
     mcp: { title: adminText('k00mj'), description: adminText('k00mk') },
+    'ai-summary': { title: adminText('k00n0'), description: adminText('k00n1') },
     'http-notify': { title: adminText('k00cj'), description: adminText('k00cp') },
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
@@ -317,6 +350,12 @@ function normalizeMCP(settings: Partial<MCPSettings> = {}) {
     enabled: toBool(settings.enabled, false),
     writes: toBool(settings.writes, false),
   } satisfies MCPSettings
+}
+function normalizeAiSummary(settings: Partial<AiSummarySettings> = {}) {
+  return {
+    enabled: toBool(settings.enabled, false),
+    globalPerMinute: Math.max(Number(settings.globalPerMinute ?? 5), 0),
+  } satisfies AiSummarySettings
 }
 
 function normalizePosting(settings: Partial<PostingSettings> = {}) {
@@ -538,6 +577,7 @@ async function load() {
     else if (props.kind === 'posting') Object.assign(postingForm, normalizePosting(await getPostingSettings()))
     else if (props.kind === 'rate-limit') Object.assign(rateLimitForm, normalizeRateLimit(await getRateLimitSettings()))
     else if (props.kind === 'mcp') Object.assign(mcpForm, normalizeMCP(await getMCPSettings()))
+    else if (props.kind === 'ai-summary') Object.assign(aiSummaryForm, normalizeAiSummary(await getAiSummarySettings()))
     else if (props.kind === 'http-notify') Object.assign(httpNotifyForm, normalizeHttpNotify(await getHttpNotifySettings()))
     else if (props.kind === 'storage') {
       Object.assign(storageForm, normalizeStorage(await getStorageSettings()))
@@ -564,6 +604,7 @@ async function save() {
     else if (props.kind === 'posting') await savePostingSettings(normalizePosting(postingForm))
     else if (props.kind === 'rate-limit') await saveRateLimitSettings(normalizeRateLimit(rateLimitForm))
     else if (props.kind === 'mcp') await saveMCPSettings(normalizeMCP(mcpForm))
+    else if (props.kind === 'ai-summary') await saveAiSummarySettings(normalizeAiSummary(aiSummaryForm))
     else if (props.kind === 'http-notify') await saveHttpNotifySettings(httpNotifySettings!)
     else if (props.kind === 'storage') await saveStorageSettings(normalizeStorage(storageForm))
     else if (props.kind === 'terms') await saveTermsOfService(normalizeTerms(termsForm))
@@ -964,6 +1005,21 @@ onMounted(load)
         </div>
       </form>
 
+      <form v-else-if="kind === 'ai-summary'" class="max-w-2xl space-y-8" @submit.prevent="save">
+        <div class="flex items-center justify-between rounded-lg border bg-muted/10 p-4">
+          <div>
+            <div class="flex items-center gap-2 text-base font-medium"><Sparkles class="size-4" />{{ adminText('k00n4') }}</div>
+            <p class="mt-1 text-sm text-muted-foreground">{{ adminText('k00n5') }}</p>
+          </div>
+          <Switch v-model="aiSummaryForm.enabled" />
+        </div>
+        <label class="grid gap-2 text-sm font-medium">
+          {{ adminText('k00n6') }}
+          <Input v-model.number="aiSummaryForm.globalPerMinute" type="number" min="0" :disabled="!aiSummaryForm.enabled" />
+          <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00n7') }}</span>
+        </label>
+      </form>
+
       <form v-else-if="kind === 'posting'" class="grid gap-12 lg:grid-cols-2" @submit.prevent="save">
         <section class="space-y-6">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><FileText class="size-5 text-muted-foreground" />{{ adminText('k0096') }}</div>
@@ -1163,14 +1219,18 @@ onMounted(load)
 
         <section class="space-y-3">
           <div class="flex items-center gap-2 border-b pb-2 text-lg font-medium"><HardDrive class="size-5 text-muted-foreground" />{{ adminText('k00if') }}</div>
-          <div v-if="migrateTasks.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
-          <div v-for="task in migrateTasks" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
+          <div v-if="migrateTaskRows.length === 0" class="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">{{ adminText('k00hq') }}</div>
+          <div v-for="task in migrateTaskRows" :key="task.id" class="space-y-2 rounded-lg border bg-background p-3 text-sm">
             <div class="flex flex-wrap items-center justify-between gap-2">
               <div class="flex items-center gap-2">
                 <span class="font-mono text-xs text-muted-foreground">#{{ task.id }}</span>
                 <Badge :variant="task.status === 2 ? 'default' : task.status === 3 ? 'destructive' : 'secondary'" class="px-2 py-0 text-xs">{{ migrateTaskStatus(task.status) }}</Badge>
               </div>
               <span class="text-xs text-muted-foreground">{{ task.createdAt || '-' }}</span>
+            </div>
+            <div v-if="task.payload.total != null || (task.payload.failed || 0) > 0" class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs">
+              <span v-if="task.payload.total != null" class="text-muted-foreground">{{ adminText('k00ms', { processed: task.payload.processed || 0, total: task.payload.total }) }}</span>
+              <span v-if="(task.payload.failed || 0) > 0" class="font-medium text-destructive">{{ adminText('k00mt', { failed: task.payload.failed }) }}</span>
             </div>
             <div v-if="task.lastError" class="truncate text-xs text-destructive">{{ task.lastError }}</div>
           </div>

@@ -5,19 +5,28 @@ import (
 	"fmt"
 	"math/rand"
 	"strings"
+	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/pageutil"
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/samber/lo"
 	"gorm.io/gorm"
 )
 
-// dummyBotHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
-// equalize password-verification timing when a bot account is presented at
-// the human login endpoint. It runs the same 10000-iteration cost as real
-// hashes so username enumeration via response time is not possible.
-const dummyBotHashForTiming = "kQZbUFLHdF2p4QRUQ7kVsv6r0LqRFiYBoK9V0MaRTzc=:eW91cnRqLWJvdC10aW1pbmctc2FsdC0wMTIzNDU2Nzg5YWJjZGVm"
+// dummyHashForTiming is a fixed PBKDF2-SHA256 hash:salt value used to
+// equalize password-verification timing when no usable credential row is
+// present (unknown username/email, bot account, or an empty/malformed
+// stored hash such as imported users without a password). It runs the same
+// 10000-iteration cost as real hashes so username enumeration via response
+// time is not possible.
+const dummyHashForTiming = "BhHz/kgB9L+m25V1YC0SHSBS4njsDq8fyOaQvNTaX80=:eW91cnRqLXRpbWluZy1kdW1teS1zYWx0LTAxMjM0NTY="
+
+// verifyEncryptPassword is the password verification entry point, held in a
+// package-level variable so tests can spy on which stored hash each Verify
+// path verifies against (the timing equalization calls return discarded
+// errors and are otherwise unobservable).
+var verifyEncryptPassword = algorithm.VerifyEncryptPassword
 
 // ErrInvalidCredentials is the single error returned for every failed
 // password verification (unknown user, bot account, or wrong password), so
@@ -38,16 +47,24 @@ func Verify(usernameOrEmail string, password string) (*EntityComplete, error) {
 		err = builder().Where("username = ?", usernameOrEmail).First(&user).Error
 	}
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			// 账号不存在时也执行与真实校验等量的 PBKDF2，抹平响应时间差，
+			// 避免通过登录响应时间枚举已注册账号（CWE-208）。
+			_ = verifyEncryptPassword(dummyHashForTiming, password)
+			return &EntityComplete{}, ErrInvalidCredentials
+		}
 		return &user, err
 	}
-	// 机器人（Agent）账号不参与密码登录。先执行与真实校验等量的 PBKDF2
-	// 以抹平响应时间，再返回与错误密码完全相同的错误，避免枚举 bot 账号，
-	// 也与“bot 邮箱为空、密码不可用”的约束一致。
-	if user.IsBot() {
-		_ = algorithm.VerifyEncryptPassword(dummyBotHashForTiming, password)
+	// 两类无法完成真实校验的账号同样先执行等量 PBKDF2 再返回统一错误：
+	// bot 账号不参与密码登录（也无可用密码）；存储哈希为空或畸形的账号
+	// （如数据导入未设密码）不可能校验通过，且 VerifyEncryptPassword 对
+	// 畸形值会跳过 PBKDF2 直接报错。否则快速响应会确定性地区分
+	// “账号不存在”与“账号已存在但无有效密码”，重开枚举侧信道。
+	if user.IsBot() || !algorithm.IsWellFormedPasswordHash(user.Password) {
+		_ = verifyEncryptPassword(dummyHashForTiming, password)
 		return &EntityComplete{}, ErrInvalidCredentials
 	}
-	err = algorithm.VerifyEncryptPassword(user.Password, password)
+	err = verifyEncryptPassword(user.Password, password)
 	if err != nil {
 		return &EntityComplete{}, ErrInvalidCredentials
 	}
@@ -90,6 +107,25 @@ func UpdateWornBadgeCode(userID uint64, badgeCode string) error {
 	return builder().
 		Where(queryopt.Eq(pid, userID)).
 		Update("worn_badge_code", badgeCode).Error
+}
+
+// CloseAccount 注销账号（PRD R10）：软删用户并清空对外展示字段。
+// 历史内容仍保留 userId 指向，渲染层因用户不可见而回退为「已注销用户」。
+func CloseAccount(userID uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq(pid, userID)).Updates(map[string]any{
+		"deleted_at":      time.Now(),
+		"worn_badge_code": "",
+	}).Error
+}
+
+// IsAccountClosed 判断账号是否已注销（软删）。
+func IsAccountClosed(userID uint64) bool {
+	var entity EntityComplete
+	err := builder().Unscoped().Where(queryopt.Eq(pid, userID)).First(&entity).Error
+	if err != nil || entity.Id == 0 {
+		return false
+	}
+	return entity.DeletedAt.Valid
 }
 
 func All() (entities []*EntityComplete) {

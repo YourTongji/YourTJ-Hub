@@ -12,37 +12,38 @@ import (
 	"strings"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/transform"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/badgeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/chatservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/notificationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/themeservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/unreadservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/http/controllers/transform"
-	"github.com/leancodebox/GooseForum/app/http/controllers/vo"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/badgeservice"
-	"github.com/leancodebox/GooseForum/app/service/chatservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/notificationservice"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/app/service/postservice"
-	"github.com/leancodebox/GooseForum/app/service/searchservice"
-	"github.com/leancodebox/GooseForum/app/service/themeservice"
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/unreadservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/samber/lo"
 )
 
@@ -283,54 +284,63 @@ type TopicDetailProps struct {
 }
 
 type TopicDetailPayload struct {
-	ID            uint64                 `json:"id"`
-	Title         string                 `json:"title"`
-	Description   string                 `json:"description"`
-	FirstImageURL string                 `json:"firstImageUrl,omitempty"`
-	URL           string                 `json:"url"`
-	TopicStatus   int8                   `json:"topicStatus"`
-	ProcessStatus int8                   `json:"processStatus"`
-	Author        TopicAuthorPayload     `json:"author"`
-	Participants  []TopicAuthorPayload   `json:"participants"`
-	Categories    []TopicCategoryPayload `json:"categories"`
-	ReplyCount    uint64                 `json:"replyCount"`
-	MaxPostNo     uint64                 `json:"maxPostNo"`
-	ViewCount     uint64                 `json:"viewCount"`
-	LikeCount     uint64                 `json:"likeCount"`
-	IsLiked       bool                   `json:"isLiked"`
-	IsBookmarked  bool                   `json:"isBookmarked"`
-	IsWatched     bool                   `json:"isWatched"`
-	CreatedAt     string                 `json:"createdAt"`
-	UpdatedAt     string                 `json:"updatedAt"`
+	ID               uint64                 `json:"id"`
+	Title            string                 `json:"title"`
+	Description      string                 `json:"description"`
+	FirstImageURL    string                 `json:"firstImageUrl,omitempty"`
+	URL              string                 `json:"url"`
+	TopicStatus      int8                   `json:"topicStatus"`
+	ProcessStatus    int8                   `json:"processStatus"`
+	AuthorDeleted    bool                   `json:"authorDeleted"`
+	ModeratorRemoved bool                   `json:"moderatorRemoved"`
+	Author           TopicAuthorPayload     `json:"author"`
+	Participants     []TopicAuthorPayload   `json:"participants"`
+	Categories       []TopicCategoryPayload `json:"categories"`
+	ReplyCount       uint64                 `json:"replyCount"`
+	MaxPostNo        uint64                 `json:"maxPostNo"`
+	ViewCount        uint64                 `json:"viewCount"`
+	LikeCount        uint64                 `json:"likeCount"`
+	IsLiked          bool                   `json:"isLiked"`
+	IsBookmarked     bool                   `json:"isBookmarked"`
+	IsWatched        bool                   `json:"isWatched"`
+	CreatedAt        string                 `json:"createdAt"`
+	UpdatedAt        string                 `json:"updatedAt"`
 }
 
 type PostPayload struct {
-	ID              uint64             `json:"id"`
-	TopicID         uint64             `json:"topicId"`
-	PostNo          uint64             `json:"postNo"`
-	Content         string             `json:"content"`
-	RenderedContent string             `json:"renderedContent"`
-	ProcessStatus   int8               `json:"processStatus"`
-	IsHidden        bool               `json:"isHidden"`
-	CanModerate     bool               `json:"canModerate"`
-	Author          TopicAuthorPayload `json:"author"`
-	CreatedAt       string             `json:"createdAt"`
-	ReplyToPostID   uint64             `json:"replyToPostId,omitempty"`
-	ReplyToUserID   uint64             `json:"replyToUserId,omitempty"`
-	ReplyToUsername string             `json:"replyToUsername,omitempty"`
-	IsOwnPost       bool               `json:"isOwnPost"`
-	UpdatedAt       string             `json:"updatedAt"`
-	LikeCount       uint64             `json:"likeCount"`
-	IsLiked         bool               `json:"isLiked"`
-	IsBookmarked    bool               `json:"isBookmarked"`
+	ID                 uint64              `json:"id"`
+	TopicID            uint64              `json:"topicId"`
+	PostNo             uint64              `json:"postNo"`
+	Content            string              `json:"content"`
+	RenderedContent    string              `json:"renderedContent"`
+	ProcessStatus      int8                `json:"processStatus"`
+	IsHidden           bool                `json:"isHidden"`
+	IsAuthorDeleted    bool                `json:"isAuthorDeleted"`
+	IsModeratorRemoved bool                `json:"isModeratorRemoved"`
+	CanModerate        bool                `json:"canModerate"`
+	Author             TopicAuthorPayload  `json:"author"`
+	CreatedAt          string              `json:"createdAt"`
+	ReplyToPostID      uint64              `json:"replyToPostId,omitempty"`
+	ReplyToUserID      uint64              `json:"replyToUserId,omitempty"`
+	ReplyToUsername    string              `json:"replyToUsername,omitempty"`
+	IsOwnPost          bool                `json:"isOwnPost"`
+	UpdatedAt          string              `json:"updatedAt"`
+	LastEditor         *TopicAuthorPayload `json:"lastEditor,omitempty"`
+	LastEditedAt       string              `json:"lastEditedAt,omitempty"`
+	RevisionCount      int64               `json:"revisionCount"`
+	LikeCount          uint64              `json:"likeCount"`
+	IsLiked            bool                `json:"isLiked"`
+	IsBookmarked       bool                `json:"isBookmarked"`
 }
 
 type ReplyTargetPayload struct {
-	ID              uint64             `json:"id"`
-	PostNo          uint64             `json:"postNo,omitempty"`
-	Author          TopicAuthorPayload `json:"author"`
-	RenderedContent string             `json:"renderedContent,omitempty"`
-	Unavailable     bool               `json:"unavailable,omitempty"`
+	ID                 uint64             `json:"id"`
+	PostNo             uint64             `json:"postNo,omitempty"`
+	Author             TopicAuthorPayload `json:"author"`
+	RenderedContent    string             `json:"renderedContent,omitempty"`
+	IsAuthorDeleted    bool               `json:"isAuthorDeleted,omitempty"`
+	IsModeratorRemoved bool               `json:"isModeratorRemoved,omitempty"`
+	Unavailable        bool               `json:"unavailable,omitempty"`
 }
 
 type PostWindowPayload struct {
@@ -574,13 +584,28 @@ type SearchPageProps struct {
 	Topics            []TopicPayload          `json:"topics"`
 	Users             []UserSearchPayload     `json:"users"`
 	Categories        []CategorySearchPayload `json:"categories"`
+	Courses           []CourseSearchPayload   `json:"courses"`
 	Total             int64                   `json:"total"`
 	UsersTotal        int64                   `json:"usersTotal"`
 	CategoriesTotal   int64                   `json:"categoriesTotal"`
+	CoursesTotal      int64                   `json:"coursesTotal"`
 	TotalPages        int                     `json:"totalPages"`
 	Pagination        PaginationPayload       `json:"pagination"`
 	FailedScopes      []string                `json:"failedScopes,omitempty"`
 	SearchUnavailable bool                    `json:"searchUnavailable,omitempty"`
+}
+
+// CourseSearchPayload 课程搜索结果展示数据（由 PG 重构填充）
+type CourseSearchPayload struct {
+	ID          uint64   `json:"id"`
+	PrimaryCode string   `json:"primaryCode"`
+	Name        string   `json:"name"`
+	Department  string   `json:"department"`
+	CreditX10   int      `json:"creditX10"`
+	Aliases     []string `json:"aliases"`
+	Instructors []string `json:"instructors"`
+	Terms       []string `json:"terms"`
+	Campus      []string `json:"campus"`
 }
 
 // UserSearchPayload 用户搜索结果展示数据（由 DB 重构填充）
@@ -1042,6 +1067,18 @@ func buildTopicDetailProps(c *gin.Context, topic *topics.Entity, firstPost *post
 	if anchorPostNo <= 1 && len(postEntities) == 0 && firstPost != nil && firstPost.Id != 0 {
 		postEntities = append(postEntities, firstPost)
 	}
+	if anchorPostNo <= 1 && firstPost != nil && firstPost.Id != 0 && topic.VisibilityStatus != topics.VisibilityActive {
+		firstPostLoaded := false
+		for _, item := range postEntities {
+			if item != nil && item.Id == firstPost.Id {
+				firstPostLoaded = true
+				break
+			}
+		}
+		if !firstPostLoaded {
+			postEntities = append([]*posts.Entity{firstPost}, postEntities...)
+		}
+	}
 	userIDs := make([]uint64, 0, len(postEntities)+1)
 	seenUserIDs := make(map[uint64]struct{}, len(postEntities)+1)
 	if topic.UserId > 0 {
@@ -1171,6 +1208,13 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			seenMissingUserIDs[parent.UserId] = struct{}{}
 			missingUserIDs = append(missingUserIDs, parent.UserId)
 		}
+		// 最后编辑者也要进 userMap，供 lastEditor 卡片构建
+		if parent.LastEditorId > 0 {
+			if _, seen := seenMissingUserIDs[parent.LastEditorId]; !seen {
+				seenMissingUserIDs[parent.LastEditorId] = struct{}{}
+				missingUserIDs = append(missingUserIDs, parent.LastEditorId)
+			}
+		}
 	}
 	maps.Copy(userMap, users.GetMapByIds(missingUserIDs))
 	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
@@ -1202,26 +1246,45 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 		content := item.Content
 		renderedContent := item.RenderedHTML
 		isHidden := item.ProcessStatus != 0
+		isAuthorDeleted := isAuthorDeletedVisibility(item.VisibilityStatus)
+		isModeratorRemoved := isModeratorRemovedVisibility(item.VisibilityStatus)
 		if isHidden && !canModerate {
 			content = ""
 			renderedContent = ""
 		}
+		if isAuthorDeleted || isModeratorRemoved {
+			content = ""
+			renderedContent = ""
+		}
+		var lastEditor *TopicAuthorPayload
+		lastEditedAt := ""
+		if item.LastEditorId > 0 {
+			editor := authorPayload(item.LastEditorId)
+			lastEditor = &editor
+			if item.LastEditedAt != nil {
+				lastEditedAt = item.LastEditedAt.Format(time.DateTime)
+			}
+		}
 		res = append(res, PostPayload{
-			ID:              item.Id,
-			TopicID:         item.TopicId,
-			PostNo:          item.PostNo,
-			Content:         content,
-			RenderedContent: renderedContent,
-			ProcessStatus:   item.ProcessStatus,
-			IsHidden:        isHidden,
-			CanModerate:     canModerate,
-			Author:          author,
-			CreatedAt:       item.CreatedAt.Format(time.DateTime),
-			ReplyToPostID:   item.ReplyToPostId,
-			ReplyToUserID:   replyToUserID,
-			ReplyToUsername: replyToName,
-			IsOwnPost:       currentUserID == item.UserId,
-			UpdatedAt:       item.UpdatedAt.Format(time.DateTime),
+			ID:                 item.Id,
+			TopicID:            item.TopicId,
+			PostNo:             item.PostNo,
+			Content:            content,
+			RenderedContent:    renderedContent,
+			ProcessStatus:      item.ProcessStatus,
+			IsHidden:           isHidden,
+			IsAuthorDeleted:    isAuthorDeleted,
+			IsModeratorRemoved: isModeratorRemoved,
+			CanModerate:        canModerate,
+			Author:             author,
+			CreatedAt:          item.CreatedAt.Format(time.DateTime),
+			ReplyToPostID:      item.ReplyToPostId,
+			ReplyToUserID:      replyToUserID,
+			ReplyToUsername:    replyToName,
+			IsOwnPost:          currentUserID == item.UserId,
+			UpdatedAt:          item.UpdatedAt.Format(time.DateTime),
+			LastEditor:         lastEditor,
+			LastEditedAt:       lastEditedAt,
 		})
 	}
 
@@ -1232,10 +1295,12 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			postIDs = append(postIDs, item.Id)
 		}
 	}
+	revisionCounts := postRevisions.CountByPostIds(postIDs)
 	likeCounts := postUserAction.CountLikesByPostIds(postIDs)
 	userPostStates := postUserAction.GetStateMapByUserAndPostIds(currentUserID, postIDs)
 	for i := range res {
 		res[i].LikeCount = likeCounts[res[i].ID]
+		res[i].RevisionCount = revisionCounts[res[i].ID]
 		if state, ok := userPostStates[res[i].ID]; ok {
 			res[i].IsLiked = state.LikedAt != nil
 			res[i].IsBookmarked = state.BookmarkedAt != nil
@@ -1250,12 +1315,19 @@ func buildReplyTargetPayload(topicID, postID uint64, postMap map[uint64]*posts.E
 	if !ok || parent == nil || parent.TopicId != topicID {
 		return target
 	}
+	if parent.RetentionStatus == posts.RetentionPurged {
+		return target
+	}
 	if parent.ProcessStatus != 0 && !canModerate {
 		return target
 	}
 	target.PostNo = parent.PostNo
 	target.Author = userPayloadWithWornBadge(parent.UserId, userMap, wornBadges[parent.UserId])
-	target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	target.IsAuthorDeleted = isAuthorDeletedVisibility(parent.VisibilityStatus)
+	target.IsModeratorRemoved = isModeratorRemovedVisibility(parent.VisibilityStatus)
+	if !target.IsAuthorDeleted && !target.IsModeratorRemoved {
+		target.RenderedContent = postservice.EnsureRenderedHTML(parent)
+	}
 	target.Unavailable = false
 	return target
 }
@@ -1316,26 +1388,38 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 	}
 
 	return TopicDetailPayload{
-		ID:            topic.Id,
-		Title:         topic.Title,
-		Description:   topic.Excerpt,
-		FirstImageURL: topic.FirstImageURL,
-		URL:           urlconfig.PostDetail(topic.Id),
-		TopicStatus:   topic.Status,
-		ProcessStatus: topic.ProcessStatus,
-		Author:        authorPayload(topic.UserId),
-		Participants:  participants,
-		Categories:    categoryPayloads(topic.CategoryIds),
-		ReplyCount:    topic.ReplyCount,
-		MaxPostNo:     topic.PostSeq,
-		ViewCount:     topic.ViewCount,
-		LikeCount:     topic.LikeCount,
-		IsLiked:       isLiked,
-		IsBookmarked:  isBookmarked,
-		IsWatched:     isWatched,
-		CreatedAt:     createdAt.Format(time.DateTime),
-		UpdatedAt:     updatedAt.Format(time.DateTime),
+		ID:               topic.Id,
+		Title:            topic.Title,
+		Description:      topic.Excerpt,
+		FirstImageURL:    topic.FirstImageURL,
+		URL:              urlconfig.PostDetail(topic.Id),
+		TopicStatus:      topic.Status,
+		ProcessStatus:    topic.ProcessStatus,
+		AuthorDeleted:    isAuthorDeletedVisibility(topic.VisibilityStatus),
+		ModeratorRemoved: isModeratorRemovedVisibility(topic.VisibilityStatus),
+		Author:           authorPayload(topic.UserId),
+		Participants:     participants,
+		Categories:       categoryPayloads(topic.CategoryIds),
+		ReplyCount:       topic.ReplyCount,
+		MaxPostNo:        topic.PostSeq,
+		ViewCount:        topic.ViewCount,
+		LikeCount:        topic.LikeCount,
+		IsLiked:          isLiked,
+		IsBookmarked:     isBookmarked,
+		IsWatched:        isWatched,
+		CreatedAt:        createdAt.Format(time.DateTime),
+		UpdatedAt:        updatedAt.Format(time.DateTime),
 	}
+}
+
+// isAuthorDeletedVisibility 判断内容是否由作者删除或因账号匿名化而进入用户删除态。
+func isAuthorDeletedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityUserDeleted || visibility == posts.VisibilityAccountAnonymized
+}
+
+// isModeratorRemovedVisibility 判断内容是否由管理端治理删除。
+func isModeratorRemovedVisibility(visibility string) bool {
+	return visibility == posts.VisibilityModeratorRemoved
 }
 
 func categoryPayloads(ids []uint64) []TopicCategoryPayload {
@@ -1359,7 +1443,12 @@ func categoryPayloads(ids []uint64) []TopicCategoryPayload {
 func userPayload(userID uint64, userMap map[uint64]*users.EntityComplete) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		if userID == 0 {
+			// 无关联（如未分配的 handler）回退为「匿名用户」。
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		}
+		// 用户不存在或已注销（软删）时回退为「已注销用户」（PRD R10）。
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return userPayloadWithWornBadge(userID, userMap, badgeservice.GetWornBadge(userID, user.WornBadgeCode))
 }
@@ -1377,7 +1466,10 @@ func selectedWornBadges(userMap map[uint64]*users.EntityComplete) map[uint64]str
 func userPayloadWithWornBadge(userID uint64, userMap map[uint64]*users.EntityComplete, wornBadge *badgeservice.UserBadge) TopicAuthorPayload {
 	user, ok := userMap[userID]
 	if !ok || user == nil {
-		return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		if userID == 0 {
+			return TopicAuthorPayload{ID: userID, Username: "匿名用户", AvatarURL: urlconfig.GetDefaultAvatar()}
+		}
+		return TopicAuthorPayload{ID: userID, Username: "已注销用户", AvatarURL: urlconfig.GetDefaultAvatar()}
 	}
 	return TopicAuthorPayload{ID: userID, Username: user.Username, Nickname: user.Nickname, AvatarURL: user.GetWebAvatarUrl(), WornBadge: wornBadge}
 }
@@ -2491,6 +2583,8 @@ func settingsTabs() []TabPayload {
 		{Key: "privacy", URL: "/settings?tab=privacy"},
 		{Key: "binding", URL: "/settings?tab=binding"},
 		{Key: "security", URL: "/settings?tab=security"},
+		{Key: "content", URL: "/settings?tab=content"},
+		{Key: "deleted", URL: "/settings?tab=deleted"},
 		{Key: "general", URL: "/settings?tab=general"},
 	}
 }
@@ -2548,6 +2642,7 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		Topics:     []TopicPayload{},
 		Users:      []UserSearchPayload{},
 		Categories: []CategorySearchPayload{},
+		Courses:    []CourseSearchPayload{},
 		Pagination: PaginationPayload{
 			Page: page,
 		},
@@ -2560,9 +2655,9 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		page = 1
 	}
 	// topics（含 all 视图中的 topics 部分）按 pageSize 分页；
-	// users/categories 一期单页（上限 MaxAggregateLimit），无分页 UI。
+	// users/categories/courses 一期单页（上限 MaxAggregateLimit），无分页 UI。
 	limit := pageSize
-	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories {
+	if normalizedScope == searchservice.ScopeUsers || normalizedScope == searchservice.ScopeCategories || normalizedScope == searchservice.ScopeCourses {
 		limit = searchservice.MaxAggregateLimit
 	}
 	offset := 0
@@ -2616,10 +2711,23 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 			Desc:  item.Desc,
 		}
 	})
+	props.Courses = lo.Map(result.Courses, func(item searchservice.CourseSearchResult, _ int) CourseSearchPayload {
+		return CourseSearchPayload{
+			ID:          item.ID,
+			PrimaryCode: item.PrimaryCode,
+			Name:        item.Name,
+			Department:  item.Department,
+			CreditX10:   item.CreditX10,
+			Aliases:     item.Aliases,
+			Instructors: item.Instructors,
+			Terms:       item.Terms,
+			Campus:      item.Campus,
+		}
+	})
 	props.Total = result.Total
 	props.UsersTotal = result.UsersTotal
 	props.CategoriesTotal = result.CategoriesTotal
-	props.TotalPages = totalPageCount
+	props.CoursesTotal = result.CoursesTotal
 	props.Pagination = PaginationPayload{
 		Page:     page,
 		NextPage: nextPage,

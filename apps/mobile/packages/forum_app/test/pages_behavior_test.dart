@@ -655,6 +655,7 @@ PostPayload makePostPayload(int id, int postNo, String content) {
     ),
     createdAt: '2025-01-15T09:${postNo.toString().padLeft(2, '0')}:00+08:00',
     isOwnPost: false,
+    revisionCount: 1,
     likeCount: postNo,
     isLiked: false,
     isBookmarked: false,
@@ -766,9 +767,11 @@ class PagingTopicRepository extends TopicRepository {
         topics: [makeTopic(1, '结果-第一页')],
         users: const [],
         categories: const [],
+        courses: const [],
         total: 2,
         usersTotal: 0,
         categoriesTotal: 0,
+        coursesTotal: 0,
         totalPages: 2,
         pagination: const PaginationPayload(
           page: 1,
@@ -784,9 +787,11 @@ class PagingTopicRepository extends TopicRepository {
       topics: [makeTopic(2, '结果-第二页')],
       users: const [],
       categories: const [],
+      courses: const [],
       total: 2,
       usersTotal: 0,
       categoriesTotal: 0,
+      coursesTotal: 0,
       totalPages: 2,
       pagination: const PaginationPayload(
         page: 2,
@@ -833,9 +838,11 @@ class AggregateSearchRepository extends PagingTopicRepository {
           desc: '技术交流',
         ),
       ],
+      courses: const <CourseSearchPayload>[],
       total: 1,
       usersTotal: 1,
       categoriesTotal: 1,
+      coursesTotal: 0,
       totalPages: 1,
       pagination: const PaginationPayload(
         page: 1,
@@ -1038,6 +1045,59 @@ class EmptySessionsUserRepository extends UserRepository {
   Future<List<UserSessionPayload>> listSessions() async {
     sessionCalls++;
     return const <UserSessionPayload>[];
+  }
+}
+
+/// 可编程 revoke-all 的 UserRepository:记录调用并可注入失败。
+class RevokingUserRepository extends UserRepository {
+  RevokingUserRepository(super.client, {this.revokeAllFails = false});
+
+  int revokeAllCalls = 0;
+  bool revokeAllFails;
+
+  @override
+  Future<bool> revokeAllSessions() async {
+    revokeAllCalls++;
+    if (revokeAllFails) {
+      throw Exception('revoke-all failed');
+    }
+    return true;
+  }
+
+  @override
+  Future<List<UserSessionPayload>> listSessions() async {
+    // 非空会话列表,保证设置页安全 tab 渲染"吊销全部会话"按钮。
+    return <UserSessionPayload>[
+      UserSessionPayload(
+        id: 1,
+        ipMasked: '10.0.0.1',
+        userAgent: 'test-agent',
+        createdAt: 1750000000,
+        expiresAt: 1800000000,
+        isCurrent: true,
+      ),
+    ];
+  }
+}
+
+/// 返回固定毫秒时间戳会话的 UserRepository,用于渲染时间戳测试。
+class FixedSessionsUserRepository extends UserRepository {
+  FixedSessionsUserRepository(super.client, this.createdAtMs);
+
+  final int createdAtMs;
+
+  @override
+  Future<List<UserSessionPayload>> listSessions() async {
+    return <UserSessionPayload>[
+      UserSessionPayload(
+        id: 1,
+        ipMasked: '10.0.0.1',
+        userAgent: 'test-agent',
+        createdAt: createdAtMs,
+        expiresAt: createdAtMs + 86400000,
+        isCurrent: true,
+      ),
+    ];
   }
 }
 
@@ -2184,6 +2244,60 @@ void main() {
     });
   });
 
+  group('设置页会话时间戳渲染', () {
+    testWidgets('Unix 毫秒 createdAt 直接渲染为正确日期(2026-08-07)', (tester) async {
+      // 2026-08-07 12:00:00 UTC(正午,任何时区本地日期均为 08-07)。
+      const int createdAtMs = 1786104000000;
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final ProviderContainer container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        userRepo: FixedSessionsUserRepository(client, createdAtMs),
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpAndSettle();
+
+      // 切到 Security tab 查看会话列表。
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+
+      // 契约(Unix 毫秒)直接渲染,不得再乘 1000。
+      expect(find.textContaining('2026-08-07'), findsOneWidget);
+    });
+
+    testWidgets('2038 边界(毫秒)渲染正确年份而非溢出', (tester) async {
+      // 2038-01-19 12:00:00 UTC(2038 问题边界附近,秒级 int32 溢出点之后)。
+      const int createdAtMs = 2147515200000;
+      final GfApiClient client = GfApiClient(
+        dio: Dio(),
+        tokenStorage: MemTokenStorage(),
+        baseUrl: 'http://fake.local',
+      );
+      final ProviderContainer container = await makeContainer(
+        pageRepo: CountingPageRepository(client),
+        userRepo: FixedSessionsUserRepository(client, createdAtMs),
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(app(container, const SettingsPage()));
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+
+      expect(find.textContaining('2038-01-19'), findsOneWidget);
+    });
+  });
+
   group('设置登出', () {
     testWidgets('登出调用 authRepository.logout、清 token 并跳转登录页', (tester) async {
       final authRepo = LogoutAuthRepository(
@@ -2275,6 +2389,145 @@ void main() {
       );
       expect(router.state.uri.path, '/login', reason: '登出后应跳转登录页');
       expect(find.text('login-page'), findsOneWidget);
+    });
+  });
+
+  group('设置吊销全部会话', () {
+    testWidgets('revoke-all 成功后清 token/缓存并跳转登录页', (tester) async {
+      final userRepo = RevokingUserRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+      );
+      final storage = MemTokenStorage()..write('token');
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          userRepositoryProvider.overrideWithValue(userRepo),
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('login-page'))),
+          ),
+        ],
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      // 切到 Security tab 找"吊销全部会话"按钮。
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+      expect(find.text('吊销全部会话'), findsOneWidget);
+
+      await tester.tap(find.text('吊销全部会话'));
+      await tester.pumpAndSettle();
+
+      expect(userRepo.revokeAllCalls, 1, reason: '应调用 revokeAllSessions');
+      expect(await storage.read(), isNull, reason: 'revoke-all 后必须清空本地 JWT');
+      expect(
+        topicCache.clears + chatCache.clears,
+        2,
+        reason: 'revoke-all 后应清空离线缓存,防止跨账号数据泄漏',
+      );
+      expect(router.state.uri.path, '/login', reason: 'revoke-all 后应跳转登录页');
+      expect(find.text('login-page'), findsOneWidget);
+
+      // 走完 toast 展示定时器,避免测试结束时 pending timer。
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
+    });
+
+    testWidgets('revoke-all 失败保留当前会话与页面', (tester) async {
+      final userRepo = RevokingUserRepository(
+        GfApiClient(
+          dio: Dio(),
+          tokenStorage: MemTokenStorage(),
+          baseUrl: 'http://fake.local',
+        ),
+        revokeAllFails: true,
+      );
+      final storage = MemTokenStorage()..write('token');
+      final topicCache = RecordingCache();
+      final chatCache = RecordingCache();
+      final container = ProviderContainer(
+        overrides: [
+          tokenStorageProvider.overrideWithValue(storage),
+          userRepositoryProvider.overrideWithValue(userRepo),
+          offlineTopicCacheProvider.overrideWithValue(topicCache),
+          offlineChatCacheProvider.overrideWithValue(chatCache),
+        ],
+      );
+      addTearDown(container.dispose);
+
+      final router = GoRouter(
+        initialLocation: '/settings',
+        routes: [
+          GoRoute(path: '/settings', builder: (_, _) => const SettingsPage()),
+          GoRoute(
+            path: '/login',
+            builder: (_, _) =>
+                const Scaffold(body: Center(child: Text('login-page'))),
+          ),
+        ],
+      );
+      tester.view.physicalSize = const Size(1080, 2400);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(tester.view.reset);
+
+      await tester.pumpWidget(
+        UncontrolledProviderScope(
+          container: container,
+          child: MaterialApp.router(
+            routerConfig: router,
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            supportedLocales: AppLocalizations.supportedLocales,
+            locale: const Locale('zh'),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await tester.tap(find.text('安全'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('吊销全部会话'));
+      await tester.pumpAndSettle();
+
+      expect(userRepo.revokeAllCalls, 1);
+      expect(await storage.read(), 'token', reason: '失败时不得清空 token');
+      expect(topicCache.clears + chatCache.clears, 0, reason: '失败时不得清空离线缓存');
+      expect(router.state.uri.path, '/settings', reason: '失败时不得跳转登录页');
+
+      // 走完 toast 展示定时器,避免测试结束时 pending timer。
+      await tester.pump(const Duration(seconds: 15));
+      await tester.pumpAndSettle();
     });
   });
 

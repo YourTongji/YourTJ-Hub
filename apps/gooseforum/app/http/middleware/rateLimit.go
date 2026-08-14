@@ -7,13 +7,13 @@ import (
 	"strconv"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 )
 
 // 限流动作标识，与管理面板 rateLimitSettings 的 actions.action 对应。
@@ -23,20 +23,41 @@ const (
 	RateLimitOIDCAuthorize  = "oidc.authorize"
 	RateLimitOIDCToken      = "oidc.token"
 	RateLimitForgotPassword = "forgot-password"
+	RateLimitResetPassword  = "reset-password"
 	RateLimitEmailChange    = "email.change"
 	RateLimitPasswordChange = "password.change"
-	RateLimitTopicWrite     = "topic.write"
-	RateLimitPostCreate     = "post.create"
-	RateLimitMessageSend    = "message.send"
-	RateLimitUpload         = "upload"
-	RateLimitInteract       = "interact"
-	RateLimitLLMSIndex      = "llms.index"
-	RateLimitLLMSFull       = "llms.full"
-	RateLimitLLMSTopic      = "llms.topic"
-	RateLimitMCPAuth        = "mcp.auth"
+	// RateLimitTotpSetup/Enable/Disable 限流 TOTP 账户管理中的凭据校验入口：
+	// setup 校验账户密码、enable/disable 校验 6 位验证码（disable 也接受密码），
+	// 未限流时会话窃取者可无限暴力破解，配额对齐 password.change。
+	RateLimitTotpSetup     = "totp.setup"
+	RateLimitTotpEnable    = "totp.enable"
+	RateLimitTotpDisable   = "totp.disable"
+	RateLimitTopicWrite    = "topic.write"
+	RateLimitTopicStatus   = "topic.status"
+	RateLimitPostCreate    = "post.create"
+	RateLimitPostUpdate    = "post.update"
+	RateLimitPostDelete    = "post.delete"
+	RateLimitMessageSend   = "message.send"
+	RateLimitUpload        = "upload"
+	RateLimitInteract      = "interact"
+	RateLimitLLMSIndex     = "llms.index"
+	RateLimitLLMSFull      = "llms.full"
+	RateLimitLLMSTopic     = "llms.topic"
+	RateLimitMCPAuth       = "mcp.auth"
+	RateLimitCourseCatalog = "course.catalog"
+	RateLimitReviewWrite   = "course.review.write"
+	RateLimitReviewHelpful = "course.review.helpful"
+	RateLimitReviewReport  = "course.review.report"
+	RateLimitReviewReveal  = "course.review.reveal"
+	// RateLimitReviewModerate 课评审核操作（隐藏/恢复、举报队列）：60s 窗口
+	// per-IP 60 / per-User 30（issue #176 B4）。比写接口宽松（审核是低频
+	// 操作但需批量处理举报），同时防止单账号刷审核接口。
+	RateLimitReviewModerate = "course.review.moderate"
+	// RateLimitCourseSummary 课程 AI 总结端点（B7, issue #181）：
+	// 读缓存免费，生成动作另有 service 内全局/单课限流，此处仅防脚本高频打端点。
+	RateLimitCourseSummary = "course.summary"
 )
 
-// RateLimit 按动作限流：同时检查 IP 与用户双维度，任一超限返回 429。
 // 配置（开关/配额/窗口）每次请求动态读取，管理面板保存后即时生效。
 func RateLimit(action string) gin.HandlerFunc {
 	return func(c *gin.Context) {

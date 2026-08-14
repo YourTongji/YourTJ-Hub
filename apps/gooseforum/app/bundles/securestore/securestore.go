@@ -15,8 +15,8 @@ import (
 	"fmt"
 	"sync"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 // derivationLabel is bound into the HMAC so a key derived for TOTP secrets
@@ -35,6 +35,43 @@ func Encrypt(plaintext string) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return seal(key, plaintext)
+}
+
+// Decrypt reverses Encrypt.
+func Decrypt(encoded string) (string, error) {
+	key, err := deriveKey()
+	if err != nil {
+		return "", err
+	}
+	return open(key, encoded)
+}
+
+// OneSystemCookiePurpose 一系统同步 Cookie 的加密用途标签。与 TOTP 的 derivationLabel 隔离，
+// 避免不同用途密文复用同一派生密钥（即使 signing key 泄露也不能跨用途解密）。
+const OneSystemCookiePurpose = "yourtj-onesystem-cookie"
+
+// EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
+// HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
+func EncryptPurpose(plaintext, purpose string) (string, error) {
+	key, err := keyForPurpose(purpose)
+	if err != nil {
+		return "", err
+	}
+	return seal(key, plaintext)
+}
+
+// DecryptPurpose reverses EncryptPurpose.
+func DecryptPurpose(encoded, purpose string) (string, error) {
+	key, err := keyForPurpose(purpose)
+	if err != nil {
+		return "", err
+	}
+	return open(key, encoded)
+}
+
+// seal encrypts plaintext with AES-256-GCM and returns base64(nonce||ciphertext).
+func seal(key []byte, plaintext string) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("securestore: create cipher: %w", err)
@@ -51,12 +88,8 @@ func Encrypt(plaintext string) (string, error) {
 	return base64.StdEncoding.EncodeToString(sealed), nil
 }
 
-// Decrypt reverses Encrypt.
-func Decrypt(encoded string) (string, error) {
-	key, err := deriveKey()
-	if err != nil {
-		return "", err
-	}
+// open reverses seal.
+func open(key []byte, encoded string) (string, error) {
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", fmt.Errorf("securestore: create cipher: %w", err)
@@ -80,6 +113,38 @@ func Decrypt(encoded string) (string, error) {
 	return string(plaintext), nil
 }
 
+type purposeKeyEntry struct {
+	key []byte
+	err error
+}
+
+// purposeKeys caches per-purpose keys for the process lifetime, mirroring the
+// sync.Once lifetime of the base key so a config reload cannot invalidate
+// encrypted values mid-flight.
+var purposeKeys sync.Map // purpose string -> *purposeKeyEntry
+
+// keyForPurpose derives and caches a 32-byte AES key for a purpose label:
+// HMAC-SHA256(baseKey, purpose). Fail-closed policy (weak signing key) comes
+// from deriveKey.
+func keyForPurpose(purpose string) ([]byte, error) {
+	if cached, ok := purposeKeys.Load(purpose); ok {
+		entry := cached.(*purposeKeyEntry)
+		return entry.key, entry.err
+	}
+	base, err := deriveKey()
+	if err != nil {
+		purposeKeys.Store(purpose, &purposeKeyEntry{err: err})
+		return nil, err
+	}
+	mac := hmac.New(sha256.New, base)
+	if _, err := mac.Write([]byte(purpose)); err != nil {
+		return nil, fmt.Errorf("securestore: derive purpose key: %w", err)
+	}
+	key := mac.Sum(nil)
+	purposeKeys.Store(purpose, &purposeKeyEntry{key: key})
+	return key, nil
+}
+
 // deriveKey derives a 32-byte AES key from the app signing key:
 // HMAC-SHA256(signingKey, "yourtj-totp-secret"). The result is cached for the
 // process lifetime (sync.Once) so its lifecycle aligns with jwtopt's JWT
@@ -87,21 +152,29 @@ func Decrypt(encoded string) (string, error) {
 // invalidate TOTP secrets mid-flight.
 func deriveKey() ([]byte, error) {
 	keyOnce.Do(func() {
-		// 兜底统一引用 jwtopt.DefaultSigningKey，避免两处重复的公开常量漂移；
-		// serve 启动检查已拒绝默认密钥，生产环境实际使用的是用户配置的密钥。
-		signingKey := preferences.GetString("app.signingKey", jwtopt.DefaultSigningKey)
-		if signingKey == "" {
-			keyErr = errors.New("securestore: empty signing key")
-			return
-		}
-		mac := hmac.New(sha256.New, []byte(signingKey))
-		if _, err := mac.Write([]byte(derivationLabel)); err != nil {
-			keyErr = fmt.Errorf("securestore: derive key: %w", err)
-			return
-		}
-		key = mac.Sum(nil)
+		// 与 tokenservice 共享 jwtopt 的 fail-closed 谓词（SigningKeyProblemFor）：
+		// serve 启动守卫已拒绝空值/内置默认/占位符密钥，这里作为纵深防御再拦一道——
+		// 即使绕过启动守卫（未来子命令、嵌入式调用、测试 harness），也不会以公开
+		// 已知的密钥派生 TOTP 加密密钥（issue #106 根因之一）。
+		key, keyErr = deriveKeyFrom(preferences.GetString("app.signingKey"))
 	})
 	return key, keyErr
+}
+
+// deriveKeyFrom derives the 32-byte AES key for a candidate signing key,
+// applying the same fail-closed policy as the JWT signing path
+// (jwtopt.SigningKeyProblemFor). It is extracted from deriveKey so the
+// weak-key rejection is directly testable without disturbing the process-wide
+// sync.Once cache.
+func deriveKeyFrom(signingKey string) ([]byte, error) {
+	if reason := jwtopt.SigningKeyProblemFor(signingKey); reason != "" {
+		return nil, fmt.Errorf("securestore: %s", reason)
+	}
+	mac := hmac.New(sha256.New, []byte(signingKey))
+	if _, err := mac.Write([]byte(derivationLabel)); err != nil {
+		return nil, fmt.Errorf("securestore: derive key: %w", err)
+	}
+	return mac.Sum(nil), nil
 }
 
 // Pepper derives a 32-byte HMAC key bound to the app signing key and a

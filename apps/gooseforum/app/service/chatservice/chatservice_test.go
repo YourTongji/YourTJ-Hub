@@ -4,10 +4,10 @@ import (
 	"testing"
 	"time"
 
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/models/chat/imConversations"
-	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
-	"github.com/leancodebox/GooseForum/app/models/chat/messages"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
 )
 
 // mark-read 测试使用的固定 ID；选取与会话/用户无关的数以避免与其他测试冲突。

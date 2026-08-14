@@ -12,8 +12,10 @@
 
 - **Single binary**: `make build` produces `bin/yourtj-hub` (frontend static/dist + GoHTML templates
   go:embed). The binary runs inside a minimal `alpine` container (`deploy/Dockerfile`).
-- Runtime deps: SQLite (default, zero external deps), MySQL, or PostgreSQL (main db only; the file
-  database `[db.file]` stays SQLite); optional Meilisearch; optional built-in OIDC Provider ([oidc] in config.toml).
+- Runtime deps: **PostgreSQL 16+ is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
+  database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
+  built-in OIDC Provider ([oidc] in config.toml).
 - **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
   `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
 - Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
@@ -25,17 +27,23 @@
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
+- **Wiki static site** (VitePress + Pagefind, separate from the binary): two nginx containers
+  `wiki-main` (127.0.0.1:5284) / `wiki-dev` (127.0.0.1:5285) in the same compose project, deployed by
+  `deploy-wiki.sh` from the `wiki-dist` artifact built in CI. Public reverse-proxy DNS for the wiki is
+  a post-merge ops task.
 
 ## Server layout (1Panel container orchestration)
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev services (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/WIKI_*_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
+  docker-compose.yaml     # main + dev + meili + wiki-main + wiki-dev services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
   build/
     Dockerfile            # alpine + binary
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh
+    wiki.Dockerfile       # nginx + wiki static dist
+    wiki-dist/            # unpacked wiki dist (deploy-wiki.sh)
+  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, bootstrap-wiki-assets.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
     storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
@@ -59,12 +67,16 @@
      `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
      rollback tag) and build cache older than 72h.
      The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
+  4. SSH: `deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-<sha> 5285` → build nginx image from the
+     unpacked static dist, compose up, health check, rollback (the `wiki-build` job builds the site
+     and uploads the `wiki-dist` artifact).
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
   1. Build single binary on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
   3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
      auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
      (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
+  4. SSH: `deploy-wiki.sh main /tmp/wiki-dist.tar.gz wiki-main-<sha> 5284` → same as dev, on 5284.
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
@@ -73,9 +85,22 @@
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
 - Config is pre-provisioned on the server (`init-server.sh`) and never passes through CI.
-- Deploy workflows checkout the repo and upload `deploy/scripts/deploy.sh` to
-  `/opt/yourtj/scripts/deploy.sh` before running it, so script fixes reach the server without a
-  manual `init-server.sh` re-run.
+- `sync-db-from-main.sh` hard-fails when `main`/`dev` primary DB modes differ (e.g. main already
+  migrated to PG while dev is still SQLite): the sync cannot proceed, and the script refuses to
+  stop the dev container in that state (parse-before-stop guarantee, issue #134). During the PG
+  migration window both instances must be on the same mode before deploying dev.
+- Deploy workflows checkout the repo and upload the deploy scripts (`deploy.sh` plus the ones they
+  depend on: `backup-db.sh` / `sync-db-from-main.sh` and their shared DSN parser `pgdsn.sh`) to
+  `/opt/yourtj/scripts/` before running them, so script fixes reach the server without a
+  manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
+  `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
+  script updates.
+- Wiki deploy assets are also CI-provisioned: each deploy uploads
+  `deploy/build/wiki.Dockerfile` / `wiki.nginx.conf` / `docker-compose.yaml` and runs
+  `bootstrap-wiki-assets.sh`, which idempotently installs them under `/opt/yourtj/build` and appends
+  missing `WIKI_*` vars to `/opt/yourtj/.env`. Existing servers therefore need no manual
+  `init-server.sh` re-run before the first wiki deploy; the compose file is only replaced when the
+  `wiki-*` services are missing (preserving any server-side local edits).
 
 ## GitHub Actions secrets
 
@@ -84,6 +109,7 @@
 | `VM_HOST` | server public IP or hostname (`20.205.27.178`) |
 | `VM_USER` | SSH user (e.g. `yourtj`) |
 | `VM_SSH_KEY` | private key for that user (full PEM, including `-----BEGIN ...` lines) |
+| `WIKI_WALINE_SERVER_URL` | optional Waline comment server URL, injected at wiki build time (`VITE_WALINE_SERVER_URL`); empty = comments disabled |
 
 Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
 
@@ -123,13 +149,18 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   health-check failure; forward-compatible migrations mean an older binary can still start.
 - Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
 
-### Upgrade note: `app.signingKey` is now mandatory
+### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
 Since the issue #8 build, `serve` refuses to start with the built-in default
-signing key (it exits with code 1 instead of silently continuing). Existing
-`config.toml` files created before this change may omit `app.signingKey`;
-**before upgrading an existing instance, add a random signing key** to
-`main/config.toml` and `dev/config.toml`:
+signing key (it exits with code 1 instead of silently continuing). The
+issue #106 build tightens the guard to **fail-closed**: `serve` now also
+refuses any **empty / whitespace-only** value and the deploy template
+placeholder `REPLACE_SIGNING_KEY`, because each of them lets an attacker
+forge password-reset tokens and take over arbitrary accounts (including
+admin). A missing or weak `app.signingKey` is rejected every boot — there is
+no fallback key. Existing `config.toml` files created before this change may
+omit `app.signingKey`; **before upgrading an existing instance, add a random
+signing key** to `main/config.toml` and `dev/config.toml`:
 
 ```toml
 [app]
@@ -139,6 +170,29 @@ signingKey = "<random 32+ byte base64 string>"
 Generate one with `openssl rand -base64 32`. Without it the new binary exits
 immediately on startup; `init-server.sh` already generates a random key for
 new installs.
+
+**Rotation after a known/empty-key exposure:** if an instance ever ran with
+the built-in default, the `REPLACE_SIGNING_KEY` placeholder, or an empty
+`app.signingKey`, treat the signing key as compromised and rotate it. The
+symmetric key is shared across three surfaces, so rotation invalidates all of
+them at once: forum JWT sessions (users must sign in again), TOTP secret
+encryption (AES-GCM key is derived from `app.signingKey`; re-encrypt or
+re-enroll TOTP so existing secrets remain decryptable), and any outstanding
+password-reset / activation links. Rotating the key is the only way to retire
+tokens that were minted under the old key.
+
+**Rotation requires a process restart — hot reload is not supported.** The
+signing key feeds more surfaces than the three listed above — it also derives
+the session-cookie signing key (sessionstore) and the OIDC opaque-token key
+(oidcservice). The surfaces capture it at different points: JWT signing and
+session cookies at process start / first use, TOTP encryption on first use, and
+reset/activation and OIDC tokens on every call (fail-closed so a weak key is
+never accepted). With viper's config watcher enabled, editing `app.signingKey`
+at runtime does not rotate them together: the real-time surfaces switch to the
+new key immediately, the captured surfaces keep the old value, and TOTP secrets
+encrypted under the old key can become undecryptable if the key is swapped
+before the first TOTP use. Rotate the key and **restart the process** so all
+surfaces rotate consistently.
 
 ### Upgrade note: session Cookie `Secure` is now fail-closed by environment
 
@@ -163,9 +217,7 @@ error and startup continues). Before deploying a build containing this index, ru
 on the live database and clean up any duplicates:
 
 ```sql
--- SQLite / MySQL
-SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
--- PostgreSQL
+-- SQLite / PostgreSQL
 SELECT provider, provider_uid, COUNT(*) FROM user_o_auth GROUP BY provider, provider_uid HAVING COUNT(*) > 1;
 ```
 
@@ -192,36 +244,41 @@ GROUP BY username
 HAVING COUNT(*) > 1;
 ```
 
-## PostgreSQL support
+## Database: PostgreSQL default
 
-Since issue #11 the main database (`[db.default]`) can run on PostgreSQL 16+ in addition to the
-default SQLite and optional MySQL. The file database (`[db.file]`, attachment BLOBs) remains SQLite.
+PostgreSQL 16+ is the default deployment database (`[db.default] connection = "postgres"`,
+`deploy/config.toml.example`). SQLite remains the local development/test default
+(`apps/gooseforum/config.toml`, in-memory tests) and the file database (`[db.file]`, attachment
+BLOBs) is fixed SQLite. MySQL is **not supported** and its connection driver was removed.
 
-### Enable PostgreSQL
+### Deploy on PostgreSQL
 
-1. Uncomment the `postgres` service in `deploy/docker-compose.yaml` and set `POSTGRES_USER` /
-   `POSTGRES_PASSWORD` in `/opt/yourtj/.env`.
-2. Create **two separate databases** to keep main (production) and dev (test) isolated, matching the
-   SQLite deployment model (dev is one-way synced from main, never written directly):
-   ```bash
-   # 在 postgres 容器内执行
-   docker compose exec postgres psql -U yourtj -d postgres -c \
-     "CREATE DATABASE yourtj_main; CREATE DATABASE yourtj_dev;"
-   ```
-   Do **not** point both instances at the same database — dev migrations/writes would land on
-   production data.
-3. In `main/config.toml` set:
+Fresh installs default to PostgreSQL end to end — `init-server.sh` does the
+provisioning automatically:
+
+1. Generates `POSTGRES_USER` / a random `POSTGRES_PASSWORD` / `POSTGRES_DB` into
+   `/opt/yourtj/.env` (missing keys are appended on existing servers; empty
+   `POSTGRES_PASSWORD` is replaced with a random value).
+2. Starts the `postgres` service (defined in `deploy/docker-compose.yaml`) and waits for it,
+   then creates **two separate databases** — `yourtj_main` and `yourtj_dev` — so main
+   (production) and dev (test) stay isolated (dev is one-way synced from main, never written
+   directly). Do **not** point both instances at the same database — dev migrations/writes
+   would land on production data.
+3. Generates `main/config.toml` / `dev/config.toml` from `deploy/config.toml.example`,
+   substituting `REPLACE_POSTGRES_DSN` with a real DSN per instance:
    ```toml
    [db.default]
    connection = "postgres"
-   url = "host=postgres user=yourtj password=<secret> dbname=yourtj_main port=5432 sslmode=disable"
+   url = "host=postgres user=<user> password=<secret> dbname=yourtj_main port=5432 sslmode=disable"  # dev 用 yourtj_dev
    ```
-   In `dev/config.toml` use the same DSN but `dbname=yourtj_dev`. `host=postgres` is the Compose
-   service name: the forum and postgres containers share the compose network, so `127.0.0.1` inside
-   the forum container would point at the forum container itself and fail to connect.
-   `url` accepts libpq key=value or URL DSN formats.
-4. Start the instance. On first boot the binary runs AutoMigrate (all main-db models) and the
-   versioned data migrations v1-v12 from scratch, then serves.
+   `host=postgres` is the Compose service name: the forum and postgres containers share the
+   compose network, so `127.0.0.1` inside the forum container would point at the forum
+   container itself and fail to connect. `url` accepts libpq key=value or URL DSN formats.
+4. Start the instance (`deploy.sh` / `docker compose up -d main dev`; compose starts
+   `postgres` first via `depends_on: service_healthy`). On first boot the binary runs
+   AutoMigrate (all main-db models) and the versioned data migrations from scratch, then
+   serves.
+
 
 ### SQLite → PostgreSQL data migration (manual, no automated tool)
 
@@ -276,10 +333,47 @@ instance:
 
 ## Data export/import
 
-- Admin panel (数据管理): export users/topics/posts as JSON or CSV via a background task, then
-  download; import JSON with a per-row validation report and idempotent skip.
+- Admin panel (数据管理): export users/topics/posts (plus derived topic_category_index /
+  topic_user_stat when selected) as JSON or CSV via a background task, then download;
+  import JSON with a per-row validation report and idempotent skip; topic invariants
+  (post_seq, first/last post pointers, counts, posters) are preserved and rebuilt on import.
 - Export files are written to `data/export/` inside the storage dir and cleaned up after 7 days
   (daily cron). Export contains user emails — treat downloads as sensitive.
+
+## 一系统排课同步（course-pk-sync，issue #186）
+
+将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+```bash
+# 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
+# 已有记录后才可反查（同一学期同步过一次即可）
+./bin/yourtj-hub course-pk-sync 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1 --calendar-id 121
+./bin/yourtj-hub course-pk-sync 2025-2026-1   # 学期名在已同步过的实例上可用
+
+# 连同步前 3 个学期（选课季加频/补历史）
+./bin/yourtj-hub course-pk-sync 121 --depth 3
+
+# 同步后物化到课程目录（默认关闭；写 course/course_alias/course_instructor + 课程搜索 outbox）
+./bin/yourtj-hub course-pk-sync 121 --materialize
+```
+
+凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
+（设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+- 运维 cron（每日，选课季加频；应用内不自造调度器）：
+
+  ```bash
+  # 每日 02:30 同步当前学期
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+  ```
+
+- 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次
+  续跑（`pk_fetch_log` 游标），不回滚已成功批次；Cookie 失效时报 HTTP 状态与提示并标记
+  fetchlog `failed`，且不删除存量数据；无效 Cookie 不会破坏已同步数据。
+- 并发防护：同一学期存在 1 小时内的 `running` fetchlog 时拒绝新同步（避免两个进程互相删数据）；
+  进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
+- 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
+  需到管理端重新保存。
 
 ## Runbooks to write
 

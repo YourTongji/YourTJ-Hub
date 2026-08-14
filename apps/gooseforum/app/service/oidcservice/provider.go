@@ -19,10 +19,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/oidcprovider"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	jose "github.com/go-jose/go-jose/v4"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/oidcprovider"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )
@@ -72,6 +72,7 @@ func configKey(cfg Config) string {
 			secretHash,
 			fmt.Sprintf("%v", c.DevMode),
 			strings.Join(c.RedirectURIs, ","),
+			strings.Join(c.RedirectURIGlobs, ","),
 		}, ":") + "|"
 	}
 	return fmt.Sprintf("%v|%s|%s|%s|%s|%s|%s|%s",
@@ -351,6 +352,11 @@ var (
 // forum signing key using a domain-separated SHA-256. It never reuses
 // app.signingKey directly. When no signing key is configured, a secure
 // random key is generated once and kept for the rest of the process.
+//
+// The random fallback is defensive only: serve already refuses to boot on an
+// empty/weak app.signingKey (issue #106), so this branch is reachable solely
+// from tests or a non-serve entrypoint and does not create a forgeable-token
+// surface in a runnable deploy.
 func deriveCryptoKey() [32]byte {
 	signingKey := preferences.GetString("app.signingKey", "")
 	if signingKey != "" {

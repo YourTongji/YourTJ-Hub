@@ -10,6 +10,7 @@ import 'package:ui_kit/ui_kit.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../providers.dart';
 import '../../images/image_upload.dart';
+import '../../server_messages.dart';
 import '../../widgets/markdown_view.dart';
 import '../../widgets/status_views.dart';
 
@@ -188,7 +189,7 @@ class _PublishPageState extends ConsumerState<PublishPage> {
       final AppLocalizations l10n = AppLocalizations.of(context);
       setState(() {
         _loading = false;
-        _loadError = l10n.publishLoadFailed('$error');
+        _loadError = resolveErrorMessage(l10n, error);
       });
     }
   }

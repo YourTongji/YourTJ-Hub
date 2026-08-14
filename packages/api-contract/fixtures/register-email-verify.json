@@ -1,0 +1,5 @@
+{
+  "result": "注册成功，请前往邮箱验证您的账号",
+  "code": 0,
+  "messageCode": "auth.register.emailVerify"
+}

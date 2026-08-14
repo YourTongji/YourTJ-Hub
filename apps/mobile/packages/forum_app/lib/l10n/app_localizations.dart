@@ -1556,6 +1556,12 @@ abstract class AppLocalizations {
   /// **'Failed to parse page data'**
   String get commonParseFailed;
 
+  /// No description provided for @commonLoadFailed.
+  ///
+  /// In en, this message translates to:
+  /// **'Failed to load'**
+  String get commonLoadFailed;
+
   /// No description provided for @topicEmpty.
   ///
   /// In en, this message translates to:

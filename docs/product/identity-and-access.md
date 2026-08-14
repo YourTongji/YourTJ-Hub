@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers, Security reviewer
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-11
 
 ## Identity model
 
@@ -77,6 +77,19 @@
   opaque access tokens at the userinfo endpoint). Ordinary logout deletes the current session row as
   well, and fails loudly when the revoke errors (no silently surviving token).
 - Password change: `TokenVersion` bumps, invalidating old tokens and OIDC access tokens.
+- Password reset (forgot/reset password): `Current`. The reset link is a short-lived
+  signed JWT whose claims bind `userId + email + TokenVersion` at issue time; the reset
+  endpoint re-checks all three against the live user row, so a link stops working the
+  moment the account is reset, recovered, or revoked (`TokenVersion` bumps). Both
+  `forgot-password` (token issuance) and `reset-password` (token confirmation) are
+  IP-rate-limited; `forgot-password` additionally enforces captcha and a 24-hour
+  email-change cooldown, and a link minted under a previous signing key cannot validate
+  after a key rotation. The signing key is fail-closed: `serve` refuses to boot with an
+  empty, built-in default, or `REPLACE_SIGNING_KEY` value, and password-reset/activation
+  tokens refuse to sign or parse under such a key (issue #106). Key rotation is not
+  hot-reloadable: the signing key is captured at different points across surfaces, so
+  rotating it **requires a process restart** for the invalidation to apply consistently
+  (see `docs/operations/deployment.md`).
 - Email change: `Current` for password accounts; the current password is verified before any write,
   the old address receives a notification, and password reset is suppressed for 24 hours after the
   change. OAuth-only self-service email change is `Partial`: the API and Web/Mobile clients return a
@@ -131,7 +144,19 @@
   (`Secure` + SameSite=Lax whenever `app.env != "local"`; the Secure flag follows the environment
   fail-closed rather than the `server.url` scheme, so production cookies stay Secure even when the
   template default `server.url = "http://localhost"` is left untouched — issue #113).
-- Enumeration resistance: login errors do not distinguish "user not found / wrong password".
+- Enumeration resistance: login errors do not distinguish "user not found / wrong password", and
+  unknown accounts run the same-cost PBKDF2 verification as real ones so response time does not
+  reveal whether a username/email is registered. Registration collapses username/email-taken into
+  the same generic `auth.register.failed` body as other failures (never `auth.username.exists` /
+  `auth.email.exists`) and always runs both existence queries, so the error body no longer reveals
+  which field is taken. The registration protocol itself (immediate account creation + session vs.
+  failure) still inherently distinguishes an already-registered email from a fresh one; removing
+  that residual signal would require an async email-verification flow (product decision, issue #124
+  acceptance item 1). Forgot-password answers unknown emails, bots, and the 24-hour email-change
+  cooldown with the same success message after the same class of work as the registered path (one
+  HMAC token signing plus a synchronous `email.noop` task, silently consumed and dropped by the
+  mail worker so it never accumulates), so probing an email's registration status via response
+  time is not reliable (issue #124).
 - Session revocation is implemented as `jti` + `user_sessions` table (decision recorded in ADR note);
   TokenVersion remains as a global invalidation fallback.
 - TOTP secrets and recovery codes never leave the server in plaintext (secret encrypted at rest,

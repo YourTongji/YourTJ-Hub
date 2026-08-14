@@ -8,6 +8,7 @@ import {
   Feather,
   Loader2,
   Radio,
+  UserX,
 } from '@lucide/vue'
 import { getUserCard, followUser } from '@/runtime/api'
 import { formatDate, formatNumber, timeAgo } from '@/runtime/format'
@@ -65,6 +66,7 @@ const externalLinks = computed(() => {
   return links
 })
 const visibleBadges = computed(() => (card.value?.badges || []).slice(0, 5))
+const isAccountClosed = computed(() => Boolean(card.value?.isAccountClosed))
 
 function normalizeWebsiteURL(value: string) {
   const url = value.trim()
@@ -206,21 +208,28 @@ onBeforeUnmount(() => {
       <div class="relative">
       <div class="flex items-start gap-3">
         <!-- 头像单环：a 固定 56×56 圆环（flex 消除 inline-block 基线空隙，避免 ring 变椭圆） -->
-        <a :href="profileUrl" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
+        <a v-if="!isAccountClosed" :href="profileUrl" class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
           <UserAvatar :src="avatarUrl" :alt="username" :badge="wornBadge" size="medium" class="h-14 w-14 rounded-full" img-class="rounded-full" />
         </a>
+        <span v-else class="flex h-14 w-14 shrink-0 items-center justify-center rounded-full ring-2 ring-base-100">
+          <UserAvatar :src="avatarUrl" :alt="username" :badge="null" size="medium" class="h-14 w-14 rounded-full opacity-80 grayscale" img-class="rounded-full" />
+        </span>
         <div class="min-w-0 flex-1">
           <div class="flex min-w-0 items-center gap-2">
-            <a :href="profileUrl" class="truncate text-base font-bold text-base-content hover:text-primary">{{ displayName }}</a>
+            <a v-if="!isAccountClosed" :href="profileUrl" class="truncate text-base font-bold text-base-content hover:text-primary">{{ displayName }}</a>
+            <span v-else class="truncate text-base font-bold text-base-content/70">{{ displayName }}</span>
             <span v-if="card?.isAdmin" class="gf-badge gf-badge-warning shrink-0 rounded text-[11px]">Admin</span>
+            <span v-if="isAccountClosed" class="gf-badge gf-badge-muted shrink-0 rounded text-[11px]">{{ t('userCard.accountClosedBadge') }}</span>
           </div>
           <div class="mt-0.5 flex items-center gap-2 text-xs text-base-content/55">
-            <span class="truncate">@{{ username }}</span>
-            <span v-if="card?.isOnline" class="inline-flex items-center gap-1 text-success">
-              <Radio class="h-3 w-3" />
-              {{ t('userCard.online') }}
-            </span>
-            <span v-else-if="card?.lastActiveTime">{{ t('userCard.activeAt', { time: timeAgo(card.lastActiveTime) }) }}</span>
+            <template v-if="!isAccountClosed">
+              <span class="truncate">@{{ username }}</span>
+              <span v-if="card?.isOnline" class="inline-flex items-center gap-1 text-success">
+                <Radio class="h-3 w-3" />
+                {{ t('userCard.online') }}
+              </span>
+              <span v-else-if="card?.lastActiveTime">{{ t('userCard.activeAt', { time: timeAgo(card.lastActiveTime) }) }}</span>
+            </template>
           </div>
         </div>
       </div>
@@ -246,6 +255,18 @@ onBeforeUnmount(() => {
             </div>
           </div>
           <div v-else-if="error" key="error" class="gf-status-message gf-status-message-error mt-3 flex min-h-[164px] items-center">{{ error }}</div>
+          <div v-else-if="isAccountClosed" key="closed" class="mt-3">
+            <!-- 已注销用户：单独小资料卡，说明账号已注销而非「资料不可用」（better-ui / better-writing） -->
+            <div class="flex min-h-[164px] flex-col items-center justify-center gap-3 rounded-[var(--gf-radius-field)] border border-dashed border-line bg-base-200/50 px-6 py-6 text-center">
+              <div class="flex h-12 w-12 shrink-0 items-center justify-center rounded-full bg-base-300/80 text-icon-muted">
+                <UserX class="h-6 w-6" aria-hidden="true" />
+              </div>
+              <div>
+                <p class="text-sm font-semibold text-base-content/80">{{ t('userCard.accountClosedTitle') }}</p>
+                <p class="mx-auto mt-1 max-w-[15rem] text-xs leading-5 text-base-content/55">{{ t('userCard.accountClosedDescription') }}</p>
+              </div>
+            </div>
+          </div>
           <div v-else key="content">
         <p v-if="bioText" class="mt-3 line-clamp-2 text-sm leading-relaxed text-base-content/75">{{ bioText }}</p>
 

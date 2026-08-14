@@ -24,7 +24,7 @@ defineProps<{
   payload: AdminPayload<ManageHomeProps>
 }>()
 
-const exportTables = ref<string[]>(['users', 'topics', 'posts'])
+const exportTables = ref<string[]>(['users', 'topics', 'posts', 'postRevisions'])
 const exportFormat = ref<'json' | 'csv'>('json')
 const exportTasks = ref<AdminTaskRow[]>([])
 const tasksLoading = ref(false)
@@ -189,7 +189,7 @@ onUnmounted(stopPolling)
               <div class="text-sm font-medium">{{ adminText('k00h4') }}</div>
               <div class="flex flex-wrap gap-2">
                 <label
-                  v-for="table in ['users', 'topics', 'posts']"
+                  v-for="table in ['users', 'topics', 'posts', 'postRevisions']"
                   :key="table"
                   class="inline-flex cursor-pointer items-center gap-2 rounded-md border px-3 py-1.5 text-sm transition-colors"
                   :class="exportTables.includes(table) ? 'border-primary bg-primary/10 text-primary' : 'border-border text-muted-foreground hover:bg-muted/50'"

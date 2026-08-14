@@ -4,7 +4,7 @@ import (
 	"context"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
 )
 
 // handleStatsSignUp 记录注册统计

@@ -6,7 +6,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
 )
 
 func TestCache_GetOrLoad(t *testing.T) {

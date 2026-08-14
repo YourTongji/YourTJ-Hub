@@ -1,8 +1,8 @@
 package pageConfig
 
 import (
-	"github.com/leancodebox/GooseForum/app/bundles/jsonopt"
-	"github.com/leancodebox/GooseForum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 	"github.com/spf13/cast"
 )
 
@@ -39,7 +39,7 @@ func GetConfigByPageType[T any](pageType string, defaultValue T) T {
 	return defaultValue
 }
 
-const AppMigrationVersion uint32 = 13
+const AppMigrationVersion uint32 = 18
 
 func GetMigrationVersion() uint32 {
 	configEntity := GetByPageType(Migration)

@@ -1,0 +1,199 @@
+// PK 排课器（/schedule）数据类型定义。
+//
+// 对齐上游 YourTJCourse-Serverless scheduler（utils/myInterface.ts）的数据契约，
+// 与 Epic #172 PRD §5.4.2（PK 数据域）/ §5.4.4（PK 13 端点）的字段语义。
+// 后端端点契约见 #187；前端消费的字段以本文件为唯一来源。
+
+/** 一次上课安排（一个时间段）。对应 PkCourseDetail.arrangementInfo 元素。 */
+export interface PkArrangement {
+  /** 人类可读文本，如 "[1-8周] 周一第3-4节 同济楼A201" */
+  arrangementText: string
+  /** 星期 1-7 */
+  occupyDay: number
+  /** 节次数组（连续），如 [3,4]，范围 1-12 */
+  occupyTime: number[]
+  /** 周次数组（展开），如 [1,2,...,8] */
+  occupyWeek: number[]
+  /** 教室 */
+  occupyRoom: string
+  /** "教师名(工号)"，多教师逗号分隔 */
+  teacherAndCode: string
+}
+
+/** 教师。对应 PkTeacher。 */
+export interface PkTeacher {
+  teacherName: string
+  teacherCode: string
+}
+
+/** 课程详情 = 一个教学班（一门课的一个授课实例）。对应 PkCourseDetail。 */
+export interface PkCourseDetail {
+  arrangementInfo: PkArrangement[]
+  /** 校区（多校区用"、"拼接） */
+  campus: string
+  /** 教学班课号（含班号后缀，如 "122004.01"） */
+  code: string
+  /** 排他标志：仅专业课/必修为 true（P5 courses-by-major 语义） */
+  isExclusive?: boolean
+  /** 0 未选 / 1 备选 / 2 已选 */
+  status?: number
+  teachers: PkTeacher[]
+  teachingLanguage: string
+}
+
+/** 课程信息（必修列表 / 选修列表 / 搜索结果通用）。对应 courseInfo。 */
+export interface PkCourse {
+  courseName: string
+  /** 保留课程名（CSV/XLS 导出用） */
+  courseNameReserved: string
+  /** 基础课号（无班号） */
+  courseCode: string
+  /** '必' 必修 / '选' 选修 / '跨' 跨学科 / '查' 搜索 */
+  courseType: string
+  /** 开课院系 */
+  faculty?: string
+  /** 学分（浮点，x.0 / x.5） */
+  credit: number
+  courseNature?: string[]
+  campus?: string[]
+  status: number
+  /** 注意：这里是 string[]（与 PkStagedCourse.teacher 的 PkTeacher[] 不同） */
+  teacher: string[]
+  courseDetail: PkCourseDetail[]
+  /** 年级（必修课按年级分组展示） */
+  grade?: number
+}
+
+/** 备选 / 已选课程。对应 stagedCourse。 */
+export interface PkStagedCourse {
+  courseCode: string
+  courseName: string
+  courseNameReserved: string
+  credit: number
+  courseType: string
+  courseNature?: string[]
+  teacher: PkTeacher[]
+  status: number
+  courseDetail: PkCourseDetail[]
+}
+
+/** 学期→年级→专业 选择三元组。对应 baseInfoTriplet。 */
+export interface PkMajorSelection {
+  calendarId: number | undefined
+  grade: number | undefined
+  major: string | undefined
+}
+
+/** 选修课类型。对应 optionalCourseType。 */
+export interface PkOptionalType {
+  courseLabelId: number
+  courseLabelName: string
+}
+
+/** occupied 12×7 三维数组的单元（一个格子里的一个课程）。对应 occupyCell。 */
+export interface PkOccupyCell {
+  code: string
+  courseName: string
+  occupyWeek: number[]
+}
+
+/** 课表条目（平铺，渲染时转网格）。对应 courseOnTable。 */
+export interface PkCourseOnTable {
+  showText: string
+  courseName: string
+  code: string
+  occupyTime: number[]
+  occupyDay: number
+}
+
+/** 鼠标点击的课程。对应 clickedCourseInfo。 */
+export interface PkClickedCourse {
+  courseCode: string
+  courseName: string
+  teacherCode?: string
+  teacherName?: string
+}
+
+/** CSV 一行（一门课的一个时间段）。对应 csvCourse。 */
+export interface PkCsvCourse {
+  courseName: string
+  occupyDay: number | string
+  start: number | string
+  end: number | string
+  teacherName: string
+  occupyRoom: string
+  occucpyWeek: string
+}
+
+/** XLS 一行（一门课）。对应 xlsCourse。 */
+export interface PkXlsCourse {
+  code: string
+  courseName: string
+  teacherName: string
+}
+
+/** P1 /api/pk/calendars：最近 8 个学期。 */
+export interface PkCalendar {
+  calendarId: number
+  calendarName: string
+}
+
+/** P3 /api/pk/grades：某学期可选年级（上游 gradeList 为纯数字数组）。 */
+export type PkGrade = number
+
+/** P4 /api/pk/majors：年级→专业。 */
+export interface PkMajor {
+  code: string
+  name: string
+}
+
+/** P2 /api/pk/campuses、/faculties 字典项。 */
+export interface PkDictItem {
+  code: string
+  name: string
+}
+
+/** P11 /api/pk/latest-update：fetchlog 最近同步日期。 */
+export interface PkLatestUpdate {
+  latestSyncAt: string | null
+  msg?: string
+}
+
+/** P10 /api/pk/courses-by-time 响应（timeslot 未就绪时降级 LIKE，auxiliaryReady=false）。 */
+export interface PkCoursesByTimeResult {
+  courses: PkCourse[]
+  /** false = timeslot 索引未就绪，结果来自 arrangeInfoText LIKE 降级 */
+  auxiliaryReady: boolean
+}
+
+/** P12 /api/pk/course-info-sync 请求参数。 */
+export interface PkCourseInfoSyncInput {
+  calendarId: number
+  /** 专业课代码（isExclusive=true 的已选） */
+  majorCourseCodes: string[]
+  /** 其他课程代码（通识/选修已选） */
+  otherCourseCodes: string[]
+  majorInfo: { grade: number; code: string }
+}
+
+/** P12 /api/pk/course-info-sync 响应：{ courseCode: [courseDetail] } 字典。 */
+export type PkCourseInfoSyncResult = Record<string, PkCourseDetail[]>
+
+/** P13 /api/pk/course-review-brief 请求参数。 */
+export interface PkCourseReviewBriefInput {
+  courseCode: string
+  teacherName: string
+}
+
+/** P13 /api/pk/course-review-brief 响应（复用课评 API 语义）。 */
+export interface PkCourseReviewBrief {
+  ratingAvg?: number | null
+  reviewCount: number
+  reviews?: Array<{
+    id: number
+    rating?: number
+    content: string
+    helpfulCount?: number
+    authorName?: string
+  }>
+}

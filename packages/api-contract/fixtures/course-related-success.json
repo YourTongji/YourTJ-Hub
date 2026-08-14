@@ -1,0 +1,29 @@
+{
+  "result": {
+    "teacherOtherCourses": [
+      {
+        "id": 43,
+        "primaryCode": "100002",
+        "name": "线性代数",
+        "department": "数学科学学院",
+        "instructors": ["张三"],
+        "ratingAvg": 4.5,
+        "ratingCount": 2,
+        "reviewCount": 2
+      }
+    ],
+    "sameCourseOtherTeachers": [
+      {
+        "offeringId": 902,
+        "termCode": "2024-2025-1",
+        "termName": "2024-2025 第一学期",
+        "campus": "四平路校区",
+        "instructors": ["李四"],
+        "ratingAvg": 4,
+        "ratingCount": 1,
+        "reviewCount": 1
+      }
+    ]
+  },
+  "code": 0
+}

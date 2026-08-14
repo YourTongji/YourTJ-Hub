@@ -4,7 +4,7 @@ import (
 	"net/http"
 
 	"github.com/gin-gonic/gin"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 )
 
 // Recovery logs request context for panics and returns HTTP 500.

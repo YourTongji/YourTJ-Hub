@@ -13,22 +13,24 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
-	jwtopt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
-	"github.com/leancodebox/GooseForum/app/bundles/signalwatch"
-	"github.com/leancodebox/GooseForum/app/console/job"
-	"github.com/leancodebox/GooseForum/app/http/routes"
-	"github.com/leancodebox/GooseForum/app/service/backgroundservice"
-	"github.com/leancodebox/GooseForum/app/service/dataservice"
-	"github.com/leancodebox/GooseForum/app/service/filemigrateservice"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/oauthservice"
-	"github.com/leancodebox/GooseForum/app/service/oidcservice"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
+	jwtopt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/signalwatch"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/console/job"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/routes"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/backgroundservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/courseservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
 	"github.com/spf13/cast"
 
 	"github.com/gin-gonic/gin"
@@ -131,12 +133,13 @@ func pprofMux() *http.ServeMux {
 }
 
 func ginServe() {
-	// 拒绝使用内置默认签名密钥启动：该密钥公开在源码中，攻击者可据此
-	// 伪造 JWT 并解密 TOTP 密钥（见 jwtopt.DefaultSigningKey）。
-	// 配置错误必须以非零退出码终止，否则 systemd/docker 会把
-	// "配置错误"误判为"正常退出"，重启策略与告警都不会生效。
-	if jwtopt.IsSigningKeyDefault() {
-		slog.Error("app.signingKey 未配置，仍在使用内置默认密钥。请配置一个随机密钥后重试。")
+	// fail-closed：拒绝在不安全的 JWT 签名密钥下启动。空值、内置公开默认值
+	// 与部署模板占位符都可使攻击者伪造密码重置令牌（见 issue #106），因此
+	// 配置错误必须以非零退出码终止——否则 systemd/docker 会把"配置错误"
+	// 误判为"正常退出"，重启策略与告警都不会生效。
+	if reason := jwtopt.SigningKeyProblem(); reason != "" {
+		slog.Error("app.signingKey 不可用，拒绝启动", "reason", reason,
+			"hint", "请配置一个随机密钥（例如 openssl rand -base64 32）后重试")
 		os.Exit(1)
 	}
 	preferences.OpenConfigChangeEvent()
@@ -146,10 +149,29 @@ func ginServe() {
 	captchaOpt.StartCleanup()
 	ratelimit.StartCleanup()
 	mailservice.StartEmailProcessor()
+	// 启动时立即回收租约过期的 Running 任务（issue #138）：任务领取采用
+	// 原子 CAS + processed_at 租约，worker 执行期间心跳续租，worker 循环内
+	// 也会周期性回收过期租约；此处是启动时的即时清扫，让崩溃遗留任务尽快
+	// 回到 Pending 重新领取。邮件/文件迁移/导出 worker 共用同一恢复逻辑，
+	// 各按类型前缀处理。
+	mailservice.RecoverStaleTasks()
+	filemigrateservice.RecoverStaleTasks()
+	dataservice.RecoverStaleTasks()
+	searchservice.RecoverStaleTasks()
+	courseservice.RecoverStaleTasks()
+	courseservice.RecoverCourseStatsRebuildTasks()
 	// 文件迁移 worker：处理管理面板创建的 file-migrate 任务
 	backgroundservice.RunWorker("file_migrate_worker", filemigrateservice.TaskTypeFileMigrate, filemigrateservice.RunMigrateTask)
 	// 数据导出 worker：处理管理面板创建的 export 任务
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
+	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
+	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
+	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
+	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费
+	// course-review-cleanup 前缀任务，脱敏超窗 deleted 行；失败按 taskQueue
+	// 语义重试至多 3 次后 failed 并有日志
+	backgroundservice.RunWorker("course_review_cleanup_worker", courseservice.TaskTypeCourseReviewCleanup, courseservice.RunCleanupTask)
 	sessionservice.CleanupExpired()
 	oidcservice.CleanupExpired()
 	job.Run()

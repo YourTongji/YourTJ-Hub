@@ -8,12 +8,13 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/authsessionservice"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/authsessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/bmatcuk/doublestar/v4"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 	"github.com/zitadel/oidc/v3/pkg/op"
 )
@@ -39,7 +40,9 @@ const MobileClientID = "yourtj-mobile"
 const defaultMobileRedirectURI = "yourtj://callback"
 
 // isMobileRedirectAllowed reports whether redirectURI matches the configured
-// mobile client allowlist (or the default when the client is unconfigured).
+// mobile client allowlist — exact URIs first, then doublestar globs (same
+// semantics as the provider's redirect validation) — or the default when the
+// client is unconfigured.
 func isMobileRedirectAllowed(redirectURI string) bool {
 	cfg, err := LoadConfig()
 	if err != nil {
@@ -51,6 +54,11 @@ func isMobileRedirectAllowed(redirectURI string) bool {
 		}
 		for _, allowed := range c.RedirectURIs {
 			if redirectURI == allowed {
+				return true
+			}
+		}
+		for _, pattern := range c.RedirectURIGlobs {
+			if ok, _ := doublestar.Match(pattern, redirectURI); ok {
 				return true
 			}
 		}

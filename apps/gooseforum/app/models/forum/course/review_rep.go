@@ -1,0 +1,635 @@
+package course
+
+import (
+	"log/slog"
+	"time"
+
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
+	"gorm.io/gorm/clause"
+)
+
+// ---- Review ----
+
+func CreateReview(entity *ReviewEntity) error {
+	return reviewBuilder().Create(entity).Error
+}
+
+// CreateReviewTx 事务内创建评价。
+func CreateReviewTx(tx *gorm.DB, entity *ReviewEntity) error {
+	return tx.Table(reviewTableName).Create(entity).Error
+}
+
+// GetReview 按 ID 读取评价（含 soft-delete 过滤）。
+func GetReview(id uint64) (entity ReviewEntity, err error) {
+	err = reviewBuilder().Where("id = ?", id).First(&entity).Error
+	return
+}
+
+// GetReviewMapByIds 批量读取评价（审核/举报队列用）。
+func GetReviewMapByIds(ids []uint64) map[uint64]ReviewEntity {
+	result := make(map[uint64]ReviewEntity, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+	var entities []ReviewEntity
+	reviewBuilder().
+		Where(queryopt.In("id", ids)).
+		Find(&entities)
+	for _, e := range entities {
+		result[e.Id] = e
+	}
+	return result
+}
+
+// GetReviewTx 事务内按 ID 读取评价。
+func GetReviewTx(tx *gorm.DB, id uint64) (entity ReviewEntity, err error) {
+	err = tx.Table(reviewTableName).Where("id = ?", id).First(&entity).Error
+	return
+}
+
+// GetOfferingTx 事务内按 ID 读取开课实例。
+func GetOfferingTx(tx *gorm.DB, id uint64) (entity OfferingEntity, err error) {
+	err = tx.Table(offeringTableName).Where("id = ?", id).First(&entity).Error
+	return
+}
+
+// FindReviewByOfferingAndUserTx 事务内查同一用户对同一 offering 的评价（全部状态）。
+// 唯一索引 (offering_id, author_user_id) 不含 status，删除仅软删（status=deleted），
+// 因此 deleted 行仍占用唯一键：调用方据此决定返回 duplicate（visible/hidden）
+// 还是恢复重写（deleted，见 ReactivateReviewTx）。
+func FindReviewByOfferingAndUserTx(tx *gorm.DB, offeringId, userId uint64) (entity ReviewEntity, err error) {
+	err = tx.Table(reviewTableName).
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("author_user_id", userId)).
+		Where("status IN ?", []int8{ReviewStatusVisible, ReviewStatusHidden, ReviewStatusDeleted}).
+		First(&entity).Error
+	return
+}
+
+// ReactivateReviewTx 事务内恢复并重写一条已删除（隔离窗口）的评价。
+// 唯一索引 (offering_id, author_user_id) 被软删行占用，重新评价必须复用该行；
+// 带 status 条件（CAS）防止并发事务重复恢复，RowsAffected=0 表示已被并发恢复。
+// 恢复时一并回写作者关联并清除 deleted_at（隔离窗口标记，吸收 #202）：行在
+// 窗口内 author_user_id 仍为用户本人，回写为幂等；若清理任务已断开作者
+// （置 NULL，仅可能发生在行仍被占用前的边界），恢复后该用户重新占用唯一键，
+// 与"同 offering+用户至多一条"约束保持一致，且不会出现 author 为空的
+// visible 评论（spec S1 的 NULL 语义版本）。
+func ReactivateReviewTx(tx *gorm.DB, id, authorUserId uint64, rating *int, content string, isAnonymous bool) (bool, error) {
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, ReviewStatusDeleted).
+		Updates(map[string]any{
+			"author_user_id": authorUserId,
+			"rating":         rating,
+			"content":        content,
+			"is_anonymous":   isAnonymous,
+			"status":         ReviewStatusVisible,
+			"deleted_at":     nil,
+			"updated_at":     time.Now(),
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// ListHelpfulReviewIDsByUser 批量返回该用户已标记 helpful 的 review ID 集合。
+func ListHelpfulReviewIDsByUser(userId uint64, reviewIds []uint64) (map[uint64]bool, error) {
+	result := make(map[uint64]bool, len(reviewIds))
+	if len(reviewIds) == 0 {
+		return result, nil
+	}
+	var ids []uint64
+	if err := helpfulBuilder().
+		Select("review_id").
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.In("review_id", reviewIds)).
+		Where("deleted_at IS NULL").
+		Scan(&ids).Error; err != nil {
+		return nil, err
+	}
+	for _, id := range ids {
+		result[id] = true
+	}
+	return result, nil
+}
+
+// FindLegacyReviewByOfferingTx 事务内查某 offering 的历史导入评价
+// （author_user_id=0 且 source=legacy-import，每个 offering 至多一条）。
+func FindLegacyReviewByOfferingTx(tx *gorm.DB, offeringId uint64) (entity ReviewEntity, err error) {
+	err = tx.Table(reviewTableName).
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("author_user_id", 0)).
+		Where(queryopt.Eq("source", ReviewSourceLegacyImport)).
+		First(&entity).Error
+	return
+}
+
+// UpdateReviewStatusFromTx 事务内带旧状态条件的 CAS 状态转换：
+// 仅当当前 status 仍为 from 时更新为 to，返回是否成功转换。
+// 并发 hide/delete 双写时只有一个事务能拿到转换权，另一个 RowsAffected=0，
+// 调用方据此决定是否调整 stats，避免按陈旧旧值重复扣减/累加。
+// 显式写 updated_at=now()（security/spec 双审 F2）：裸 Table().Update 不触发
+// gorm autoUpdateTime（callbacks 中 autoUpdateTime 赋值被 schema 解析守卫），
+// 否则 updated_at 停留在创建时间。deleted 转换时该时间戳即 B3 清理窗口起点
+// （deleted 行删除后无其他写路径）；隐藏/恢复转换同样刷新，无副作用。
+func UpdateReviewStatusFromTx(tx *gorm.DB, id uint64, from, to int8) (bool, error) {
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]any{
+			"status":     to,
+			"updated_at": time.Now(),
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// MarkReviewDeletedFromTx 事务内带旧状态条件的 CAS 删除：置 status=deleted，
+// 并写入 deleted_at 作为隔离窗口起点（30 天，见 courseservice.ReviewCleanupWindow，
+// 吸收 #202 设计——显式删除时间锚点取代 updated_at 语义）。
+// Table 更新不会自动维护时间戳（GORM 仅对带 Schema 的更新自动处理），
+// 因此 deleted_at/updated_at 必须显式写入，否则窗口起点缺失、删除后立即
+// 进入可清理状态。
+func MarkReviewDeletedFromTx(tx *gorm.DB, id uint64, from int8) (bool, error) {
+	now := time.Now()
+	res := tx.Table(reviewTableName).
+		Where("id = ? AND status = ?", id, from).
+		Updates(map[string]any{
+			"status":     ReviewStatusDeleted,
+			"deleted_at": now,
+			"updated_at": now,
+		})
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// UpdateReviewRatingFromTx 事务内带旧评分条件的 CAS 评分更新：
+// 仅当当前 rating 仍为 oldRating 时更新，返回是否成功。
+// 并发 PATCH 评分时避免两笔事务都基于同一旧值累加 stats delta。
+func UpdateReviewRatingFromTx(tx *gorm.DB, id uint64, oldRating int, newRating int) (bool, error) {
+	var res *gorm.DB
+	if oldRating > 0 {
+		res = tx.Table(reviewTableName).
+			Where("id = ? AND rating = ?", id, oldRating).
+			Update("rating", newRating)
+	} else {
+		res = tx.Table(reviewTableName).
+			Where("id = ? AND rating IS NULL", id).
+			Update("rating", newRating)
+	}
+	if res.Error != nil {
+		return false, res.Error
+	}
+	return res.RowsAffected > 0, nil
+}
+
+// DeleteHelpfulTx 事务内取消 helpful（物理删除）。
+// helpful 表主键为 (review_id, user_id) 且带软删；软删后主键仍占位，
+// 再次标记会撞唯一约束。物理删除恢复 false→true 生命周期。
+func DeleteHelpfulTx(tx *gorm.DB, reviewId, userId uint64) error {
+	return tx.Unscoped().Table(helpfulTableName).
+		Where(queryopt.Eq("review_id", reviewId)).
+		Where(queryopt.Eq("user_id", userId)).
+		Delete(&HelpfulEntity{}).Error
+}
+
+// DeleteHelpful 取消 helpful（物理删除，理由同 DeleteHelpfulTx）。
+func DeleteHelpful(reviewId, userId uint64) error {
+	return helpfulBuilder().Unscoped().
+		Where(queryopt.Eq("review_id", reviewId)).
+		Where(queryopt.Eq("user_id", userId)).
+		Delete(&HelpfulEntity{}).Error
+}
+
+// ListCourseIDsByInstructorTx 返回引用该教师的所有可见 offering 所属课程 ID
+// （教师变更后 fan-out 入队课程搜索同步用）。
+func ListCourseIDsByInstructorTx(tx *gorm.DB, instructorId uint64) ([]uint64, error) {
+	var ids []uint64
+	err := tx.Table(offeringTableName+" o").
+		Select("DISTINCT o.course_id").
+		Joins("JOIN "+offeringInstructorTableName+" oi ON oi.offering_id = o.id").
+		Where("oi.instructor_id = ?", instructorId).
+		Where("o.deleted_at IS NULL").
+		Scan(&ids).Error
+	return ids, err
+}
+
+// CreateHelpfulTx 事务内标记 helpful（唯一约束 (review_id, user_id) 防重）。
+func CreateHelpfulTx(tx *gorm.DB, entity *HelpfulEntity) error {
+	return tx.Table(helpfulTableName).Create(entity).Error
+}
+
+// FindReviewByOfferingAndUser 同一用户对同一 offering 的评价（唯一约束 (offering_id, author_user_id)）。
+func FindReviewByOfferingAndUser(offeringId, userId uint64) (entity ReviewEntity, err error) {
+	err = reviewBuilder().
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("author_user_id", userId)).
+		First(&entity).Error
+	return
+}
+
+// ListReviewsByOffering 按 offering 列出可见评价（时间倒序）。
+func ListReviewsByOffering(offeringId uint64) (entities []ReviewEntity, err error) {
+	err = reviewBuilder().
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Order("id DESC").
+		Find(&entities).Error
+	return
+}
+
+// ListReviewsByOfferings 批量按 offering 列出可见评价（列表页 N+1 防护）。
+func ListReviewsByOfferings(offeringIds []uint64) (entities []ReviewEntity, err error) {
+	if len(offeringIds) == 0 {
+		return []ReviewEntity{}, nil
+	}
+	err = reviewBuilder().
+		Where(queryopt.In("offering_id", offeringIds)).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Order("offering_id ASC, id DESC").
+		Find(&entities).Error
+	return
+}
+
+// AdminReviewQuery 管理端评价检索条件（含隐藏/删除状态，跨课程名/课号/正文搜索）。
+type AdminReviewQuery struct {
+	Keyword  string // 课程名/主课号/评价正文（归一化/原文 LIKE）
+	Status   int8   // -1 = 全部状态；0/1/2 = visible/hidden/deleted
+	Cursor   uint64 // id 游标（id < cursor，倒序分页）
+	PageSize int
+}
+
+// ListReviewsForAdmin 返回管理端评价列表（含隐藏与隔离窗口内已删除评价），按 id 倒序。
+// 通过 offering 关联课程以支持按课程名/课号检索；评价正文走 content LIKE。
+func ListReviewsForAdmin(q AdminReviewQuery) (entities []ReviewEntity, err error) {
+	b := reviewBuilder().
+		Select("course_review.*").
+		Joins("JOIN course_offering ON course_offering.id = course_review.offering_id AND course_offering.deleted_at IS NULL").
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL")
+	if q.Status >= 0 {
+		b = b.Where(queryopt.Eq("course_review.status", q.Status))
+	}
+	if q.Keyword != "" {
+		kw := "%" + q.Keyword + "%"
+		b = b.Where(
+			`(course.primary_code LIKE ? OR course.name LIKE ? OR course.normalized_name LIKE ? OR course_review.content LIKE ?)`,
+			kw, kw, kw, kw,
+		)
+	}
+	if q.Cursor > 0 {
+		b = b.Where("course_review.id < ?", q.Cursor)
+	}
+	size := q.PageSize
+	if size <= 0 {
+		size = 20
+	}
+	// 上限放宽到 51：service 层用 pageSize+1 探测 hasNext，pageSize=50 时需多取一条。
+	if size > 51 {
+		size = 51
+	}
+	err = b.Order("course_review.id DESC").Limit(size).Find(&entities).Error
+	return
+}
+
+// ---- Offering ----
+
+// GetOfferingMapByIds 批量返回开课实例映射（管理端评价列表 hydration 用）。
+func GetOfferingMapByIds(ids []uint64) map[uint64]OfferingEntity {
+	result := make(map[uint64]OfferingEntity, len(ids))
+	if len(ids) == 0 {
+		return result
+	}
+	var entities []OfferingEntity
+	if err := offeringBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error; err != nil {
+		return result
+	}
+	for _, e := range entities {
+		result[e.Id] = e
+	}
+	return result
+}
+
+// ---- B2: cursor 分页（issue #174） ----
+
+// ReviewPageQuery cursor 分页查询条件。排序：course 级按
+// (offering_id DESC, id DESC)，offering 级按 id DESC（时间倒序）。
+// Cursor 语义：返回 (offering_id, id) 严格小于 cursor 的可见评价
+// （位置游标——删除/隐藏行不影响后续页游标稳定性）。
+type ReviewPageQuery struct {
+	CourseId         uint64
+	OfferingId       uint64 // 0 = 课程级全部 offering
+	CursorOfferingId uint64 // cursor 中的 offering_id（offering 级时为 0）
+	CursorReviewId   uint64 // cursor 中的 review_id（无 cursor 时为 0）
+	Limit            int
+}
+
+// ListReviewsPage 按 cursor 分页列出可见评价（时间倒序）。
+func ListReviewsPage(q ReviewPageQuery) (entities []ReviewEntity, err error) {
+	build := reviewBuilder().Where(queryopt.Eq("status", ReviewStatusVisible)).
+		// 软删条件显式写（spec S1：Table() 模式不依赖 gorm schema 推断，
+		// 与 Count 口径一致，防未来漂移）。
+		Where("deleted_at IS NULL")
+	if q.OfferingId > 0 {
+		build = build.Where(queryopt.Eq("offering_id", q.OfferingId))
+		if q.CursorReviewId > 0 {
+			build = build.Where("id < ?", q.CursorReviewId)
+		}
+		build = build.Order("id DESC")
+	} else {
+		// course 级：仅统计可见 offering——隐藏 offering 的评价不出现，
+		// 与 ListOfferingsByCourse/详情页可见性一致（PR #201 security F1）。
+		build = build.Where(
+			"offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)",
+			q.CourseId, OfferingStatusVisible,
+		)
+		if q.CursorOfferingId > 0 || q.CursorReviewId > 0 {
+			build = build.Where(
+				"(offering_id < ? OR (offering_id = ? AND id < ?))",
+				q.CursorOfferingId, q.CursorOfferingId, q.CursorReviewId,
+			)
+		}
+		build = build.Order("offering_id DESC, id DESC")
+	}
+	if q.Limit > 0 {
+		build = build.Limit(q.Limit)
+	}
+	err = build.Find(&entities).Error
+	return
+}
+
+// CountVisibleReviewsByCourse 课程下可见评价总数（分页 total）。
+// 与 ListReviewsPage course 级口径一致：仅统计可见 offering 且未软删
+// （PR #201 security F1：隐藏 offering 的评价不计入 total；spec S1：
+// Count 走 *int64 dest 不解析 schema，软删条件必须显式写，防口径漂移）。
+func CountVisibleReviewsByCourse(courseId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where("offering_id IN (SELECT id FROM "+offeringTableName+" WHERE course_id = ? AND deleted_at IS NULL AND status = ?)", courseId, OfferingStatusVisible).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
+// CountVisibleReviewsByOffering offering 下可见评价总数（分页 total）。
+// 软删条件显式写（spec S1：Count 不解析 schema，需显式过滤软删行）。
+func CountVisibleReviewsByOffering(offeringId uint64) (int64, error) {
+	var count int64
+	err := reviewBuilder().
+		Where(queryopt.Eq("offering_id", offeringId)).
+		Where(queryopt.Eq("status", ReviewStatusVisible)).
+		Where("deleted_at IS NULL").
+		Count(&count).Error
+	return count, err
+}
+
+// ---- Helpful ----
+
+// CreateHelpful 标记 helpful（唯一约束 (review_id, user_id) 防重）。
+func CreateHelpful(entity *HelpfulEntity) error {
+	return helpfulBuilder().Create(entity).Error
+}
+
+// GetHelpful 查询某用户的 helpful 状态。
+func GetHelpful(reviewId, userId uint64) (entity HelpfulEntity, err error) {
+	err = helpfulBuilder().
+		Where(queryopt.Eq("review_id", reviewId)).
+		Where(queryopt.Eq("user_id", userId)).
+		First(&entity).Error
+	return
+}
+
+// CountHelpfulByReviewIds 批量统计各评价的 helpful 数。
+func CountHelpfulByReviewIds(reviewIds []uint64) map[uint64]int64 {
+	result := make(map[uint64]int64, len(reviewIds))
+	if len(reviewIds) == 0 {
+		return result
+	}
+	type row struct {
+		ReviewId uint64
+		Cnt      int64
+	}
+	var rows []row
+	helpfulBuilder().
+		Select("review_id, COUNT(*) AS cnt").
+		Where(queryopt.In("review_id", reviewIds)).
+		Where("deleted_at IS NULL").
+		Group("review_id").
+		Scan(&rows)
+	for _, r := range rows {
+		result[r.ReviewId] = r.Cnt
+	}
+	return result
+}
+
+// ---- Stats ----
+
+// GetCourseStats 课程级统计。
+func GetCourseStats(courseId uint64) (entity CourseStatsEntity, err error) {
+	err = courseStatsBuilder().Where("course_id = ?", courseId).First(&entity).Error
+	return
+}
+
+// GetOfferingStats offering 级统计。
+func GetOfferingStats(offeringId uint64) (entity OfferingStatsEntity, err error) {
+	err = offeringStatsBuilder().Where("offering_id = ?", offeringId).First(&entity).Error
+	return
+}
+
+// UpsertCourseStatsTx 事务内课程级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
+// 用 SQL 表达式做原子增量，而非事务内 read-modify-write：两笔并发事务同时读到同一行再
+// 各自 Save 会互相覆盖、丢一次更新，使 review 计数/评分合计低于实际。重建命令可对账，
+// 但写路径必须本身不丢更新。跨方言（SQLite/PostgreSQL 均支持 ON CONFLICT）。
+func UpsertCourseStatsTx(tx *gorm.DB, courseId uint64, deltaRatingCount, deltaRatingSum, deltaReviewCount int) error {
+	return tx.Table(courseStatsTableName).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "course_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"rating_count": gorm.Expr(courseStatsTableName+".rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr(courseStatsTableName+".rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr(courseStatsTableName+".review_count + ?", deltaReviewCount),
+			"updated_at":   time.Now(),
+		}),
+	}).Create(&CourseStatsEntity{
+		CourseId:    courseId,
+		RatingCount: deltaRatingCount,
+		RatingSum:   deltaRatingSum,
+		ReviewCount: deltaReviewCount,
+	}).Error
+}
+
+// UpsertOfferingStatsTx 事务内 offering 级统计原子累加（INSERT ... ON CONFLICT DO UPDATE + delta）。
+// 与 UpsertCourseStatsTx 同理：原子增量避免并发事务互相覆盖导致丢更新。
+func UpsertOfferingStatsTx(tx *gorm.DB, offeringId uint64, deltaRatingCount, deltaRatingSum, deltaReviewCount int) error {
+	return tx.Table(offeringStatsTableName).Clauses(clause.OnConflict{
+		Columns: []clause.Column{{Name: "offering_id"}},
+		DoUpdates: clause.Assignments(map[string]any{
+			"rating_count": gorm.Expr(offeringStatsTableName+".rating_count + ?", deltaRatingCount),
+			"rating_sum":   gorm.Expr(offeringStatsTableName+".rating_sum + ?", deltaRatingSum),
+			"review_count": gorm.Expr(offeringStatsTableName+".review_count + ?", deltaReviewCount),
+			"updated_at":   time.Now(),
+		}),
+	}).Create(&OfferingStatsEntity{
+		OfferingId:  offeringId,
+		RatingCount: deltaRatingCount,
+		RatingSum:   deltaRatingSum,
+		ReviewCount: deltaReviewCount,
+	}).Error
+}
+
+// RebuildAllCourseStats 全量重建课程/offering 统计投影（rebuild-course-stats 命令）。
+// 以 review 事实表为准重新聚合，发现漂移时用于对账。
+// 在单事务内先清空两张统计表再重插：中途失败整体回滚，避免留下空表/半成品；
+// 事务快照保证并发课评写入不会在 DELETE 与重插之间插入同主键统计行。
+func RebuildAllCourseStats() error {
+	conn := db.Connect()
+	return conn.Transaction(func(tx *gorm.DB) error {
+		if err := tx.Unscoped().Table(courseStatsTableName).Where("1 = 1").Delete(&CourseStatsEntity{}).Error; err != nil {
+			return err
+		}
+		if err := tx.Unscoped().Table(offeringStatsTableName).Where("1 = 1").Delete(&OfferingStatsEntity{}).Error; err != nil {
+			return err
+		}
+		// offering 级聚合
+		type offeringAgg struct {
+			OfferingId  uint64
+			RatingCount int
+			RatingSum   int
+			ReviewCount int
+		}
+		var offeringAggs []offeringAgg
+		if err := tx.Table(reviewTableName).
+			Select("offering_id, COUNT(CASE WHEN rating IS NOT NULL AND status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN rating IS NOT NULL AND status = ? THEN rating END), 0) AS rating_sum, COUNT(CASE WHEN status = ? THEN 1 END) AS review_count",
+				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
+			Where("deleted_at IS NULL").
+			Group("offering_id").
+			Scan(&offeringAggs).Error; err != nil {
+			return err
+		}
+		for _, agg := range offeringAggs {
+			if err := tx.Table(offeringStatsTableName).Create(&OfferingStatsEntity{
+				OfferingId:  agg.OfferingId,
+				RatingCount: agg.RatingCount,
+				RatingSum:   agg.RatingSum,
+				ReviewCount: agg.ReviewCount,
+				UpdatedAt:   time.Now(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		// course 级聚合（通过 offering 关联）
+		type courseAgg struct {
+			CourseId    uint64
+			RatingCount int
+			RatingSum   int
+			ReviewCount int
+		}
+		var courseAggs []courseAgg
+		if err := tx.Table(offeringTableName+" o").
+			Select("o.course_id, COUNT(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN 1 END) AS rating_count, COALESCE(SUM(CASE WHEN r.rating IS NOT NULL AND r.status = ? THEN r.rating END), 0) AS rating_sum, COUNT(CASE WHEN r.status = ? THEN 1 END) AS review_count",
+				ReviewStatusVisible, ReviewStatusVisible, ReviewStatusVisible).
+			Joins("LEFT JOIN "+reviewTableName+" r ON r.offering_id = o.id AND r.deleted_at IS NULL").
+			// 与列表口径一致：隐藏 offering 的评价不计入课程级聚合（security F2）。
+			Where("o.deleted_at IS NULL AND o.status = ?", OfferingStatusVisible).
+			Group("o.course_id").
+			Scan(&courseAggs).Error; err != nil {
+			return err
+		}
+		for _, agg := range courseAggs {
+			if err := tx.Table(courseStatsTableName).Create(&CourseStatsEntity{
+				CourseId:    agg.CourseId,
+				RatingCount: agg.RatingCount,
+				RatingSum:   agg.RatingSum,
+				ReviewCount: agg.ReviewCount,
+				UpdatedAt:   time.Now(),
+			}).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+// ---- Stats read projection (B1 统计投影对外暴露, issue #173) ----
+
+// RatingDistribution 1-5 星各档可见评价计数（index 0 = 1 星, index 4 = 5 星）。
+type RatingDistribution [5]int
+
+// ListCourseStatsByIDs 批量读取课程级统计投影（目录列表 N+1 防护）。
+// 无统计行的课程返回空实体（ratingCount=0/reviewCount=0）。
+func ListCourseStatsByIDs(courseIds []uint64) map[uint64]CourseStatsEntity {
+	result := make(map[uint64]CourseStatsEntity, len(courseIds))
+	if len(courseIds) == 0 {
+		return result
+	}
+	var list []CourseStatsEntity
+	if err := courseStatsBuilder().Where("course_id IN ?", courseIds).Find(&list).Error; err != nil {
+		slog.Warn("ListCourseStatsByIDs: 查询失败", "courseIds", courseIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.CourseId] = s
+	}
+	return result
+}
+
+// ListOfferingStatsByIDs 批量读取 offering 级统计投影（详情开课列表 N+1 防护）。
+func ListOfferingStatsByIDs(offeringIds []uint64) map[uint64]OfferingStatsEntity {
+	result := make(map[uint64]OfferingStatsEntity, len(offeringIds))
+	if len(offeringIds) == 0 {
+		return result
+	}
+	var list []OfferingStatsEntity
+	if err := offeringStatsBuilder().Where("offering_id IN ?", offeringIds).Find(&list).Error; err != nil {
+		slog.Warn("ListOfferingStatsByIDs: 查询失败", "offeringIds", offeringIds, "err", err)
+		return result
+	}
+	for _, s := range list {
+		result[s.OfferingId] = s
+	}
+	return result
+}
+
+// RatingDistributionRow 评分分布聚合行（group key + 1-5 星计数）。
+type RatingDistributionRow struct {
+	Key   uint64
+	Star1 int
+	Star2 int
+	Star3 int
+	Star4 int
+	Star5 int
+}
+
+// ratingDistributionFromRows 把聚合行转成 map[Key]RatingDistribution。
+func ratingDistributionFromRows(rows []RatingDistributionRow) map[uint64]RatingDistribution {
+	result := make(map[uint64]RatingDistribution, len(rows))
+	for _, r := range rows {
+		result[r.Key] = RatingDistribution{r.Star1, r.Star2, r.Star3, r.Star4, r.Star5}
+	}
+	return result
+}
+
+// GetRatingDistributionsByCourseIds 批量按课程聚合 1-5 星分布（目录列表 N+1 防护）。
+func GetRatingDistributionsByCourseIds(courseIds []uint64) map[uint64]RatingDistribution {
+	if len(courseIds) == 0 {
+		return map[uint64]RatingDistribution{}
+	}
+	var rows []RatingDistributionRow
+	if err := db.Connect().Table(reviewTableName+" r").
+		Select("o.course_id AS \"key\", SUM(CASE WHEN r.rating = 1 THEN 1 ELSE 0 END) AS star1, SUM(CASE WHEN r.rating = 2 THEN 1 ELSE 0 END) AS star2, SUM(CASE WHEN r.rating = 3 THEN 1 ELSE 0 END) AS star3, SUM(CASE WHEN r.rating = 4 THEN 1 ELSE 0 END) AS star4, SUM(CASE WHEN r.rating = 5 THEN 1 ELSE 0 END) AS star5").
+		Joins("JOIN "+offeringTableName+" o ON o.id = r.offering_id").
+		// 与 RebuildAllCourseStats/列表口径一致：评价未软删、offering 未软删且可见
+		// （security F1+F2：软删行泄露评分档、隐藏 offering 的评价不计入课程级聚合）。
+		Where("o.course_id IN ? AND r.status = ? AND r.deleted_at IS NULL AND o.deleted_at IS NULL AND o.status = ?",
+			courseIds, ReviewStatusVisible, OfferingStatusVisible).
+		Group("o.course_id").
+		Scan(&rows).Error; err != nil {
+		slog.Warn("GetRatingDistributionsByCourseIds: 聚合失败", "courseIds", courseIds, "err", err)
+		return map[uint64]RatingDistribution{}
+	}
+	return ratingDistributionFromRows(rows)
+}

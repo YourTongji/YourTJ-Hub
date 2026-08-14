@@ -6,26 +6,31 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
-	"github.com/leancodebox/GooseForum/app/http/controllers/markdown2html"
-	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
-	"github.com/leancodebox/GooseForum/app/service/llmsservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/postservice"
-	"github.com/leancodebox/GooseForum/app/service/topicunseenservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/contentdeleteservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/llmsservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicunseenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"gorm.io/gorm"
 )
 
 // checkContentPolicy 检查内容是否命中敏感词。
@@ -198,73 +203,112 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
+	// 覆写首帖正文前保存旧内容/旧状态：存量帖子（无版本快照）首次编辑时
+	// 惰性播种 v1 = 旧正文；v1 的状态必须取旧状态，而非本次待审覆写后的
+	// Pending（否则此前公开的旧正文会对非版主永久隐藏，review 发现）。
+	oldContent := firstPost.Content
+	oldProcessStatus := firstPost.ProcessStatus
 	if topic.Id > 0 {
 		if firstPost.Id == 0 {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
 		}
 		firstPost.Content = req.Params.Content
-		firstPost.RenderedHTML = ""
+		firstPost.RenderedHTML = markdown2html.PostMarkdownToHTML(req.Params.Content)
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		if pendingReview {
 			firstPost.ProcessStatus = posts.ProcessStatusPending
 		}
-		if err := topics.Save(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+	// 记录是否为编辑：事务内 topics.CreateTx 会回填 topic.Id，因此提交后分支判断
+	// 必须使用此快照（isEdit），不能复用已被回填的 topic.Id。
+	isEdit := topic.Id > 0
+	// 单事务原子提交：话题 + 首帖 + 指针（首/末帖 ID、最后回复时间）+ 分类索引。
+	// 任一步失败整体回滚，不留孤立话题/缺首帖/缺分类索引；事件与缓存失效仅在提交后执行。
+	err = db.Connect().Transaction(func(tx *gorm.DB) error {
+		if isEdit {
+			// 锁序与 UpdatePost 首楼分支保持一致（posts → topics）：先写
+			// firstPost 行、再写 topic 派生字段。若这里先锁 topics 再锁
+			// posts，与 UpdatePost 的 posts→topics 形成锁环，同一话题双
+			// 路径并发编辑时可能死锁（数据库回滚其中一个事务）。
+			if err := posts.SaveTx(tx, &firstPost); err != nil {
+				return err
+			}
+			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
+			// 存量帖子无版本快照时用旧正文惰性播种 v1（状态取编辑前 oldProcessStatus）。
+			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, req.UserId, firstPost.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+				return err
+			}
+			// 只更新话题编辑者可写的字段（标题/分类/上下架/摘要/首图等），
+			// 不整行保存事务外读取的 topic——整行 Save 会把并发新建回复
+			// 刚写入的 post_count/post_seq/posters/last_post_id/
+			// last_posted_at 回写为旧值，导致统计倒退或 post_seq 复写后
+			// 新回复撞 post_no 唯一约束（与 UpdatePost 首楼分支同源问题）。
+			if err := topics.UpdateTopicEditableTx(tx, &topic); err != nil {
+				return err
+			}
+		} else {
+			topic.PostCount = 1
+			topic.PostSeq = 1
+			topic.Posters = []topics.Poster{{UserID: req.UserId}}
+			if err := topics.CreateTx(tx, &topic); err != nil {
+				return err
+			}
+			firstPost = posts.Entity{
+				TopicId:         topic.Id,
+				PostNo:          1,
+				UserId:          req.UserId,
+				Content:         req.Params.Content,
+				RenderedHTML:    markdown2html.PostMarkdownToHTML(req.Params.Content),
+				RenderedVersion: markdown2html.GetPostVersion(),
+				ProcessStatus:   posts.ProcessStatusNormal,
+			}
+			if pendingReview {
+				firstPost.ProcessStatus = posts.ProcessStatusPending
+			}
+			if err := posts.CreateTx(tx, &firstPost); err != nil {
+				return err
+			}
+			// 新话题播种版本 v1（editor = 作者）。
+			if err := postservice.SeedPostRevision(tx, &firstPost); err != nil {
+				return err
+			}
+			topic.FirstPostId = firstPost.Id
+			topic.LastPostId = firstPost.Id
+			now := time.Now()
+			topic.LastPostedAt = &now
+			if err := topics.SaveTx(tx, &topic); err != nil {
+				return err
+			}
 		}
-		if err := posts.Save(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
-		hotdataserve.ClearTopicListCache()
-		// 编辑分支：下架（TopicStatus=0）或转入待审不发 TopicUpdatedEvent，
-		// 需同步清理 LLMS 投影缓存，避免下架内容在 10s 窗口内继续导出。
+		return topicCategoryIndex.ReplaceTopicCategoriesTx(tx, topic.Id, req.Params.CategoryId)
+	})
+	if err != nil {
+		slog.Error("topic write transaction failed", "topicId", topic.Id, "isEdit", isEdit, "err", err)
+		return component.FailResponseCode(component.MessageOperationFailed, nil)
+	}
+
+	// ---- 事务已提交：此后才允许缓存失效、统计与事件发布 ----
+	fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
+	hotdataserve.ClearTopicListCache()
+	if isEdit {
+		// 编辑分支：无条件重建搜索索引——下架（TopicStatus=0）或转入待审
+		// （ProcessStatus=Pending）时 BuildSingleTopicSearchDocument 会把文档
+		// 从索引删除，避免非公开内容残留在公共搜索（issue #132）。
+		// LLMS 投影缓存同步失效，避免下架内容在 10s 窗口内继续导出。
 		llmsservice.ClearCache()
-		// 待审（pendingReview）内容未上线，跳过事件发布（通知/webhook/统计/积分），
+		if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+			slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
+		}
+		// 待审（pendingReview）内容未上线，跳过业务事件发布（通知/webhook/统计/积分），
 		// 由审核批准路径补发对应事件，避免敏感内容在审核前外泄。
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
-		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
 	} else {
-		topic.PostCount = 1
-		topic.PostSeq = 1
-		topic.Posters = []topics.Poster{{UserID: req.UserId}}
-		if err := topics.Create(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		firstPost = posts.Entity{
-			TopicId:         topic.Id,
-			PostNo:          1,
-			UserId:          req.UserId,
-			Content:         req.Params.Content,
-			RenderedHTML:    "",
-			RenderedVersion: markdown2html.GetPostVersion(),
-			ProcessStatus:   posts.ProcessStatusNormal,
-		}
-		if pendingReview {
-			firstPost.ProcessStatus = posts.ProcessStatusPending
-		}
-		if err := posts.Create(&firstPost); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		topic.FirstPostId = firstPost.Id
-		topic.LastPostId = firstPost.Id
-		now := time.Now()
-		topic.LastPostedAt = &now
-		if err := topics.Save(&topic); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		fileusageservice.ReplaceTopic(topic.Id, req.UserId, firstPost.Content)
 		if topic.Status == 1 && !pendingReview {
 			userStatistics.WriteTopic(req.UserId)
 		}
 		userservice.InvalidateUserPublicProfileCache(req.UserId)
-		if err := topicCategoryIndex.ReplaceTopicCategories(topic.Id, req.Params.CategoryId); err != nil {
-			return component.FailResponseCode(component.MessageOperationFailed, nil)
-		}
-		hotdataserve.ClearTopicListCache()
 		if topic.Status == 1 && !pendingReview {
 			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 		}
@@ -290,6 +334,9 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	nextStatus := req.Params.TopicStatus
+	if nextStatus == 1 && topic.ProcessStatus != topics.ProcessStatusNormal {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	if topic.Status == nextStatus {
 		return component.SuccessResponse(true)
 	}
@@ -299,9 +346,14 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	}
 	firstPost := posts.Get(topic.FirstPostId)
 	hotdataserve.ClearTopicListCache()
-	// 无条件清理：下架（1→0）不发事件，此处同步失效 LLMS 投影缓存；0→1 复发的
-	// TopicPublishedEvent 也会清一次，幂等无害。
+	// 无条件重建搜索索引（issue #132）：1→0（取消发布）时
+	// BuildSingleTopicSearchDocument 会把文档从索引删除，避免已下架话题
+	// 残留在公共搜索；0→1（重新发布）时 upsert 恢复，幂等无害。
+	// 不发布 TopicUpdatedEvent：下架属用户隐私操作，不触发 webhook 通知。
 	llmsservice.ClearCache()
+	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
+		slog.Error("failed to rebuild topic search document", "topicId", topic.Id, "err", err)
+	}
 	if topic.Status == 1 {
 		eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	}
@@ -468,7 +520,9 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 }
 
 type DeletePostReq struct {
-	PostId uint64 `json:"postId"`
+	PostId   uint64 `json:"postId"`
+	Force    bool   `json:"force"`
+	Password string `json:"password"`
 }
 
 type UpdatePostReq struct {
@@ -476,10 +530,14 @@ type UpdatePostReq struct {
 	Content string `json:"content"`
 }
 
+// UpdatePost 编辑帖子内容。首楼（PostNo=1）与回复同权限：作者本人。
+// 首楼编辑联动话题摘要/首图（列表卡片与搜索文档派生自首楼）并重建
+// 搜索索引；所有内容编辑在同一事务内追加版本历史（post_revisions，
+// 用户只读查看）并更新最后编辑者/时间。
 func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	postingConfig := hotdataserve.GetPostingSettingsConfigCache()
 	postEntity := posts.Get(req.Params.PostId)
-	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
+	if postEntity.Id == 0 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 	if postEntity.UserId != req.UserId {
@@ -515,23 +573,77 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if policyErr != nil {
 		return component.FailResponseError(policyErr)
 	}
+	// 覆写正文前捕获旧状态：存量帖子首次编辑惰性播种 v1 时，v1 的状态
+	// 必须取编辑前的旧状态，而非被本次待审覆写后的 Pending（否则此前
+	// 公开的旧正文会对非版主永久隐藏，post_revisions review 发现）。
+	oldProcessStatus := postEntity.ProcessStatus
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
-
+	// 覆写正文前保存旧内容：存量帖子（无版本快照）首次编辑时惰性播种
+	// v1 = 旧正文，避免原始正文永久丢失（已有 v1 的帖子走正常追加）。
+	oldContent := postEntity.Content
 	postEntity.Content = content
 	postEntity.RenderedHTML = markdown2html.PostMarkdownToHTML(content)
 	postEntity.RenderedVersion = markdown2html.GetPostVersion()
-	if err := posts.Save(&postEntity); err != nil {
+
+	isFirstPost := postEntity.PostNo == 1
+	if isFirstPost {
+		// 首楼是话题正文：摘要/首图与待审状态随正文联动（与 writeTopic
+		// 编辑分支同语义），保证列表卡片、搜索文档与正文一致。
+		topicEntity.Excerpt = markdown2html.ExtractDescription(content, 200)
+		topicEntity.FirstImageURL = markdown2html.ExtractFirstImageURL(content)
+		topicEntity.ImageUrls = markdown2html.ExtractImageURLs(content)
+		if pendingReview {
+			topicEntity.ProcessStatus = topics.ProcessStatusPending
+		}
+	}
+
+	now := time.Now()
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := posts.SaveTx(tx, &postEntity); err != nil {
+			return err
+		}
+		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
+		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, req.UserId, postEntity.ProcessStatus, oldContent, oldProcessStatus); err != nil {
+			return err
+		}
+		if isFirstPost {
+			// 首楼编辑只更新由正文派生的字段，绝不整行保存事务外读取的
+			// topicEntity——整行 Save 会把并发回复刚写入的 post_count/
+			// post_seq/posters/last_post_id/last_posted_at 回写为旧值，
+			// 导致统计倒退或 post_seq 复写后新回复撞 post_no 唯一约束。
+			if err := topics.UpdateFirstPostDerivedTx(tx, &topicEntity); err != nil {
+				return err
+			}
+		}
+		return nil
+	}); err != nil {
 		return component.FailResponseCode(
 			component.MessagePostUpdateFailed,
 
 			component.MessageParams{"error": err.Error()})
-
 	}
+	postEntity.LastEditorId = req.UserId
+	postEntity.LastEditedAt = &now
+
 	fileusageservice.ReplacePost(postEntity.Id, req.UserId, postEntity.Content)
-	// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
-	llmsservice.ClearCache()
+	if isFirstPost {
+		// 首楼编辑联动：附件重映射、列表缓存、搜索索引与业务事件
+		// （TopicUpdatedEvent 驱动通知/webhook/搜索），与 writeTopic 编辑分支一致。
+		fileusageservice.ReplaceTopic(topicEntity.Id, req.UserId, postEntity.Content)
+		hotdataserve.ClearTopicListCache()
+		llmsservice.ClearCache()
+		if _, err := searchservice.BuildSingleTopicSearchDocument(&topicEntity, &postEntity); err != nil {
+			slog.Error("failed to rebuild topic search document", "topicId", topicEntity.Id, "err", err)
+		}
+		if topicEntity.Status == 1 && !pendingReview {
+			eventbus.Publish(context.Background(), &eventhandlers.TopicUpdatedEvent{Topic: &topicEntity, FirstPost: &postEntity})
+		}
+	} else {
+		// 回复编辑不发布事件，同步清理 LLMS 投影缓存。
+		llmsservice.ClearCache()
+	}
 
 	return component.SuccessResponse(map[string]any{
 		"id":              postEntity.Id,
@@ -539,10 +651,16 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"content":         postEntity.Content,
 		"renderedContent": postEntity.RenderedHTML,
 		"updatedAt":       postEntity.UpdatedAt.Format(time.DateTime),
+		"lastEditorId":    postEntity.LastEditorId,
+		"lastEditedAt":    postEntity.LastEditedAt.Format(time.DateTime),
+		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
 	})
 }
 
 func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
+	if err := contentdeleteservice.CheckDeleteRate(req.UserId, 1, req.Params.Force, req.Params.Password); err != nil {
+		return component.FailResponseError(err)
+	}
 	postEntity := posts.Get(req.Params.PostId)
 	if postEntity.Id == 0 || postEntity.PostNo <= 1 {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
@@ -550,17 +668,18 @@ func DeletePost(req component.BetterRequest[DeletePostReq]) component.Response {
 	if postEntity.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
+	// 回复删除沿用读路径可见性守卫，避免隐藏或封禁话题中的回复继续被写操作探测。
 	topicEntity := topics.GetSimple(postEntity.TopicId)
-	// 话题可见性守卫：与 LikePost/BookmarkPost 一致，禁止删除读路径不可见（隐藏/封禁）话题中的回复
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
-	posts.DeleteEntity(&postEntity)
-	postservice.SyncTopicPostStats(topicEntity, postEntity, true)
-	hotdataserve.ClearTopicListCache()
-	// 回复删除不发布事件，同步清理 LLMS 投影缓存，避免已删回复在 10s 窗口内继续导出。
-	llmsservice.ClearCache()
-	return component.SuccessResponse(true)
+
+	// PR #99 删除生命周期：软删 + 墓碑态（保留讨论树），替代 dev 的物理删除实现。
+	result, err := contentdeleteservice.DeletePostByUser(req.UserId, req.Params.PostId)
+	if err != nil {
+		return component.FailResponseError(err)
+	}
+	return component.SuccessResponse(result)
 }
 
 type LikeTopicReq struct {

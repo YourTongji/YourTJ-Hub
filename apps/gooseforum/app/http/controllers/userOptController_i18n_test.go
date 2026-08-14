@@ -7,8 +7,8 @@ import (
 	"testing"
 	"unicode"
 
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/resource"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
 // TestActivationPageLocalized renders the activation view with the English

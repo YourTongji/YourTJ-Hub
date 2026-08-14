@@ -17,14 +17,16 @@ GooseForum, keeping the single-binary deployment**. Unified auth (built-in OIDC 
 points (credit, phase 2) are shared infrastructure subdomains. Database, search, and structure may all
 be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" deployment shape is kept.
 
-- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; keeps the
-  `github.com/leancodebox/GooseForum` module name so upstream can be merged in).
+- Forum: **Go 1.26 + Gin + Vue 3 + Tailwind**, at `apps/gooseforum` (fork of upstream; module path
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum`, diverged from upstream's `github.com/leancodebox/GooseForum`).
 - Backend layers (upstream structure): `app/bundles` (utilities) → `app/models` (GORM models) →
   `app/service` (business) → `app/http/controllers/{api,forum}` (JSON API + GoHTML three-mode rendering).
 - Frontend: `apps/gooseforum/resource` (Vue 3 + Vite, site/admin dual entry), built output
   `resource/static/dist` go:embed; GoHTML templates in `resource/templates` keep server-side rendering (three-mode).
-- Database: SQLite default, MySQL optional (`config.toml [db]`); **PostgreSQL supported for the main
-  database since issue #11** (file db stays SQLite).
+- Database: **PostgreSQL is the default deployment database** (`deploy/config.toml.example`
+  `[db.default] connection = "postgres"`); SQLite stays the local development/test default
+  (`apps/gooseforum/config.toml`, in-memory tests); the file db (`[db.file]`) is fixed SQLite.
+  MySQL is **not supported**.
 - Search: **Meilisearch** (`config.toml [meilisearch]`, optional); aggregate search (topics/users/
   categories, pinyin/initials) landed (issue #22); event-driven index sync, rebuildable projection.
 - Mobile: **Flutter** (`apps/mobile`, melos workspace, Riverpod, **Partial**).
@@ -32,8 +34,10 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   RS256 id_token, opaque access tokens, numeric `sub` = users.id); TOTP 2FA and session management
   (`jti` + `user_sessions`) in place. Casdoor is not enabled.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
-  password login, logout, mobile OIDC exchange, session management (list/revoke/revoke-all), and
-  topic writing, with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
+  password login, login public-key retrieval, TOTP login verification and account management, logout,
+  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, and account
+  registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
+  with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
   paths are split per domain under `paths/`; broader route coverage still needs manual or
   annotation-based work.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
@@ -42,12 +46,12 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
 
 ```
 apps/
-  gooseforum/  The forum itself (upstream fork; module name github.com/leancodebox/GooseForum preserved)
+  gooseforum/  The forum itself (upstream fork; module path github.com/YourTongji/YourTJ-Hub/apps/gooseforum)
     main.go            Entry point (cobra: serve / mock / rebuild-search-index subcommands)
     config.toml       Runtime config (gitignored; bring your own locally)
     app/              Go backend (bundles/console/datastruct/http/migration/models/service)
     resource/         Vue 3 frontend + gohtml templates + @gooseforum/client package
-    docs/             Upstream-owned docs (reference only)
+    docs/             Fork-owned docs (maintained in this monorepo, not reference-only)
   mobile/      Flutter melos workspace (core/auth/ui_kit/forum_app)
 packages/
   api-contract/  openapi.yaml + gen scripts + fixtures + contract tests (Partial)
@@ -67,7 +71,9 @@ docs/        Docs center (product/architecture/development/operations)
   single binary in production.
 - `services/` holds deployment configs only, not third-party source (Meilisearch/credit are
   off-the-shelf components; Casdoor is archived and not enabled).
-- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it.
+- Upstream sync: `git merge` upstream main; resolve conflicts with "our changes win" and record it. After
+  merging, rewrite upstream's `github.com/leancodebox/GooseForum` import prefix to
+  `github.com/YourTongji/YourTJ-Hub/apps/gooseforum` (upstream files keep the old prefix), then run `go mod tidy`.
 
 ## 3. Hard constraints
 
@@ -97,7 +103,7 @@ docs/        Docs center (product/architecture/development/operations)
   (both `TestSchemaMigratesOnPostgreSQL` and `TestSchemaUpgradeCreatesNewTablesOnPostgreSQL` in
   `app/migration/migration_pg_test.go`; spin up `postgres:16-alpine` locally — CI runs the same
   command in `ci-backend-pg`). MySQL-only type tags (`bigint unsigned` / `datetime` / `tinyint`)
-  break PG and are forbidden in models.
+  break PG and are forbidden in models (MySQL itself is not supported).
 - Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output into resource/static/dist)
 - Full build: `make build` (resource → go build single binary `bin/yourtj-hub`)
 - Smoke: run `./bin/yourtj-hub serve` then curl the homepage/API (port from config.toml, default 5234)

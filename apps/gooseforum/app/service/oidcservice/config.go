@@ -8,8 +8,10 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
+	"github.com/bmatcuk/doublestar/v4"
+
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 const (
@@ -26,11 +28,12 @@ const (
 // Empty Secret means a public client using PKCE with auth method `none`;
 // a non-empty Secret means a confidential client using client_secret_basic.
 type ClientConfig struct {
-	ID           string
-	Name         string
-	Secret       string
-	RedirectURIs []string
-	DevMode      bool
+	ID               string
+	Name             string
+	Secret           string
+	RedirectURIs     []string
+	RedirectURIGlobs []string
+	DevMode          bool
 }
 
 // Config is the effective provider configuration.
@@ -177,8 +180,21 @@ func loadClients() ([]ClientConfig, error) {
 				}
 			}
 		}
-		if cfg.ID == "" || len(cfg.RedirectURIs) == 0 {
-			return nil, fmt.Errorf("oidc: oidc.clients[%d] 缺少 id 或 redirect_uris", i)
+		// redirect_uris_globs: doublestar 通配模式。zitadel/oidc 库在精确匹配
+		// 失败后按 glob 匹配; pattern 在加载时校验, 非法即拒绝整个配置
+		// (fail-closed), 避免把坏 pattern 留给运行时。
+		if globs, ok := m["redirect_uris_globs"].([]any); ok {
+			for _, g := range globs {
+				if s, ok := g.(string); ok && s != "" {
+					if !doublestar.ValidatePattern(s) {
+						return nil, fmt.Errorf("oidc: oidc.clients[%d] redirect_uris_globs 无效 pattern: %q", i, s)
+					}
+					cfg.RedirectURIGlobs = append(cfg.RedirectURIGlobs, s)
+				}
+			}
+		}
+		if cfg.ID == "" || (len(cfg.RedirectURIs) == 0 && len(cfg.RedirectURIGlobs) == 0) {
+			return nil, fmt.Errorf("oidc: oidc.clients[%d] 缺少 id 或 redirect_uris/redirect_uris_globs", i)
 		}
 		clients = append(clients, cfg)
 	}

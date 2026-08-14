@@ -7,18 +7,19 @@ import (
 	"net/http/httputil"
 	"net/url"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/gin-contrib/gzip"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/controllers/forum"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/pk"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/service/oidcservice"
-	"github.com/leancodebox/GooseForum/app/service/permission"
-	"github.com/leancodebox/GooseForum/resource"
 )
 
 func gzipEnabled() bool {
@@ -100,11 +101,17 @@ func viewRoute(ginApp *gin.Engine) {
 	viewRouteApp.GET("/notifications", middleware.CheckLogin, forum.Notifications)
 	viewRouteApp.GET("/publish", middleware.CheckLogin, forum.Publish)
 	viewRouteApp.GET("/search", forum.Search)
+	viewRouteApp.GET("/courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseCatalog)
+	viewRouteApp.GET("/courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.CourseDetail)
+	viewRouteApp.GET("/moderation/course-reviews", middleware.CheckLogin, forum.CourseReviewModeration)
+	viewRouteApp.GET("/moderation/courses", middleware.CheckLogin, forum.CourseManagement)
+	viewRouteApp.GET("/schedule", middleware.RateLimit(middleware.RateLimitCourseCatalog), forum.Schedule)
 	viewRouteApp.GET("/admin", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/admin/*path", middleware.CheckLogin, middleware.CheckAnyPermissionOrNotFound, forum.Manage)
 	viewRouteApp.GET("/login", forum.Login)
 	viewRouteApp.GET("/reset-password", forum.ResetPassword)
 	viewRouteApp.GET("/terms", forum.Terms)
+	viewRouteApp.GET("/privacy", forum.Privacy)
 
 	viewRouteApp.GET("/activate", controllers.ActivateAccount)
 
@@ -133,7 +140,7 @@ func apiRoute(ginApp *gin.Engine) {
 	baseApi.GET("get-captcha", UpQueryReq(api.GetCaptcha))
 	baseApi.GET("user-card", UpQueryReq(api.GetUserCard))
 	baseApi.POST("forgot-password", middleware.RateLimit(middleware.RateLimitForgotPassword), UpButterReq(api.ForgotPassword))
-	baseApi.POST("reset-password", UpButterReq(api.ResetPassword))
+	baseApi.POST("reset-password", middleware.RateLimit(middleware.RateLimitResetPassword), UpButterReq(api.ResetPassword))
 	baseApi.GET("auth/:provider", api.ProviderLogin)
 	baseApi.GET("auth/:provider/callback", middleware.JWTAuth, api.ProviderCallback)
 
@@ -175,15 +182,49 @@ func apiRoute(ginApp *gin.Engine) {
 	loginApi.GET("user/sessions", UpButterReq(api.ListSessions))
 	loginApi.POST("user/sessions/revoke", UpButterReq(api.RevokeSession))
 	loginApi.POST("user/sessions/revoke-all", UpButterReq(api.RevokeAllSessions))
-	loginApi.POST("user/totp/setup", UpButterReq(api.TotpSetup))
-	loginApi.POST("user/totp/enable", UpButterReq(api.TotpEnable))
-	loginApi.POST("user/totp/disable", UpButterReq(api.TotpDisable))
+	// TOTP 写操作校验账户密码或 6 位验证码（setup/enable/disable），挂 RateLimit 防止暴力破解；
+	// status 只读 enabled 标志、不验证任何凭据，无需限流。
+	loginApi.POST("user/totp/setup", middleware.RateLimit(middleware.RateLimitTotpSetup), UpButterReq(api.TotpSetup))
+	loginApi.POST("user/totp/enable", middleware.RateLimit(middleware.RateLimitTotpEnable), UpButterReq(api.TotpEnable))
+	loginApi.POST("user/totp/disable", middleware.RateLimit(middleware.RateLimitTotpDisable), UpButterReq(api.TotpDisable))
 	loginApi.GET("user/totp/status", UpButterReq(api.TotpStatus))
+
+	// PK 排课器 13 端点（Issue #187）：公开只读，统一 {code,msg,data} 信封，
+	// 与现有 /api/forum 的 {result,code,messageCode,params} 信封并列。
+	// 限流复用课程目录配额（只读目录类访问）。
+	pkApi := baseApi.Group("pk")
+	pkApi.GET("calendars", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListCalendars))
+	pkApi.GET("campuses", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListCampuses))
+	pkApi.GET("faculties", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.ListFaculties))
+	pkApi.POST("grades", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.Grades))
+	pkApi.POST("majors", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.Majors))
+	pkApi.POST("courses-by-major", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByMajor))
+	pkApi.POST("optional-types", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.OptionalTypes))
+	pkApi.POST("courses-by-nature", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByNature))
+	pkApi.POST("course-details", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseDetails))
+	pkApi.POST("course-search", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseSearch))
+	pkApi.POST("courses-by-time", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CoursesByTime))
+	pkApi.GET("latest-update", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkNoReq(pkcontroller.LatestUpdate))
+	pkApi.POST("course-info-sync", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkJsonReq(pkcontroller.CourseInfoSync))
+	pkApi.GET("course-review-brief", middleware.RateLimit(middleware.RateLimitCourseCatalog), pkQueryReq(pkcontroller.CourseReviewBrief))
 
 	forumApi := baseApi.Group("forum")
 	forumApi.GET("get-site-statistics", ginUpNP(api.GetSiteStatistics))
 	forumApi.GET("search", middleware.JWTAuth, UpQueryReq(forum.SearchJSON))
+	forumApi.GET("courses", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpQueryReq(forum.CourseListJSON))
+	forumApi.GET("courses/:courseId", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseDetailJSON))
+	// 课程评价列表：公开可读，可选 JWT 仅用于 viewer 状态，不要求登录。
+	forumApi.GET("courses/:courseId/reviews", middleware.RateLimit(middleware.RateLimitCourseCatalog), middleware.JWTAuth, UpUriQueryReq(forum.ListCourseReviews))
+	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
+	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
+	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
+	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
+	// 未登录调用者仍可读（JWTAuth 可选）。
+	forumApi.GET("courses/:courseId/summary", middleware.JWTAuth, middleware.RateLimit(middleware.RateLimitCourseSummary), UpUriQueryReq(forum.GetCourseSummary))
 	forumApi.GET("posts/window", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostWindow))
+	// 帖子版本历史：公开只读（话题可见即可读），可选 JWT 仅用于 viewer 状态，
+	// 不要求登录；待审版本正文在控制器内对非版主屏蔽。
+	forumApi.GET("posts/revisions", middleware.JWTAuth, middleware.NoUpdateUserActivity, UpQueryReq(forum.PostRevisions))
 
 	forumLoginApi := forumApi.Use(middleware.JWTAuthCheck)
 	forumLoginApi.GET("unread-status", middleware.NoUpdateUserActivity, UpButterReq(api.GetUnreadStatus))
@@ -191,10 +232,19 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("notification/mark-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAsRead))
 	forumLoginApi.POST("notification/mark-all-read", middleware.CheckWritableAccount, UpButterReq(api.MarkAllAsRead))
 	forumLoginApi.POST("topics/write", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicWrite), UpButterReq(api.WriteTopic))
-	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, UpButterReq(api.UpdateTopicStatus))
+	forumLoginApi.POST("topics/status", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitTopicStatus), UpButterReq(api.UpdateTopicStatus))
+	forumLoginApi.POST("topics/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.DeleteTopicByUser))
+	forumLoginApi.GET("user/deleted-content", middleware.NoUpdateUserActivity, UpQueryReq(api.DeletedContentList))
+	forumLoginApi.GET("user/my-content", middleware.NoUpdateUserActivity, UpQueryReq(api.MyContentList))
+	forumLoginApi.POST("user/content-batch-delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BatchDeleteContent))
+	forumLoginApi.POST("user/content-restore", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.RestoreContent))
+	forumLoginApi.POST("user/content-purge", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PurgeContent))
+	forumLoginApi.POST("user/content-privacy-erase", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.PrivacyErase))
+	forumLoginApi.POST("user/content-event", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.ReportContentEvent))
+	forumLoginApi.POST("user/account-close", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.AccountClose))
 	forumLoginApi.POST("posts/create", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostCreate), UpButterReq(api.CreatePost))
-	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, UpButterReq(api.UpdatePost))
-	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, UpButterReq(api.DeletePost))
+	forumLoginApi.POST("posts/update", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostUpdate), UpButterReq(api.UpdatePost))
+	forumLoginApi.POST("posts/delete", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitPostDelete), UpButterReq(api.DeletePost))
 	forumLoginApi.POST("posts/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikePost))
 	forumLoginApi.POST("posts/bookmark", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.BookmarkPost))
 	forumLoginApi.POST("topics/like", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.LikeTopic))
@@ -202,11 +252,35 @@ func apiRoute(ginApp *gin.Engine) {
 	forumLoginApi.POST("topics/watch", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.WatchTopic))
 	forumLoginApi.POST("follow-user", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(api.FollowUser))
 	forumLoginApi.POST("report", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitInteract), UpButterReq(forum.CreateReport))
+	// 课评写接口：登录 + 可写账号 + 独立限流。
+	forumLoginApi.POST("course-reviews", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpJsonReq(forum.CreateCourseReview))
+	forumLoginApi.PATCH("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriJsonReq(forum.UpdateCourseReview))
+	forumLoginApi.DELETE("course-reviews/:reviewId", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewWrite), UpUriReq(forum.DeleteCourseReview))
+	forumLoginApi.PUT("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.MarkReviewHelpful))
+	forumLoginApi.DELETE("course-reviews/:reviewId/helpful", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewHelpful), UpUriReq(forum.UnmarkReviewHelpful))
+	forumLoginApi.POST("course-reviews/:reviewId/reports", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReport), UpUriJsonReq(forum.ReportCourseReview))
+	// 课评审核：独立 CourseManager 权限；身份揭示仅 Admin（控制器内二次校验）。
+	// 审核操作挂 course.review.moderate 限流（60s per-IP 60 / per-User 30，issue #176 B4）。
+	// 权限校验前置到 RateLimit 之前：未授权请求直接 403，不消耗共享 per-IP 配额
+	// （否则任意登录用户可耗尽同 IP 审核员的限流池，DoS 审核功能，security review F1）。
+	forumLoginApi.POST("moderation/course-review-status", middleware.CheckWritableAccount, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewStatus))
+	forumLoginApi.POST("moderation/course-review-reports", middleware.NoUpdateUserActivity, middleware.CheckPermission(permission.CourseManager), middleware.RateLimit(middleware.RateLimitReviewModerate), UpButterReq(forum.ModerationCourseReviewReportList))
+	forumLoginApi.POST("moderation/course-review-reveal", middleware.CheckWritableAccount, middleware.RateLimit(middleware.RateLimitReviewReveal), UpButterReq(forum.ModerationCourseReviewReveal))
+	// 课评管理：课程/评价 CRUD + 统计重建（CourseManager 权限，控制器内校验）。
+	forumLoginApi.POST("moderation/course-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminCourseList))
+	forumLoginApi.POST("moderation/course-create", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseCreate))
+	forumLoginApi.POST("moderation/course-update", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseUpdate))
+	forumLoginApi.POST("moderation/course-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseDelete))
+	forumLoginApi.POST("moderation/course-review-list", middleware.NoUpdateUserActivity, UpButterReq(forum.AdminReviewList))
+	forumLoginApi.POST("moderation/course-review-edit", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewUpdate))
+	forumLoginApi.POST("moderation/course-review-delete", middleware.CheckWritableAccount, UpButterReq(forum.AdminReviewDelete))
+	forumLoginApi.POST("moderation/course-stats-rebuild", middleware.CheckWritableAccount, UpButterReq(forum.AdminCourseStatsRebuild))
 	forumLoginApi.POST("moderation/topic-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationTopicStatus))
 	forumLoginApi.POST("moderation/post-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationPostStatus))
 	forumLoginApi.POST("moderation/reports", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationReportList))
 	forumLoginApi.POST("moderation/report-status", middleware.CheckWritableAccount, UpButterReq(forum.UpdateModerationReportStatus))
 	forumLoginApi.POST("moderation/logs", middleware.NoUpdateUserActivity, UpButterReq(forum.ModerationLogList))
+	forumLoginApi.POST("moderation/view-deleted-content", middleware.CheckWritableAccount, UpButterReq(forum.ViewDeletedContent))
 
 	chatApi := forumApi.Group("chat", middleware.JWTAuthCheck)
 
@@ -240,6 +314,8 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("topics/source", UpButterReq(api.TopicSource)).
 		POST("topics/edit", UpButterReq(api.EditTopic)).
 		POST("topics/delete", UpButterReq(api.DeleteTopic)).
+		POST("topics/restore", UpButterReq(api.RestoreTopic)).
+		POST("posts/delete", UpButterReq(api.DeletePostAsModerator)).
 		POST("topics/pin-edit", UpButterReq(api.EditTopicPin)).
 		POST("topics/categories-edit", UpButterReq(api.EditTopicCategories)).
 		POST("category-list", UpButterReq(api.GetCategoryList)).
@@ -301,10 +377,16 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("badges", UpButterReq(api.BadgeList)).
 		GET("mcp-settings", UpButterReq(api.GetMCPSettings)).
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
+		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
+		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
+		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).
 		POST("badge-delete", UpButterReq(api.DeleteBadge)).
 		GET("terms-of-service", UpButterReq(api.GetTermsOfService)).
 		POST("save-terms-of-service", UpButterReq(api.SaveTermsOfService)).
+		GET("privacy-policy", UpButterReq(api.GetPrivacyPolicy)).
+		POST("save-privacy-policy", UpButterReq(api.SavePrivacyPolicy)).
 		POST("file-resources", UpButterReq(api.FileResourcePage)).
 		POST("img-upload", api.SaveAdminImgByGinContext).
 		POST("data/export", UpButterReq(api.CreateExportTask)).

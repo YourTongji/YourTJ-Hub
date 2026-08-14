@@ -73,9 +73,11 @@ class FakeTopicRepository extends TopicRepository {
           desc: '技术交流',
         ),
       ],
+      courses: const <CourseSearchPayload>[],
       total: 1,
       usersTotal: 1,
       categoriesTotal: 1,
+      coursesTotal: 0,
       totalPages: 1,
       pagination: const PaginationPayload(
         page: 1,

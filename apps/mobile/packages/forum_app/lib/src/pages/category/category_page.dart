@@ -7,6 +7,7 @@ import 'package:core/core.dart';
 import '../../../l10n/app_localizations.dart';
 import '../../format.dart';
 import '../../providers.dart';
+import '../../server_messages.dart';
 import '../../widgets/status_views.dart';
 import '../../widgets/topic_list.dart';
 
@@ -94,7 +95,10 @@ class _CategoryPageState extends ConsumerState<CategoryPage> {
       appBar: GfAppBar(title: Text(AppLocalizations.of(context).categoryTitle)),
       body: _page.when(
         loading: () => const GfLoading(),
-        error: (e, _) => GfErrorRetry(message: '$e', onRetry: _load),
+        error: (e, _) => GfErrorRetry(
+          message: resolveErrorMessage(AppLocalizations.of(context), e),
+          onRetry: _load,
+        ),
         data: (props) {
           return Column(
             crossAxisAlignment: CrossAxisAlignment.start,

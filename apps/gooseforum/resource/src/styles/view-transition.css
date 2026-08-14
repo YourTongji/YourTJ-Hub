@@ -1,0 +1,48 @@
+/*
+ * 主题切换动画（View Transitions API + circle mask 扩散）
+ *
+ * 回归修复（引入于 PR #99 / 9d573ec）：
+ * - 去掉 SVG feGaussianBlur：全页根快照 + filter 导致动画期间每帧整页重栅格化
+ *   （trace 中 RasterTask 200–500ms 集群 + 切换瞬间 ~50ms 主线程长任务）
+ * - 时长 1s → 0.5s 弱化；保留 circle mask 扩散，只动画 mask-size 单属性（合成器友好）
+ * - 元素级 CSS transition 的抑制见 site-theme.ts 的 theme-switching class
+ */
+::view-transition-group(root) {
+  animation-timing-function: cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+::view-transition-new(root) {
+  mask: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 40 40'%3E%3Ccircle cx='20' cy='20' r='20' fill='white'/%3E%3C/svg%3E")
+    center / 0 no-repeat;
+  animation: gf-theme-scale 0.5s;
+  animation-fill-mode: both;
+}
+
+/*
+ * 主题切换期间抑制页面内元素级 transition（导航/标签/按钮上并发 ~45 条
+ * color/background-color/border 过渡，与 view transition 叠加拥塞主线程）。
+ * ::view-transition-* 是伪元素，不受 * 匹配，view transition 动画不受影响。
+ */
+html.theme-switching *,
+html.theme-switching *::before,
+html.theme-switching *::after {
+  transition: none !important;
+}
+
+::view-transition-old(root) {
+  animation: none;
+  animation-fill-mode: both;
+  z-index: -1;
+}
+
+@keyframes gf-theme-scale {
+  to {
+    mask-size: 200vmax;
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  ::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}

@@ -3,7 +3,7 @@ package permission
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/datastruct"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/datastruct"
 )
 
 func TestEnum(t *testing.T) {
@@ -22,8 +22,8 @@ func TestEnumIdAndBuildOptions(t *testing.T) {
 	}
 
 	options := BuildOptions("en")
-	if len(options) != int(SiteManager-Admin+1) {
-		t.Fatalf("BuildOptions() length = %d, want %d", len(options), SiteManager-Admin+1)
+	if len(options) != int(CourseManager-Admin+1) {
+		t.Fatalf("BuildOptions() length = %d, want %d", len(options), CourseManager-Admin+1)
 	}
 	for _, option := range options {
 		if option.Name == "" || option.Label == "" {

@@ -4,7 +4,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/meilisearch/meilisearch-go"
 )
 

@@ -14,21 +14,21 @@ import (
 	"testing"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 	jose "github.com/go-jose/go-jose/v4"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/role"
-	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
-	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
 	"github.com/zitadel/oidc/v3/pkg/oidc"
 )
 
@@ -303,6 +303,174 @@ func TestAuthorizeRejectsRedirectMismatch(t *testing.T) {
 		if strings.Contains(loc, "https://evil.example.com") {
 			t.Fatalf("authorize redirected to unregistered URI: %q", loc)
 		}
+	}
+}
+
+// TestAuthorizeAcceptsRedirectGlobMatch 验证 redirect_uris_globs 兜底匹配:
+// 精确匹配失败后按 doublestar pattern 匹配, 带动态 query 的回调也能进入登录桥。
+func TestAuthorizeAcceptsRedirectGlobMatch(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id":                  "auth-center",
+			"name":                "OAuth Center",
+			"redirect_uris":       []any{"https://auth.example.com/api/oauth/redirect"},
+			"redirect_uris_globs": []any{"https://auth.example.com/api/oauth/redirect*"},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	// 带动态 query 的回调(精确匹配必败), glob 命中 → 必须进入 /login 登录桥
+	target := authorizeURL(issuer, "auth-center", "https://auth.example.com/api/oauth/redirect?x=1", "st", "no", verifier)
+	rec := doGet(t, h, target)
+	if !strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("glob-matched redirect must reach login bridge: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestAuthorizeAcceptsWalineCallbackGlob 钉住真实 Waline 回调形状:
+// redirect_uri 内层页面 URL 仍带 %-编码(与 auth center 构造的一致), 而
+// zitadel/oidc 匹配前会再 QueryUnescape 一次——只有 ** 作末尾 segment 的
+// pattern 能命中(dev 部署实测: * 会让真实回调 400)。
+func TestAuthorizeAcceptsWalineCallbackGlob(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id":   "yourtj-wiki-comment",
+			"name": "Wiki Comment",
+			"redirect_uris_globs": []any{
+				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
+				`https://comment.example.com/api/oauth\?redirect=/**`,
+			},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	conn := db.Connect()
+	if err := conn.AutoMigrate(&oidcAuthRequests.Entity{}); err != nil {
+		t.Fatalf("migrate: %v", err)
+	}
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	target := authorizeURL(issuer, "yourtj-wiki-comment",
+		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fwiki.example.com%2Fguide%2F&type=oidc",
+		"st", "no", verifier)
+	rec := doGet(t, h, target)
+	if !strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("waline callback glob must reach login bridge: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestAuthorizeRejectsWalineCallbackGlobEvilDomain 钉住 glob 不放宽到任意域:
+// 相同回调形状但页面 URL 是 evil 域, 必须仍被拒绝。
+func TestAuthorizeRejectsWalineCallbackGlobEvilDomain(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id": "yourtj-wiki-comment",
+			"redirect_uris_globs": []any{
+				`https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**`,
+				`https://comment.example.com/api/oauth\?redirect=/**`,
+			},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	target := authorizeURL(issuer, "yourtj-wiki-comment",
+		"https://comment.example.com/api/oauth?redirect=https%3A%2F%2Fevil.example.com%2F&type=oidc",
+		"st", "no", verifier)
+	rec := doGet(t, h, target)
+	if strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("evil-domain waline callback must not reach login bridge: %q", rec.Header().Get("Location"))
+	}
+}
+
+// TestAuthorizeRejectsRedirectGlobMismatch 验证 glob 兜底不会放宽成任意匹配:
+// 未命中任何 pattern 的 URI 依然被拒绝。
+func TestAuthorizeRejectsRedirectGlobMismatch(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	clients := []map[string]any{
+		{
+			"id":                  "auth-center",
+			"name":                "OAuth Center",
+			"redirect_uris":       []any{"https://auth.example.com/api/oauth/redirect"},
+			"redirect_uris_globs": []any{"https://auth.example.com/api/oauth/redirect*"},
+		},
+	}
+	setupProviderConfig(t, issuer, clients)
+	h, err := Router()
+	if err != nil {
+		t.Fatalf("Router() error = %v", err)
+	}
+	_, verifier := pkcePair(t)
+	target := authorizeURL(issuer, "auth-center", "https://evil.example.com/api/oauth/redirect?x=1", "st", "no", verifier)
+	rec := doGet(t, h, target)
+	if strings.HasPrefix(rec.Header().Get("Location"), "/login") {
+		t.Fatalf("glob mismatch must not reach login bridge: %q", rec.Header().Get("Location"))
+	}
+	if rec.Code == http.StatusFound {
+		loc := rec.Header().Get("Location")
+		if strings.Contains(loc, "https://evil.example.com") {
+			t.Fatalf("authorize redirected to unregistered URI: %q", loc)
+		}
+	}
+}
+
+// TestLoadConfigRedirectURIGlobs 验证 redirect_uris_globs 解析与 fail-closed
+// pattern 校验(非法 pattern 拒绝整个 oidc 配置)。
+func TestLoadConfigRedirectURIGlobs(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+
+	setupProviderConfig(t, issuer, []map[string]any{
+		{"id": "g1", "redirect_uris_globs": []any{"https://a.example.com/cb*"}},
+	})
+	cfg, err := LoadConfig()
+	if err != nil {
+		t.Fatalf("LoadConfig() error = %v", err)
+	}
+	if len(cfg.Clients) != 1 || len(cfg.Clients[0].RedirectURIGlobs) != 1 ||
+		cfg.Clients[0].RedirectURIGlobs[0] != "https://a.example.com/cb*" {
+		t.Fatalf("RedirectURIGlobs = %+v, want [https://a.example.com/cb*]", cfg.Clients)
+	}
+
+	setupProviderConfig(t, issuer, []map[string]any{
+		{"id": "g2", "redirect_uris_globs": []any{"https://a.example.com/["}},
+	})
+	if _, err := LoadConfig(); err == nil {
+		t.Fatal("invalid redirect_uris_globs pattern must fail LoadConfig (fail-closed)")
+	}
+}
+
+// TestIsMobileRedirectAllowedWithGlobs 验证 mobile exchange 的 redirect 校验
+// 与 provider 校验同语义: 精确匹配 + glob 兜底。
+func TestIsMobileRedirectAllowedWithGlobs(t *testing.T) {
+	issuer := "https://forum.example.com/api/oauth"
+	setupProviderConfig(t, issuer, []map[string]any{
+		{
+			"id":                  "yourtj-mobile",
+			"redirect_uris":       []any{"yourtj://callback"},
+			"redirect_uris_globs": []any{"yourtj://callback-*"},
+		},
+	})
+	if !isMobileRedirectAllowed("yourtj://callback-123") {
+		t.Fatal("mobile glob pattern must allow matching redirect URI")
+	}
+	if isMobileRedirectAllowed("yourtj://evil") {
+		t.Fatal("mobile glob pattern must not allow non-matching redirect URI")
 	}
 }
 
@@ -1013,6 +1181,13 @@ func TestConfigKeyChangesWithTTLAndSecret(t *testing.T) {
 	redirectChanged.Clients[0].RedirectURIs = []string{"https://b/cb"}
 	if configKey(redirectChanged) == baseKey {
 		t.Fatal("configKey must change when redirect URIs change")
+	}
+
+	// glob 变化 → key 变化
+	globChanged := base
+	globChanged.Clients[0].RedirectURIGlobs = []string{"https://a/cb*"}
+	if configKey(globChanged) == baseKey {
+		t.Fatal("configKey must change when redirect URI globs change")
 	}
 
 	// 敏感值明文绝不出现在 key 中

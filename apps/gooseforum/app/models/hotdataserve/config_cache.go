@@ -3,10 +3,10 @@ package hotdataserve
 import (
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/localcache"
-	"github.com/leancodebox/GooseForum/app/cacheconfig"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/localcache"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/cacheconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 )
 
 const (
@@ -99,6 +99,20 @@ func ClearTermsOfServiceConfigCache() {
 	termsOfServiceConfigCache.Clear()
 }
 
+var privacyPolicyConfigCache = &localcache.Cache[pageConfig.PrivacyPolicyConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+func GetPrivacyPolicyConfigCache() pageConfig.PrivacyPolicyConfig {
+	return privacyPolicyConfigCache.GetOrLoad("", func() (pageConfig.PrivacyPolicyConfig, error) {
+		config := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, defaultconfig.GetDefaultPrivacyPolicyConfig())
+		config.PrepareHTML()
+		return config, nil
+	}, configFastCacheTTL)
+}
+
+func ClearPrivacyPolicyConfigCache() {
+	privacyPolicyConfigCache.Clear()
+}
+
 var postingSettingsConfigCache = &localcache.Cache[pageConfig.PostingContent]{MaxEntries: cacheconfig.Current().PageConfig}
 
 func GetPostingSettingsConfigCache() pageConfig.PostingContent {
@@ -156,6 +170,35 @@ func GetMCPSettingsConfigCache() pageConfig.MCPSettingsConfig {
 
 func ClearMCPSettingsConfigCache() {
 	mcpSettingsConfigCache.Clear()
+}
+
+var aiSummarySettingsConfigCache = &localcache.Cache[pageConfig.AiSummaryConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetAiSummarySettingsConfigCache 读取 AI 课程总结开关配置（5s TTL 热缓存）。
+func GetAiSummarySettingsConfigCache() pageConfig.AiSummaryConfig {
+	return aiSummarySettingsConfigCache.GetOrLoad("", func() (pageConfig.AiSummaryConfig, error) {
+		return pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, defaultconfig.GetDefaultAiSummaryConfig()), nil
+	}, configFastCacheTTL)
+}
+
+func ClearAiSummarySettingsConfigCache() {
+	aiSummarySettingsConfigCache.Clear()
+}
+
+var oneSystemSettingsConfigCache = &localcache.Cache[pageConfig.OneSystemSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetOnesystemSettingsConfigCache 读取一系统同步凭证配置（cookie 为密文）。
+// 落库形状为 OneSystemSettingsStorage（密文带 json 标签），读取后转领域结构，
+// 避免密文随领域结构被整包序列化导出（review MEDIUM）。
+func GetOnesystemSettingsConfigCache() pageConfig.OneSystemSettingsConfig {
+	return oneSystemSettingsConfigCache.GetOrLoad("", func() (pageConfig.OneSystemSettingsConfig, error) {
+		storage := pageConfig.GetConfigByPageType(pageConfig.OneSystemSettings, pageConfig.OneSystemSettingsStorage{})
+		return storage.ToConfig(), nil
+	}, configFastCacheTTL)
+}
+
+func ClearOnesystemSettingsConfigCache() {
+	oneSystemSettingsConfigCache.Clear()
 }
 
 func ClearSecuritySettingsConfigCache() {

@@ -9,12 +9,12 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/httputil"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/httputil"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 )
 
 func GetFileByFileName(c *gin.Context) {
@@ -27,6 +27,16 @@ func GetFileByFileName(c *gin.Context) {
 		return
 	}
 	filename = strings.TrimPrefix(filename, "/")
+	// 附件引用被标记为 RECOVERING（内容删除后 30 天窗口）或 PURGED 时不再允许公开下载。
+	// 已删除内容的附件只应在恢复（回 ACTIVE）后重新可见；RECOVERING 只是为清理协调保留引用，
+	// 不构成公开访问授权。
+	if fileusageservice.HasAnyReferences(filename) && !fileusageservice.HasActiveReferences(filename) {
+		c.JSON(http.StatusNotFound, gin.H{
+			"error":       "File not found",
+			"messageCode": component.MessagePageNotFound,
+		})
+		return
+	}
 
 	entity, err := filedata.GetFileByName(filename)
 	if err != nil {

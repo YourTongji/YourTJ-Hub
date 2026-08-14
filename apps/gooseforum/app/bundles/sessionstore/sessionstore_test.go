@@ -4,7 +4,7 @@ import (
 	"testing"
 
 	"github.com/gorilla/sessions"
-	"github.com/leancodebox/GooseForum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 )
 
 // withEnv restores app.env and server.url after the test so package-level

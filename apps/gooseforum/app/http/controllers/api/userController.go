@@ -13,24 +13,25 @@ import (
 	"strings"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	"github.com/leancodebox/GooseForum/app/bundles/captchaOpt"
-	"github.com/leancodebox/GooseForum/app/bundles/eventbus"
-	"github.com/leancodebox/GooseForum/app/bundles/i18n"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/emailactivationservice"
-	"github.com/leancodebox/GooseForum/app/service/eventhandlers"
-	"github.com/leancodebox/GooseForum/app/service/fileusageservice"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/moderationservice"
-	"github.com/leancodebox/GooseForum/app/service/oauthservice"
-	"github.com/leancodebox/GooseForum/app/service/tokenservice"
-	"github.com/leancodebox/GooseForum/app/service/urlconfig"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/captchaOpt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/emailactivationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oauthservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 
 	"github.com/gin-gonic/gin"
 )
@@ -51,6 +52,14 @@ func GetUserCard(req component.BetterRequest[GetUserCardReq]) component.Response
 	userId := req.Params.UserId
 	card, ok := userservice.GetUserCard(userId)
 	if !ok {
+		// 已注销（软删）账号仍可能保留历史内容，渲染专门的注销用户卡片（PRD R10）。
+		if users.IsAccountClosed(userId) {
+			return component.SuccessResponse(&vo.UserCard{
+				UserId:          userId,
+				AvatarUrl:       urlconfig.GetDefaultAvatar(),
+				IsAccountClosed: true,
+			})
+		}
 		return component.FailResponseCode(component.MessageUserNotFound, nil)
 	}
 	currentUserId := req.UserId
@@ -572,17 +581,18 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 
 	userEntity, err := users.GetByEmail(req.Params.Email)
 	if err != nil || userEntity.IsBot() {
-		// 为了安全考虑，即使邮箱不存在（或命中机器人账号）也返回成功消息
-		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+		// 为了安全考虑，即使邮箱不存在（或命中机器人账号）也返回统一成功消息；
+		// 先执行等量 dummy 工作（HMAC 签名 + 同步 noop 入队）抹平响应时间差。
+		return forgotPasswordSilentSuccess(req.Params.Email)
 	}
 
 	// 冷静期：邮箱变更后 24 小时内，新邮箱不能用于密码重置。
 	// 静默返回成功（与邮箱未注册完全一致，无枚举差异），但绝不入队重置邮件，
-	// 防止会话 token 被接管后立刻用新邮箱重置密码。
+	// 防止会话 token 被接管后立刻用新邮箱重置密码。同样先执行等量 dummy 工作对齐耗时。
 	if userEntity.EmailChangedAt != nil && time.Since(*userEntity.EmailChangedAt) < emailChangeCooldown {
-		return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+		return forgotPasswordSilentSuccess(req.Params.Email)
 	}
-	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email)
+	token, err := tokenservice.GeneratePasswordResetToken(userEntity.Id, userEntity.Email, userEntity.TokenVersion)
 	if err != nil {
 		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
 	}
@@ -599,6 +609,39 @@ func ForgotPassword(req component.BetterRequest[ForgotPasswordReq]) component.Re
 		return component.FailResponseCode(component.MessageAuthResetMailSendFailed, nil)
 	}
 
+	return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
+}
+
+// dummyTimingUsername 是 forgot-password 等时化 noop 任务中接近真实用户名长度的
+// 固定占位值（用户名上限 32 字符），使 dummy 任务的序列化负载接近已注册路径的
+// reset_password 任务（review #129 P2；不承诺字节级一致）。
+const dummyTimingUsername = "timing-dummy-username-0123456789"
+
+// forgotPasswordSilentSuccess 在"未知邮箱/机器人账号/邮箱变更冷静期"路径返回与
+// 已注册路径一致的响应：先执行与已注册路径同类的工作（一次 HMAC 令牌签名 +
+// 一次同步 task_queue 写入 email.noop 任务，由邮件 worker 静默消费、不发邮件），
+// 抬高攻击者通过响应时间区分邮箱注册状态的测量成本（CWE-208，与 #109/#119 的
+// 等时化思路一致）。dummy 工作失败时返回与已注册路径相同的失败码（令牌生成失败 →
+// auth.passwordReset.tokenCreateFailed、队列写入失败 → auth.passwordReset.mailSendFailed），
+// 使两条路径在任何状态下响应逐字节一致，不残留系统级故障窗口内的枚举信号。
+// 注意：dummy 任务不声称与真实 reset_password 任务字节级负载或时序精确等价——
+// 真实 JWT 长度随 userId/tokenVersion、Locale 随用户设置变化，Type 也因 worker 识别
+// 而异；本函数只保证同类操作 + 相同的失败语义，不承诺精确的时序/负载等价。
+func forgotPasswordSilentSuccess(email string) component.Response {
+	dummyToken, err := tokenservice.GeneratePasswordResetToken(0, email, 0)
+	if err != nil {
+		slog.Error("forgot-password 等时化令牌生成失败", "email", email, "error", err)
+		return component.FailResponseCode(component.MessageAuthResetTokenCreateFailed, nil)
+	}
+	if err := mailservice.AddToQueue(mailservice.EmailTask{
+		To:       email,
+		Username: dummyTimingUsername,
+		Token:    dummyToken,
+		Type:     "noop",
+	}); err != nil {
+		slog.Error("forgot-password 等时化队列写入失败", "email", email, "error", err)
+		return component.FailResponseCode(component.MessageAuthResetMailSendFailed, nil)
+	}
 	return component.SuccessResponseCode("操作成功：如果该邮箱已注册，您将收到密码重置邮件", component.MessageAuthResetMailQueued, nil)
 }
 
@@ -625,6 +668,13 @@ func ResetPassword(req component.BetterRequest[ResetPasswordReq]) component.Resp
 	}
 
 	if userEntity.Email != claims.Email {
+		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
+	}
+
+	// 重置令牌绑定签发时的 token_version（issue #106）：密码变更 / 撤销会自增
+	// token_version，因此旧的重置链接在账户被重置或恢复后立即失效，无法重放。
+	// 仅校验令牌签名与 email 不足以防止伪造链路接管账户。
+	if userEntity.TokenVersion != claims.TokenVersion {
 		return component.FailResponseCode(component.MessageAuthResetTokenInvalid, nil)
 	}
 

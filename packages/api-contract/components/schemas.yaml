@@ -159,6 +159,153 @@ TotpVerifyResponse:
     - $ref: '#/TotpVerifySuccess'
     - $ref: '#/ApiFailure'
 
+TotpStatusResult:
+  type: object
+  required: [enabled]
+  properties:
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+TotpStatusSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpStatusResult'
+        messageCode:
+          const: common.operation.success
+
+TotpStatusResponse:
+  oneOf:
+    - $ref: '#/TotpStatusSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpSetupRequest:
+  type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
+  required: [password]
+  properties:
+    password:
+      type: string
+      minLength: 1
+      description: Current account password used for re-authentication before provisioning TOTP.
+  additionalProperties: false
+
+TotpSetupResult:
+  type: object
+  required: [secret, otpauthUrl]
+  properties:
+    secret:
+      type: string
+      minLength: 1
+      description: Base32 TOTP secret. It is returned only during setup and is not persisted in plaintext.
+    otpauthUrl:
+      type: string
+      minLength: 1
+      description: otpauth URI for authenticator enrollment.
+  additionalProperties: false
+
+TotpSetupSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpSetupResult'
+        messageCode:
+          const: common.operation.success
+
+TotpSetupResponse:
+  oneOf:
+    - $ref: '#/TotpSetupSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpEnableRequest:
+  type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      pattern: '^\d{6}$'
+      description: |
+        Current six-digit TOTP code proving authenticator setup before enabling 2FA. The pattern is a
+        client-side format constraint; the server trims surrounding whitespace before validation, so a
+        six-digit code with stray whitespace is still accepted server-side.
+  additionalProperties: false
+
+TotpEnableResult:
+  type: object
+  required: [recoveryCodes]
+  properties:
+    recoveryCodes:
+      type: array
+      minItems: 10
+      maxItems: 10
+      items:
+        type: string
+        minLength: 1
+  additionalProperties: false
+
+TotpEnableSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/TotpEnableResult'
+        messageCode:
+          const: common.operation.success
+
+TotpEnableResponse:
+  oneOf:
+    - $ref: '#/TotpEnableSuccess'
+    - $ref: '#/ApiFailure'
+
+TotpDisableRequest:
+  type: object
+  description: |
+    Client-side strict request shape. `additionalProperties: false` is a consumer constraint;
+    the server currently binds this request loosely and silently ignores unknown fields, unlike
+    the strictly decoded sibling /api/auth/totp/verify.
+  required: [code]
+  properties:
+    code:
+      type: string
+      minLength: 1
+      description: Current TOTP code or account password used to disable 2FA.
+  additionalProperties: false
+
+TotpDisableSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          minLength: 1
+          description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must not branch on it.
+        messageCode:
+          const: common.operation.success
+
+TotpDisableResponse:
+  oneOf:
+    - $ref: '#/TotpDisableSuccess'
+    - $ref: '#/ApiFailure'
+
 OidcExchangeRequest:
   type: object
   required: [code, codeVerifier, nonce, redirectUri]
@@ -398,11 +545,11 @@ AgentPostListResponse:
             posts:
               type: array
               items:
-                type: object
+                $ref: '#/PostPayload'
             replyTargets:
               type: array
               items:
-                type: object
+                $ref: '#/ReplyTargetPayload'
             anchorPostId:
               type: integer
               format: uint64
@@ -474,7 +621,7 @@ AgentSearchResponse:
       properties:
         result:
           type: object
-          required: [query, scope, topics, users, categories, total, usersTotal, categoriesTotal, totalPages, pagination]
+          required: [query, scope, topics, users, categories, courses, total, usersTotal, categoriesTotal, coursesTotal, totalPages, pagination]
           properties:
             query:
               type: string
@@ -483,15 +630,19 @@ AgentSearchResponse:
             topics:
               type: array
               items:
-                type: object
+                $ref: '#/TopicPayload'
             users:
               type: array
               items:
-                type: object
+                $ref: '#/UserSearchPayload'
             categories:
               type: array
               items:
-                type: object
+                $ref: '#/CategorySearchPayload'
+            courses:
+              type: array
+              items:
+                $ref: '#/CourseSearchPayload'
             total:
               type: integer
               format: int64
@@ -501,10 +652,13 @@ AgentSearchResponse:
             categoriesTotal:
               type: integer
               format: int64
+            coursesTotal:
+              type: integer
+              format: int64
             totalPages:
               type: integer
             pagination:
-              type: object
+              $ref: '#/PaginationPayload'
             failedScopes:
               type: array
               items:
@@ -512,7 +666,259 @@ AgentSearchResponse:
             searchUnavailable:
               type: boolean
           additionalProperties: false
-  description: Mirrors the forum SearchJSON payload, including searchUnavailable and failedScopes.
+  description: Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes.
+
+# Shared forum payloads reused by the Agent endpoints. Each mirrors the Go DTO
+# serialized by the corresponding forum controller so consumers can type-safely
+# access the real fields (post/topic/user/category/course) instead of an empty
+# record.
+PostPayload:
+  type: object
+  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, likeCount, isLiked, isBookmarked]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 1
+    content:
+      type: string
+      description: Raw post content; emptied for hidden or removed posts.
+    renderedContent:
+      type: string
+      description: Rendered HTML; emptied for hidden or removed posts.
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 normal, 1 blocked, 2 pending moderation.
+    isHidden:
+      type: boolean
+    isAuthorDeleted:
+      type: boolean
+    isModeratorRemoved:
+      type: boolean
+    canModerate:
+      type: boolean
+    author:
+      $ref: '#/TopicAuthorPayload'
+    createdAt:
+      type: string
+      description: Post creation time in the server's `2006-01-02 15:04:05` format.
+    replyToPostId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Present only when the post replies to an in-window post.
+    replyToUserId:
+      type: integer
+      format: uint64
+      minimum: 0
+    replyToUsername:
+      type: string
+    isOwnPost:
+      type: boolean
+    updatedAt:
+      type: string
+      description: Post update time in the server's `2006-01-02 15:04:05` format.
+    likeCount:
+      type: integer
+      format: uint64
+    isLiked:
+      type: boolean
+    isBookmarked:
+      type: boolean
+  additionalProperties: false
+
+ReplyTargetPayload:
+  type: object
+  required: [id, author]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Present only when the target post is available.
+    author:
+      $ref: '#/TopicAuthorPayload'
+      description: The zero author payload when unavailable is true.
+    renderedContent:
+      type: string
+      description: Present only when the target post is available and not author or moderator removed.
+    isAuthorDeleted:
+      type: boolean
+    isModeratorRemoved:
+      type: boolean
+    unavailable:
+      type: boolean
+      description: True when the replied-to post is outside the window, purged, or pending moderation.
+  additionalProperties: false
+
+TopicCategoryPayload:
+  type: object
+  required: [id, name, url, color]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    name:
+      type: string
+    url:
+      type: string
+    color:
+      type: string
+  additionalProperties: false
+
+TopicPayload:
+  type: object
+  required: [id, title, description, url, pinWeight, processStatus, author, participants, categories, replyCount, viewCount, activityText, lastUpdateTime]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    title:
+      type: string
+    description:
+      type: string
+    firstImageUrl:
+      type: string
+      description: Present only when the topic has a cover image.
+    images:
+      type: array
+      items:
+        type: string
+    url:
+      type: string
+    pinWeight:
+      type: integer
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+    author:
+      $ref: '#/TopicAuthorPayload'
+    participants:
+      type: array
+      items:
+        $ref: '#/TopicAuthorPayload'
+    categories:
+      type: array
+      items:
+        $ref: '#/TopicCategoryPayload'
+    replyCount:
+      type: integer
+      format: uint64
+    viewCount:
+      type: integer
+      format: uint64
+    activityText:
+      type: string
+    lastUpdateTime:
+      type: string
+    unseen:
+      type: boolean
+      description: Present only for authenticated viewers with unseen tracking.
+  additionalProperties: false
+
+UserSearchPayload:
+  type: object
+  required: [id, username, nickname, avatarUrl, bio]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    username:
+      type: string
+    nickname:
+      type: string
+    avatarUrl:
+      type: string
+    bio:
+      type: string
+  additionalProperties: false
+
+CategorySearchPayload:
+  type: object
+  required: [id, name, slug, icon, color, desc]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    name:
+      type: string
+    slug:
+      type: string
+    icon:
+      type: string
+    color:
+      type: string
+    desc:
+      type: string
+  additionalProperties: false
+
+CourseSearchPayload:
+  type: object
+  required: [id, primaryCode, name, department, creditX10, aliases, instructors, terms, campus]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    terms:
+      type: array
+      items:
+        type: string
+    campus:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
+  additionalProperties: false
+
+PaginationPayload:
+  type: object
+  required: [page, nextPage, hasNext, nextUrl]
+  properties:
+    page:
+      type: integer
+    nextPage:
+      type: integer
+    hasNext:
+      type: boolean
+    nextUrl:
+      type: string
+  additionalProperties: false
 
 UserSession:
   type: object
@@ -601,4 +1007,1574 @@ LogoutSuccess:
 LogoutResponse:
   oneOf:
     - $ref: '#/LogoutSuccess'
+    - $ref: '#/ApiFailure'
+
+CourseSummary:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    recentTerms:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews. Legacy 0-star ratings converted to NULL are excluded.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
+  additionalProperties: false
+
+CourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/CourseSummary'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+CourseListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseListResult'
+
+OfferingSummary:
+  type: object
+  required: [id, termCode]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    termCode:
+      type: string
+    termName:
+      type: string
+    campus:
+      type: string
+    faculty:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average for this offering; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this offering.
+  additionalProperties: false
+
+CourseDetail:
+  type: object
+  required: [id, primaryCode, name, department, creditX10]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+    aliases:
+      type: array
+      items:
+        type: string
+    offerings:
+      type: array
+      items:
+        $ref: '#/OfferingSummary'
+    ratingAvg:
+      type: number
+      format: double
+      description: Non-NULL rating average; omitted when there are no rated reviews.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews (including unrated legacy ones).
+    ratingDistribution:
+      type: array
+      description: |
+        Count of visible reviews per star bucket, index 0 = 1 star, index 4 = 5 stars.
+        Omitted when the course has no visible reviews.
+      items:
+        type: integer
+  additionalProperties: false
+
+CourseDetailResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseDetail'
+
+CourseSummaryStatus:
+  type: string
+  enum: [cached, generated, insufficient_data, disabled]
+  description: |
+    Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
+    HTTP failures and never returned by this API.
+
+CourseSummaryConsensus:
+  type: string
+  enum: [strong_recommend, recommend, neutral, cautious, not_recommend]
+  description: Five-level sentiment consensus across visible reviews.
+
+CourseSummarySentiment:
+  type: string
+  enum: [positive, neutral, negative]
+  description: Sentiment label of one representative review excerpt.
+
+CourseSummaryRepresentativeReview:
+  type: object
+  required: [excerpt, sentiment]
+  properties:
+    excerpt:
+      type: string
+      description: Short excerpt from the original review (≤500 chars).
+    sentiment:
+      $ref: '#/CourseSummarySentiment'
+  additionalProperties: false
+
+CourseSummaryPayload:
+  type: object
+  required: [consensus, keywords, pros, cons, representativeReviews]
+  properties:
+    consensus:
+      $ref: '#/CourseSummaryConsensus'
+    keywords:
+      type: array
+      maxItems: 5
+      items:
+        type: string
+    pros:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    cons:
+      type: array
+      maxItems: 4
+      items:
+        type: string
+    representativeReviews:
+      type: array
+      maxItems: 3
+      items:
+        $ref: '#/CourseSummaryRepresentativeReview'
+  additionalProperties: false
+
+CourseSummaryResult:
+  type: object
+  required: [status]
+  properties:
+    status:
+      $ref: '#/CourseSummaryStatus'
+    summary:
+      $ref: '#/CourseSummaryPayload'
+      description: Present for status `cached` and `generated`; omitted otherwise.
+    generatedAt:
+      type: string
+      format: date-time
+      description: When the summary was generated (RFC 3339).
+    model:
+      type: string
+      description: The LLM model that produced the summary.
+  additionalProperties: false
+
+CourseSummaryResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseSummaryResult'
+
+RelatedCourseItem:
+  type: object
+  description: A canonical course taught by a teacher shared with the requested course.
+  required: [id, primaryCode, name, department, ratingAvg, ratingCount, reviewCount]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+      description: Average rating (ratingSum / ratingCount), 0 when no ratings exist.
+    ratingCount:
+      type: integer
+      description: Number of visible reviews carrying a rating.
+    reviewCount:
+      type: integer
+      description: Number of visible reviews for this course.
+  additionalProperties: false
+
+RelatedTeacherOfferingItem:
+  type: object
+  description: |
+    An offering of the requested course taught by a teacher arrangement different from the most
+    recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
+    course" is expressed at the offering level, where per-teacher ratings do not exist.
+  required: [offeringId, termCode, ratingAvg, ratingCount, reviewCount]
+  properties:
+    offeringId:
+      type: integer
+      format: uint64
+    termCode:
+      type: string
+    termName:
+      type: string
+    campus:
+      type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    ratingAvg:
+      type: number
+    ratingCount:
+      type: integer
+    reviewCount:
+      type: integer
+  additionalProperties: false
+
+CourseRelatedResult:
+  type: object
+  required: [teacherOtherCourses, sameCourseOtherTeachers]
+  properties:
+    teacherOtherCourses:
+      type: array
+      description: Other visible courses sharing any teacher with the requested course, top 5 by review count.
+      items:
+        $ref: '#/RelatedCourseItem'
+    sameCourseOtherTeachers:
+      type: array
+      description: Offerings of the same course taught by a different teacher arrangement, top 5 by review count.
+      items:
+        $ref: '#/RelatedTeacherOfferingItem'
+  additionalProperties: false
+
+CourseRelatedResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CourseRelatedResult'
+
+ReviewAuthorPayload:
+  type: object
+  required: [kind, label]
+  properties:
+    kind:
+      type: string
+      enum: [anonymous, member, legacy]
+      description: Anonymous and legacy reviews never carry identity fields.
+    label:
+      type: string
+      description: Display label (for example 匿名同学 for anonymous reviews).
+  additionalProperties: false
+  description: Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO.
+
+ReviewViewerPayload:
+  type: object
+  required: [canEdit, canDelete, isHelpful]
+  properties:
+    canEdit:
+      type: boolean
+      description: True when the caller is the review author.
+    canDelete:
+      type: boolean
+      description: True when the caller is the review author.
+    isHelpful:
+      type: boolean
+      description: True when the caller marked the review helpful (only meaningful with an optional JWT).
+  additionalProperties: false
+
+ReviewPayload:
+  type: object
+  required: [id, offeringId, rating, content, contentHtml, author, viewer, helpfulCount, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 5
+      description: Legacy imported reviews may have no rating (null); native reviews are 1..5.
+    content:
+      type: string
+      description: Raw markdown review content; the edit form pre-fills from this field.
+    contentHtml:
+      type: string
+      description: Rendered review content; never the raw markdown.
+    author:
+      $ref: '#/ReviewAuthorPayload'
+    viewer:
+      $ref: '#/ReviewViewerPayload'
+    helpfulCount:
+      type: integer
+      format: int64
+      minimum: 0
+    createdAt:
+      type: string
+      format: date-time
+    updatedAt:
+      type: string
+      format: date-time
+    offeringRatingAvg:
+      type: number
+      format: double
+      description: |
+        Non-NULL rating average of the review's offering (PRD §5.1 B1).
+        Present only when the listing is scoped to a single offering and the
+        offering has at least one rated review.
+    offeringReviewCount:
+      type: integer
+      description: Number of visible reviews of the review's offering (offering-scoped listing only).
+  additionalProperties: false
+
+ReviewListResult:
+  type: object
+  required: [list, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/ReviewPayload'
+      description: The current page of visible reviews; an empty listing is an empty array, never null.
+    nextCursor:
+      type: string
+      description: |
+        Cursor for the next page, present only when more reviews exist.
+        Format is "offeringId:reviewId" of the last item of the current page
+        (course-level ordering is (offering_id DESC, id DESC)). Omit to stop paging.
+    total:
+      type: integer
+      format: int64
+      description: Total number of visible reviews matching the current scope (course or offering filter).
+  additionalProperties: false
+
+ReviewListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ReviewListResult'
+    - $ref: '#/ApiFailure'
+
+ReviewWriteRequest:
+  type: object
+  required: [offeringId, rating, content]
+  properties:
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+      minLength: 1
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); rendered into contentHtml by the server.
+    isAnonymous:
+      type: boolean
+      default: false
+      description: When true, the review is displayed without any author identity.
+  additionalProperties: false
+
+ReviewWriteSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ReviewPayload'
+
+ReviewWriteResponse:
+  oneOf:
+    - $ref: '#/ReviewWriteSuccess'
+    - $ref: '#/ApiFailure'
+
+ReviewUpdateRequest:
+  type: object
+  properties:
+    rating:
+      type: [integer, 'null']
+      minimum: 1
+      maximum: 5
+      description: Omit (or send null) to keep the current rating.
+    content:
+      type: string
+      maxLength: 50000
+      description: Markdown review content (max 50000 runes); an empty string clears the body while keeping the review.
+    isAnonymous:
+      type: boolean
+      description: Omit to keep the current anonymity setting.
+  additionalProperties: false
+
+ReviewActionResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              type: boolean
+              const: true
+    - $ref: '#/ApiFailure'
+
+ReviewReportRequest:
+  type: object
+  required: [reason]
+  properties:
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+      maxLength: 300
+      description: Optional context, trimmed to 300 runes by the server.
+  additionalProperties: false
+
+ModerationCourseReviewStatusRequest:
+  type: object
+  required: [reviewId, action]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    action:
+      type: string
+      enum: [hide, show]
+  additionalProperties: false
+
+ModerationCourseReviewReportListRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [open, resolved, rejected]
+      description: Defaults to open when omitted.
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Last seen report id for cursor pagination; 0 starts at the newest page.
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+      description: Page size for the report queue. The server clamps values to 10..50; values below 10 (including 0) use 10, values above 50 use 50. The schema accepts 1..50 to reflect tolerated input.
+  additionalProperties: false
+
+ModerationCourseReviewReportItem:
+  type: object
+  required: [id, reviewId, reason, note, status, resolution, excerpt, reporter, handler, createdAt, reportCount]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+    status:
+      type: string
+      enum: [open, resolved, rejected]
+    resolution:
+      type: string
+      description: Empty while open.
+    excerpt:
+      type: string
+      description: Trimmed review content (120 runes) or a #id fallback.
+    reporter:
+      $ref: '#/TopicAuthorPayload'
+    handler:
+      $ref: '#/ReportHandlerPayload'
+    createdAt:
+      type: string
+      description: Report creation time in the server's `2006-01-02 15:04:05` format.
+    handledAt:
+      type: string
+      description: Handling time in the server's `2006-01-02 15:04:05` format; present only when the report has been handled.
+    reportCount:
+      type: integer
+      minimum: 1
+      description: Number of open reports aggregated for this review in the current page.
+  additionalProperties: false
+
+ModerationCourseReviewReportListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationCourseReviewReportItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+ModerationCourseReviewReportListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/ModerationCourseReviewReportListResult'
+    - $ref: '#/ApiFailure'
+
+ModerationCourseReviewRevealRequest:
+  type: object
+  required: [reviewId, reason]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      minLength: 1
+      description: Mandatory justification; recorded in the restricted operation log.
+  additionalProperties: false
+
+CourseReviewAuthorRevealPayload:
+  type: object
+  required: [reviewId, isAnonymous, source]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    authorUserId:
+      type: integer
+      format: uint64
+      description: Present only for native reviews with a linked author.
+    username:
+      type: string
+      description: Present only for native reviews with a linked author.
+    nickname:
+      type: string
+      description: Present only for native reviews with a linked author.
+    isAnonymous:
+      type: boolean
+    source:
+      type: string
+      description: Empty for native reviews; legacy-import for imported reviews.
+  additionalProperties: false
+
+ModerationCourseReviewRevealResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/CourseReviewAuthorRevealPayload'
+    - $ref: '#/ApiFailure'
+
+AdminCourseListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches normalized name, primary code, aliases, pinyin, initials, or instructor names.
+    department:
+      type: string
+    page:
+      type: integer
+      minimum: 1
+      default: 1
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+      default: 20
+  additionalProperties: false
+
+AdminCourseItem:
+  type: object
+  required: [id, primaryCode, name, department, creditX10, status, aliases, instructors, reviewCount, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      description: Credit multiplied by 10 to stay integral.
+    status:
+      type: integer
+      enum: [0, 1]
+      description: 0 visible, 1 hidden.
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+    reviewCount:
+      type: integer
+    ratingAvg:
+      type: number
+      description: Average rating across visible reviews; omitted when no rated reviews.
+    createdAt:
+      type: string
+  additionalProperties: false
+
+AdminCourseListResult:
+  type: object
+  required: [list, page, size, total, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminCourseItem'
+    page:
+      type: integer
+    size:
+      type: integer
+    total:
+      type: integer
+      format: int64
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminCourseListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseListResult'
+    - $ref: '#/ApiFailure'
+
+AdminCourseItemResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminCourseItem'
+    - $ref: '#/ApiFailure'
+
+AdminCourseCreateRequest:
+  type: object
+  required: [primaryCode, name]
+  properties:
+    primaryCode:
+      type: string
+      minLength: 1
+    name:
+      type: string
+      minLength: 1
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseUpdateRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    primaryCode:
+      type: string
+    name:
+      type: string
+    department:
+      type: string
+    creditX10:
+      type: integer
+      minimum: 0
+    aliases:
+      type: array
+      items:
+        type: string
+    instructors:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminCourseDeleteRequest:
+  type: object
+  required: [courseId]
+  properties:
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+AdminReviewItem:
+  type: object
+  required: [id, offeringId, courseId, courseCode, courseName, content, status, author, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    offeringId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseId:
+      type: integer
+      format: uint64
+      minimum: 1
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+    status:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 visible, 1 hidden, 2 deleted (quarantine window).
+    author:
+      $ref: '#/ReviewAuthorPayload'
+    createdAt:
+      type: string
+    updatedAt:
+      type: string
+  additionalProperties: false
+
+AdminReviewListRequest:
+  type: object
+  properties:
+    keyword:
+      type: string
+      description: Matches course name, primary code, or review body.
+    status:
+      type: integer
+      minimum: -1
+      maximum: 2
+      description: -1 all; 0/1/2 filter by status. Defaults to -1.
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    pageSize:
+      type: integer
+      minimum: 1
+      maximum: 50
+  additionalProperties: false
+
+AdminReviewListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminReviewItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+AdminReviewListResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminReviewListResult'
+    - $ref: '#/ApiFailure'
+
+AdminReviewUpdateRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+    rating:
+      type: integer
+      minimum: 1
+      maximum: 5
+    content:
+      type: string
+  additionalProperties: false
+
+AdminReviewDeleteRequest:
+  type: object
+  required: [reviewId]
+  properties:
+    reviewId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+TopicAuthorPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the user wears a badge.
+  additionalProperties: false
+
+ReportHandlerPayload:
+  type: object
+  required: [id, username, avatarUrl]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 while the report is still open (no handler assigned yet); a real user id once handled.
+    username:
+      type: string
+    nickname:
+      type: string
+      description: Present only when the user has a nickname.
+    avatarUrl:
+      type: string
+  additionalProperties: false
+  description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.
+
+# ================= PK 排课器（Issue #187）=================
+
+PkSuccess:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      const: 0
+      description: PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
+    msg:
+      type: string
+      description: 可读的中文说明。
+    data: {}
+  additionalProperties: false
+
+PkFailure:
+  type: object
+  required: [code, msg, data]
+  properties:
+    code:
+      type: integer
+      minimum: 1
+      description: 非零错误码，与 HTTP 状态码对齐（400/404/500）。
+    msg:
+      type: string
+      description: 可读的中文错误说明。
+    data:
+      type: object
+      additionalProperties: true
+  additionalProperties: false
+
+PkCalendarItem:
+  type: object
+  required: [calendarId, calendarName]
+  properties:
+    calendarId:
+      type: integer
+    calendarName:
+      type: string
+  additionalProperties: false
+
+PkCampusItem:
+  type: object
+  required: [campusId, campusName]
+  properties:
+    campusId:
+      type: string
+    campusName:
+      type: string
+  additionalProperties: false
+
+PkFacultyItem:
+  type: object
+  required: [facultyId, facultyName]
+  properties:
+    facultyId:
+      type: string
+    facultyName:
+      type: string
+  additionalProperties: false
+
+PkGradesResult:
+  type: object
+  required: [gradeList]
+  properties:
+    gradeList:
+      type: array
+      items:
+        type: integer
+  additionalProperties: false
+
+PkMajorItem:
+  type: object
+  required: [code, name]
+  properties:
+    code:
+      type: string
+    name:
+      type: string
+  additionalProperties: false
+
+PkTeacherRef:
+  type: object
+  required: [teacherCode, teacherName]
+  properties:
+    teacherCode:
+      type: string
+    teacherName:
+      type: string
+  additionalProperties: false
+
+PkArrangementInfo:
+  type: object
+  required: [arrangementText]
+  properties:
+    arrangementText:
+      type: string
+      description: 原始安排文本（不含教师名与代码前缀）。
+    occupyDay:
+      type: [integer, 'null']
+      description: 星期（1-7）。
+    occupyTime:
+      type: [array, 'null']
+      items:
+        type: integer
+      description: 节次集合。
+    occupyWeek:
+      type: [array, 'null']
+      items:
+        type: integer
+      description: 周次集合。
+    occupyRoom:
+      type: [string, 'null']
+    teacherAndCode:
+      type: [string, 'null']
+      description: 教师名与代码前缀（如 "张伟(T001)"）。
+  additionalProperties: false
+
+PkCourseClassItem:
+  type: object
+  required: [code, teachers, campus, teachingLanguage, arrangementInfo, isExclusive]
+  properties:
+    code:
+      type: string
+      description: 教学班内部编号。
+    teachers:
+      type: array
+      items:
+        $ref: '#/PkTeacherRef'
+    campus:
+      type: string
+    teachingLanguage:
+      type: string
+    arrangementInfo:
+      type: array
+      items:
+        $ref: '#/PkArrangementInfo'
+    isExclusive:
+      type: boolean
+      description: 是否当前年级专业的专属课程。
+  additionalProperties: false
+
+PkCourseByMajorItem:
+  type: object
+  required: [courseCode, courseName, faculty, facultyI18n, credit, grade, courseNature, courses]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    credit:
+      type: number
+    grade:
+      type: integer
+    courseNature:
+      type: array
+      items:
+        type: string
+    courses:
+      type: array
+      items:
+        $ref: '#/PkCourseClassItem'
+  additionalProperties: false
+
+PkOptionalTypeItem:
+  type: object
+  required: [courseLabelId, courseLabelName]
+  properties:
+    courseLabelId:
+      type: integer
+    courseLabelName:
+      type: string
+  additionalProperties: false
+
+PkNatureCourseItem:
+  type: object
+  required: [campus, courseCode, courseName, faculty, facultyI18n, credit, courseLabelName, crossDiscipline]
+  properties:
+    campus:
+      type: array
+      items:
+        type: string
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    credit:
+      type: number
+    courseLabelName:
+      type: string
+    crossDiscipline:
+      type: boolean
+  additionalProperties: false
+
+PkCourseByNatureItem:
+  type: object
+  required: [courseLabelId, courseLabelIds, courseLabelName, crossDiscipline, courses]
+  properties:
+    courseLabelId:
+      type: integer
+    courseLabelIds:
+      type: array
+      items:
+        type: integer
+    courseLabelName:
+      type: string
+    crossDiscipline:
+      type: boolean
+    courses:
+      type: array
+      items:
+        $ref: '#/PkNatureCourseItem'
+  additionalProperties: false
+
+PkCourseDetailBrief:
+  type: object
+  required: [code, teachers, campus, teachingLanguage, arrangementInfo]
+  properties:
+    code:
+      type: string
+    teachers:
+      type: array
+      items:
+        $ref: '#/PkTeacherRef'
+    campus:
+      type: string
+    teachingLanguage:
+      type: string
+    arrangementInfo:
+      type: array
+      items:
+        $ref: '#/PkArrangementInfo'
+    isExclusive:
+      type: boolean
+      description: 仅 course-info-sync 的 major 课程带该字段。
+  additionalProperties: false
+
+PkSearchCourseItem:
+  type: object
+  required: [courseCode, courseName, faculty, facultyI18n, courseNature, campus, campus_list, credit]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    faculty:
+      type: string
+    facultyI18n:
+      type: string
+    courseNature:
+      type: array
+      items:
+        type: string
+    campus:
+      type: array
+      items:
+        type: string
+    campus_list:
+      type: array
+      items:
+        type: string
+      description: 与 campus 相同的兼容字段（对齐上游）。
+    credit:
+      type: number
+  additionalProperties: false
+
+PkSearchResult:
+  type: object
+  required: [courses, sizeLimit]
+  properties:
+    courses:
+      type: array
+      items:
+        $ref: '#/PkSearchCourseItem'
+    sizeLimit:
+      type: integer
+  additionalProperties: false
+
+PkCoursesByTimeResult:
+  type: object
+  required: [auxiliaryReady, courses]
+  properties:
+    auxiliaryReady:
+      type: boolean
+      description: teacher_timeslots 辅助表是否就绪；未就绪时本次为降级 LIKE 结果并已触发后台构建。
+    courses:
+      type: array
+      items:
+        $ref: '#/PkSearchCourseItem'
+  additionalProperties: false
+
+PkReviewBrief:
+  type: object
+  required: [courseCode, teacherName, reviewCount]
+  properties:
+    courseCode:
+      type: string
+    courseName:
+      type: string
+    teacherName:
+      type: string
+    ratingAvg:
+      type: [number, 'null']
+    reviewCount:
+      type: integer
+  additionalProperties: false
+
+PkCalendarListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCalendarItem'
+
+PkCampusListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCampusItem'
+
+PkFacultyListResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkFacultyItem'
+
+PkGradesResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkGradesResult'
+
+PkMajorsResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkMajorItem'
+
+PkCoursesByMajorResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCourseByMajorItem'
+
+PkOptionalTypesResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkOptionalTypeItem'
+
+PkCoursesByNatureResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: array
+          items:
+            $ref: '#/PkCourseByNatureItem'
+
+PkCourseDetailsResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          oneOf:
+            - type: array
+              description: 单 courseCode 查询时的教学班数组。
+              items:
+                $ref: '#/PkCourseDetailBrief'
+            - type: object
+              description: 批量 courseCodes 查询时的字典（courseCode -> 教学班数组）。
+              additionalProperties:
+                type: array
+                items:
+                  $ref: '#/PkCourseDetailBrief'
+
+PkCourseSearchResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkSearchResult'
+
+PkCoursesByTimeResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkCoursesByTimeResult'
+
+PkLatestUpdateResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: [string, 'null']
+          description: 最近同步日期 YYYY-MM-DD；无记录为 null。
+
+PkCourseInfoSyncResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: '#/PkCourseDetailBrief'
+
+PkReviewBriefResponse:
+  allOf:
+    - $ref: '#/PkSuccess'
+    - type: object
+      required: [data]
+      properties:
+        data:
+          $ref: '#/PkReviewBrief'
+RegisterRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/register. The server binds the body
+    loosely and silently ignores unknown fields; `additionalProperties: false` is a
+    consumer constraint, not a server rejection. Field names use the legacy
+    `userName`/`passWord` casing and must not be normalized client-side.
+  required: [email, userName, passWord]
+  properties:
+    email:
+      type: string
+      minLength: 1
+      format: email
+      description: Email address; the server lowercases and trims it before validation and applies the site email-domain allowlist when configured.
+    userName:
+      type: string
+      minLength: 1
+      description: Username, 6-32 characters of letters, digits, `_` or `-` (server regex `^[a-zA-Z0-9_-]{6,32}$`); the server trims surrounding whitespace.
+    passWord:
+      type: string
+      minLength: 1
+      description: Password, 6-64 characters, must contain both letters and digits.
+    locale:
+      type: string
+      description: Optional BCP-47 style locale hint; normalized server-side.
+    invitationCode:
+      type: string
+      description: Optional invitation code; currently accepted but not enforced by the server.
+    captchaId:
+      type: string
+      description: Captcha id from GET /api/get-captcha; required only when the site requires captcha.
+    captchaCode:
+      type: string
+      description: Captcha answer for `captchaId`; required only when the site requires captcha.
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without creating an account.
+  additionalProperties: false
+
+RegisterSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable success message. The wording is UI copy and not a stable machine contract value; clients must branch on `messageCode`.
+        messageCode:
+          type: string
+          enum: [auth.login.success, auth.register.emailVerify]
+          description: |
+            `auth.login.success` when the account is created and a session is issued
+            immediately (email verification disabled); `auth.register.emailVerify` when
+            the site requires email verification before the session is usable. The
+            honeypot path returns the same `auth.login.success` envelope without
+            creating an account.
+
+RegisterResponse:
+  oneOf:
+    - $ref: '#/RegisterSuccess'
+    - $ref: '#/ApiFailure'
+
+ForgotPasswordRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/forgot-password. The server binds
+    the body loosely and silently ignores unknown fields; `additionalProperties: false`
+    is a consumer constraint, not a server rejection.
+  required: [email]
+  properties:
+    email:
+      type: string
+      minLength: 1
+      format: email
+      description: Email address to send the reset link to. The response never reveals whether this email is registered.
+    captchaId:
+      type: string
+      description: Captcha id from GET /api/get-captcha; required only when the site requires captcha.
+    captchaCode:
+      type: string
+      description: Captcha answer for `captchaId`; required only when the site requires captcha.
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it; any non-blank value is treated as bot traffic and silently accepted without enqueuing any mail.
+  additionalProperties: false
+
+ForgotPasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable confirmation message; the wording is UI copy and not a stable machine contract value.
+        messageCode:
+          type: string
+          const: auth.passwordReset.mailQueued
+          description: Returned identically for registered, unknown, bot, and email-change-cooldown addresses (anti-enumeration).
+
+ForgotPasswordResponse:
+  oneOf:
+    - $ref: '#/ForgotPasswordSuccess'
+    - $ref: '#/ApiFailure'
+
+ResetPasswordRequest:
+  type: object
+  description: |
+    Client-side strict request shape for POST /api/reset-password. The server binds
+    the body loosely and silently ignores unknown fields; `additionalProperties: false`
+    is a consumer constraint, not a server rejection.
+  required: [token, newPassword]
+  properties:
+    token:
+      type: string
+      minLength: 1
+      description: Reset token from the password reset email (30-minute lifetime).
+    newPassword:
+      type: string
+      minLength: 1
+      description: New password, 6-64 characters, must contain both letters and digits.
+  additionalProperties: false
+
+ResetPasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          description: Human-readable confirmation message; the wording is UI copy and not a stable machine contract value.
+        messageCode:
+          type: string
+          const: auth.passwordReset.success
+
+ResetPasswordResponse:
+  oneOf:
+    - $ref: '#/ResetPasswordSuccess'
     - $ref: '#/ApiFailure'

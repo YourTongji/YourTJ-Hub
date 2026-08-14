@@ -3,7 +3,7 @@ package badgeservice
 import (
 	"testing"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
 )
 
 func TestWornBadgeFromListReturnsGrantedBadge(t *testing.T) {

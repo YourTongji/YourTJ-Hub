@@ -3,8 +3,8 @@ package migration
 import (
 	"log/slog"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/service/datamigration"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
 
 func runVersionedDataMigrations() {
@@ -149,6 +149,66 @@ func runVersionedDataMigrations() {
 		}
 		pageConfig.SyncMigrationVersion(13)
 		currentVersion = 13
+	}
+	if currentVersion < 14 {
+		// 积分回填（dev 合并,PR #110 防滥用）
+		result := datamigration.BackfillMissingUserPoints()
+		slog.Info("app migration user points backfill done", "backfilled", result.Backfilled, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user points backfill has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(14)
+		currentVersion = 14
+	}
+	if currentVersion < 15 {
+		// 删除生命周期回填（Issue #94）：dev 的 v14 已被积分回填占用，
+		// 删除回填必须用独立版本号，否则已跑过 v14 的线上实例会永远跳过。
+		deleteResult := datamigration.BackfillDeleteLifecycle()
+		slog.Info("app migration delete lifecycle backfill done", "topics", deleteResult.TopicsBackfilled, "posts", deleteResult.PostsBackfilled, "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
+		if deleteResult.Failed > 0 {
+			slog.Error("app migration delete lifecycle backfill has failures", "failed", deleteResult.Failed, "lastFailed", deleteResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(15)
+		currentVersion = 15
+	}
+	if currentVersion < 16 {
+		// 移除 GitHub OAuth 明文 token 持久化并清理历史列（issue #131,PR #150）
+		result := datamigration.DropUserOAuthTokenColumns()
+		slog.Info("app migration user oauth credentials drop done", "dropped", result.Dropped, "failed", result.Failed, "lastFailed", result.LastFailed)
+		if result.Failed > 0 {
+			slog.Error("app migration user oauth credentials drop has failures", "failed", result.Failed, "lastFailed", result.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(16)
+		currentVersion = 16
+	}
+	if currentVersion < 17 {
+		// 课评删除隔离窗口锚点回填（PR #194, issue #175 B3）：旧删除路径
+		// 不写 deleted_at，存量 deleted 行若回退 updated_at 会窗口塌缩、
+		// 部署后首轮清理即被清空。回填 now() 给存量 cohort 完整新窗口。
+		anchorResult := datamigration.BackfillCourseReviewDeleteAnchors()
+		slog.Info("app migration course review delete anchor backfill done", "backfilled", anchorResult.Backfilled, "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
+		if anchorResult.Failed > 0 {
+			slog.Error("app migration course review delete anchor backfill has failures", "failed", anchorResult.Failed, "lastFailed", anchorResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(17)
+		currentVersion = 17
+	}
+	if currentVersion < 18 {
+		// 帖子版本历史 v1 回填（首楼编辑 PR）：部署前已存在的帖子没有
+		// post_revisions 行，首次编辑只追加新版本、不回看旧正文，原始正文
+		// 会永久丢失。为存量帖子播种 v1（editor = 作者，内容取当前正文）。
+		backfillResult := datamigration.BackfillPostRevisionSeeds()
+		slog.Info("app migration post revision seed backfill done", "seeded", backfillResult.Seeded, "skipped", backfillResult.Skipped, "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
+		if backfillResult.Failed > 0 {
+			slog.Error("app migration post revision seed backfill has failures", "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(18)
+		currentVersion = 18
 	}
 	slog.Info("app migration end", "version", currentVersion)
 }

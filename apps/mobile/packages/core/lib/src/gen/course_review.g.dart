@@ -1,0 +1,275 @@
+// GENERATED CODE - DO NOT MODIFY BY HAND
+
+part of 'course_review.dart';
+
+// **************************************************************************
+// JsonSerializableGenerator
+// **************************************************************************
+
+_$ReviewAuthorPayloadImpl _$$ReviewAuthorPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$ReviewAuthorPayloadImpl(
+  kind: json['kind'] as String,
+  label: json['label'] as String,
+);
+
+Map<String, dynamic> _$$ReviewAuthorPayloadImplToJson(
+  _$ReviewAuthorPayloadImpl instance,
+) => <String, dynamic>{'kind': instance.kind, 'label': instance.label};
+
+_$ReviewViewerPayloadImpl _$$ReviewViewerPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$ReviewViewerPayloadImpl(
+  canEdit: json['canEdit'] as bool,
+  canDelete: json['canDelete'] as bool,
+  isHelpful: json['isHelpful'] as bool,
+);
+
+Map<String, dynamic> _$$ReviewViewerPayloadImplToJson(
+  _$ReviewViewerPayloadImpl instance,
+) => <String, dynamic>{
+  'canEdit': instance.canEdit,
+  'canDelete': instance.canDelete,
+  'isHelpful': instance.isHelpful,
+};
+
+_$ReviewPayloadImpl _$$ReviewPayloadImplFromJson(
+  Map<String, dynamic> json,
+) => _$ReviewPayloadImpl(
+  id: (json['id'] as num).toInt(),
+  offeringId: (json['offeringId'] as num).toInt(),
+  rating: (json['rating'] as num?)?.toInt(),
+  content: json['content'] as String,
+  contentHtml: json['contentHtml'] as String,
+  author: ReviewAuthorPayload.fromJson(json['author'] as Map<String, dynamic>),
+  viewer: ReviewViewerPayload.fromJson(json['viewer'] as Map<String, dynamic>),
+  helpfulCount: (json['helpfulCount'] as num).toInt(),
+  createdAt: json['createdAt'] as String,
+  updatedAt: json['updatedAt'] as String,
+  offeringRatingAvg: (json['offeringRatingAvg'] as num?)?.toDouble(),
+  offeringReviewCount: (json['offeringReviewCount'] as num?)?.toInt(),
+);
+
+Map<String, dynamic> _$$ReviewPayloadImplToJson(_$ReviewPayloadImpl instance) =>
+    <String, dynamic>{
+      'id': instance.id,
+      'offeringId': instance.offeringId,
+      'rating': instance.rating,
+      'content': instance.content,
+      'contentHtml': instance.contentHtml,
+      'author': instance.author,
+      'viewer': instance.viewer,
+      'helpfulCount': instance.helpfulCount,
+      'createdAt': instance.createdAt,
+      'updatedAt': instance.updatedAt,
+      'offeringRatingAvg': instance.offeringRatingAvg,
+      'offeringReviewCount': instance.offeringReviewCount,
+    };
+
+_$ReviewListResultImpl _$$ReviewListResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$ReviewListResultImpl(
+  list: (json['list'] as List<dynamic>)
+      .map((e) => ReviewPayload.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  nextCursor: json['nextCursor'] as String?,
+  total: (json['total'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ReviewListResultImplToJson(
+  _$ReviewListResultImpl instance,
+) => <String, dynamic>{
+  'list': instance.list,
+  'nextCursor': instance.nextCursor,
+  'total': instance.total,
+};
+
+_$CreateCourseReviewInputImpl _$$CreateCourseReviewInputImplFromJson(
+  Map<String, dynamic> json,
+) => _$CreateCourseReviewInputImpl(
+  offeringId: (json['offeringId'] as num).toInt(),
+  rating: (json['rating'] as num).toInt(),
+  content: json['content'] as String,
+  isAnonymous: json['isAnonymous'] as bool,
+);
+
+Map<String, dynamic> _$$CreateCourseReviewInputImplToJson(
+  _$CreateCourseReviewInputImpl instance,
+) => <String, dynamic>{
+  'offeringId': instance.offeringId,
+  'rating': instance.rating,
+  'content': instance.content,
+  'isAnonymous': instance.isAnonymous,
+};
+
+_$UpdateCourseReviewInputImpl _$$UpdateCourseReviewInputImplFromJson(
+  Map<String, dynamic> json,
+) => _$UpdateCourseReviewInputImpl(
+  rating: (json['rating'] as num?)?.toInt(),
+  content: json['content'] as String?,
+  isAnonymous: json['isAnonymous'] as bool?,
+);
+
+Map<String, dynamic> _$$UpdateCourseReviewInputImplToJson(
+  _$UpdateCourseReviewInputImpl instance,
+) => <String, dynamic>{
+  'rating': instance.rating,
+  'content': instance.content,
+  'isAnonymous': instance.isAnonymous,
+};
+
+_$ModerationCourseReviewReportItemImpl
+_$$ModerationCourseReviewReportItemImplFromJson(
+  Map<String, dynamic> json,
+) => _$ModerationCourseReviewReportItemImpl(
+  id: (json['id'] as num).toInt(),
+  reviewId: (json['reviewId'] as num).toInt(),
+  reason: json['reason'] as String,
+  note: json['note'] as String,
+  status: json['status'] as String,
+  resolution: json['resolution'] as String,
+  excerpt: json['excerpt'] as String,
+  reporter: UserBriefPayload.fromJson(json['reporter'] as Map<String, dynamic>),
+  handler: UserBriefPayload.fromJson(json['handler'] as Map<String, dynamic>),
+  createdAt: json['createdAt'] as String,
+  handledAt: json['handledAt'] as String?,
+  reportCount: (json['reportCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$ModerationCourseReviewReportItemImplToJson(
+  _$ModerationCourseReviewReportItemImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'reviewId': instance.reviewId,
+  'reason': instance.reason,
+  'note': instance.note,
+  'status': instance.status,
+  'resolution': instance.resolution,
+  'excerpt': instance.excerpt,
+  'reporter': instance.reporter,
+  'handler': instance.handler,
+  'createdAt': instance.createdAt,
+  'handledAt': instance.handledAt,
+  'reportCount': instance.reportCount,
+};
+
+_$ModerationCourseReviewReportListResponseImpl
+_$$ModerationCourseReviewReportListResponseImplFromJson(
+  Map<String, dynamic> json,
+) => _$ModerationCourseReviewReportListResponseImpl(
+  items: (json['items'] as List<dynamic>)
+      .map(
+        (e) => ModerationCourseReviewReportItem.fromJson(
+          e as Map<String, dynamic>,
+        ),
+      )
+      .toList(),
+  nextCursor: (json['nextCursor'] as num).toInt(),
+  hasNext: json['hasNext'] as bool,
+);
+
+Map<String, dynamic> _$$ModerationCourseReviewReportListResponseImplToJson(
+  _$ModerationCourseReviewReportListResponseImpl instance,
+) => <String, dynamic>{
+  'items': instance.items,
+  'nextCursor': instance.nextCursor,
+  'hasNext': instance.hasNext,
+};
+
+_$CourseReviewAuthorRevealPayloadImpl
+_$$CourseReviewAuthorRevealPayloadImplFromJson(Map<String, dynamic> json) =>
+    _$CourseReviewAuthorRevealPayloadImpl(
+      reviewId: (json['reviewId'] as num).toInt(),
+      authorUserId: (json['authorUserId'] as num?)?.toInt(),
+      username: json['username'] as String?,
+      nickname: json['nickname'] as String?,
+      isAnonymous: json['isAnonymous'] as bool,
+      source: json['source'] as String,
+    );
+
+Map<String, dynamic> _$$CourseReviewAuthorRevealPayloadImplToJson(
+  _$CourseReviewAuthorRevealPayloadImpl instance,
+) => <String, dynamic>{
+  'reviewId': instance.reviewId,
+  'authorUserId': instance.authorUserId,
+  'username': instance.username,
+  'nickname': instance.nickname,
+  'isAnonymous': instance.isAnonymous,
+  'source': instance.source,
+};
+
+_$RelatedCourseItemImpl _$$RelatedCourseItemImplFromJson(
+  Map<String, dynamic> json,
+) => _$RelatedCourseItemImpl(
+  id: (json['id'] as num).toInt(),
+  primaryCode: json['primaryCode'] as String,
+  name: json['name'] as String,
+  department: json['department'] as String,
+  instructors: (json['instructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  ratingAvg: (json['ratingAvg'] as num).toDouble(),
+  ratingCount: (json['ratingCount'] as num).toInt(),
+  reviewCount: (json['reviewCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$RelatedCourseItemImplToJson(
+  _$RelatedCourseItemImpl instance,
+) => <String, dynamic>{
+  'id': instance.id,
+  'primaryCode': instance.primaryCode,
+  'name': instance.name,
+  'department': instance.department,
+  'instructors': instance.instructors,
+  'ratingAvg': instance.ratingAvg,
+  'ratingCount': instance.ratingCount,
+  'reviewCount': instance.reviewCount,
+};
+
+_$RelatedTeacherOfferingItemImpl _$$RelatedTeacherOfferingItemImplFromJson(
+  Map<String, dynamic> json,
+) => _$RelatedTeacherOfferingItemImpl(
+  offeringId: (json['offeringId'] as num).toInt(),
+  termCode: json['termCode'] as String?,
+  termName: json['termName'] as String?,
+  campus: json['campus'] as String?,
+  instructors: (json['instructors'] as List<dynamic>?)
+      ?.map((e) => e as String)
+      .toList(),
+  ratingAvg: (json['ratingAvg'] as num).toDouble(),
+  ratingCount: (json['ratingCount'] as num).toInt(),
+  reviewCount: (json['reviewCount'] as num).toInt(),
+);
+
+Map<String, dynamic> _$$RelatedTeacherOfferingItemImplToJson(
+  _$RelatedTeacherOfferingItemImpl instance,
+) => <String, dynamic>{
+  'offeringId': instance.offeringId,
+  'termCode': instance.termCode,
+  'termName': instance.termName,
+  'campus': instance.campus,
+  'instructors': instance.instructors,
+  'ratingAvg': instance.ratingAvg,
+  'ratingCount': instance.ratingCount,
+  'reviewCount': instance.reviewCount,
+};
+
+_$CourseRelatedResultImpl _$$CourseRelatedResultImplFromJson(
+  Map<String, dynamic> json,
+) => _$CourseRelatedResultImpl(
+  teacherOtherCourses: (json['teacherOtherCourses'] as List<dynamic>)
+      .map((e) => RelatedCourseItem.fromJson(e as Map<String, dynamic>))
+      .toList(),
+  sameCourseOtherTeachers: (json['sameCourseOtherTeachers'] as List<dynamic>)
+      .map(
+        (e) => RelatedTeacherOfferingItem.fromJson(e as Map<String, dynamic>),
+      )
+      .toList(),
+);
+
+Map<String, dynamic> _$$CourseRelatedResultImplToJson(
+  _$CourseRelatedResultImpl instance,
+) => <String, dynamic>{
+  'teacherOtherCourses': instance.teacherOtherCourses,
+  'sameCourseOtherTeachers': instance.sameCourseOtherTeachers,
+};

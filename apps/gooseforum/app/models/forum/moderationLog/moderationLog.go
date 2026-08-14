@@ -5,26 +5,36 @@ import "time"
 const tableName = "moderation_logs"
 
 const (
-	SubjectCategory = "category"
-	SubjectTopic    = "topic"
-	SubjectPost     = "post"
-	SubjectReport   = "report"
-	SubjectUser     = "user"
-	SubjectSystem   = "system"
+	SubjectCategory     = "category"
+	SubjectTopic        = "topic"
+	SubjectPost         = "post"
+	SubjectReport       = "report"
+	SubjectUser         = "user"
+	SubjectSystem       = "system"
+	SubjectCourseReview = "course_review"
 )
 
 const (
-	ActionTopicBlocked     = "topicBlocked"
-	ActionTopicUnblocked   = "topicUnblocked"
-	ActionPostBlocked      = "postBlocked"
-	ActionPostUnblocked    = "postUnblocked"
-	ActionReportResolved   = "reportResolved"
-	ActionReportRejected   = "reportRejected"
-	ActionUserFrozen       = "userFrozen"
-	ActionExport           = "dataExported"
-	ActionImport           = "dataImported"
-	ActionSensitiveBlocked = "contentSensitiveBlocked"
-	ActionSensitiveReview  = "contentSensitiveReview"
+	ActionTopicBlocked          = "topicBlocked"
+	ActionTopicUnblocked        = "topicUnblocked"
+	ActionPostBlocked           = "postBlocked"
+	ActionPostUnblocked         = "postUnblocked"
+	ActionReportResolved        = "reportResolved"
+	ActionReportRejected        = "reportRejected"
+	ActionUserFrozen            = "userFrozen"
+	ActionExport                = "dataExported"
+	ActionImport                = "dataImported"
+	ActionSensitiveBlocked      = "contentSensitiveBlocked"
+	ActionSensitiveReview       = "contentSensitiveReview"
+	ActionCourseReviewBlocked   = "courseReviewBlocked"
+	ActionCourseReviewUnblocked = "courseReviewUnblocked"
+
+	// 删除生命周期动作（Issue #94）
+	ActionTopicDeleted    = "topicDeleted"
+	ActionPostDeleted     = "postDeleted"
+	ActionContentRestored = "contentRestored"
+	ActionContentPurged   = "contentPurged"
+	ActionEvidenceViewed  = "evidenceViewed"
 )
 
 const (

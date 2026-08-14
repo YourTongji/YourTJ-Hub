@@ -8,14 +8,16 @@ import (
 	"testing"
 
 	"github.com/gin-gonic/gin"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	jwt "github.com/leancodebox/GooseForum/app/bundles/jwtopt"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/service/sessionservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	jwt "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 func setupLogoutTestDB(t *testing.T) {
@@ -23,6 +25,8 @@ func setupLogoutTestDB(t *testing.T) {
 	conn := db.Connect()
 	if err := conn.AutoMigrate(
 		&users.EntityComplete{},
+		&userPoints.Entity{},
+		&pointsRecord.Entity{},
 		&userStatistics.Entity{},
 		&userSessions.Entity{},
 	); err != nil {
@@ -30,6 +34,8 @@ func setupLogoutTestDB(t *testing.T) {
 	}
 	conn.Where("1 = 1").Delete(&userSessions.Entity{})
 	conn.Where("1 = 1").Delete(&userStatistics.Entity{})
+	conn.Where("1 = 1").Delete(&pointsRecord.Entity{})
+	conn.Where("1 = 1").Delete(&userPoints.Entity{})
 	conn.Where("1 = 1").Delete(&users.EntityComplete{})
 }
 

@@ -8,19 +8,29 @@ package backgroundservice
 import (
 	"context"
 	"log/slog"
+	"sync"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/bundles/closer"
-	paniclog "github.com/leancodebox/GooseForum/app/bundles/recovery"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/closer"
+	paniclog "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 )
 
 const (
-	batchSize     = 10
-	pollInterval  = 5 * time.Second
-	retryInterval = 5 * time.Second
-	maxRetries    = 3
+	batchSize    = 10
+	pollInterval = 5 * time.Second
+	maxRetries   = 3
 )
+
+// leaseRenewInterval 是任务租约的心跳续约间隔（issue #138）。远小于
+// taskQueue.LeaseDuration（10 分钟），即使进程暂停或 DB 短暂抖动
+// 也不至于丢租约。var 而非 const：测试会临时缩短它以触发心跳路径
+// （TestLeaseLossCancelsHandlerViaHeartbeat）。
+var leaseRenewInterval = 30 * time.Second
+
+// retryInterval 是任务失败后的重试等待间隔。var 而非 const：测试会临时
+// 缩短它以加速重试路径（TestProcessTaskRetryThenFail）。
+var retryInterval = 5 * time.Second
 
 // TaskHandler processes one queued task. Returning an error triggers
 // retry/failure bookkeeping on the task row.
@@ -39,6 +49,12 @@ func RunWorker(name, typePrefix string, handler TaskHandler) {
 		ticker := time.NewTicker(pollInterval)
 		defer ticker.Stop()
 		for {
+			// 周期回收租约过期的 Running 任务：崩溃 worker 的任务在
+			// LeaseDuration 后回到 Pending，可被其他 worker 重新领取
+			// （issue #138）。运行中的 worker 通过心跳续租，不会被误回收。
+			if err := taskQueue.RecoverStaleRunning(typePrefix, taskQueue.LeaseDuration); err != nil {
+				slog.Error("background: recover stale running tasks failed", "worker", typePrefix, "err", err)
+			}
 			if !drainTasks(stopCh, typePrefix, handler) {
 				return
 			}
@@ -73,19 +89,61 @@ func drainTasks(stopCh <-chan struct{}, typePrefix string, handler TaskHandler) 
 	}
 }
 
+// processTask 处理单个任务并返回 continue 布尔：false = stop（stopCh 已
+// 关闭，worker 应退出），true = continue。注意与 mail worker 的
+// processClaimedEmailTask 语义相反（后者 true = stop）——两处各自调用方
+// 匹配了约定，修改时勿混用。
 func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Entity, handler TaskHandler) bool {
-	if err := taskQueue.UpdateStatus(task.Id, taskQueue.StatusRunning, nil); err != nil {
-		slog.Error("background: mark task running failed", "worker", typePrefix, "id", task.Id, "err", err)
+	// 原子领取（issue #138）：pending/retrying → running 的 CAS 更新，
+	// 并发 worker 中只有一个能成功，其余直接跳过，杜绝重复执行外部副作用。
+	running, claimed, err := taskQueue.ClaimTask(task.Id)
+	if err != nil {
+		slog.Error("background: claim task failed", "worker", typePrefix, "id", task.Id, "err", err)
+		return true
+	}
+	if !claimed {
+		slog.Debug("background: task already claimed by another worker", "worker", typePrefix, "id", task.Id)
 		return true
 	}
 
-	if err := handler(context.Background(), task); err != nil {
-		slog.Error("background: task failed", "worker", typePrefix, "id", task.Id, "type", task.Type, "retryCount", task.RetryCount, "err", err)
-		if task.RetryCount < maxRetries {
-			if updateErr := taskQueue.IncrementRetryCount(task.Id); updateErr != nil {
+	// 处理期间心跳续租；租约丢失（任务被回收重领）时取消 ctx，终止 handler。
+	guard := NewLeaseGuard(running.LeaseToken)
+	ctx, cancel := context.WithCancel(context.Background())
+	defer cancel()
+	heartbeatDone := StartLeaseHeartbeat(ctx, cancel, running.Id, guard)
+
+	// 传给 handler 的必须是 ClaimTask 从 DB 重读的已领取实体（&running）：
+	// 其 LeaseToken 是本次领取生成的新 fencing token，handler 用它做进度
+	// 写回的 CAS；GetPendingTasksByType 取回的旧实体 task 在 Pending 时
+	// 尚无 token（空/旧值），传给它会导致所有进度写回 CAS 命中 0 行
+	// （review C1）。
+	handlerErr := handler(ctx, &running)
+
+	// 停止心跳并等待退出，再做一次最终续租拿到权威租约值；之后的所有
+	// 状态写入都以该值为 CAS 前置条件（fencing）。若心跳退出瞬间与最后
+	// 一次续租交叠，guard 中的租约值可能滞后于 DB，最终续租负责收敛；
+	// 续租失败说明租约已被回收（任务被其他 worker 重新领取），跳过全部
+	// 终态写入，避免重复执行外部副作用。
+	cancel()
+	<-heartbeatDone
+	lease := guard.Get()
+	if ok, renewed, token, err := taskQueue.RenewLease(task.Id, lease); err != nil {
+		slog.Error("background: final lease renewal failed", "worker", typePrefix, "id", task.Id, "err", err)
+	} else if ok {
+		lease = token
+		_ = renewed // 租约时间仅用于过期判断，终态 CAS 使用 fencing token
+	} else {
+		slog.Warn("background: task lease lost, skipping terminal write", "worker", typePrefix, "id", task.Id)
+		return true
+	}
+
+	if handlerErr != nil {
+		slog.Error("background: task failed", "worker", typePrefix, "id", task.Id, "type", running.Type, "retryCount", running.RetryCount, "err", handlerErr)
+		if running.RetryCount < maxRetries {
+			if updateErr := taskQueue.IncrementRetryCountOwned(task.Id, lease); updateErr != nil {
 				slog.Error("background: increment retry count failed", "id", task.Id, "err", updateErr)
 			}
-			if updateErr := taskQueue.UpdateStatus(task.Id, taskQueue.StatusRetrying, err); updateErr != nil {
+			if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusRetrying, lease, handlerErr); updateErr != nil {
 				slog.Error("background: mark task retrying failed", "id", task.Id, "err", updateErr)
 			}
 			select {
@@ -95,14 +153,81 @@ func processTask(stopCh <-chan struct{}, typePrefix string, task *taskQueue.Enti
 				return false
 			}
 		}
-		if updateErr := taskQueue.UpdateStatus(task.Id, taskQueue.StatusFailed, err); updateErr != nil {
+		if updateErr := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusFailed, lease, handlerErr); updateErr != nil {
 			slog.Error("background: mark task failed failed", "id", task.Id, "err", updateErr)
 		}
 		return true
 	}
 
-	if err := taskQueue.UpdateStatus(task.Id, taskQueue.StatusSuccess, nil); err != nil {
+	if err := taskQueue.UpdateStatusOwned(task.Id, taskQueue.StatusSuccess, lease, nil); err != nil {
 		slog.Error("background: mark task success failed", "worker", typePrefix, "id", task.Id, "err", err)
 	}
 	return true
+}
+
+// LeaseGuard 跟踪 worker 当前持有的 fencing token（DB 中最新确认的
+// lease_token），供续租与终态写入的 CAS 使用。token 每次领取生成且不可
+// 复用；processed_at 仅作时间租约（过期回收判断），不作持有者判定。
+type LeaseGuard struct {
+	mu    sync.Mutex
+	token string
+}
+
+// NewLeaseGuard 以领取任务时返回的 fencing token 初始化 guard。
+func NewLeaseGuard(token string) *LeaseGuard {
+	return &LeaseGuard{token: token}
+}
+
+// Get 返回当前已知 fencing token。
+func (g *LeaseGuard) Get() string {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	return g.token
+}
+
+// Set 记录一次成功续租后的新 fencing token。
+func (g *LeaseGuard) Set(token string) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	g.token = token
+}
+
+// StartLeaseHeartbeat 启动任务续租心跳：每个 leaseRenewInterval 对任务执行
+// 一次 CAS 续租。续租失败说明租约已被回收（任务被其他 worker 重新领取），
+// 立即取消 ctx 并退出；ctx 被外部取消时也退出。返回的通道在心跳 goroutine
+// 退出后关闭，调用方在处理结束后可等待它以固定最终租约值。
+//
+// 限制（review G2）：续租返回 error（DB 抖动/分区）时只记录并继续，不取消
+// ctx——这是刻意取舍：瞬时 DB 错误下取消会过早终止仍持有租约的 handler；
+// 但代价是持续错误期间租约实际已过期（时间维度）时，本 worker 的 handler
+// 会继续执行直到结束，其外部副作用无法被取消（详见
+// docs/architecture/contracts-and-data.md 的 at-least-once 说明）。若后续
+// 需要收紧，可在 err 持续 N 次后调用 cancel()。
+func StartLeaseHeartbeat(ctx context.Context, cancel context.CancelFunc, id uint64, guard *LeaseGuard) <-chan struct{} {
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		ticker := time.NewTicker(leaseRenewInterval)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				ok, _, token, err := taskQueue.RenewLease(id, guard.Get())
+				if err != nil {
+					// DB 抖动：保持续租尝试，不取消 handler（见上方限制说明）。
+					slog.Error("background: renew lease failed", "id", id, "err", err)
+					continue
+				}
+				if !ok {
+					slog.Warn("background: task lease lost, cancelling handler", "id", id)
+					cancel()
+					return
+				}
+				guard.Set(token)
+			case <-ctx.Done():
+				return
+			}
+		}
+	}()
+	return done
 }

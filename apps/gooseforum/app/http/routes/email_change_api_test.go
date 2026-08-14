@@ -9,21 +9,22 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/leancodebox/GooseForum/app/bundles/algorithm"
-	db "github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/ratelimit"
-	"github.com/leancodebox/GooseForum/app/http/controllers/api"
-	"github.com/leancodebox/GooseForum/app/http/controllers/component"
-	"github.com/leancodebox/GooseForum/app/http/middleware"
-	"github.com/leancodebox/GooseForum/app/models/defaultconfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
-	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
-	"github.com/leancodebox/GooseForum/app/models/hotdataserve"
-	"github.com/leancodebox/GooseForum/app/service/mailservice"
-	"github.com/leancodebox/GooseForum/app/service/tokenservice"
-	"github.com/leancodebox/GooseForum/app/service/userservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/defaultconfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/mailservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
 )
 
 // setupEmailChangeTestDB migrates the tables the email-change handler touches.
@@ -98,6 +99,16 @@ func postEmailChange(t *testing.T, router http.Handler, body string) component.R
 		t.Fatalf("decode response %q: %v", rec.Body.String(), err)
 	}
 	return resp
+}
+
+// withRouteTestSigningKey sets a strong app.signingKey for the duration of the
+// test so tokenservice reset/activation tokens can be signed — issue #106 made
+// signing fail-closed on empty/known-bad keys. Restored on cleanup.
+func withRouteTestSigningKey(t *testing.T, key string) {
+	t.Helper()
+	prev := preferences.GetString("app.signingKey", "")
+	preferences.Set("app.signingKey", key)
+	t.Cleanup(func() { preferences.Set("app.signingKey", prev) })
 }
 
 // countEmailTaskByType 统计 TaskJson 载荷里 Type 为 taskType 的邮件任务。
@@ -457,11 +468,13 @@ func TestForgotPasswordAllowedAfterEmailChangeCooldown(t *testing.T) {
 // 当前 user.Email）。即使攻击者拿到旧令牌，也无法在邮箱已变更的账号上复用。
 func TestResetPasswordRejectsOldEmailTokenAfterEmailChange(t *testing.T) {
 	setupEmailChangeTestDB(t)
+	withRouteTestSigningKey(t, "route-test-signing-key-106")
 	const userID = uint64(9106)
 	createEmailChangeUser(t, userID, "email-oldtoken", "correct-password-123")
 
 	// 1. 用旧邮箱签发一个有效重置令牌（模拟攻击者在邮箱变更前拿到的令牌）。
-	tokenBeforeChange, err := tokenservice.GeneratePasswordResetToken(userID, "email-oldtoken@example.com")
+	// 绑定签发时的 token_version（MakeUser 已 SetPassword 一次，故为 1）。
+	tokenBeforeChange, err := tokenservice.GeneratePasswordResetToken(userID, "email-oldtoken@example.com", 1)
 	if err != nil {
 		t.Fatalf("generate reset token for old email: %v", err)
 	}

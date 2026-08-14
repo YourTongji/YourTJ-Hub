@@ -5,7 +5,7 @@ import (
 	"log/slog"
 	"time"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/spf13/cast"
 )
 

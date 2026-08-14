@@ -4,9 +4,10 @@ info:
   version: 0.1.0
   description: |
     The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
-    login public-key retrieval, TOTP login verification, logout, session management
-    (list/revoke/revoke-all), mobile OIDC code exchange, topic writing, and the Agent
-    (bot persona) public API.
+    login public-key retrieval, TOTP login verification and account management, logout,
+    session management (list/revoke/revoke-all), mobile OIDC code exchange, account
+    registration, password recovery (forgot/reset), topic writing,
+    and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -18,6 +19,8 @@ tags:
     description: Forum writing operations.
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
+  - name: PK
+    description: 排课模拟器（PK）公开只读端点，统一 {code,msg,data} 信封。
 paths:
   /api/login:
     $ref: ./paths/auth.yaml#/login
@@ -25,8 +28,22 @@ paths:
     $ref: ./paths/auth-security.yaml#/loginPublicKey
   /api/logout:
     $ref: ./paths/auth-sessions.yaml#/logout
+  /api/register:
+    $ref: ./paths/auth-account-recovery.yaml#/register
+  /api/forgot-password:
+    $ref: ./paths/auth-account-recovery.yaml#/forgotPassword
+  /api/reset-password:
+    $ref: ./paths/auth-account-recovery.yaml#/resetPassword
   /api/auth/totp/verify:
     $ref: ./paths/auth-security.yaml#/verifyTotp
+  /api/user/totp/status:
+    $ref: ./paths/auth-totp.yaml#/status
+  /api/user/totp/setup:
+    $ref: ./paths/auth-totp.yaml#/setup
+  /api/user/totp/enable:
+    $ref: ./paths/auth-totp.yaml#/enable
+  /api/user/totp/disable:
+    $ref: ./paths/auth-totp.yaml#/disable
   /api/auth/oidc/exchange:
     $ref: ./paths/auth.yaml#/oidcExchange
   /api/user/sessions:
@@ -51,6 +68,113 @@ paths:
       $ref: ./paths/agent.yaml#/agentCreatePost/post
   /api/v1/agent/search:
     $ref: ./paths/agent.yaml#/agentSearch
+  /api/forum/courses:
+    get:
+      $ref: ./paths/courses.yaml#/listCourses/get
+  /api/forum/courses/{courseId}:
+    get:
+      $ref: ./paths/courses.yaml#/getCourse/get
+  /api/forum/courses/{courseId}/related:
+    get:
+      $ref: ./paths/courses.yaml#/getCourseRelated/get
+  /api/forum/courses/{courseId}/summary:
+    get:
+      $ref: ./paths/courses.yaml#/getCourseSummary/get
+  /api/forum/courses/{courseId}/reviews:
+    get:
+      $ref: ./paths/course-reviews.yaml#/listCourseReviews/get
+  /api/forum/course-reviews:
+    post:
+      $ref: ./paths/course-reviews.yaml#/createCourseReview/post
+  /api/forum/course-reviews/{reviewId}:
+    patch:
+      $ref: ./paths/course-reviews.yaml#/updateCourseReview/patch
+    delete:
+      $ref: ./paths/course-reviews.yaml#/deleteCourseReview/delete
+  /api/forum/course-reviews/{reviewId}/helpful:
+    put:
+      $ref: ./paths/course-reviews.yaml#/markReviewHelpful/put
+    delete:
+      $ref: ./paths/course-reviews.yaml#/unmarkReviewHelpful/delete
+  /api/forum/course-reviews/{reviewId}/reports:
+    post:
+      $ref: ./paths/course-reviews.yaml#/reportCourseReview/post
+  /api/forum/moderation/course-review-status:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewStatus/post
+  /api/forum/moderation/course-review-reports:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewReportList/post
+  /api/forum/moderation/course-review-reveal:
+    post:
+      $ref: ./paths/course-reviews.yaml#/moderationCourseReviewReveal/post
+  # PK 排课器 13 端点（Issue #187）。
+  /api/pk/calendars:
+    get:
+      $ref: ./paths/pk.yaml#/listCalendars/get
+  /api/pk/campuses:
+    get:
+      $ref: ./paths/pk.yaml#/listCampuses/get
+  /api/pk/faculties:
+    get:
+      $ref: ./paths/pk.yaml#/listFaculties/get
+  /api/pk/grades:
+    post:
+      $ref: ./paths/pk.yaml#/findGrades/post
+  /api/pk/majors:
+    post:
+      $ref: ./paths/pk.yaml#/findMajors/post
+  /api/pk/courses-by-major:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByMajor/post
+  /api/pk/optional-types:
+    post:
+      $ref: ./paths/pk.yaml#/findOptionalTypes/post
+  /api/pk/courses-by-nature:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByNature/post
+  /api/pk/course-details:
+    post:
+      $ref: ./paths/pk.yaml#/findCourseDetails/post
+  /api/pk/course-search:
+    post:
+      $ref: ./paths/pk.yaml#/searchCourses/post
+  /api/pk/courses-by-time:
+    post:
+      $ref: ./paths/pk.yaml#/findCoursesByTime/post
+  /api/pk/latest-update:
+    get:
+      $ref: ./paths/pk.yaml#/getLatestUpdate/get
+  /api/pk/course-info-sync:
+    post:
+      $ref: ./paths/pk.yaml#/syncCourseInfo/post
+  /api/pk/course-review-brief:
+    get:
+      $ref: ./paths/pk.yaml#/getCourseReviewBrief/get
+  /api/forum/moderation/course-list:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseList/post
+  /api/forum/moderation/course-create:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseCreate/post
+  /api/forum/moderation/course-update:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseUpdate/post
+  /api/forum/moderation/course-delete:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseDelete/post
+  /api/forum/moderation/course-review-list:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewList/post
+  /api/forum/moderation/course-review-edit:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewUpdate/post
+  /api/forum/moderation/course-review-delete:
+    post:
+      $ref: ./paths/course-management.yaml#/adminReviewDelete/post
+  /api/forum/moderation/course-stats-rebuild:
+    post:
+      $ref: ./paths/course-management.yaml#/adminCourseStatsRebuild/post
 components:
   securitySchemes:
     bearerAuth:
@@ -73,6 +197,24 @@ components:
       $ref: ./components/schemas.yaml#/ApiFailure
     ApiSuccess:
       $ref: ./components/schemas.yaml#/ApiSuccess
+    RegisterRequest:
+      $ref: ./components/schemas.yaml#/RegisterRequest
+    RegisterSuccess:
+      $ref: ./components/schemas.yaml#/RegisterSuccess
+    RegisterResponse:
+      $ref: ./components/schemas.yaml#/RegisterResponse
+    ForgotPasswordRequest:
+      $ref: ./components/schemas.yaml#/ForgotPasswordRequest
+    ForgotPasswordSuccess:
+      $ref: ./components/schemas.yaml#/ForgotPasswordSuccess
+    ForgotPasswordResponse:
+      $ref: ./components/schemas.yaml#/ForgotPasswordResponse
+    ResetPasswordRequest:
+      $ref: ./components/schemas.yaml#/ResetPasswordRequest
+    ResetPasswordSuccess:
+      $ref: ./components/schemas.yaml#/ResetPasswordSuccess
+    ResetPasswordResponse:
+      $ref: ./components/schemas.yaml#/ResetPasswordResponse
     LoginRequest:
       $ref: ./components/schemas.yaml#/LoginRequest
     LoginSuccess:
@@ -105,6 +247,34 @@ components:
       $ref: ./components/schemas.yaml#/TotpVerifyResponse
     TotpVerifySuccess:
       $ref: ./components/schemas.yaml#/TotpVerifySuccess
+    TotpStatusResult:
+      $ref: ./components/schemas.yaml#/TotpStatusResult
+    TotpStatusSuccess:
+      $ref: ./components/schemas.yaml#/TotpStatusSuccess
+    TotpStatusResponse:
+      $ref: ./components/schemas.yaml#/TotpStatusResponse
+    TotpSetupRequest:
+      $ref: ./components/schemas.yaml#/TotpSetupRequest
+    TotpSetupResult:
+      $ref: ./components/schemas.yaml#/TotpSetupResult
+    TotpSetupSuccess:
+      $ref: ./components/schemas.yaml#/TotpSetupSuccess
+    TotpSetupResponse:
+      $ref: ./components/schemas.yaml#/TotpSetupResponse
+    TotpEnableRequest:
+      $ref: ./components/schemas.yaml#/TotpEnableRequest
+    TotpEnableResult:
+      $ref: ./components/schemas.yaml#/TotpEnableResult
+    TotpEnableSuccess:
+      $ref: ./components/schemas.yaml#/TotpEnableSuccess
+    TotpEnableResponse:
+      $ref: ./components/schemas.yaml#/TotpEnableResponse
+    TotpDisableRequest:
+      $ref: ./components/schemas.yaml#/TotpDisableRequest
+    TotpDisableSuccess:
+      $ref: ./components/schemas.yaml#/TotpDisableSuccess
+    TotpDisableResponse:
+      $ref: ./components/schemas.yaml#/TotpDisableResponse
     WriteTopicRequest:
       $ref: ./components/schemas.yaml#/WriteTopicRequest
     WriteTopicSuccess:
@@ -133,6 +303,100 @@ components:
       $ref: ./components/schemas.yaml#/AgentCreatePostResponse
     AgentSearchResponse:
       $ref: ./components/schemas.yaml#/AgentSearchResponse
+    CourseSummary:
+      $ref: ./components/schemas.yaml#/CourseSummary
+    CourseListResult:
+      $ref: ./components/schemas.yaml#/CourseListResult
+    CourseListResponse:
+      $ref: ./components/schemas.yaml#/CourseListResponse
+    OfferingSummary:
+      $ref: ./components/schemas.yaml#/OfferingSummary
+    CourseDetail:
+      $ref: ./components/schemas.yaml#/CourseDetail
+    CourseDetailResponse:
+      $ref: ./components/schemas.yaml#/CourseDetailResponse
+    CourseSummaryStatus:
+      $ref: ./components/schemas.yaml#/CourseSummaryStatus
+    CourseSummaryConsensus:
+      $ref: ./components/schemas.yaml#/CourseSummaryConsensus
+    CourseSummarySentiment:
+      $ref: ./components/schemas.yaml#/CourseSummarySentiment
+    CourseSummaryRepresentativeReview:
+      $ref: ./components/schemas.yaml#/CourseSummaryRepresentativeReview
+    CourseSummaryPayload:
+      $ref: ./components/schemas.yaml#/CourseSummaryPayload
+    CourseSummaryResult:
+      $ref: ./components/schemas.yaml#/CourseSummaryResult
+    CourseSummaryResponse:
+      $ref: ./components/schemas.yaml#/CourseSummaryResponse
+    ReviewAuthorPayload:
+      $ref: ./components/schemas.yaml#/ReviewAuthorPayload
+    ReviewViewerPayload:
+      $ref: ./components/schemas.yaml#/ReviewViewerPayload
+    ReviewPayload:
+      $ref: ./components/schemas.yaml#/ReviewPayload
+    ReviewListResult:
+      $ref: ./components/schemas.yaml#/ReviewListResult
+    ReviewListResponse:
+      $ref: ./components/schemas.yaml#/ReviewListResponse
+    ReviewWriteRequest:
+      $ref: ./components/schemas.yaml#/ReviewWriteRequest
+    ReviewWriteSuccess:
+      $ref: ./components/schemas.yaml#/ReviewWriteSuccess
+    ReviewWriteResponse:
+      $ref: ./components/schemas.yaml#/ReviewWriteResponse
+    ReviewUpdateRequest:
+      $ref: ./components/schemas.yaml#/ReviewUpdateRequest
+    ReviewActionResponse:
+      $ref: ./components/schemas.yaml#/ReviewActionResponse
+    ReviewReportRequest:
+      $ref: ./components/schemas.yaml#/ReviewReportRequest
+    ModerationCourseReviewStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewStatusRequest
+    ModerationCourseReviewReportListRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListRequest
+    ModerationCourseReviewReportItem:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportItem
+    ModerationCourseReviewReportListResult:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListResult
+    ModerationCourseReviewReportListResponse:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewReportListResponse
+    ModerationCourseReviewRevealRequest:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealRequest
+    CourseReviewAuthorRevealPayload:
+      $ref: ./components/schemas.yaml#/CourseReviewAuthorRevealPayload
+    ModerationCourseReviewRevealResponse:
+      $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealResponse
+    AdminCourseListRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseListRequest
+    AdminCourseItem:
+      $ref: ./components/schemas.yaml#/AdminCourseItem
+    AdminCourseListResult:
+      $ref: ./components/schemas.yaml#/AdminCourseListResult
+    AdminCourseListResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseListResponse
+    AdminCourseItemResponse:
+      $ref: ./components/schemas.yaml#/AdminCourseItemResponse
+    AdminCourseCreateRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseCreateRequest
+    AdminCourseUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseUpdateRequest
+    AdminCourseDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminCourseDeleteRequest
+    AdminReviewItem:
+      $ref: ./components/schemas.yaml#/AdminReviewItem
+    AdminReviewListRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewListRequest
+    AdminReviewListResult:
+      $ref: ./components/schemas.yaml#/AdminReviewListResult
+    AdminReviewListResponse:
+      $ref: ./components/schemas.yaml#/AdminReviewListResponse
+    AdminReviewUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewUpdateRequest
+    AdminReviewDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
+    TopicAuthorPayload:
+      $ref: ./components/schemas.yaml#/TopicAuthorPayload
     RevokeSessionRequest:
       $ref: ./components/schemas.yaml#/RevokeSessionRequest
     SessionListResponse:
@@ -145,3 +409,69 @@ components:
       $ref: ./components/schemas.yaml#/SessionMessageSuccess
     UserSession:
       $ref: ./components/schemas.yaml#/UserSession
+    PkSuccess:
+      $ref: ./components/schemas.yaml#/PkSuccess
+    PkFailure:
+      $ref: ./components/schemas.yaml#/PkFailure
+    PkCalendarItem:
+      $ref: ./components/schemas.yaml#/PkCalendarItem
+    PkCampusItem:
+      $ref: ./components/schemas.yaml#/PkCampusItem
+    PkFacultyItem:
+      $ref: ./components/schemas.yaml#/PkFacultyItem
+    PkGradesResult:
+      $ref: ./components/schemas.yaml#/PkGradesResult
+    PkMajorItem:
+      $ref: ./components/schemas.yaml#/PkMajorItem
+    PkTeacherRef:
+      $ref: ./components/schemas.yaml#/PkTeacherRef
+    PkArrangementInfo:
+      $ref: ./components/schemas.yaml#/PkArrangementInfo
+    PkCourseClassItem:
+      $ref: ./components/schemas.yaml#/PkCourseClassItem
+    PkCourseByMajorItem:
+      $ref: ./components/schemas.yaml#/PkCourseByMajorItem
+    PkOptionalTypeItem:
+      $ref: ./components/schemas.yaml#/PkOptionalTypeItem
+    PkNatureCourseItem:
+      $ref: ./components/schemas.yaml#/PkNatureCourseItem
+    PkCourseByNatureItem:
+      $ref: ./components/schemas.yaml#/PkCourseByNatureItem
+    PkCourseDetailBrief:
+      $ref: ./components/schemas.yaml#/PkCourseDetailBrief
+    PkSearchCourseItem:
+      $ref: ./components/schemas.yaml#/PkSearchCourseItem
+    PkSearchResult:
+      $ref: ./components/schemas.yaml#/PkSearchResult
+    PkCoursesByTimeResult:
+      $ref: ./components/schemas.yaml#/PkCoursesByTimeResult
+    PkReviewBrief:
+      $ref: ./components/schemas.yaml#/PkReviewBrief
+    PkCalendarListResponse:
+      $ref: ./components/schemas.yaml#/PkCalendarListResponse
+    PkCampusListResponse:
+      $ref: ./components/schemas.yaml#/PkCampusListResponse
+    PkFacultyListResponse:
+      $ref: ./components/schemas.yaml#/PkFacultyListResponse
+    PkGradesResponse:
+      $ref: ./components/schemas.yaml#/PkGradesResponse
+    PkMajorsResponse:
+      $ref: ./components/schemas.yaml#/PkMajorsResponse
+    PkCoursesByMajorResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByMajorResponse
+    PkOptionalTypesResponse:
+      $ref: ./components/schemas.yaml#/PkOptionalTypesResponse
+    PkCoursesByNatureResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByNatureResponse
+    PkCourseDetailsResponse:
+      $ref: ./components/schemas.yaml#/PkCourseDetailsResponse
+    PkCourseSearchResponse:
+      $ref: ./components/schemas.yaml#/PkCourseSearchResponse
+    PkCoursesByTimeResponse:
+      $ref: ./components/schemas.yaml#/PkCoursesByTimeResponse
+    PkLatestUpdateResponse:
+      $ref: ./components/schemas.yaml#/PkLatestUpdateResponse
+    PkCourseInfoSyncResponse:
+      $ref: ./components/schemas.yaml#/PkCourseInfoSyncResponse
+    PkReviewBriefResponse:
+      $ref: ./components/schemas.yaml#/PkReviewBriefResponse

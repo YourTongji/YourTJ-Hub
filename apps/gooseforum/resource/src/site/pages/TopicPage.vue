@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, defineAsyncComponent, nextTick, onBeforeUnmount, onMounted, ref, Teleport, watch } from 'vue'
-import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
-import { bookmarkTopic, deletePost, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost } from '@/runtime/api'
+import { AlertTriangle, Ban, Bell, Bookmark, ChevronDown, ChevronUp, ChevronsUp, Clock, CornerDownLeft, Eye, Flag, Heart, History, Loader2, MessageSquare, PencilLine, RotateCcw, Share2, Trash2, X } from '@lucide/vue'
+import { bookmarkTopic, deletePost, deleteTopic, getPostRevisions, getPostWindow, likeTopic, createPost, submitReport, updateModerationTopicStatus, updateModerationPostStatus, updatePost, watchTopic, likePost, bookmarkPost, reportContentEvent, privacyEraseContent, type PostRevisionResult } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { fetchPage } from '@/runtime/router'
@@ -51,13 +51,25 @@ const actingWatch = ref(false)
 const actingModeration = ref(false)
 const submitting = ref(false)
 const deletingPostId = ref(0)
+const deletingTopic = ref(false)
 const editingPostId = ref(0)
 const savingEditPostId = ref(0)
 const postDraftBeforeEdit = ref('')
 const targetPostBeforeEdit = ref(0)
 const pendingDeletePost = ref<PostPayload | null>(null)
+const pendingDeleteTopic = ref(false)
 const pendingModerationAction = ref<'ban' | 'unban' | null>(null)
 const pendingReport = ref<{ targetType: 'topic' | 'post'; targetId: number; title: string; excerpt: string } | null>(null)
+const historyPost = ref<PostPayload | null>(null)
+const historyVersions = ref<PostRevisionResult['versions'] | null>(null)
+const historyLoading = ref(false)
+const historyLoadingMore = ref(false)
+const historyHasMore = ref(false)
+const historyBeforeVersion = ref(0)
+const historyError = ref('')
+// 弹窗请求代次：关闭/重新打开弹窗时自增，在途响应回来时丢弃过期结果，
+// 避免旧请求写入下一个弹窗的状态（加载更多进行中关闭的竞态）。
+const historyRequestSeq = ref(0)
 const reportReason = ref('spam')
 const reportNote = ref('')
 const reportSubmitting = ref(false)
@@ -172,6 +184,19 @@ const floatingTopicActions = computed(() => {
       title: isBanned ? t('topic.moderationUnban') : t('topic.moderationBan'),
       activeClass: 'text-base-content/75 hover:bg-base-200 hover:text-base-content',
       onClick: async () => requestTopicModeration(isBanned ? 'unban' : 'ban'),
+    })
+  }
+
+  if (page.props.permissions.isOwnTopic && !isTopicRemoved()) {
+    actions.push({
+      key: 'delete-topic',
+      icon: Trash2,
+      active: false,
+      acting: deletingTopic.value,
+      fill: false,
+      title: t('topic.deleteTopic'),
+      activeClass: 'text-error hover:bg-error/10 hover:text-error',
+      onClick: async () => requestDeleteTopic(),
     })
   }
 
@@ -1226,25 +1251,29 @@ function isFirstPost(post: PostPayload) {
   return post.postNo === 1
 }
 
+function isPostRemoved(post: PostPayload) {
+  return post.isAuthorDeleted || post.isModeratorRemoved
+}
+
+function isTopicRemoved() {
+  return page.props.topic.authorDeleted || page.props.topic.moderatorRemoved
+}
+
 // 优先展示用户昵称，未设置昵称时回退到账号名
 function authorDisplayName(author: { username: string; nickname?: string }) {
   return author.nickname || author.username
 }
 
 function canEditPost(post: PostPayload) {
-  return post.isOwnPost && !post.isHidden
+  return post.isOwnPost && !post.isHidden && !isPostRemoved(post)
 }
 
 function canDeleteRenderedPost(post: PostPayload) {
-  return post.isOwnPost && !post.isHidden && !isFirstPost(post)
+  return post.isOwnPost && !post.isHidden && !isPostRemoved(post) && !isFirstPost(post)
 }
 
 function startEditPost(post: PostPayload) {
   if (savingEditPostId.value || deletingPostId.value === post.id) return
-  if (isFirstPost(post)) {
-    window.location.href = `/publish?id=${page.props.topic.id}`
-    return
-  }
   if (!editingPostId.value) {
     postDraftBeforeEdit.value = postContent.value
     targetPostBeforeEdit.value = targetPostId.value
@@ -1294,11 +1323,15 @@ async function savePostEdit() {
     const updated = await updatePost(post.id, content)
     const index = posts.value.findIndex((item) => item.id === post.id)
     if (index >= 0) {
+      // 编辑者即当前用户：lastEditor 复用作者卡片，保留昵称/头像/徽章等完整信息
       posts.value[index] = {
         ...posts.value[index],
         content: updated.content,
         renderedContent: updated.renderedContent,
         updatedAt: updated.updatedAt,
+        lastEditor: { ...post.author, id: updated.lastEditorId },
+        lastEditedAt: updated.lastEditedAt,
+        revisionCount: updated.revisionCount,
       }
     }
     editingPostId.value = 0
@@ -1374,12 +1407,80 @@ function requestDeletePost(post: PostPayload) {
   if (savingEditPostId.value === post.id) return
   pendingDeletePost.value = post
   deleteErrorMessage.value = ''
+  void reportContentEvent('content_delete_clicked', 'post', post.id)
 }
 
 function closeDeleteDialog() {
   if (deletingPostId.value) return
   pendingDeletePost.value = null
   deleteErrorMessage.value = ''
+}
+
+function requestDeleteTopic() {
+  if (deletingTopic.value || isTopicRemoved()) return
+  pendingDeleteTopic.value = true
+  deleteErrorMessage.value = ''
+  void reportContentEvent('content_delete_clicked', 'topic', page.props.topic.id)
+}
+
+function closeDeleteTopicDialog() {
+  if (deletingTopic.value) return
+  pendingDeleteTopic.value = false
+  deleteErrorMessage.value = ''
+}
+
+async function removeTopic() {
+  if (deletingTopic.value || !pendingDeleteTopic.value) return
+
+  deletingTopic.value = true
+  deleteErrorMessage.value = ''
+  try {
+    void reportContentEvent('content_delete_confirmed', 'topic', page.props.topic.id)
+    await deleteTopic(page.props.topic.id)
+    pendingDeleteTopic.value = false
+    pushFlash(t('topic.topicDeleted'), 'success')
+    await refreshCurrentPage()
+  } catch (error) {
+    deleteErrorMessage.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    deletingTopic.value = false
+  }
+}
+
+/** 隐私紧急删除（PRD R8）：跳过 30 天恢复窗口，全渠道立即彻底删除。 */
+async function privacyEraseTopic() {
+  if (deletingTopic.value || !pendingDeleteTopic.value) return
+  if (!window.confirm(t('topic.privacyEraseConfirm'))) return
+  deletingTopic.value = true
+  deleteErrorMessage.value = ''
+  try {
+    await privacyEraseContent('topic', page.props.topic.id)
+    pendingDeleteTopic.value = false
+    pushFlash(t('topic.privacyEraseSuccess'), 'success')
+    await refreshCurrentPage()
+  } catch (error) {
+    deleteErrorMessage.value = error instanceof Error ? error.message : t('api.topicDeleteFailed')
+  } finally {
+    deletingTopic.value = false
+  }
+}
+
+async function privacyErasePost() {
+  if (!pendingDeletePost.value || deletingPostId.value) return
+  if (!window.confirm(t('topic.privacyEraseConfirm'))) return
+  deletingPostId.value = pendingDeletePost.value.id
+  deleteErrorMessage.value = ''
+  try {
+    await privacyEraseContent('post', pendingDeletePost.value.id)
+    const deletedId = pendingDeletePost.value.id
+    pendingDeletePost.value = null
+    pushFlash(t('topic.privacyEraseSuccess'), 'success')
+    posts.value = posts.value.filter((post) => post.id !== deletedId)
+  } catch (error) {
+    deleteErrorMessage.value = error instanceof Error ? error.message : t('api.replyDeleteFailed')
+  } finally {
+    deletingPostId.value = 0
+  }
 }
 
 function requestTopicModeration(action: 'ban' | 'unban') {
@@ -1528,8 +1629,16 @@ async function removePost(postId: number) {
   deleteErrorMessage.value = ''
   try {
     const removedPost = posts.value.find((post) => post.id === postId)
-    await deletePost(postId)
-    posts.value = posts.value.filter((post) => post.id !== postId)
+    void reportContentEvent('content_delete_confirmed', 'post', postId)
+    const deleteResult = await deletePost(postId)
+    if (deleteResult.hasChildren) {
+      // 子回复仍依赖这个节点维持讨论树，因此保留楼层并切换为墓碑态。
+      posts.value = posts.value.map((post) => post.id === postId
+        ? { ...post, content: '', renderedContent: '', isAuthorDeleted: true }
+        : post)
+    } else {
+      posts.value = posts.value.filter((post) => post.id !== postId)
+    }
     if (targetPostId.value === postId) {
       targetPostId.value = 0
     }
@@ -1540,7 +1649,7 @@ async function removePost(postId: number) {
       postDraftBeforeEdit.value = ''
       targetPostBeforeEdit.value = 0
     }
-    if (removedPost?.postNo && activePostNo.value === removedPost.postNo) {
+    if (!deleteResult.hasChildren && removedPost?.postNo && activePostNo.value === removedPost.postNo) {
       const closest = findClosestLoadedPost(removedPost.postNo)
       activePostNo.value = closest?.postNo || lastPostNo(posts.value) || firstPostNo(posts.value) || 1
     }
@@ -1556,6 +1665,68 @@ async function removePost(postId: number) {
   } finally {
     deletingPostId.value = 0
   }
+}
+
+async function openPostHistory(post: PostPayload) {
+  historyRequestSeq.value++
+  const seq = historyRequestSeq.value
+  historyPost.value = post
+  historyVersions.value = null
+  historyHasMore.value = false
+  historyBeforeVersion.value = 0
+  historyError.value = ''
+  historyLoading.value = true
+  try {
+    const result = await getPostRevisions(post.id)
+    if (seq !== historyRequestSeq.value) return // 弹窗已关闭/重新打开，丢弃过期响应
+    historyVersions.value = result.versions
+    historyHasMore.value = result.hasMore
+    historyBeforeVersion.value = result.beforeVersion
+  } catch (error) {
+    if (seq !== historyRequestSeq.value) return
+    historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
+  } finally {
+    if (seq === historyRequestSeq.value) historyLoading.value = false
+  }
+}
+
+// 加载更早版本：游标分页（后端按 beforeVersion 返回更早一页，升序排列），
+// 前插到列表头部，避免单次响应随编辑次数无界增长。
+async function loadEarlierHistoryVersions() {
+  if (historyLoadingMore.value || !historyHasMore.value || !historyPost.value) return
+  const seq = historyRequestSeq.value
+  historyLoadingMore.value = true
+  try {
+    const result = await getPostRevisions(historyPost.value.id, historyBeforeVersion.value)
+    if (seq !== historyRequestSeq.value) return // 弹窗已关闭/重新打开，丢弃过期响应
+    historyVersions.value = [...result.versions, ...(historyVersions.value ?? [])]
+    historyHasMore.value = result.hasMore
+    historyBeforeVersion.value = result.beforeVersion
+  } catch (error) {
+    if (seq !== historyRequestSeq.value) return
+    historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
+  } finally {
+    if (seq === historyRequestSeq.value) historyLoadingMore.value = false
+  }
+}
+
+function closePostHistory() {
+  if (historyLoading.value) return
+  historyRequestSeq.value++
+  historyPost.value = null
+  historyVersions.value = null
+  historyHasMore.value = false
+  historyBeforeVersion.value = 0
+  historyError.value = ''
+  historyLoadingMore.value = false
+}
+
+function lastEditedLabel(post: PostPayload) {
+  if (!post.lastEditedAt || !post.lastEditor) return ''
+  return t('topic.lastEditedBy', {
+    time: formatDateTime(post.lastEditedAt),
+    user: authorDisplayName(post.lastEditor),
+  })
 }
 </script>
 
@@ -1675,7 +1846,7 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ deletingPostId === group.root.id ? t('topic.deleting') : t('topic.delete') }}</span>
                     </button>
                     <button
-                      v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !group.root.isHidden"
+                      v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !group.root.isHidden && !isPostRemoved(group.root)"
                       type="button"
                       class="inline-flex h-7 w-7 shrink-0 items-center justify-center rounded-md text-icon-muted transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 sm:h-8 sm:w-8"
                       :title="t('topic.reply')"
@@ -1685,7 +1856,7 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ t('topic.reply') }}</span>
                     </button>
                     <button
-                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden && !isPostRemoved(group.root)"
                       type="button"
                       class="inline-flex h-7 shrink-0 items-center gap-1 rounded-md px-1 text-icon-muted transition hover:bg-error/10 hover:text-error focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50 sm:h-8 sm:px-1.5"
                       :class="{ 'text-error hover:text-error': postActionState(group.root).isLiked }"
@@ -1698,7 +1869,7 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ t('topic.like') }}</span>
                     </button>
                     <button
-                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden"
+                      v-if="page.layout.viewer.isAuthenticated && !group.root.isHidden && !isPostRemoved(group.root)"
                       type="button"
                       class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-50"
                       :class="{ 'text-primary hover:text-primary': postActionState(group.root).isBookmarked }"
@@ -1719,7 +1890,7 @@ async function removePost(postId: number) {
                       <span class="sr-only">{{ t('topic.share') }}</span>
                     </button>
                     <button
-                      v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden"
+                      v-if="!isFirstPost(group.root) && !group.root.isOwnPost && !group.root.isHidden && !isPostRemoved(group.root)"
                       type="button"
                       class="gf-icon-button h-7 w-7 shrink-0 sm:h-8 sm:w-8 hover:bg-warning/10 hover:text-warning focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-warning focus-visible:ring-offset-2"
                       :title="t('topic.report')"
@@ -1760,22 +1931,33 @@ async function removePost(postId: number) {
                   </div>
                 </div>
                 <PostReplyReference v-if="group.root.replyToPostId" :target="replyTargetFor(group.root)" />
-                <div v-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
+                <div v-if="group.root.isAuthorDeleted" class="rounded border border-dashed border-line bg-base-200/60 px-3 py-3 text-sm text-base-content/55">
+                  <div class="font-semibold text-base-content/70">{{ t('topic.authorDeletedTitle') }}</div>
+                  <div class="mt-1 leading-6">{{ t('topic.authorDeletedPlaceholder') }}</div>
+                </div>
+                <div v-else-if="group.root.isModeratorRemoved" class="rounded border border-dashed border-line bg-base-200/60 px-3 py-3 text-sm text-base-content/55">
+                  <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
+                  <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
+                </div>
+                <div v-else-if="group.root.isHidden && !group.root.canModerate" class="rounded border border-line bg-base-200/60 px-3 py-2 text-sm text-base-content/45">
                   {{ t('topic.hiddenReplyPlaceholder') }}
                 </div>
                 <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post" v-html="group.root.renderedContent" />
-                <div v-if="group.root.isHidden && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+                <div v-if="group.root.isHidden && !isPostRemoved(group.root) && group.root.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                   {{ t('topic.hiddenReplyBadge') }}
                 </div>
-                <div v-if="group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                <div v-if="!group.root.lastEditedAt && group.root.updatedAt && group.root.updatedAt !== group.root.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
                   {{ t('topic.editedAt', { time: formatDateTime(group.root.updatedAt) }) }}
+                </div>
+                <div v-if="group.root.lastEditedAt && group.root.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
+                  {{ lastEditedLabel(group.root) }}
                 </div>
                 <div v-if="isFirstPost(group.root)" class="mt-4 flex flex-wrap items-center gap-2 border-t border-line pt-3">
                   <button
                     type="button"
                     class="gf-button gf-button-sm px-2.5"
                     :class="isLiked ? 'bg-error/10 text-error hover:bg-error/10' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                    :disabled="actingLike"
+                    :disabled="actingLike || isTopicRemoved()"
                     @click="toggleLike"
                   >
                     <Heart class="h-4 w-4" :fill="isLiked ? 'currentColor' : 'none'" />
@@ -1785,7 +1967,7 @@ async function removePost(postId: number) {
                     type="button"
                     class="gf-button gf-button-sm px-2.5"
                     :class="isBookmarked ? 'bg-info/10 text-primary hover:bg-info/10' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                    :disabled="actingBookmark"
+                    :disabled="actingBookmark || isTopicRemoved()"
                     @click="toggleBookmark"
                   >
                     <Bookmark class="h-4 w-4" :fill="isBookmarked ? 'currentColor' : 'none'" />
@@ -1795,20 +1977,38 @@ async function removePost(postId: number) {
                     type="button"
                     class="gf-button gf-button-sm px-2.5"
                     :class="isWatched ? 'bg-success/10 text-success hover:bg-success/15' : 'text-base-content/55 hover:bg-base-200 hover:text-base-content'"
-                    :disabled="actingWatch"
+                    :disabled="actingWatch || isTopicRemoved()"
                     @click="toggleWatch"
                   >
                     <Bell class="h-4 w-4" :fill="isWatched ? 'currentColor' : 'none'" />
                     {{ isWatched ? t('topic.watched') : t('topic.watch') }}
                   </button>
                   <button
-                    v-if="!page.props.permissions.isOwnTopic"
+                    v-if="group.root.revisionCount > 1"
+                    type="button"
+                    class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-base-200 hover:text-base-content"
+                    @click="openPostHistory(group.root)"
+                  >
+                    <History class="h-4 w-4" />
+                    {{ t('topic.editHistory') }}
+                  </button>
+                  <button
+                  v-if="!page.props.permissions.isOwnTopic && !isTopicRemoved()"
                     type="button"
                     class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-warning/10 hover:text-warning"
                     @click="requestTopicReport"
                   >
                     <Flag class="h-4 w-4" />
                     {{ t('topic.report') }}
+                  </button>
+                  <button
+                  v-if="page.props.permissions.isOwnTopic && !isTopicRemoved()"
+                    type="button"
+                    class="gf-button gf-button-sm px-2.5 text-base-content/55 hover:bg-error/10 hover:text-error"
+                    @click="requestDeleteTopic"
+                  >
+                    <Trash2 class="h-4 w-4" />
+                    {{ t('topic.deleteTopic') }}
                   </button>
                   <button
                     v-if="page.props.permissions.canModerateTopic && topicProcessStatus === 0"
@@ -1854,19 +2054,30 @@ async function removePost(postId: number) {
                       <span class="shrink-0 text-xs font-semibold tabular-nums text-base-content/55">#{{ formatNumber(reply.postNo) }}</span>
                       <time class="ml-auto shrink-0 truncate text-xs text-base-content/55">{{ formatDateTime(reply.createdAt) }}</time>
                     </div>
-                    <div v-if="reply.isHidden && !reply.canModerate" class="mt-2 rounded border border-line bg-base-100 px-3 py-2 text-sm text-base-content/45">
+                    <div v-if="reply.isAuthorDeleted" class="mt-2 rounded border border-dashed border-line bg-base-100 px-3 py-2.5 text-sm text-base-content/55">
+                      <div class="font-semibold text-base-content/70">{{ t('topic.authorDeletedTitle') }}</div>
+                      <div class="mt-1 leading-6">{{ t('topic.authorDeletedPlaceholder') }}</div>
+                    </div>
+                    <div v-else-if="reply.isModeratorRemoved" class="mt-2 rounded border border-dashed border-line bg-base-100 px-3 py-2.5 text-sm text-base-content/55">
+                      <div class="font-semibold text-base-content/70">{{ t('topic.moderatorRemovedTitle') }}</div>
+                      <div class="mt-1 leading-6">{{ t('topic.moderatorRemovedPlaceholder') }}</div>
+                    </div>
+                    <div v-else-if="reply.isHidden && !reply.canModerate" class="mt-2 rounded border border-line bg-base-100 px-3 py-2 text-sm text-base-content/45">
                       {{ t('topic.hiddenReplyPlaceholder') }}
                     </div>
                     <div v-else v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2" v-html="reply.renderedContent" />
-                    <div v-if="reply.isHidden && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
+                    <div v-if="reply.isHidden && !isPostRemoved(reply) && reply.canModerate" class="mt-2 inline-flex rounded bg-base-200 px-2 py-1 text-xs font-semibold text-base-content/45">
                       {{ t('topic.hiddenReplyBadge') }}
                     </div>
-                    <div v-if="reply.updatedAt && reply.updatedAt !== reply.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
+                    <div v-if="!reply.lastEditedAt && reply.updatedAt && reply.updatedAt !== reply.createdAt" class="mt-2 text-xs font-medium text-base-content/55">
                       {{ t('topic.editedAt', { time: formatDateTime(reply.updatedAt) }) }}
+                    </div>
+                    <div v-if="reply.lastEditedAt && reply.lastEditor" class="mt-2 text-xs font-medium text-base-content/55">
+                      {{ lastEditedLabel(reply) }}
                     </div>
                     <div class="mt-2 flex items-center gap-1">
                       <button
-                        v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !reply.isHidden"
+                        v-if="(!page.layout.viewer.isAuthenticated || page.props.permissions.canPost) && !reply.isHidden && !isPostRemoved(reply)"
                         type="button"
                         class="inline-flex h-7 items-center gap-1 rounded px-1.5 text-xs font-semibold text-base-content/55 transition hover:bg-info/10 hover:text-primary focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary"
                         :title="t('topic.reply')"
@@ -1886,7 +2097,7 @@ async function removePost(postId: number) {
                         <span class="sr-only">{{ t('common.edit') }}</span>
                       </button>
                       <button
-                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden && !isPostRemoved(reply)"
                         type="button"
                         class="inline-flex h-7 shrink-0 items-center gap-1 rounded px-1.5 text-base-content/55 transition hover:bg-error/10 hover:text-error disabled:cursor-not-allowed disabled:opacity-50"
                         :class="{ 'text-error hover:text-error': postActionState(reply).isLiked }"
@@ -1899,7 +2110,7 @@ async function removePost(postId: number) {
                         <span class="sr-only">{{ t('topic.like') }}</span>
                       </button>
                       <button
-                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden"
+                        v-if="page.layout.viewer.isAuthenticated && !reply.isHidden && !isPostRemoved(reply)"
                         type="button"
                         class="gf-icon-button h-7 w-7 shrink-0 hover:bg-info/10 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
                         :class="{ 'text-primary hover:text-primary': postActionState(reply).isBookmarked }"
@@ -1930,7 +2141,7 @@ async function removePost(postId: number) {
                         <span class="sr-only">{{ t('topic.delete') }}</span>
                       </button>
                       <button
-                        v-if="!isFirstPost(reply) && !reply.isOwnPost && !reply.isHidden"
+                        v-if="!isFirstPost(reply) && !reply.isOwnPost && !reply.isHidden && !isPostRemoved(reply)"
                         type="button"
                         class="gf-icon-button h-7 w-7 shrink-0 hover:bg-warning/10 hover:text-warning"
                         :title="t('topic.report')"
@@ -2105,57 +2316,94 @@ async function removePost(postId: number) {
       <Transition name="gf-modal">
         <div
           v-if="pendingDeletePost"
-          class="fixed inset-0 z-[110] flex items-center justify-center bg-neutral/45 px-4 py-6 backdrop-blur-sm"
+          class="fixed inset-0 z-[110] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
           role="dialog"
           aria-modal="true"
           aria-labelledby="delete-post-title"
+          aria-describedby="delete-post-description"
           @click.self="closeDeleteDialog"
         >
-          <div class="gf-menu-surface w-full max-w-sm p-4">
-            <div class="flex items-start gap-3">
-              <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-lg bg-error/10 text-error">
-                <AlertTriangle class="h-5 w-5" />
+          <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/10 text-error ring-1 ring-error/15">
+                  <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="delete-post-title" class="text-base font-semibold leading-6 text-base-content">{{ t('topic.deleteReplyTitle') }}</h2>
+                  <p id="delete-post-description" class="mt-1 text-sm leading-6 text-base-content/60">{{ t('topic.deleteReplyDescription') }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="Boolean(deletingPostId)"
+                  :aria-label="t('common.close')"
+                  @click="closeDeleteDialog"
+                >
+                  <X class="h-4 w-4" aria-hidden="true" />
+                </button>
               </div>
-              <div class="min-w-0 flex-1">
-                <h2 id="delete-post-title" class="text-base font-bold text-base-content">{{ t('topic.deleteReplyTitle') }}</h2>
-                <p class="mt-1 text-sm leading-6 text-base-content/55">{{ t('topic.deleteReplyDescription') }}</p>
+
+              <div class="mt-4 rounded-[var(--gf-radius-field)] border border-line bg-base-200/55 p-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <UserAvatar
+                    :src="pendingDeletePost.author.avatarUrl"
+                    :alt="pendingDeletePost.author.username"
+                    class="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-line"
+                  />
+                  <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
+                    @{{ pendingDeletePost.author.username }}
+                    <span class="ml-1.5 font-medium tabular-nums text-base-content/40">#{{ formatNumber(pendingDeletePost.postNo) }}</span>
+                  </div>
+                </div>
+                <p class="mt-2 line-clamp-3 whitespace-pre-wrap break-words text-sm leading-6 text-base-content/75 [overflow-wrap:anywhere]">{{ pendingDeletePost.content }}</p>
               </div>
-              <button
-                type="button"
-                class="rounded-md p-1 text-base-content/55 transition hover:bg-base-300 hover:text-base-content/75 disabled:cursor-not-allowed disabled:opacity-50"
-                :disabled="Boolean(deletingPostId)"
-                @click="closeDeleteDialog"
-              >
-                <X class="h-4 w-4" />
-              </button>
-            </div>
 
-            <div class="mt-4 border-l-2 border-error/35 pl-3">
-              <div class="text-xs font-semibold text-base-content/45">@{{ pendingDeletePost.author.username }}</div>
-              <p class="mt-1 line-clamp-3 whitespace-pre-wrap text-sm leading-6 text-base-content/70">{{ pendingDeletePost.content }}</p>
-            </div>
-
-            <p v-if="deleteErrorMessage" class="mt-3 text-sm text-error">{{ deleteErrorMessage }}</p>
-
-            <div class="mt-4 flex justify-end gap-2">
-              <button
-                type="button"
-                class="gf-button gf-button-md gf-button-muted"
-                :disabled="Boolean(deletingPostId)"
-                @click="closeDeleteDialog"
+              <p
+                v-if="deleteErrorMessage"
+                class="mt-3 rounded-[var(--gf-radius-field)] border border-error/20 bg-error/10 px-3 py-2 text-sm leading-5 text-error"
+                role="alert"
               >
-                {{ t('common.cancel') }}
-              </button>
-              <button
-                type="button"
-                class="gf-button gf-button-md gf-button-danger"
-                :disabled="Boolean(deletingPostId)"
-                @click="removePost(pendingDeletePost.id)"
-              >
-                <Loader2 v-if="deletingPostId === pendingDeletePost.id" class="h-4 w-4 animate-spin" />
-                <Trash2 v-else class="h-4 w-4" />
-                {{ deletingPostId === pendingDeletePost.id ? t('topic.deleting') : t('topic.confirmDelete') }}
-              </button>
+                {{ deleteErrorMessage }}
+              </p>
+
+              <div class="mt-3 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-line/80 bg-base-200/40 px-3 py-2.5">
+                <Clock class="mt-0.5 h-3.5 w-3.5 shrink-0 text-base-content/45" aria-hidden="true" />
+                <p class="text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
+              </div>
+
+              <div class="mt-3">
+                <button
+                  type="button"
+                  class="inline-flex min-h-8 items-center rounded-[var(--gf-radius-field)] px-1 text-left text-xs font-medium text-base-content/55 transition-colors hover:bg-base-200 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="Boolean(deletingPostId)"
+                  @click="privacyErasePost"
+                >
+                  {{ t('topic.privacyErase') }}
+                </button>
+              </div>
+
+              <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-muted active:scale-[0.96]"
+                  :disabled="Boolean(deletingPostId)"
+                  @click="closeDeleteDialog"
+                >
+                  {{ t('common.cancel') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-danger active:scale-[0.96]"
+                  :disabled="Boolean(deletingPostId)"
+                  :aria-busy="deletingPostId === pendingDeletePost.id"
+                  @click="removePost(pendingDeletePost.id)"
+                >
+                  <Loader2 v-if="deletingPostId === pendingDeletePost.id" class="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Trash2 v-else class="h-4 w-4" aria-hidden="true" />
+                  {{ deletingPostId === pendingDeletePost.id ? t('topic.deleting') : t('topic.confirmDelete') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
@@ -2281,6 +2529,204 @@ async function removePost(postId: number) {
                 <component :is="pendingModerationAction === 'ban' ? Ban : RotateCcw" v-else class="h-4 w-4" />
                 {{ actingModeration ? t('common.loadingShort') : (pendingModerationAction === 'ban' ? t('topic.confirmModerationBan') : t('topic.confirmModerationUnban')) }}
               </button>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="gf-modal">
+        <div
+          v-if="pendingDeleteTopic"
+          class="fixed inset-0 z-[110] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="delete-topic-title"
+          aria-describedby="delete-topic-description"
+          @click.self="closeDeleteTopicDialog"
+        >
+          <div class="mx-auto flex min-h-full max-w-md items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-error/10 text-error ring-1 ring-error/15">
+                  <AlertTriangle class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="delete-topic-title" class="text-base font-semibold leading-6 text-base-content">{{ t('topic.deleteTopicTitle') }}</h2>
+                  <p id="delete-topic-description" class="mt-1 text-sm leading-6 text-base-content/60">{{ t('topic.deleteTopicDescription') }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="deletingTopic"
+                  :aria-label="t('common.close')"
+                  @click="closeDeleteTopicDialog"
+                >
+                  <X class="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div class="mt-4 rounded-[var(--gf-radius-field)] border border-line bg-base-200/55 p-3">
+                <div class="flex min-w-0 items-center gap-2">
+                  <UserAvatar
+                    :src="page.props.topic.author.avatarUrl"
+                    :alt="page.props.topic.author.username"
+                    class="h-6 w-6 shrink-0 rounded-full object-cover ring-1 ring-line"
+                  />
+                  <div class="min-w-0 truncate text-xs font-semibold text-base-content/55">
+                    {{ authorDisplayName(page.props.topic.author) }}
+                    <span class="ml-1.5 font-medium text-base-content/40">@{{ page.props.topic.author.username }}</span>
+                  </div>
+                </div>
+                <div class="mt-2 line-clamp-2 break-words text-sm font-semibold leading-5 text-base-content [overflow-wrap:anywhere]">
+                  {{ page.props.topic.title }}
+                </div>
+                <p
+                  v-if="page.props.topic.description"
+                  class="mt-1.5 line-clamp-2 whitespace-pre-wrap break-words text-xs leading-5 text-base-content/55 [overflow-wrap:anywhere]"
+                >
+                  {{ page.props.topic.description }}
+                </p>
+              </div>
+
+              <p
+                v-if="deleteErrorMessage"
+                class="mt-3 rounded-[var(--gf-radius-field)] border border-error/20 bg-error/10 px-3 py-2 text-sm leading-5 text-error"
+                role="alert"
+              >
+                {{ deleteErrorMessage }}
+              </p>
+
+              <div class="mt-3 flex items-start gap-2.5 rounded-[var(--gf-radius-field)] border border-line/80 bg-base-200/40 px-3 py-2.5">
+                <Clock class="mt-0.5 h-3.5 w-3.5 shrink-0 text-base-content/45" aria-hidden="true" />
+                <p class="text-xs leading-5 text-base-content/55">{{ t('topic.deleteNotice') }}</p>
+              </div>
+
+              <div class="mt-3">
+                <button
+                  type="button"
+                  class="inline-flex min-h-8 items-center rounded-[var(--gf-radius-field)] px-1 text-left text-xs font-medium text-base-content/55 transition-colors hover:bg-base-200 hover:text-primary disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="deletingTopic"
+                  @click="privacyEraseTopic"
+                >
+                  {{ t('topic.privacyErase') }}
+                </button>
+              </div>
+
+              <div class="mt-5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-muted active:scale-[0.96]"
+                  :disabled="deletingTopic"
+                  @click="closeDeleteTopicDialog"
+                >
+                  {{ t('common.cancel') }}
+                </button>
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-danger active:scale-[0.96]"
+                  :disabled="deletingTopic"
+                  :aria-busy="deletingTopic"
+                  @click="removeTopic"
+                >
+                  <Loader2 v-if="deletingTopic" class="h-4 w-4 animate-spin" aria-hidden="true" />
+                  <Trash2 v-else class="h-4 w-4" aria-hidden="true" />
+                  {{ deletingTopic ? t('topic.deleting') : t('topic.confirmDelete') }}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </Transition>
+    </Teleport>
+
+    <Teleport to="body">
+      <Transition name="gf-modal">
+        <div
+          v-if="historyPost"
+          class="fixed inset-0 z-[110] overflow-y-auto bg-neutral/50 px-3 py-4 backdrop-blur-sm sm:px-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="post-history-title"
+          @click.self="closePostHistory"
+        >
+          <div class="mx-auto flex min-h-full max-w-2xl items-center justify-center">
+            <div class="gf-menu-surface w-full p-4 sm:p-5">
+              <div class="flex items-start gap-3">
+                <div class="flex h-10 w-10 shrink-0 items-center justify-center rounded-[var(--gf-radius-field)] bg-info/10 text-primary ring-1 ring-info/15">
+                  <History class="h-5 w-5" aria-hidden="true" />
+                </div>
+                <div class="min-w-0 flex-1">
+                  <h2 id="post-history-title" class="text-base font-semibold leading-6 text-base-content">{{ t('topic.editHistory') }}</h2>
+                  <p class="mt-1 text-sm leading-6 text-base-content/60">{{ t('topic.historyForPost', { no: formatNumber(historyPost.postNo) }) }}</p>
+                </div>
+                <button
+                  type="button"
+                  class="gf-icon-button -mr-1 -mt-1 h-8 w-8 shrink-0 text-base-content/45 transition-colors hover:bg-base-300 hover:text-base-content disabled:cursor-not-allowed disabled:opacity-50"
+                  :disabled="historyLoading"
+                  :aria-label="t('common.close')"
+                  @click="closePostHistory"
+                >
+                  <X class="h-4 w-4" aria-hidden="true" />
+                </button>
+              </div>
+
+              <div v-if="historyLoading" class="mt-4 flex items-center justify-center gap-2 py-8 text-sm text-base-content/55">
+                <Loader2 class="h-4 w-4 animate-spin" aria-hidden="true" />
+                {{ t('common.loadingShort') }}
+              </div>
+              <p v-else-if="historyError" class="mt-4 text-sm text-error" role="alert">{{ historyError }}</p>
+              <p v-else-if="!historyVersions || !historyVersions.length" class="mt-4 py-6 text-center text-sm text-base-content/55">
+                {{ t('topic.historyEmpty') }}
+              </p>
+              <template v-else>
+              <div class="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+                <div
+                  v-for="version in historyVersions"
+                  :key="version.version"
+                  class="rounded-[var(--gf-radius-field)] border border-line bg-base-200/40 p-3"
+                >
+                  <div class="flex flex-wrap items-center gap-x-3 gap-y-1 text-xs text-base-content/55">
+                    <span class="font-semibold tabular-nums text-base-content/75">{{ t('topic.version', { version: formatNumber(version.version) }) }}</span>
+                    <span class="inline-flex min-w-0 items-center gap-1.5">
+                      <UserAvatar :src="version.editor.avatarUrl" :alt="version.editor.username" class="h-4 w-4 shrink-0 rounded-full ring-1 ring-line" img-class="rounded-full" />
+                      <span class="truncate">{{ authorDisplayName(version.editor) }}</span>
+                    </span>
+                    <time class="truncate">{{ formatDateTime(version.createdAt) }}</time>
+                    <span v-if="version.processStatus !== 0 && !version.content" class="rounded bg-warning/10 px-1.5 py-0.5 font-semibold text-warning">
+                      {{ t('topic.historyPending') }}
+                    </span>
+                  </div>
+                  <div v-if="version.content" v-code-copy v-code-highlight v-math-render class="gf-prose gf-prose-post mt-2 border-t border-line/70 pt-2" v-html="version.renderedHTML" />
+                  <p v-else class="mt-2 border-t border-line/70 pt-2 text-xs text-base-content/45">
+                    {{ version.processStatus !== 0 ? t('topic.historyPendingPlaceholder') : t('topic.historyContentEmpty') }}
+                  </p>
+                </div>
+              </div>
+              <div v-if="historyHasMore" class="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-primary transition-colors hover:bg-info/10 hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="historyLoadingMore"
+                  @click="loadEarlierHistoryVersions"
+                >
+                  <Loader2 v-if="historyLoadingMore" class="h-3.5 w-3.5 animate-spin" />
+                  <ChevronsUp v-else class="h-3.5 w-3.5" />
+                  {{ t('common.loadMore') }}
+                </button>
+              </div>
+              </template>
+
+              <div class="mt-5 flex justify-end">
+                <button
+                  type="button"
+                  class="gf-button gf-button-lg gf-button-muted active:scale-[0.96]"
+                  @click="closePostHistory"
+                >
+                  {{ t('common.close') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>

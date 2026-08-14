@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-09
+> Last verified: 2026-08-12
 
 ## Contract status
 
@@ -16,6 +16,10 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `POST /api/login`;
 - `GET /api/login-public-key`;
 - `POST /api/auth/totp/verify`;
+- `GET /api/user/totp/status`;
+- `POST /api/user/totp/setup`;
+- `POST /api/user/totp/enable`;
+- `POST /api/user/totp/disable`;
 - `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`;
@@ -26,6 +30,15 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
 - `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
 - `GET /api/v1/agent/search`.
+- `GET /api/forum/courses` and `GET /api/forum/courses/{courseId}` (course catalog read endpoints, `security: []`);
+- `GET /api/forum/courses/{courseId}/reviews` and `POST /api/forum/course-reviews`;
+- `PATCH /api/forum/course-reviews/{reviewId}` and `DELETE /api/forum/course-reviews/{reviewId}`;
+- `PUT /api/forum/course-reviews/{reviewId}/helpful`,
+  `DELETE /api/forum/course-reviews/{reviewId}/helpful`, and
+  `POST /api/forum/course-reviews/{reviewId}/reports`;
+- `POST /api/forum/moderation/course-review-status`,
+  `POST /api/forum/moderation/course-review-reports`, and
+  `POST /api/forum/moderation/course-review-reveal`.
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
@@ -77,8 +90,18 @@ than a hand-maintained duplicate baseline.
 
 ## Data model
 
-- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); SQLite default, MySQL and
-  PostgreSQL (main db, issue #11) supported; the file db stays SQLite.
+- Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
+  default deployment database and SQLite the local development/test default; MySQL is not
+  supported; the file db stays SQLite.
+- Post content revisions: `post_revisions` is an append-only snapshot table (post_id, version,
+  editor_id, content, rendered_html, process_status, created_at). Every content edit — first post
+  (post_no = 1) and replies alike, by the author — appends a new version inside the edit
+  transaction and updates `posts.last_editor_id` / `last_edited_at`; post creation seeds version 1
+  (editor = author). A row lock serializes concurrent edits so (post_id, version) stays monotonic.
+  History is read-only (`GET /api/forum/posts/revisions?postId=`): deleted/anonymized posts
+  blank all version bodies, and blocked posts plus pending-review versions hide their bodies from
+  non-moderators — the same visibility rules the post window applies. Permanent deletion and
+  privacy erasure blank revision bodies so the snapshot table cannot bypass the deletion lifecycle.
 - State machines: business lifecycles use explicit state machines (e.g. topic:
   draft/published/archived/deleted), not ambiguous boolean combinations (product principle 9).
 - Soft/hard delete policy is decided with the database migration decision; record in the note.
@@ -111,6 +134,21 @@ than a hand-maintained duplicate baseline.
   - `email.*` (activation/reset_password; legacy `activation` / `reset_password` rows are whitelisted)
   - `export` (data export)
   - `file-migrate` (BLOB → object storage migration)
+- Task claiming is **atomic with a lease** (issue #138): a worker claims a row via a CAS update
+  (`pending/retrying → running`, `RowsAffected = 1`), so concurrent workers/processes never execute
+  the same task simultaneously from the queue's perspective. Each claim generates a fresh,
+  non-reusable fencing token (`lease_token`); `processed_at` only tracks the lease start for
+  expiry-based reclaim. Every write back — terminal state (`success/failed/retrying`), retry
+  counter, deletion, and progress payload (`task_json`) — is fenced on the fencing token
+  (`status = running AND lease_token = ?`), so a worker whose lease was reclaimed can neither
+  overwrite the new owner's cursor nor flip its state. Workers periodically reclaim `running` tasks
+  whose lease expired (crashed process), so no task stays stuck in `running` forever.
+  **Delivery semantics are at-least-once, not exactly-once**: fencing protects DB state writes but
+  cannot cancel a handler's external side effects once a lease is lost — the heartbeat only notices
+  loss up to `leaseRenewInterval` (30s) later, a heartbeat `err` (DB blip) branch keeps the handler
+  running, and email handlers take no context (`DialAndSend` is uninterruptible). A reclaimed task
+  can therefore be executed by the stale worker and then again by its new owner; the fencing token
+  only prevents the stale worker from writing terminal state over the new owner.
 - Export and migration tasks update `task_json` with progress payloads (`processed/total/errorCount`,
   cursor `lastId`) so the admin panel can render live progress and resume after restarts.
 - Export files land in `data/export/` and are retained 7 days (daily cron cleanup).
@@ -136,7 +174,7 @@ require virtual-hosted style — use `bucketLookup: dns` with an explicit region
 
 | Projection | Source | Rebuildable |
 |---|---|---|
-| Search index | Meilisearch | ✅ full rebuild (rebuild-search-index CLI) |
+| Search index | Meilisearch | ✅ full rebuild (rebuild-search-index CLI; reconciles with DB by removing documents missing from DB) |
 | Counters (replies/likes) | DB aggregate or cache | ✅ recompute |
 | Hot lists / feeds | derived queries | ✅ |
 | Notification read/unread | user pointer table | ✅ |

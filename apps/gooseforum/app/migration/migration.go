@@ -5,50 +5,57 @@ import (
 	"fmt"
 	"log/slog"
 	"os"
+	"regexp"
+	"strings"
 
-	"github.com/leancodebox/GooseForum/app/bundles/connect/db4fileconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/connect/dbconnect"
-	"github.com/leancodebox/GooseForum/app/bundles/setting"
-	"github.com/leancodebox/GooseForum/app/models/chat/imConversations"
-	"github.com/leancodebox/GooseForum/app/models/chat/imUserChatConfigs"
-	"github.com/leancodebox/GooseForum/app/models/chat/messages"
-	"github.com/leancodebox/GooseForum/app/models/filemodel/filedata"
-	"github.com/leancodebox/GooseForum/app/models/forum/agents"
-	"github.com/leancodebox/GooseForum/app/models/forum/badges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/db4fileconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/setting"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imConversations"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/imUserChatConfigs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/chat/messages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/badges"
 
-	"github.com/leancodebox/GooseForum/app/models/forum/category"
-	"github.com/leancodebox/GooseForum/app/models/forum/dailyStats"
-	"github.com/leancodebox/GooseForum/app/models/forum/eventNotification"
-	"github.com/leancodebox/GooseForum/app/models/forum/fileUsage"
-	"github.com/leancodebox/GooseForum/app/models/forum/migrationMapping"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderationLog"
-	"github.com/leancodebox/GooseForum/app/models/forum/moderators"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAccessTokens"
-	"github.com/leancodebox/GooseForum/app/models/forum/oidcAuthRequests"
-	"github.com/leancodebox/GooseForum/app/models/forum/optRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/pageConfig"
-	"github.com/leancodebox/GooseForum/app/models/forum/pointsRecord"
-	"github.com/leancodebox/GooseForum/app/models/forum/postUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/posts"
-	"github.com/leancodebox/GooseForum/app/models/forum/reports"
-	"github.com/leancodebox/GooseForum/app/models/forum/role"
-	"github.com/leancodebox/GooseForum/app/models/forum/rolePermissionRs"
-	"github.com/leancodebox/GooseForum/app/models/forum/taskQueue"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicCategoryIndex"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserAction"
-	"github.com/leancodebox/GooseForum/app/models/forum/topicUserStat"
-	"github.com/leancodebox/GooseForum/app/models/forum/topics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userActivities"
-	"github.com/leancodebox/GooseForum/app/models/forum/userBadges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userFollow"
-	"github.com/leancodebox/GooseForum/app/models/forum/userOAuth"
-	"github.com/leancodebox/GooseForum/app/models/forum/userPoints"
-	"github.com/leancodebox/GooseForum/app/models/forum/userSessions"
-	"github.com/leancodebox/GooseForum/app/models/forum/userStatistics"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotp"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotpChallenges"
-	"github.com/leancodebox/GooseForum/app/models/forum/userTotpRecoveryCodes"
-	"github.com/leancodebox/GooseForum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/contentDeleteEvent"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/course"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/dailyStats"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/migrationMapping"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/networkAccessLog"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAccessTokens"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/oidcAuthRequests"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/role"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userActivities"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userBadges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userFollow"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userOAuth"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userStatistics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotp"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpChallenges"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userTotpRecoveryCodes"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"gorm.io/gorm"
 )
 
@@ -66,6 +73,14 @@ func migrateSchema() {
 	db := dbconnect.Connect()
 	if err = validateUniqueUsernames(db); err != nil {
 		slog.Error("dbconnect migration preflight failed", "err", err)
+		os.Exit(1)
+	}
+	if err = upgradeCourseReviewLegacySchema(db); err != nil {
+		slog.Error("dbconnect course_review legacy upgrade failed", "err", err)
+		os.Exit(1)
+	}
+	if err = upgradeImportRunCompositeIndex(db); err != nil {
+		slog.Error("dbconnect course_import_run index upgrade failed", "err", err)
 		os.Exit(1)
 	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
@@ -95,6 +110,32 @@ type duplicateUsername struct {
 // validateUniqueUsernames fails before AutoMigrate attempts to add the global
 // username unique index. Identity rows are never rewritten automatically; an
 // operator must resolve blank or duplicate legacy usernames deliberately.
+// upgradeImportRunCompositeIndex 升级 course_import_run 的幂等唯一索引（issue #183）：
+// 旧版本为 manifest_hash 单列唯一（uniq_course_import_run_manifest），新模型声明
+// (kind, manifest_hash) 复合唯一、索引名不变。两个必须显式处理的坑：
+//  1. GORM AutoMigrate 按索引名判重，同名旧索引不会被重建——不删旧索引，存量库上
+//     同一 manifest 包的 catalog/reviews 两次导入（相同 manifest_hash）会撞旧唯一约束。
+//  2. 依赖 AutoMigrate 补 kind 列会触发 SQLite 整表重建，实测存量行数据丢失；
+//     必须显式 ALTER TABLE ADD COLUMN（带默认值，保留存量数据）。
+func upgradeImportRunCompositeIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_import_run") {
+		return nil // 全新库：AutoMigrate 直接建全表 + 复合索引。
+	}
+	if !db.Migrator().HasColumn(&course.ImportRunEntity{}, "kind") {
+		if err := db.Exec("ALTER TABLE course_import_run ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'catalog'").Error; err != nil {
+			return fmt.Errorf("add course_import_run.kind column: %w", err)
+		}
+		slog.Info("dbconnect course_import_run.kind column added (default 'catalog')")
+	}
+	if db.Migrator().HasIndex(&course.ImportRunEntity{}, "uniq_course_import_run_manifest") {
+		if err := db.Migrator().DropIndex(&course.ImportRunEntity{}, "uniq_course_import_run_manifest"); err != nil {
+			return fmt.Errorf("drop legacy course_import_run unique index: %w", err)
+		}
+		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
+	}
+	return nil
+}
+
 func validateUniqueUsernames(db *gorm.DB) error {
 	if !db.Migrator().HasTable("users") {
 		return nil
@@ -129,6 +170,34 @@ func validateUniqueUsernames(db *gorm.DB) error {
 func SchemaModels() []any {
 	return []any{
 		&badges.Entity{},
+		&course.Entity{},
+		&course.AliasEntity{},
+		&course.TermEntity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.ImportRunEntity{},
+		&course.SourceRefEntity{},
+		&course.ReviewEntity{},
+		&course.HelpfulEntity{},
+		&course.CourseStatsEntity{},
+		&course.OfferingStatsEntity{},
+		&course.CourseAiSummaryEntity{},
+		// PK 排课数据域（Issue #187 / #186）：13 表。
+		&pk.CalendarEntity{},
+		&pk.CampusEntity{},
+		&pk.FacultyEntity{},
+		&pk.LanguageEntity{},
+		&pk.AssessmentEntity{},
+		&pk.CourseNatureEntity{},
+		&pk.CourseNatureByCalendarEntity{},
+		&pk.MajorEntity{},
+		&pk.MajorCourseEntity{},
+		&pk.CourseDetailEntity{},
+		&pk.TeacherEntity{},
+		&pk.TeacherTimeslotEntity{},
+		&pk.FetchLogEntity{},
+		&pk.SettingEntity{},
 		&eventNotification.Entity{},
 		&fileUsage.Entity{},
 		&moderationLog.Entity{},
@@ -141,12 +210,15 @@ func SchemaModels() []any {
 		&agents.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&postRevisions.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
 		&topicUserAction.Entity{},
 		&postUserAction.Entity{},
 		&topicUserStat.Entity{},
+		&contentDeleteEvent.Entity{},
 		&role.Entity{},
+		&networkAccessLog.Entity{},
 		&rolePermissionRs.Entity{},
 		&taskQueue.Entity{},
 		&userFollow.Entity{},
@@ -168,3 +240,139 @@ func SchemaModels() []any {
 		&userActivities.Entity{},
 	}
 }
+
+// upgradeCourseReviewLegacySchema 把存量 course_review 表升级到 B3 清理所需
+// 的新形态（issue #175，security 复审 F1）：
+//   - author_user_id NOT NULL → nullable（清理置 NULL 释放唯一索引占位）
+//   - deleted_at 从 gorm.DeletedAt 语义列 → 普通时间列（隔离窗口锚点）
+//
+// PostgreSQL：AutoMigrate 对 DROP NOT NULL 走 ALTER COLUMN，不重建表、
+// 不丢数据，无需干预（由 PG 迁移测试覆盖）。
+// SQLite：GORM 的整表重建（temp 表 + INSERT SELECT）只复制"列变化检测"
+// 涉及的列——author_user_id NOT NULL→nullable 触发重建时**不复制该列**，
+// 全部落 DEFAULT 0，与存量真实作者值冲突（唯一索引 2067），AutoMigrate 直接
+// 失败。因此 SQLite 下先手工全列重建（临时表 + 全列复制 + 改名 + 重建索引），
+// 保留 author_user_id 数据，再让 AutoMigrate 走新形态。
+// 仅检测旧形态（author_user_id 为 NOT NULL）时执行；新库/已升级库跳过。
+// 方言判断用 db.Dialector.Name()（测试连接与全局连接解耦）。
+func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
+	if db.Dialector.Name() != "sqlite" {
+		return nil // PG 由 AutoMigrate ALTER COLUMN 处理
+	}
+	if !db.Migrator().HasTable(courseReviewTableName) {
+		// 原表缺失：先检测半迁移状态（oierxjn 复审 P1）——旧的非事务重建
+		// 若在 DROP course_review 成功、RENAME 之前中断，course_review 不
+		// 存在但 course_review__upgrade 仍含已复制的历史课评。此时必须
+		// rename 恢复临时表（含数据），而不是当全新库建空表（否则历史数据
+		// 滞留 upgrade 表、业务不可见）。
+		if db.Migrator().HasTable("course_review__upgrade") {
+			slog.Warn("migration: course_review missing but course_review__upgrade present — restoring half-migrated data")
+			err := db.Transaction(func(tx *gorm.DB) error {
+				if err := tx.Exec(`ALTER TABLE course_review__upgrade RENAME TO course_review`).Error; err != nil {
+					return fmt.Errorf("restore course_review from half-migrated upgrade table: %w", err)
+				}
+				return nil
+			})
+			if err != nil {
+				return err
+			}
+			// 恢复后继续走下方旧形态检测（upgrade 表为 gorm 模型驱动的新
+			// 形态——author_user_id nullable，检测会跳过重建，直接返回）。
+			// 若恢复的是更早的非事务版本遗留（author_user_id NOT NULL），
+			// 则进入正常重建流程。
+		} else {
+			return nil // 全新库，AutoMigrate 直接建新形态
+		}
+	}
+	// 检查 author_user_id 是否仍为 NOT NULL（旧形态）：
+	// 读 sqlite_master 的表定义 SQL 做匹配——PRAGMA table_info 的 notnull
+	// 列在 glebarez/sqlite 下无法可靠映射到 bool 字段，弃用。
+	var ddl struct {
+		SQL string
+	}
+	if err := db.Raw("SELECT sql FROM sqlite_master WHERE type = 'table' AND name = ?", courseReviewTableName).Scan(&ddl).Error; err != nil {
+		return fmt.Errorf("inspect course_review DDL: %w", err)
+	}
+	lower := strings.ToLower(ddl.SQL)
+	if !strings.Contains(lower, "author_user_id") {
+		return nil // 非预期表，交给 AutoMigrate
+	}
+	// 旧形态判定：author_user_id 列定义段含 NOT NULL（新模型为 nullable）。
+	re := regexp.MustCompile(`author_user_id[^,]*`)
+	colDef := re.FindString(lower)
+	if !strings.Contains(colDef, "not null") {
+		return nil // 已是新形态（nullable），交给 AutoMigrate
+	}
+
+	// 旧形态：手工全列重建（保留 author_user_id 数据与唯一索引）。
+	// 整个序列（删旧索引 → CREATE temp → INSERT SELECT → DROP → RENAME）
+	// 包进 db.Transaction：SQLite 事务性 DDL 下，任意点崩溃（如 DROP 后、
+	// RENAME 前进程退出）全量回滚，旧表完整、重启重试（security F1 与
+	// spec F1 同根因——此前 autocommit 的崩溃窗口会把存量数据滞留在孤儿
+	// 临时表，preflight 走"全新库"分支静默丢数据，或临时表残留导致重启
+	// 卡死）。
+	//
+	// 孤儿临时表兜底（spec F1）：事务回滚覆盖普通错误与可恢复崩溃；进程
+	// SIGKILL 等无法回滚的极端场景下，SQLite 崩溃恢复语义（journal/WAL）
+	// 通常也会撤销未提交 DDL，但为绝对自愈，此处主动清理历史残留的
+	// course_review__upgrade（若有）——CREATE 无 IF NOT EXISTS，残留会令
+	// 重启永久卡死（already exists → os.Exit(1)）。清理先于事务，带 Warn
+	// 日志便于诊断。
+	//
+	// 多实例并发（security 复审 F2）：两实例同时 preflight 时后到者 CREATE
+	// temp 报 already exists → 返回错误 → 迁移失败退出 → 进程管理器重启 →
+	// 先到者已完成则跳过。数据安全（fail-safe）但有一次启动失败噪音；
+	// SQLite 无 advisory lock，事务包裹 + 孤儿清理兜底后错误重试成本低，
+	// 容忍现状。
+	if db.Migrator().HasTable("course_review__upgrade") {
+		slog.Warn("migration: dropping orphan course_review__upgrade from a previous interrupted upgrade")
+		if err := db.Exec(`DROP TABLE course_review__upgrade`).Error; err != nil {
+			return fmt.Errorf("drop orphan course_review__upgrade: %w", err)
+		}
+	}
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 1) 先删旧表索引（SQLite 索引名 schema 级唯一；旧表的
+		// idx_course_review_* / uniq_course_review_offering_author 与
+		// CreateTable 将建的索引同名冲突）。事务回滚时 DROP INDEX 一并
+		// 撤销，旧表索引完整。
+		for _, idx := range []string{
+			"uniq_course_review_offering_author",
+			"idx_course_review_offering",
+			"idx_course_review_author",
+			"idx_course_review_status",
+		} {
+			if err := tx.Migrator().DropIndex(&course.ReviewEntity{}, idx); err != nil {
+				return fmt.Errorf("drop legacy course_review index %s: %w", idx, err)
+			}
+		}
+		// 2) 临时表（新形态：author_user_id 可空、deleted_at 普通列）。
+		// 用 gorm Migrator.CreateTable 模型驱动生成——与 ReviewEntity 精确
+		// 一致。手写 DDL 与 gorm 期望的细微差异会触发 AutoMigrate 的渐进
+		// 整表重建（每轮只复制部分列，多轮累积丢列，实测 6 轮后丢数据）；
+		// 模型驱动后 AutoMigrate 无差异可检，不再重建。⚠️ 未来加列自动跟随
+		// （security 复审 F3 消除硬编码漂移）。
+		if err := tx.Table("course_review__upgrade").Migrator().CreateTable(&course.ReviewEntity{}); err != nil {
+			return fmt.Errorf("create course_review upgrade table: %w", err)
+		}
+		// 3) 全列复制（含 author_user_id——gorm 自动重建会漏掉的列）
+		if err := tx.Exec(`INSERT INTO course_review__upgrade
+			(id, offering_id, author_user_id, rating, content, is_anonymous, status,
+			 legacy_helpful_count, source, created_at, updated_at, deleted_at)
+			SELECT id, offering_id, author_user_id, rating, content, is_anonymous, status,
+			       legacy_helpful_count, source, created_at, updated_at, deleted_at
+			FROM course_review`).Error; err != nil {
+			return fmt.Errorf("copy course_review data: %w", err)
+		}
+		// 4) 原子替换（temp 已含唯一索引与普通索引，RENAME 后随表保留）
+		if err := tx.Exec(`DROP TABLE course_review`).Error; err != nil {
+			return fmt.Errorf("drop legacy course_review: %w", err)
+		}
+		if err := tx.Exec(`ALTER TABLE course_review__upgrade RENAME TO course_review`).Error; err != nil {
+			return fmt.Errorf("rename course_review: %w", err)
+		}
+		return nil
+	})
+	return err
+}
+
+const courseReviewTableName = "course_review"
