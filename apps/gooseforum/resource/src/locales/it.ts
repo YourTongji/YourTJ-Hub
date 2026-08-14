@@ -1226,6 +1226,7 @@ export default {
       invalidLinks: 'Questi link social non sono validi, controllali e riprova: {platforms}',
     },
     cover: {
+      previewMobile: 'Anteprima mobile',
       uploading: 'Caricamento...',
       editTitle: 'Regola dimensioni e posizione',
       mobileCropHint: "L'area mascherata potrebbe essere ritagliata sui dispositivi mobili",
@@ -1416,6 +1417,18 @@ export default {
     pkLatestUpdateFailed: 'Errore recupero tempo sincronizzazione',
     pkCourseInfoSyncFailed: 'Sincronizzazione corso non riuscita',
     pkCourseReviewBriefFailed: 'Errore caricamento recensioni',
+    adminCourseListFailed: 'Impossibile caricare i corsi',
+    adminCourseCreateFailed: 'Impossibile aggiungere il corso',
+    adminCourseUpdateFailed: 'Impossibile aggiornare il corso',
+    adminCourseDeleteFailed: 'Impossibile eliminare il corso',
+    adminReviewListFailed: 'Impossibile caricare le recensioni',
+    adminReviewUpdateFailed: 'Impossibile aggiornare la recensione',
+    adminReviewDeleteFailed: 'Impossibile eliminare la recensione',
+    adminCourseStatsRebuildFailed: 'Impossibile ricostruire le statistiche dei corsi',
+    topicDeleteFailed: 'Impossibile eliminare il topic',
+    deletedContentLoadFailed: 'Impossibile caricare i contenuti eliminati',
+    contentRestoreFailed: 'Impossibile ripristinare il contenuto',
+    contentPurgeFailed: 'Impossibile eliminare definitivamente il contenuto',
   },
   server: {
     common: {

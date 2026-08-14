@@ -1226,6 +1226,7 @@ export default {
       invalidLinks: '無効なソーシャルリンクがあります。確認して再試行してください：{platforms}',
     },
     cover: {
+      previewMobile: 'モバイルプレビュー',
       uploading: 'アップロード中...',
       editTitle: '画像のサイズと位置を調整',
       mobileCropHint: 'モバイル端末ではマスク領域が切り取られる場合があります',
@@ -1420,6 +1421,14 @@ export default {
     pkLatestUpdateFailed: '同期時刻の取得に失敗しました',
     pkCourseInfoSyncFailed: '科目の同期に失敗しました',
     pkCourseReviewBriefFailed: 'レビュー情報の読み込みに失敗しました',
+    adminCourseListFailed: 'コース一覧の取得に失敗しました',
+    adminCourseCreateFailed: 'コースの追加に失敗しました',
+    adminCourseUpdateFailed: 'コースの更新に失敗しました',
+    adminCourseDeleteFailed: 'コースの削除に失敗しました',
+    adminReviewListFailed: 'レビュー一覧の取得に失敗しました',
+    adminReviewUpdateFailed: 'レビューの更新に失敗しました',
+    adminReviewDeleteFailed: 'レビューの削除に失敗しました',
+    adminCourseStatsRebuildFailed: 'コース統計の再構築に失敗しました',
   },
   server: {
     common: {

@@ -11,7 +11,8 @@
     "build": "pnpm client:build && vue-tsc --noEmit && vite build",
     "typecheck": "pnpm client:build && vue-tsc --noEmit",
     "test": "vitest run --dir test",
-    "audit:site-colors": "node scripts/audit-site-colors.mjs"
+    "audit:site-colors": "node scripts/audit-site-colors.mjs",
+    "check:i18n": "node scripts/check-i18n-keys.mjs"
   },
   "dependencies": {
     "@gooseforum/client": "workspace:*",
