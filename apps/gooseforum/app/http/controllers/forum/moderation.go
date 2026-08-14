@@ -10,7 +10,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -28,6 +27,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/moderationservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/urlconfig"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -513,7 +513,7 @@ func formatDeletedTime(d gorm.DeletedAt) string {
 	if !d.Valid || d.Time.IsZero() {
 		return ""
 	}
-	return d.Time.Format(time.DateTime)
+	return d.Time.Format(time.RFC3339)
 }
 
 func moderationTargetStatus(actionType string) int8 {
@@ -772,7 +772,7 @@ func buildModerationLogItems(records []moderationLog.Entity) []ModerationLogItem
 			Categories:  moderationLogCategories(record, payload.Params, subject.ID, topicMap),
 			MessageCode: payload.MessageCode,
 			Params:      payload.Params,
-			CreatedAt:   record.CreatedAt.Format(time.DateTime),
+			CreatedAt:   record.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return items
@@ -1017,10 +1017,10 @@ func buildModerationReportItem(userID uint64, categoryID uint64, record reports.
 		Reporter:   userPayload(record.ReporterId, batchMaps.UserMap),
 		Handler:    userPayload(record.HandlerId, batchMaps.UserMap),
 		Categories: categoryPayloads(categoryIDs),
-		CreatedAt:  record.CreatedAt.Format(time.DateTime),
+		CreatedAt:  record.CreatedAt.Format(time.RFC3339),
 	}
 	if record.HandledAt != nil {
-		item.HandledAt = record.HandledAt.Format(time.DateTime)
+		item.HandledAt = record.HandledAt.Format(time.RFC3339)
 	}
 	switch record.TargetType {
 	case reports.TargetTopic:

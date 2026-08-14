@@ -51,7 +51,7 @@ func TestTopicsWithUser2VoMapsListPayload(t *testing.T) {
 	if len(item.Posters) != 2 || item.Posters[1].Username != "replyer" {
 		t.Fatalf("Posters = %#v, want replyer poster", item.Posters)
 	}
-	if item.LastUpdateTime != now.Format(time.DateTime) {
-		t.Fatalf("LastUpdateTime = %q, want %q", item.LastUpdateTime, now.Format(time.DateTime))
+	if item.LastUpdateTime != now.Format(time.RFC3339) {
+		t.Fatalf("LastUpdateTime = %q, want %q", item.LastUpdateTime, now.Format(time.RFC3339))
 	}
 }

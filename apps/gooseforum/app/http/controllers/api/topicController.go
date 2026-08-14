@@ -650,9 +650,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"postNo":          postEntity.PostNo,
 		"content":         postEntity.Content,
 		"renderedContent": postEntity.RenderedHTML,
-		"updatedAt":       postEntity.UpdatedAt.Format(time.DateTime),
+		"updatedAt":       postEntity.UpdatedAt.Format(time.RFC3339),
 		"lastEditorId":    postEntity.LastEditorId,
-		"lastEditedAt":    postEntity.LastEditedAt.Format(time.DateTime),
+		"lastEditedAt":    postEntity.LastEditedAt.Format(time.RFC3339),
 		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
 	})
 }
