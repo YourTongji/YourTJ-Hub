@@ -4,6 +4,7 @@
 // 提交时分类：必修直接从 compulsoryCourses 构造，选修与搜索批量取 course-details 构造
 // stagedCourse 进备选池（验收标准 1：必修来自 courses-by-major、选修来自 course-details、搜索来自 course-search）。
 import { computed, ref, watch } from 'vue'
+import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
 import { useI18n } from 'vue-i18n'
 import { Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -30,6 +31,11 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+// 弹窗无障碍（issue #227）：焦点移入/Tab 圈禁/Esc 关闭/焦点恢复/滚动锁定
+const { panelRef } = useDialogAccessibility(computed(() => props.open), {
+  onClose: () => emit('close'),
+})
 
 type TabKey = 'required' | 'optional' | 'search'
 const activeTab = ref<TabKey>('required')
@@ -256,18 +262,25 @@ async function submit() {
 <template>
   <Teleport to="body">
     <Transition name="gf-fade">
-      <div v-if="open" class="fixed inset-0 z-[2000]">
+      <div
+        v-if="open"
+        ref="panelRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-picker-title"
+        class="fixed inset-0 z-[2000]"
+      >
         <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
         <div class="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[92vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
           <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
-            <h2 class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
+            <h2 id="schedule-picker-title" class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
             <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
               <X class="h-4 w-4" />
             </button>
           </div>
 
           <!-- tabs -->
-          <div class="flex gap-1 border-b border-line/60 px-3 pt-2">
+          <div role="tablist" aria-label="course picker tabs" class="flex gap-1 border-b border-line/60 px-3 pt-2">
             <button
               v-for="tab in ([
                 { key: 'required', label: t('schedule.tabRequired') },
@@ -276,6 +289,8 @@ async function submit() {
               ] as const)"
               :key="tab.key"
               type="button"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
               class="gf-tab"
               :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
               @click="activeTab = tab.key"

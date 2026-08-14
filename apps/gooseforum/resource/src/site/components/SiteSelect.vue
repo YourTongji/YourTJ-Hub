@@ -58,8 +58,12 @@ onBeforeUnmount(() => {
   <div ref="root" class="relative">
     <button
       type="button"
+      role="combobox"
       class="gf-input flex w-full items-center justify-between gap-2 text-left"
+      aria-haspopup="listbox"
       :aria-expanded="open"
+      aria-controls="site-select-listbox"
+      :aria-label="triggerLabel"
       @click="open = !open"
       @keydown="handleTriggerKeydown"
     >
@@ -70,11 +74,18 @@ onBeforeUnmount(() => {
     </button>
 
     <Transition name="gf-menu">
-      <div v-if="open" class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1">
+      <div
+        v-if="open"
+        id="site-select-listbox"
+        role="listbox"
+        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1"
+      >
         <button
           v-for="option in options"
           :key="option.value"
           type="button"
+          role="option"
+          :aria-selected="option.value === modelValue"
           class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content hover:bg-base-200"
           :class="option.value === modelValue ? 'bg-primary/10 text-primary' : ''"
           @click="selectOption(option.value)"

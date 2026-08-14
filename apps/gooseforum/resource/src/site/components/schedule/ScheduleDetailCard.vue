@@ -4,6 +4,7 @@
 // P13 端点属于 #187，未实现时友好降级显示「课评暂不可用」。
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
 import { X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
@@ -18,6 +19,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+const { panelRef } = useDialogAccessibility(computed(() => props.course !== null), {
+  onClose: () => emit('close'),
+})
 
 const brief = ref<PkCourseReviewBrief | null>(null)
 const briefError = ref('')
@@ -84,13 +89,20 @@ watch(
 <template>
   <Teleport to="body">
     <Transition name="gf-fade">
-      <div v-if="course" class="fixed inset-0 z-[2100]">
+      <div
+        v-if="course"
+        ref="panelRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-detail-title"
+        class="fixed inset-0 z-[2100]"
+      >
         <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
         <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2">
           <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
             <div class="flex items-start justify-between gap-2 px-4 py-3">
               <div class="min-w-0">
-                <div class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
+                <div id="schedule-detail-title" class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
                 <div class="text-[11px] text-base-content/55">{{ parsed.code }}</div>
               </div>
               <button

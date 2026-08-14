@@ -422,6 +422,7 @@ export default {
     syncSuccess: 'Sincronizzato',
     replaced: 'Corso sostituito',
     loading: 'Caricamento…',
+    emptyCell: 'Slot vuoto (fai clic per sfogliare i corsi)',
     empty: 'Nessun corso',
     searchPlaceholder: 'Inserisci codice o nome corso',
     searchButton: 'Cerca',

@@ -422,6 +422,7 @@ export default {
     syncSuccess: 'Synced successfully',
     replaced: 'Replaced conflicting course',
     loading: 'Loading…',
+    emptyCell: 'Empty slot (click to browse courses at this time)',
     empty: 'No courses',
     searchPlaceholder: 'Enter course code or name',
     searchButton: 'Search',

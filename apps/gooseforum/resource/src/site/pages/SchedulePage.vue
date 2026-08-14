@@ -276,7 +276,7 @@ onBeforeUnmount(() => {
 
     <!-- 移动端：三 tab（课表/选课/详情） -->
     <div v-if="isMobile" class="mt-4 space-y-3">
-      <div class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
+      <div role="tablist" aria-label="schedule tabs" class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
         <button
           v-for="tab in ([
             { key: 'timetable', label: t('schedule.timetable') },
@@ -285,6 +285,8 @@ onBeforeUnmount(() => {
           ] as const)"
           :key="tab.key"
           type="button"
+          role="tab"
+          :aria-selected="mobileTab === tab.key"
           class="gf-tab flex-1"
           :class="mobileTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
           @click="mobileTab = tab.key"

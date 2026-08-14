@@ -422,6 +422,7 @@ export default {
     syncSuccess: '同期しました',
     replaced: '衝突科目を置き換えました',
     loading: '読み込み中…',
+    emptyCell: '空きコマ（クリックでこの時間帯の授業を表示）',
     empty: '科目がありません',
     searchPlaceholder: '科目コードまたは名前を入力',
     searchButton: '検索',

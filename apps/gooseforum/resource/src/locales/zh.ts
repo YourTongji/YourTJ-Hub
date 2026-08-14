@@ -422,6 +422,7 @@ export default {
     syncSuccess: '同步成功',
     replaced: '已替换冲突课程',
     loading: '正在加载…',
+    emptyCell: '空课表空格（点击查看该时段可选课程）',
     empty: '暂无课程',
     searchPlaceholder: '请输入课程代码或课程名称',
     searchButton: '搜索',

@@ -322,7 +322,12 @@ onBeforeUnmount(() => {
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
                 :rowspan="maxSpans[index][dayIndex]"
+                tabindex="0"
+                role="button"
+                :aria-label="t('schedule.emptyCell')"
                 @click="handleCellClick(dayIndex, index)"
+                @keydown.enter.prevent="handleCellClick(dayIndex, index)"
+                @keydown.space.prevent="handleCellClick(dayIndex, index)"
               >
                 <div
                   v-if="courses.length > 0"
@@ -342,7 +347,12 @@ onBeforeUnmount(() => {
                     @mousedown.stop="onPressStart(course, $event)"
                     @mouseup.stop="onPressCancel()"
                     @mouseleave.stop="onPressCancel()"
+                    tabindex="0"
+                    role="button"
+                    :aria-label="course.courseName || course.code"
                     @click.stop="emit('openDetail', course)"
+                    @keydown.enter.stop.prevent="emit('openDetail', course)"
+                    @keydown.space.stop.prevent="emit('openDetail', course)"
                   >
                     <template v-if="isMobile">
                       <span class="max-w-full truncate text-[9.5px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
