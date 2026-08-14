@@ -346,7 +346,7 @@ func MarkPurgedByTopicID(topicID uint64) (int64, error) {
 			Scan(&targets).Error; err != nil {
 			return err
 		}
-		rows = tx.Table(tableName).Unscoped().
+		result := tx.Table(tableName).Unscoped().
 			Where(queryopt.Eq("topic_id", topicID)).
 			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
 			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
@@ -355,7 +355,11 @@ func MarkPurgedByTopicID(topicID uint64) (int64, error) {
 				"retention_status": RetentionPurged,
 				"content":          "",
 				"rendered_html":    "",
-			}).RowsAffected
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		rows = result.RowsAffected
 		return postRevisions.BlankContentByPostIdsTx(tx, targets)
 	})
 	return rows, err

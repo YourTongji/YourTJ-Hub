@@ -60,6 +60,7 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	importPosts(parsed["posts"], report)
 	importPostRevisions(parsed["postRevisions"], report)
 	importTopicCategoryIndexes(parsed["topicCategoryIndex"], report)
+	importTopicUserStats(parsed["topicUserStat"], report)
 	// 显式主键写入不会推进 PostgreSQL sequence，必须先推进序列再重建派生数据：
 	// rebuild 期间 ensureTopicCategoryIndexes / rebuildTopicUserStats 会用自增 ID
 	// 创建新行，若序列仍停在导入前小值，新行可能复用已导入显式 ID 撞主键，
@@ -599,9 +600,15 @@ func importPostRevisions(rows []map[string]any, report *ImportReport) {
 		report.Total++
 		id := rowUint64(row, "id")
 		postID := rowUint64(row, "postId")
+		version := rowUint64(row, "version")
 		if id == 0 || postID == 0 {
 			report.Failed++
 			report.Errors = append(report.Errors, ImportError{Line: line, Table: "postRevisions", Reason: "id/postId 必填"})
+			continue
+		}
+		if version == 0 {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "postRevisions", Reason: "version 必填且 >= 1"})
 			continue
 		}
 		// 帖子必须已存在（外键一致性，与 importTopicCategoryIndexes 同语义）
@@ -616,11 +623,18 @@ func importPostRevisions(rows []map[string]any, report *ImportReport) {
 			report.Skipped++
 			continue
 		}
+		// (post_id, version) 必须唯一：表无唯一索引，合并导入时不同 id 的
+		// 相同 post_id+version 会产生重复版本行，DB 不会拦截（review 发现）。
+		var dup postRevisions.Entity
+		if err := db.Where("post_id = ? AND version = ?", postID, version).First(&dup).Error; err == nil && dup.Id > 0 {
+			report.Skipped++
+			continue
+		}
 		createdAt, _ := time.Parse(time.RFC3339, rowString(row, "createdAt"))
 		entity := postRevisions.Entity{
 			Id:            id,
 			PostId:        postID,
-			Version:       rowUint64(row, "version"),
+			Version:       version,
 			EditorId:      rowUint64(row, "editorId"),
 			Content:       rowString(row, "content"),
 			RenderedHTML:  rowString(row, "renderedHTML"),
@@ -667,7 +681,14 @@ func importPosts(rows []map[string]any, report *ImportReport) {
 			continue
 		}
 		content := rowString(row, "content")
-		if strings.TrimSpace(content) == "" {
+		// 删除生命周期状态随导出恢复：墓碑态删除帖（USER_DELETED）保留正文、
+		// 隐私擦除帖（ACCOUNT_ANONYMIZED）正文为空。只有 ACTIVE 帖强制要求正文，
+		// 否则 round-trip 会把删除帖复活为 ACTIVE 公开可见（PR #217 review 发现）。
+		visibility := rowString(row, "visibilityStatus")
+		if visibility == "" {
+			visibility = posts.VisibilityActive
+		}
+		if strings.TrimSpace(content) == "" && visibility == posts.VisibilityActive {
 			report.Failed++
 			report.Errors = append(report.Errors, ImportError{Line: line, Table: "posts", Reason: "content 必填"})
 			continue
@@ -678,14 +699,26 @@ func importPosts(rows []map[string]any, report *ImportReport) {
 			continue
 		}
 		post := posts.Entity{
-			Id:            id,
-			TopicId:       topicID,
-			PostNo:        rowUint64(row, "postNo"),
-			UserId:        userID,
-			ReplyToPostId: rowUint64(row, "replyToPostId"),
-			Content:       content,
-			ProcessStatus: int8(rowInt64(row, "processStatus")),
-			LastEditorId:  rowUint64(row, "lastEditorId"),
+			Id:               id,
+			TopicId:          topicID,
+			PostNo:           rowUint64(row, "postNo"),
+			UserId:           userID,
+			ReplyToPostId:    rowUint64(row, "replyToPostId"),
+			Content:          content,
+			ProcessStatus:    int8(rowInt64(row, "processStatus")),
+			LastEditorId:     rowUint64(row, "lastEditorId"),
+			VisibilityStatus: visibility,
+			RetentionStatus:  rowString(row, "retentionStatus"),
+			DeletedBy:        rowUint64(row, "deletedBy"),
+			DeleteReason:     rowString(row, "deleteReason"),
+		}
+		if post.RetentionStatus == "" {
+			post.RetentionStatus = posts.RetentionNormal
+		}
+		if dt := rowString(row, "deletedAt"); dt != "" {
+			if t, err := time.Parse(time.RFC3339, dt); err == nil {
+				post.DeletedAt = gorm.DeletedAt{Time: t, Valid: true}
+			}
 		}
 		// 最后编辑者/时间随导出恢复（首楼编辑 PR 新增字段，缺失时为 0/空）。
 		if le := rowString(row, "lastEditedAt"); le != "" {

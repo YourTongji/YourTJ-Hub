@@ -426,3 +426,55 @@ func TestPostRevisionsHidesPendingPostContentFromNonModerator(t *testing.T) {
 		t.Fatalf("moderator pending-post content = %#v, want visible", modVersions)
 	}
 }
+
+// TestPostRevisionsHidesBlockedVersionFromNonModerator 验证逐版本 Blocked 屏蔽：
+// 帖子本身正常（可读），但某个历史版本在封禁期创建（Blocked 状态）。非版主不得
+// 读到该版本正文、编辑者匿名化；版主可见（review 发现：此前逐版本屏蔽只覆盖
+// Pending，漏掉 Blocked，解封后封禁期正文会泄露给非版主）。
+func TestPostRevisionsHidesBlockedVersionFromNonModerator(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	authorID := uint64(9301)
+	readerID := uint64(9302)
+	moderatorID := uint64(9303)
+	createRevisionUser(t, conn, authorID, "author")
+	createRevisionUser(t, conn, readerID, "reader")
+	createGlobalModerator(t, conn, moderatorID, "moderator")
+	createRevisionFixture(t, conn, 9401, 9402, authorID, 1, []postRevisions.Entity{
+		{Version: 1, EditorId: authorID, Content: "normal body", RenderedHTML: "<p>normal body</p>", ProcessStatus: posts.ProcessStatusNormal},
+		{Version: 2, EditorId: authorID, Content: "blocked-period body", RenderedHTML: "<p>blocked-period body</p>", ProcessStatus: posts.ProcessStatusBlocked},
+	})
+	// 帖子自身保持 Normal：仅历史 v2 处于封禁期状态
+
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9402},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(reader) failed: %+v", res)
+	}
+	_, readerVersions, _, _ := decodeRevisions(t, res)
+	if len(readerVersions) != 2 {
+		t.Fatalf("reader versions = %d, want 2", len(readerVersions))
+	}
+	if readerVersions[0].Version != 1 || readerVersions[0].Content != "normal body" {
+		t.Fatalf("v1 = %#v, want normal body visible", readerVersions[0])
+	}
+	if readerVersions[1].Version != 2 || readerVersions[1].Content != "" || readerVersions[1].RenderedHTML != "" {
+		t.Fatalf("v2 blocked = %#v, want blanked for non-moderator", readerVersions[1])
+	}
+	if readerVersions[1].Editor.ID != 0 {
+		t.Fatalf("v2 blocked editor = %#v, want anonymized", readerVersions[1].Editor)
+	}
+
+	resMod := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: moderatorID,
+		Params: PostRevisionsReq{PostID: 9402},
+	})
+	if resMod.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(moderator) failed: %+v", resMod)
+	}
+	_, modVersions, _, _ := decodeRevisions(t, resMod)
+	if modVersions[1].Content != "blocked-period body" {
+		t.Fatalf("moderator blocked version = %#v, want visible", modVersions[1])
+	}
+}

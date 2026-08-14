@@ -396,18 +396,30 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 		}
 		content := v.Content
 		rendered := v.RenderedHTML
+		// masked：对非版主屏蔽的版本（删除帖的全部版本、待审/封禁版本），
+		// 编辑者身份一并匿名化，避免泄露「该内容在审核/已删、被谁编辑过、
+		// 何时编辑」的元数据——楼层窗口刻意不提供这些信息（review 发现）。
+		masked := false
 		if postDeleted {
 			// 删除/匿名化帖的版本快照不得绕过删除留存原文
 			content = ""
 			rendered = ""
-		} else if (v.ProcessStatus == posts.ProcessStatusPending || postModerated) && !canModerate {
-			// 待审版本与封禁/待审帖正文对非版主屏蔽，与楼层窗口过滤同语义
+			masked = true
+		} else if (v.ProcessStatus != posts.ProcessStatusNormal || postModerated) && !canModerate {
+			// 非正常状态版本（待审/封禁）与封禁/待审帖正文对非版主屏蔽，
+			// 与楼层窗口过滤同语义；封禁版正文在帖子解封后也不得泄露
+			// 给非版主（此前只屏蔽 Pending 版本，漏掉 Blocked）。
 			content = ""
 			rendered = ""
+			masked = true
+		}
+		editor := userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId])
+		if masked {
+			editor = userPayloadWithWornBadge(0, nil, nil)
 		}
 		list = append(list, revisionPayload{
 			Version:       v.Version,
-			Editor:        userPayloadWithWornBadge(v.EditorId, userMap, wornBadges[v.EditorId]),
+			Editor:        editor,
 			Content:       content,
 			RenderedHTML:  rendered,
 			ProcessStatus: v.ProcessStatus,

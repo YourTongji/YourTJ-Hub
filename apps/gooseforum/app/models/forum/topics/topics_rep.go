@@ -54,6 +54,26 @@ func UpdateFirstPostDerivedTx(tx *gorm.DB, entity *Entity) error {
 		}).Error
 }
 
+// UpdateTopicEditableTx 事务内只更新话题编辑者可写的字段（标题/分类/
+// 上下架状态/待审状态/摘要/首图/图片列表）。不触碰由并发回复/点赞/浏览
+// 维护的统计与指针字段（post_count/post_seq/posters/last_post_id/
+// last_posted_at/like_count/view_count/pin_weight/first_post_id）。
+// writeTopic 编辑分支同样不得整行保存事务外读取的 topic——整行 Save 会
+// 把并发写入的统计回写成旧值，与 UpdateFirstPostDerivedTx 同源问题。
+func UpdateTopicEditableTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"title":           entity.Title,
+			"category_id":     jsonopt.Encode(entity.CategoryIds),
+			"status":          entity.Status,
+			"process_status":  entity.ProcessStatus,
+			"excerpt":         entity.Excerpt,
+			"first_image_url": entity.FirstImageURL,
+			"image_urls":      jsonopt.Encode(entity.ImageUrls),
+			"updated_at":      time.Now(),
+		}).Error
+}
+
 func SaveNoUpdate(entity *Entity) error {
 	return builder().Omit("updated_at").Save(entity).Error
 }

@@ -19,6 +19,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/postservice"
+	"gorm.io/gorm"
 )
 
 func setupDataTestDB(t *testing.T) {
@@ -588,6 +589,146 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	if postEntity.PostNo != 3 {
 		t.Fatalf("next post post_no = %d, want 3", postEntity.PostNo)
 	}
+}
+
+// TestExportImportRoundTripPreservesDeletionState 验证墓碑态删除帖与隐私擦除帖
+// 经导出→导入后保持删除状态，不被复活为 ACTIVE 公开可见。此前 posts 导出走
+// GORM 软删过滤（漏掉 deleted_at 非空的行）且不含删除生命周期字段，导入后
+// visibility 默认 ACTIVE，删除内容会在备份恢复后公开（PR #217 review 发现）。
+func TestExportImportRoundTripPreservesDeletionState(t *testing.T) {
+	setupDataTestDB(t)
+	withTempExportDir(t)
+	conn := dbconnect.Connect()
+
+	cat := category.Entity{Name: "删除往返分类"}
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("create category: %v", err)
+	}
+	author := users.EntityComplete{Username: "dauthor", Email: "dauthor@example.com"}
+	if err := users.Create(&author); err != nil {
+		t.Fatalf("create author: %v", err)
+	}
+	now := time.Now().UTC().Add(-time.Hour)
+	topic := topics.Entity{
+		Title: "删除往返主题", CategoryIds: []uint64{cat.Id}, UserId: author.Id,
+		Status: 1, PostCount: 2, ReplyCount: 1, PostSeq: 2,
+		Posters: []topics.Poster{{UserID: author.Id}}, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := conn.Create(&topic).Error; err != nil {
+		t.Fatalf("create topic: %v", err)
+	}
+	firstPost := posts.Entity{TopicId: topic.Id, PostNo: 1, UserId: author.Id, Content: "首帖", CreatedAt: now, UpdatedAt: now}
+	if err := conn.Create(&firstPost).Error; err != nil {
+		t.Fatalf("create first post: %v", err)
+	}
+	// 墓碑态删除帖：作者删除，正文保留，deleted_at 非空（软删过滤会隐藏，需 Unscoped 导出）
+	tomb := posts.Entity{
+		TopicId: topic.Id, PostNo: 2, UserId: author.Id, Content: "墓碑正文",
+		VisibilityStatus: posts.VisibilityUserDeleted, RetentionStatus: posts.RetentionRecoverable,
+		DeletedAt: gorm.DeletedAt{Time: now, Valid: true}, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := conn.Create(&tomb).Error; err != nil {
+		t.Fatalf("create tombstone post: %v", err)
+	}
+	// 隐私擦除帖：正文已清空，不可恢复
+	anon := posts.Entity{
+		TopicId: topic.Id, PostNo: 3, UserId: author.Id, Content: "",
+		VisibilityStatus: posts.VisibilityAccountAnonymized, RetentionStatus: posts.RetentionPurged,
+		DeletedAt: gorm.DeletedAt{Time: now, Valid: true}, CreatedAt: now, UpdatedAt: now,
+	}
+	if err := conn.Create(&anon).Error; err != nil {
+		t.Fatalf("create anonymized post: %v", err)
+	}
+	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Updates(map[string]any{
+		"first_post_id": firstPost.Id, "last_post_id": tomb.Id,
+	}).Error; err != nil {
+		t.Fatalf("update topic pointers: %v", err)
+	}
+
+	taskEntity := &taskQueue.Entity{
+		Type:     TaskTypeExport,
+		Status:   taskQueue.StatusPending,
+		TaskJson: `{"tables":["users","topics","posts"],"format":"json"}`,
+	}
+	if err := taskQueue.Create(taskEntity); err != nil {
+		t.Fatalf("create export task: %v", err)
+	}
+	running, claimed, err := taskQueue.ClaimTask(taskEntity.Id)
+	if err != nil || !claimed {
+		t.Fatalf("claim export task: claimed=%v err=%v", claimed, err)
+	}
+	if err := RunExportTask(context.Background(), &running); err != nil {
+		t.Fatalf("RunExportTask() error = %v", err)
+	}
+	reloaded, err := taskQueue.GetByID(taskEntity.Id)
+	if err != nil {
+		t.Fatalf("reload export task: %v", err)
+	}
+	path, err := ExportFilePath(&reloaded)
+	if err != nil {
+		t.Fatalf("ExportFilePath() error = %v", err)
+	}
+	exported, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatalf("read export file: %v", err)
+	}
+	var doc map[string][]map[string]any
+	if err := json.Unmarshal(exported, &doc); err != nil {
+		t.Fatalf("export is not valid JSON: %v", err)
+	}
+	// 墓碑帖（deleted_at 非空）必须被导出，且携带删除状态字段
+	tombRow, found := findPostRow(doc["posts"], tomb.Id)
+	if !found {
+		t.Fatal("tombstone post missing from export (soft-delete filter dropped it)")
+	}
+	if rowString(tombRow, "visibilityStatus") != posts.VisibilityUserDeleted || rowString(tombRow, "retentionStatus") != posts.RetentionRecoverable {
+		t.Fatalf("export tombstone state = %q/%q, want USER_DELETED/RECOVERABLE",
+			rowString(tombRow, "visibilityStatus"), rowString(tombRow, "retentionStatus"))
+	}
+
+	// 清空库后导入
+	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&topics.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
+	conn.Unscoped().Where("1 = 1").Delete(&category.Entity{})
+	if err := conn.Create(&cat).Error; err != nil {
+		t.Fatalf("recreate category: %v", err)
+	}
+	report, err := ImportData(context.Background(), exported, "json")
+	if err != nil {
+		t.Fatalf("ImportData() error = %v", err)
+	}
+	if report.Failed != 0 {
+		t.Fatalf("ImportData() failed = %d (errors: %+v)", report.Failed, report.Errors)
+	}
+
+	// 删除状态必须保留：墓碑帖不复活为 ACTIVE，隐私擦除帖正文保持为空
+	var gotTomb posts.Entity
+	if err := conn.Unscoped().First(&gotTomb, tomb.Id).Error; err != nil {
+		t.Fatalf("imported tombstone post missing: %v", err)
+	}
+	if gotTomb.VisibilityStatus != posts.VisibilityUserDeleted || gotTomb.RetentionStatus != posts.RetentionRecoverable {
+		t.Fatalf("tombstone post resurrected: vis=%q ret=%q", gotTomb.VisibilityStatus, gotTomb.RetentionStatus)
+	}
+	if gotTomb.Content != "墓碑正文" {
+		t.Fatalf("tombstone post content = %q, want preserved", gotTomb.Content)
+	}
+	var gotAnon posts.Entity
+	if err := conn.Unscoped().First(&gotAnon, anon.Id).Error; err != nil {
+		t.Fatalf("imported anonymized post missing: %v", err)
+	}
+	if gotAnon.VisibilityStatus != posts.VisibilityAccountAnonymized || gotAnon.Content != "" {
+		t.Fatalf("anonymized post not preserved: vis=%q content=%q", gotAnon.VisibilityStatus, gotAnon.Content)
+	}
+}
+
+func findPostRow(rows []map[string]any, id uint64) (map[string]any, bool) {
+	for _, r := range rows {
+		if rowUint64(r, "id") == id {
+			return r, true
+		}
+	}
+	return nil, false
 }
 
 // TestImportLegacyExportBackfillsInvariants 验证旧格式导出（无 invariants 字段）

@@ -377,7 +377,10 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 		return rows, nil
 	case "posts":
 		var list []posts.Entity
-		if err := db.Table("posts").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
+		// Unscoped：删除/永久清除的帖子也必须随备份导出，否则 round-trip
+		// 后丢失删除状态，导入会把墓碑态删除帖复活为 ACTIVE 公开可见
+		// （删除生命周期语义，PR #217 review 发现）。
+		if err := db.Table("posts").Unscoped().Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
 			return nil, fmt.Errorf("查询 posts 表失败: %w", err)
 		}
 		rows := make([]exportRow, 0, len(list))
@@ -386,10 +389,16 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 			if p.LastEditedAt != nil {
 				lastEditedAt = p.LastEditedAt.Format(time.RFC3339Nano)
 			}
+			deletedAt := ""
+			if p.DeletedAt.Valid {
+				deletedAt = p.DeletedAt.Time.Format(time.RFC3339)
+			}
 			rows = append(rows, exportRow{ID: p.Id, Fields: map[string]any{
 				"id": p.Id, "topicId": p.TopicId, "postNo": p.PostNo, "userId": p.UserId,
 				"replyToPostId": p.ReplyToPostId, "content": p.Content, "processStatus": p.ProcessStatus,
 				"lastEditorId": p.LastEditorId, "lastEditedAt": lastEditedAt,
+				"visibilityStatus": p.VisibilityStatus, "retentionStatus": p.RetentionStatus,
+				"deletedAt": deletedAt, "deletedBy": p.DeletedBy, "deleteReason": p.DeleteReason,
 				"createdAt": p.CreatedAt.Format(time.RFC3339), "updatedAt": p.UpdatedAt.Format(time.RFC3339),
 			}})
 		}
@@ -440,7 +449,7 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 var exportCSVHeaders = map[string][]string{
 	"users":              {"id", "username", "email", "nickname", "bio", "signature", "prestige", "isFrozen", "isActivated", "roleId", "avatarUrl", "website", "createdAt", "updatedAt"},
 	"topics":             {"id", "title", "categoryIds", "userId", "status", "processStatus", "postCount", "replyCount", "postSeq", "firstPostId", "lastPostId", "lastPostedAt", "likeCount", "viewCount", "pinWeight", "posters", "imageUrls", "excerpt", "firstImageUrl", "createdAt", "updatedAt"},
-	"posts":              {"id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "lastEditorId", "lastEditedAt", "createdAt", "updatedAt"},
+	"posts":              {"id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "lastEditorId", "lastEditedAt", "visibilityStatus", "retentionStatus", "deletedAt", "deletedBy", "deleteReason", "createdAt", "updatedAt"},
 	"postRevisions":      {"id", "postId", "version", "editorId", "content", "renderedHTML", "processStatus", "createdAt"},
 	"topicCategoryIndex": {"id", "topicId", "categoryId", "effective"},
 	"topicUserStat":      {"id", "topicId", "userId", "replyCount", "lastReplyAt"},

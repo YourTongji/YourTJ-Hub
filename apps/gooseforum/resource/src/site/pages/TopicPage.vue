@@ -67,6 +67,9 @@ const historyLoadingMore = ref(false)
 const historyHasMore = ref(false)
 const historyBeforeVersion = ref(0)
 const historyError = ref('')
+// 弹窗请求代次：关闭/重新打开弹窗时自增，在途响应回来时丢弃过期结果，
+// 避免旧请求写入下一个弹窗的状态（加载更多进行中关闭的竞态）。
+const historyRequestSeq = ref(0)
 const reportReason = ref('spam')
 const reportNote = ref('')
 const reportSubmitting = ref(false)
@@ -1665,6 +1668,8 @@ async function removePost(postId: number) {
 }
 
 async function openPostHistory(post: PostPayload) {
+  historyRequestSeq.value++
+  const seq = historyRequestSeq.value
   historyPost.value = post
   historyVersions.value = null
   historyHasMore.value = false
@@ -1673,13 +1678,15 @@ async function openPostHistory(post: PostPayload) {
   historyLoading.value = true
   try {
     const result = await getPostRevisions(post.id)
+    if (seq !== historyRequestSeq.value) return // 弹窗已关闭/重新打开，丢弃过期响应
     historyVersions.value = result.versions
     historyHasMore.value = result.hasMore
     historyBeforeVersion.value = result.beforeVersion
   } catch (error) {
+    if (seq !== historyRequestSeq.value) return
     historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
   } finally {
-    historyLoading.value = false
+    if (seq === historyRequestSeq.value) historyLoading.value = false
   }
 }
 
@@ -1687,26 +1694,31 @@ async function openPostHistory(post: PostPayload) {
 // 前插到列表头部，避免单次响应随编辑次数无界增长。
 async function loadEarlierHistoryVersions() {
   if (historyLoadingMore.value || !historyHasMore.value || !historyPost.value) return
+  const seq = historyRequestSeq.value
   historyLoadingMore.value = true
   try {
     const result = await getPostRevisions(historyPost.value.id, historyBeforeVersion.value)
+    if (seq !== historyRequestSeq.value) return // 弹窗已关闭/重新打开，丢弃过期响应
     historyVersions.value = [...result.versions, ...(historyVersions.value ?? [])]
     historyHasMore.value = result.hasMore
     historyBeforeVersion.value = result.beforeVersion
   } catch (error) {
+    if (seq !== historyRequestSeq.value) return
     historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
   } finally {
-    historyLoadingMore.value = false
+    if (seq === historyRequestSeq.value) historyLoadingMore.value = false
   }
 }
 
 function closePostHistory() {
   if (historyLoading.value) return
+  historyRequestSeq.value++
   historyPost.value = null
   historyVersions.value = null
   historyHasMore.value = false
   historyBeforeVersion.value = 0
   historyError.value = ''
+  historyLoadingMore.value = false
 }
 
 function lastEditedLabel(post: PostPayload) {
@@ -2668,19 +2680,8 @@ function lastEditedLabel(post: PostPayload) {
               <p v-else-if="!historyVersions || !historyVersions.length" class="mt-4 py-6 text-center text-sm text-base-content/55">
                 {{ t('topic.historyEmpty') }}
               </p>
-              <div v-else-if="historyHasMore && !historyLoading" class="mt-4 flex justify-center">
-                <button
-                  type="button"
-                  class="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-primary transition-colors hover:bg-info/10 hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
-                  :disabled="historyLoadingMore"
-                  @click="loadEarlierHistoryVersions"
-                >
-                  <Loader2 v-if="historyLoadingMore" class="h-3.5 w-3.5 animate-spin" />
-                  <ChevronsUp v-else class="h-3.5 w-3.5" />
-                  {{ t('common.loadMore') }}
-                </button>
-              </div>
-              <div v-else class="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
+              <template v-else>
+              <div class="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
                 <div
                   v-for="version in historyVersions"
                   :key="version.version"
@@ -2703,6 +2704,19 @@ function lastEditedLabel(post: PostPayload) {
                   </p>
                 </div>
               </div>
+              <div v-if="historyHasMore" class="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-primary transition-colors hover:bg-info/10 hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="historyLoadingMore"
+                  @click="loadEarlierHistoryVersions"
+                >
+                  <Loader2 v-if="historyLoadingMore" class="h-3.5 w-3.5 animate-spin" />
+                  <ChevronsUp v-else class="h-3.5 w-3.5" />
+                  {{ t('common.loadMore') }}
+                </button>
+              </div>
+              </template>
 
               <div class="mt-5 flex justify-end">
                 <button
