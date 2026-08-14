@@ -297,7 +297,7 @@ async function submit() {
                 :title="t('schedule.empty')"
               />
               <section v-for="group in requiredGroups" :key="group.grade">
-                <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
+                <h3 class="mb-1.5 text-sm font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
                 <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
                   <li v-for="course in group.courses" :key="course.courseCode">
                     <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
@@ -309,12 +309,12 @@ async function submit() {
                         @change="toggleKey(`必_${group.grade}_${course.courseCode}`)"
                       />
                       <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
-                        <span class="block text-[11px] text-base-content/50">
+                        <span class="block truncate text-sm text-base-content">{{ course.courseName }}</span>
+                        <span class="block text-xs text-base-content/50">
                           {{ course.courseCode }} · {{ course.faculty }} · {{ t('schedule.credit', { credit: course.credit }) }}
                         </span>
                       </span>
-                      <span v-if="course.courseNature?.length" class="gf-badge gf-badge-ghost text-[11px]">
+                      <span v-if="course.courseNature?.length" class="gf-badge gf-badge-ghost text-xs">
                         {{ course.courseNature[0] }}
                       </span>
                     </label>
@@ -331,7 +331,7 @@ async function submit() {
                 :title="t('schedule.empty')"
               />
               <section v-for="group in optionalGroups" :key="group.label">
-                <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
+                <h3 class="mb-1.5 text-sm font-bold text-base-content/80">{{ group.label }}</h3>
                 <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
                   <li v-for="course in group.courses" :key="course.courseCode">
                     <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
@@ -343,8 +343,8 @@ async function submit() {
                         @change="toggleKey(`选_${group.label}_${course.courseCode}`)"
                       />
                       <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
-                        <span class="block text-[11px] text-base-content/50">
+                        <span class="block truncate text-sm text-base-content">{{ course.courseName }}</span>
+                        <span class="block text-xs text-base-content/50">
                           {{ course.courseCode }} · {{ course.campus?.join('、') }} · {{ t('schedule.credit', { credit: course.credit }) }}
                         </span>
                       </span>
@@ -358,23 +358,23 @@ async function submit() {
             <div v-else class="space-y-3">
               <form class="grid gap-2 sm:grid-cols-2" @submit.prevent="runSearch">
                 <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseName') }}</span>
+                  <span class="mb-1 block text-xs text-base-content/70">{{ t('schedule.courseName') }}</span>
                   <input v-model="searchForm.courseName" type="text" class="gf-input gf-input-md w-full" :placeholder="t('schedule.searchPlaceholder')" />
                 </label>
                 <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseCode') }}</span>
+                  <span class="mb-1 block text-xs text-base-content/70">{{ t('schedule.courseCode') }}</span>
                   <input v-model="searchForm.courseCode" type="text" class="gf-input gf-input-md w-full" />
                 </label>
                 <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.teacher') }}</span>
+                  <span class="mb-1 block text-xs text-base-content/70">{{ t('schedule.teacher') }}</span>
                   <input v-model="searchForm.teacherName" type="text" class="gf-input gf-input-md w-full" />
                 </label>
                 <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
+                  <span class="mb-1 block text-xs text-base-content/70">{{ t('schedule.campus') }}</span>
                   <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" />
                 </label>
                 <label class="block sm:col-span-2">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
+                  <span class="mb-1 block text-xs text-base-content/70">{{ t('schedule.faculty') }}</span>
                   <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" />
                 </label>
                 <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
@@ -394,8 +394,8 @@ async function submit() {
                       @change="toggleKey(`查_${course.courseCode}`)"
                     />
                     <span class="min-w-0 flex-1">
-                      <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
-                      <span class="block text-[11px] text-base-content/50">
+                      <span class="block truncate text-sm text-base-content">{{ course.courseName }}</span>
+                      <span class="block text-xs text-base-content/50">
                         {{ course.courseCode }} · {{ course.faculty }} · {{ t('schedule.credit', { credit: course.credit }) }}
                       </span>
                     </span>

@@ -87,10 +87,10 @@ function arrangedClassCount(course: PkStagedCourse): number {
           class="min-w-0 flex-1 text-left"
           @click="selectCourse(course)"
         >
-          <span class="block truncate text-[13px] font-medium text-base-content">
+          <span class="block truncate text-sm font-medium text-base-content">
             {{ course.courseNameReserved }}
           </span>
-          <span class="block truncate text-[11px] text-base-content/50">
+          <span class="block truncate text-xs text-base-content/50">
             {{ course.courseCode }} · {{ t('schedule.credit', { credit: course.credit }) }}
             <template v-if="arrangedClassCount(course) > 0"> · {{ t('schedule.arrangedCount', { count: arrangedClassCount(course) }) }}</template>
           </span>
@@ -113,7 +113,7 @@ function arrangedClassCount(course: PkStagedCourse): number {
         <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2">
           <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
             <h3 class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
-            <p class="mt-2 text-[13px] text-base-content/70">
+            <p class="mt-2 text-sm text-base-content/70">
               {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
             </p>
             <div class="mt-4 flex justify-end gap-2">

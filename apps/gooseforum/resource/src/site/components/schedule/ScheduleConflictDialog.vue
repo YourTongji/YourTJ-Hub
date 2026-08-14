@@ -41,18 +41,18 @@ function forceReplace() {
               <h3 class="text-sm font-bold text-base-content">{{ t('schedule.conflictTitle') }}</h3>
             </div>
 
-            <p class="mt-3 text-[13px] text-base-content/70">
+            <p class="mt-3 text-sm text-base-content/70">
               {{ detail.code }}
             </p>
 
             <ul class="mt-2 space-y-1.5 rounded-lg border border-warning/25 bg-warning/10 p-3">
-              <li v-for="conflict in conflicts" :key="conflict.code" class="text-[13px] text-base-content/80">
+              <li v-for="conflict in conflicts" :key="conflict.code" class="text-sm text-base-content/80">
                 <span class="font-medium">{{ conflict.courseName }}</span>
                 <span class="text-base-content/50">（{{ conflict.code }}）</span>
               </li>
             </ul>
 
-            <p class="mt-3 text-[12px] text-base-content/55">
+            <p class="mt-3 text-xs text-base-content/55">
               {{ t('schedule.conflictWith', { course: conflicts[0]?.courseName ?? '' }) }}
             </p>
 

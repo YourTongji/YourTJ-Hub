@@ -1626,7 +1626,7 @@ async function toggleBinding(provider: string) {
                 <span class="flex h-8 w-8 items-center justify-center rounded-full bg-base-200 text-base-content/55 ring-1 ring-inset ring-line">
                   <Ban class="h-4 w-4" />
                 </span>
-                <span class="max-w-full truncate text-[10px] leading-4">{{ t('settings.avatar.noWornBadge') }}</span>
+                <span class="max-w-full truncate text-[11px] leading-4">{{ t('settings.avatar.noWornBadge') }}</span>
                 <span v-if="wornBadgeCode === ''" class="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-content ring-2 ring-base-100">
                   <Check class="h-3 w-3" />
                 </span>
@@ -1651,7 +1651,7 @@ async function toggleBinding(provider: string) {
                 >
                   <img :src="badgeIconURL(badge)" :alt="badge.name" class="h-4 w-4 object-contain" />
                 </span>
-                <span class="max-w-full truncate text-[10px] leading-4">{{ badge.name }}</span>
+                <span class="max-w-full truncate text-[11px] leading-4">{{ badge.name }}</span>
                 <span v-if="wornBadgeCode === badge.code" class="absolute right-0.5 top-0.5 flex h-4 w-4 items-center justify-center rounded-full bg-primary text-primary-content ring-2 ring-base-100">
                   <Check class="h-3 w-3" />
                 </span>

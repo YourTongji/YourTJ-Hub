@@ -489,7 +489,7 @@ function safeProfileUrl(value?: string) {
                     >
                       <img :src="badgeIconURL(badge)" :alt="badge.name" class="h-5 w-5 object-contain" />
                     </span>
-                    <span class="w-full truncate text-center text-[10px] font-semibold text-base-content/75">{{ badge.name }}</span>
+                    <span class="w-full truncate text-center text-[11px] font-semibold text-base-content/75">{{ badge.name }}</span>
                   </div>
                 </div>
               </section>

@@ -286,7 +286,7 @@ onBeforeUnmount(() => {
         <span v-if="tokenLabel.endsWith('content')">A</span>
       </span>
     </button>
-    <span class="mt-1 block w-16 min-w-0 truncate text-center text-[10px] leading-none text-base-content/55">
+    <span class="mt-1 block w-16 min-w-0 truncate text-center text-[11px] leading-none text-base-content/55">
       {{ displayLabel }}
     </span>
 

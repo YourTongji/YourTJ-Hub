@@ -66,10 +66,10 @@ function tryStage(detail: PkCourseDetail) {
 
     <div v-else class="gf-panel">
       <div class="border-b border-line/60 px-3 py-2">
-        <h3 class="truncate text-[13px] font-bold text-base-content">
+        <h3 class="truncate text-sm font-bold text-base-content">
           {{ currentCourse.courseNameReserved }}
         </h3>
-        <p class="text-[11px] text-base-content/50">{{ currentCourse.courseCode }} · {{ currentCourse.credit }} 学分</p>
+        <p class="text-xs text-base-content/50">{{ currentCourse.courseCode }} · {{ currentCourse.credit }} 学分</p>
       </div>
       <ul v-if="currentCourse.courseDetail.length" class="divide-y divide-line/60">
         <li
@@ -83,23 +83,23 @@ function tryStage(detail: PkCourseDetail) {
             @click="tryStage(detail)"
           >
             <div class="flex items-center justify-between gap-2">
-              <span class="min-w-0 truncate text-[13px] font-medium text-base-content">{{ detail.code }}</span>
+              <span class="min-w-0 truncate text-sm font-medium text-base-content">{{ detail.code }}</span>
               <span :class="statusClass(detail.status)">{{ statusLabel(detail.status) }}</span>
             </div>
-            <p v-if="teacherText(detail)" class="mt-0.5 text-[12px] text-base-content/60">
+            <p v-if="teacherText(detail)" class="mt-0.5 text-xs text-base-content/60">
               {{ t('schedule.teacher') }}：{{ teacherText(detail) }}
             </p>
-            <p class="mt-0.5 line-clamp-2 text-[12px] text-base-content/60">
+            <p class="mt-0.5 line-clamp-2 text-xs text-base-content/60">
               {{ arrangementText(detail) }}
             </p>
-            <p class="mt-0.5 text-[11px] text-base-content/45">
+            <p class="mt-0.5 text-xs text-base-content/45">
               {{ detail.campus }} · {{ detail.teachingLanguage }}
               <template v-if="detail.isExclusive"> · {{ t('schedule.tabRequired') }}</template>
             </p>
           </button>
         </li>
       </ul>
-      <p v-else class="px-3 py-3 text-[12px] text-base-content/50">{{ t('schedule.empty') }}</p>
+      <p v-else class="px-3 py-3 text-xs text-base-content/50">{{ t('schedule.empty') }}</p>
     </div>
   </div>
 </template>

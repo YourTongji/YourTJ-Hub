@@ -91,7 +91,7 @@ watch(
             <div class="flex items-start justify-between gap-2 px-4 py-3">
               <div class="min-w-0">
                 <div class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
-                <div class="text-[11px] text-base-content/55">{{ parsed.code }}</div>
+                <div class="text-xs text-base-content/55">{{ parsed.code }}</div>
               </div>
               <button
                 type="button"
@@ -103,10 +103,10 @@ watch(
               </button>
             </div>
             <div class="space-y-2 p-4 pt-0">
-              <p v-if="parsed.teacherAndCode" class="text-[12px] text-base-content/70">
+              <p v-if="parsed.teacherAndCode" class="text-xs text-base-content/70">
                 {{ parsed.teacherAndCode }}
               </p>
-              <p class="whitespace-pre-wrap break-words text-[13px] leading-snug text-base-content">
+              <p class="whitespace-pre-wrap break-words text-sm leading-snug text-base-content">
                 {{ parsed.arrangement }}
               </p>
 
@@ -119,13 +119,13 @@ watch(
 
               <div class="rounded-lg border border-line/60 bg-base-200/40 p-3">
                 <template v-if="briefLoading">
-                  <p class="text-[12px] text-base-content/55">{{ t('schedule.loading') }}</p>
+                  <p class="text-xs text-base-content/55">{{ t('schedule.loading') }}</p>
                 </template>
                 <template v-else-if="briefError">
-                  <p class="text-[12px] text-base-content/45">{{ t('schedule.loadFailed') }}</p>
+                  <p class="text-xs text-base-content/45">{{ t('schedule.loadFailed') }}</p>
                 </template>
                 <template v-else-if="brief">
-                  <p class="text-[12px] text-base-content/70">
+                  <p class="text-xs text-base-content/70">
                     <template v-if="brief.ratingAvg != null">
                       {{ t('schedule.reviewAvg', { value: brief.ratingAvg.toFixed(1) }) }}
                     </template>
