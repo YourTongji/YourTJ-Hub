@@ -10,6 +10,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserStat"
@@ -38,9 +39,10 @@ type ImportReport struct {
 
 // ImportData 导入 JSON 数据（仅支持 JSON 格式）。
 // 支持两种结构：数组 `[{...}]` 或对象 `{"users":[...],"topics":[...],"posts":[...]}`。
-// 按 users → topics → posts 顺序导入；已存在记录跳过（幂等）。
+// 按 users → topics → posts → postRevisions → 派生表顺序导入；已存在记录跳过（幂等）。
 // 导入完成后重建话题 invariants（首末帖指针、计数、post_seq、参与者统计、
 // 分类索引），保证 round-trip 后结构与源库一致且可继续回复（issue #135）。
+// postRevisions 依赖 posts 存在（外键校验），在 posts 之后导入。
 func ImportData(_ context.Context, data []byte, format string) (*ImportReport, error) {
 	if format != "json" {
 		return nil, fmt.Errorf("导入仅支持 JSON 格式")
@@ -56,8 +58,8 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	importUsers(parsed["users"], report)
 	importTopics(parsed["topics"], report)
 	importPosts(parsed["posts"], report)
+	importPostRevisions(parsed["postRevisions"], report)
 	importTopicCategoryIndexes(parsed["topicCategoryIndex"], report)
-	importTopicUserStats(parsed["topicUserStat"], report)
 	// 显式主键写入不会推进 PostgreSQL sequence，必须先推进序列再重建派生数据：
 	// rebuild 期间 ensureTopicCategoryIndexes / rebuildTopicUserStats 会用自增 ID
 	// 创建新行，若序列仍停在导入前小值，新行可能复用已导入显式 ID 撞主键，
@@ -70,7 +72,7 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 	if len(parsed["topics"]) > 0 && report.Failed == 0 {
 		rebuildTopicInvariants()
 	}
-	for _, t := range []string{"users", "topics", "posts", "topicCategoryIndex", "topicUserStat"} {
+	for _, t := range []string{"users", "topics", "posts", "postRevisions", "topicCategoryIndex", "topicUserStat"} {
 		if _, ok := parsed[t]; ok {
 			report.Imported = append(report.Imported, t)
 		}
@@ -79,16 +81,16 @@ func ImportData(_ context.Context, data []byte, format string) (*ImportReport, e
 }
 
 // resetPostgresSequences 导入显式主键后推进各表的 sequence。
-// 覆盖 users/topics/posts 及两张派生表 topic_category_index/topic_user_stat
-// （均 autoIncrement 主键，PR #160 review, warning 1）：PG 上显式主键写入
-// 不推进序列，若漏推，下一次 INSERT 可能复用已导入 ID 触发主键冲突，
-// 参与者统计/分类索引的增量写入会被静默丢弃。SQLite 无 sequence 概念，无需处理。
+// 覆盖 users/topics/posts/post_revisions 及两张派生表 topic_category_index/
+// topic_user_stat（均 autoIncrement 主键，PR #160 review, warning 1）：PG 上
+// 显式主键写入不推进序列，若漏推，下一次 INSERT 可能复用已导入 ID 触发
+// 主键冲突。SQLite 无 sequence 概念，无需处理。
 func resetPostgresSequences() {
 	if dbconnect.IsSqlite() {
 		return
 	}
 	db := dbconnect.Connect()
-	for _, table := range []string{"users", "topics", "posts", "topic_category_index", "topic_user_stat"} {
+	for _, table := range []string{"users", "topics", "posts", "post_revisions", "topic_category_index", "topic_user_stat"} {
 		if err := db.Exec(fmt.Sprintf(
 			`SELECT setval(pg_get_serial_sequence('%s', 'id'), GREATEST((SELECT COALESCE(MAX(id), 1) FROM %s), 1), true)`,
 			table, table,
@@ -108,7 +110,7 @@ func parseImportJSON(data []byte) (map[string][]map[string]any, error) {
 	var obj map[string][]map[string]any
 	if err := json.Unmarshal(data, &obj); err == nil {
 		result := map[string][]map[string]any{}
-		for _, t := range []string{"users", "topics", "posts", "topicCategoryIndex", "topicUserStat"} {
+		for _, t := range []string{"users", "topics", "posts", "postRevisions", "topicCategoryIndex", "topicUserStat"} {
 			if rows, ok := obj[t]; ok {
 				result[t] = rows
 			}
@@ -587,6 +589,53 @@ func rebuildTopicUserStats(db *gorm.DB, topicID uint64) {
 	}
 }
 
+// importPostRevisions 导入帖子版本快照（首楼编辑 PR 新增的表）。
+// 依赖 posts 存在：postId 对应的帖子必须已导入，否则跳过该行并报错。
+// 与导出顺序一致，在 posts 之后调用；已存在记录跳过（幂等）。
+func importPostRevisions(rows []map[string]any, report *ImportReport) {
+	db := dbconnect.Connect()
+	for i, row := range rows {
+		line := i + 1
+		report.Total++
+		id := rowUint64(row, "id")
+		postID := rowUint64(row, "postId")
+		if id == 0 || postID == 0 {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "postRevisions", Reason: "id/postId 必填"})
+			continue
+		}
+		// 帖子必须已存在（外键一致性，与 importTopicCategoryIndexes 同语义）
+		var post posts.Entity
+		if err := db.First(&post, postID).Error; err != nil {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "postRevisions", Reason: "postId 不存在"})
+			continue
+		}
+		var existing postRevisions.Entity
+		if err := db.First(&existing, id).Error; err == nil && existing.Id > 0 {
+			report.Skipped++
+			continue
+		}
+		createdAt, _ := time.Parse(time.RFC3339, rowString(row, "createdAt"))
+		entity := postRevisions.Entity{
+			Id:            id,
+			PostId:        postID,
+			Version:       rowUint64(row, "version"),
+			EditorId:      rowUint64(row, "editorId"),
+			Content:       rowString(row, "content"),
+			RenderedHTML:  rowString(row, "renderedHTML"),
+			ProcessStatus: int8(rowInt64(row, "processStatus")),
+			CreatedAt:     createdAt,
+		}
+		if err := db.Create(&entity).Error; err != nil {
+			report.Failed++
+			report.Errors = append(report.Errors, ImportError{Line: line, Table: "postRevisions", Reason: err.Error()})
+			continue
+		}
+		report.Success++
+	}
+}
+
 func importPosts(rows []map[string]any, report *ImportReport) {
 	db := dbconnect.Connect()
 	for i, row := range rows {
@@ -636,6 +685,13 @@ func importPosts(rows []map[string]any, report *ImportReport) {
 			ReplyToPostId: rowUint64(row, "replyToPostId"),
 			Content:       content,
 			ProcessStatus: int8(rowInt64(row, "processStatus")),
+			LastEditorId:  rowUint64(row, "lastEditorId"),
+		}
+		// 最后编辑者/时间随导出恢复（首楼编辑 PR 新增字段，缺失时为 0/空）。
+		if le := rowString(row, "lastEditedAt"); le != "" {
+			if t, err := time.Parse(time.RFC3339Nano, le); err == nil {
+				post.LastEditedAt = &t
+			}
 		}
 		if err := db.Create(&post).Error; err != nil {
 			report.Failed++

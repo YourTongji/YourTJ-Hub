@@ -35,6 +35,7 @@ const (
 	RateLimitTopicWrite    = "topic.write"
 	RateLimitTopicStatus   = "topic.status"
 	RateLimitPostCreate    = "post.create"
+	RateLimitPostUpdate    = "post.update"
 	RateLimitPostDelete    = "post.delete"
 	RateLimitMessageSend   = "message.send"
 	RateLimitUpload        = "upload"

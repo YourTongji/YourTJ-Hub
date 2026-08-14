@@ -17,6 +17,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -32,7 +33,7 @@ const TaskTypeExport = "export"
 // topicCategoryIndex / topicUserStat 是话题的派生关联表，导出 topics 时一并携带，
 // 保证导入后分类索引与参与者统计不丢失（issue #135）。
 var AllowedExportTables = map[string]bool{
-	"users": true, "topics": true, "posts": true,
+	"users": true, "topics": true, "posts": true, "postRevisions": true,
 	"topicCategoryIndex": true, "topicUserStat": true,
 }
 
@@ -155,9 +156,10 @@ func RunExportTask(ctx context.Context, task *taskQueue.Entity) error {
 	}
 	defer func() { _ = file.Close() }()
 
-	// 按外键依赖顺序导出：users → topics → posts → 派生关联表。
-	// topicCategoryIndex / topicUserStat 依赖 topics/posts，必须在话题与回复之后。
-	order := []string{"users", "topics", "posts", "topicCategoryIndex", "topicUserStat"}
+	// 按外键依赖顺序导出：users → topics → posts → postRevisions → 派生关联表。
+	// postRevisions 依赖 posts；topicCategoryIndex / topicUserStat 依赖 topics/posts，
+	// 必须在话题与回复之后。
+	order := []string{"users", "topics", "posts", "postRevisions", "topicCategoryIndex", "topicUserStat"}
 	selected := map[string]bool{}
 	for _, t := range payload.Tables {
 		selected[t] = true
@@ -269,6 +271,8 @@ func countTable(table string) (int64, error) {
 // exportTableName 将导出表名映射为真实数据库表名。
 func exportTableName(table string) string {
 	switch table {
+	case "postRevisions":
+		return "post_revisions"
 	case "topicCategoryIndex":
 		return "topic_category_index"
 	case "topicUserStat":
@@ -378,10 +382,29 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 		}
 		rows := make([]exportRow, 0, len(list))
 		for _, p := range list {
+			lastEditedAt := ""
+			if p.LastEditedAt != nil {
+				lastEditedAt = p.LastEditedAt.Format(time.RFC3339Nano)
+			}
 			rows = append(rows, exportRow{ID: p.Id, Fields: map[string]any{
 				"id": p.Id, "topicId": p.TopicId, "postNo": p.PostNo, "userId": p.UserId,
 				"replyToPostId": p.ReplyToPostId, "content": p.Content, "processStatus": p.ProcessStatus,
+				"lastEditorId": p.LastEditorId, "lastEditedAt": lastEditedAt,
 				"createdAt": p.CreatedAt.Format(time.RFC3339), "updatedAt": p.UpdatedAt.Format(time.RFC3339),
+			}})
+		}
+		return rows, nil
+	case "postRevisions":
+		var list []postRevisions.Entity
+		if err := db.Table("post_revisions").Where("id > ?", lastID).Order("id asc").Limit(limit).Find(&list).Error; err != nil {
+			return nil, fmt.Errorf("查询 post_revisions 表失败: %w", err)
+		}
+		rows := make([]exportRow, 0, len(list))
+		for _, r := range list {
+			rows = append(rows, exportRow{ID: r.Id, Fields: map[string]any{
+				"id": r.Id, "postId": r.PostId, "version": r.Version, "editorId": r.EditorId,
+				"content": r.Content, "renderedHTML": r.RenderedHTML, "processStatus": r.ProcessStatus,
+				"createdAt": r.CreatedAt.Format(time.RFC3339),
 			}})
 		}
 		return rows, nil
@@ -415,11 +438,12 @@ func fetchExportRows(table string, lastID uint64, limit int) ([]exportRow, error
 }
 
 var exportCSVHeaders = map[string][]string{
-	"users":               {"id", "username", "email", "nickname", "bio", "signature", "prestige", "isFrozen", "isActivated", "roleId", "avatarUrl", "website", "createdAt", "updatedAt"},
-	"topics":              {"id", "title", "categoryIds", "userId", "status", "processStatus", "postCount", "replyCount", "postSeq", "firstPostId", "lastPostId", "lastPostedAt", "likeCount", "viewCount", "pinWeight", "posters", "imageUrls", "excerpt", "firstImageUrl", "createdAt", "updatedAt"},
-	"posts":               {"id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "createdAt", "updatedAt"},
-	"topicCategoryIndex":  {"id", "topicId", "categoryId", "effective"},
-	"topicUserStat":       {"id", "topicId", "userId", "replyCount", "lastReplyAt"},
+	"users":              {"id", "username", "email", "nickname", "bio", "signature", "prestige", "isFrozen", "isActivated", "roleId", "avatarUrl", "website", "createdAt", "updatedAt"},
+	"topics":             {"id", "title", "categoryIds", "userId", "status", "processStatus", "postCount", "replyCount", "postSeq", "firstPostId", "lastPostId", "lastPostedAt", "likeCount", "viewCount", "pinWeight", "posters", "imageUrls", "excerpt", "firstImageUrl", "createdAt", "updatedAt"},
+	"posts":              {"id", "topicId", "postNo", "userId", "replyToPostId", "content", "processStatus", "lastEditorId", "lastEditedAt", "createdAt", "updatedAt"},
+	"postRevisions":      {"id", "postId", "version", "editorId", "content", "renderedHTML", "processStatus", "createdAt"},
+	"topicCategoryIndex": {"id", "topicId", "categoryId", "effective"},
+	"topicUserStat":      {"id", "topicId", "userId", "replyCount", "lastReplyAt"},
 }
 
 func writeCSVRow(writer *csv.Writer, table string, row exportRow) error {

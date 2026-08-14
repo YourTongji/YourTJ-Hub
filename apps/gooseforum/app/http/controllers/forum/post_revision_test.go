@@ -382,3 +382,47 @@ func TestPostRevisionsHidesBlockedPostContentFromNonModerator(t *testing.T) {
 		t.Fatalf("moderator blocked content = %#v, want visible", modVersions)
 	}
 }
+
+// TestPostRevisionsHidesPendingPostContentFromNonModerator 验证帖子自身处于
+// 待审（pending）状态时，其全部版本正文对非版主屏蔽、版主可见——即使某个
+// 版本快照本身是 normal 状态。楼层窗口对 pending 帖整体过滤（不进普通用户流），
+// 历史接口必须同语义，否则敏感正文经历史泄露（review P1）。
+func TestPostRevisionsHidesPendingPostContentFromNonModerator(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	authorID := uint64(9101)
+	readerID := uint64(9102)
+	moderatorID := uint64(9103)
+	createRevisionUser(t, conn, authorID, "author")
+	createRevisionUser(t, conn, readerID, "reader")
+	createGlobalModerator(t, conn, moderatorID, "moderator")
+	createRevisionFixture(t, conn, 9201, 9202, authorID, 1, []postRevisions.Entity{
+		{Version: 1, EditorId: authorID, Content: "pending post body", RenderedHTML: "<p>pending post body</p>", ProcessStatus: posts.ProcessStatusNormal},
+	})
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", 9202).Update("process_status", posts.ProcessStatusPending).Error; err != nil {
+		t.Fatalf("mark post pending: %v", err)
+	}
+
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9202},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(reader) failed: %+v", res)
+	}
+	_, readerVersions, _, _ := decodeRevisions(t, res)
+	if len(readerVersions) != 1 || readerVersions[0].Content != "" || readerVersions[0].RenderedHTML != "" {
+		t.Fatalf("non-moderator sees pending-post content = %#v, want blanked", readerVersions)
+	}
+
+	resMod := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: moderatorID,
+		Params: PostRevisionsReq{PostID: 9202},
+	})
+	if resMod.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(moderator) failed: %+v", resMod)
+	}
+	_, modVersions, _, _ := decodeRevisions(t, resMod)
+	if len(modVersions) != 1 || modVersions[0].Content != "pending post body" {
+		t.Fatalf("moderator pending-post content = %#v, want visible", modVersions)
+	}
+}

@@ -411,6 +411,30 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	topic.FirstPostId = firstPost.Id
 	topic.LastPostId = secondPost.Id
 	topic.LastPostedAt = &lastPosted
+	// 首帖有版本历史（首楼编辑 PR 新增数据）：v1 原文 + v2 编辑后正文
+	revisionV1 := postRevisions.Entity{
+		PostId: firstPost.Id, Version: 1, EditorId: author.Id,
+		Content: "首帖", RenderedHTML: "<p>首帖</p>",
+		ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now,
+	}
+	if err := conn.Create(&revisionV1).Error; err != nil {
+		t.Fatalf("create revision v1: %v", err)
+	}
+	editedAt := now.Add(2 * time.Minute)
+	revisionV2 := postRevisions.Entity{
+		PostId: firstPost.Id, Version: 2, EditorId: author.Id,
+		Content: "编辑后的首帖", RenderedHTML: "<p>编辑后的首帖</p>",
+		ProcessStatus: posts.ProcessStatusNormal, CreatedAt: editedAt,
+	}
+	if err := conn.Create(&revisionV2).Error; err != nil {
+		t.Fatalf("create revision v2: %v", err)
+	}
+	if err := conn.Model(&posts.Entity{}).Where("id = ?", firstPost.Id).Updates(map[string]any{
+		"last_editor_id": author.Id,
+		"last_edited_at": editedAt,
+	}).Error; err != nil {
+		t.Fatalf("set last-editor fields: %v", err)
+	}
 	if err := conn.Model(&topics.Entity{}).Where("id = ?", topic.Id).Updates(map[string]any{
 		"first_post_id":  firstPost.Id,
 		"last_post_id":   secondPost.Id,
@@ -430,7 +454,7 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	taskEntity := &taskQueue.Entity{
 		Type:     TaskTypeExport,
 		Status:   taskQueue.StatusPending,
-		TaskJson: `{"tables":["users","topics","posts","topicCategoryIndex","topicUserStat"],"format":"json"}`,
+		TaskJson: `{"tables":["users","topics","posts","postRevisions","topicCategoryIndex","topicUserStat"],"format":"json"}`,
 	}
 	if err := taskQueue.Create(taskEntity); err != nil {
 		t.Fatalf("create export task: %v", err)
@@ -462,9 +486,14 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	if err := json.Unmarshal(exported, &doc); err != nil {
 		t.Fatalf("export is not valid JSON: %v", err)
 	}
-	if len(doc["topics"]) != 1 || len(doc["topicCategoryIndex"]) != 1 || len(doc["topicUserStat"]) != 1 {
-		t.Fatalf("export tables = topics %d tci %d tus %d, want 1/1/1",
-			len(doc["topics"]), len(doc["topicCategoryIndex"]), len(doc["topicUserStat"]))
+	if len(doc["topics"]) != 1 || len(doc["postRevisions"]) != 2 || len(doc["topicCategoryIndex"]) != 1 || len(doc["topicUserStat"]) != 1 {
+		t.Fatalf("export tables = topics %d revisions %d tci %d tus %d, want 1/2/1/1",
+			len(doc["topics"]), len(doc["postRevisions"]), len(doc["topicCategoryIndex"]), len(doc["topicUserStat"]))
+	}
+	firstPostRow := doc["posts"][0]
+	if rowUint64(firstPostRow, "lastEditorId") != author.Id || rowString(firstPostRow, "lastEditedAt") == "" {
+		t.Fatalf("export post last-editor = %d/%q, want author+timestamp",
+			rowUint64(firstPostRow, "lastEditorId"), rowString(firstPostRow, "lastEditedAt"))
 	}
 	topicRow := doc["topics"][0]
 	if rowUint64(topicRow, "postSeq") != 2 || rowUint64(topicRow, "firstPostId") != firstPost.Id || rowUint64(topicRow, "lastPostId") != secondPost.Id {
@@ -483,6 +512,7 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	// 2) 清空库后导入（fresh-DB round-trip）
 	conn.Unscoped().Where("1 = 1").Delete(&topicUserStat.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&postRevisions.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&posts.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&topics.Entity{})
 	conn.Unscoped().Where("1 = 1").Delete(&users.EntityComplete{})
@@ -523,6 +553,22 @@ func TestExportImportRoundTripPreservesTopicInvariants(t *testing.T) {
 	var gotFirst posts.Entity
 	if err := conn.First(&gotFirst, gotTopic.FirstPostId).Error; err != nil {
 		t.Fatalf("first post pointer broken: %v", err)
+	}
+	// 版本历史与最后编辑者随导出→导入恢复（首楼编辑 PR 数据不丢失）
+	var revCount int64
+	conn.Model(&postRevisions.Entity{}).Where("post_id = ?", firstPost.Id).Count(&revCount)
+	if revCount != 2 {
+		t.Fatalf("imported post_revisions count = %d, want 2", revCount)
+	}
+	var gotRevision postRevisions.Entity
+	if err := conn.Where("post_id = ? AND version = ?", firstPost.Id, 2).First(&gotRevision).Error; err != nil {
+		t.Fatalf("imported revision v2 missing: %v", err)
+	}
+	if gotRevision.Content != "编辑后的首帖" || gotRevision.EditorId != author.Id {
+		t.Fatalf("imported revision v2 = %#v, want edited body by author", gotRevision)
+	}
+	if gotFirst.LastEditorId != author.Id || gotFirst.LastEditedAt == nil {
+		t.Fatalf("imported post last-editor = %d/%v, want author+timestamp", gotFirst.LastEditorId, gotFirst.LastEditedAt)
 	}
 	// 分类索引与参与者统计已恢复
 	var tciCount, tusCount int64

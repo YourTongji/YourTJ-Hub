@@ -363,9 +363,9 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 	versions, hasMore := postRevisions.PageByPostId(postEntity.Id, req.Params.BeforeVersion, limit)
 	canModerate := moderationservice.CanModerateAnyCategory(req.UserId, topicEntity.CategoryIds)
 	// 帖子级可见性（与 buildPostPayloads 的楼层正文过滤同语义）：
-	// 删除/匿名化帖无条件清空全部版本正文；封禁帖正文仅版主可见。
+	// 删除/匿名化帖无条件清空全部版本正文；封禁/待审帖正文仅版主可见。
 	postDeleted := isAuthorDeletedVisibility(postEntity.VisibilityStatus) || isModeratorRemovedVisibility(postEntity.VisibilityStatus)
-	postBlocked := postEntity.ProcessStatus == posts.ProcessStatusBlocked
+	postModerated := postEntity.ProcessStatus == posts.ProcessStatusBlocked || postEntity.ProcessStatus == posts.ProcessStatusPending
 
 	editorIDs := make([]uint64, 0, len(versions))
 	seen := make(map[uint64]struct{}, len(versions))
@@ -400,8 +400,8 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			// 删除/匿名化帖的版本快照不得绕过删除留存原文
 			content = ""
 			rendered = ""
-		} else if (v.ProcessStatus == posts.ProcessStatusPending || postBlocked) && !canModerate {
-			// 待审版本与封禁帖正文对非版主屏蔽，与楼层窗口过滤同语义
+		} else if (v.ProcessStatus == posts.ProcessStatusPending || postModerated) && !canModerate {
+			// 待审版本与封禁/待审帖正文对非版主屏蔽，与楼层窗口过滤同语义
 			content = ""
 			rendered = ""
 		}
