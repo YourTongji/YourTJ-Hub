@@ -1485,7 +1485,7 @@ export interface UpdateWikiPageResult {
   revisionNo: number
 }
 
-export async function updateWikiPage(pageId: number, title: string, content: string, baseRevisionNo?: number): Promise<UpdateWikiPageResult> {
+export async function updateWikiPage(pageId: number, title: string, content: string, baseRevisionNo: number): Promise<UpdateWikiPageResult> {
   const response = await fetch(`/api/wiki/pages/${pageId}`, {
     method: 'PUT',
     headers: {

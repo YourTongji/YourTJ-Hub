@@ -395,7 +395,7 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 
 	t.Run("editor edits page (write-publish)", func(t *testing.T) {
 		rec := serveAuthSecurityJSON(router, http.MethodPut, "/api/wiki/pages/1002",
-			`{"title":"内容规范 v2","content":"更新后的内容。"}`, aliceToken)
+			`{"title":"内容规范 v2","content":"更新后的内容。","baseRevisionNo":1}`, aliceToken)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("wiki edit status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
@@ -426,7 +426,7 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 	t.Run("overlong title maps to request invalidParams on edit", func(t *testing.T) {
 		longTitle := strings.Repeat("a", 513)
 		rec := serveAuthSecurityJSON(router, http.MethodPut, "/api/wiki/pages/1002",
-			`{"title":"`+longTitle+`","content":"x"}`, aliceToken)
+			`{"title":"`+longTitle+`","content":"x","baseRevisionNo":1}`, aliceToken)
 		if rec.Code != http.StatusOK {
 			t.Fatalf("wiki edit overlong title status = %d, want 200 envelope: %s", rec.Code, rec.Body.String())
 		}

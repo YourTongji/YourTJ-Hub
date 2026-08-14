@@ -19,6 +19,16 @@ func GetByPageAndRevisionNo(pageID uint64, revisionNo int) (entity Entity) {
 	return
 }
 
+// GetByPageAndRevisionNoTx 事务内按页面 + 版本号取修订（回滚锁内重校验用，
+// 避免锁外读取的 target 在并发回滚后被物理删除）。
+func GetByPageAndRevisionNoTx(tx *gorm.DB, pageID uint64, revisionNo int) (entity Entity) {
+	tx.Table(tableName).
+		Where(queryopt.Eq("page_id", pageID)).
+		Where(queryopt.Eq("revision_no", revisionNo)).
+		First(&entity)
+	return
+}
+
 // GetLatestApproved 返回某页面最新 approved 修订；无则返回零值。
 func GetLatestApproved(pageID uint64) (entity Entity) {
 	builder().

@@ -258,6 +258,11 @@ func Edit(params EditParams) (*EditResult, error) {
 	if strings.TrimSpace(params.Content) == "" {
 		return nil, ErrContentEmpty
 	}
+	// CAS 基线必填：0 = 客户端省略 baseRevisionNo 绕过乐观锁（review Medium：
+	// 基于陈旧基线提交会静默覆盖他人已发布的较新版本）。
+	if params.BaseRevisionNo <= 0 {
+		return nil, ErrBaseRevisionRequired
+	}
 	// 写时敏感词拦截：写即发布无审核兜底，命中直接拒绝（review 决策）。
 	if hit, word := moderationservice.CheckContentAllowed(params.Title + "\n" + params.Content); hit {
 		moderationservice.SensitiveContentBlocked(params.UserId, "wiki", params.PageID, word, markdown2html.ExtractDescription(params.Content, 200))
@@ -352,10 +357,7 @@ func Rollback(params RollbackParams) error {
 	if page.Id == 0 {
 		return ErrPageNotFound
 	}
-	target := wikiPageRevisions.GetByPageAndRevisionNo(page.Id, params.ToRevisionNo)
-	if target.Id == 0 {
-		return ErrRevisionNotFound
-	}
+	var target wikiPageRevisions.Entity
 	var topic topics.Entity
 	var firstPost posts.Entity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
@@ -365,6 +367,16 @@ func Rollback(params RollbackParams) error {
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 			Table("wiki_pages").Where("id = ?", page.Id).First(&locked).Error; err != nil {
 			return err
+		}
+		// 锁内重校验 target（review Medium：双回滚竞争下 target 可能已被另一
+		// 管理员物理删除，或 ToRevisionNo 超过当前指针——旧代码在锁外读取
+		// target，锁内硬删后可让指针指向已删修订、版本历史空洞）。
+		if params.ToRevisionNo > locked.PublishedRevisionNo {
+			return ErrRevisionNotFound
+		}
+		target = wikiPageRevisions.GetByPageAndRevisionNoTx(tx, page.Id, params.ToRevisionNo)
+		if target.Id == 0 {
+			return ErrRevisionNotFound
 		}
 		// 硬删目标之后全部修订（不可撤销，永久丢弃）：模型含 DeletedAt 后普通
 		// Delete 会变成软删，回滚语义要求物理删除（Unscoped），否则页面恢复时

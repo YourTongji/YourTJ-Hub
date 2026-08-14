@@ -28,6 +28,9 @@ var (
 	ErrContentEmpty = errors.New("wiki: content empty")
 	// ErrUserNotFound 贡献者设置引用了不存在的用户（避免幽灵贡献者行）。
 	ErrUserNotFound = errors.New("wiki: user not found")
+	// ErrBaseRevisionRequired 编辑未携带 baseRevisionNo（契约 required,min=1；
+	// 0 = 客户端绕过 CAS 基线校验，静默覆盖他人已发布版本，必须拒绝）。
+	ErrBaseRevisionRequired = errors.New("wiki: base revision required")
 )
 
 var (

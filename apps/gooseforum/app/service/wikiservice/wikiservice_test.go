@@ -3,6 +3,7 @@ package wikiservice
 import (
 	"fmt"
 	"strings"
+	"sync"
 	"testing"
 	"time"
 
@@ -172,7 +173,7 @@ func TestCreateEditApproveFlow(t *testing.T) {
 	}
 
 	// 编辑 → 写即发布（approved revision#2，公开立即可见）。
-	edited, err := Edit(EditParams{PageID: page.Id, Title: "快速开始 v2", Content: "# 新标题\n\n新内容", UserId: editor})
+	edited, err := Edit(EditParams{PageID: page.Id, Title: "快速开始 v2", Content: "# 新标题\n\n新内容", UserId: editor, BaseRevisionNo: 1})
 	if err != nil {
 		t.Fatalf("edit wiki page: %v", err)
 	}
@@ -226,10 +227,10 @@ func TestEditAppendsApprovedRevisions(t *testing.T) {
 	}
 	page := wikiPages.Get(created.PageId)
 
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "v1", Content: "c1", UserId: editor}); err != nil {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v1", Content: "c1", UserId: editor, BaseRevisionNo: 1}); err != nil {
 		t.Fatalf("edit1: %v", err)
 	}
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: editor}); err != nil {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: editor, BaseRevisionNo: 2}); err != nil {
 		t.Fatalf("edit2: %v", err)
 	}
 
@@ -268,7 +269,7 @@ func TestRollbackRestoresVersion(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	page := wikiPages.Get(created.PageId)
-	edited, err := Edit(EditParams{PageID: page.Id, Title: "被回滚版", Content: "新内容", UserId: reviewer})
+	edited, err := Edit(EditParams{PageID: page.Id, Title: "被回滚版", Content: "新内容", UserId: reviewer, BaseRevisionNo: 1})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -672,7 +673,7 @@ func TestListRevisionsApprovedOnly(t *testing.T) {
 	page := wikiPages.Get(created.PageId)
 
 	// 编辑即发布（approved#2），再直接插入一条 rejected 修订。
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "待审", Content: "PENDING-SECRET", UserId: editor}); err != nil {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "待审", Content: "PENDING-SECRET", UserId: editor, BaseRevisionNo: 1}); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 	if err := wikiPageRevisions.Create(&wikiPageRevisions.Entity{
@@ -749,7 +750,7 @@ func TestReviewApproveSyncsTopicMeta(t *testing.T) {
 		t.Fatalf("create should set excerpt=%q first_image=%q", topic.Excerpt, topic.FirstImageURL)
 	}
 
-	edited, err := Edit(EditParams{PageID: page.Id, Title: "Meta v2", Content: "![图](/uploads/b.png)\n\n新摘要文本", UserId: reviewer})
+	edited, err := Edit(EditParams{PageID: page.Id, Title: "Meta v2", Content: "![图](/uploads/b.png)\n\n新摘要文本", UserId: reviewer, BaseRevisionNo: 1})
 	if err != nil {
 		t.Fatalf("edit: %v", err)
 	}
@@ -786,11 +787,11 @@ func TestEditRejectsEmptyContentAndLongTitle(t *testing.T) {
 	}
 	page := wikiPages.Get(created.PageId)
 
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "G", Content: "   ", UserId: editor}); err != ErrContentEmpty {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "G", Content: "   ", UserId: editor, BaseRevisionNo: 1}); err != ErrContentEmpty {
 		t.Fatalf("blank content err=%v, want ErrContentEmpty", err)
 	}
 	long := strings.Repeat("长", 513)
-	if _, err := Edit(EditParams{PageID: page.Id, Title: long, Content: "内容", UserId: editor}); err != ErrTitleTooLong {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: long, Content: "内容", UserId: editor, BaseRevisionNo: 1}); err != ErrTitleTooLong {
 		t.Fatalf("long title err=%v, want ErrTitleTooLong", err)
 	}
 	// 空内容/长标题被拒后页面保持原状。
@@ -833,7 +834,7 @@ func TestRollbackConcurrentEditSerialized(t *testing.T) {
 		t.Fatalf("create: %v", err)
 	}
 	page := wikiPages.Get(created.PageId)
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: reviewer}); err != nil {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: reviewer, BaseRevisionNo: 1}); err != nil {
 		t.Fatalf("edit: %v", err)
 	}
 	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: reviewer}); err != nil {
@@ -844,7 +845,7 @@ func TestRollbackConcurrentEditSerialized(t *testing.T) {
 		t.Fatalf("published_revision_no after rollback=%d, want 1", page.PublishedRevisionNo)
 	}
 	// 回滚后继续编辑：nextNo = 指针+1 = 2（无空洞、无同号冲突）。
-	if _, err := Edit(EditParams{PageID: page.Id, Title: "v3", Content: "c3", UserId: reviewer}); err != nil {
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v3", Content: "c3", UserId: reviewer, BaseRevisionNo: 1}); err != nil {
 		t.Fatalf("edit after rollback: %v", err)
 	}
 	revs := wikiPageRevisions.ListByPage(page.Id)
@@ -923,5 +924,145 @@ func TestPublicTreeFiltersDeletedTopic(t *testing.T) {
 				t.Fatal("deleted topic page should be filtered from public tree")
 			}
 		}
+	}
+}
+
+// TestDoubleRollbackRaceRegression 双管理员回滚竞争回归（review Medium）：
+// 第一次回滚成功后，第二次回滚的目标版本若已被硬删（或超过当前指针），
+// 必须在锁内重校验中拒绝（ErrRevisionNotFound），不得把 published_revision_no
+// 指向已删除修订、产生版本历史空洞。
+func TestDoubleRollbackRaceRegression(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{manager}, manager); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/race", Title: "v1", Content: "c1", UserId: manager})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: manager, BaseRevisionNo: 1}); err != nil {
+		t.Fatalf("edit2: %v", err)
+	}
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v3", Content: "c3", UserId: manager, BaseRevisionNo: 2}); err != nil {
+		t.Fatalf("edit3: %v", err)
+	}
+	// A→1 成功：硬删 rev 2..3，指针回到 1。
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: manager}); err != nil {
+		t.Fatalf("rollback A→1: %v", err)
+	}
+	// B→3 应被锁内重校验拒绝（目标 3 > 当前指针 1）。
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 3, UserId: manager}); err != ErrRevisionNotFound {
+		t.Fatalf("rollback B→3 err=%v, want ErrRevisionNotFound", err)
+	}
+	page = wikiPages.Get(page.Id)
+	if page.PublishedRevisionNo != 1 {
+		t.Fatalf("published_revision_no=%d, want 1", page.PublishedRevisionNo)
+	}
+	revs := wikiPageRevisions.ListByPage(page.Id)
+	if len(revs) != 1 || revs[0].RevisionNo != 1 {
+		t.Fatalf("revisions after double rollback: count=%d first=%d, want 1/1", len(revs), revs[0].RevisionNo)
+	}
+	// 回滚后编辑基线 = 指针 1：无空洞续写 rev 2。
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v4", Content: "c4", UserId: manager, BaseRevisionNo: 1}); err != nil {
+		t.Fatalf("edit after double rollback: %v", err)
+	}
+	revs = wikiPageRevisions.ListByPage(page.Id)
+	if len(revs) != 2 || revs[0].RevisionNo != 2 {
+		t.Fatalf("revisions after edit: count=%d first=%d, want 2/2", len(revs), revs[0].RevisionNo)
+	}
+}
+
+// TestEditRequiresBaseRevisionNo baseRevisionNo 必填（review Medium）：省略
+// （=0）直接拒绝 ErrBaseRevisionRequired，不允许客户端绕过 CAS 基线校验。
+func TestEditRequiresBaseRevisionNo(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/cas", Title: "v1", Content: "c1", UserId: editor})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "no-baseline", Content: "x", UserId: editor, BaseRevisionNo: 0}); err != ErrBaseRevisionRequired {
+		t.Fatalf("edit without baseRevisionNo err=%v, want ErrBaseRevisionRequired", err)
+	}
+	// 带过期基线 → ErrConflict（CAS 生效）。
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "stale", Content: "x", UserId: editor, BaseRevisionNo: 99}); err != ErrConflict {
+		t.Fatalf("edit with stale baseRevisionNo err=%v, want ErrConflict", err)
+	}
+	// 页面未被上述拒绝写入。
+	if got := wikiPages.Get(page.Id).PublishedRevisionNo; got != 1 {
+		t.Fatalf("published_revision_no=%d, want 1", got)
+	}
+}
+
+// TestRollbackEditConcurrent 真并发交错（review Low）：两个 goroutine 同时
+// Edit 与 Rollback（均基于各自入口读取），行锁串行化后必须保持不变量——
+// 指针单调、无同号修订、无空洞、指针不指向已删修订。
+// SQLite 单连接测试库下并发请求在连接层串行执行，仍覆盖两种交错顺序的
+// 最终不变量（与生产 PG 行锁语义一致）。
+func TestRollbackEditConcurrent(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{manager}, manager); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/conc", Title: "v1", Content: "c1", UserId: manager})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	pageID := page.Id
+	start := make(chan struct{})
+	var wg sync.WaitGroup
+	wg.Add(2)
+	go func() {
+		defer wg.Done()
+		<-start
+		_, _ = Edit(EditParams{PageID: pageID, Title: "edit", Content: "e", UserId: manager, BaseRevisionNo: 1})
+	}()
+	go func() {
+		defer wg.Done()
+		<-start
+		_ = Rollback(RollbackParams{PageID: pageID, ToRevisionNo: 1, UserId: manager})
+	}()
+	close(start)
+	wg.Wait()
+	// 不变量：指针 ≥1 且指向现存修订；修订号集合连续无空洞、无同号。
+	p := wikiPages.Get(pageID)
+	if p.PublishedRevisionNo < 1 {
+		t.Fatalf("published_revision_no=%d < 1", p.PublishedRevisionNo)
+	}
+	if rev := wikiPageRevisions.GetByPageAndRevisionNo(pageID, p.PublishedRevisionNo); rev.Id == 0 {
+		t.Fatalf("published revision %d missing (pointer to deleted revision)", p.PublishedRevisionNo)
+	}
+	revs := wikiPageRevisions.ListByPage(pageID)
+	seen := make(map[int]bool, len(revs))
+	prev := 0
+	for _, r := range revs {
+		if seen[r.RevisionNo] {
+			t.Fatalf("duplicate revision_no=%d", r.RevisionNo)
+		}
+		seen[r.RevisionNo] = true
+		if prev != 0 && r.RevisionNo != prev-1 {
+			t.Fatalf("revision hole: %d followed by %d", prev, r.RevisionNo)
+		}
+		prev = r.RevisionNo
+	}
+	if len(revs) > 0 && prev != 1 {
+		t.Fatalf("revision sequence does not start at 1: first=%d", prev)
 	}
 }

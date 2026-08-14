@@ -2365,11 +2365,13 @@ export interface components {
             content: string;
             /**
              * @description The published revision number the editor based this edit on (optimistic lock).
-             *     When present and no longer equal to the page's current published revision, the
-             *     request fails with `wiki.revision.conflict` (409 semantics) and the client must
-             *     reload the latest revision and re-edit.
+             *     REQUIRED: the API rejects edits without it (model-1 edit lock; a missing value
+             *     would let a stale client silently overwrite newer published content). When it no
+             *     longer equals the page's current published revision, the request fails with
+             *     `wiki.revision.conflict` (409 semantics) and the client must reload the latest
+             *     revision and re-edit.
              */
-            baseRevisionNo?: number;
+            baseRevisionNo: number;
         };
         WikiUpdatePageResult: {
             /** Format: uint64 */

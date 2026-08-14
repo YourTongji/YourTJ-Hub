@@ -383,20 +383,20 @@ class WikiUpdatePageRequest {
   const WikiUpdatePageRequest({
     required this.title,
     required this.content,
-    this.baseRevisionNo,
+    required this.baseRevisionNo,
   });
 
   final String title;
   final String content;
 
-  /// 编辑基线版本号（乐观锁）：与页面当前发布版本不一致时后端返回 409 冲突。
-  final int? baseRevisionNo;
+  /// 编辑基线版本号（乐观锁）：必填；与页面当前发布版本不一致时后端返回 409 冲突。
+  final int baseRevisionNo;
 
   Map<String, dynamic> toJson() {
     return {
       'title': title,
       'content': content,
-      if (baseRevisionNo != null) 'baseRevisionNo': baseRevisionNo,
+      'baseRevisionNo': baseRevisionNo,
     };
   }
 }

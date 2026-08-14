@@ -557,6 +557,13 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	// wiki 分站首楼由 wiki_page_revisions 版本流独占（review High：此前
+	// UpdatePost 可直改 wiki 首楼，绕过版本流 + 写时敏感词拦截，导致 posts
+	// 行与 published_revision_no 指向的修订脱同步，下次 wiki Edit 静默覆盖）。
+	// 回复流（post_no>1）不受影响。
+	if topicEntity.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 
 	content := strings.TrimSpace(req.Params.Content)
 	if len(content) < postingConfig.TextControl.MinPostLength {

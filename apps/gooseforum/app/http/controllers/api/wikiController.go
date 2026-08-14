@@ -111,6 +111,10 @@ func WikiEditPage(req component.BetterRequest[WikiEditPageReq]) component.Respon
 			// 契约：非法路径/超长标题 → common.request.invalidParams。
 			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
 		}
+		if errors.Is(err, wikiservice.ErrBaseRevisionRequired) {
+			// 契约：baseRevisionNo 必填（required,min=1），缺省直接拒绝。
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		if errors.Is(err, wikiservice.ErrConflict) {
 			// 版本 CAS 冲突：页面已被他人更新，需基于最新版本重编（409）。
 			return component.FailResponseCode(component.MessageWikiRevisionConflict, nil)
@@ -196,7 +200,7 @@ type WikiUpdateNamespaceReq struct {
 
 // WikiUpdateNamespace 更新 namespace 描述（PageManager/Admin）。
 func WikiUpdateNamespace(req component.BetterRequest[WikiUpdateNamespaceReq]) component.Response {
-	entity := wikiNamespaces.GetByName(req.Params.Name)
+	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
 	if entity.Id == 0 {
 		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
 	}
@@ -215,7 +219,7 @@ type WikiDeleteNamespaceReq struct {
 
 // WikiDeleteNamespace 删除 namespace（PageManager/Admin；存在页面时 409）。
 func WikiDeleteNamespace(req component.BetterRequest[WikiDeleteNamespaceReq]) component.Response {
-	entity := wikiNamespaces.GetByName(req.Params.Name)
+	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
 	if entity.Id == 0 {
 		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
 	}
@@ -236,7 +240,7 @@ type WikiNamespaceEditorsReq struct {
 
 // WikiNamespaceEditors 返回某 namespace 贡献者列表（PageManager/Admin）。
 func WikiNamespaceEditors(req component.BetterRequest[WikiNamespaceEditorsReq]) component.Response {
-	entity := wikiNamespaces.GetByName(req.Params.Name)
+	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
 	if entity.Id == 0 {
 		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
 	}
@@ -266,7 +270,7 @@ type WikiSetEditorsReq struct {
 
 // WikiSetEditors 整表设置某 namespace 贡献者（PageManager/Admin）。
 func WikiSetEditors(req component.BetterRequest[WikiSetEditorsReq]) component.Response {
-	entity := wikiNamespaces.GetByName(req.Params.Name)
+	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
 	if entity.Id == 0 {
 		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
 	}

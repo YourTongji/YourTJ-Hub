@@ -108,7 +108,8 @@ func filterPublicPages(pages []*wikiPages.Entity) []*wikiPages.Entity {
 		if !ok {
 			continue
 		}
-		if t.Status != 1 || t.VisibilityStatus != topics.VisibilityActive {
+		if t.Status != 1 || t.VisibilityStatus != topics.VisibilityActive ||
+			t.ProcessStatus != topics.ProcessStatusNormal {
 			continue
 		}
 		filtered = append(filtered, p)
