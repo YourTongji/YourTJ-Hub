@@ -78,13 +78,19 @@ function hashColor(input: string): number {
   return h
 }
 
+// 课程块色阶槽位数（issue #226）：课程按稳定 hash 映射槽位，桌面/移动端同课同色。
+const COURSE_COLOR_SLOTS = 6
+
 function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
   const seed = hashColor(course.code || course.courseName || course.showText || 'course')
-  const hue = seed % 360
-  if (isMobile.value) {
-    return { background: `linear-gradient(135deg, hsl(${hue}, 82%, 52%), hsl(${(hue + 24) % 360}, 82%, 42%))` }
+  const slot = (seed % COURSE_COLOR_SLOTS) + 1
+  const bgVar = `--gf-color-course-${slot}`
+  const contentVar = `--gf-color-course-${slot}-content`
+  return {
+    background: `linear-gradient(135deg, var(${bgVar}), color-mix(in oklab, var(${bgVar}) 80%, black))`,
+    color: `var(${contentVar})`,
+    borderColor: `color-mix(in srgb, var(${contentVar}) 55%, transparent)`,
   }
-  return { background: 'linear-gradient(135deg, #5d57e8, #4b3fd9)' }
 }
 
 function compactName(name: string): string {
@@ -271,7 +277,7 @@ onBeforeUnmount(() => {
         class="relative border-b border-line/70 bg-base-200/45 px-3 py-2"
       >
         <span
-          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-base-100"
+          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-warning-content"
           :title="t('schedule.creditNote')"
         >
           !
@@ -326,8 +332,8 @@ onBeforeUnmount(() => {
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight text-white md:px-2 md:py-2 md:text-[11px]"
-                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed border-white/60' : '']"
+                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight md:px-2 md:py-2 md:text-[11px]"
+                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '']"
                     :style="courseCardStyle(course)"
                     @touchstart.stop="onPressStart(course, $event)"
                     @touchmove.stop="onPressMove($event)"
