@@ -94,9 +94,10 @@ function collectFiles(dir) {
 const staticRefs = new Map() // key -> [files]
 for (const file of collectFiles(join(root, 'src'))) {
   const text = readFileSync(file, 'utf8')
-  // t('a.b.c') / t('a.b.c', {named}) / t("a.b.c", ...)：不要求紧跟右括号，
-  // 覆盖带命名参数调用（issue #235 review P1：带参静态键漏检会放行键名泄漏）
-  for (const m of text.matchAll(/\bt\(['"]([A-Za-z0-9_.-]+)['"]/g)) {
+  // t('a.b.c') / t('a.b.c', {named}) / exportT('a.b.c', {named})：不要求紧跟右括号，
+  // 覆盖带命名参数调用与受控包装（issue #235 review P1：pkExport 的 exportT 包装
+  // 漏检会放行导出表头/周数键名泄漏）
+  for (const m of text.matchAll(/\b(?:t|exportT)\(['"]([A-Za-z0-9_.-]+)['"]/g)) {
     const key = m[1]
     if (!staticRefs.has(key)) staticRefs.set(key, [])
     staticRefs.get(key).push(file)
