@@ -1,4 +1,4 @@
-name: deploy-main
+name: Deploy / main
 
 on:
   # 生产部署唯一入口: release-to-main 显式触发, 不监听 push
