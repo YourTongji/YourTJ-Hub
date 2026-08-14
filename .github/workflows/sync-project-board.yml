@@ -1,4 +1,4 @@
-name: sync-project-board
+name: Tool / sync-project-board
 
 # 把 issue / PR 自动同步到 GitHub Projects v2 看板（RPD 状态机）。
 # 配置依赖见 docs/development/project-board.md：

@@ -1,4 +1,4 @@
-name: mobile-golden-refresh
+name: Tool / mobile-golden-refresh
 
 on:
   workflow_dispatch:

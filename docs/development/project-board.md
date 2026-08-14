@@ -54,7 +54,7 @@ sync-project-board.yml  ──►  sync-project-board.sh（幂等）
 3. **配置 variables**：
    - `YOURTJ_PROJECT_NUMBER` = 看板项目号（看板 URL 末尾数字，例如 `https://github.com/orgs/YourTongji/projects/5` 的项目号是 `5`）。**必填**。
    - `YOURTJ_PROJECT_OWNER` = 看板属主（不填默认 `YourTongji`）。
-4. 触发一次测试：新建一个测试 issue 或在仓库 Actions 页手动运行 `sync-project-board`（`workflow_dispatch`），确认看板出现该条目。
+4. 触发一次测试：新建一个测试 issue 或在仓库 Actions 页手动运行 `Tool / sync-project-board`（`workflow_dispatch`），确认看板出现该条目。
 
 配置完成前，本 workflow 会因未检测到 token 自动跳过，不会报错刷屏。
 
@@ -73,7 +73,7 @@ sync-project-board.yml  ──►  sync-project-board.sh（幂等）
 
 ## 5. 手动同步
 
-仓库 Actions 页 → `sync-project-board` → *Run workflow*：
+仓库 Actions 页 → `Tool / sync-project-board` → *Run workflow*：
 
 - `item_kind`：`issue` 或 `pr`
 - `item_number`：要同步的 issue/PR 编号
