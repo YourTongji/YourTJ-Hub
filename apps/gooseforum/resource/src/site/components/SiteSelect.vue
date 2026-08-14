@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed, onBeforeUnmount, onMounted, ref } from 'vue'
+import { computed, onBeforeUnmount, onMounted, ref, useId } from 'vue'
 import { Check, ChevronDown } from '@lucide/vue'
 
 type SelectOption = {
@@ -11,12 +11,16 @@ const props = defineProps<{
   modelValue: string
   options: SelectOption[]
   placeholder?: string
+  /** 字段名（如 t('schedule.major')）：作为 combobox 的可访问名称，
+   *  避免 aria-label 覆盖外层 label 的字段语义（issue #227）。 */
+  label?: string
 }>()
 
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
 
+const listboxId = useId()
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
 
@@ -62,8 +66,8 @@ onBeforeUnmount(() => {
       class="gf-input flex w-full items-center justify-between gap-2 text-left"
       aria-haspopup="listbox"
       :aria-expanded="open"
-      aria-controls="site-select-listbox"
-      :aria-label="triggerLabel"
+      :aria-controls="listboxId"
+      :aria-label="props.label || triggerLabel"
       @click="open = !open"
       @keydown="handleTriggerKeydown"
     >
@@ -76,7 +80,7 @@ onBeforeUnmount(() => {
     <Transition name="gf-menu">
       <div
         v-if="open"
-        id="site-select-listbox"
+        :id="listboxId"
         role="listbox"
         class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1"
       >

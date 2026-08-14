@@ -425,6 +425,8 @@ export default {
     emptyRequired: 'No required courses available',
     emptyOptional: 'No elective courses available',
     emptySearch: 'No matching courses found',
+    emptyDetailGuide: 'Select a course on the left to view its classes',
+    emptyDetailNoClass: 'This course has no classes yet',
     emptyStaged: 'Staged list is empty — click Pick Courses to add',
     exportEmpty: 'Timetable is empty — add courses before exporting',
     conflictWithMany: 'Conflicts with {course} and {count} other courses',
@@ -1743,6 +1745,7 @@ export default {
       targetTypes: {
         topic: 'Topic',
         post: 'Post',
+        course_review: 'Course review',
       },
       reasons: {
         spam: 'Spam',

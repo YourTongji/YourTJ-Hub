@@ -425,6 +425,8 @@ export default {
     emptyRequired: '予定内の授業はありません',
     emptyOptional: '一般教養の授業はありません',
     emptySearch: '該当する授業が見つかりません',
+    emptyDetailGuide: '左の授業をクリックしてクラスを表示',
+    emptyDetailNoClass: 'この授業にはクラスがありません',
     emptyStaged: '候補リストが空です——「授業を選ぶ」から追加してください',
     exportEmpty: '時間割が空です——先に授業を追加してください',
     conflictWithMany: '「{course}」など {count} 件の授業と重複しています',
@@ -1743,6 +1745,7 @@ export default {
       targetTypes: {
         topic: 'トピック',
         post: '投稿',
+        course_review: 'コースレビュー',
       },
       reasons: {
         spam: 'スパム',

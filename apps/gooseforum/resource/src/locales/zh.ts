@@ -425,6 +425,8 @@ export default {
     emptyRequired: '暂无计划内课程',
     emptyOptional: '暂无通识选修课',
     emptySearch: '未找到匹配的课程',
+    emptyDetailGuide: '点击左侧课程查看教学班',
+    emptyDetailNoClass: '该课程暂无班级',
     emptyStaged: '备选池为空，点击「选择课程」添加',
     exportEmpty: '课表为空，请先加入课程再导出',
     conflictWithMany: '与「{course}」等 {count} 门课程冲突',
@@ -1743,6 +1745,7 @@ export default {
       targetTypes: {
         topic: '话题',
         post: '帖子',
+        course_review: '课程评价',
       },
       reasons: {
         spam: '垃圾广告',

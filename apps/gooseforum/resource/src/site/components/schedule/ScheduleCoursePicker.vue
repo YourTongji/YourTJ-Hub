@@ -391,11 +391,11 @@ async function submit() {
                 </label>
                 <label class="block">
                   <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
-                  <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" />
+                  <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.campus')" />
                 </label>
                 <label class="block sm:col-span-2">
                   <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
-                  <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" />
+                  <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.faculty')" />
                 </label>
                 <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
                   <Search class="h-4 w-4" />
@@ -403,7 +403,6 @@ async function submit() {
                 </button>
               </form>
 
-              <EmptyState v-else-if="!searchLoading" :icon="Search" :title="t('schedule.emptySearch')" />
               <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
                 <li v-for="course in searchResults" :key="course.courseCode">
                   <label
@@ -429,6 +428,7 @@ async function submit() {
                 </li>
               </ul>
               <EmptyState v-else-if="searchLoading" :icon="Search" :title="t('schedule.loading')" loading />
+              <EmptyState v-else :icon="Search" :title="t('schedule.emptySearch')" />
             </div>
           </div>
 

@@ -425,6 +425,8 @@ export default {
     emptyRequired: 'Nessun corso obbligatorio disponibile',
     emptyOptional: 'Nessun corso opzionale disponibile',
     emptySearch: 'Nessun corso trovato',
+    emptyDetailGuide: 'Seleziona un corso a sinistra per vedere le classi',
+    emptyDetailNoClass: 'Questo corso non ha ancora classi',
     emptyStaged: 'Elenco vuoto — clicca su Scegli corsi per aggiungere',
     exportEmpty: 'Orario vuoto — aggiungi corsi prima di esportare',
     conflictWithMany: 'In conflitto con {course} e altri {count} corsi',
@@ -1743,6 +1745,7 @@ export default {
       targetTypes: {
         topic: 'Topic',
         post: 'Post',
+        course_review: 'Recensione corso',
       },
       reasons: {
         spam: 'Spam',

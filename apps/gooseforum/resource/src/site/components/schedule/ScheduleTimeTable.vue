@@ -322,12 +322,12 @@ onBeforeUnmount(() => {
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
                 :rowspan="maxSpans[index][dayIndex]"
-                tabindex="0"
-                role="button"
-                :aria-label="t('schedule.emptyCell')"
+                :tabindex="courses.length > 0 ? undefined : 0"
+                :role="courses.length > 0 ? undefined : 'button'"
+                :aria-label="courses.length > 0 ? undefined : t('schedule.emptyCell')"
                 @click="handleCellClick(dayIndex, index)"
-                @keydown.enter.prevent="handleCellClick(dayIndex, index)"
-                @keydown.space.prevent="handleCellClick(dayIndex, index)"
+                @keydown.enter.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
+                @keydown.space.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
               >
                 <div
                   v-if="courses.length > 0"

@@ -1389,7 +1389,7 @@ async function submitPost() {
     }
   } catch (error) {
     if (challengeFromError(error)) {
-      errorMessage.value = t('auth.captcha.invalid')
+      errorMessage.value = t('server.auth.captcha.invalid')
     } else {
       errorMessage.value = error instanceof Error ? error.message : t('api.replyFailed')
     }

@@ -60,7 +60,7 @@ function tryStage(detail: PkCourseDetail) {
       v-if="!currentCourse"
       class="gf-panel"
       :icon="BookOpen"
-      :title="t('schedule.empty')"
+      :title="t('schedule.emptyDetailGuide')"
       :description="t('schedule.majorHint')"
     />
 
@@ -99,7 +99,7 @@ function tryStage(detail: PkCourseDetail) {
           </button>
         </li>
       </ul>
-      <p v-else class="px-3 py-3 text-[12px] text-base-content/50">{{ t('schedule.empty') }}</p>
+      <p v-else class="px-3 py-3 text-[12px] text-base-content/50">{{ t('schedule.emptyDetailNoClass') }}</p>
     </div>
   </div>
 </template>

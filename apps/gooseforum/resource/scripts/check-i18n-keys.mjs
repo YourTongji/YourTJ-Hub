@@ -59,4 +59,45 @@ if (failed) {
   console.error('[i18n] FAIL: locale key sets diverge')
   process.exit(1)
 }
-console.log(`[i18n] OK: ${all.size} keys × ${locales.length} locales consistent`)
+
+// ---- 第二道：代码静态 t() 引用 vs locale 键差集校验 ----
+// 扫描 src/**/*.{vue,ts} 中 t('a.b.c') / t("a.b.c") 静态键，
+// 防"引用未注册键 → 生产渲染字面键名"回归（issue #225 同类问题）。
+import { readdirSync, statSync } from 'node:fs'
+
+function collectFiles(dir) {
+  const out = []
+  for (const name of readdirSync(dir)) {
+    if (name === 'node_modules' || name === 'locales') continue
+    const p = join(dir, name)
+    const st = statSync(p)
+    if (st.isDirectory()) out.push(...collectFiles(p))
+    else if (/\.(vue|ts)$/.test(name)) out.push(p)
+  }
+  return out
+}
+
+const staticRefs = new Map() // key -> [files]
+for (const file of collectFiles(join(root, 'src'))) {
+  const text = readFileSync(file, 'utf8')
+  // t('a.b.c') / t("a.b.c")；排除 t(`...`) 模板串与 t('...', 带选项的已注册键（含命名参数）
+  for (const m of text.matchAll(/\bt\(['"]([A-Za-z0-9_.-]+)['"]\)/g)) {
+    const key = m[1]
+    if (!staticRefs.has(key)) staticRefs.set(key, [])
+    staticRefs.get(key).push(file)
+  }
+}
+
+let refFailed = false
+for (const [key, files] of staticRefs) {
+  if (!all.has(key)) {
+    refFailed = true
+    console.error(`[i18n] t() references unregistered key: ${key}`)
+    console.error(`    used at: ${files.slice(0, 4).join(', ')}`)
+  }
+}
+if (refFailed) {
+  console.error('[i18n] FAIL: unregistered t() keys found')
+  process.exit(1)
+}
+console.log(`[i18n] OK: ${all.size} keys × ${locales.length} locales consistent; ${staticRefs.size} static t() refs all registered`)
