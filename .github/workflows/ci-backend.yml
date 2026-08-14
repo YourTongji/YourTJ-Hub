@@ -87,7 +87,7 @@ jobs:
         if: steps.filter.outputs.deploy_scripts == 'true'
         run: |
           # bash -n 只语法检查第一个文件参数, 多文件写法会静默跳过其余文件, 必须逐个检查
-          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh; do
+          for f in deploy/scripts/pgdsn.sh deploy/scripts/pgdsn_test.sh deploy/scripts/backup-db.sh deploy/scripts/sync-db-from-main.sh deploy/scripts/init-server.sh deploy/scripts/deploy.sh; do
             bash -n "$f"
           done
           bash deploy/scripts/pgdsn_test.sh

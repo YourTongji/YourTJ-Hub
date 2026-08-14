@@ -27,26 +27,40 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-binary
 
-  deploy:
-    needs: [build]
+  build-image:
+    needs: build
     runs-on: ubuntu-latest
-    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: yourtj-hub
           path: ./bin
-      - name: Upload binary to dev host
-        uses: appleboy/scp-action@v0.1.7
+      - name: Stage binary into build context
+        run: cp bin/yourtj-hub deploy/yourtj-hub
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "bin/yourtj-hub"
-          target: "/tmp"
-          strip_components: 1
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      - name: Build and push image
+        uses: docker/build-push-action@v6
+        with:
+          context: deploy/
+          file: deploy/Dockerfile
+          push: true
+          tags: ghcr.io/yourtongji/yourtj-hub:dev-${{ github.sha }}
+
+  deploy:
+    needs: [build, build-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
       - name: Upload deploy scripts to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -57,7 +71,7 @@ jobs:
           source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh"
           target: "/tmp"
           strip_components: 2
-      - name: Deploy to dev (sync db from main + build image + restart + smoke)
+      - name: Deploy to dev (sync db from main + pull image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
@@ -74,6 +88,6 @@ jobs:
             install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
-            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
+            # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
             #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
-            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235
+            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235

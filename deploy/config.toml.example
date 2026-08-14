@@ -15,6 +15,9 @@ url = "REPLACE_SERVER_URL"
 port = 5234
 accessLog = false
 gzip = true
+# 信任的反向代理网段: nginx 容器在 compose 网络(默认 172.16.0.0/12)内访问本服务,
+# 必须信任该网段才能正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
+trusted_proxies = ["172.16.0.0/12"]
 
 [jwtopt]
 validTime = 604800
@@ -47,8 +50,8 @@ maxLifeSeconds = 300
 
 
 [meilisearch]
-url = "http://localhost:7700"
-masterkey = ""
+url = "http://meilisearch:7700"
+masterkey = "REPLACE_MEILI_KEY"
 
 [log]
 type = "file"
