@@ -131,6 +131,7 @@ onBeforeUnmount(() => {
 function handleTopicState(nextLikeCount: number) {
   likeCount.value = nextLikeCount
 }
+
 </script>
 
 <template>

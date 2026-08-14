@@ -4,8 +4,10 @@ import (
 	"errors"
 	"time"
 
+	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"gorm.io/gorm"
 )
 
@@ -266,76 +268,107 @@ func Restore(id uint64) error {
 }
 
 // MarkPurged 标记回复为已永久删除（不再可恢复，仅审计可查）。
-// 同时清空正文，避免"永久删除"后原文仍长期留库（PRD R4/R12）。
+// 同时清空正文与版本历史正文，且二者在同一事务内完成：
+// 任一步失败整体回滚并返回错误，杜绝"帖子行已清空、版本快照仍留原文"
+// 的部分成功状态（版本快照不得绕过删除留存原文）。
 func MarkPurged(id uint64) error {
-	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Updates(map[string]any{
-			"deleted_at":       time.Now(),
-			"retention_status": RetentionPurged,
-			"content":          "",
-			"rendered_html":    "",
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Updates(map[string]any{
+				"deleted_at":       time.Now(),
+				"retention_status": RetentionPurged,
+				"content":          "",
+				"rendered_html":    "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return postRevisions.BlankContentByPostIdTx(tx, id)
+	})
 }
 
 // MarkPurgedOwned permits the topic owner purge path to erase an ACTIVE reply
 // while still requiring ownership and a lifecycle state that has not already
-// been purged.
+// been purged. Post row update and revision blanking share one transaction.
 func MarkPurgedOwned(id uint64, ownerID uint64) error {
-	result := builder().Unscoped().Where(queryopt.Eq("id", id)).
-		Where(queryopt.Eq("user_id", ownerID)).
-		Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Where(queryopt.Ne("retention_status", RetentionPurged)).
-		Updates(map[string]any{
-			"deleted_at":       time.Now(),
-			"retention_status": RetentionPurged,
-			"content":          "",
-			"rendered_html":    "",
-		})
-	if result.Error != nil {
-		return result.Error
-	}
-	if result.RowsAffected == 0 {
-		return gorm.ErrRecordNotFound
-	}
-	return nil
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		result := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).
+			Where(queryopt.Eq("user_id", ownerID)).
+			Where(queryopt.In("visibility_status", []string{VisibilityActive, VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Where(queryopt.Ne("retention_status", RetentionPurged)).
+			Updates(map[string]any{
+				"deleted_at":       time.Now(),
+				"retention_status": RetentionPurged,
+				"content":          "",
+				"rendered_html":    "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return gorm.ErrRecordNotFound
+		}
+		return postRevisions.BlankContentByPostIdTx(tx, id)
+	})
 }
 
 // MarkPrivacyErased immediately hides and blanks a user's reply.
+// Post row update and revision blanking share one transaction.
 func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
-	return builder().Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
-		"deleted_at":        time.Now(),
-		"visibility_status": VisibilityAccountAnonymized,
-		"retention_status":  RetentionPurged,
-		"deleted_by":        erasedBy,
-		"delete_reason":     reason,
-		"content":           "",
-		"rendered_html":     "",
-	}).Error
+	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Updates(map[string]any{
+			"deleted_at":        time.Now(),
+			"visibility_status": VisibilityAccountAnonymized,
+			"retention_status":  RetentionPurged,
+			"deleted_by":        erasedBy,
+			"delete_reason":     reason,
+			"content":           "",
+			"rendered_html":     "",
+		}).Error; err != nil {
+			return err
+		}
+		return postRevisions.BlankContentByPostIdTx(tx, id)
+	})
 }
 
 // MarkPurgedByTopicID 将某话题下已删除的回复置为已永久删除（话题永久删除级联）。
 // 只处理已进入删除生命周期的回复（非 ACTIVE），其他用户仍 ACTIVE 的回复
 // 属于他人内容，不得被话题作者/自动过期的级联永久删除（PRD Out of Scope）。
-func MarkPurgedByTopicID(topicID uint64) int64 {
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicID)).
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-		Updates(map[string]any{
-			"deleted_at":       time.Now(),
-			"retention_status": RetentionPurged,
-			"content":          "",
-			"rendered_html":    "",
-		}).RowsAffected
+// 帖子行更新与版本清空在同一事务内，任一步失败整体回滚并返回错误。
+func MarkPurgedByTopicID(topicID uint64) (int64, error) {
+	var rows int64
+	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		var targets []uint64
+		if err := tx.Table(tableName).Unscoped().
+			Where(queryopt.Eq("topic_id", topicID)).
+			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+			Select("id").
+			Scan(&targets).Error; err != nil {
+			return err
+		}
+		result := tx.Table(tableName).Unscoped().
+			Where(queryopt.Eq("topic_id", topicID)).
+			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
+			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
+			Updates(map[string]any{
+				"deleted_at":       time.Now(),
+				"retention_status": RetentionPurged,
+				"content":          "",
+				"rendered_html":    "",
+			})
+		if result.Error != nil {
+			return result.Error
+		}
+		rows = result.RowsAffected
+		return postRevisions.BlankContentByPostIdsTx(tx, targets)
+	})
+	return rows, err
 }
 
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。

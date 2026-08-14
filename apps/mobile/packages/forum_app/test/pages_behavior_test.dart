@@ -655,6 +655,7 @@ PostPayload makePostPayload(int id, int postNo, String content) {
     ),
     createdAt: '2025-01-15T09:${postNo.toString().padLeft(2, '0')}:00+08:00',
     isOwnPost: false,
+    revisionCount: 1,
     likeCount: postNo,
     isLiked: false,
     isBookmarked: false,

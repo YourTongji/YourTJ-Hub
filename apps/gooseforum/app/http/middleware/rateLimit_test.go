@@ -6,10 +6,10 @@ import (
 	"net/http/httptest"
 	"testing"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/gin-gonic/gin"
 )
 
 // withUser 在进入被测中间件前注入 userId（模拟已登录请求）。
@@ -121,8 +121,8 @@ func TestRateLimitLLMSFullReturns429(t *testing.T) {
 	}
 }
 
-func TestRewardAbuseActionsReturn429(t *testing.T) {
-	for _, action := range []string{RateLimitTopicStatus, RateLimitPostDelete} {
+func TestWriteActionsReturn429(t *testing.T) {
+	for _, action := range []string{RateLimitTopicStatus, RateLimitPostDelete, RateLimitPostUpdate} {
 		t.Run(action, func(t *testing.T) {
 			ratelimit.Default().ResetAll()
 			hotdataserve.ClearRateLimitConfigCache()

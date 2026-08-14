@@ -21,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/category"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
@@ -326,26 +327,29 @@ type TopicDetailPayload struct {
 }
 
 type PostPayload struct {
-	ID                 uint64             `json:"id"`
-	TopicID            uint64             `json:"topicId"`
-	PostNo             uint64             `json:"postNo"`
-	Content            string             `json:"content"`
-	RenderedContent    string             `json:"renderedContent"`
-	ProcessStatus      int8               `json:"processStatus"`
-	IsHidden           bool               `json:"isHidden"`
-	IsAuthorDeleted    bool               `json:"isAuthorDeleted"`
-	IsModeratorRemoved bool               `json:"isModeratorRemoved"`
-	CanModerate        bool               `json:"canModerate"`
-	Author             TopicAuthorPayload `json:"author"`
-	CreatedAt          string             `json:"createdAt"`
-	ReplyToPostID      uint64             `json:"replyToPostId,omitempty"`
-	ReplyToUserID      uint64             `json:"replyToUserId,omitempty"`
-	ReplyToUsername    string             `json:"replyToUsername,omitempty"`
-	IsOwnPost          bool               `json:"isOwnPost"`
-	UpdatedAt          string             `json:"updatedAt"`
-	LikeCount          uint64             `json:"likeCount"`
-	IsLiked            bool               `json:"isLiked"`
-	IsBookmarked       bool               `json:"isBookmarked"`
+	ID                 uint64              `json:"id"`
+	TopicID            uint64              `json:"topicId"`
+	PostNo             uint64              `json:"postNo"`
+	Content            string              `json:"content"`
+	RenderedContent    string              `json:"renderedContent"`
+	ProcessStatus      int8                `json:"processStatus"`
+	IsHidden           bool                `json:"isHidden"`
+	IsAuthorDeleted    bool                `json:"isAuthorDeleted"`
+	IsModeratorRemoved bool                `json:"isModeratorRemoved"`
+	CanModerate        bool                `json:"canModerate"`
+	Author             TopicAuthorPayload  `json:"author"`
+	CreatedAt          string              `json:"createdAt"`
+	ReplyToPostID      uint64              `json:"replyToPostId,omitempty"`
+	ReplyToUserID      uint64              `json:"replyToUserId,omitempty"`
+	ReplyToUsername    string              `json:"replyToUsername,omitempty"`
+	IsOwnPost          bool                `json:"isOwnPost"`
+	UpdatedAt          string              `json:"updatedAt"`
+	LastEditor         *TopicAuthorPayload `json:"lastEditor,omitempty"`
+	LastEditedAt       string              `json:"lastEditedAt,omitempty"`
+	RevisionCount      int64               `json:"revisionCount"`
+	LikeCount          uint64              `json:"likeCount"`
+	IsLiked            bool                `json:"isLiked"`
+	IsBookmarked       bool                `json:"isBookmarked"`
 }
 
 type ReplyTargetPayload struct {
@@ -1223,6 +1227,13 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			seenMissingUserIDs[parent.UserId] = struct{}{}
 			missingUserIDs = append(missingUserIDs, parent.UserId)
 		}
+		// 最后编辑者也要进 userMap，供 lastEditor 卡片构建
+		if parent.LastEditorId > 0 {
+			if _, seen := seenMissingUserIDs[parent.LastEditorId]; !seen {
+				seenMissingUserIDs[parent.LastEditorId] = struct{}{}
+				missingUserIDs = append(missingUserIDs, parent.LastEditorId)
+			}
+		}
 	}
 	maps.Copy(userMap, users.GetMapByIds(missingUserIDs))
 	wornBadges := badgeservice.GetWornBadges(selectedWornBadges(userMap))
@@ -1264,6 +1275,15 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			content = ""
 			renderedContent = ""
 		}
+		var lastEditor *TopicAuthorPayload
+		lastEditedAt := ""
+		if item.LastEditorId > 0 {
+			editor := authorPayload(item.LastEditorId)
+			lastEditor = &editor
+			if item.LastEditedAt != nil {
+				lastEditedAt = item.LastEditedAt.Format(time.DateTime)
+			}
+		}
 		res = append(res, PostPayload{
 			ID:                 item.Id,
 			TopicID:            item.TopicId,
@@ -1282,6 +1302,8 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			ReplyToUsername:    replyToName,
 			IsOwnPost:          currentUserID == item.UserId,
 			UpdatedAt:          item.UpdatedAt.Format(time.DateTime),
+			LastEditor:         lastEditor,
+			LastEditedAt:       lastEditedAt,
 		})
 	}
 
@@ -1292,10 +1314,12 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			postIDs = append(postIDs, item.Id)
 		}
 	}
+	revisionCounts := postRevisions.CountByPostIds(postIDs)
 	likeCounts := postUserAction.CountLikesByPostIds(postIDs)
 	userPostStates := postUserAction.GetStateMapByUserAndPostIds(currentUserID, postIDs)
 	for i := range res {
 		res[i].LikeCount = likeCounts[res[i].ID]
+		res[i].RevisionCount = revisionCounts[res[i].ID]
 		if state, ok := userPostStates[res[i].ID]; ok {
 			res[i].IsLiked = state.LikedAt != nil
 			res[i].IsBookmarked = state.BookmarkedAt != nil

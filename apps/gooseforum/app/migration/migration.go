@@ -34,6 +34,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
@@ -183,6 +184,7 @@ func SchemaModels() []any {
 		&agents.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&postRevisions.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
 		&topicUserAction.Entity{},

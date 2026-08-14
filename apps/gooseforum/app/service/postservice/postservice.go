@@ -33,10 +33,16 @@ func CreateTopicPost(entity *posts.Entity, topicEntity topics.Entity) error {
 	}
 
 	entity.PostNo = postNo
-	if err := posts.Create(entity); err != nil {
+	// 帖子行 + 版本 v1（editor = 作者）同事务：播种失败则帖子不落库，
+	// 避免出现无初始版本的楼层。
+	if err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := posts.CreateTx(tx, entity); err != nil {
+			return err
+		}
+		return SeedPostRevision(tx, entity)
+	}); err != nil {
 		return err
 	}
-
 	SyncTopicPostStats(topicEntity, *entity, false)
 	return nil
 }

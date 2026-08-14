@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -265,6 +266,7 @@ func setupLLMSCacheTestDB(t *testing.T) *gorm.DB {
 		&pageConfig.Entity{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&postRevisions.Entity{},
 		&pointsRecord.Entity{},
 		&userPoints.Entity{},
 		&category.Entity{},

@@ -11,6 +11,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderationLog"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userPoints"
@@ -27,6 +28,7 @@ func setupContentDeleteTestDB(t *testing.T) *gorm.DB {
 		&users.EntityComplete{},
 		&topics.Entity{},
 		&posts.Entity{},
+		&postRevisions.Entity{},
 		&optRecord.Entity{},
 		&moderationLog.Entity{},
 		&contentDeleteEvent.Entity{},

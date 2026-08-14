@@ -12,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
@@ -33,6 +34,7 @@ func setupTopicWriteTestDB(t *testing.T) *gorm.DB {
 		&users.EntityComplete{},
 		&userStatistics.Entity{},
 		&topics.Entity{},
+		&postRevisions.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
