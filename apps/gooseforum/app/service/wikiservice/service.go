@@ -50,8 +50,9 @@ type EditParams struct {
 	Title   string
 	Content string
 	UserId  uint64
-	// BaseRevisionNo 编辑基线版本号（前端打开编辑器时的 published_revision_no）。
-	// 0 = 不校验（兼容旧客户端）；非 0 时后端 CAS 比对，过期返回 ErrConflict。
+	// BaseRevisionNo 编辑基线版本号（前端打开编辑器时的 published_revision_no），
+	// 必填：0 直接拒绝 ErrBaseRevisionRequired；非 0 时后端 CAS 比对，过期返回
+	// ErrConflict（model-1 编辑锁，客户端无法省略基线静默覆盖他人已发布版本）。
 	BaseRevisionNo int
 }
 
