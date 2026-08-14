@@ -87,6 +87,10 @@ func migrateSchema() {
 		slog.Error("dbconnect wiki revision dedupe failed", "err", err)
 		os.Exit(1)
 	}
+	if err = upgradeImportRunCompositeIndex(db); err != nil {
+		slog.Error("dbconnect course_import_run index upgrade failed", "err", err)
+		os.Exit(1)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -114,6 +118,32 @@ type duplicateUsername struct {
 // validateUniqueUsernames fails before AutoMigrate attempts to add the global
 // username unique index. Identity rows are never rewritten automatically; an
 // operator must resolve blank or duplicate legacy usernames deliberately.
+// upgradeImportRunCompositeIndex 升级 course_import_run 的幂等唯一索引（issue #183）：
+// 旧版本为 manifest_hash 单列唯一（uniq_course_import_run_manifest），新模型声明
+// (kind, manifest_hash) 复合唯一、索引名不变。两个必须显式处理的坑：
+//  1. GORM AutoMigrate 按索引名判重，同名旧索引不会被重建——不删旧索引，存量库上
+//     同一 manifest 包的 catalog/reviews 两次导入（相同 manifest_hash）会撞旧唯一约束。
+//  2. 依赖 AutoMigrate 补 kind 列会触发 SQLite 整表重建，实测存量行数据丢失；
+//     必须显式 ALTER TABLE ADD COLUMN（带默认值，保留存量数据）。
+func upgradeImportRunCompositeIndex(db *gorm.DB) error {
+	if !db.Migrator().HasTable("course_import_run") {
+		return nil // 全新库：AutoMigrate 直接建全表 + 复合索引。
+	}
+	if !db.Migrator().HasColumn(&course.ImportRunEntity{}, "kind") {
+		if err := db.Exec("ALTER TABLE course_import_run ADD COLUMN kind VARCHAR(32) NOT NULL DEFAULT 'catalog'").Error; err != nil {
+			return fmt.Errorf("add course_import_run.kind column: %w", err)
+		}
+		slog.Info("dbconnect course_import_run.kind column added (default 'catalog')")
+	}
+	if db.Migrator().HasIndex(&course.ImportRunEntity{}, "uniq_course_import_run_manifest") {
+		if err := db.Migrator().DropIndex(&course.ImportRunEntity{}, "uniq_course_import_run_manifest"); err != nil {
+			return fmt.Errorf("drop legacy course_import_run unique index: %w", err)
+		}
+		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
+	}
+	return nil
+}
+
 func validateUniqueUsernames(db *gorm.DB) error {
 	if !db.Migrator().HasTable("users") {
 		return nil

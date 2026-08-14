@@ -38,10 +38,12 @@ func LatestFetchLogByCalendar(calendarId uint64) (FetchLogEntity, bool) {
 func CreateFetchLog(calendarId uint64) (*FetchLogEntity, error) {
 	now := time.Now()
 	entity := &FetchLogEntity{
-		CalendarId: calendarId,
-		RunningKey: &calendarId,
-		Status:     FetchStatusRunning,
-		StartedAt:  &now,
+		CalendarId:    calendarId,
+		RunningKey:    &calendarId,
+		Status:        FetchStatusRunning,
+		StartedAt:     &now,
+		SchemaVersion: PKDataSchemaVersion,
+		SyncedAt:      &now,
 	}
 	if err := fetchLogBuilder().Create(entity).Error; err != nil {
 		return nil, fmt.Errorf("pk: create fetch log: %w", err)

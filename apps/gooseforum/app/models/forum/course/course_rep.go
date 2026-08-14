@@ -327,8 +327,8 @@ func CreateImportRun(entity *ImportRunEntity) error {
 	return importRunBuilder().Create(entity).Error
 }
 
-func GetImportRunByManifestHash(hash string) (entity ImportRunEntity, err error) {
-	err = importRunBuilder().Where(queryopt.Eq("manifest_hash", hash)).First(&entity).Error
+func GetImportRunByManifestHash(hash, kind string) (entity ImportRunEntity, err error) {
+	err = importRunBuilder().Where(queryopt.Eq("manifest_hash", hash)).Where(queryopt.Eq("kind", kind)).First(&entity).Error
 	return
 }
 

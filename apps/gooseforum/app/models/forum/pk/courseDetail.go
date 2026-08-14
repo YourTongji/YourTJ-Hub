@@ -31,6 +31,8 @@ type CourseDetailEntity struct {
 	CalendarId       uint64         `gorm:"column:calendar_id;not null;default:0;index:idx_pk_course_detail_calendar;" json:"calendarId"`
 	NewCourseCode    string         `gorm:"column:new_course_code;type:varchar(64);not null;default:'';index:idx_pk_course_detail_new_course_code;" json:"newCourseCode"`
 	NewCode          string         `gorm:"column:new_code;type:varchar(64);not null;default:'';index:idx_pk_course_detail_new_code;" json:"newCode"`
+	SchemaVersion    string         `gorm:"column:schema_version;type:varchar(64);not null;default:'';" json:"-"`
+	SyncedAt         *time.Time     `gorm:"column:synced_at;" json:"-"`
 	CreatedAt        time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`
 	UpdatedAt        time.Time      `gorm:"column:updated_at;autoUpdateTime;" json:"updatedAt"`
 	DeletedAt        gorm.DeletedAt `json:"-"`

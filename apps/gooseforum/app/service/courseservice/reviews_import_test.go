@@ -266,3 +266,170 @@ func TestImportReviewsDryRunDoesNotWrite(t *testing.T) {
 		t.Fatalf("dry-run must not write, found %d reviews", cnt)
 	}
 }
+
+// TestImportReviewsMultipleLegacyPerOffering 带 id 的行以 author_user_id=NULL
+// 落库：同一 offering 的多条 legacy 评价共存（唯一索引 NULL 不冲突）。
+func TestImportReviewsMultipleLegacyPerOffering(t *testing.T) {
+	_, offeringId := setupReviewsImportTest(t)
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"id":"r1","offering_external_id":"o1","rating":5,"content":"第一条","created_at":"2023-01-01T00:00:00Z"}`+"\n"+
+			`{"id":"r2","offering_external_id":"o1","rating":3,"content":"第二条","created_at":"2023-02-01T00:00:00Z"}`+"\n"+
+			`{"id":"r3","offering_external_id":"o1","rating":4,"content":"第三条","created_at":"2023-03-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	report, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("import reviews: %v", err)
+	}
+	if report.Inserted != 3 || report.Quarantined != 0 {
+		t.Fatalf("expected 3 inserted, got %+v", report)
+	}
+	conn := dbconnect.Connect()
+	var reviews []course.ReviewEntity
+	if err := conn.Where("offering_id = ?", offeringId).Order("id ASC").Find(&reviews).Error; err != nil {
+		t.Fatalf("load reviews: %v", err)
+	}
+	if len(reviews) != 3 {
+		t.Fatalf("expected 3 legacy reviews for one offering, got %d", len(reviews))
+	}
+	for i, r := range reviews {
+		if r.AuthorUserId != nil {
+			t.Fatalf("review %d: expected NULL author (multi-legacy), got %v", i, *r.AuthorUserId)
+		}
+		if r.Source != course.ReviewSourceLegacyImport || r.Status != course.ReviewStatusVisible {
+			t.Fatalf("review %d: wrong flags %+v", i, r)
+		}
+	}
+	// 统计投影：3 条可见评价，rating 全部非 NULL → rating_count=3。
+	var stats course.OfferingStatsEntity
+	if err := conn.Where("offering_id = ?", offeringId).First(&stats).Error; err != nil {
+		t.Fatalf("load offering stats: %v", err)
+	}
+	if stats.ReviewCount != 3 || stats.RatingCount != 3 || stats.RatingSum != 12 {
+		t.Fatalf("unexpected offering stats: %+v", stats)
+	}
+}
+
+// TestImportReviewsIDIdempotent 带 id 行重导（内容变化）按 id 原地更新，不重复插入。
+func TestImportReviewsIDIdempotent(t *testing.T) {
+	_, offeringId := setupReviewsImportTest(t)
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"id":"r1","offering_external_id":"o1","rating":5,"content":"第一版","created_at":"2023-01-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	first, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("first import: %v", err)
+	}
+	if first.Inserted != 1 {
+		t.Fatalf("expected 1 inserted, got %+v", first)
+	}
+	manifestPath2 := writeReviewsManifestFixture(t,
+		`{"id":"r1","offering_external_id":"o1","rating":4,"content":"第二版","created_at":"2023-02-02T00:00:00Z"}`+"\n",
+		"approval-1")
+	second, err := ImportReviews(context.Background(), manifestPath2, false)
+	if err != nil {
+		t.Fatalf("second import: %v", err)
+	}
+	if second.Updated != 1 {
+		t.Fatalf("expected 1 updated, got %+v", second)
+	}
+	conn := dbconnect.Connect()
+	var cnt int64
+	if err := conn.Model(&course.ReviewEntity{}).Where("offering_id = ?", offeringId).Count(&cnt).Error; err != nil {
+		t.Fatalf("count reviews: %v", err)
+	}
+	if cnt != 1 {
+		t.Fatalf("expected exactly 1 review after idempotent re-import, got %d", cnt)
+	}
+	var review course.ReviewEntity
+	if err := conn.Where("offering_id = ?", offeringId).First(&review).Error; err != nil {
+		t.Fatalf("load review: %v", err)
+	}
+	if review.Content != "第二版" || review.Rating == nil || *review.Rating != 4 {
+		t.Fatalf("expected updated values, got %+v", review)
+	}
+}
+
+// TestImportReviewsMixedOldNewFormat 无 id 旧格式（author=0）与带 id 新格式
+// （author=NULL）行共存：旧格式按 offering 幂等，新格式按 id 幂等，互不干扰。
+func TestImportReviewsMixedOldNewFormat(t *testing.T) {
+	_, offeringId := setupReviewsImportTest(t)
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"offering_external_id":"o1","rating":2,"content":"旧格式","created_at":"2022-01-01T00:00:00Z"}`+"\n"+
+			`{"id":"r1","offering_external_id":"o1","rating":5,"content":"新格式一","created_at":"2023-01-01T00:00:00Z"}`+"\n"+
+			`{"id":"r2","offering_external_id":"o1","rating":4,"content":"新格式二","created_at":"2023-02-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	report, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("import reviews: %v", err)
+	}
+	if report.Inserted != 3 {
+		t.Fatalf("expected 3 inserted, got %+v", report)
+	}
+	conn := dbconnect.Connect()
+	var reviews []course.ReviewEntity
+	if err := conn.Where("offering_id = ?", offeringId).Order("id ASC").Find(&reviews).Error; err != nil {
+		t.Fatalf("load reviews: %v", err)
+	}
+	if len(reviews) != 3 {
+		t.Fatalf("expected 3 reviews, got %d", len(reviews))
+	}
+	// 旧格式行 author=0；新格式行 author=NULL。
+	oldRow := reviews[0]
+	if oldRow.AuthorUserId == nil || *oldRow.AuthorUserId != 0 {
+		t.Fatalf("expected old-format row author=0, got %+v", oldRow.AuthorUserId)
+	}
+	for _, r := range reviews[1:] {
+		if r.AuthorUserId != nil {
+			t.Fatalf("expected new-format row author=NULL, got %v", *r.AuthorUserId)
+		}
+	}
+	// 重导旧格式行：原地更新，不新增。
+	manifestPath2 := writeReviewsManifestFixture(t,
+		`{"offering_external_id":"o1","rating":1,"content":"旧格式v2","created_at":"2022-06-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	second, err := ImportReviews(context.Background(), manifestPath2, false)
+	if err != nil {
+		t.Fatalf("re-import old format: %v", err)
+	}
+	if second.Updated != 1 {
+		t.Fatalf("expected 1 updated for old-format row, got %+v", second)
+	}
+	var cnt int64
+	if err := conn.Model(&course.ReviewEntity{}).Where("offering_id = ?", offeringId).Count(&cnt).Error; err != nil {
+		t.Fatalf("count reviews: %v", err)
+	}
+	if cnt != 3 {
+		t.Fatalf("expected still 3 reviews, got %d", cnt)
+	}
+}
+
+// TestImportReviewsDuplicateIDQuarantined 同一 manifest 内重复 id 只有第一行可导入。
+func TestImportReviewsDuplicateIDQuarantined(t *testing.T) {
+	setupReviewsImportTest(t)
+	manifestPath := writeReviewsManifestFixture(t,
+		`{"id":"r1","offering_external_id":"o1","rating":5,"content":"第一","created_at":"2023-01-01T00:00:00Z"}`+"\n"+
+			`{"id":"r1","offering_external_id":"o1","rating":1,"content":"重复","created_at":"2023-02-01T00:00:00Z"}`+"\n",
+		"approval-1")
+	report, err := ImportReviews(context.Background(), manifestPath, false)
+	if err != nil {
+		t.Fatalf("import reviews: %v", err)
+	}
+	if report.Inserted != 1 || report.Quarantined != 1 {
+		t.Fatalf("expected 1 inserted + 1 quarantined, got %+v", report)
+	}
+	conn := dbconnect.Connect()
+	var cnt int64
+	if err := conn.Model(&course.ReviewEntity{}).Count(&cnt).Error; err != nil {
+		t.Fatalf("count reviews: %v", err)
+	}
+	if cnt != 1 {
+		t.Fatalf("expected exactly 1 review, got %d", cnt)
+	}
+	var review course.ReviewEntity
+	if err := conn.Order("id ASC").First(&review).Error; err != nil {
+		t.Fatalf("load review: %v", err)
+	}
+	if review.Content != "第一" {
+		t.Fatalf("first row must win, got %q", review.Content)
+	}
+}
