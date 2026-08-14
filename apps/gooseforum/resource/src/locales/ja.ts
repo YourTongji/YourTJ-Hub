@@ -426,6 +426,8 @@ export default {
     searchPlaceholder: '科目コードまたは名前を入力',
     searchButton: '検索',
     longPressHint: '長押しで詳細を表示',
+    cellClickable: '第 {section} 限（空き）。Enter で科目を追加',
+    courseBlockLabel: '{name}。Enter で詳細を表示',
     reviews: 'レビューを見る',
     reviewCount: '{count} 件のレビュー',
     reviewAvg: '平均点 {value}',

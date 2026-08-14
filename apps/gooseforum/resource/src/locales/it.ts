@@ -426,6 +426,8 @@ export default {
     searchPlaceholder: 'Inserisci codice o nome corso',
     searchButton: 'Cerca',
     longPressHint: 'Tieni premuto un blocco corso per i dettagli',
+    cellClickable: 'Fascia {section} (libera). Premi Invio per aggiungere corsi',
+    courseBlockLabel: '{name}. Premi Invio per i dettagli',
     reviews: 'Vedi recensioni',
     reviewCount: '{count} recensioni',
     reviewAvg: 'Media {value}',

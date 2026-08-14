@@ -426,6 +426,8 @@ export default {
     searchPlaceholder: '请输入课程代码或课程名称',
     searchButton: '搜索',
     longPressHint: '长按课程块查看详细信息',
+    cellClickable: '第 {section} 节（空时段）。按 Enter 添加课程',
+    courseBlockLabel: '{name}。按 Enter 查看详情',
     reviews: '查看课评',
     reviewCount: '{count} 条评价',
     reviewAvg: '平均分 {value}',

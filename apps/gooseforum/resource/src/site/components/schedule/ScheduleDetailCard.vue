@@ -6,6 +6,7 @@ import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
+import { useDialog } from '@/site/composables/useDialog'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
 import type { PkCourseOnTable, PkCourseReviewBrief } from '@/site/types/pk'
 
@@ -18,6 +19,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+const dialogOpen = computed(() => props.course !== null)
+const { dialogRef, closeDialog } = useDialog({ visible: dialogOpen })
 
 const brief = ref<PkCourseReviewBrief | null>(null)
 const briefError = ref('')
@@ -83,26 +87,33 @@ watch(
 
 <template>
   <Teleport to="body">
-    <Transition name="gf-fade">
-      <div v-if="course" class="fixed inset-0 z-[2100]">
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[420px] -translate-x-1/2 -translate-y-1/2">
-          <div class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
+    <Transition name="gf-modal">
+      <div
+        v-if="course"
+        ref="dialogRef"
+        class="fixed inset-0 z-[2100] overflow-y-auto bg-black/40 p-2 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-detail-title"
+        @click.self="closeDialog"
+      >
+        <div class="mx-auto flex min-h-full w-full max-w-[420px] items-center justify-center">
+          <div class="w-full overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl" @click.stop>
             <div class="flex items-start justify-between gap-2 px-4 py-3">
               <div class="min-w-0">
-                <div class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
+                <div id="schedule-detail-title" class="text-sm font-bold text-base-content">{{ parsed.name }}</div>
                 <div class="text-[11px] text-base-content/55">{{ parsed.code }}</div>
               </div>
               <button
                 type="button"
                 class="gf-icon-button"
                 :aria-label="t('common.close')"
-                @click="emit('close')"
+                @click="closeDialog"
               >
                 <X class="h-4 w-4" />
               </button>
             </div>
-            <div class="space-y-2 p-4 pt-0">
+            <div class="max-h-[70vh] space-y-2 overflow-y-auto p-4 pt-0">
               <p v-if="parsed.teacherAndCode" class="text-[12px] text-base-content/70">
                 {{ parsed.teacherAndCode }}
               </p>

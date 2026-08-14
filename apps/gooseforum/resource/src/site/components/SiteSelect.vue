@@ -19,6 +19,9 @@ const emit = defineEmits<{
 
 const open = ref(false)
 const root = ref<HTMLElement | null>(null)
+const trigger = ref<HTMLButtonElement | null>(null)
+/** 列表展开时的焦点索引；默认聚焦当前选中项（无则首项）。 */
+const highlightIndex = ref(-1)
 
 const selectedOption = computed(() => props.options.find(option => option.value === props.modelValue))
 const triggerLabel = computed(() => selectedOption.value?.label || props.placeholder || '')
@@ -26,6 +29,15 @@ const triggerLabel = computed(() => selectedOption.value?.label || props.placeho
 function selectOption(value: string) {
   emit('update:modelValue', value)
   open.value = false
+  // 选中后焦点回到触发按钮，符合 combobox 交互（Tab 继续导航表单）。
+  trigger.value?.focus()
+}
+
+function openList(initialIndex?: number) {
+  open.value = true
+  const selectedIndex = props.options.findIndex((option) => option.value === props.modelValue)
+  const base = selectedIndex >= 0 ? selectedIndex : 0
+  highlightIndex.value = initialIndex ?? base
 }
 
 function handleDocumentPointerDown(event: PointerEvent) {
@@ -41,7 +53,64 @@ function handleTriggerKeydown(event: KeyboardEvent) {
   }
   if (event.key === 'ArrowDown' || event.key === 'Enter' || event.key === ' ') {
     event.preventDefault()
-    open.value = true
+    openList()
+  }
+  if (event.key === 'ArrowUp') {
+    event.preventDefault()
+    if (!open.value) {
+      // 上方向键打开：高亮定位到当前选中项的前一项（选中项即上一项，已选中则取末项）。
+      const selectedIndex = props.options.findIndex((option) => option.value === props.modelValue)
+      const previous = (selectedIndex - 1 + props.options.length) % props.options.length
+      openList(selectedIndex >= 0 ? previous : 0)
+      return
+    }
+    event.stopPropagation()
+    // 打开状态下上方向键：把高亮（和焦点）移到上一项。
+    const next = (highlightIndex.value - 1 + props.options.length) % props.options.length
+    highlightIndex.value = next
+    focusOption(next)
+  }
+}
+
+function focusOption(index: number) {
+  root.value?.querySelectorAll<HTMLElement>('[role="option"]')[index]?.focus()
+}
+
+function handleListKeydown(event: KeyboardEvent) {
+  if (event.key === 'Escape') {
+    event.preventDefault()
+    open.value = false
+    trigger.value?.focus()
+    return
+  }
+  if (event.key === 'ArrowDown' || event.key === 'ArrowUp') {
+    event.preventDefault()
+    const delta = event.key === 'ArrowDown' ? 1 : -1
+    const next = (highlightIndex.value + delta + props.options.length) % props.options.length
+    highlightIndex.value = next
+    focusOption(next)
+    return
+  }
+  if (event.key === 'Home') {
+    event.preventDefault()
+    highlightIndex.value = 0
+    focusOption(0)
+    return
+  }
+  if (event.key === 'End') {
+    event.preventDefault()
+    highlightIndex.value = props.options.length - 1
+    focusOption(props.options.length - 1)
+    return
+  }
+  if (event.key === 'Enter' || event.key === ' ') {
+    event.preventDefault()
+    const option = props.options[highlightIndex.value]
+    if (option) selectOption(option.value)
+    return
+  }
+  if (event.key === 'Tab') {
+    open.value = false
   }
 }
 
@@ -57,10 +126,13 @@ onBeforeUnmount(() => {
 <template>
   <div ref="root" class="relative">
     <button
+      ref="trigger"
       type="button"
       class="gf-input flex w-full items-center justify-between gap-2 text-left"
+      aria-haspopup="listbox"
       :aria-expanded="open"
-      @click="open = !open"
+      aria-controls="site-select-listbox"
+      @click="open ? (open = false) : openList()"
       @keydown="handleTriggerKeydown"
     >
       <span class="min-w-0 truncate" :class="selectedOption ? 'text-base-content' : 'text-base-content/45'">
@@ -70,11 +142,19 @@ onBeforeUnmount(() => {
     </button>
 
     <Transition name="gf-menu">
-      <div v-if="open" class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1">
+      <div
+        v-if="open"
+        id="site-select-listbox"
+        role="listbox"
+        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1"
+        @keydown="handleListKeydown"
+      >
         <button
           v-for="option in options"
           :key="option.value"
           type="button"
+          role="option"
+          :aria-selected="option.value === modelValue"
           class="flex h-9 w-full items-center gap-2 rounded-md px-2.5 text-left text-sm font-medium text-base-content hover:bg-base-200"
           :class="option.value === modelValue ? 'bg-primary/10 text-primary' : ''"
           @click="selectOption(option.value)"

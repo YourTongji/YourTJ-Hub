@@ -1,10 +1,11 @@
 <script setup lang="ts">
 // 选课列表/备选池：展示 stagedCourses，提供「选择课程」「保存课表」与退课/清除操作。
 // 点击课程行会把该课设为 clickedCourseInfo，右侧/详情 tab 展示其班级。
-import { ref } from 'vue'
+import { computed, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { BookOpen, Save } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import { useDialog } from '@/site/composables/useDialog'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkStagedCourse } from '@/site/types/pk'
 
@@ -16,6 +17,9 @@ const pendingDrop = ref<PkStagedCourse | null>(null)
 const emit = defineEmits<{
   openPicker: []
 }>()
+
+const dropDialogOpen = computed(() => pendingDrop.value !== null)
+const { dialogRef: dropDialogRef, closeDialog: closeDropDialog } = useDialog({ visible: dropDialogOpen })
 
 function statusLabel(course: PkStagedCourse): string {
   if (course.status === 2) return t('schedule.statusSelected')
@@ -43,7 +47,7 @@ function dropCourse(course: PkStagedCourse) {
 function confirmDrop() {
   if (!pendingDrop.value) return
   store.popStagedCourse(pendingDrop.value.courseCode)
-  pendingDrop.value = null
+  closeDropDialog()
 }
 
 function saveTimetable() {
@@ -108,25 +112,34 @@ function arrangedClassCount(course: PkStagedCourse): number {
 
     <!-- 退课确认弹窗 -->
     <Teleport to="body">
-      <div v-if="pendingDrop" class="fixed inset-0 z-[2100]">
-        <div class="absolute inset-0 bg-black/40" @click="pendingDrop = null"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[360px] -translate-x-1/2 -translate-y-1/2">
-          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
-            <h3 class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
-            <p class="mt-2 text-[13px] text-base-content/70">
-              {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
-            </p>
-            <div class="mt-4 flex justify-end gap-2">
-              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="pendingDrop = null">
-                {{ t('schedule.cancel') }}
-              </button>
-              <button type="button" class="gf-button gf-button-md gf-button-danger" @click="confirmDrop">
-                {{ t('schedule.dropCourse') }}
-              </button>
+      <Transition name="gf-modal">
+        <div
+          v-if="pendingDrop"
+          ref="dropDialogRef"
+          class="fixed inset-0 z-[2100] overflow-y-auto bg-black/40 p-2 sm:p-4"
+          role="dialog"
+          aria-modal="true"
+          aria-labelledby="schedule-drop-title"
+          @click.self="closeDropDialog"
+        >
+          <div class="mx-auto flex min-h-full w-full max-w-[360px] items-center justify-center">
+            <div class="w-full rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
+              <h3 id="schedule-drop-title" class="text-sm font-bold text-base-content">{{ t('schedule.dropCourse') }}</h3>
+              <p class="mt-2 text-[13px] text-base-content/70">
+                {{ pendingDrop.courseNameReserved }}（{{ pendingDrop.courseCode }}）
+              </p>
+              <div class="mt-4 flex justify-end gap-2">
+                <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="closeDropDialog">
+                  {{ t('schedule.cancel') }}
+                </button>
+                <button type="button" class="gf-button gf-button-md gf-button-danger" @click="confirmDrop">
+                  {{ t('schedule.dropCourse') }}
+                </button>
+              </div>
             </div>
           </div>
         </div>
-      </div>
+      </Transition>
     </Teleport>
   </div>
 </template>

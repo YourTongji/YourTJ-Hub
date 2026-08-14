@@ -1,8 +1,10 @@
 <script setup lang="ts">
 // 冲突处理弹窗（验收标准 2）：加入课表遇冲突时，展示冲突课程并让用户选择
 // 「强制替换」（移除冲突课再加入）或「放弃」。
+import { computed } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { AlertTriangle } from '@lucide/vue'
+import { useDialog } from '@/site/composables/useDialog'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import type { PkConflictItem } from '@/site/utils/pkConflict'
 import type { PkCourseDetail } from '@/site/types/pk'
@@ -20,25 +22,35 @@ const emit = defineEmits<{
   replaced: []
 }>()
 
+const dialogOpen = computed(() => props.detail !== null)
+const { dialogRef, closeDialog } = useDialog({ visible: dialogOpen })
+
 function forceReplace() {
   if (!props.detail) return
   store.forceReplaceCourse(props.detail)
   store.solidify()
   emit('replaced')
-  emit('close')
+  closeDialog()
 }
 </script>
 
 <template>
   <Teleport to="body">
-    <Transition name="gf-fade">
-      <div v-if="detail" class="fixed inset-0 z-[2100]">
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 w-[88vw] max-w-[400px] -translate-x-1/2 -translate-y-1/2">
-          <div class="rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
+    <Transition name="gf-modal">
+      <div
+        v-if="detail"
+        ref="dialogRef"
+        class="fixed inset-0 z-[2100] overflow-y-auto bg-black/40 p-2 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-conflict-title"
+        @click.self="closeDialog"
+      >
+        <div class="mx-auto flex min-h-full w-full max-w-[400px] items-center justify-center">
+          <div class="w-full rounded-2xl border border-line/70 bg-base-100 p-5 shadow-lg" @click.stop>
             <div class="flex items-center gap-2">
               <AlertTriangle class="h-5 w-5 text-warning" />
-              <h3 class="text-sm font-bold text-base-content">{{ t('schedule.conflictTitle') }}</h3>
+              <h3 id="schedule-conflict-title" class="text-sm font-bold text-base-content">{{ t('schedule.conflictTitle') }}</h3>
             </div>
 
             <p class="mt-3 text-[13px] text-base-content/70">
@@ -57,7 +69,7 @@ function forceReplace() {
             </p>
 
             <div class="mt-4 flex justify-end gap-2">
-              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="emit('close')">
+              <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="closeDialog">
                 {{ t('schedule.abandon') }}
               </button>
               <button type="button" class="gf-button gf-button-md gf-button-primary" @click="forceReplace">

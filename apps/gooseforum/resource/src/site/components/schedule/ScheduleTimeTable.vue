@@ -238,6 +238,20 @@ function handleCellClick(dayIndex: number, rowIndex: number) {
   emit('cellClick', dayIndex + 1, rowIndex + 1)
 }
 
+/** 空格 td 键盘触发（与点击相同的行为；Enter/Space 触发，阻止滚动）。 */
+function handleCellKeydown(event: KeyboardEvent, dayIndex: number, rowIndex: number) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  handleCellClick(dayIndex, rowIndex)
+}
+
+/** 课程块键盘触发（与点击相同的行为）。 */
+function handleCourseKeydown(event: KeyboardEvent, course: PkCourseOnTable) {
+  if (event.key !== 'Enter' && event.key !== ' ') return
+  event.preventDefault()
+  emit('openDetail', course)
+}
+
 watch(
   () => store.state.timeTableData,
   () => updateTimeTable(),
@@ -316,7 +330,11 @@ onBeforeUnmount(() => {
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
                 :rowspan="maxSpans[index][dayIndex]"
+                tabindex="0"
+                role="button"
+                :aria-label="t('schedule.cellClickable', { section: index + 1 })"
                 @click="handleCellClick(dayIndex, index)"
+                @keydown="handleCellKeydown($event, dayIndex, index)"
               >
                 <div
                   v-if="courses.length > 0"
@@ -329,6 +347,10 @@ onBeforeUnmount(() => {
                     class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight text-white md:px-2 md:py-2 md:text-[11px]"
                     :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed border-white/60' : '']"
                     :style="courseCardStyle(course)"
+                    tabindex="0"
+                    role="button"
+                    :aria-label="t('schedule.courseBlockLabel', { name: formatCourseLines(course).title })"
+                    @keydown="handleCourseKeydown($event, course)"
                     @touchstart.stop="onPressStart(course, $event)"
                     @touchmove.stop="onPressMove($event)"
                     @touchend.stop="onPressCancel()"

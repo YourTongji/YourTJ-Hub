@@ -8,6 +8,7 @@ import { useI18n } from 'vue-i18n'
 import { Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
 import SiteSelect from '@/site/components/SiteSelect.vue'
+import { useDialog } from '@/site/composables/useDialog'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import {
   getPkCampuses,
@@ -30,6 +31,9 @@ const props = defineProps<{
 const emit = defineEmits<{
   close: []
 }>()
+
+const dialogOpen = computed(() => props.open)
+const { dialogRef, closeDialog } = useDialog({ visible: dialogOpen, initialFocusSelector: '.gf-close-dialog' })
 
 type TabKey = 'required' | 'optional' | 'search'
 const activeTab = ref<TabKey>('required')
@@ -132,6 +136,23 @@ watch(
 )
 
 // ---- 勾选 ----
+const TAB_KEYS: TabKey[] = ['required', 'optional', 'search']
+
+/** tablist 方向键切换（WAI-ARIA APG Tabs）。 */
+function handleTabKeydown(event: KeyboardEvent) {
+  const current = TAB_KEYS.indexOf(activeTab.value)
+  let next: number | undefined
+  if (event.key === 'ArrowRight') next = (current + 1) % TAB_KEYS.length
+  else if (event.key === 'ArrowLeft') next = (current - 1 + TAB_KEYS.length) % TAB_KEYS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = TAB_KEYS.length - 1
+  if (next === undefined) return
+  event.preventDefault()
+  activeTab.value = TAB_KEYS[next]
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  buttons?.[next]?.focus()
+}
+
 function toggleKey(key: string) {
   const next = new Set(selectedKeys.value)
   if (next.has(key)) next.delete(key)
@@ -255,19 +276,31 @@ async function submit() {
 
 <template>
   <Teleport to="body">
-    <Transition name="gf-fade">
-      <div v-if="open" class="fixed inset-0 z-[2000]">
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[92vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
+    <Transition name="gf-modal">
+      <div
+        v-if="open"
+        ref="dialogRef"
+        class="fixed inset-0 z-[2000] overflow-y-auto bg-black/40 p-2 sm:p-4"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-picker-title"
+        @click.self="closeDialog"
+      >
+        <div class="mx-auto flex min-h-full w-full max-w-3xl items-center justify-center">
+          <div class="flex max-h-[92vh] w-full flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
           <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
-            <h2 class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
-            <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
+            <h2 id="schedule-picker-title" class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
+            <button type="button" class="gf-icon-button gf-close-dialog" :aria-label="t('common.close')" @click="closeDialog">
               <X class="h-4 w-4" />
             </button>
           </div>
 
           <!-- tabs -->
-          <div class="flex gap-1 border-b border-line/60 px-3 pt-2">
+          <div
+            class="flex gap-1 border-b border-line/60 px-3 pt-2"
+            role="tablist"
+            aria-label="picker"
+          >
             <button
               v-for="tab in ([
                 { key: 'required', label: t('schedule.tabRequired') },
@@ -278,7 +311,10 @@ async function submit() {
               type="button"
               class="gf-tab"
               :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
               @click="activeTab = tab.key"
+              @keydown="handleTabKeydown"
             >
               {{ tab.label }}
             </button>
@@ -407,12 +443,13 @@ async function submit() {
           </div>
 
           <div class="flex justify-end gap-2 border-t border-line/60 px-4 py-3">
-            <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="emit('close')">
+            <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="closeDialog">
               {{ t('schedule.cancel') }}
             </button>
             <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="submitting || selectedKeys.size === 0" @click="submit">
               {{ t('schedule.submit') }}
             </button>
+          </div>
           </div>
         </div>
       </div>

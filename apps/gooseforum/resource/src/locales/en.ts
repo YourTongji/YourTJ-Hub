@@ -426,6 +426,8 @@ export default {
     searchPlaceholder: 'Enter course code or name',
     searchButton: 'Search',
     longPressHint: 'Long-press a course block for details',
+    cellClickable: 'Section {section} (empty). Press Enter to add courses',
+    courseBlockLabel: '{name}. Press Enter for details',
     reviews: 'View reviews',
     reviewCount: '{count} reviews',
     reviewAvg: 'Avg rating {value}',
