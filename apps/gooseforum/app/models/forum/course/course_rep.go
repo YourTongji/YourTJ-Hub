@@ -32,6 +32,19 @@ func GetCourseByPrimaryCodeTx(tx *gorm.DB, code string) (entity Entity, err erro
 	return
 }
 
+// ListCoursesByPrimaryCodes 按主课号批量查找可见课程（PK P13 课评摘要匹配用）。
+// 与 ListCourses 一致过滤 StatusVisible：公开的课评摘要不得泄漏 CourseManager 隐藏的课程。
+func ListCoursesByPrimaryCodes(codes []string) (entities []Entity, err error) {
+	if len(codes) == 0 {
+		return []Entity{}, nil
+	}
+	err = courseBuilder().
+		Where(queryopt.Eq("status", StatusVisible)).
+		Where(queryopt.In("primary_code", codes)).
+		Find(&entities).Error
+	return
+}
+
 // ListCourseQuery 课程目录筛选条件。
 type ListCourseQuery struct {
 	Keyword    string // 名称/课号/别名/教师（归一化前缀或包含）

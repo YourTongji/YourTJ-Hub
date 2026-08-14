@@ -1,0 +1,131 @@
+{
+  "code": 0,
+  "msg": "查询成功",
+  "data": [
+    {
+      "courseCode": "TJCS101",
+      "courseName": "计算机程序设计",
+      "faculty": "计算机科学与技术系",
+      "facultyI18n": "计算机科学与技术系",
+      "credit": 3,
+      "grade": 2025,
+      "courseNature": [
+        "专业必修"
+      ],
+      "courses": [
+        {
+          "code": "TJCS10101",
+          "teachers": [
+            {
+              "teacherCode": "T001",
+              "teacherName": "张伟"
+            }
+          ],
+          "campus": "四平路校区",
+          "teachingLanguage": "中文",
+          "arrangementInfo": [
+            {
+              "arrangementText": "星期一1-2节[1-16周] 四平路校区 A101",
+              "occupyDay": 1,
+              "occupyTime": [
+                1,
+                2
+              ],
+              "occupyWeek": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "occupyRoom": "四平路校区 A101",
+              "teacherAndCode": "张伟(T001)"
+            },
+            {
+              "arrangementText": "星期三3-4节[1-16周] 四平路校区 A101",
+              "occupyDay": 3,
+              "occupyTime": [
+                3,
+                4
+              ],
+              "occupyWeek": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "occupyRoom": "四平路校区 A101",
+              "teacherAndCode": "张伟(T001)"
+            }
+          ],
+          "isExclusive": true
+        },
+        {
+          "code": "TJCS10102",
+          "teachers": [
+            {
+              "teacherCode": "T006",
+              "teacherName": "李娜"
+            }
+          ],
+          "campus": "四平路校区",
+          "teachingLanguage": "中文",
+          "arrangementInfo": [
+            {
+              "arrangementText": "星期二1-2节[1-16周] 四平路校区 B202",
+              "occupyDay": 2,
+              "occupyTime": [
+                1,
+                2
+              ],
+              "occupyWeek": [
+                1,
+                2,
+                3,
+                4,
+                5,
+                6,
+                7,
+                8,
+                9,
+                10,
+                11,
+                12,
+                13,
+                14,
+                15,
+                16
+              ],
+              "occupyRoom": "四平路校区 B202",
+              "teacherAndCode": "李娜(T006)"
+            }
+          ],
+          "isExclusive": true
+        }
+      ]
+    }
+  ]
+}
