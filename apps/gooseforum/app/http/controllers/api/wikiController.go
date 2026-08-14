@@ -6,6 +6,8 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
@@ -36,9 +38,15 @@ type WikiRevisionsReq struct {
 }
 
 // WikiRevisions 返回某页面全部修订（公开）。
+// 可见性随页面 topic 走统一谓词（review P1：此前仅检查 wiki_pages 存在，
+// 已删除/隐藏页面仍可通过修订接口读取内容）。
 func WikiRevisions(req component.BetterRequest[WikiRevisionsReq]) component.Response {
 	page := wikiPagesGet(req.Params.PageId)
 	if page.Id == 0 {
+		return component.FailResponseCode(component.MessageWikiPageNotFound, nil)
+	}
+	topic := topics.Get(page.TopicId)
+	if topic.Id == 0 || !forum.CanViewTopicSimple(&topic, req.UserId) {
 		return component.FailResponseCode(component.MessageWikiPageNotFound, nil)
 	}
 	return component.SuccessResponse(wikiservice.ListRevisions(page.Id))
@@ -186,7 +194,7 @@ func WikiDeleteNamespace(req component.BetterRequest[WikiDeleteNamespaceReq]) co
 	if len(wikiPagesList(req.Params.Name)) > 0 {
 		return component.FailResponseCode(component.MessageWikiNamespaceHasPages, nil)
 	}
-	if err := wikiNamespaces.DeleteByName(req.Params.Name); err != nil {
+	if err := wikiservice.DeleteNamespace(req.Params.Name); err != nil {
 		slog.Error("wiki delete namespace failed", "name", req.Params.Name, "error", err)
 		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)
 	}

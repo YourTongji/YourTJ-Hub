@@ -59,6 +59,7 @@ import {
 import { Textarea } from '@/admin/components/ui/textarea'
 import {
   createWikiNamespace,
+  createWikiPage,
   deleteWikiNamespace,
   getWikiEditors,
   getWikiNamespaces,
@@ -118,6 +119,8 @@ const deletingPage = ref<{ group: WikiNamespaceTree, page: WikiPageNode } | null
 const pageDeleting = ref(false)
 const newPageDialog = ref(false)
 const newPagePath = ref('')
+const newPageTitle = ref('')
+const newPageSaving = ref(false)
 
 const revisions = ref<WikiRevision[]>([])
 const reviewLoading = ref(false)
@@ -346,7 +349,8 @@ async function loadTree() {
 }
 
 function openRename(group: WikiNamespaceTree, page: WikiPageNode) {
-  renameForm.path = page.path
+  // 管理树 path 为 namespace 相对路径；预填完整路径避免歧义（review B2）。
+  renameForm.path = page.path.startsWith(`${group.name}/`) ? page.path : `${group.name}/${page.path}`
   renameForm.title = page.title
   renameRow.value = { group, page }
 }
@@ -414,17 +418,35 @@ async function confirmDeletePage() {
 
 function openNewPage(group: WikiNamespaceTree) {
   newPagePath.value = `${group.name}/`
+  newPageTitle.value = ''
   newPageDialog.value = true
 }
 
-function confirmNewPage() {
+async function confirmNewPage() {
   const path = newPagePath.value.trim().replace(/^\/+/, '')
+  const title = newPageTitle.value.trim()
   if (!path) {
     adminToast.warning(adminText('k00o4'))
     return
   }
-  newPageDialog.value = false
-  window.open(`/wiki/${path}`, '_blank', 'noopener')
+  if (!title) {
+    adminToast.warning(adminText('k00i5'))
+    return
+  }
+  newPageSaving.value = true
+  try {
+    // 管理端新建页面直接调用创建 API（review P2：此前仅 window.open 跳转，
+    // 不落库，页面实际无法创建）。namespace 取路径首段（openNewPage 已预填 group.name/）。
+    const namespace = path.split('/')[0]
+    await createWikiPage({ namespace, path, title, content: '' })
+    newPageDialog.value = false
+    await loadTree()
+    adminToast.success(adminText('k000e'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00n2'))
+  } finally {
+    newPageSaving.value = false
+  }
 }
 
 // ---------- Review ----------
@@ -839,11 +861,15 @@ onMounted(() => {
             {{ adminText('k00g1') }}
             <Input v-model="newPagePath" class="font-mono" placeholder="guide/hello" />
           </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00i5') }}
+            <Input v-model="newPageTitle" :placeholder="adminText('k00i5')" />
+          </label>
           <DialogFooter>
             <Button variant="outline" type="button" @click="newPageDialog = false">{{ adminText('k009q') }}</Button>
-            <Button type="submit">
-              <ExternalLink class="size-4" />
-              {{ adminText('k00nv') }}
+            <Button type="submit" :disabled="newPageSaving">
+              <Save class="size-4" />
+              {{ newPageSaving ? adminText('k005f') : adminText('k005g') }}
             </Button>
           </DialogFooter>
         </form>

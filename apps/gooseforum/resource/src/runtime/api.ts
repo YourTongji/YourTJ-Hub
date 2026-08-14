@@ -1448,7 +1448,8 @@ export async function createWikiPage(input: CreateWikiPageInput): Promise<Create
 
 export interface UpdateWikiPageResult {
   revisionId: number
-  status: number
+  /** 契约：pending/approved/rejected/superseded 字符串（review P2）。 */
+  status: string
 }
 
 export async function updateWikiPage(pageId: number, title: string, content: string): Promise<UpdateWikiPageResult> {
@@ -1468,7 +1469,8 @@ export interface WikiRevisionPayload {
   revisionNo: number
   title: string
   content: string
-  status: number
+  /** 契约：approved/pending/rejected/superseded 字符串（review P2）。 */
+  status: string
   editorId: number
   editorName: string
   updatedAt: string

@@ -1797,6 +1797,11 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if topic.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
+		// wiki 分站内容走 wiki 修订审核流程（review N1）：禁止在论坛审核队列
+		// 直接通过/拒绝 wiki 主题，避免绕过 wiki_page_revisions 状态流转。
+		if topic.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageAdminReviewTargetInvalid, nil)
+		}
 		if topic.ProcessStatus != topics.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)
 		}
@@ -1832,6 +1837,10 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		post := posts.Get(req.Params.Id)
 		if post.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
+		}
+		// wiki 分站评论同样由 wiki 修订审核流程管理（review N1）。
+		if topicEntity := topics.GetSimple(post.TopicId); topicEntity.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageAdminReviewTargetInvalid, nil)
 		}
 		if post.ProcessStatus != posts.ProcessStatusPending {
 			return component.FailResponseCode(component.MessageAdminReviewProcessed, nil)

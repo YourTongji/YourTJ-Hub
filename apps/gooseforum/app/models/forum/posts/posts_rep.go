@@ -565,6 +565,10 @@ func PagePendingReview(page, pageSize int) struct {
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		// 审核队列仅含论坛话题：wiki 首楼同步的 pending 由 wiki 修订审核队列管理，
+		// 不进入论坛审核（review N1，避免绕过 wiki 修订流程直接审核/拒绝）。
+		// 表名 topics 为论坛 topics 表（与 topics_rep.go 内部 SQL 一致）。
+		Where("topic_id IN (SELECT id FROM topics WHERE topic_type = ?)", 0).
 		Order(queryopt.Desc("id"))
 	var total int64
 	b.Session(&gorm.Session{}).Count(&total)

@@ -304,6 +304,10 @@ func TestWikiNamespacesHTTPContract(t *testing.T) {
 	if _, ok := ns["updatedAt"].(string); !ok {
 		t.Fatalf("wiki namespaces[0].updatedAt = %#v, want RFC3339 string", ns["updatedAt"])
 	}
+	// review P2：namespace 卡需提供首个 approved 页面的完整路径供跳转。
+	if ns["firstPagePath"] != "guide/getting-started" {
+		t.Fatalf("wiki namespaces[0].firstPagePath = %#v, want guide/getting-started", ns["firstPagePath"])
+	}
 }
 
 func TestWikiHomeHTTPContract(t *testing.T) {
@@ -333,12 +337,16 @@ func TestWikiHomeHTTPContract(t *testing.T) {
 	}
 	// 最近更新按修订时间降序：1002（14:30）→ 1001（14:00）。
 	first := recent[0].(map[string]any)
-	if first["pageId"] != float64(1002) || first["path"] != "content" {
-		t.Fatalf("wiki home recent[0] = %#v, want 1002/content", first)
+	if first["pageId"] != float64(1002) || first["path"] != "guide/content" {
+		t.Fatalf("wiki home recent[0] = %#v, want 1002/guide/content", first)
 	}
 	second := recent[1].(map[string]any)
-	if second["pageId"] != float64(1001) || second["path"] != "getting-started" {
-		t.Fatalf("wiki home recent[1] = %#v, want 1001/getting-started", second)
+	if second["pageId"] != float64(1001) || second["path"] != "guide/getting-started" {
+		t.Fatalf("wiki home recent[1] = %#v, want 1001/guide/getting-started", second)
+	}
+	// 首页 namespace 卡携带 firstPagePath。
+	if ns0 := namespaces[0].(map[string]any); ns0["firstPagePath"] != "guide/getting-started" {
+		t.Fatalf("wiki home namespaces[0].firstPagePath = %#v, want guide/getting-started", ns0["firstPagePath"])
 	}
 }
 

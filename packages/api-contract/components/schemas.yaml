@@ -2180,6 +2180,9 @@ WikiNamespaceSummary:
     updatedAt:
       type: string
       format: date-time
+    firstPagePath:
+      type: string
+      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -2209,6 +2212,7 @@ WikiRecentPage:
       minimum: 1
     path:
       type: string
+      description: Full path (namespace/slug) for direct linking (review P2).
     title:
       type: string
     updatedAt:

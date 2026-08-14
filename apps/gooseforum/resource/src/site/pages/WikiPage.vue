@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
 import { Clock, Eye, History, Loader2, MessageSquare, X } from '@lucide/vue'
-import { updateWikiPage } from '@/runtime/api'
+import { getWikiRevisions, updateWikiPage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
 import { showUserCard } from '@/runtime/user-card-events'
@@ -58,11 +58,23 @@ const emptyPostStream = {
   maxPostNo: 0,
 }
 
-function startEdit() {
+async function startEdit() {
   editTitle.value = detailProps.page.title
-  editContent.value = htmlToMarkdown(detailProps.page.content)
+  editContent.value = ''
   editError.value = ''
   editing.value = true
+  // review P1：编辑应加载原始 Markdown（rendered HTML 反解有损）。
+  // 公开修订历史接口返回最新 approved 修订的原始 markdown。
+  try {
+    const revisions = await getWikiRevisions(detailProps.page.id)
+    if (revisions.length > 0) {
+      editContent.value = revisions[0].content
+      return
+    }
+  } catch {
+    // 兜底：渲染 HTML 反解（有损，但至少可编辑）。
+  }
+  editContent.value = htmlToMarkdown(detailProps.page.content)
 }
 
 function cancelEdit() {

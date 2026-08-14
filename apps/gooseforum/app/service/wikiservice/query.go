@@ -227,11 +227,12 @@ func BuildAdminTree() []AdminTreeNamespace {
 
 // NamespaceSummary 首页 namespace 卡。
 type NamespaceSummary struct {
-	Name        string    `json:"name"`
-	Description string    `json:"description"`
-	SortOrder   int       `json:"sortOrder"`
-	PageCount   int64     `json:"pageCount"`
-	UpdatedAt   time.Time `json:"updatedAt"`
+	Name          string    `json:"name"`
+	Description   string    `json:"description"`
+	SortOrder     int       `json:"sortOrder"`
+	PageCount     int64     `json:"pageCount"`
+	UpdatedAt     time.Time `json:"updatedAt"`
+	FirstPagePath string    `json:"firstPagePath"`
 }
 
 // BuildNamespaceSummaries 返回 namespace 摘要列表（含 approved 页面数与最近更新时间）。
@@ -247,9 +248,13 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 		nsPages := byNamespace[ns.Name]
 		updated := ns.UpdatedAt
 		count := int64(0)
+		firstPath := ""
 		for _, p := range nsPages {
 			rev := wikiPageRevisions.GetLatestApproved(p.Id)
 			if rev.Id != 0 {
+				if firstPath == "" {
+					firstPath = p.Path
+				}
 				count++
 				if rev.CreatedAt.After(updated) {
 					updated = rev.CreatedAt
@@ -257,11 +262,12 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 			}
 		}
 		summaries = append(summaries, NamespaceSummary{
-			Name:        ns.Name,
-			Description: ns.Description,
-			SortOrder:   ns.SortOrder,
-			PageCount:   count,
-			UpdatedAt:   updated,
+			Name:          ns.Name,
+			Description:   ns.Description,
+			SortOrder:     ns.SortOrder,
+			PageCount:     count,
+			UpdatedAt:     updated,
+			FirstPagePath: firstPath,
 		})
 	}
 	return summaries
@@ -324,7 +330,7 @@ func BuildHome() HomeData {
 		}
 		recentPages = append(recentPages, RecentPage{
 			PageId:     item.page.Id,
-			Path:       strings.TrimPrefix(item.page.Path, item.page.Namespace+"/"),
+			Path:       item.page.Path,
 			Title:      item.rev.Title,
 			UpdatedAt:  item.rev.CreatedAt.Format(time.RFC3339),
 			EditorId:   item.rev.EditorId,

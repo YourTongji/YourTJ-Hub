@@ -61,3 +61,9 @@ func SetEditorsTx(tx *gorm.DB, namespace string, userIds []uint64, addedBy uint6
 	}
 	return nil
 }
+
+// DeleteByNamespace 删除某 namespace 的全部贡献者记录（namespace 删除时清理，
+// 避免贡献者表残留孤儿行，review N1）。
+func DeleteByNamespace(namespace string) error {
+	return builder().Where(queryopt.Eq("namespace", namespace)).Delete(&Entity{}).Error
+}

@@ -12,6 +12,7 @@ class WikiNamespace {
     required this.sortOrder,
     required this.pageCount,
     required this.updatedAt,
+    required this.firstPagePath,
   });
 
   final String name;
@@ -19,6 +20,7 @@ class WikiNamespace {
   final int sortOrder;
   final int pageCount;
   final String updatedAt;
+  final String firstPagePath;
 
   factory WikiNamespace.fromJson(Map<String, dynamic> json) {
     return WikiNamespace(
@@ -27,6 +29,7 @@ class WikiNamespace {
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       pageCount: (json['pageCount'] as num?)?.toInt() ?? 0,
       updatedAt: json['updatedAt'] as String? ?? '',
+      firstPagePath: json['firstPagePath'] as String? ?? '',
     );
   }
 
@@ -37,6 +40,7 @@ class WikiNamespace {
       'sortOrder': sortOrder,
       'pageCount': pageCount,
       'updatedAt': updatedAt,
+      'firstPagePath': firstPagePath,
     };
   }
 }

@@ -111,9 +111,9 @@ func scopeQueries(req AggregateSearchRequest) []*meilisearch.SearchRequest {
 			AttributesToRetrieve: []string{"id", "title"},
 		}
 		if req.TopicType != nil {
-			topicQuery.Filter = map[string]any{
-				"filter": []string{"topicType = " + cast.ToString(*req.TopicType)},
-			}
+			// Meilisearch filter 接受字符串或字符串数组（filter 表达式本身），
+			// 不接受 {"filter": [...]} 包装对象（review B1：会导致 topics 域 400 失败）。
+			topicQuery.Filter = []string{"topicType = " + cast.ToString(*req.TopicType)}
 		}
 		queries = append(queries, topicQuery)
 	}

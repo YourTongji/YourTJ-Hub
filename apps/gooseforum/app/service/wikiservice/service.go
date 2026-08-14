@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"log/slog"
+	"strings"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -136,6 +137,18 @@ func Create(params CreateParams) (*CreateResult, error) {
 		return nil, ErrPathInvalid
 	}
 
+	// 嵌套路径（>=3 段）时校验父页面存在并记录 parent_id（review P2：
+	// 此前嵌套路径直接创建会留下 parent_id=0，树层级断裂）。
+	parentID := uint64(0)
+	if segments := strings.Split(path, "/"); len(segments) > 2 {
+		parentPath := strings.Join(segments[:len(segments)-1], "/")
+		parent := wikiPages.GetByPath(parentPath)
+		if parent.Id == 0 {
+			return nil, ErrPageNotFound
+		}
+		parentID = parent.Id
+	}
+
 	topic := topics.Entity{
 		UserId:           params.UserId,
 		Title:            params.Title,
@@ -179,6 +192,7 @@ func Create(params CreateParams) (*CreateResult, error) {
 			TopicId:   topic.Id,
 			Namespace: params.Namespace,
 			Path:      path,
+			ParentId:  parentID,
 		}
 		if err := wikiPages.CreateTx(tx, &page); err != nil {
 			return err
@@ -381,13 +395,28 @@ func Review(params ReviewParams) (*ReviewResult, error) {
 	}
 
 	// 提交后副作用。
+	reviewed := wikiPageRevisions.Get(params.RevisionID)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki review: search index sync failed", "topicId", topic.Id, "error", err)
 	}
 	status := StatusStringRejected
 	if action == "approve" {
 		status = StatusStringApproved
-		notifyWatchers(topic.Id, page.Path, topic.Title, firstPost.UserId)
+		// 附件引用同步为新内容（review P2：Edit/Review 路径此前从未更新
+		// file_usage，审核通过后旧附件引用残留）。
+		fileusageservice.ReplaceTopic(topic.Id, reviewed.EditorId, reviewed.Content)
+		// watcher 通知的 actor 应为修订编辑者而非首楼作者（review P2）。
+		notifyWatchers(topic.Id, page.Path, topic.Title, reviewed.EditorId)
+	} else {
+		// reject：附件引用回滚为上一 approved 内容。
+		prev := wikiPageRevisions.GetLatestApproved(page.Id)
+		editorID := uint64(0)
+		content := ""
+		if prev.Id != 0 {
+			editorID = prev.EditorId
+			content = prev.Content
+		}
+		fileusageservice.ReplaceTopic(topic.Id, editorID, content)
 	}
 	return &ReviewResult{RevisionId: params.RevisionID, Status: status}, nil
 }

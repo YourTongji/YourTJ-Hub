@@ -43,8 +43,9 @@ const { t } = useI18n()
           <a
             v-for="namespace in props.namespaces"
             :key="namespace.name"
-            :href="`/wiki/${namespace.name}`"
+            :href="namespace.firstPagePath ? `/wiki/${namespace.firstPagePath}` : undefined"
             class="gf-card group block p-4 transition-colors hover:border-primary/40"
+            :aria-disabled="!namespace.firstPagePath"
           >
             <div class="flex items-center justify-between gap-2">
               <h3 class="min-w-0 truncate font-semibold text-base-content group-hover:text-primary">{{ namespace.name }}</h3>

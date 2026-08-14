@@ -2037,6 +2037,8 @@ export interface components {
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
+            /** @description Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages. */
+            firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
         WikiNamespaceListResult: components["schemas"]["WikiNamespaceSummary"][];
@@ -2046,6 +2048,7 @@ export interface components {
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
+            /** @description Full path (namespace/slug) for direct linking (review P2). */
             path: string;
             title: string;
             /** Format: date-time */

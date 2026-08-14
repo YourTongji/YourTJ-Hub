@@ -125,3 +125,9 @@ func CountPending() int64 {
 	builder().Where(queryopt.Eq("status", StatusPending)).Count(&count)
 	return count
 }
+
+// DeleteByPage 删除某页面的全部修订（页面删除时清理，避免 pending 修订
+// 残留进审核队列且 Review 返回 ErrPageNotFound 的幽灵项，review P2）。
+func DeleteByPage(pageID uint64) error {
+	return builder().Where(queryopt.Eq("page_id", pageID)).Delete(&Entity{}).Error
+}

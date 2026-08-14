@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicviewservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/gin-gonic/gin"
 )
@@ -124,6 +125,10 @@ func WikiDetail(c *gin.Context) {
 	payload.Layout.Sidebar.Mode = "wiki"
 	payload.Layout.Sidebar.WikiTree = wikiTreePayload(page.Path)
 	renderPage(c, "wiki.gohtml", payload)
+	// 计一次浏览（review P2：TopicDetail 已记录，wiki 详情此前漏记）。
+	if shouldCountTopicView(&topic) {
+		topicviewservice.RecordView(topic.Id)
+	}
 }
 
 func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {

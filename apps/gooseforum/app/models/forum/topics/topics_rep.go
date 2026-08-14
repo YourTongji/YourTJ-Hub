@@ -232,6 +232,24 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 	return
 }
 
+// GetActiveWikiByUserPage 分页返回本人仍公开（status=1 且 ACTIVE）的 wiki 分站页面话题
+// （topic_type=wiki）。注销账号删除全部内容时与论坛话题分开遍历（review P1：
+// GetActiveByUserPage 的 topic_type=forum 过滤会导致 wiki 页面漏删）。
+func GetActiveWikiByUserPage(userId uint64, cursorID uint64, limit int) (entities []Entity) {
+	b := builder().
+		Where(queryopt.Eq("user_id", userId)).
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("visibility_status", VisibilityActive)).
+		Where(queryopt.Eq("topic_type", TopicTypeWiki))
+	if cursorID != 0 {
+		b = b.Where(queryopt.Lt("id", cursorID))
+	}
+	b.Order(queryopt.Desc("id")).
+		Limit(pageutil.BoundPageSize(limit) + 1).
+		Find(&entities)
+	return
+}
+
 func CantWriteNew(userId uint64, maxCount int64) bool {
 	var count int64
 	builder().Where(queryopt.Eq("user_id", userId)).Where(queryopt.Gt("created_at", time.Now().Format("2006-01-02"))).Count(&count)
@@ -393,6 +411,7 @@ func PagePendingReview(page, pageSize int) struct {
 	pageSize = pageutil.BoundPageSize(pageSize)
 	b := builder().
 		Where(queryopt.Eq("process_status", ProcessStatusPending)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id"))
 	var total int64

@@ -489,6 +489,10 @@ export function getWikiNamespaces() {
   return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
 }
 
+export function createWikiPage(data: { namespace: string, path: string, title: string, content: string }) {
+  return postJson<{ pageId: number, path: string }>('/api/wiki/pages', data, adminText('k00n0'))
+}
+
 export function createWikiNamespace(data: { name: string, description: string }) {
   return postJson<unknown>('/api/admin/wiki/namespaces', data, adminText('k00n0'))
 }

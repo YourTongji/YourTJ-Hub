@@ -2511,7 +2511,10 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	}
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
-		if payload.PostId > 0 {
+		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
+		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+			topicURL = payload.Extra.ProfileURL
+		} else if payload.PostId > 0 {
 			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
 		}
 		item.Topic = &NotificationTopicPayload{

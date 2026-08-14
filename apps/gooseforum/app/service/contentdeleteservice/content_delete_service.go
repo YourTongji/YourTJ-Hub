@@ -23,6 +23,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
@@ -809,6 +811,33 @@ func DeleteAllUserContent(userID uint64) error {
 		}
 		topicCursor = activeTopics[len(activeTopics)-1].Id
 		if topicCursor == 0 {
+			break
+		}
+	}
+	// 再删 wiki 分站页面话题（review P1：GetActiveByUserPage 的 topic_type=forum
+	// 过滤会导致 wiki 页面漏删）。先删页面与修订行，再走话题删除生命周期，
+	// 避免 topic 删除后残留孤儿 wiki_pages/wiki_page_revisions。
+	var wikiCursor uint64
+	for {
+		activeWikiTopics := topics.GetActiveWikiByUserPage(userID, wikiCursor, batchSize)
+		if len(activeWikiTopics) == 0 {
+			break
+		}
+		for _, topic := range activeWikiTopics {
+			if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+				if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
+					slog.Warn("delete wiki page revisions on account close failed", "userId", userID, "pageId", page.Id, "err", err)
+				}
+				if err := wikiPages.Delete(page.Id); err != nil {
+					slog.Warn("delete wiki page on account close failed", "userId", userID, "pageId", page.Id, "err", err)
+				}
+			}
+			if err := DeleteTopicByUser(userID, topic.Id); err != nil {
+				slog.Warn("delete user wiki topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
+			}
+		}
+		wikiCursor = activeWikiTopics[len(activeWikiTopics)-1].Id
+		if wikiCursor == 0 {
 			break
 		}
 	}
