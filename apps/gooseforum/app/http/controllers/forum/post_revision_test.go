@@ -102,20 +102,88 @@ func createRevisionFixture(t *testing.T, conn *gorm.DB, topicID, postID, authorI
 }
 
 // decodeRevisions 把 PostRevisions 成功响应的 Result 解码为版本列表。
-func decodeRevisions(t *testing.T, res component.Response) (uint64, []revisionJSON) {
+func decodeRevisions(t *testing.T, res component.Response) (uint64, []revisionJSON, bool, uint64) {
 	t.Helper()
 	raw, err := json.Marshal(res.Data.Result)
 	if err != nil {
 		t.Fatalf("marshal result: %v", err)
 	}
 	var payload struct {
-		PostId   uint64         `json:"postId"`
-		Versions []revisionJSON `json:"versions"`
+		PostId        uint64         `json:"postId"`
+		Versions      []revisionJSON `json:"versions"`
+		HasMore       bool           `json:"hasMore"`
+		BeforeVersion uint64         `json:"beforeVersion"`
 	}
 	if err := json.Unmarshal(raw, &payload); err != nil {
 		t.Fatalf("unmarshal result: %v", err)
 	}
-	return payload.PostId, payload.Versions
+	return payload.PostId, payload.Versions, payload.HasMore, payload.BeforeVersion
+}
+
+// TestPostRevisionsPaginatesByVersionCursor 验证版本历史游标分页：
+// 单页大小受 BoundPageSize 钳制（默认 10），beforeVersion 返回更早一页
+// （升序），hasMore 标记是否还有更早版本，遍历不漏不重
+// （P2：响应不再随版本数无界增长）。
+func TestPostRevisionsPaginatesByVersionCursor(t *testing.T) {
+	conn := setupRevisionTestDB(t)
+	authorID := uint64(9001)
+	readerID := uint64(9002)
+	createRevisionUser(t, conn, authorID, "author")
+	createRevisionUser(t, conn, readerID, "reader")
+	versions := make([]postRevisions.Entity, 0, 25)
+	for v := 1; v <= 25; v++ {
+		versions = append(versions, postRevisions.Entity{
+			Version:       uint64(v),
+			EditorId:      authorID,
+			Content:       fmt.Sprintf("body v%d", v),
+			RenderedHTML:  fmt.Sprintf("<p>body v%d</p>", v),
+			ProcessStatus: posts.ProcessStatusNormal,
+		})
+	}
+	createRevisionFixture(t, conn, 9101, 9102, authorID, 1, versions)
+
+	// 第一页（默认 page size=10）：最新 10 个版本（升序 v16..v25），
+	// hasMore=true，cursor 指向 v15。
+	res := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9102},
+	})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(page1) failed: %+v", res)
+	}
+	_, page1, hasMore, cursor := decodeRevisions(t, res)
+	if !hasMore || len(page1) != 10 || page1[0].Version != 16 || page1[9].Version != 25 {
+		t.Fatalf("page1 = %d versions (%d..%d) hasMore=%v cursor=%d, want 10 versions v16..v25 hasMore=true cursor=15",
+			len(page1), page1[0].Version, page1[len(page1)-1].Version, hasMore, cursor)
+	}
+
+	// 第二页：v6..v15。
+	res2 := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9102, BeforeVersion: cursor},
+	})
+	if res2.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(page2) failed: %+v", res2)
+	}
+	_, page2, hasMore2, cursor2 := decodeRevisions(t, res2)
+	if !hasMore2 || len(page2) != 10 || page2[0].Version != 6 || page2[9].Version != 15 {
+		t.Fatalf("page2 = %d versions (%d..%d) hasMore=%v cursor=%d, want 10 versions v6..v15 hasMore=true cursor=5",
+			len(page2), page2[0].Version, page2[len(page2)-1].Version, hasMore2, cursor2)
+	}
+
+	// 第三页：v1..v5，hasMore=false。
+	res3 := PostRevisions(component.BetterRequest[PostRevisionsReq]{
+		UserId: readerID,
+		Params: PostRevisionsReq{PostID: 9102, BeforeVersion: cursor2},
+	})
+	if res3.Data.Code != component.SUCCESS {
+		t.Fatalf("PostRevisions(page3) failed: %+v", res3)
+	}
+	_, page3, hasMore3, _ := decodeRevisions(t, res3)
+	if hasMore3 || len(page3) != 5 || page3[0].Version != 1 || page3[4].Version != 5 {
+		t.Fatalf("page3 = %d versions (%d..%d) hasMore=%v, want 5 versions v1..v5 hasMore=false",
+			len(page3), page3[0].Version, page3[len(page3)-1].Version, hasMore3)
+	}
 }
 
 // TestPostRevisionsListsVersionsAscendingWithEditor 验证版本列表按 version 升序，
@@ -138,7 +206,7 @@ func TestPostRevisionsListsVersionsAscendingWithEditor(t *testing.T) {
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions() failed: %+v", res)
 	}
-	postID, versions := decodeRevisions(t, res)
+	postID, versions, _, _ := decodeRevisions(t, res)
 	if postID != 8202 {
 		t.Fatalf("postId = %d, want 8202", postID)
 	}
@@ -182,7 +250,7 @@ func TestPostRevisionsHidesPendingContentFromNonModerator(t *testing.T) {
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions(reader) failed: %+v", res)
 	}
-	_, readerVersions := decodeRevisions(t, res)
+	_, readerVersions, _, _ := decodeRevisions(t, res)
 	if len(readerVersions) != 2 {
 		t.Fatalf("reader version count = %d, want 2", len(readerVersions))
 	}
@@ -204,7 +272,7 @@ func TestPostRevisionsHidesPendingContentFromNonModerator(t *testing.T) {
 	if resMod.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions(moderator) failed: %+v", resMod)
 	}
-	_, modVersions := decodeRevisions(t, resMod)
+	_, modVersions, _, _ := decodeRevisions(t, resMod)
 	if len(modVersions) != 2 {
 		t.Fatalf("moderator version count = %d, want 2", len(modVersions))
 	}
@@ -262,7 +330,7 @@ func TestPostRevisionsBlanksDeletedPostContent(t *testing.T) {
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions() failed: %+v", res)
 	}
-	_, versions := decodeRevisions(t, res)
+	_, versions, _, _ := decodeRevisions(t, res)
 	if len(versions) != 2 {
 		t.Fatalf("version count = %d, want 2", len(versions))
 	}
@@ -297,7 +365,7 @@ func TestPostRevisionsHidesBlockedPostContentFromNonModerator(t *testing.T) {
 	if res.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions(reader) failed: %+v", res)
 	}
-	_, readerVersions := decodeRevisions(t, res)
+	_, readerVersions, _, _ := decodeRevisions(t, res)
 	if len(readerVersions) != 1 || readerVersions[0].Content != "" || readerVersions[0].RenderedHTML != "" {
 		t.Fatalf("non-moderator sees blocked content = %#v, want blanked", readerVersions)
 	}
@@ -309,7 +377,7 @@ func TestPostRevisionsHidesBlockedPostContentFromNonModerator(t *testing.T) {
 	if resMod.Data.Code != component.SUCCESS {
 		t.Fatalf("PostRevisions(moderator) failed: %+v", resMod)
 	}
-	_, modVersions := decodeRevisions(t, resMod)
+	_, modVersions, _, _ := decodeRevisions(t, resMod)
 	if len(modVersions) != 1 || modVersions[0].Content != "blocked body" {
 		t.Fatalf("moderator blocked content = %#v, want visible", modVersions)
 	}

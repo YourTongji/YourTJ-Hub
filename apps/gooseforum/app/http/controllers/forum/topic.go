@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/i18n"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/pageutil"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -332,13 +333,16 @@ func activeKeyForTopic(topic TopicDetailPayload) string {
 }
 
 type PostRevisionsReq struct {
-	PostID uint64 `form:"postId"`
+	PostID        uint64 `form:"postId"`
+	BeforeVersion uint64 `form:"beforeVersion"`
+	Limit         int    `form:"limit"`
 }
 
 // PostRevisions 返回某帖的版本历史（用户只读查看，无回滚/写入接口）。
 // 可见性与楼层窗口一致：话题可见即可读历史；已删除/匿名化帖的全部版本
 // 正文清空，待审（pending）版本与封禁帖正文仅版主可见，普通用户看到
 // 空内容 + 状态标记，避免敏感内容经历史泄露。
+// 版本按版本号游标分页（beforeVersion=0 取最新一页，返回升序 + hasMore）。
 func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Response {
 	postEntity := posts.Get(req.Params.PostID)
 	if postEntity.Id == 0 {
@@ -355,7 +359,8 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
 
-	versions := postRevisions.ListByPostId(postEntity.Id)
+	limit := pageutil.BoundPageSize(req.Params.Limit)
+	versions, hasMore := postRevisions.PageByPostId(postEntity.Id, req.Params.BeforeVersion, limit)
 	canModerate := moderationservice.CanModerateAnyCategory(req.UserId, topicEntity.CategoryIds)
 	// 帖子级可见性（与 buildPostPayloads 的楼层正文过滤同语义）：
 	// 删除/匿名化帖无条件清空全部版本正文；封禁帖正文仅版主可见。
@@ -409,8 +414,14 @@ func PostRevisions(req component.BetterRequest[PostRevisionsReq]) component.Resp
 			CreatedAt:     v.CreatedAt.Format(time.DateTime),
 		})
 	}
+	nextCursor := uint64(0)
+	if len(list) > 0 {
+		nextCursor = list[0].Version - 1
+	}
 	return component.SuccessResponse(map[string]any{
-		"postId":   postEntity.Id,
-		"versions": list,
+		"postId":        postEntity.Id,
+		"versions":      list,
+		"hasMore":       hasMore,
+		"beforeVersion": nextCursor,
 	})
 }

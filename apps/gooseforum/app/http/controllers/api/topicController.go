@@ -203,6 +203,9 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	if pendingReview {
 		topic.ProcessStatus = topics.ProcessStatusPending
 	}
+	// 覆写首帖正文前保存旧内容：存量帖子（无版本快照）首次编辑时惰性播种
+	// v1 = 旧正文，避免原始正文永久丢失（新帖此值恒为空，走正常 v1 播种）。
+	oldContent := firstPost.Content
 	if topic.Id > 0 {
 		if firstPost.Id == 0 {
 			return component.FailResponseCode(component.MessageTopicNotFound, nil)
@@ -228,7 +231,8 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 				return err
 			}
 			// 首楼编辑追加版本历史 + 最后编辑者/时间（与 UpdatePost 同语义）。
-			if err := postservice.AppendPostRevision(tx, &firstPost, req.UserId, firstPost.ProcessStatus); err != nil {
+			// 存量帖子无版本快照时用旧正文惰性播种 v1。
+			if err := postservice.AppendPostRevisionWithOld(tx, &firstPost, req.UserId, firstPost.ProcessStatus, oldContent); err != nil {
 				return err
 			}
 		} else {
@@ -561,7 +565,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if pendingReview {
 		postEntity.ProcessStatus = posts.ProcessStatusPending
 	}
-
+	// 覆写正文前保存旧内容：存量帖子（无版本快照）首次编辑时惰性播种
+	// v1 = 旧正文，避免原始正文永久丢失（已有 v1 的帖子走正常追加）。
+	oldContent := postEntity.Content
 	postEntity.Content = content
 	postEntity.RenderedHTML = markdown2html.PostMarkdownToHTML(content)
 	postEntity.RenderedVersion = markdown2html.GetPostVersion()
@@ -584,11 +590,15 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 			return err
 		}
 		// 版本历史与帖子更新同事务：追加失败则整体回滚，不留无版本的编辑。
-		if err := postservice.AppendPostRevision(tx, &postEntity, req.UserId, postEntity.ProcessStatus); err != nil {
+		if err := postservice.AppendPostRevisionWithOld(tx, &postEntity, req.UserId, postEntity.ProcessStatus, oldContent); err != nil {
 			return err
 		}
 		if isFirstPost {
-			if err := topics.SaveTx(tx, &topicEntity); err != nil {
+			// 首楼编辑只更新由正文派生的字段，绝不整行保存事务外读取的
+			// topicEntity——整行 Save 会把并发回复刚写入的 post_count/
+			// post_seq/posters/last_post_id/last_posted_at 回写为旧值，
+			// 导致统计倒退或 post_seq 复写后新回复撞 post_no 唯一约束。
+			if err := topics.UpdateFirstPostDerivedTx(tx, &topicEntity); err != nil {
 				return err
 			}
 		}

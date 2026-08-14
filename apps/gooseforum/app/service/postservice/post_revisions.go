@@ -3,6 +3,7 @@ package postservice
 import (
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"gorm.io/gorm"
@@ -25,13 +26,47 @@ func SeedPostRevision(tx *gorm.DB, post *posts.Entity) error {
 // AppendPostRevision 在内容编辑的同一事务内追加新版本并更新帖子的
 // 最后编辑者/时间。行锁串行化同帖并发编辑，保证 (post_id, version)
 // 单调唯一，两个并发编辑不会拿到同一版本号。
+//
+// 惰性播种：部署前已存在、从未编辑过的帖子没有 v1 快照；若调用方传入的
+// 帖子对象尚未被新内容覆写（oldContent 非空），先播种 v1 = 旧正文再追加
+// 新版本，避免存量帖子首次编辑后原始正文永久丢失。若调用方已在事务前
+// 覆写了对象内容，无法恢复旧正文，此时跳过播种（v1 数据迁移兜底）。
 func AppendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, processStatus int8) error {
+	return appendPostRevision(tx, post, editorID, processStatus, "")
+}
+
+// AppendPostRevisionWithOld 与 AppendPostRevision 相同，但 oldContent
+// 非空时先播种 v1 快照（editor = 作者、内容 = oldContent、状态 = 当前
+// 帖子状态），再追加新版本。用于编辑前已在事务内重读旧正文的调用方。
+func AppendPostRevisionWithOld(tx *gorm.DB, post *posts.Entity, editorID uint64, processStatus int8, oldContent string) error {
+	return appendPostRevision(tx, post, editorID, processStatus, oldContent)
+}
+
+func appendPostRevision(tx *gorm.DB, post *posts.Entity, editorID uint64, processStatus int8, oldContent string) error {
 	var lockedID uint64
 	if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
 		Table("posts").Where("id = ?", post.Id).Select("id").Scan(&lockedID).Error; err != nil {
 		return err
 	}
+	if lockedID == 0 {
+		return gorm.ErrRecordNotFound
+	}
 	next := postRevisions.NextVersionTx(tx, post.Id)
+	if next == 1 && oldContent != "" {
+		// 存量帖子惰性播种：原帖从未有过版本，先落 v1（旧正文），
+		// 本次编辑成为 v2。
+		if err := postRevisions.CreateTx(tx, &postRevisions.Entity{
+			PostId:        post.Id,
+			Version:       1,
+			EditorId:      post.UserId,
+			Content:       oldContent,
+			RenderedHTML:  markdown2html.PostMarkdownToHTML(oldContent),
+			ProcessStatus: post.ProcessStatus,
+		}); err != nil {
+			return err
+		}
+		next = 2
+	}
 	now := time.Now()
 	if err := postRevisions.CreateTx(tx, &postRevisions.Entity{
 		PostId:        post.Id,

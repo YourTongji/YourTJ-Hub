@@ -39,6 +39,21 @@ func SaveTx(tx *gorm.DB, entity *Entity) error {
 	return tx.Table(tableName).Save(entity).Error
 }
 
+// UpdateFirstPostDerivedTx 事务内只更新由首楼正文派生的字段
+// （摘要/首图/图片列表/待审状态）。首楼编辑不得整行保存事务外读取的
+// 话题对象——整行 Save 会把并发回复刚写入的 post_count/post_seq/
+// posters/last_post_id/last_posted_at 回写为旧值，导致统计倒退或
+// post_seq 复写后新回复撞 post_no 唯一约束。
+func UpdateFirstPostDerivedTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Where(queryopt.Eq("id", entity.Id)).
+		Updates(map[string]any{
+			"excerpt":         entity.Excerpt,
+			"first_image_url": entity.FirstImageURL,
+			"image_urls":      jsonopt.Encode(entity.ImageUrls),
+			"process_status":  entity.ProcessStatus,
+		}).Error
+}
+
 func SaveNoUpdate(entity *Entity) error {
 	return builder().Omit("updated_at").Save(entity).Error
 }

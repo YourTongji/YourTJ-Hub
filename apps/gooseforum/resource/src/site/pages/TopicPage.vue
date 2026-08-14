@@ -63,6 +63,9 @@ const pendingReport = ref<{ targetType: 'topic' | 'post'; targetId: number; titl
 const historyPost = ref<PostPayload | null>(null)
 const historyVersions = ref<PostRevisionResult['versions'] | null>(null)
 const historyLoading = ref(false)
+const historyLoadingMore = ref(false)
+const historyHasMore = ref(false)
+const historyBeforeVersion = ref(0)
 const historyError = ref('')
 const reportReason = ref('spam')
 const reportNote = ref('')
@@ -1664,11 +1667,15 @@ async function removePost(postId: number) {
 async function openPostHistory(post: PostPayload) {
   historyPost.value = post
   historyVersions.value = null
+  historyHasMore.value = false
+  historyBeforeVersion.value = 0
   historyError.value = ''
   historyLoading.value = true
   try {
     const result = await getPostRevisions(post.id)
     historyVersions.value = result.versions
+    historyHasMore.value = result.hasMore
+    historyBeforeVersion.value = result.beforeVersion
   } catch (error) {
     historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
   } finally {
@@ -1676,10 +1683,29 @@ async function openPostHistory(post: PostPayload) {
   }
 }
 
+// 加载更早版本：游标分页（后端按 beforeVersion 返回更早一页，升序排列），
+// 前插到列表头部，避免单次响应随编辑次数无界增长。
+async function loadEarlierHistoryVersions() {
+  if (historyLoadingMore.value || !historyHasMore.value || !historyPost.value) return
+  historyLoadingMore.value = true
+  try {
+    const result = await getPostRevisions(historyPost.value.id, historyBeforeVersion.value)
+    historyVersions.value = [...result.versions, ...(historyVersions.value ?? [])]
+    historyHasMore.value = result.hasMore
+    historyBeforeVersion.value = result.beforeVersion
+  } catch (error) {
+    historyError.value = error instanceof Error ? error.message : t('api.revisionsLoadFailed')
+  } finally {
+    historyLoadingMore.value = false
+  }
+}
+
 function closePostHistory() {
   if (historyLoading.value) return
   historyPost.value = null
   historyVersions.value = null
+  historyHasMore.value = false
+  historyBeforeVersion.value = 0
   historyError.value = ''
 }
 
@@ -2642,6 +2668,18 @@ function lastEditedLabel(post: PostPayload) {
               <p v-else-if="!historyVersions || !historyVersions.length" class="mt-4 py-6 text-center text-sm text-base-content/55">
                 {{ t('topic.historyEmpty') }}
               </p>
+              <div v-else-if="historyHasMore && !historyLoading" class="mt-4 flex justify-center">
+                <button
+                  type="button"
+                  class="inline-flex h-8 items-center gap-1.5 rounded-md px-2 text-xs font-semibold text-primary transition-colors hover:bg-info/10 hover:text-primary/90 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 disabled:cursor-not-allowed disabled:opacity-60"
+                  :disabled="historyLoadingMore"
+                  @click="loadEarlierHistoryVersions"
+                >
+                  <Loader2 v-if="historyLoadingMore" class="h-3.5 w-3.5 animate-spin" />
+                  <ChevronsUp v-else class="h-3.5 w-3.5" />
+                  {{ t('common.loadMore') }}
+                </button>
+              </div>
               <div v-else class="mt-4 max-h-[60vh] space-y-3 overflow-y-auto pr-1">
                 <div
                   v-for="version in historyVersions"

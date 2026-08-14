@@ -100,12 +100,16 @@ export interface PostRevisionResult {
     processStatus: number
     createdAt: string
   }>
+  hasMore: boolean
+  beforeVersion: number
 }
 
-export async function getPostRevisions(postId: number): Promise<PostRevisionResult> {
+export async function getPostRevisions(postId: number, beforeVersion = 0, limit = 20): Promise<PostRevisionResult> {
   const params = new URLSearchParams({
     postId: String(postId),
+    limit: String(limit),
   })
+  if (beforeVersion > 0) params.set('beforeVersion', String(beforeVersion))
   const response = await fetch(`/api/forum/posts/revisions?${params.toString()}`, {
     headers: {
       Accept: 'application/json',
