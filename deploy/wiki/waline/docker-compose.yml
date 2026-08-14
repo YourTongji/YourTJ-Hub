@@ -3,10 +3,13 @@
 # 用法：
 #   1. 复制 .env.example 为 .env 并填写（SQLite 或 MySQL 二选一）。
 #   2. docker compose up -d
-#   3. 反向代理 https://comment.example.com -> 127.0.0.1:8360（仅回环暴露）
+#   3. SQLite 首次启动必须导入建表 SQL（Waline 不会自动建表，见 README）：
+#      docker cp waline.sqlite.sql waline-waline-1:/tmp/ && docker compose
+#      exec waline node -e 'require("better-sqlite3")("/app/data/waline.sqlite").exec(require("fs").readFileSync("/tmp/waline.sqlite.sql","utf8"))'
+#   4. 反向代理 https://comment.example.com -> 127.0.0.1:8360（仅回环暴露）
 #
-# 存储：SQLite（零依赖）或 MySQL（生产推荐，需先导入建表 SQL，见 README）。
-#       不使用 LeanCloud（停服风险）。
+# 存储：SQLite（零依赖，需手动导 waline.sqlite.sql 建表）或 MySQL
+#       （生产推荐，需先导入 waline.sql，见 README）。不使用 LeanCloud。
 # 登录：Waline 通过 OAUTH_URL 指向 walinejs/auth OAuth Center（自托管或
 #       Vercel 部署，见 ../oauth-center/），OAuth Center 再对接 YourTJ-Hub
 #       OIDC provider。注意：OAUTH_URL 指向的是 OAuth Center 自身地址，
@@ -26,7 +29,8 @@ services:
       - JWT_TOKEN=${JWT_TOKEN:-replace-with-a-random-token}
 
       # --- 存储：二选一 ---
-      # SQLite（默认；SQLITE_PATH 是数据目录，不是文件路径）
+      # SQLite（默认；SQLITE_PATH 是数据目录，不是文件路径）。
+      # 注意：Waline 不会自动建表，首次启动必须手动导入 waline.sqlite.sql
       - SQLITE_PATH=/app/data
       # MySQL（生产推荐，取消注释并填 .env；需先导入 waline.sql 建表）
       # - MYSQL_DB=${MYSQL_DB:-waline}

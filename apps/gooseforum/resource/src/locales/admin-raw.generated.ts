@@ -733,4 +733,12 @@ export default {
   "k00mo": "开启后 create_topic / create_post 工具可用（受 topic.write / post.create 限流约束）；默认关闭，AI 只能读取。",
   "k00ms": "已迁移 {processed} / {total}",
   "k00mt": "失败 {failed}",
+  "k00n0": "AI 课程总结",
+  "k00n1": "管理课程 AI 总结的生成开关与全局频率上限。",
+  "k00n2": "加载 AI 课程总结设置失败",
+  "k00n3": "保存 AI 课程总结设置失败",
+  "k00n4": "启用 AI 课程总结",
+  "k00n5": "开启后课程详情页可请求 AI 生成课程总结；关闭时端点返回 status=disabled。",
+  "k00n6": "全局每分钟生成上限",
+  "k00n7": "所有课程合计每分钟最多生成的总结数量；0 表示使用默认值 5。",
 } as const

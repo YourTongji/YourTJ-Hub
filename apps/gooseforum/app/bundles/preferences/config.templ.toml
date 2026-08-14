@@ -109,4 +109,18 @@ redirect_uris = ["yourtj://callback"]
 # 端点开关与写工具开关在管理员面板「MCP server」设置中配置（DB 存储、热生效），
 # 默认均关闭。这里不再提供 [mcp] 段。
 
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# provider 仅作记录；qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 等
+# 均走同一协议，切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+api_key = ""
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024
+
 # end #

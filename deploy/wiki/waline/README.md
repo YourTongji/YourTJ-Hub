@@ -4,8 +4,10 @@
 
 ```bash
 cd deploy/wiki/waline
-cp .env.example .env      # 按需编辑（SQLite 零配置即可跑）
+cp .env.example .env      # 按需编辑
 docker compose up -d
+# SQLite 首次启动必须手动导入建表 SQL（Waline 不会自动建表），
+# 见下方"存储选择"的导入命令
 ```
 
 反向代理 `https://comment.example.com` → `127.0.0.1:8360`（compose 仅回环绑定，
@@ -13,7 +15,16 @@ docker compose up -d
 
 ## 存储选择
 
-- **SQLite**（默认）：`SQLITE_PATH=/app/data`（数据目录，不是文件路径），开箱即用，适合低流量。
+- **SQLite**（默认）：`SQLITE_PATH=/app/data`（数据目录，不是文件路径），适合低流量。
+  **注意：Waline 不会自动建表**（其 SQLite 适配器无建表逻辑），空库会报
+  `no such table: wl_Comment`。首次启动必须手动导入仓库附带的
+  `waline.sqlite.sql`（官方 `assets/waline.sqlite.sql` 副本）：
+  ```bash
+  docker cp waline.sqlite.sql waline-waline-1:/tmp/waline.sqlite.sql
+  docker compose exec waline node -e \
+    'const D=require("better-sqlite3"),fs=require("fs");D("/app/data/waline.sqlite").exec(fs.readFileSync("/tmp/waline.sqlite.sql","utf8"))'
+  ```
+  导入是幂等的（`CREATE TABLE IF NOT EXISTS`），重启容器不需重复执行。
 - **MySQL**（生产推荐）：取消 docker-compose.yml 中 `MYSQL_*` 注释并填 `.env`；
   需先导入建表 SQL（waline 仓库 `assets/waline.sql`，见 .env.example），Waline 不会自动建表。
 
@@ -38,7 +49,7 @@ Waline 登录页 → OAUTH_URL（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
 | `JWT_TOKEN` | 是 | 登录 token 密钥（`openssl rand -hex 32` 生成） |
 | `SQLITE_PATH` / `MYSQL_*` | 二选一 | 存储 |
 | `SITE_NAME` | 否 | 站点名（评论框展示） |
-| `SECURE_DOMAINS` | 否 | 允许评论的域名白名单，防跨站刷评 |
+| `SECURE_DOMAINS` | 否 | 允许评论的域名白名单，防跨站刷评；**必须包含 Waline 服务自身域名**（`/ui` 登录按钮的 Referer 校验），如 `wiki.example.com,comment.example.com` |
 | `SMTP_*` | 否 | 评论邮件通知 |
 | `AKISMET_KEY` | 否 | Akismet 反垃圾 |
 
@@ -47,4 +58,6 @@ Waline 登录页 → OAUTH_URL（walinejs/auth）→ YourTJ-Hub OIDC → 回跳
 ## 管理
 
 - 评论管理后台：`https://comment.example.com/ui`，登录方式同评论（OIDC）。
+  注意 `/ui/login` 的邮箱/密码表单是 Waline **本地账号**用的（Hub 账号不在
+  其密码表，用论坛密码登录必然失败），正确入口是 oidc 第三方登录按钮。
 - 站点侧 `VITE_WALINE_SERVER_URL` 指向本服务后，评论即在前端渲染。

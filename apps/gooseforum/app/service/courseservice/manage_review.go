@@ -11,17 +11,17 @@ import (
 
 // AdminReviewItem 管理端评价列表项：不泄露匿名作者身份，仅 kind/label。
 type AdminReviewItem struct {
-	Id         uint64             `json:"id"`
-	OfferingId uint64             `json:"offeringId"`
-	CourseId   uint64             `json:"courseId"`
-	CourseCode string             `json:"courseCode"`
-	CourseName string             `json:"courseName"`
-	Rating     *int               `json:"rating"`
-	Content    string             `json:"content"`
-	Status     int8               `json:"status"` // 0 可见 / 1 隐藏 / 2 删除
+	Id         uint64              `json:"id"`
+	OfferingId uint64              `json:"offeringId"`
+	CourseId   uint64              `json:"courseId"`
+	CourseCode string              `json:"courseCode"`
+	CourseName string              `json:"courseName"`
+	Rating     *int                `json:"rating"`
+	Content    string              `json:"content"`
+	Status     int8                `json:"status"` // 0 可见 / 1 隐藏 / 2 删除
 	Author     ReviewAuthorPayload `json:"author"`
-	CreatedAt  string             `json:"createdAt"`
-	UpdatedAt  string             `json:"updatedAt"`
+	CreatedAt  string              `json:"createdAt"`
+	UpdatedAt  string              `json:"updatedAt"`
 }
 
 // AdminReviewQuery 管理端评价检索条件。
@@ -206,6 +206,14 @@ func AdminUpdateReview(reviewId uint64, input AdminReviewUpdateInput) (ReviewPay
 					}
 				}
 			}
+			// 管理端编辑正文/评分改变 summary 输入 → 失效 AI 总结缓存。
+			offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+			if err != nil {
+				return err
+			}
+			if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+				return err
+			}
 			refreshed, err := course.GetReviewTx(tx, reviewId)
 			if err != nil {
 				return err
@@ -262,6 +270,14 @@ func AdminDeleteReview(reviewId uint64) (DeletedReviewInfo, error) {
 					return err
 				}
 			}
+		}
+		// 硬删除改变 summary 输入 → 失效 AI 总结缓存。
+		offering, err := course.GetOfferingTx(tx, entity.OfferingId)
+		if err != nil {
+			return err
+		}
+		if err := course.DeleteCourseAiSummaryTx(tx, offering.CourseId); err != nil {
+			return err
 		}
 		return hardDeleteReviewTx(tx, reviewId)
 	})

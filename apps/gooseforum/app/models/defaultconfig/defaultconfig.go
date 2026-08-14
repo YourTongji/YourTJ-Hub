@@ -26,6 +26,7 @@ type pageConfigDefaults struct {
 	Privacy      pageConfig.PrivacyPolicyConfig
 	RateLimit    pageConfig.RateLimitConfig
 	MCP          pageConfig.MCPSettingsConfig
+	AiSummary    pageConfig.AiSummaryConfig
 }
 
 var (
@@ -81,7 +82,14 @@ func loadPageConfigDefaults() (pageConfigDefaults, error) {
 			return
 		}
 		errPageConfigDefaults = loadJSON("ratelimit.json", &pageConfigDefaultsValue.RateLimit)
+		if errPageConfigDefaults != nil {
+			return
+		}
 		errPageConfigDefaults = loadJSON("mcp.json", &pageConfigDefaultsValue.MCP)
+		if errPageConfigDefaults != nil {
+			return
+		}
+		errPageConfigDefaults = loadJSON("ai_summary.json", &pageConfigDefaultsValue.AiSummary)
 		if errPageConfigDefaults != nil {
 			return
 		}
@@ -159,6 +167,10 @@ func GetDefaultRateLimitConfig() pageConfig.RateLimitConfig {
 
 func GetDefaultMCPSettingsConfig() pageConfig.MCPSettingsConfig {
 	return mustPageConfigDefaults().MCP
+}
+
+func GetDefaultAiSummaryConfig() pageConfig.AiSummaryConfig {
+	return mustPageConfigDefaults().AiSummary
 }
 
 func GetDefaultSiteSettingsConfig() pageConfig.SiteSettingsConfig {

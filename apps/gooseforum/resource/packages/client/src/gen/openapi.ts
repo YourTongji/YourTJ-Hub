@@ -558,6 +558,33 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/courses/{courseId}/summary": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Get the AI-generated summary of a course (B7, issue
+         * @description Public read endpoint. Returns the cached AI summary when available (status `cached`),
+         *     generates and persists a fresh one on first request (status `generated`), or reports
+         *     `insufficient_data` when the course has fewer than 10 visible reviews with content.
+         *     When the feature is disabled the endpoint returns status `disabled` (HTTP 200).
+         *     `?refresh=true` forces regeneration, subject to per-course and global generation rate
+         *     limits (HTTP 429 with a `Retry-After` header). Generation failure is HTTP 500 and never
+         *     affects the course page main flow. The summary schema is provider-independent
+         *     (OpenAI-compatible chat/completions; qwen/OpenRouter/local Ollama are configuration-only).
+         */
+        get: operations["getCourseSummary"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/forum/courses/{courseId}/reviews": {
         parameters: {
             query?: never;
@@ -1389,6 +1416,49 @@ export interface components {
         };
         CourseDetailResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseDetail"];
+        };
+        /**
+         * @description Backend summary status. `error` and `rateLimited` are frontend-local states inferred from
+         *     HTTP failures and never returned by this API.
+         * @enum {string}
+         */
+        CourseSummaryStatus: "cached" | "generated" | "insufficient_data" | "disabled";
+        /**
+         * @description Five-level sentiment consensus across visible reviews.
+         * @enum {string}
+         */
+        CourseSummaryConsensus: "strong_recommend" | "recommend" | "neutral" | "cautious" | "not_recommend";
+        /**
+         * @description Sentiment label of one representative review excerpt.
+         * @enum {string}
+         */
+        CourseSummarySentiment: "positive" | "neutral" | "negative";
+        CourseSummaryRepresentativeReview: {
+            /** @description Short excerpt from the original review (≤500 chars). */
+            excerpt: string;
+            sentiment: components["schemas"]["CourseSummarySentiment"];
+        };
+        CourseSummaryPayload: {
+            consensus: components["schemas"]["CourseSummaryConsensus"];
+            keywords: string[];
+            pros: string[];
+            cons: string[];
+            representativeReviews: components["schemas"]["CourseSummaryRepresentativeReview"][];
+        };
+        CourseSummaryResult: {
+            status: components["schemas"]["CourseSummaryStatus"];
+            /** @description Present for status `cached` and `generated`; omitted otherwise. */
+            summary?: components["schemas"]["CourseSummaryPayload"];
+            /**
+             * Format: date-time
+             * @description When the summary was generated (RFC 3339).
+             */
+            generatedAt?: string;
+            /** @description The LLM model that produced the summary. */
+            model?: string;
+        };
+        CourseSummaryResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseSummaryResult"];
         };
         /** @description Review author display info. Identity fields (userId/username/avatar) are deliberately absent from the review DTO. */
         ReviewAuthorPayload: {
@@ -2927,6 +2997,75 @@ export interface operations {
                 };
             };
             /** @description Related query failed (instructors, stats, terms, or offerings). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getCourseSummary: {
+        parameters: {
+            query?: {
+                refresh?: boolean;
+            };
+            header?: never;
+            path: {
+                courseId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Summary result. `status` is one of `cached` / `generated` / `insufficient_data` /
+             *     `disabled`; `summary` is present for `cached` and `generated`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CourseSummaryResponse"];
+                };
+            };
+            /** @description Malformed or zero course id. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Course does not exist or is hidden. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /**
+             * @description Generation rate limit hit (global per-minute or per-course 10-minute window).
+             *     The `Retry-After` header carries the seconds until the window resets; the body
+             *     params carry the same value as `retryAfterSeconds` for clients that cannot read headers.
+             */
+            429: {
+                headers: {
+                    /** @description Seconds until the rate-limit window resets. Integer seconds as specified by RFC 9110. */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+            /** @description LLM provider failure, timeout, or unparsable output. Nothing is persisted. */
             500: {
                 headers: {
                     [name: string]: unknown;

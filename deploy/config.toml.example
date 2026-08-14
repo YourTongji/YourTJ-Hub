@@ -85,11 +85,31 @@ id_token_ttl = 3600
 # 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
 # redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
 # 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)。
-# 示例为 Waline 评论登录: 注册 Waline 服务端回调(带动态 redirect query),
-# \? 转义匹配字面 ?; TOML 单引号字面串保证反斜杠原样传给解析器
-# redirect_uris_globs = ['https://comment.example.com/api/oauth\?redirect=*&type=oidc']
+# 示例为 Waline 评论登录: 注册 Waline 服务端回调(带动态 redirect query)。
+# 注意(zitadel/oidc v3.49 实测): 匹配前会再 QueryUnescape 一次 redirect_uri,
+# 实际匹配串中内层页面 URL 的 %2F 已是字面 /; doublestar 的 * 嵌在 query
+# 值中不能跨 /, 只有 ** 作为末尾 segment 可以。因此按"钉死站点域名前缀"
+# 拆两条。\? 转义匹配字面 ?; TOML 单引号字面串保证反斜杠原样传给解析器
+# redirect_uris_globs = [
+#   'https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**',
+#   'https://comment.example.com/api/oauth\?redirect=/**',
+# ]
 [[oidc.clients]]
 id = "yourtj-mobile"
 name = "yourtj 移动端"
 redirect_uris = ["yourtj://callback"]
 # secret = ""
+
+# AI 课程总结（B7，issue #181）：OpenAI-compatible /chat/completions 端点。
+# qwen（DashScope compatible-mode）/OpenRouter/本地 Ollama 均走同一协议，
+# 切换只改 base_url/model/api_key，输出 schema 不变。
+# 开关与全局每分钟生成上限在管理面板「AI 总结」设置中（DB 存储、热生效），
+# 默认关闭；部署需在此配好端点与模型并开启开关后生效。
+[ai_summary]
+provider = "qwen"
+base_url = "https://dashscope.aliyuncs.com/compatible-mode/v1"
+# 生产环境请通过环境注入或密钥管理替换为真实密钥
+api_key = ""
+model = "qwen3.6-flash-2026-04-16"
+temperature = 0.3
+max_tokens = 1024

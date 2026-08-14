@@ -26,6 +26,7 @@ import type {
   PageResult,
   PostingSettings,
   MCPSettings,
+  AiSummarySettings,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -336,6 +337,14 @@ export function getMCPSettings() {
 
 export function saveMCPSettings(settings: MCPSettings) {
   return postJson<unknown>('/api/admin/save-mcp-settings', { settings }, adminText('k00mi'))
+}
+
+export function getAiSummarySettings() {
+  return getJson<AiSummarySettings>('/api/admin/ai-summary-settings', adminText('k00n2'))
+}
+
+export function saveAiSummarySettings(settings: AiSummarySettings) {
+  return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00n3'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

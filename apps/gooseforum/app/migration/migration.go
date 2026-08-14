@@ -151,6 +151,7 @@ func SchemaModels() []any {
 		&course.HelpfulEntity{},
 		&course.CourseStatsEntity{},
 		&course.OfferingStatsEntity{},
+		&course.CourseAiSummaryEntity{},
 		&pk.CalendarEntity{},
 		&pk.LanguageEntity{},
 		&pk.CourseNatureEntity{},
