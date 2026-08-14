@@ -9,7 +9,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	db "github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/ratelimit"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/agents"
@@ -18,6 +17,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/moderators"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pointsRecord"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/postRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicCategoryIndex"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
@@ -30,6 +30,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/agentservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -42,6 +43,7 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 		&userStatistics.Entity{},
 		&agents.Entity{},
 		&topics.Entity{},
+		&postRevisions.Entity{},
 		&posts.Entity{},
 		&category.Entity{},
 		&topicCategoryIndex.Entity{},
@@ -74,6 +76,7 @@ func setupAgentForumTestDB(t *testing.T) *gorm.DB {
 // all route tests share one in-memory SQLite connection.
 func cleanAgentForumTables(conn *gorm.DB) {
 	conn.Where("1 = 1").Delete(&posts.Entity{})
+	conn.Where("1 = 1").Delete(&postRevisions.Entity{})
 	conn.Where("1 = 1").Delete(&topicCategoryIndex.Entity{})
 	conn.Where("1 = 1").Delete(&topicUserAction.Entity{})
 	conn.Where("1 = 1").Delete(&topicUserStat.Entity{})

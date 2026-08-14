@@ -197,5 +197,18 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(17)
 		currentVersion = 17
 	}
+	if currentVersion < 18 {
+		// 帖子版本历史 v1 回填（首楼编辑 PR）：部署前已存在的帖子没有
+		// post_revisions 行，首次编辑只追加新版本、不回看旧正文，原始正文
+		// 会永久丢失。为存量帖子播种 v1（editor = 作者，内容取当前正文）。
+		backfillResult := datamigration.BackfillPostRevisionSeeds()
+		slog.Info("app migration post revision seed backfill done", "seeded", backfillResult.Seeded, "skipped", backfillResult.Skipped, "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
+		if backfillResult.Failed > 0 {
+			slog.Error("app migration post revision seed backfill has failures", "failed", backfillResult.Failed, "lastFailed", backfillResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(18)
+		currentVersion = 18
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

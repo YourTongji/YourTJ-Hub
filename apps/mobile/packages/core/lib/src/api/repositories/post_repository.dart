@@ -21,6 +21,9 @@ class UpdatePostResult {
     required this.content,
     required this.renderedContent,
     required this.updatedAt,
+    this.lastEditorId,
+    this.lastEditedAt,
+    this.revisionCount,
   });
 
   final int id;
@@ -28,6 +31,11 @@ class UpdatePostResult {
   final String content;
   final String renderedContent;
   final String updatedAt;
+
+  /// 最后编辑者/时间与版本数：编辑过才非空（首楼编辑开放后由服务端返回）。
+  final int? lastEditorId;
+  final String? lastEditedAt;
+  final int? revisionCount;
 }
 
 /// 帖子相关接口:创建/更新/删除/点赞/收藏/举报。
@@ -52,7 +60,8 @@ class PostRepository {
         'content': content,
         'replyToPostId': replyToPostId,
         if (captchaId != null && captchaId.isNotEmpty) 'captchaId': captchaId,
-        if (captchaCode != null && captchaCode.isNotEmpty) 'captchaCode': captchaCode,
+        if (captchaCode != null && captchaCode.isNotEmpty)
+          'captchaCode': captchaCode,
       },
       parser: (json) => CreatePostResult(
         id: (json as Map<String, dynamic>)['id'] as int,
@@ -75,12 +84,18 @@ class PostRepository {
         content: (json['content'] as String?) ?? '',
         renderedContent: (json['renderedContent'] as String?) ?? '',
         updatedAt: (json['updatedAt'] as String?) ?? '',
+        lastEditorId: (json['lastEditorId'] as num?)?.toInt(),
+        lastEditedAt: json['lastEditedAt'] as String?,
+        revisionCount: (json['revisionCount'] as num?)?.toInt(),
       ),
     );
   }
 
   Future<bool> deletePost({required int postId}) async {
-    await _client.post<Object?>('/api/forum/posts/delete', body: {'postId': postId});
+    await _client.post<Object?>(
+      '/api/forum/posts/delete',
+      body: {'postId': postId},
+    );
     return true;
   }
 
@@ -111,7 +126,12 @@ class PostRepository {
   }) async {
     await _client.post<Object?>(
       '/api/forum/report',
-      body: {'targetType': targetType, 'targetId': targetId, 'reason': reason, 'note': note},
+      body: {
+        'targetType': targetType,
+        'targetId': targetId,
+        'reason': reason,
+        'note': note,
+      },
     );
     return true;
   }
