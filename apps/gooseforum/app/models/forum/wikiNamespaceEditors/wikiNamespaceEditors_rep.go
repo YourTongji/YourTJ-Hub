@@ -15,21 +15,6 @@ func ListByNamespace(namespace string) []*Entity {
 	return entities
 }
 
-// UserIDsByNamespace 返回某 namespace 的贡献者 user_id 列表（去重）。
-func UserIDsByNamespace(namespace string) []uint64 {
-	entities := ListByNamespace(namespace)
-	ids := make([]uint64, 0, len(entities))
-	seen := map[uint64]struct{}{}
-	for _, e := range entities {
-		if _, ok := seen[e.UserId]; ok {
-			continue
-		}
-		seen[e.UserId] = struct{}{}
-		ids = append(ids, e.UserId)
-	}
-	return ids
-}
-
 func IsEditor(namespace string, userId uint64) bool {
 	var count int64
 	builder().

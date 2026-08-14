@@ -607,6 +607,11 @@ func DeleteTopic(req component.BetterRequest[DeleteTopicReq]) component.Response
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
+	// wiki 分站页面话题由 wiki 修订审核流程管理，禁止经论坛管理端删除，
+	// 避免软删话题后残留 wiki_pages/wiki_page_revisions 孤儿页面。
+	if topic.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	// 幂等：已处于管理端删除状态时直接成功，避免重复删除重置 deleted_at / 重复广播。
 	if topic.VisibilityStatus == topics.VisibilityModeratorRemoved {
 		return component.SuccessResponseCode("操作成功", component.MessageOperationSuccess, nil)
@@ -1838,8 +1843,9 @@ func ReviewAction(req component.BetterRequest[ReviewActionReq]) component.Respon
 		if post.Id == 0 {
 			return component.FailResponseCode(component.MessageAdminReviewNotFound, nil)
 		}
-		// wiki 分站评论同样由 wiki 修订审核流程管理（review N1）。
-		if topicEntity := topics.GetSimple(post.TopicId); topicEntity.TopicType == topics.TopicTypeWiki {
+		// 仅 wiki 首楼（post_no<=1）由 wiki 修订审核流程管理，禁止在论坛队列直接审核；
+		// wiki 分站评论（post_no>1）仍走论坛审核队列（review N1）。
+		if topicEntity := topics.GetSimple(post.TopicId); topicEntity.TopicType == topics.TopicTypeWiki && post.PostNo <= 1 {
 			return component.FailResponseCode(component.MessageAdminReviewTargetInvalid, nil)
 		}
 		if post.ProcessStatus != posts.ProcessStatusPending {

@@ -370,7 +370,12 @@ func PageForModeration(q ModerationPageQuery) struct {
 	q.Page = max(q.Page-1, 0)
 	q.PageSize = pageutil.BoundPageSize(q.PageSize)
 	queryLimit := q.PageSize + 1
-	b := builder().Where(queryopt.Eq("status", 1))
+	// 版主话题管理列表只含论坛话题：wiki 分站页面走 wiki 修订审核流程，
+	// 不混入论坛版主列表（review N1，避免版主对 wiki 主题执行隐藏/删除等
+	// moderation 动作，与删除级联缺失是同一孤儿问题的另一入口）。
+	b := builder().
+		Where(queryopt.Eq("status", 1)).
+		Where(queryopt.Eq("topic_type", TopicTypeForum))
 	if q.FilterProcessStatus {
 		b.Where(queryopt.Eq("process_status", q.ProcessStatus))
 	}

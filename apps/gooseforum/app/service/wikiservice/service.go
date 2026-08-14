@@ -120,14 +120,17 @@ func Create(params CreateParams) (*CreateResult, error) {
 	if !ok {
 		return nil, ErrPathInvalid
 	}
-	if NamespaceOf(path) != params.Namespace {
+	// namespace 一律按小写归一（review：大写 Namespace 入参此前会因与
+	// path 首段 / 库内小写 namespace 不一致而误报 ErrPathInvalid）。
+	namespaceName := strings.ToLower(params.Namespace)
+	if NamespaceOf(path) != namespaceName {
 		return nil, ErrPathInvalid
 	}
-	namespace := wikiNamespaces.GetByName(params.Namespace)
+	namespace := wikiNamespaces.GetByName(namespaceName)
 	if namespace.Id == 0 {
 		return nil, ErrNamespaceNotFound
 	}
-	if !CanManageNamespace(params.UserId, params.Namespace) {
+	if !CanManageNamespace(params.UserId, namespaceName) {
 		return nil, ErrForbidden
 	}
 	if wikiPages.PathExists(path, 0) {
@@ -190,7 +193,7 @@ func Create(params CreateParams) (*CreateResult, error) {
 		}
 		page = wikiPages.Entity{
 			TopicId:   topic.Id,
-			Namespace: params.Namespace,
+			Namespace: namespaceName,
 			Path:      path,
 			ParentId:  parentID,
 		}
@@ -334,6 +337,10 @@ func Review(params ReviewParams) (*ReviewResult, error) {
 		}
 		topic = topics.GetTx(tx, page.TopicId)
 		firstPost = posts.GetTx(tx, topic.FirstPostId)
+		if firstPost.Id == 0 {
+			// review：与 Edit 一致，FirstPostId 悬空/首楼已删时拒绝继续。
+			return ErrPageNotFound
+		}
 
 		switch action {
 		case "approve":
@@ -360,13 +367,13 @@ func Review(params ReviewParams) (*ReviewResult, error) {
 				return err
 			}
 			topic.Title = revision.Title
+			// 同步摘要/首图（review：approve 后 topic 行此前未刷新 Excerpt/
+			// FirstImageURL，列表展示的摘要与首图停留在创建时内容）。
+			topic.Excerpt = markdown2html.ExtractDescription(revision.Content, 200)
+			topic.FirstImageURL = markdown2html.ExtractFirstImageURL(revision.Content)
 			return topics.SaveTx(tx, &topic)
 		case "reject":
-			if err := tx.Table("wiki_page_revisions").Where("id = ?", revision.Id).Updates(map[string]any{
-				"status":      wikiPageRevisions.StatusRejected,
-				"reviewed_by": params.UserId,
-				"reviewed_at": time.Now(),
-			}).Error; err != nil {
+			if err := wikiPageRevisions.UpdateStatusTx(tx, revision.Id, wikiPageRevisions.StatusRejected, params.UserId, time.Now()); err != nil {
 				return err
 			}
 			// 回滚为上一 approved 内容。

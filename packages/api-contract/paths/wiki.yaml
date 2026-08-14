@@ -118,7 +118,7 @@ listWikiRevisions:
 createWikiPage:
   post:
     tags: [Wiki]
-    summary: Create a wiki page in a namespace (submits a pending revision)
+    summary: Create a wiki page in a namespace (publishes revision 1 as approved)
     operationId: createWikiPage
     security:
       - bearerAuth: []
@@ -688,11 +688,10 @@ updateAdminWikiTree:
       '200':
         description: |
           Tree operations applied in order; any failure aborts the batch. Business failures
-          are returned as legacy HTTP 200 envelopes: malformed bodies degrade to
-          `common.request.invalidParams` (non-strict binding) and illegal operations are
-          `common.request.invalidParams`, an unknown target page is `wiki.page.notFound`,
-          a path collision is `wiki.page.pathConflict`, and deleting a page with children
-          is `wiki.page.hasChildren`.
+          are returned as legacy HTTP 200 envelopes: illegal operations and empty `ops`
+          lists are `common.request.invalidParams`, an unknown target page is
+          `wiki.page.notFound`, a path collision is `wiki.page.pathConflict`, and deleting
+          a page with children is `wiki.page.hasChildren`.
         content:
           application/json:
             schema:
@@ -701,7 +700,7 @@ updateAdminWikiTree:
               success:
                 externalValue: ../fixtures/wiki-tree-ops-success.json
               invalidParams:
-                summary: Malformed body or illegal operation (legacy HTTP 200 envelope).
+                summary: Illegal operation or empty ops (legacy HTTP 200 envelope).
                 externalValue: ../fixtures/wiki-tree-ops-invalid-params.json
               notFound:
                 summary: Unknown target page (legacy HTTP 200 envelope).
@@ -709,6 +708,15 @@ updateAdminWikiTree:
               conflict:
                 summary: Path collision (legacy HTTP 200 envelope).
                 externalValue: ../fixtures/wiki-page-path-conflict.json
+      '400':
+        description: Malformed JSON request body (strict binding failure).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/wiki-parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -743,10 +751,30 @@ listAdminWikiRevisions:
         schema:
           type: string
           enum: [pending, approved, rejected, superseded]
+      - name: page
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          default: 1
+        description: 1-based page number for the revision queue; values below 1 are treated as 1.
+      - name: pageSize
+        in: query
+        required: false
+        schema:
+          type: integer
+          minimum: 1
+          maximum: 100
+          default: 20
+        description: Page size for the revision queue. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input.
     responses:
       '200':
         description: |
-          Revisions matching the status ordered by creation time desc. An invalid status is
+          Revisions matching the status ordered by creation time desc, paginated by the
+          `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
+          Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
+          paging metadata so consumers can detect the next page. An invalid status is
           returned as a legacy HTTP 200 envelope `common.request.invalidParams`.
         content:
           application/json:

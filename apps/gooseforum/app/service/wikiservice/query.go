@@ -107,15 +107,16 @@ func BuildTree(activePath string) []TreeNamespace {
 
 func pageTitles(pages []*wikiPages.Entity) map[uint64]string {
 	result := make(map[uint64]string, len(pages))
+	ids := make([]uint64, 0, len(pages))
 	for _, p := range pages {
-		rev := wikiPageRevisions.GetLatestApproved(p.Id)
-		if rev.Id != 0 {
+		ids = append(ids, p.Id)
+	}
+	// 批量取最新修订：approved 优先，纯 pending（草稿）页面回退取 pending 标题
+	// （review N+1：此前每页各一次 GetLatestApproved/GetLatestPending）。
+	latest := wikiPageRevisions.LatestByPages(ids, wikiPageRevisions.StatusApproved, wikiPageRevisions.StatusPending)
+	for _, p := range pages {
+		if rev, ok := latest[p.Id]; ok && rev.Id != 0 {
 			result[p.Id] = rev.Title
-			continue
-		}
-		// 纯 pending（草稿）页面：取最新 pending 标题，保证导航树有标题可显示。
-		if pending := wikiPageRevisions.GetLatestPending(p.Id); pending.Id != 0 {
-			result[p.Id] = pending.Title
 		}
 	}
 	return result
@@ -140,7 +141,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
 	}
 	titles := pageTitles(allPages)
-	approved := approvedPageSet(allPages)
+	approved := pageApprovedSet(allPages)
 
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
@@ -155,7 +156,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 				PageId: page.Id,
 				Path:   path,
 				Title:  titles[page.Id],
-				Active: approved[page.Id],
+				Active: approved[page.Id].approved,
 			})
 		}
 		result = append(result, TreeNamespace{
@@ -167,12 +168,31 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 	return result
 }
 
-// approvedPageSet 返回存在至少一条 approved 修订的页面集合。
-func approvedPageSet(pages []*wikiPages.Entity) map[uint64]bool {
-	result := make(map[uint64]bool, len(pages))
+// pageApprovedSet 批量返回页面是否已发布（存在 approved 修订）。
+// 一次 SQL 查询取全部页面的最新 approved/pending 修订，替代逐页 GetLatestApproved
+// （review N+1：公开导航树热路径，页面规模增长后是放大的 DoS 面）。
+type pageApproved struct {
+	approved bool
+	pending  bool
+}
+
+func pageApprovedSet(pages []*wikiPages.Entity) map[uint64]*pageApproved {
+	pageIDs := make([]uint64, 0, len(pages))
 	for _, p := range pages {
-		rev := wikiPageRevisions.GetLatestApproved(p.Id)
-		result[p.Id] = rev.Id != 0
+		pageIDs = append(pageIDs, p.Id)
+	}
+	result := make(map[uint64]*pageApproved, len(pageIDs))
+	latest := wikiPageRevisions.LatestByPages(pageIDs, wikiPageRevisions.StatusApproved, wikiPageRevisions.StatusPending)
+	for _, id := range pageIDs {
+		rev, ok := latest[id]
+		if !ok {
+			result[id] = &pageApproved{}
+			continue
+		}
+		result[id] = &pageApproved{
+			approved: rev.Status == wikiPageRevisions.StatusApproved,
+			pending:  rev.Status == wikiPageRevisions.StatusPending,
+		}
 	}
 	return result
 }
@@ -192,7 +212,7 @@ type AdminTreeNamespace struct {
 	Pages []AdminTreePage `json:"pages"`
 }
 
-// BuildAdminTree 构建管理端导航树（含 sortOrder；path 相对 namespace）。
+// BuildAdminTree 构建管理端导航树（含 sortOrder；path 为完整路径，含 namespace 段）。
 func BuildAdminTree() []AdminTreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
@@ -211,7 +231,7 @@ func BuildAdminTree() []AdminTreeNamespace {
 		for _, page := range pages {
 			items = append(items, AdminTreePage{
 				PageId:    page.Id,
-				Path:      strings.TrimPrefix(page.Path, ns.Name+"/"),
+				Path:      page.Path,
 				Title:     titles[page.Id],
 				SortOrder: page.SortOrder,
 			})
@@ -243,6 +263,12 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 	for _, p := range pages {
 		byNamespace[p.Namespace] = append(byNamespace[p.Namespace], p)
 	}
+	// 批量取各页最新 approved 修订（review N+1：此前逐页 GetLatestApproved）。
+	pageIDs := make([]uint64, 0, len(pages))
+	for _, p := range pages {
+		pageIDs = append(pageIDs, p.Id)
+	}
+	latest := wikiPageRevisions.LatestByPages(pageIDs, wikiPageRevisions.StatusApproved)
 	summaries := make([]NamespaceSummary, 0, len(namespaces))
 	for _, ns := range namespaces {
 		nsPages := byNamespace[ns.Name]
@@ -250,8 +276,8 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 		count := int64(0)
 		firstPath := ""
 		for _, p := range nsPages {
-			rev := wikiPageRevisions.GetLatestApproved(p.Id)
-			if rev.Id != 0 {
+			rev, ok := latest[p.Id]
+			if ok && rev.Id != 0 {
 				if firstPath == "" {
 					firstPath = p.Path
 				}
@@ -295,15 +321,21 @@ func BuildHome() HomeData {
 
 	summaries := BuildNamespaceSummaries()
 	// 最近更新：全部页面最新 approved 修订，按时间降序取 10。
+	// 批量取（review N+1：此前逐页 GetLatestApproved）。
+	pageIDs := make([]uint64, 0, len(pages))
+	for _, p := range pages {
+		pageIDs = append(pageIDs, p.Id)
+	}
+	latest := wikiPageRevisions.LatestByPages(pageIDs, wikiPageRevisions.StatusApproved)
 	type recent struct {
 		page *wikiPages.Entity
 		rev  wikiPageRevisions.Entity
 	}
 	all := make([]recent, 0, len(pages))
 	for _, p := range pages {
-		rev := wikiPageRevisions.GetLatestApproved(p.Id)
-		if rev.Id != 0 {
-			all = append(all, recent{page: p, rev: rev})
+		rev, ok := latest[p.Id]
+		if ok && rev.Id != 0 {
+			all = append(all, recent{page: p, rev: *rev})
 		}
 	}
 	// 简单排序（修订时间降序）。
@@ -358,23 +390,19 @@ type RevisionView struct {
 // 契约：pending/superseded/rejected 修订含未发布内容，仅管理端可见（蓝图风险项
 // 「待审内容泄漏给公众」）；公开历史只展示已发布版本。
 func ListRevisions(pageId uint64) []RevisionView {
-	revisions := wikiPageRevisions.ListByPage(pageId)
+	// SQL 层过滤 approved，避免把含 content/rendered_html 大字段的未发布修订拉进内存
+	// （review：公开历史只展示已发布版本）。
+	revisions := wikiPageRevisions.ListApprovedByPage(pageId)
 	if len(revisions) == 0 {
 		return []RevisionView{}
 	}
 	editorIDs := make([]uint64, 0, len(revisions))
 	for _, r := range revisions {
-		if r.Status != wikiPageRevisions.StatusApproved {
-			continue
-		}
 		editorIDs = append(editorIDs, r.EditorId)
 	}
 	userMap := users.GetMapByIds(editorIDs)
 	result := make([]RevisionView, 0, len(editorIDs))
 	for _, r := range revisions {
-		if r.Status != wikiPageRevisions.StatusApproved {
-			continue
-		}
 		editorName := ""
 		if u, ok := userMap[r.EditorId]; ok && u != nil {
 			editorName = u.Username
@@ -548,24 +576,47 @@ type AdminRevision struct {
 	UpdatedAt  string `json:"updatedAt"`
 }
 
+// AdminRevisionPage 审核队列分页结果（契约形状：{list, page, pageSize, hasNext}）。
+type AdminRevisionPage struct {
+	List     []AdminRevision `json:"list"`
+	Page     int             `json:"page"`
+	PageSize int             `json:"pageSize"`
+	HasNext  bool            `json:"hasNext"`
+}
+
 // ListAdminRevisions 分页返回指定状态的修订队列（附 path/编辑者）。
-func ListAdminRevisions(status int8, page, pageSize int) []AdminRevision {
+func ListAdminRevisions(status int8, page, pageSize int) AdminRevisionPage {
 	if page < 1 {
 		page = 1
 	}
 	if pageSize <= 0 || pageSize > 100 {
 		pageSize = 20
 	}
-	revisions := wikiPageRevisions.ListByStatus(status, page, pageSize)
+	// pageSize+1 探测 hasNext（与 topics_rep.PageForModeration 一致），
+	// 避免额外的 COUNT 查询。
+	revisions := wikiPageRevisions.ListByStatus(status, page, pageSize+1)
+	total := len(revisions)
+	hasNext := total > pageSize
+	if total > pageSize {
+		revisions = revisions[:pageSize]
+		total = pageSize
+	}
 	if len(revisions) == 0 {
-		return []AdminRevision{}
+		return AdminRevisionPage{
+			List:     []AdminRevision{},
+			Page:     page,
+			PageSize: pageSize,
+			HasNext:  false,
+		}
 	}
 	editorIDs := make([]uint64, 0, len(revisions))
+	pageIDs := make([]uint64, 0, len(revisions))
 	for _, r := range revisions {
 		editorIDs = append(editorIDs, r.EditorId)
+		pageIDs = append(pageIDs, r.PageId)
 	}
-	pageMap := make(map[uint64]*wikiPages.Entity)
-	for _, p := range wikiPages.ListAll() {
+	pageMap := make(map[uint64]*wikiPages.Entity, len(pageIDs))
+	for _, p := range wikiPages.ListByIDs(pageIDs) {
 		pageMap[p.Id] = p
 	}
 	userMap := users.GetMapByIds(editorIDs)
@@ -590,7 +641,12 @@ func ListAdminRevisions(status int8, page, pageSize int) []AdminRevision {
 			UpdatedAt:  r.CreatedAt.Format(time.RFC3339),
 		})
 	}
-	return result
+	return AdminRevisionPage{
+		List:     result,
+		Page:     page,
+		PageSize: pageSize,
+		HasNext:  hasNext,
+	}
 }
 
 // DecodeTOC 解析修订表 toc JSON 为条目。

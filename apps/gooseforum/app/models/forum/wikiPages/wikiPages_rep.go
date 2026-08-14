@@ -46,6 +46,17 @@ func ListAll() []*Entity {
 	return entities
 }
 
+// ListByIDs 按 id 集合批量返回页面（审核队列取 path 用，避免 ListAll 全表扫，
+// review N2/查询优化）。
+func ListByIDs(ids []uint64) []*Entity {
+	if len(ids) == 0 {
+		return nil
+	}
+	var entities []*Entity
+	builder().Where(queryopt.In("id", ids)).Find(&entities)
+	return entities
+}
+
 func Create(entity *Entity) error {
 	return builder().Create(entity).Error
 }

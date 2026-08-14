@@ -10,6 +10,7 @@ import {
   ExternalLink,
   Eye,
   FileText,
+  Loader2,
   Pencil,
   Plus,
   RefreshCw,
@@ -120,11 +121,14 @@ const pageDeleting = ref(false)
 const newPageDialog = ref(false)
 const newPagePath = ref('')
 const newPageTitle = ref('')
+const newPageContent = ref('')
 const newPageSaving = ref(false)
 
 const revisions = ref<WikiRevision[]>([])
 const reviewLoading = ref(false)
 const reviewError = ref('')
+const reviewPage = ref(1)
+const reviewHasNext = ref(false)
 const viewingRevision = ref<WikiRevision | null>(null)
 const reviewActionRow = ref<{ item: WikiRevision, approve: boolean } | null>(null)
 const reviewSaving = ref(false)
@@ -349,8 +353,8 @@ async function loadTree() {
 }
 
 function openRename(group: WikiNamespaceTree, page: WikiPageNode) {
-  // 管理树 path 为 namespace 相对路径；预填完整路径避免歧义（review B2）。
-  renameForm.path = page.path.startsWith(`${group.name}/`) ? page.path : `${group.name}/${page.path}`
+  // 管理树 path 为完整路径（含 namespace 段），可直接预填为 rename 目标（review B2）。
+  renameForm.path = page.path
   renameForm.title = page.title
   renameRow.value = { group, page }
 }
@@ -419,6 +423,7 @@ async function confirmDeletePage() {
 function openNewPage(group: WikiNamespaceTree) {
   newPagePath.value = `${group.name}/`
   newPageTitle.value = ''
+  newPageContent.value = ''
   newPageDialog.value = true
 }
 
@@ -433,12 +438,17 @@ async function confirmNewPage() {
     adminToast.warning(adminText('k00i5'))
     return
   }
+  if (!newPageContent.value.trim()) {
+    adminToast.warning(adminText('k004h'))
+    return
+  }
   newPageSaving.value = true
   try {
     // 管理端新建页面直接调用创建 API（review P2：此前仅 window.open 跳转，
     // 不落库，页面实际无法创建）。namespace 取路径首段（openNewPage 已预填 group.name/）。
+    // content 必填非空：前端先拦截空白内容，后端 Create 同样拒绝（防御双保险）。
     const namespace = path.split('/')[0]
-    await createWikiPage({ namespace, path, title, content: '' })
+    await createWikiPage({ namespace, path, title, content: newPageContent.value })
     newPageDialog.value = false
     await loadTree()
     adminToast.success(adminText('k000e'))
@@ -454,7 +464,26 @@ async function loadRevisions() {
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    revisions.value = await getWikiRevisions('pending')
+    const page = await getWikiRevisions('pending', 1, 20)
+    revisions.value = page.list
+    reviewPage.value = 1
+    reviewHasNext.value = page.hasNext
+  } catch (err) {
+    reviewError.value = err instanceof Error ? err.message : adminText('k00n3')
+  } finally {
+    reviewLoading.value = false
+  }
+}
+
+async function loadMoreRevisions() {
+  if (reviewLoading.value || !reviewHasNext.value) return
+  reviewLoading.value = true
+  reviewError.value = ''
+  try {
+    const page = await getWikiRevisions('pending', reviewPage.value + 1, 20)
+    revisions.value = [...revisions.value, ...page.list]
+    reviewPage.value = page.page
+    reviewHasNext.value = page.hasNext
   } catch (err) {
     reviewError.value = err instanceof Error ? err.message : adminText('k00n3')
   } finally {
@@ -786,6 +815,12 @@ onMounted(() => {
               </template>
             </TableBody>
           </Table>
+          <div v-if="revisions.length > 0 && reviewHasNext" class="flex justify-center pt-3">
+            <Button type="button" size="sm" variant="outline" class="h-8 text-xs" :disabled="reviewLoading" @click="loadMoreRevisions">
+              <Loader2 v-if="reviewLoading" class="size-3.5 animate-spin" aria-hidden="true" />
+              {{ reviewLoading ? adminText('k0046') : adminText('k00av') }}
+            </Button>
+          </div>
         </AdminSection>
       </TabsContent>
     </Tabs>
@@ -864,6 +899,10 @@ onMounted(() => {
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00i5') }}
             <Input v-model="newPageTitle" :placeholder="adminText('k00i5')" />
+          </label>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k003j') }}
+            <Textarea v-model="newPageContent" class="min-h-32 resize-y" />
           </label>
           <DialogFooter>
             <Button variant="outline" type="button" @click="newPageDialog = false">{{ adminText('k009q') }}</Button>

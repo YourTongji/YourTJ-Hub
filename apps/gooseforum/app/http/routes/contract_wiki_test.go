@@ -5,6 +5,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
 
@@ -411,6 +412,34 @@ func TestWikiEditAndReviewHTTPContract(t *testing.T) {
 		}
 		if result.RevisionId == 0 || result.Status != "pending" {
 			t.Fatalf("wiki edit result = %+v, want non-zero revisionId + pending", result)
+		}
+	})
+
+	// 契约：超长标题（>512 字节）是请求级校验失败，create/edit 两端都必须
+	// 映射为 common.request.invalidParams，而不是 wiki.path.invalid。
+	t.Run("overlong title maps to request invalidParams on edit", func(t *testing.T) {
+		longTitle := strings.Repeat("a", 513)
+		rec := serveAuthSecurityJSON(router, http.MethodPut, "/api/wiki/pages/1002",
+			`{"title":"`+longTitle+`","content":"x"}`, aliceToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("wiki edit overlong title status = %d, want 200 envelope: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.MessageCode != "common.request.invalidParams" {
+			t.Fatalf("wiki edit overlong title messageCode = %q, want common.request.invalidParams: %s", env.MessageCode, rec.Body.String())
+		}
+	})
+
+	t.Run("overlong title maps to request invalidParams on create", func(t *testing.T) {
+		longTitle := strings.Repeat("a", 513)
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/wiki/pages",
+			`{"namespace":"guide","path":"guide/long-title","title":"`+longTitle+`","content":"x"}`, aliceToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("wiki create overlong title status = %d, want 200 envelope: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.MessageCode != "common.request.invalidParams" {
+			t.Fatalf("wiki create overlong title messageCode = %q, want common.request.invalidParams: %s", env.MessageCode, rec.Body.String())
 		}
 	})
 

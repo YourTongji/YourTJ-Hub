@@ -597,6 +597,7 @@ class WikiTreeOp {
     required this.pageId,
     this.parentPath,
     this.newPath,
+    this.newTitle,
     this.sortOrder,
   });
 
@@ -605,6 +606,7 @@ class WikiTreeOp {
   final int pageId;
   final String? parentPath;
   final String? newPath;
+  final String? newTitle;
   final int? sortOrder;
 
   Map<String, dynamic> toJson() {
@@ -613,6 +615,7 @@ class WikiTreeOp {
       'pageId': pageId,
       if (parentPath != null) 'parentPath': parentPath,
       if (newPath != null) 'newPath': newPath,
+      if (newTitle != null) 'newTitle': newTitle,
       if (sortOrder != null) 'sortOrder': sortOrder,
     };
   }

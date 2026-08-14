@@ -2,6 +2,7 @@
 import { nextTick, onBeforeUnmount, onMounted, ref } from 'vue'
 import { useI18n } from 'vue-i18n'
 import type { WikiTocItem } from '@gooseforum/client'
+import { resolveActiveHeading } from '@/site/utils/wiki-toc'
 
 const props = defineProps<{
   items: WikiTocItem[]
@@ -10,36 +11,42 @@ const props = defineProps<{
 const { t } = useI18n()
 const activeId = ref('')
 const rootEl = ref<HTMLElement | null>(null)
-let observer: IntersectionObserver | undefined
+// 滚动侦测：高亮"最后一个顶边仍在阅读线之上的标题"（文档序）。
+// 略低于 scrollToHeading 的 88px 粘性头偏移，保证点击跳转后标题贴到阅读线即命中。
+const HEADING_OFFSET = 96
+const headingEls: { id: string; el: HTMLElement }[] = []
+let scrollRaf: number | undefined
+
+function updateActiveId() {
+  scrollRaf = undefined
+  const id = resolveActiveHeading(
+    headingEls.map(({ id, el }) => ({ id, top: el.getBoundingClientRect().top })),
+    HEADING_OFFSET,
+  )
+  if (id !== activeId.value) activeId.value = id
+}
+
+function onScroll() {
+  if (scrollRaf !== undefined) return // rAF 节流：一帧内最多结算一次
+  scrollRaf = requestAnimationFrame(updateActiveId)
+}
 
 onMounted(() => {
-  if (!('IntersectionObserver' in window) || !props.items.length) return
-
-  const headingIds = props.items
-    .map((item) => item.id)
-    .filter((id) => document.getElementById(id))
-
-  if (!headingIds.length) return
-
-  observer = new IntersectionObserver(
-    (entries) => {
-      for (const entry of entries) {
-        if (entry.isIntersecting) {
-          activeId.value = entry.target.id
-        }
-      }
-    },
-    { rootMargin: '-80px 0px -65% 0px', threshold: 0 },
-  )
-
-  headingIds.forEach((id) => {
-    const element = document.getElementById(id)
-    if (element) observer?.observe(element)
-  })
+  if (!props.items.length) return
+  for (const item of props.items) {
+    const el = document.getElementById(item.id)
+    if (el) headingEls.push({ id: item.id, el }) // TOC 序 == 文档序
+  }
+  if (!headingEls.length) return
+  updateActiveId()
+  window.addEventListener('scroll', onScroll, { passive: true })
+  window.addEventListener('resize', onScroll, { passive: true })
 })
 
 onBeforeUnmount(() => {
-  observer?.disconnect()
+  if (scrollRaf !== undefined) cancelAnimationFrame(scrollRaf)
+  window.removeEventListener('scroll', onScroll)
+  window.removeEventListener('resize', onScroll)
 })
 
 async function scrollToHeading(id: string) {

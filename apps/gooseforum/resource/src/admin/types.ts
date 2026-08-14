@@ -479,3 +479,10 @@ export interface WikiRevision {
   editorName: string
   updatedAt: string
 }
+
+export interface WikiRevisionPage {
+  list: WikiRevision[]
+  page: number
+  pageSize: number
+  hasNext: boolean
+}

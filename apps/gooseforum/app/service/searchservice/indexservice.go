@@ -226,6 +226,23 @@ func BuildMeilisearchIndex() (*IndexBuildResult, error) {
 	return result, nil
 }
 
+// EnsureTopicIndexConfigured 服务启动时幂等保证话题索引的 filterable 属性配置
+// （review N2：topicType 过滤上线后，configureIndex 只在手动 rebuild-search-index
+// 与一次性迁移中调用；已迁移的存量部署不会再走迁移路径，若索引缺 topicType
+// filterable，带 topicType=0 过滤的论坛搜索会 400 进入 failedScopes 降级）。
+// Meilisearch 不可用时静默跳过（配置失败仅警告，不阻断启动）。
+func EnsureTopicIndexConfigured() {
+	if !meiliconnect.IsAvailable() {
+		return
+	}
+	index := meiliconnect.GetClient().Index(TopicIndex)
+	if err := configureIndex(index); err != nil {
+		slog.Warn("search: ensure topic index filterable failed", "error", err)
+		return
+	}
+	slog.Info("search: topic index filterable attributes ensured")
+}
+
 // configureIndex applies searchable, filterable, sortable and displayed fields.
 func configureIndex(index meilisearch.IndexManager) error {
 	searchableAttributes := []string{

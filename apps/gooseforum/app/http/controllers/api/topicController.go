@@ -183,6 +183,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	var firstPost posts.Entity
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
+		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
+		// topic 行/首楼，避免绕过 wiki_page_revisions 版本流（review N1）。
+		if topic.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+		}
 		if topic.UserId != req.UserId {
 			return component.FailResponseCode(component.MessageTopicOwnerMismatch, nil)
 		}
@@ -305,6 +310,10 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	topic := topics.Get(req.Params.TopicId)
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
+	}
+	// wiki 分站页面上下架/发布由 wiki 修订流程管理，禁止经论坛端点操作。
+	if topic.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
 	if topic.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)

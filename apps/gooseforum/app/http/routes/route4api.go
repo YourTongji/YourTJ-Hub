@@ -364,7 +364,7 @@ func apiRoute(ginApp *gin.Engine) {
 		GET("wiki/namespaces/:name/editors", UpUriReq(api.WikiNamespaceEditors)).
 		PUT("wiki/namespaces/:name/editors", UpUriJsonReq(api.WikiSetEditors)).
 		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
-		PUT("wiki/tree", UpButterReq(api.WikiAdminTreeOps)).
+		PUT("wiki/tree", UpJsonReq(api.WikiAdminTreeOps)).
 		GET("wiki/revisions", UpQueryReq(api.WikiAdminRevisions))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).

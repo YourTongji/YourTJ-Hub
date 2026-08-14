@@ -106,7 +106,7 @@ Wiki 已原生化进论坛单二进制（同二进制内嵌视图，不再是独
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
   sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；wiki 审核通过向订阅者发
   `wiki_updated` 通知（`notifications.templates.wikiUpdated`）。
-- **契约**: OpenAPI wiki 域已覆盖（16 操作、38 schema、35 fixtures，`paths/wiki.yaml`），生成 TS
+- **契约**: OpenAPI wiki 域已覆盖（15 操作，`paths/wiki.yaml`），生成 TS
   类型 + 手写 Dart mirror（`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 ### Points (phase 2)

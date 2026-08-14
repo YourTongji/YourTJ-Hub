@@ -3033,6 +3033,9 @@ WikiTreeOp:
     newPath:
       type: string
       description: New page path for rename operations.
+    newTitle:
+      type: string
+      description: New page title for rename operations.
     sortOrder:
       type: integer
       description: New sort order for sort operations.
@@ -3100,10 +3103,27 @@ WikiAdminRevision:
   additionalProperties: false
 
 WikiAdminRevisionListResult:
-  type: array
-  items:
-    $ref: '#/WikiAdminRevision'
-  description: The raw revision array; an empty listing is an empty array, never null.
+  type: object
+  required: [list, page, pageSize, hasNext]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/WikiAdminRevision'
+      description: Revisions on the current page ordered by creation time desc.
+    page:
+      type: integer
+      minimum: 1
+      description: The 1-based page number returned.
+    pageSize:
+      type: integer
+      minimum: 1
+      description: The page size applied to this page.
+    hasNext:
+      type: boolean
+      description: Whether more pages follow the current one.
+  additionalProperties: false
+  description: Paged revision listing; an empty page is an empty `list`, never null.
 
 WikiAdminRevisionListResponse:
   oneOf:

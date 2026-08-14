@@ -105,6 +105,10 @@ func WikiEditPage(req component.BetterRequest[WikiEditPageReq]) component.Respon
 			// 契约：非编辑权限 → wiki.namespace.notFound 语义。
 			return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
 		}
+		if errors.Is(err, wikiservice.ErrPathInvalid) {
+			// 契约：非法路径/超长标题 → common.request.invalidParams。
+			return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
+		}
 		return wikiErrorResponse(err)
 	}
 	return component.SuccessResponse(result)
@@ -256,7 +260,7 @@ func WikiAdminTree(req component.BetterRequest[component.Null]) component.Respon
 
 // WikiAdminTreeOpReq 树批量操作请求。
 type WikiAdminTreeOpReq struct {
-	Ops []wikiservice.TreeOp `json:"ops"`
+	Ops []wikiservice.TreeOp `json:"ops" validate:"required,min=1,max=100"`
 }
 
 // WikiAdminTreeOps 批量树操作：move/rename/sort/delete（PageManager/Admin）。

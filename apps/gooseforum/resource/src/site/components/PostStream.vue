@@ -754,11 +754,15 @@ const postGroups = computed<NestedPostGroup[]>(() => {
   }))
 
   // 隐藏首楼（Wiki 正文已在页面上方渲染）：首楼本身不渲染，挂在首楼下的回复提升为独立楼层。
+  // 提升后与其余 root 楼合并，按 postNo 升序重排，避免首楼回复（postNo > 1）插到更小的楼号之前。
   if (props.hideFirstPost) {
     const firstGroup = groups.find((group) => group.root.postNo === 1)
     if (firstGroup) {
       const promotedReplies = firstGroup.replies.map((reply) => ({ root: reply, replies: [] as PostPayload[] }))
-      groups = [...promotedReplies, ...groups.filter((group) => group.root.postNo !== 1)]
+      groups = [
+        ...promotedReplies,
+        ...groups.filter((group) => group.root.postNo !== 1),
+      ].sort((a, b) => (a.root.postNo || 0) - (b.root.postNo || 0))
     }
   }
 

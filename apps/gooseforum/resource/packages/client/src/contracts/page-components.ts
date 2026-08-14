@@ -50,11 +50,11 @@ export const pageComponents = [
   'course.reviewModeration',
   'course.management',
   'course.schedule',
-  'wiki.home',
-  'wiki.detail',
   'auth.login',
   'auth.resetPassword',
   'error.index',
+  'wiki.home',
+  'wiki.detail',
 ] as const
 
 export type PageComponent = typeof pageComponents[number]

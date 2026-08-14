@@ -121,6 +121,19 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 		return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 	}
 
+	// wiki 分站页面话题：同步清理 wiki_pages 及其修订，避免删除话题后残留
+	// 孤儿页面继续出现在公开导航树/首页（与 DeleteAllUserContent 级联一致）。
+	if topic.TopicType == topics.TopicTypeWiki {
+		if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+			if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
+				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+			}
+			if err := wikiPages.Delete(page.Id); err != nil {
+				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+			}
+		}
+	}
+
 	// 无回复时级联软删全部回复并递减统计；有回复时保留他人讨论。
 	if !hasReplies {
 		// 按删除前收集到的回复 ID 精确级联，避免并发新回复在读取与写入之间
@@ -840,6 +853,12 @@ func DeleteAllUserContent(userID uint64) error {
 		if wikiCursor == 0 {
 			break
 		}
+	}
+	// 他人 wiki 页面上 editor_id=注销者 的修订一并清理（对齐"删除全部本人内容"
+	// 策略）。此刻本人页面及其修订已在上方 DeleteByPage 清理，DeleteByEditor
+	// 只命中他人页面残留的本人修订，幂等无副作用。
+	if err := wikiPageRevisions.DeleteByEditor(userID); err != nil {
+		slog.Warn("delete wiki revisions by editor on account close failed", "userId", userID, "err", err)
 	}
 	// 再删剩余未删除的本人回复（他人话题下的回复）。
 	var postCursor uint64

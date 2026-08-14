@@ -10,7 +10,10 @@ const props = defineProps<{
 
 const { t } = useI18n()
 const collapsed = ref<Set<string>>(new Set())
-const isHome = typeof window !== 'undefined' ? window.location.pathname === '/wiki' || window.location.pathname === '/wiki/' : false
+const isHome = computed(() => {
+  if (typeof window === 'undefined') return false
+  return window.location.pathname === '/wiki' || window.location.pathname === '/wiki/'
+})
 
 const groups = computed(() => props.tree || [])
 

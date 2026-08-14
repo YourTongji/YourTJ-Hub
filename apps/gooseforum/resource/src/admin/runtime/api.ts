@@ -42,6 +42,7 @@ import type {
   WikiNamespace,
   WikiNamespaceTree,
   WikiRevision,
+  WikiRevisionPage,
   WikiTreeOp,
 } from '@/admin/types'
 
@@ -521,8 +522,11 @@ export function saveWikiTree(ops: WikiTreeOp[]) {
   return putJson<unknown>('/api/admin/wiki/tree', { ops }, adminText('k00n2'))
 }
 
-export function getWikiRevisions(status: string) {
-  return getJson<WikiRevision[]>(`/api/admin/wiki/revisions?status=${encodeURIComponent(status)}`, adminText('k00n3'))
+export function getWikiRevisions(status: string, page = 1, pageSize = 20) {
+  return getJson<WikiRevisionPage>(
+    `/api/admin/wiki/revisions?status=${encodeURIComponent(status)}&page=${page}&pageSize=${pageSize}`,
+    adminText('k00n3'),
+  )
 }
 
 export function reviewWikiRevision(revisionId: number, action: 'approve' | 'reject') {

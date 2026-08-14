@@ -39,7 +39,7 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `POST /api/forum/moderation/course-review-status`,
   `POST /api/forum/moderation/course-review-reports`, and
   `POST /api/forum/moderation/course-review-reveal`.
-- Wiki 域（16 操作、38 schema、35 fixtures，`paths/wiki.yaml`）：`GET /api/wiki/{tree,namespaces,home,revisions}`
+- Wiki 域（15 操作，`paths/wiki.yaml`）：`GET /api/wiki/{tree,namespaces,home,revisions}`
   公开读、`POST /api/wiki/pages` / `PUT /api/wiki/pages/{pageId}` / `POST /api/wiki/revisions/{revisionId}/review`
   登录写与审核、`/api/admin/wiki/*` 管理端（PageManager）；生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。

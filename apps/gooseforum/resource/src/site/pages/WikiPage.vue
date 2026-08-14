@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { computed, ref } from 'vue'
-import { Clock, Eye, History, Loader2, MessageSquare, X } from '@lucide/vue'
+import { ChevronDown, ChevronRight, Clock, Eye, History, Loader2, MessageSquare, X } from '@lucide/vue'
 import { getWikiRevisions, updateWikiPage } from '@/runtime/api'
 import { formatDateTime, formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
@@ -37,6 +37,7 @@ const canReview = computed(() => detailProps.page.canReview ?? detailProps.canRe
 const pending = computed(() => detailProps.page.pending ?? detailProps.pending ?? null)
 
 const editing = ref(false)
+const mobileTocOpen = ref(false)
 const editTitle = ref('')
 const editContent = ref('')
 const saving = ref(false)
@@ -220,6 +221,33 @@ function sameUrl(left: string, right: string) {
                   />
                 </div>
               </template>
+            </div>
+
+            <!-- 移动端（xl 以下）：右栏 aside 隐藏，操作按钮 + 目录折叠展示在此保持可达 -->
+            <div class="xl:hidden">
+              <div class="border-t border-line/70 px-4 py-4 sm:px-5">
+                <WikiPageActions
+                  :page="page.props.page"
+                  :can-edit="canEdit"
+                  @edit="startEdit"
+                  @interaction-change="handleInteractionChange"
+                />
+              </div>
+              <div v-if="(page.props.page.toc || []).length" class="border-t border-line/70">
+                <button
+                  type="button"
+                  class="gf-button gf-button-sm gf-button-muted m-4 sm:m-5"
+                  :aria-expanded="mobileTocOpen"
+                  @click="mobileTocOpen = !mobileTocOpen"
+                >
+                  <ChevronRight v-if="!mobileTocOpen" class="h-4 w-4" />
+                  <ChevronDown v-else class="h-4 w-4" />
+                  {{ t('wiki.tocTitle') }}
+                </button>
+                <div v-if="mobileTocOpen" class="pb-2">
+                  <WikiToc :items="page.props.page.toc || []" />
+                </div>
+              </div>
             </div>
 
             <!-- pending 横幅：有未审核编辑且当前用户可编辑/可审核时提示 -->

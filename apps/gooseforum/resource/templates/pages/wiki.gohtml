@@ -5,7 +5,7 @@
 {{end}}
 
 {{define "page"}}
-<main class="gf-crawler-wiki-page">
+{{if eq .Payload.Component "wiki.detail"}}<main class="gf-crawler-wiki-page">
     <article class="gf-crawler-wiki-head">
         <h1>{{.Payload.Props.Page.Title}}</h1>
         <p class="gf-crawler-post-meta">
@@ -23,5 +23,21 @@
         {{SafeHTML .Payload.Props.Page.Content}}
     </section>
     {{end}}
-</main>
+</main>{{else}}<main class="gf-crawler-wiki-page">
+    <h1>Wiki</h1>
+    {{if .Payload.Props.Recent}}
+    <section class="gf-crawler-topic-list" aria-label="Recent wiki pages">
+        <ul class="gf-crawler-topic-items">
+            {{range .Payload.Props.Recent}}
+            <li class="gf-crawler-topic-row">
+                <div class="gf-crawler-topic-main">
+                    <h2 class="gf-crawler-topic-title"><a href="/wiki/{{.Path}}">{{.Title}}</a></h2>
+                    <p class="gf-crawler-topic-meta">{{.EditorName}}</p>
+                </div>
+            </li>
+            {{end}}
+        </ul>
+    </section>
+    {{end}}
+</main>{{end}}
 {{end}}

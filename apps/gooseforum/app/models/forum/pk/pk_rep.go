@@ -93,9 +93,12 @@ func ClaimFetchLog(id uint64, expectedStatus string, expectedVersion int) (bool,
 }
 
 // CleanupOldFetchLogs 清理 30 天前的同步日志。
+// 必须 Unscoped 物理删除：FetchLogEntity 带 gorm.DeletedAt，普通 Delete 是软删，
+// stale running 行软删后仍占用 running_key 唯一索引（uniq_pk_fetch_log_running_key），
+// 后续同 calendar 的 CreateFetchLog 会唯一冲突（与 DeleteCalendarDataTx 硬删理由一致）。
 func CleanupOldFetchLogs() error {
 	cutoff := time.Now().Add(-30 * 24 * time.Hour)
-	if err := fetchLogBuilder().Where("created_at < ?", cutoff).Delete(&FetchLogEntity{}).Error; err != nil {
+	if err := fetchLogBuilder().Unscoped().Where("created_at < ?", cutoff).Delete(&FetchLogEntity{}).Error; err != nil {
 		return fmt.Errorf("pk: cleanup fetch logs: %w", err)
 	}
 	return nil

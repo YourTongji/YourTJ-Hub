@@ -854,7 +854,7 @@ export interface paths {
         };
         get?: never;
         put?: never;
-        /** Create a wiki page in a namespace (submits a pending revision) */
+        /** Create a wiki page in a namespace (publishes revision 1 as approved) */
         post: operations["createWikiPage"];
         delete?: never;
         options?: never;
@@ -2425,6 +2425,8 @@ export interface components {
             parentPath?: string;
             /** @description New page path for rename operations. */
             newPath?: string;
+            /** @description New page title for rename operations. */
+            newTitle?: string;
             /** @description New sort order for sort operations. */
             sortOrder?: number;
         };
@@ -2453,8 +2455,17 @@ export interface components {
             /** Format: date-time */
             updatedAt: string;
         };
-        /** @description The raw revision array; an empty listing is an empty array, never null. */
-        WikiAdminRevisionListResult: components["schemas"]["WikiAdminRevision"][];
+        /** @description Paged revision listing; an empty page is an empty `list`, never null. */
+        WikiAdminRevisionListResult: {
+            /** @description Revisions on the current page ordered by creation time desc. */
+            list: components["schemas"]["WikiAdminRevision"][];
+            /** @description The 1-based page number returned. */
+            page: number;
+            /** @description The page size applied to this page. */
+            pageSize: number;
+            /** @description Whether more pages follow the current one. */
+            hasNext: boolean;
+        };
         WikiAdminRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAdminRevisionListResult"];
         }) | components["schemas"]["ApiFailure"];
@@ -5109,11 +5120,10 @@ export interface operations {
         responses: {
             /**
              * @description Tree operations applied in order; any failure aborts the batch. Business failures
-             *     are returned as legacy HTTP 200 envelopes: malformed bodies degrade to
-             *     `common.request.invalidParams` (non-strict binding) and illegal operations are
-             *     `common.request.invalidParams`, an unknown target page is `wiki.page.notFound`,
-             *     a path collision is `wiki.page.pathConflict`, and deleting a page with children
-             *     is `wiki.page.hasChildren`.
+             *     are returned as legacy HTTP 200 envelopes: illegal operations and empty `ops`
+             *     lists are `common.request.invalidParams`, an unknown target page is
+             *     `wiki.page.notFound`, a path collision is `wiki.page.pathConflict`, and deleting
+             *     a page with children is `wiki.page.hasChildren`.
              */
             200: {
                 headers: {
@@ -5121,6 +5131,15 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WikiTreeOpsResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -5147,6 +5166,10 @@ export interface operations {
         parameters: {
             query: {
                 status: "pending" | "approved" | "rejected" | "superseded";
+                /** @description 1-based page number for the revision queue; values below 1 are treated as 1. */
+                page?: number;
+                /** @description Page size for the revision queue. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input. */
+                pageSize?: number;
             };
             header?: never;
             path?: never;
@@ -5155,7 +5178,10 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description Revisions matching the status ordered by creation time desc. An invalid status is
+             * @description Revisions matching the status ordered by creation time desc, paginated by the
+             *     `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
+             *     Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
+             *     paging metadata so consumers can detect the next page. An invalid status is
              *     returned as a legacy HTTP 200 envelope `common.request.invalidParams`.
              */
             200: {
