@@ -1,0 +1,41 @@
+{
+  "code": 0,
+  "msg": "查询成功",
+  "data": {
+    "courses": [
+      {
+        "courseCode": "TJCS101",
+        "courseName": "计算机程序设计",
+        "faculty": "计算机科学与技术系",
+        "facultyI18n": "计算机科学与技术系",
+        "courseNature": [
+          "专业必修"
+        ],
+        "campus": [
+          "四平路校区"
+        ],
+        "campus_list": [
+          "四平路校区"
+        ],
+        "credit": 3
+      },
+      {
+        "courseCode": "TJCS201",
+        "courseName": "数据结构与算法",
+        "faculty": "计算机科学与技术系",
+        "facultyI18n": "计算机科学与技术系",
+        "courseNature": [
+          "通识选修课"
+        ],
+        "campus": [
+          "嘉定校区"
+        ],
+        "campus_list": [
+          "嘉定校区"
+        ],
+        "credit": 4
+      }
+    ],
+    "sizeLimit": 100
+  }
+}
