@@ -43,6 +43,13 @@ func TestPKSchemaConcurrentUpsertPostgreSQL(t *testing.T) {
 			t.Fatalf("clean pk table: %v", err)
 		}
 	}
+	// 结束后清理本测试写入的行，保证同一测试库上可重复运行、不残留测试数据
+	// （migration_pg_test 用 DROP SCHEMA 重置，本测试只清自己的键）。
+	t.Cleanup(func() {
+		_ = db.Unscoped().Where("id = 1").Delete(&TeacherEntity{}).Error
+		_ = db.Unscoped().Where("calendar_id = 202601 AND teaching_class_id = 900001").
+			Delete(&TeacherTimeslotEntity{}).Error
+	})
 
 	const calendarId uint64 = 202601
 	const classId uint64 = 900001
