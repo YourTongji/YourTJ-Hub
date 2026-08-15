@@ -155,6 +155,22 @@ func ListDistinctDepartments() ([]string, error) {
 	return departments, err
 }
 
+// ListDistinctCampuses 返回所有可见课程关联开课实例的去重校区列表（非空、按字典序），
+// 供目录页校区筛选下拉。与 ListCourses 的 campus 筛选一致，取 course_offering.campus 原始值，
+// 保证 select 选项与筛选值域完全一致（不依赖 pk_campus 字典编码）。
+func ListDistinctCampuses() ([]string, error) {
+	var campuses []string
+	err := offeringBuilder().
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Where(queryopt.IsNull("course_offering.deleted_at")).
+		Where(queryopt.Ne("course_offering.campus", "")).
+		Distinct().
+		Order("course_offering.campus ASC").
+		Pluck("course_offering.campus", &campuses).Error
+	return campuses, err
+}
+
 // ListAllCourses 全量遍历课程（重建搜索索引/统计用），按 id 升序 keyset 分页。
 func ListAllCourses(limit, offset int) (entities []Entity, err error) {
 	if limit <= 0 {
@@ -233,6 +249,22 @@ func ListTermsByIDs(ids []uint64) (entities []TermEntity, err error) {
 	}
 	err = termBuilder().Where(queryopt.In("id", ids)).Find(&entities).Error
 	return
+}
+
+// ListDistinctTerms 返回所有可见课程关联开课实例的去重学期列表，供目录页学期筛选下拉。
+// 与 ListCourses 的 term 筛选（term_id 命中 course_term.code）同源：限定可见课程的可见 offering
+// 及其 term_id，非空 code，按 starts_on 倒序（未设置时回退 code 字典序），与详情页开课列表的学期排序一致。
+func ListDistinctTerms() ([]TermEntity, error) {
+	var terms []TermEntity
+	err := termBuilder().
+		Joins("JOIN course_offering ON course_offering.term_id = course_term.id AND course_offering.deleted_at IS NULL AND course_offering.status = ?", OfferingStatusVisible).
+		Joins("JOIN course ON course.id = course_offering.course_id AND course.deleted_at IS NULL AND course.status = ?", StatusVisible).
+		Where(queryopt.IsNull("course_term.deleted_at")).
+		Where(queryopt.Ne("course_term.code", "")).
+		Distinct().
+		Order("COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC").
+		Find(&terms).Error
+	return terms, err
 }
 
 // ---- Offering ----

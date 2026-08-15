@@ -963,6 +963,10 @@ export interface CourseCatalogPageProps {
     nextUrl: string
   }
   departments: string[]
+  /** 可筛选学期（value=code，label 优先学期名），按 starts_on 倒序。 */
+  terms: Array<{ value: string; label: string }>
+  /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
+  campuses: string[]
 }
 
 export interface CourseSummaryPayload {

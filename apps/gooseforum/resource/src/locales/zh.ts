@@ -373,6 +373,8 @@ export default {
     sortByRating: '按评分排序',
     sortDefault: '默认排序',
     allDepartments: '全部院系',
+    allTerms: '全部学期',
+    allCampuses: '全部校区',
     clearFilters: '清除筛选',
     rating: '{score} 分',
     noRating: '暂无评分',
