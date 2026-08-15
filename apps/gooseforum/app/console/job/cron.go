@@ -104,19 +104,24 @@ func Run() {
 	// Wiki 同步只有显式启用时才注册，避免仅填写 repo 就开始写投影。
 	wikiConfig := wikiservice.LoadGitConfig()
 	if wikiConfig.Enabled() {
-		entryID, err = scheduler.AddFunc(wikiConfig.Schedule, upCmd(func() {
-			ctx, cancel := context.WithTimeout(jobContext, 10*time.Minute)
-			defer cancel()
-			if _, syncErr := wikiservice.SyncContext(ctx, "schedule"); syncErr != nil {
-				slog.Warn("wiki scheduled sync failed", "error", syncErr)
-			}
-		}))
+		entryID, err = scheduler.AddFunc(wikiConfig.Schedule, upCmd(runScheduledWikiSync))
 		slog.Info("reg cron", "entryID", entryID, "spec", wikiConfig.Schedule, "err", err)
 	} else {
 		slog.Info("wiki git sync cron disabled")
 	}
 	running = true
 	scheduler.Start()
+}
+
+// runScheduledWikiSync 执行定时 wiki 同步：以 jobContext 为父 context（服务停止时
+// 取消正在运行的同步），单次 10 分钟超时兜底。命名函数而非闭包内派生 context，
+// 避免 fatcontext 报嵌套 context（golangci-lint）。
+func runScheduledWikiSync() {
+	ctx, cancel := context.WithTimeout(jobContext, 10*time.Minute)
+	defer cancel()
+	if _, syncErr := wikiservice.SyncContext(ctx, "schedule"); syncErr != nil {
+		slog.Warn("wiki scheduled sync failed", "error", syncErr)
+	}
 }
 
 func Stop() error {
