@@ -1,6 +1,10 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
-import { isValidNamespaceName, MAX_NAMESPACE_NAME_LENGTH } from '@/admin/utils/wiki'
+import {
+  isValidNamespaceName,
+  isValidWikiPath,
+  MAX_NAMESPACE_NAME_LENGTH,
+} from '@/admin/utils/wiki'
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -486,6 +490,12 @@ async function confirmNewPage() {
   const title = newPageTitle.value.trim()
   if (!path) {
     adminToast.warning(adminText('k00o4'))
+    return
+  }
+  // 路径需符合后端规则：namespace/slug，每段小写字母、数字、连字符
+  //（与 wikiservice.ValidatePath 对齐，见 app/service/wikiservice/path.go:53）。
+  if (!isValidWikiPath(path)) {
+    adminToast.warning(adminText('k00o7'))
     return
   }
   if (!title) {
@@ -1036,7 +1046,8 @@ onMounted(() => {
         <form class="grid gap-4" @submit.prevent="confirmNewPage">
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00g1') }}
-            <Input v-model="newPagePath" class="font-mono" placeholder="guide/hello" />
+            <Input v-model="newPagePath" class="font-mono" :placeholder="adminText('k00o8')" />
+            <p class="text-xs text-muted-foreground">{{ adminText('k00o7') }}</p>
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00i5') }}
