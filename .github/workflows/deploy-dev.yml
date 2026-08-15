@@ -67,6 +67,8 @@ jobs:
     timeout-minutes: 20
     steps:
       - uses: actions/checkout@v4
+      # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
+      # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -74,9 +76,13 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/docker-compose.yaml,deploy/nginx/yourtj.conf"
-          target: "/tmp"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/nginx/yourtj.conf"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
+      # compose 由 init-server.sh 一次性安装到服务器, dev 部署不更新它:
+      #   - dev 分支的 compose 变更不应影响共享的生产 nginx 服务(PR review #3)
+      #   - 避免覆盖含未迁移 wiki 服务的现有 compose(PR review #2)
+      # 部署只需 pull 镜像 + up 已有 compose 中的服务
       - name: Deploy to dev (sync db from main + pull image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
@@ -89,13 +95,10 @@ jobs:
             # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
             #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
             #    set -e 下 source 失败阻断部署(review W2)。
-            install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
-            install -m 0755 /tmp/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
-            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
-            # 0.5 同步新 compose + nginx 反代配置(存量服务器升级 GHCR 流必需,
-            #     旧 compose 引用本地镜像 yourtj-hub:* 与 pull 流不兼容)
-            install -m 0644 /tmp/docker-compose.yaml /opt/yourtj/docker-compose.yaml
-            install -D -m 0644 /tmp/yourtj.conf /opt/yourtj/nginx/yourtj.conf
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/deploy.sh /opt/yourtj/scripts/deploy.sh
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
+            install -D -m 0644 /tmp/yourtj-deploy-${{ github.run_id }}/yourtj.conf /opt/yourtj/nginx/yourtj.conf
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
