@@ -8,10 +8,17 @@ if ! command -v golangci-lint >/dev/null 2>&1; then
   exit 1
 fi
 
+# Resolve the incremental base before changing directory: git may inject a
+# relative GIT_DIR during hook execution, which breaks git lookups after cd.
+incremental_base=""
+if git rev-parse --verify origin/dev >/dev/null 2>&1; then
+  incremental_base=origin/dev
+fi
+
 cd apps/gooseforum
 
-if git rev-parse --verify origin/dev >/dev/null 2>&1; then
-  exec golangci-lint run --new-from-rev=origin/dev
+if [ -n "$incremental_base" ]; then
+  exec golangci-lint run --new-from-rev="$incremental_base"
 fi
 
 exec golangci-lint run
