@@ -18,10 +18,12 @@
   import/export, pluggable file storage (SQLite BLOB / S3-compatible), admin-managed bot personas
   (Agents) with unique bearer tokens and webhook endpoints, and configurable AI-readable public-content
   exports (`/llms.txt`, `/llms-full.txt`, `/p/posts/{id}.md`).
-- **Wiki 分站（论坛内嵌）**: wiki 已原生化进论坛单二进制（不再是独立 VitePress 静态站）——SSR
-  `/wiki` 与 `/wiki/*path`（wiki.home/wiki.detail）、写即发布（L1 编辑直接发布，无审核流）+
-  管理员回滚（不可撤销，硬删后续修订）与任意版本 diff、管理端 `/admin/wiki`；topics.topic_type
-  隔离论坛 feed 与搜索；编辑/回滚后向订阅者发 `wiki_updated` 通知（10 分钟节流）。
+- **Wiki 分站（GitHub 唯一真实源）**: wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护
+  （PR 协作编辑、审核、历史、贡献者），论坛为只读投影——SSR `/wiki` + `/wiki/*path`
+  （wiki.home/wiki.detail）与公开 API（tree/namespaces/home）；同步触发 = 每日定时（默认
+  03:00，可配）+ 管理端手动 + GitHub webhook（push 事件，PR merge 后即时）；站内无写路径
+  （编辑/历史按钮外链 GitHub）；topics.topic_type 隔离论坛 feed 与搜索；`wiki_sync_runs`
+  记录每次同步（running/success/failed + 变更计数）。
 - **Built-in OIDC Provider**: the forum issues standard OIDC tokens (authorization code + PKCE S256,
   RS256 id_token, opaque access tokens) for first-party clients; `sub` is always the numeric users.id.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).
@@ -31,7 +33,7 @@
 | Domain | Status | Note |
 |---|---|---|
 | Forum itself | `Current` | Upstream features complete and runnable; `make build` single binary verified locally (2026-08-06: go vet/test, pnpm typecheck/build, smoke all green) |
-| Wiki 分站 | `Current` | 论坛内嵌视图（同二进制）：SSR `/wiki` + `/wiki/*path`（wiki.home/wiki.detail）、公开 API（tree/namespaces/home/revisions）、登录写页面（写即发布，L1 编辑直接发布，无审核）+ 管理员回滚（不可撤销硬删后续修订）/版本历史/任意两版本 diff、管理端 `/admin/wiki`（PageManager 权限：命名空间/编辑者/树/版本历史/回滚/diff）；topics.topic_type 隔离 feed/搜索（默认论坛搜索/feed/RSS/sitemap 排除 wiki）；编辑/回滚后发 `wiki_updated` 通知（10 分钟节流）；OpenAPI wiki 域 16 操作已覆盖（TS 类型 + 手写 Dart mirror） |
+| Wiki 分站 | `Current` | GitHub 仓库为唯一真实源（`YourTongji/YourTJ-Wiki`，公开，PR 协作编辑）：SSR `/wiki` + `/wiki/*path`（wiki.home/wiki.detail）、公开 API（tree/namespaces/home）、管理端 `/admin/wiki`（PageManager：命名空间 CRUD + 只读页面树 + GitHub 同步面板：状态/手动同步/运行记录）；同步触发 = 每日定时（默认 03:00，可配）+ 手动 + webhook（HMAC-SHA256 验签，push 事件）；站内无写/回滚/diff/编辑者 API（编辑/历史/贡献者走 GitHub）；topics.topic_type 隔离 feed/搜索；`wiki_sync_runs` 记录同步（running/success/failed + 变更计数）；OpenAPI wiki 域覆盖公开读 + 管理同步端点（TS 类型 + 手写 Dart mirror） |
 | Database | `Current` | PostgreSQL is the default deployment database (`deploy/config.toml.example`); SQLite stays the local development/test default; file db stays SQLite; MySQL is not supported; data migration from SQLite→PG is manual |
 | Search | `Partial` | Aggregate search landed (issue #22): one search box covers topics, users and categories with grouped sections and scope tabs; pinyin/initials matching for users and categories; index sync via topic/user/category events + migration v13 rebuild; per-scope partial degradation; unavailable-state UI fallback |
 | Course reviews (课评) | `Partial` | Cross-dialect course catalog schema (course/alias/term/offering/instructor/offering-instructor/import-run/source-ref), offline `course-import` CLI with manifest checksum + dry-run + quarantine + idempotent retry (`catalog` + `reviews` subcommands; reviews gated on manifest `rights_approval_ref`), PG read service with keyword/teacher/term/campus filters, SSR `/courses` + `/courses/:courseId` and JSON `GET /api/forum/courses(/{courseId})` (OpenAPI-covered, route contract tests green); Meilisearch `courses` scope with persistent transaction-bound outbox worker + `rebuild-course-search`/`reconcile-course-search`; native review write/update/delete/helpful/report with anonymous zero-leak DTO, CourseManager moderation (hide/show + report queue) and Admin-only audited identity reveal, `rebuild-course-stats` CLI; **PK 排课器 14 端点** (`/api/pk/*`，统一 `{code,msg,data}` 信封，OpenAPI 契约 + route contract tests green，含 teacher_timeslots 懒构建/降级)；一系统在线同步管线 `course-pk-sync <学期>` (issue #186): PK 域表（pk_calendar/pk_language/pk_course_nature(+_by_calendar)/pk_assessment/pk_campus/pk_faculty/pk_major/pk_major_course/pk_course_detail/pk_teacher/pk_teacher_timeslot/pk_fetch_log），分页抓取 200/页 + 500 行/批事务写入 + `PkFetchLog` 断点续跑（崩溃从失败批次续）+ `teacher_timeslots` 重建 + 可选 `--materialize` 物化课程目录；凭证经 `--onesystem-cookie` / `ONESYSTEM_COOKIE` env / 管理端设置（securestore 加密落库，`onesystem-settings` admin API）；Vue3 排课器 (`/schedule`) 仍 `Planned`；30-day deletion isolation window (B3 privacy, issue #175): `course-review-cleanup` job (daily cron enqueue + background worker + manual CLI) anonymizes expired deleted rows — content cleared, author released via NULL, unique slot freed, row kept for audit — with migration v17 backfilling legacy `deleted_at` anchors; mobile course UI remains `Planned`; in-course review-body search is recorded as **Won't** (issue #184: review body stays out of the `courses` index and no separate `course_reviews` index will be added, per PRD §5.1 B5 / RICE 0.35) |

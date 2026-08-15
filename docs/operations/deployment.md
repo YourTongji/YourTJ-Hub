@@ -65,6 +65,33 @@
 4. 重建期间旧站可继续在线（只读），全部内容迁移完成、新站 `/wiki` 导航树
    核对无误后再按上方步骤退役旧容器与路由。
 
+### Wiki GitHub 唯一真实源同步（PR #270 后）
+
+wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
+论坛只保留只读投影。配置 `[wiki.git]` 后启用（见 `deploy/config.toml.example`）：
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"      # 每日定时同步（默认 03:00）
+webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端点 403
+```
+
+- **同步触发**：每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+  `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
+- **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
+  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Content type：`application/json`；Secret：与 `webhook_secret` 一致
+  - Events：仅 `push`（PR merge 触发）
+  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(webhook_secret, body)，验签失败/未配置返回 403/401。
+- **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
+  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+- **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+- **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
+  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
+
 ## Server layout (Docker Compose)
 
 ```
