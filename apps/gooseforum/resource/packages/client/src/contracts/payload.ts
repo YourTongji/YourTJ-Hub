@@ -1082,6 +1082,10 @@ export interface WikiPageDetailPayload {
   watched: boolean
   canEdit: boolean
   publishedRevisionNo: number
+  /** GitHub SSOT：仓库编辑外链（{repo}/edit/{branch}/{path}.md；未配置时为空）。 */
+  editUrl?: string
+  /** GitHub SSOT：仓库历史外链（{repo}/commits/{branch}/{path}.md；未配置时为空）。 */
+  historyUrl?: string
 }
 
 export interface WikiDetailProps {
