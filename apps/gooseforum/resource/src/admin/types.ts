@@ -446,6 +446,7 @@ export interface WikiNamespace {
 export interface WikiPageNode {
   pageId: number
   path: string
+  sourcePath: string
   title: string
   sortOrder: number
 }

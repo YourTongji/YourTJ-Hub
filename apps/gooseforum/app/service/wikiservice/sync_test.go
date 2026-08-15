@@ -510,7 +510,8 @@ func namespaceSlugOrEmpty(t *testing.T, name string) string {
 }
 
 // TestApplyRepoToDBSlugDefaultsToASCIIDirName 纯 ASCII 目录名且未声明 slug →
-// 默认 slug=目录名；index.md 变更 frontmatter slug 后跟随更新。
+// 默认 slug=目录名，页面 path 首段=slug（URL 用 slug，D7）；index.md 变更
+// frontmatter slug 后 slug 与页面 path 首段同步迁移。
 func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
 	setupWikiTestDB(t)
 	repo := t.TempDir()
@@ -524,8 +525,11 @@ func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
 	if got := namespaceSlugOrEmpty(t, "guide"); got != "guide" {
 		t.Fatalf("slug=%q, want default dir name guide", got)
 	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id == 0 {
+		t.Fatal("page guide/start missing (path first segment = slug)")
+	}
 
-	// index.md 显式声明 slug → 覆盖目录名默认值。
+	// index.md 显式声明 slug → 覆盖目录名默认值，页面 path 首段跟随迁移。
 	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: tongji-guide\n---\n\n# 指南首页")
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("update sync: %v", err)
@@ -533,14 +537,22 @@ func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
 	if got := namespaceSlugOrEmpty(t, "guide"); got != "tongji-guide" {
 		t.Fatalf("slug=%q, want tongji-guide from frontmatter", got)
 	}
+	if page := wikiPages.GetByPath("tongji-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to new slug tongji-guide/start")
+	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id != 0 {
+		t.Fatal("old path guide/start should be gone after slug migration")
+	}
 }
 
 // TestApplyRepoToDBSlugKeepsChineseNameNull 中文目录名且 index.md 未声明 slug
-// → slug 保持 NULL（回填/同步均不推导拼音），后续由仓库声明 slug 填充。
+// → slug 保持 NULL，URL key 降级=显示名（页面 path 首段=中文目录名）；
+// 仓库声明 slug 后 slug 填充且页面 path 首段迁移为 slug（D7 降级策略）。
 func TestApplyRepoToDBSlugKeepsChineseNameNull(t *testing.T) {
 	setupWikiTestDB(t)
 	repo := t.TempDir()
 	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
 
 	cfg := GitConfig{CloneDir: repo}
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
@@ -549,14 +561,24 @@ func TestApplyRepoToDBSlugKeepsChineseNameNull(t *testing.T) {
 	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "" {
 		t.Fatalf("slug=%q, want empty for chinese name without frontmatter slug", got)
 	}
+	// 降级：无 slug 时 URL key=显示名，页面 path 首段=中文目录名。
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("page 同济新手教程/start missing (URL key falls back to display name)")
+	}
 
-	// 仓库 index.md 声明 slug → 填充。
+	// 仓库 index.md 声明 slug → 填充，页面 path 首段迁移为 slug。
 	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("update sync: %v", err)
 	}
 	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "tongji-freshman-guide" {
 		t.Fatalf("slug=%q, want tongji-freshman-guide", got)
+	}
+	if page := wikiPages.GetByPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to slug after frontmatter slug added")
+	}
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id != 0 {
+		t.Fatal("old path 同济新手教程/start should be gone after slug migration")
 	}
 }
 

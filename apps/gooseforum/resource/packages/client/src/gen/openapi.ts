@@ -2256,7 +2256,10 @@ export interface components {
         WikiAdminTreePage: {
             /** Format: uint64 */
             pageId: number;
+            /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
             path: string;
+            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. */
+            sourcePath: string;
             title: string;
             sortOrder: number;
         };

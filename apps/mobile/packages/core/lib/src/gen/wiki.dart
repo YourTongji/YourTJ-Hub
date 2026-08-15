@@ -317,12 +317,18 @@ class WikiAdminTreePage {
   const WikiAdminTreePage({
     required this.pageId,
     required this.path,
+    required this.sourcePath,
     required this.title,
     required this.sortOrder,
   });
 
   final int pageId;
+
+  /// URL 友好路径（首段 = slug，降级 = 显示名）。
   final String path;
+
+  /// 仓库真实相对路径（GitHub 编辑/历史外链用）。
+  final String sourcePath;
   final String title;
   final int sortOrder;
 
@@ -330,6 +336,7 @@ class WikiAdminTreePage {
     return WikiAdminTreePage(
       pageId: (json['pageId'] as num?)?.toInt() ?? 0,
       path: json['path'] as String? ?? '',
+      sourcePath: json['sourcePath'] as String? ?? '',
       title: json['title'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
     );
@@ -339,6 +346,7 @@ class WikiAdminTreePage {
     return {
       'pageId': pageId,
       'path': path,
+      'sourcePath': sourcePath,
       'title': title,
       'sortOrder': sortOrder,
     };

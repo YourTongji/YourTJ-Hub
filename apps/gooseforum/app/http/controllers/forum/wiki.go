@@ -106,10 +106,12 @@ func WikiDetail(c *gin.Context) {
 		props.Page.Watched = action.WatchedAt != nil
 	}
 	// GitHub SSOT：编辑/历史走仓库外链（公开 fork + PR），站内无编辑。
+	// D7：外链必须用仓库真实路径 source_path（path 首段已是 URL key=slug，
+	// 与仓库目录名解耦，不能再用于 GitHub 文件定位）。
 	cfg := wikiservice.LoadGitConfig()
 	props.Page.CanEdit = cfg.Enabled()
-	props.Page.EditUrl = cfg.EditURL(page.Path)
-	props.Page.HistoryUrl = cfg.HistoryURL(page.Path)
+	props.Page.EditUrl = cfg.EditURL(page.SourcePath)
+	props.Page.HistoryUrl = cfg.HistoryURL(page.SourcePath)
 
 	payload := PagePayload{
 		Component: PageComponentWikiDetail,

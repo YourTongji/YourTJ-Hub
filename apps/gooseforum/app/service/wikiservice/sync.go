@@ -490,13 +490,55 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 }
 
 // wantedPage 仓库 md 解析后的目标页面。
+// path 首段 = URL key（slug，降级=显示名）；displayName = 仓库目录名（显示名，
+// 可中文）；namespace = URL key（wiki_pages.namespace 列）；sourcePath = 仓库
+// 真实相对路径（GitHub 外链拼接用，与 URL 解耦）。
 type wantedPage struct {
-	path       string
-	sourcePath string // 仓库原始相对路径（去 .md，保留大小写）：GitHub 外链拼接用
-	namespace  string
-	title      string
-	order      int
-	body       string
+	path        string
+	sourcePath  string
+	namespace   string
+	displayName string
+	title       string
+	order       int
+	body        string
+}
+
+// nsSlugPlan slug 定稿结果（D7：URL 用 slug，显示名与 URL key 分离）。
+// urlKey：该命名空间页面 path 首段/namespace 列的目标值；
+// setSlug：是否写入 slug 列（false = 非法/冲突时保持旧值）；
+// slug：要写入 slug 列的值（nil = 置 NULL，即仓库未声明且无法推导）。
+type nsSlugPlan struct {
+	urlKey  string
+	setSlug bool
+	slug    *string
+}
+
+// migratePagePath 迁移单页 path/namespace（slug 变更时 path 首段同步）。
+// 幂等：目标 path 与当前一致时零变更。
+func migratePagePath(page *wikiPages.Entity, newPath, newNamespace string) error {
+	if page.Path == newPath && page.Namespace == newNamespace {
+		return nil
+	}
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		return tx.Table("wiki_pages").Where("id = ?", page.Id).Updates(map[string]any{
+			"path":       newPath,
+			"namespace":  newNamespace,
+			"updated_at": time.Now(),
+		}).Error
+	})
+}
+
+// namespaceURLKey 返回命名空间的当前 URL key（slug 已分配时用 slug，
+// 未分配时降级用显示名——与同步器 2.6 的降级策略一致，供 D5 删除计数等
+// 按 URL key 查询 wiki_pages.namespace 列的场景使用）。
+func namespaceURLKey(ns *wikiNamespaces.Entity) string {
+	if ns == nil {
+		return ""
+	}
+	if s := ns.SlugOrEmpty(); s != "" {
+		return s
+	}
+	return ns.Name
 }
 
 // applyRepoToDB 把仓库当前文件树投影到 DB（核心幂等 diff）。
@@ -518,32 +560,8 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 	}
 
-	// 2. 仓库 md 文件 → 页面路径（去掉 .md 后缀，保留原始大小写/Unicode）。
-	wanted := make([]wantedPage, 0, len(files))
-	wantedByPath := make(map[string]wantedPage, len(files))
-	for _, f := range files {
-		rel := strings.TrimSuffix(f.Path, ".md")
-		norm, ok := ValidatePath(rel)
-		if !ok {
-			// 根级 README/CONTRIBUTING 等非 wiki 页面：合法仓库文件但非法页面路径，跳过。
-			slog.Debug("wiki sync: skip non-page md", "path", rel)
-			continue
-		}
-		title, order, _, _, body := parseMarkdownFile(f)
-		wp := wantedPage{
-			path:       norm,
-			sourcePath: strings.TrimSuffix(f.Path, ".md"),
-			namespace:  NamespaceOf(norm),
-			title:      title,
-			order:      order,
-			body:       body,
-		}
-		wanted = append(wanted, wp)
-		wantedByPath[norm] = wp
-	}
-
-	// 2.5 顶层目录 index.md → 命名空间元数据（D4：description/sort_order 跟随
-	// frontmatter；slug 为 URL 友好标识，与显示名分离）。
+	// 2. 顶层目录 index.md → 命名空间元数据（D4/D7：description/sort_order/slug
+	// 跟随 frontmatter；slug 为 URL 友好标识，与显示名 name 分离）。
 	// 仅当 index.md 实际携带 description/order/slug 时才应用，
 	// 避免无 frontmatter 的 index.md 清空命名空间元数据。
 	type nsMeta struct {
@@ -564,16 +582,149 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, slug: slug}
 	}
 
+	// 2.5 slug 定稿：推导每个仓库命名空间的目标 slug/URL key。
+	// 冲突策略：slug 已被其他命名空间占用 → 报错并保留旧值（fail-fast，
+	// run 标记 failed，避免 URL 与仓库不一致）；非法 slug 拒绝落库。
+	// 中文目录无 slug 声明 → 降级 URL key=显示名 + 告警（不 fail）。
+	// 仓库内部冲突：同一次同步中两个命名空间推导出相同 urlKey（如目录 guide
+	// 默认 slug=guide，另一目录 frontmatter 声明 slug: guide）→ 后处理方
+	// 报错并降级为显示名（唯一索引保护；两行都尚不存在时 DB 冲突检测不可用）。
+	var errs []string
+	repoDisplayNames := make(map[string]struct{}, len(files))
+	for _, f := range files {
+		rel := strings.TrimSuffix(f.Path, ".md")
+		norm, ok := ValidatePath(rel)
+		if !ok {
+			continue
+		}
+		repoDisplayNames[NamespaceOf(norm)] = struct{}{}
+	}
+	plans := make(map[string]nsSlugPlan, len(repoDisplayNames))
+	urlKeyOwners := make(map[string]string, len(repoDisplayNames)) // urlKey → 显示名
+	for nsName := range repoDisplayNames {
+		ns := wikiNamespaces.GetByName(nsName)
+		meta := namespaceMeta[nsName]
+		wantSlug := meta.slug
+		if wantSlug == "" && isPureASCIISlug(nsName) {
+			wantSlug = nsName
+		}
+		keepCurrent := func() nsSlugPlan {
+			cur := ns.SlugOrEmpty()
+			if cur == "" {
+				cur = nsName
+			}
+			return nsSlugPlan{urlKey: cur}
+		}
+		if wantSlug != "" {
+			if !ValidateSlug(wantSlug) {
+				errs = append(errs, fmt.Sprintf("invalid slug for namespace %s: %q", nsName, wantSlug))
+				plans[nsName] = keepCurrent()
+				continue
+			}
+			if ns.Id != 0 && wantSlug != ns.SlugOrEmpty() && wikiNamespaces.SlugExists(wantSlug, ns.Id) {
+				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by another namespace (keep old value)", nsName, wantSlug))
+				plans[nsName] = keepCurrent()
+				continue
+			}
+			if owner, taken := urlKeyOwners[wantSlug]; taken {
+				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by namespace %s in repo (keep old value)", nsName, wantSlug, owner))
+				plans[nsName] = keepCurrent()
+				continue
+			}
+			urlKeyOwners[wantSlug] = nsName
+			slug := wantSlug
+			plans[nsName] = nsSlugPlan{urlKey: wantSlug, setSlug: true, slug: &slug}
+		} else {
+			// 降级：无 slug 声明 → URL key=显示名；仓库权威，slug 列置 NULL。
+			if !isPureASCIISlug(nsName) {
+				slog.Warn("wiki sync: namespace without slug falls back to display name as URL key",
+					"namespace", nsName)
+			}
+			// 降级 urlKey=显示名也可能与已分配 slug 冲突（如中文目录名恰为另一
+			// 目录的 slug）；同样报错并退回自身显示名（保持可读，宁可告警）。
+			if owner, taken := urlKeyOwners[nsName]; taken {
+				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: display name %q already used as slug by namespace %s (keep old value)", nsName, nsName, owner))
+				plans[nsName] = keepCurrent()
+				continue
+			}
+			urlKeyOwners[nsName] = nsName
+			plans[nsName] = nsSlugPlan{urlKey: nsName, setSlug: true}
+		}
+	}
+
+	// 2.6 仓库 md 文件 → 页面（D7 URL key 语义：URL 用 slug）。
+	// path 首段 = plans[dir].urlKey（slug，降级=显示名）；source_path 恒存
+	// 仓库真实路径（去 .md，保留大小写/Unicode），与 URL 解耦。
+	wanted := make([]wantedPage, 0, len(files))
+	wantedByPath := make(map[string]wantedPage, len(files))
+	for _, f := range files {
+		rel := strings.TrimSuffix(f.Path, ".md")
+		norm, ok := ValidatePath(rel)
+		if !ok {
+			// 根级 README/CONTRIBUTING 等非 wiki 页面：合法仓库文件但非法页面路径，跳过。
+			slog.Debug("wiki sync: skip non-page md", "path", rel)
+			continue
+		}
+		dir := NamespaceOf(norm)
+		urlKey := plans[dir].urlKey
+		title, order, _, _, body := parseMarkdownFile(f)
+		wp := wantedPage{
+			path:        urlKey + norm[len(dir):], // 首段替换为 URL key
+			sourcePath:  rel,
+			namespace:   urlKey,
+			displayName: dir,
+			title:       title,
+			order:       order,
+			body:        body,
+		}
+		wanted = append(wanted, wp)
+		wantedByPath[wp.path] = wp
+	}
+
+	// 2.7 既有页面 path 迁移：URL key 变化（slug 变更/首回填）时，把该命名空间
+	// 全部页面（含软删）的 path 首段与 namespace 列迁移到新 URL key，并刷新
+	// byPath，保证后续 upsert 幂等命中（不误走 create 新建）。
+	// 无 slug 的中文目录：urlKey=显示名，与存量 path 首段一致 → 零迁移。
+	for nsName, plan := range plans {
+		ns := wikiNamespaces.GetByName(nsName)
+		if ns.Id == 0 {
+			continue // 首次同步：页面 upsert 阶段创建命名空间行
+		}
+		curKey := ns.SlugOrEmpty()
+		if curKey == "" {
+			curKey = nsName
+		}
+		if curKey == plan.urlKey {
+			continue
+		}
+		for _, p := range listAllUnscoped() {
+			if NamespaceOf(p.Path) != curKey {
+				continue
+			}
+			newPath := plan.urlKey + strings.TrimPrefix(p.Path, curKey)
+			if err := migratePagePath(p, newPath, plan.urlKey); err != nil {
+				errs = append(errs, fmt.Sprintf("migrate path %s: %v", p.Path, err))
+				continue
+			}
+			delete(byPath, p.Path)
+			p.Path = newPath
+			p.Namespace = plan.urlKey
+			byPath[newPath] = p
+			slog.Info("wiki sync: page path migrated for URL key change",
+				"namespace", nsName, "oldKey", curKey, "newKey", plan.urlKey, "page", newPath)
+		}
+	}
+
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
 	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
-	var errs []string
 	for _, wp := range wanted {
-		// 仓库顶层目录 = namespace；不存在则自动创建。放在 upsert 循环内，
-		// 覆盖「目录曾被 D5 删除、页面重新出现走恢复路径」的场景（恢复路径
-		// 不经过 createPageFromRepo，命名空间行必须在此重建）。
-		if !wikiNamespaces.Exists(wp.namespace) {
-			if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: wp.namespace}); err != nil {
-				errs = append(errs, fmt.Sprintf("create namespace %s: %v", wp.namespace, err))
+		// 仓库顶层目录 = namespace 显示名；不存在则自动创建（名字=显示名，
+		// 与 URL key 解耦）。放在 upsert 循环内，覆盖「目录曾被 D5 删除、
+		// 页面重新出现走恢复路径」的场景（恢复路径不经过 createPageFromRepo，
+		// 命名空间行必须在此重建）。
+		if !wikiNamespaces.Exists(wp.displayName) {
+			if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: wp.displayName}); err != nil {
+				errs = append(errs, fmt.Sprintf("create namespace %s: %v", wp.displayName, err))
 				continue
 			}
 		}
@@ -614,7 +765,8 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
-	for _, p := range existing {
+	//    重新扫描最新 path（2.7 可能迁移过 URL key），按 URL key 匹配 wanted。
+	for _, p := range listAllUnscoped() {
 		if _, ok := wantedByPath[p.Path]; ok {
 			continue
 		}
@@ -628,71 +780,51 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		result.PagesDeleted++
 	}
 
-	// 5. 命名空间元数据同步（D4）：顶层目录 index.md 的 frontmatter
-	// description/order/slug → wiki_namespaces 对应列。
-	// slug 语义：URL 友好标识（^[a-z0-9]+(-[a-z0-9]+)*$ ≤64），与显示名 name
-	// （可为中文目录名）分离；目录名纯 ASCII 且未声明 slug 时默认 slug=目录名。
-	// 冲突策略：slug 已被其他命名空间占用 → 报错并保留旧值（fail-fast，
-	// run 标记 failed，避免 URL 与仓库不一致）；空 slug 不参与唯一约束。
-	// 幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
-	// 遍历全部仓库命名空间（而非仅 index.md 携带元数据的）：纯 ASCII 目录
-	// 即使无 index.md 也获得默认 slug=目录名；无 index.md 的中文目录保留空 slug。
-	repoNamespaces := make(map[string]struct{}, len(wanted))
-	for _, wp := range wanted {
-		repoNamespaces[wp.namespace] = struct{}{}
-	}
-	for nsName := range repoNamespaces {
-		meta := namespaceMeta[nsName]
+	// 5. 命名空间元数据同步（D4/D7）：按 2.6 定稿的 plans 应用
+	//    description/order（仅 index.md 携带时）+ slug 列。
+	//    幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
+	for nsName, plan := range plans {
 		ns := wikiNamespaces.GetByName(nsName)
 		if ns.Id == 0 {
 			continue // 页面 upsert 阶段会创建；此处仅更新已存在的
 		}
-		// 推导目标 slug：frontmatter 显式声明优先；否则目录名纯 ASCII 时默认目录名。
-		wantSlug := meta.slug
-		if wantSlug == "" && isPureASCIISlug(nsName) {
-			wantSlug = nsName
-		}
-		if !ValidateSlug(wantSlug) {
-			errs = append(errs, fmt.Sprintf("invalid slug for namespace %s: %q", nsName, wantSlug))
-			continue
-		}
+		meta := namespaceMeta[nsName]
 		curSlug := ns.SlugOrEmpty()
+		wantSlug := ""
+		if plan.slug != nil {
+			wantSlug = *plan.slug
+		}
 		if ns.Description == meta.description && ns.SortOrder == meta.order &&
 			curSlug == wantSlug {
 			continue
 		}
-		// slug 变化时做占用检测（排除自身）。
-		if wantSlug != "" && wantSlug != curSlug && wikiNamespaces.SlugExists(wantSlug, ns.Id) {
-			errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by another namespace (keep old value)", nsName, wantSlug))
-			continue
-		}
 		ns.Description = meta.description
 		ns.SortOrder = meta.order
-		if wantSlug != curSlug {
-			if wantSlug == "" {
-				ns.Slug = nil
-			} else {
-				v := wantSlug
-				ns.Slug = &v
-			}
+		if plan.setSlug {
+			ns.Slug = plan.slug
 		}
 		if err := wikiNamespaces.Save(&ns); err != nil {
 			errs = append(errs, fmt.Sprintf("update namespace meta %s: %v", nsName, err))
 		}
 	}
 
-	// 6. 命名空间删除（D5）：仓库顶层目录消失 → 自动删除命名空间。
-	// 仓库中实际存在的顶层目录 = 全部 wanted 页面 path 的首段。
+	// 6. 命名空间删除（D5）：仓库顶层目录（显示名）消失 → 自动删除命名空间。
+	// 仓库中实际存在的顶层目录 = 全部 wanted 页面 displayName。
 	// 同步驱动可绕过 hasPages 守卫：仓库是唯一真实源，目录删除即权威删除信号；
 	// 页面已在第 4 步软删（topic 一并转入 USER_DELETED，评论/互动保留）。
+	repoNamespaces := make(map[string]struct{}, len(wanted))
+	for _, wp := range wanted {
+		repoNamespaces[wp.displayName] = struct{}{}
+	}
 	for _, ns := range wikiNamespaces.List() {
 		if _, ok := repoNamespaces[ns.Name]; ok {
 			continue
 		}
 		// 仍有未软删页面（页面删除失败保护）→ 不删除命名空间。
+		// namespace 列 = URL key，按当前 key 计数。
 		var activePages int64
 		if err := dbconnect.Connect().Table("wiki_pages").
-			Where("namespace = ? AND deleted_at IS NULL", ns.Name).
+			Where("namespace = ? AND deleted_at IS NULL", namespaceURLKey(ns)).
 			Count(&activePages).Error; err != nil {
 			errs = append(errs, fmt.Sprintf("count pages for namespace %s: %v", ns.Name, err))
 			continue
@@ -728,16 +860,15 @@ func sha256Hex(s string) string {
 }
 
 // createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
+// path/namespace 列均存 URL key（slug，降级=显示名）；命名空间行由 upsert
+// 循环按显示名创建（此处只做防御性校验）。
 func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	ns := wp.namespace
 	if ns == "" {
 		return fmt.Errorf("empty namespace for path %s", wp.path)
 	}
-	// 仓库顶层目录 = namespace；不存在则自动创建。
-	if !wikiNamespaces.Exists(ns) {
-		if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: ns}); err != nil {
-			return fmt.Errorf("create namespace %s: %w", ns, err)
-		}
+	if wp.displayName == "" {
+		return fmt.Errorf("empty display name for path %s", wp.path)
 	}
 	// 嵌套路径：parent_id 关联父页面。
 	parentID := uint64(0)

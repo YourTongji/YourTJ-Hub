@@ -131,7 +131,10 @@ function editUrlFor(page: WikiPageNode) {
   const base = repoEditBase()
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
-  return `https://github.com/${base}/edit/${branch}/${page.path}.md`
+  // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段已是 slug，
+  // 与仓库目录名解耦）。
+  const repoPath = page.sourcePath || page.path
+  return `https://github.com/${base}/edit/${branch}/${repoPath}.md`
 }
 
 // ---------- Namespaces（只读：GitHub SSOT，命名空间由仓库顶层目录驱动） ----------
