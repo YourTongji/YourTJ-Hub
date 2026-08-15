@@ -2354,15 +2354,15 @@ export interface components {
         WikiSyncStatusResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiSyncStatus"];
         }) | components["schemas"]["ApiFailure"];
-        WikiSyncResult: {
-            /** @description Git commit SHA of the synced head. */
-            headSha: string;
-            pagesAdded: number;
-            pagesUpdated: number;
-            pagesDeleted: number;
+        WikiSyncAccepted: {
+            /**
+             * @description The sync run was accepted and is now executing asynchronously.
+             * @constant
+             */
+            accepted: true;
         };
         WikiSyncRunResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiSyncResult"];
+            result: components["schemas"]["WikiSyncAccepted"];
         }) | components["schemas"]["ApiFailure"];
         /** @description Recent sync runs ordered by id desc; an empty listing is an empty array, never null. */
         WikiSyncRunsResult: components["schemas"]["WikiSyncRunView"][];
@@ -4800,10 +4800,13 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description Sync result with page-change counts. Business failures are returned as legacy
-             *     HTTP 200 envelopes: a sync already in progress (`wiki.sync.running`) and a
-             *     failed run (`wiki.sync.failed`, for example when the repository is not
-             *     configured or the git operation fails).
+             * @description The sync run was accepted and executes asynchronously (git clone/fetch +
+             *     full projection can exceed the HTTP write timeout). Consumers poll
+             *     `sync/status` and `sync/runs` for progress; a run row starts with
+             *     `status=running` and terminates with `success` or `failed`. Business
+             *     failures are returned as legacy HTTP 200 envelopes: a sync already in
+             *     progress (`wiki.sync.running`, merged into a pending rerun) and an
+             *     unconfigured repository (`wiki.sync.failed`).
              */
             200: {
                 headers: {

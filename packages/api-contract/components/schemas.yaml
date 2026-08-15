@@ -2907,19 +2907,14 @@ WikiSyncStatusResponse:
               $ref: '#/WikiSyncStatus'
     - $ref: '#/ApiFailure'
 
-WikiSyncResult:
+WikiSyncAccepted:
   type: object
-  required: [headSha, pagesAdded, pagesUpdated, pagesDeleted]
+  required: [accepted]
   properties:
-    headSha:
-      type: string
-      description: Git commit SHA of the synced head.
-    pagesAdded:
-      type: integer
-    pagesUpdated:
-      type: integer
-    pagesDeleted:
-      type: integer
+    accepted:
+      type: boolean
+      const: true
+      description: The sync run was accepted and is now executing asynchronously.
   additionalProperties: false
 
 WikiSyncRunResponse:
@@ -2930,7 +2925,7 @@ WikiSyncRunResponse:
           required: [result]
           properties:
             result:
-              $ref: '#/WikiSyncResult'
+              $ref: '#/WikiSyncAccepted'
     - $ref: '#/ApiFailure'
 
 WikiSyncRunsResult:

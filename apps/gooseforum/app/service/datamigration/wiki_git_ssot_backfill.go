@@ -45,7 +45,7 @@ func BackfillWikiGitSSOTWithDB(conn *gorm.DB) WikiGitSSOTBackfillResult {
 	for {
 		var batch []wikiPages.Entity
 		err := conn.Model(&wikiPages.Entity{}).
-			Select("id", "content_hash").
+			Select("id", "content_hash", "sort_order").
 			Where("id > ?", cursor).
 			Order("id ASC").
 			Limit(batchSize).

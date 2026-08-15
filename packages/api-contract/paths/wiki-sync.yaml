@@ -104,10 +104,13 @@ runWikiSync:
     responses:
       '200':
         description: |
-          Sync result with page-change counts. Business failures are returned as legacy
-          HTTP 200 envelopes: a sync already in progress (`wiki.sync.running`) and a
-          failed run (`wiki.sync.failed`, for example when the repository is not
-          configured or the git operation fails).
+          The sync run was accepted and executes asynchronously (git clone/fetch +
+          full projection can exceed the HTTP write timeout). Consumers poll
+          `sync/status` and `sync/runs` for progress; a run row starts with
+          `status=running` and terminates with `success` or `failed`. Business
+          failures are returned as legacy HTTP 200 envelopes: a sync already in
+          progress (`wiki.sync.running`, merged into a pending rerun) and an
+          unconfigured repository (`wiki.sync.failed`).
         content:
           application/json:
             schema:

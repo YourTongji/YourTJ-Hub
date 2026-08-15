@@ -6,6 +6,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"log/slog"
 	"os"
@@ -14,6 +15,7 @@ import (
 	"sort"
 	"strings"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -180,6 +182,13 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 
 var syncMu sync.Mutex
 
+// syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
+// 避免投影停留在旧 head（并发丢弃 push 会 stale 到下次定时同步）。
+var syncPending atomic.Bool
+
+// ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
+var ErrSyncAlreadyRunning = errors.New("wiki sync already running")
+
 // TryAcquireSyncLock 尝试获取同步锁（防重入；webhook/定时/手动并发时只跑一个）。
 func TryAcquireSyncLock() bool {
 	return syncMu.TryLock()
@@ -192,14 +201,26 @@ func ReleaseSyncLock() {
 
 // ---------- git 操作 ----------
 
-// ensureClone 确保本地 clone 存在（无则 clone，有则 fetch + reset --hard）。
+// ensureClone 确保本地 clone 存在且 remote 与配置一致（无则 clone，有则 fetch + reset --hard）。
 // 返回当前 head SHA。本地工作区永不手动修改，reset --hard 比 pull 更确定。
+// 配置变更（repo 换源）时丢弃缓存 clone 重建，避免投影到错误仓库。
 func ensureClone(cfg GitConfig) (string, error) {
 	if cfg.Repo == "" {
 		return "", fmt.Errorf("wiki git repo not configured")
 	}
 	if cfg.CloneDir == "" {
 		cfg.CloneDir = "./storage/wiki-repo"
+	}
+	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
+		if out, err := runGit(cfg.CloneDir, "remote", "get-url", "origin"); err == nil {
+			if !sameRemote(strings.TrimSpace(out), cfg.Repo) {
+				slog.Warn("wiki sync: cached clone remote mismatch, recloning",
+					"cached", strings.TrimSpace(out), "configured", cfg.Repo)
+				if err := os.RemoveAll(cfg.CloneDir); err != nil {
+					return "", fmt.Errorf("remove stale clone: %w", err)
+				}
+			}
+		}
 	}
 	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
@@ -222,6 +243,17 @@ func ensureClone(cfg GitConfig) (string, error) {
 		return "", fmt.Errorf("git rev-parse: %v: %s", err, out)
 	}
 	return strings.TrimSpace(out), nil
+}
+
+// sameRemote 归一化比较仓库地址（忽略尾部 / 与 .git）。
+func sameRemote(a, b string) bool {
+	norm := func(s string) string {
+		s = strings.TrimSpace(s)
+		s = strings.TrimSuffix(s, "/")
+		s = strings.TrimSuffix(s, ".git")
+		return s
+	}
+	return norm(a) == norm(b)
 }
 
 func runGit(dir string, args ...string) (string, error) {
@@ -371,6 +403,11 @@ type SyncResult struct {
 	PagesDeleted int    `json:"pagesDeleted"`
 }
 
+// SyncAccepted 手动触发同步的立即响应（同步异步执行，进度由 status/runs 轮询）。
+type SyncAccepted struct {
+	Accepted bool `json:"accepted"`
+}
+
 // Sync 执行一次 GitHub → 论坛投影同步（webhook / 定时 / 手动共用）。
 // 幂等：内容 hash 不变则跳过（重复同步零变更）。
 func Sync(trigger string) (*SyncResult, error) {
@@ -384,10 +421,23 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
 	}
 	if !TryAcquireSyncLock() {
-		return nil, fmt.Errorf("wiki sync already running")
+		syncPending.Store(true)
+		return nil, ErrSyncAlreadyRunning
 	}
-	defer ReleaseSyncLock()
+	defer func() {
+		ReleaseSyncLock()
+		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
+		if syncPending.CompareAndSwap(true, false) {
+			if _, err := syncOnce(cfg, "webhook"); err != nil {
+				slog.Warn("wiki sync: pending rerun failed", "error", err)
+			}
+		}
+	}()
+	return syncOnce(cfg, trigger)
+}
 
+// syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
+func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {
 		return nil, fmt.Errorf("create sync run: %w", err)
@@ -395,26 +445,27 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 
 	head, err := ensureClone(cfg)
 	if err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, 0, 0, 0, err.Error())
+		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error())
 		return nil, err
 	}
 
 	result := &SyncResult{HeadSha: head}
 	if err := applyRepoToDB(cfg, result); err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error())
+		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error())
 		return result, err
 	}
-	_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, "")
+	_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, "")
 	return result, nil
 }
 
 // wantedPage 仓库 md 解析后的目标页面。
 type wantedPage struct {
-	path      string
-	namespace string
-	title     string
-	order     int
-	body      string
+	path       string
+	sourcePath string // 仓库原始相对路径（去 .md，保留大小写）：GitHub 外链拼接用
+	namespace  string
+	title      string
+	order      int
+	body       string
 }
 
 // applyRepoToDB 把仓库当前文件树投影到 DB（核心幂等 diff）。
@@ -449,22 +500,25 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 		title, order, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
-			path:      norm,
-			namespace: NamespaceOf(norm),
-			title:     title,
-			order:     order,
-			body:      body,
+			path:       norm,
+			sourcePath: strings.TrimSuffix(f.Path, ".md"),
+			namespace:  NamespaceOf(norm),
+			title:      title,
+			order:      order,
+			body:       body,
 		}
 		wanted = append(wanted, wp)
 		wantedByPath[norm] = wp
 	}
 
-	// 3. 逐页 upsert（每页独立事务：单页失败不阻断整批，记日志继续）。
+	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
+	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
+	var errs []string
 	for _, wp := range wanted {
 		existingPage, ok := byPath[wp.path]
 		if !ok {
-			if err := createPageFromRepo(wp); err != nil {
-				slog.Error("wiki sync: create page failed", "path", wp.path, "error", err)
+			if err := createPageFromRepo(cfg, wp); err != nil {
+				errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
 				continue
 			}
 			result.PagesAdded++
@@ -476,15 +530,22 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		// 恢复必须优先于幂等判断：否则内容未变的软删页面永远无法解除 deleted_at。
 		if restored {
 			if err := wikiPages.RestoreSoftDeleted(existingPage.Id); err != nil {
-				slog.Error("wiki sync: restore page failed", "path", wp.path, "error", err)
+				errs = append(errs, fmt.Sprintf("restore %s: %v", wp.path, err))
 				continue
 			}
 		}
-		if existingPage.ContentHash == curHash && !restored {
-			continue // 幂等：内容未变且无需恢复，零变更。
+		// 幂等：正文 hash、frontmatter title/order、GitHub 源路径均未变且无需恢复
+		// → 零变更。只改 frontmatter（标题/排序）的提交也必须触发更新，否则投影
+		// 的标题/导航顺序永久陈旧。
+		if existingPage.ContentHash == curHash &&
+			existingPage.Title == wp.title &&
+			existingPage.SortOrder == wp.order &&
+			existingPage.SourcePath == wp.sourcePath &&
+			!restored {
+			continue
 		}
-		if err := updatePageFromRepo(existingPage, wp, curHash); err != nil {
-			slog.Error("wiki sync: update page failed", "path", wp.path, "error", err)
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
+			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
 		result.PagesUpdated++
@@ -499,12 +560,15 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			continue
 		}
 		if err := softDeleteWikiPage(p); err != nil {
-			slog.Error("wiki sync: delete page failed", "path", p.Path, "error", err)
+			errs = append(errs, fmt.Sprintf("delete %s: %v", p.Path, err))
 			continue
 		}
 		result.PagesDeleted++
 	}
 
+	if len(errs) > 0 {
+		return fmt.Errorf("wiki sync: %d page(s) failed: %s", len(errs), strings.Join(errs, "; "))
+	}
 	return nil
 }
 
@@ -521,7 +585,7 @@ func sha256Hex(s string) string {
 }
 
 // createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
-func createPageFromRepo(wp wantedPage) error {
+func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	ns := wp.namespace
 	if ns == "" {
 		return fmt.Errorf("empty namespace for path %s", wp.path)
@@ -556,6 +620,7 @@ func createPageFromRepo(wp wantedPage) error {
 		RetentionStatus:  topics.RetentionNormal,
 	}
 	var firstPost posts.Entity
+	var page wikiPages.Entity
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := topics.CreateTx(tx, &topic); err != nil {
 			return err
@@ -580,10 +645,11 @@ func createPageFromRepo(wp wantedPage) error {
 		if err := topics.SaveTx(tx, &topic); err != nil {
 			return err
 		}
-		page := wikiPages.Entity{
+		page = wikiPages.Entity{
 			TopicId:             topic.Id,
 			Namespace:           ns,
 			Path:                wp.path,
+			SourcePath:          wp.sourcePath,
 			ParentId:            parentID,
 			SortOrder:           wp.order,
 			Title:               wp.title,
@@ -598,16 +664,18 @@ func createPageFromRepo(wp wantedPage) error {
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：搜索索引 + 发布事件。
+	// 提交后副作用：文件引用 + 搜索索引 + 发布事件 + git 溯源快照。
+	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
 	}
 	eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
+	updateGitTrace(cfg, page.Id, wp.sourcePath)
 	return nil
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(page *wikiPages.Entity, wp wantedPage, curHash string) error {
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
 	rendered := markdown2html.PostMarkdownToHTML(wp.body)
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -641,6 +709,8 @@ func updatePageFromRepo(page *wikiPages.Entity, wp wantedPage, curHash string) e
 			"toc":           toc,
 			"content_hash":  curHash,
 			"sort_order":    wp.order,
+			"source_path":   wp.sourcePath,
+			"updated_at":    time.Now(),
 		}).Error; err != nil {
 			return err
 		}
@@ -661,11 +731,13 @@ func updatePageFromRepo(page *wikiPages.Entity, wp wantedPage, curHash string) e
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索。
+	// 提交后副作用：文件引用 + 搜索 + git 溯源快照 + watcher 通知。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
 	}
+	updateGitTrace(cfg, page.Id, wp.sourcePath)
+	notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
 	return nil
 }
 
@@ -675,12 +747,44 @@ func softDeleteWikiPage(page *wikiPages.Entity) error {
 		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
 			"deleted_at":        time.Now(),
 			"visibility_status": topics.VisibilityUserDeleted,
-			"retention_status":  topics.RetentionRecoverable,
+			// 仓库移除 ≠ 用户删除：wiki 页面不进用户恢复/自动清除路径。
+			// RECOVERABLE 会在 30 天后被 retention 清扫永久清除；恢复由同步器
+			// 在页面重新出现时执行（updatePageFromRepo 恢复 ACTIVE/NORMAL）。
+			"retention_status": topics.RetentionNormal,
 		}).Error; err != nil {
 			return err
 		}
 		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
 	})
+}
+
+// updateGitTrace 同步后更新页面的 git 溯源列（贡献者快照 + 最后提交 SHA/时间）。
+// 失败仅记日志，不阻断同步（贡献者为空时页面仍可读）。
+func updateGitTrace(cfg GitConfig, pageID uint64, relPath string) {
+	contributors := buildContributorsSnapshot(cfg.CloneDir, relPath)
+	commitSha := ""
+	var commitAt time.Time
+	if out, err := runGit(cfg.CloneDir, "log", "-1", "--format=%H%n%cI", "--", relPath); err == nil {
+		lines := strings.SplitN(strings.TrimSpace(out), "\n", 2)
+		if len(lines) > 0 {
+			commitSha = strings.TrimSpace(lines[0])
+		}
+		if len(lines) > 1 {
+			if t, err := time.Parse(time.RFC3339, strings.TrimSpace(lines[1])); err == nil {
+				commitAt = t
+			}
+		}
+	}
+	updates := map[string]any{
+		"contributors_json": contributors,
+		"last_commit_sha":   commitSha,
+	}
+	if !commitAt.IsZero() {
+		updates["last_commit_at"] = commitAt
+	}
+	if err := wikiPages.UpdateGitTrace(pageID, updates); err != nil {
+		slog.Warn("wiki sync: update git trace failed", "pageId", pageID, "error", err)
+	}
 }
 
 // encodeTOCOrEmpty 编码 TOC，失败返回空串（不阻断同步）。

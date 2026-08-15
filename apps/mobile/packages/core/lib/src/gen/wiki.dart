@@ -543,35 +543,18 @@ class WikiSyncStatus {
   }
 }
 
-/// 手动同步 result（`POST /api/admin/wiki/sync`）。
-class WikiSyncResult {
-  const WikiSyncResult({
-    required this.headSha,
-    required this.pagesAdded,
-    required this.pagesUpdated,
-    required this.pagesDeleted,
-  });
+/// 手动同步已接受（`POST /api/admin/wiki/sync`）。同步异步执行，
+/// 进度通过 `sync/status` / `sync/runs` 轮询。
+class WikiSyncAccepted {
+  const WikiSyncAccepted({required this.accepted});
 
-  final String headSha;
-  final int pagesAdded;
-  final int pagesUpdated;
-  final int pagesDeleted;
+  final bool accepted;
 
-  factory WikiSyncResult.fromJson(Map<String, dynamic> json) {
-    return WikiSyncResult(
-      headSha: json['headSha'] as String? ?? '',
-      pagesAdded: (json['pagesAdded'] as num?)?.toInt() ?? 0,
-      pagesUpdated: (json['pagesUpdated'] as num?)?.toInt() ?? 0,
-      pagesDeleted: (json['pagesDeleted'] as num?)?.toInt() ?? 0,
-    );
+  factory WikiSyncAccepted.fromJson(Map<String, dynamic> json) {
+    return WikiSyncAccepted(accepted: json['accepted'] as bool? ?? false);
   }
 
   Map<String, dynamic> toJson() {
-    return {
-      'headSha': headSha,
-      'pagesAdded': pagesAdded,
-      'pagesUpdated': pagesUpdated,
-      'pagesDeleted': pagesDeleted,
-    };
+    return {'accepted': accepted};
   }
 }

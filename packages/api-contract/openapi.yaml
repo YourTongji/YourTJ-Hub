@@ -489,8 +489,8 @@ components:
       $ref: ./components/schemas.yaml#/WikiSyncStatus
     WikiSyncStatusResponse:
       $ref: ./components/schemas.yaml#/WikiSyncStatusResponse
-    WikiSyncResult:
-      $ref: ./components/schemas.yaml#/WikiSyncResult
+    WikiSyncAccepted:
+      $ref: ./components/schemas.yaml#/WikiSyncAccepted
     WikiSyncRunResponse:
       $ref: ./components/schemas.yaml#/WikiSyncRunResponse
     WikiSyncRunsResult:
