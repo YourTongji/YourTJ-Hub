@@ -1,28 +1,27 @@
 #!/usr/bin/env bash
-# deploy.sh — 容器版部署: 构建镜像 → compose 更新 → 健康检查 → 失败回滚。
+# deploy.sh — GHCR 镜像流部署: 拉取镜像 → compose 更新 → 健康检查 → 失败回滚。
 #   compose up 带 --remove-orphans: 不在当前 compose 文件中定义的服务容器
 #   (如旧 VitePress wiki 的 yourtj-wiki-main/-dev) 会被停止并移除。
-#   部署成功后自动清理本实例前缀的旧镜像与构建缓存, 防止磁盘无限膨胀。
-# usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]
+#   部署成功后自动清理本实例前缀的旧镜像, 防止磁盘无限膨胀。
+# usage: deploy.sh <instance> <image-tag> [health-port]
 #   instance: main 或 dev
-# 环境变量: IMAGE_KEEP_N — 每个实例前缀保留的镜像 tag 数(含当前), 默认 5
+# 环境变量:
+#   IMAGE_REPO   — 镜像仓库(默认 ghcr.io/yourtongji/yourtj-hub, 公开镜像匿名 pull)
+#   IMAGE_KEEP_N — 每个实例前缀保留的镜像 tag 数(含当前), 默认 5
 set -euo pipefail
 
-INSTANCE="${1:?usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]}"
-NEW_BINARY="${2:?usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]}"
-IMAGE_TAG="${3:?usage: deploy.sh <instance> <new-binary> <image-tag> [health-port]}"
-PORT="${4:-5234}"
+INSTANCE="${1:?usage: deploy.sh <instance> <image-tag> [health-port]}"
+IMAGE_TAG="${2:?usage: deploy.sh <instance> <image-tag> [health-port]}"
+PORT="${3:-5234}"
 
 ROOT="${YOURTJ_ROOT:-/opt/yourtj}"
-BUILD_DIR="$ROOT/build"
 ENV_FILE="$ROOT/.env"
 COMPOSE_FILE="$ROOT/docker-compose.yaml"
 TAG_VAR="$([ "$INSTANCE" = "main" ] && echo MAIN_TAG || echo DEV_TAG)"
-IMAGE="yourtj-hub"
 
 log() { echo "[deploy:$INSTANCE] $*"; }
 
-# 清理旧镜像与构建缓存, 防止磁盘无限膨胀:
+# 清理旧镜像, 防止磁盘无限膨胀:
 #   - 保留该实例前缀(dev-*/main-*)最近 IMAGE_KEEP_N 个 tag(含当前) + prev 回滚 tag
 #   - 清理 dangling images 与构建缓存
 prune_old_images() {
@@ -52,7 +51,7 @@ prune_old_images() {
       | grep "^${instance_prefix}" \
       | sort -t'|' -k2 -r)
 
-  # 清理 dangling 镜像(构建残留)与不再使用的构建缓存, 失败不影响部署结果
+  # 清理 dangling 镜像(拉取/重打标签残留)与不再使用的构建缓存, 失败不影响部署结果
   dangling_before="$(docker images -q -f dangling=true 2>/dev/null | wc -l | tr -d ' ' || true)"
   docker image prune -f >/dev/null 2>&1 || true
   docker builder prune -f --filter "until=72h" >/dev/null 2>&1 || true
@@ -60,27 +59,42 @@ prune_old_images() {
   log "prune done: removed $removed image tag(s); dangling $dangling_before -> $dangling_after"
 }
 
-[ -f "$NEW_BINARY" ] || { log "FATAL: new binary not found: $NEW_BINARY"; exit 1; }
 [ -f "$ENV_FILE" ] || { log "FATAL: $ENV_FILE missing (run init-server.sh first)"; exit 1; }
 [ -f "$COMPOSE_FILE" ] || { log "FATAL: $COMPOSE_FILE missing (run init-server.sh first)"; exit 1; }
-[ -f "$BUILD_DIR/Dockerfile" ] || { log "FATAL: $BUILD_DIR/Dockerfile missing (run init-server.sh first)"; exit 1; }
 
-# 1. 记录当前 tag 用于回滚
+# IMAGE_REPO 优先取 .env(与 compose 一致), 未设置时用默认 GHCR 公开仓库
+IMAGE="$(grep -E '^IMAGE_REPO=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2- || true)"
+IMAGE="${IMAGE:-ghcr.io/yourtongji/yourtj-hub}"
+log "image repo: $IMAGE"
+
+# 1. 记录当前 tag 用于回滚。
+#    prev 仅代表"本脚本最近一次成功部署的镜像": 先清掉旧的 prev 引用,
+#    避免首次部署/镜像被 prune 后, 失败回滚时 prev 指向无关或已不存在的镜像;
+#    没有可回滚的 prev 时回滚步骤自然跳过(只改 .env, 容器保持旧镜像)。
 OLD_TAG="$(grep -E "^$TAG_VAR=" "$ENV_FILE" | cut -d= -f2 || true)"
 if [ -n "$OLD_TAG" ] && docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
+  docker image rm "$IMAGE:prev" >/dev/null 2>&1 || true
   docker tag "$IMAGE:$OLD_TAG" "$IMAGE:prev" >/dev/null 2>&1 || true
-  log "saved previous image tag: $OLD_TAG"
+  log "saved previous image tag: $OLD_TAG (as prev)"
+else
+  log "no previous local image for $OLD_TAG; rollback will only revert .env tag"
 fi
 
-# 2. 安装新二进制并构建镜像
-install -m 0755 "$NEW_BINARY" "$BUILD_DIR/yourtj-hub"
-docker build -q -t "$IMAGE:$IMAGE_TAG" "$BUILD_DIR"
-log "built image $IMAGE:$IMAGE_TAG"
+# 2. 拉取新镜像(GHCR 公开镜像, 匿名 pull)
+docker pull "$IMAGE:$IMAGE_TAG"
+log "pulled image $IMAGE:$IMAGE_TAG"
 
-# 3. 更新 .env tag 并启动实例
+# 3. 更新 .env tag 并启动实例。
+#    nginx 反代若在当前 compose 中定义则一并 up(新机首个实例部署时拉起;
+#    旧机 compose 无 nginx 服务时不传, 保持向后兼容)
 sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$IMAGE_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
-log "compose up $INSTANCE with $IMAGE_TAG (--remove-orphans)"
+SERVICES="$INSTANCE"
+if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services 2>/dev/null | grep -qx nginx; then
+  SERVICES="$SERVICES nginx"
+fi
+# shellcheck disable=SC2086
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans $SERVICES
+log "compose up $SERVICES with $IMAGE_TAG (--remove-orphans)"
 
 # 4. 健康检查(覆盖启动 + AutoMigrate 大库迁移)
 for ((i = 1; i <= 60; i++)); do
@@ -93,11 +107,17 @@ for ((i = 1; i <= 60; i++)); do
   sleep 3
 done
 
-# 5. 失败: 回滚到旧 tag
+# 5. 失败: 回滚到旧 tag(prev 不可用时仅改 .env, 容器保持旧镜像)
 log "FATAL: health check failed, rolling back"
 if [ -n "$OLD_TAG" ]; then
-  sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
-  log "rolled back to $OLD_TAG"
+  if docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
+    sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
+    log "rolled back to $OLD_TAG"
+  else
+    log "WARNING: $IMAGE:$OLD_TAG not present locally, cannot roll back container; .env still points at new tag $IMAGE_TAG"
+  fi
+else
+  log "WARNING: no previous tag recorded, cannot roll back"
 fi
 exit 1
