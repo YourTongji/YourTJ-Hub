@@ -27,6 +27,8 @@ import type {
   PostingSettings,
   MCPSettings,
   AiSummarySettings,
+  OnesystemSettings,
+  PkSyncStatusItem,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -390,6 +392,26 @@ export function getAiSummarySettings() {
 
 export function saveAiSummarySettings(settings: AiSummarySettings) {
   return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00p3'))
+}
+
+export function getOnesystemSettings() {
+  return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
+}
+
+export function saveOnesystemSettings(cookie: string) {
+  return postJson<unknown>('/api/admin/save-onesystem-settings', { cookie }, adminText('k00s1'))
+}
+
+export function syncPkCalendar(term: string, depth = 1) {
+  return postJson<{ started: boolean, calendarId: number, term: string }>(
+    '/api/admin/pk/sync-calendar',
+    { term, depth },
+    adminText('k00s2'),
+  )
+}
+
+export function getPkSyncStatus() {
+  return getJson<PkSyncStatusItem[]>('/api/admin/pk/sync-status', adminText('k00s3'))
 }
 
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {

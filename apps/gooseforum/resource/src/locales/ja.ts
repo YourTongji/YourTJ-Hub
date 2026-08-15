@@ -472,6 +472,8 @@ export default {
     exportWeekRange: '{range}週',
     exportWeekJoin: '、',
     loadFailed: 'データの読み込みに失敗しました。後でもう一度お試しください。',
+    noCalendar: '時間割データがまだ同期されていないため、学期を選択できません。',
+    noCalendarHint: '管理者に「管理画面 → 設定 → 一系統同期」で時間割データの同期を依頼してください。',
   },
   courseDetailPage: {
     backToList: 'コースカタログに戻る',

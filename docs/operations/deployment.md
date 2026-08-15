@@ -410,6 +410,19 @@ instance:
 
 将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
 
+> **管理端入口（推荐，issue #248）**：部署实例的排课器学期下拉为空，通常是因为
+> `pk_calendar` 尚无数据且未同步。无需登录服务器，在**管理端 → 设置 → 一系统同步**
+> 页面即可：
+> 1. 配置一系统 Cookie（加密落库，不存明文）；
+> 2. 输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
+> 3. 同步在后台执行（`POST /api/admin/pk/sync-calendar`），页面「同步状态」列表每 3s 轮询
+>    `GET /api/admin/pk/sync-status`（`pk_fetch_log` 游标）直至结束，可看到行数/进度/失败原因。
+>
+> 未配置任何 Cookie 来源（管理端设置/`ONESYSTEM_COOKIE` 环境变量）时入口会拒绝触发。
+> 同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+
+CLI 同步（运维 cron 等自动化场景）：
+
 ```bash
 # 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar
 # 已有记录后才可反查（同一学期同步过一次即可）

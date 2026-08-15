@@ -4,10 +4,10 @@ import httpNotifyGuideZh from '@/admin/docs/http-notify-guide.zh.md?raw'
 import httpNotifyGuideEn from '@/admin/docs/http-notify-guide.en.md?raw'
 import httpNotifyGuideJa from '@/admin/docs/http-notify-guide.ja.md?raw'
 
-import { computed, onMounted, reactive, ref, watch } from 'vue'
+import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import MarkdownIt from 'markdown-it'
-import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, Loader2, MailCheck, Plus, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
+import { Bot, CheckCircle2, Code, FileText, Globe, GripVertical, HardDrive, KeyRound, Loader2, MailCheck, Plus, RefreshCw, Save, ScrollText, Send, Shield, Sparkles, Trash2, Upload, Webhook } from '@lucide/vue'
 import AdminActionButton from '@/admin/components/AdminActionButton.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Button } from '@/admin/components/ui/button'
@@ -31,6 +31,8 @@ import {
   getMCPSettings,
   getMailSettings,
   getHttpNotifySettings,
+  getOnesystemSettings,
+  getPkSyncStatus,
   getPostingSettings,
   getRateLimitSettings,
   getSecuritySettings,
@@ -41,6 +43,7 @@ import {
   saveAnnouncement,
   saveHttpNotifySettings,
   saveMailSettings,
+  saveOnesystemSettings,
   savePostingSettings,
   saveAiSummarySettings,
   saveMCPSettings,
@@ -49,6 +52,7 @@ import {
   saveSiteSettings,
   saveStorageSettings,
   saveTermsOfService,
+  syncPkCalendar,
   testMailConnection,
   testStorageConnection,
   uploadAdminImage,
@@ -65,6 +69,8 @@ import type {
   HttpNotifySettings,
   MailSettings,
   MCPSettings,
+  OnesystemSettings,
+  PkSyncStatusItem,
   PostingSettings,
   RateLimitSettings,
   SecuritySettings,
@@ -73,7 +79,7 @@ import type {
   TermsOfServiceConfig,
 } from '@/admin/types'
 
-type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms'
+type Kind = 'site-info' | 'mail' | 'security' | 'posting' | 'rate-limit' | 'mcp' | 'ai-summary' | 'http-notify' | 'announcement' | 'storage' | 'terms' | 'onesystem'
 
 const props = defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -96,6 +102,18 @@ const clearAfterMigrate = ref(false)
 const migrateTasks = ref<AdminTaskRow[]>([])
 const migrateConfirm = ref(false)
 const migrating = ref(false)
+
+// ---- 一系统同步（issue #248 排课数据自愈入口）----
+const onesystemForm = reactive<{ cookie: string, cookieConfigured: boolean }>({
+  cookie: '',
+  cookieConfigured: false,
+})
+const savingCookie = ref(false)
+const syncForm = reactive<{ term: string, depth: number }>({ term: '', depth: 1 })
+const syncingPk = ref(false)
+const syncStatusItems = ref<PkSyncStatusItem[]>([])
+const syncStatusLoading = ref(false)
+let syncPollTimer: ReturnType<typeof setInterval> | null = null
 
 interface MigrateTaskPayload {
   lastId?: number
@@ -253,6 +271,7 @@ const pageMeta = computed(() => {
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
     terms: { title: adminText('k00gp'), description: adminText('k00gq') },
+    onesystem: { title: adminText('k00s4'), description: adminText('k00s5') },
   }
   return meta[props.kind]
 })
@@ -584,6 +603,9 @@ async function load() {
       await loadMigrateTasks()
     }
     else if (props.kind === 'terms') Object.assign(termsForm, normalizeTerms(await getTermsOfService()))
+    else if (props.kind === 'onesystem') {
+      await Promise.all([loadOnesystem(), refreshSyncStatus()])
+    }
     else Object.assign(announcementForm, normalizeAnnouncement(await getAnnouncement()))
   } catch (err) {
     error.value = err instanceof Error ? err.message : adminText('k000d')
@@ -772,17 +794,138 @@ function onEndpointEventChange(endpoint: HttpNotifyEndpoint, eventName: string, 
   toggleEndpointEvent(endpoint, eventName, (event.target as HTMLInputElement).checked)
 }
 
+// ---- 一系统同步（issue #248）----
+
+async function loadOnesystem() {
+  try {
+    const settings = await getOnesystemSettings()
+    onesystemForm.cookieConfigured = settings.cookieConfigured
+  } catch (err) {
+    error.value = err instanceof Error ? err.message : adminText('k000d')
+  }
+}
+
+async function refreshSyncStatus() {
+  syncStatusLoading.value = true
+  try {
+    syncStatusItems.value = await getPkSyncStatus()
+  } catch (err) {
+    adminToast.error(err, adminText('k00s3'))
+  } finally {
+    syncStatusLoading.value = false
+  }
+}
+
+async function saveCookie() {
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings(onesystemForm.cookie.trim())
+    onesystemForm.cookieConfigured = onesystemForm.cookie.trim() !== ''
+    onesystemForm.cookie = ''
+    adminToast.success(adminText('k00sv'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00s1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function clearCookie() {
+  onesystemForm.cookie = ''
+  savingCookie.value = true
+  try {
+    await saveOnesystemSettings('')
+    onesystemForm.cookieConfigured = false
+    adminToast.success(adminText('k00sw'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00s1'))
+  } finally {
+    savingCookie.value = false
+  }
+}
+
+async function startSync() {
+  const term = syncForm.term.trim()
+  if (!term) {
+    adminToast.warning(adminText('k00sy'))
+    return
+  }
+  syncingPk.value = true
+  try {
+    const depth = Math.min(Math.max(syncForm.depth || 1, 1), 8)
+    const result = await syncPkCalendar(term, depth)
+    adminToast.success(adminText('k00sq', { term: result.term || term }))
+    startSyncPolling()
+  } catch (err) {
+    adminToast.error(err, adminText('k00s2'))
+  } finally {
+    syncingPk.value = false
+  }
+}
+
+/** 同步为后台异步：启动后每 3s 轮询状态，直到没有 running 学期。
+ *  结束时有 failed 学期 → 错误提示（同步失败/被拒），否则成功提示。 */
+function startSyncPolling() {
+  stopSyncPolling()
+  void refreshSyncStatus()
+  syncPollTimer = setInterval(() => {
+    void refreshSyncStatus().then(() => {
+      const items = syncStatusItems.value
+      if (items.some((item) => item.status === 'running')) return
+      stopSyncPolling()
+      if (items.some((item) => item.status === 'failed')) {
+        adminToast.error(adminText('k00sz'))
+      } else {
+        adminToast.success(adminText('k00sr'))
+      }
+    })
+  }, 3000)
+}
+
+function stopSyncPolling() {
+  if (syncPollTimer !== null) {
+    clearInterval(syncPollTimer)
+    syncPollTimer = null
+  }
+}
+
+function statusLabel(status: string) {
+  switch (status) {
+    case 'running': return adminText('k00ss')
+    case 'completed': return adminText('k00st')
+    case 'failed': return adminText('k00su')
+    default: return adminText('k00sx')
+  }
+}
+
+function statusVariant(status: string): 'default' | 'secondary' | 'destructive' | 'outline' {
+  switch (status) {
+    case 'running': return 'secondary'
+    case 'completed': return 'default'
+    case 'failed': return 'destructive'
+    default: return 'outline'
+  }
+}
+
+function formatTime(value: string) {
+  const date = new Date(value)
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString()
+}
+
 watch(() => props.kind, () => {
+  stopSyncPolling()
   void load()
 })
 
 onMounted(load)
+
+onUnmounted(stopSyncPolling)
 </script>
 
 <template>
   <BasicPage :title="pageMeta.title" :description="pageMeta.description" sticky>
     <template #actions>
-      <Button type="button" :disabled="saving" @click="save">
+      <Button v-if="kind !== 'onesystem'" type="button" :disabled="saving" @click="save">
         <Loader2 v-if="saving" class="size-4 animate-spin" />
         <Save v-else class="size-4" />
         {{ adminText('k004f') }}
@@ -1248,6 +1391,86 @@ onMounted(load)
         </label>
       </form>
 
+
+      <div v-else-if="kind === 'onesystem'" class="max-w-3xl space-y-8">
+        <!-- Cookie 凭证配置 -->
+        <form class="space-y-4 rounded-lg border border-border bg-card p-5" @submit.prevent="saveCookie">
+          <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText('k00s6') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00s7') }}</p>
+          <div class="flex items-center gap-2">
+            <Badge :variant="onesystemForm.cookieConfigured ? 'default' : 'outline'">
+              {{ onesystemForm.cookieConfigured ? adminText('k00s8') : adminText('k00s9') }}
+            </Badge>
+          </div>
+          <label class="grid gap-2 text-sm font-medium">
+            {{ adminText('k00sa') }}
+            <Textarea v-model="onesystemForm.cookie" :placeholder="adminText('k00sb')" rows="2" autocomplete="off" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00sc') }}</span>
+          </label>
+          <div class="flex gap-2">
+            <Button type="submit" :disabled="savingCookie">
+              <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
+              <Save v-else class="size-4" />
+              {{ adminText('k00sd') }}
+            </Button>
+            <Button type="button" variant="outline" :disabled="savingCookie || !onesystemForm.cookieConfigured" @click="clearCookie">
+              {{ adminText('k00se') }}
+            </Button>
+          </div>
+        </form>
+
+        <!-- 排课数据同步（issue #248）-->
+        <div class="space-y-4 rounded-lg border border-border bg-card p-5">
+          <div class="flex items-center gap-2 text-base font-medium"><RefreshCw class="size-4 text-muted-foreground" />{{ adminText('k00sf') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00sg') }}</p>
+          <div class="flex flex-wrap items-end gap-3">
+            <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
+              {{ adminText('k00sh') }}
+              <Input v-model="syncForm.term" :placeholder="adminText('k00si')" />
+            </label>
+            <label class="grid w-28 gap-2 text-sm font-medium">
+              {{ adminText('k00sj') }}
+              <Input v-model.number="syncForm.depth" type="number" min="1" max="8" />
+            </label>
+            <Button type="button" :disabled="syncingPk" @click="startSync">
+              <Loader2 v-if="syncingPk" class="size-4 animate-spin" />
+              <RefreshCw v-else class="size-4" />
+              {{ adminText('k00sk') }}
+            </Button>
+          </div>
+
+          <div class="border-t pt-4">
+            <div class="mb-2 flex items-center justify-between">
+              <span class="text-sm font-medium">{{ adminText('k00sl') }}</span>
+              <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
+                <RefreshCw class="size-3.5" />
+                {{ adminText('k00sm') }}
+              </Button>
+            </div>
+            <div v-if="syncStatusLoading" class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
+              <Loader2 class="size-4 animate-spin" />
+              {{ adminText('k00sn') }}
+            </div>
+            <p v-else-if="syncStatusItems.length === 0" class="py-6 text-center text-sm text-muted-foreground">{{ adminText('k00so') }}</p>
+            <ul v-else class="divide-y divide-border">
+              <li v-for="item in syncStatusItems" :key="item.calendarId" class="flex items-start gap-3 py-2.5">
+                <div class="min-w-0 flex-1">
+                  <div class="flex flex-wrap items-center gap-2">
+                    <span class="font-medium">{{ item.calendarName || String(item.calendarId) }}</span>
+                    <Badge :variant="statusVariant(item.status)">{{ statusLabel(item.status) }}</Badge>
+                    <span v-if="item.status === 'running'" class="text-xs text-muted-foreground">{{ item.lastCommittedPage }}/{{ item.totalPages }}</span>
+                  </div>
+                  <p v-if="item.errorMsg" class="mt-1 text-xs text-destructive">{{ item.errorMsg }}</p>
+                  <p class="mt-0.5 text-xs text-muted-foreground">
+                    {{ adminText('k00sp', { rows: item.rowsWritten }) }}
+                    <span v-if="item.finishedAt"> · {{ formatTime(item.finishedAt) }}</span>
+                  </p>
+                </div>
+              </li>
+            </ul>
+          </div>
+        </div>
+      </div>
 
       <form v-else class="max-w-3xl space-y-6" @submit.prevent="save">
         <div class="flex items-center justify-between">

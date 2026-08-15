@@ -472,6 +472,8 @@ export default {
     exportWeekRange: 'Sett. {range}',
     exportWeekJoin: ', ',
     loadFailed: 'Errore caricamento dati. Riprova più tardi.',
+    noCalendar: 'I dati dell\'orario non sono ancora sincronizzati: nessun semestre disponibile.',
+    noCalendarHint: 'Chiedi a un amministratore di sincronizzare i dati dell\'orario in Admin → Impostazioni → Sincronizzazione OneSystem.',
   },
   courseDetailPage: {
     backToList: 'Torna al catalogo corsi',
