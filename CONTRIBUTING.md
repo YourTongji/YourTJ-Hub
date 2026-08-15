@@ -30,7 +30,7 @@ make hooks
 ## 首次构建与验证
 
 ```bash
-cd apps/gooseforum/resource && pnpm install --frozen-lockfile && cd ../..
+cd apps/gooseforum/resource && pnpm install --frozen-lockfile && cd ../../..
 make build      # 前端产物 + 单一二进制 bin/yourtj-hub
 make test       # 后端 vet+test、契约检查、前端 typecheck+test（全量门禁）
 ```

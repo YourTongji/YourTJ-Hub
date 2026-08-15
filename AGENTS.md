@@ -102,6 +102,7 @@ docs/        Docs center (product/architecture/development/operations)
 - Any new feature PR must include documentation changes: user-visible features update the docs center
   and status words; purely internal changes at least update the relevant README or code comments
   (see docs/development/documentation.md).
+- config.toml contains signingKey — never commit it (gitignored).
 - Research files goto research/, and should not be included in git.
 
 ## 4. Verification

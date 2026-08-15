@@ -6,10 +6,11 @@ pre-commit:
   jobs:
     - name: whitespace (staged)
       run: git diff --cached --check
-    - name: gofmt (staged Go files)
+    - name: gofmt (staged Go blobs)
       glob: '**/*.go'
-      run: test -z "$(gofmt -l {staged_files})"
-      # 校验模式：gofmt -l 列出未格式化文件（退出码恒为 0），test -z 使其在存在输出时失败
+      run: 'for f in {staged_files}; do if git show ":$f" | gofmt -l | grep -q .; then echo "gofmt needed: $f"; exit 1; fi; done'
+      # 校验 index 中的 staged blob（git show :$f）而非 worktree 副本，
+      # 避免部分 staged 时检查对象与将要提交的内容不一致
 
 pre-push:
   jobs:
