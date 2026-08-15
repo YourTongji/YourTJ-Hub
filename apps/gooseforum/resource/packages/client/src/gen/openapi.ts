@@ -828,91 +828,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/wiki/revisions": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List revisions of one wiki page */
-        get: operations["listWikiRevisions"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/wiki/pages": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create a wiki page in a namespace (publishes revision 1 as approved) */
-        post: operations["createWikiPage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/wiki/pages/{pageId}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update an existing wiki page (write-publish: the new revision is immediately approved) */
-        put: operations["updateWikiPage"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/wiki/pages/{pageId}/rollback": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Roll back a wiki page to an earlier revision (PageManager or Admin only) */
-        post: operations["rollbackWikiPage"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/wiki/pages/{pageId}/diff": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** Fetch two revisions of a wiki page for diffing (PageManager or Admin only) */
-        get: operations["diffWikiPage"];
-        put?: never;
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -948,24 +863,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/wiki/namespaces/{name}/editors": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        /** List editors of a wiki namespace (PageManager or Admin only) */
-        get: operations["listWikiNamespaceEditors"];
-        /** Replace the editor set of a wiki namespace (PageManager or Admin only) */
-        put: operations["updateWikiNamespaceEditors"];
-        post?: never;
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/wiki/tree": {
         parameters: {
             query?: never;
@@ -975,8 +872,7 @@ export interface paths {
         };
         /** Admin wiki page tree with sort order (PageManager or Admin only) */
         get: operations["getAdminWikiTree"];
-        /** Apply tree operations (move, rename, sort, delete) to wiki pages (PageManager or Admin only) */
-        put: operations["updateAdminWikiTree"];
+        put?: never;
         post?: never;
         delete?: never;
         options?: never;
@@ -984,15 +880,66 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/wiki/revisions": {
+    "/api/wiki/webhook": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        /** List wiki revision history with page path (PageManager or Admin only) */
-        get: operations["listAdminWikiRevisions"];
+        get?: never;
+        put?: never;
+        /** GitHub webhook that triggers an immediate wiki sync after a PR merge */
+        post: operations["wikiWebhook"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wiki sync status for the admin panel (PageManager or Admin only) */
+        get: operations["getWikiSyncStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Manually trigger a wiki sync run (PageManager or Admin only) */
+        post: operations["runWikiSync"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync/runs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List recent wiki sync runs (PageManager or Admin only) */
+        get: operations["listWikiSyncRuns"];
         put?: never;
         post?: never;
         delete?: never;
@@ -2320,102 +2267,6 @@ export interface components {
         WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiHomeResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiRevision: {
-            /** Format: uint64 */
-            revisionId: number;
-            /** Format: uint64 */
-            pageId: number;
-            /** @description 1-based revision number of the page, incremented per edit. */
-            revisionNo: number;
-            title: string;
-            /** @description Raw wiki markup content. */
-            content: string;
-            /** @enum {string} */
-            status: "approved" | "pending" | "rejected" | "superseded";
-            /** Format: uint64 */
-            editorId: number;
-            editorName: string;
-            /** Format: date-time */
-            updatedAt: string;
-        };
-        /** @description The raw revision array; an empty listing is an empty array, never null. */
-        WikiRevisionListResult: components["schemas"]["WikiRevision"][];
-        WikiRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiRevisionListResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiCreatePageRequest: {
-            namespace: string;
-            /** @description Page path within the namespace; the parent segment must reference an existing page when present. */
-            path: string;
-            title: string;
-            /** @description Raw wiki markup content. */
-            content: string;
-        };
-        WikiCreatePageResult: {
-            /** Format: uint64 */
-            pageId: number;
-            path: string;
-        };
-        WikiCreatePageResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiCreatePageResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiUpdatePageRequest: {
-            title: string;
-            /** @description Raw wiki markup content. */
-            content: string;
-            /**
-             * @description The published revision number the editor based this edit on (optimistic lock).
-             *     REQUIRED: the API rejects edits without it (model-1 edit lock; a missing value
-             *     would let a stale client silently overwrite newer published content). When it no
-             *     longer equals the page's current published revision, the request fails with
-             *     `wiki.revision.conflict` (409 semantics) and the client must reload the latest
-             *     revision and re-edit.
-             */
-            baseRevisionNo: number;
-        };
-        WikiUpdatePageResult: {
-            /** Format: uint64 */
-            revisionId: number;
-            /**
-             * @description Write-publish: the new revision is immediately approved and visible.
-             * @constant
-             */
-            status: "approved";
-            /** @description The newly published revision number (previous published number + 1). */
-            revisionNo: number;
-        };
-        WikiUpdatePageResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiUpdatePageResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiRollbackRequest: {
-            /** @description Target revision number; every revision with a higher number is permanently deleted. */
-            toRevisionNo: number;
-        };
-        WikiRollbackResult: {
-            /** @constant */
-            ok: true;
-        };
-        WikiRollbackResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiRollbackResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiDiffSide: {
-            revisionNo: number;
-            title: string;
-            /** @description Raw wiki markup content of the revision. */
-            content: string;
-            /** Format: uint64 */
-            editorId: number;
-            /** Format: date-time */
-            createdAt: string;
-        };
-        WikiDiffResult: {
-            /** @description Older side; null when the `from` query parameter was absent (empty baseline before the page existed). */
-            from: components["schemas"]["WikiDiffSide"] | null;
-            to: components["schemas"]["WikiDiffSide"];
-        };
-        WikiDiffResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiDiffResult"];
-        }) | components["schemas"]["ApiFailure"];
         WikiCreateNamespaceRequest: {
             /** @description Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars). */
             name: string;
@@ -2431,21 +2282,6 @@ export interface components {
         WikiNamespaceActionResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiNamespaceActionResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiEditorSummary: {
-            /** Format: uint64 */
-            userId: number;
-            username: string;
-            avatarUrl: string;
-        };
-        /** @description The raw editor array; an empty listing is an empty array, never null. */
-        WikiEditorListResult: components["schemas"]["WikiEditorSummary"][];
-        WikiEditorListResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiEditorListResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiUpdateEditorsRequest: {
-            /** @description Replaces the namespace editor set; an empty array removes all editors. */
-            userIds: number[];
-        };
         WikiAdminTreePage: {
             /** Format: uint64 */
             pageId: number;
@@ -2463,66 +2299,83 @@ export interface components {
         WikiAdminTreeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAdminTreeResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiTreeOp: {
-            /** @enum {string} */
-            op: "move" | "rename" | "sort" | "delete";
+        WikiSyncPages: {
+            /**
+             * Format: int64
+             * @description Total wiki page projection rows (including soft-deleted pages).
+             */
+            total: number;
+            /**
+             * Format: int64
+             * @description Total wiki namespaces.
+             */
+            namespaces: number;
+        };
+        WikiSyncRunView: {
             /** Format: uint64 */
-            pageId: number;
-            /** @description Target parent path for move operations; empty or absent means the namespace root. */
-            parentPath?: string;
-            /** @description New page path for rename operations. */
-            newPath?: string;
-            /** @description New page title for rename operations. */
-            newTitle?: string;
-            /** @description New sort order for sort operations. */
-            sortOrder?: number;
+            id: number;
+            /** @description Git commit SHA of the synced head. */
+            headSha: string;
+            /**
+             * @description What started the sync run.
+             * @enum {string}
+             */
+            trigger: "manual" | "schedule" | "webhook";
+            /** @enum {string} */
+            status: "running" | "success" | "failed";
+            pagesAdded: number;
+            pagesUpdated: number;
+            pagesDeleted: number;
+            /** @description Failure message; absent when the run succeeded. */
+            error?: string;
+            /** Format: date-time */
+            startedAt: string;
+            /**
+             * Format: date-time
+             * @description Absent while the run is still running.
+             */
+            finishedAt?: string;
         };
-        WikiTreeOpsRequest: {
-            /** @description Applied in order; any failure aborts the batch before further operations run. */
-            ops: components["schemas"]["WikiTreeOp"][];
+        WikiSyncStatus: {
+            /** @description Whether GitHub wiki sync is configured ([wiki.git].repo non-empty). */
+            enabled: boolean;
+            /** @description Wiki repository URL; empty when sync is disabled. */
+            repo: string;
+            /** @description Default branch synced from the repository (defaults to main). */
+            branch: string;
+            /** @description Head commit SHA of the latest run; empty before the first run. */
+            headSha: string;
+            /** @description Latest run; absent before the first run. */
+            lastRun?: components["schemas"]["WikiSyncRunView"];
+            /** @description Recent runs, newest first; absent when no runs exist yet. */
+            recentRuns?: components["schemas"]["WikiSyncRunView"][];
+            pages: components["schemas"]["WikiSyncPages"];
         };
-        WikiTreeOpsResult: {
+        WikiSyncStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSyncStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiSyncResult: {
+            /** @description Git commit SHA of the synced head. */
+            headSha: string;
+            pagesAdded: number;
+            pagesUpdated: number;
+            pagesDeleted: number;
+        };
+        WikiSyncRunResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSyncResult"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Recent sync runs ordered by id desc; an empty listing is an empty array, never null. */
+        WikiSyncRunsResult: components["schemas"]["WikiSyncRunView"][];
+        WikiSyncRunsResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSyncRunsResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiWebhookSuccess: {
             /** @constant */
             ok: true;
         };
-        WikiTreeOpsResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiTreeOpsResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiAdminRevision: {
-            /** Format: uint64 */
-            revisionId: number;
-            /** Format: uint64 */
-            pageId: number;
-            /** @description 1-based revision number of the page (the version number used by the diff and rollback endpoints). */
-            revisionNo: number;
-            path: string;
-            title: string;
-            content: string;
-            /**
-             * @description Approved for all revisions created after write-publish; legacy values only for pre-v19 rows.
-             * @enum {string}
-             */
-            status: "approved" | "pending" | "rejected" | "superseded";
-            /** Format: uint64 */
-            editorId: number;
-            editorName: string;
-            /** Format: date-time */
-            updatedAt: string;
+        WikiWebhookFailure: {
+            error: string;
         };
-        /** @description Paged revision listing; an empty page is an empty `list`, never null. */
-        WikiAdminRevisionListResult: {
-            /** @description Revisions on the current page ordered by creation time desc. */
-            list: components["schemas"]["WikiAdminRevision"][];
-            /** @description The 1-based page number returned. */
-            page: number;
-            /** @description The page size applied to this page. */
-            pageSize: number;
-            /** @description Whether more pages follow the current one. */
-            hasNext: boolean;
-        };
-        WikiAdminRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiAdminRevisionListResult"];
-        }) | components["schemas"]["ApiFailure"];
         PkSuccess: {
             /**
              * @description PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
@@ -4639,285 +4492,6 @@ export interface operations {
             };
         };
     };
-    listWikiRevisions: {
-        parameters: {
-            query: {
-                pageId: number;
-            };
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /**
-             * @description Published revisions of the page ordered by revision number desc. Only approved
-             *     (published) revisions are listed; pending/rejected/superseded revisions carry
-             *     unpublished content and are exposed only to editors and reviewers (Blueprint
-             *     risk item: pending content must not leak to the public). Request-level validation
-             *     failures (missing pageId) and unknown pages are returned as legacy HTTP 200
-             *     envelopes (issue #176 B4 style: the contract documents the actual route behavior):
-             *     `common.request.invalidParams` for a missing pageId, `wiki.page.notFound` for an
-             *     unknown page.
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiRevisionListResponse"];
-                };
-            };
-            /** @description Malformed query string (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    createWikiPage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiCreatePageRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Created page id and canonical path. Business failures are returned as legacy
-             *     HTTP 200 envelopes with stable message codes (issue #176 B4 style: the contract
-             *     documents the actual route behavior): request-level validation failures
-             *     (`common.request.invalidParams`, including illegal paths), namespace missing or
-             *     the account not being an editor of the namespace (`wiki.namespace.notFound`),
-             *     and a path collision (`wiki.page.pathConflict`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiCreatePageResponse"];
-                };
-            };
-            /** @description Malformed JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    updateWikiPage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pageId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiUpdatePageRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description New revision is created and immediately published (write-publish; no review step).
-             *     The caller must be the page creator, a namespace editor, or a PageManager/Admin.
-             *     Business failures are returned as legacy HTTP 200 envelopes with stable message
-             *     codes: request-level validation failures (`common.request.invalidParams`), the
-             *     page or its namespace missing or the account not being an editor
-             *     (`wiki.namespace.notFound`, `wiki.page.notFound`), a version conflict when
-             *     `baseRevisionNo` no longer matches the published revision (`wiki.revision.conflict`),
-             *     and content hitting the sensitive-word filter (`content.sensitive.blocked`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiUpdatePageResponse"];
-                };
-            };
-            /** @description Malformed URI or JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Authenticated account is frozen or its account information cannot be resolved. */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    rollbackWikiPage: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                pageId: number;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiRollbackRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Rollback executed and cannot be undone: every revision with a revision number
-             *     greater than the target is permanently deleted, the page's published revision
-             *     pointer moves back to the target, and materialized views (forum post, topic
-             *     metadata, search index) are resynchronized. Business failures are returned as
-             *     legacy HTTP 200 envelopes: a caller lacking PageManager/Admin
-             *     (`permission.denied`), an unknown page (`wiki.page.notFound`), and an unknown
-             *     target revision (`wiki.revision.notFound`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiRollbackResponse"];
-                };
-            };
-            /** @description Malformed URI or JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    diffWikiPage: {
-        parameters: {
-            query: {
-                /** @description Revision number of the older side; absent means an empty baseline (page before creation). */
-                from?: number;
-                to: number;
-            };
-            header?: never;
-            path: {
-                pageId: number;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /**
-             * @description Raw markdown of the two requested revisions (or an empty baseline when `from`
-             *     is absent) for rendering a diff in the admin UI. Business failures are returned
-             *     as legacy HTTP 200 envelopes: an unknown page (`wiki.page.notFound`) and an
-             *     unknown revision number (`wiki.revision.notFound`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiDiffResponse"];
-                };
-            };
-            /** @description Malformed query string (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
     createWikiNamespace: {
         parameters: {
             query?: never;
@@ -5075,115 +4649,6 @@ export interface operations {
             };
         };
     };
-    listWikiNamespaceEditors: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /**
-             * @description Editor user summaries of the namespace. An unknown namespace is returned as a
-             *     legacy HTTP 200 envelope `wiki.namespace.notFound`.
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiEditorListResponse"];
-                };
-            };
-            /** @description Malformed URI (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    updateWikiNamespaceEditors: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiUpdateEditorsRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Editor set replaced. Business failures are returned as legacy HTTP 200 envelopes:
-             *     request-level validation failures (`common.request.invalidParams`) and an unknown
-             *     namespace (`wiki.namespace.notFound`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed URI or JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
     getAdminWikiTree: {
         parameters: {
             query?: never;
@@ -5222,41 +4687,87 @@ export interface operations {
             };
         };
     };
-    updateAdminWikiTree: {
+    wikiWebhook: {
         parameters: {
             query?: never;
-            header?: never;
+            header?: {
+                /** @description GitHub event name; only `push` events start a background sync. */
+                "X-GitHub-Event"?: string;
+                /** @description HMAC-SHA256 signature of the raw request body using the configured webhook secret, formatted as `sha256=<hex>`. */
+                "X-Hub-Signature-256"?: string;
+            };
             path?: never;
             cookie?: never;
         };
         requestBody: {
             content: {
-                "application/json": components["schemas"]["WikiTreeOpsRequest"];
+                "application/json": {
+                    [key: string]: unknown;
+                };
             };
         };
         responses: {
             /**
-             * @description Tree operations applied in order; any failure aborts the batch. Business failures
-             *     are returned as legacy HTTP 200 envelopes: illegal operations and empty `ops`
-             *     lists are `common.request.invalidParams`, an unknown target page is
-             *     `wiki.page.notFound`, a path collision is `wiki.page.pathConflict`, and deleting
-             *     a page with children is `wiki.page.hasChildren`.
+             * @description Signature verified (when a secret is configured). A `push` event starts a
+             *     background sync; the response is sent immediately and does not wait for it.
              */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WikiTreeOpsResponse"];
+                    "application/json": components["schemas"]["WikiWebhookSuccess"];
                 };
             };
-            /** @description Malformed JSON request body (strict binding failure). */
+            /** @description Request body could not be read. */
             400: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["ApiFailure"];
+                    "application/json": components["schemas"]["WikiWebhookFailure"];
+                };
+            };
+            /** @description Missing `sha256=` signature prefix or signature mismatch. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookFailure"];
+                };
+            };
+            /** @description Webhook secret is not configured (fail-closed; the endpoint is inert without it). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookFailure"];
+                };
+            };
+        };
+    };
+    getWikiSyncStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Sync configuration plus recent run history. `enabled` is false when no
+             *     repository is configured; consumers must treat an empty `repo` as an
+             *     unconfigured state, not an error.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiSyncStatusResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */
@@ -5279,16 +4790,9 @@ export interface operations {
             };
         };
     };
-    listAdminWikiRevisions: {
+    runWikiSync: {
         parameters: {
-            query?: {
-                /** @description When present, only revisions of this page are listed (per-page version history for the diff/rollback view). */
-                pageId?: number;
-                /** @description 1-based page number for the revision history; values below 1 are treated as 1. */
-                page?: number;
-                /** @description Page size for the revision history. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input. */
-                pageSize?: number;
-            };
+            query?: never;
             header?: never;
             path?: never;
             cookie?: never;
@@ -5296,29 +4800,58 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description Revision history (all revisions; write-publish means every revision is an
-             *     approved published version) ordered by creation time desc, paginated by the
-             *     `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
-             *     Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
-             *     paging metadata so consumers can detect the next page. This listing feeds the
-             *     admin version-history view: pick any two revisions for the diff endpoint or a
-             *     target revision for the rollback endpoint.
+             * @description Sync result with page-change counts. Business failures are returned as legacy
+             *     HTTP 200 envelopes: a sync already in progress (`wiki.sync.running`) and a
+             *     failed run (`wiki.sync.failed`, for example when the repository is not
+             *     configured or the git operation fails).
              */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WikiAdminRevisionListResponse"];
+                    "application/json": components["schemas"]["WikiSyncRunResponse"];
                 };
             };
-            /** @description Malformed query string (strict binding failure). */
-            400: {
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiSyncRuns: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Recent sync runs ordered by id desc (newest first), up to 20 runs. An empty
+             *     listing is an empty array, never null.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiSyncRunsResponse"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

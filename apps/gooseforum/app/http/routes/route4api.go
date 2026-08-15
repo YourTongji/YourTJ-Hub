@@ -220,15 +220,13 @@ func apiRoute(ginApp *gin.Engine) {
 	// 相关课程：同教师其他课 + 同课程其他教师（公开只读，与课程目录共用限流配额）。
 	forumApi.GET("courses/:courseId/related", middleware.RateLimit(middleware.RateLimitCourseCatalog), UpUriQueryReq(forum.CourseRelatedJSON))
 	// wiki 分站：公开读。
+	// wiki 分站：公开读（GitHub SSOT：内容由仓库同步，无站内写）。
 	wikiApi := baseApi.Group("wiki")
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
-	wikiApi.GET("revisions", UpQueryReq(api.WikiRevisions))
-	// wiki 分站：登录写。
-	wikiLoginApi := wikiApi.Use(middleware.JWTAuthCheck)
-	wikiLoginApi.POST("pages", middleware.CheckWritableAccount, UpJsonReq(api.WikiCreatePage))
-	wikiLoginApi.PUT("pages/:pageId", middleware.CheckWritableAccount, UpUriJsonReq(api.WikiEditPage))
+	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
+	wikiApi.POST("webhook", api.WikiWebhook)
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
@@ -363,13 +361,10 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("wiki/namespaces", UpButterReq(api.WikiCreateNamespace)).
 		PUT("wiki/namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace)).
 		DELETE("wiki/namespaces/:name", UpUriReq(api.WikiDeleteNamespace)).
-		GET("wiki/namespaces/:name/editors", UpUriReq(api.WikiNamespaceEditors)).
-		PUT("wiki/namespaces/:name/editors", UpUriJsonReq(api.WikiSetEditors)).
 		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
-		PUT("wiki/tree", UpJsonReq(api.WikiAdminTreeOps)).
-		GET("wiki/revisions", UpQueryReq(api.WikiAdminRevisions)).
-		POST("wiki/pages/:pageId/rollback", UpUriJsonReq(api.WikiRollback)).
-		GET("wiki/pages/:pageId/diff", UpUriQueryReq(api.WikiDiff))
+		GET("wiki/sync/status", UpButterReq(api.WikiSyncStatus)).
+		POST("wiki/sync", UpButterReq(api.WikiSyncRun)).
+		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).

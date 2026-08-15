@@ -94,3 +94,15 @@ func CountChildren(parentID uint64) int64 {
 	builder().Where(queryopt.Eq("parent_id", parentID)).Count(&count)
 	return count
 }
+
+// GetByPathUnscoped 按 path 取页面（含软删行）：GitHub 同步恢复被删页面时用，
+// 复用原 topic/评论/点赞/订阅，而不是新建空页面。
+func GetByPathUnscoped(path string) (entity Entity) {
+	builder().Unscoped().Where(queryopt.Eq("path", path)).First(&entity)
+	return
+}
+
+// RestoreSoftDeleted 恢复软删页面（清除 deleted_at）。
+func RestoreSoftDeleted(id uint64) error {
+	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("deleted_at", nil).Error
+}

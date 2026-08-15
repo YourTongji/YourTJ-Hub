@@ -8,6 +8,8 @@ import (
 
 const tableName = "wiki_pages"
 
+// Entity wiki 页面投影：内容由 GitHub wiki 仓库（唯一真实源）同步而来，
+// 本站只读投影 + 互动层。内容/渲染快照/贡献者直接落本表，历史由 git 承担。
 type Entity struct {
 	Id        uint64 `gorm:"primaryKey;column:id;autoIncrement;not null;" json:"id"`
 	TopicId   uint64 `gorm:"column:topic_id;not null;default:0;uniqueIndex:uniq_wiki_page_topic,priority:1;" json:"topicId"`
@@ -15,9 +17,18 @@ type Entity struct {
 	Path      string `gorm:"column:path;type:varchar(255);not null;default:'';uniqueIndex:uniq_wiki_page_path,priority:1;" json:"path"`
 	ParentId  uint64 `gorm:"column:parent_id;not null;default:0;" json:"parentId"`
 	SortOrder int    `gorm:"column:sort_order;type:int;not null;default:0;" json:"sortOrder"`
-	// 版本指针：当前已发布修订的 revision_no（单一事件源的水印基准）。
-	// 每次编辑 = 追加一条 approved 修订 + 指针前移（同事务 CAS）；回滚 = 指针回退 + 硬删后续修订。
-	// 物化视图（posts/topics/搜索）以此列判断是否过期：synced < published 即需重物化。
+	// 内容快照（自 git 同步，frontmatter title/order 解析后落库）：
+	Title        string `gorm:"column:title;type:varchar(512);not null;default:'';" json:"title"`
+	Content      string `gorm:"column:content;type:text;" json:"content"`
+	RenderedHTML string `gorm:"column:rendered_html;type:text;" json:"renderedHTML"`
+	Toc          string `gorm:"column:toc;type:text;" json:"toc"`
+	// git 溯源：内容哈希（幂等 diff 依据）、提交 SHA/时间、贡献者快照。
+	ContentHash      string     `gorm:"column:content_hash;type:varchar(64);not null;default:'';index:idx_wiki_page_hash,priority:1;" json:"contentHash"`
+	LastCommitSha    string     `gorm:"column:last_commit_sha;type:varchar(64);not null;default:'';" json:"lastCommitSha"`
+	LastCommitAt     *time.Time `gorm:"column:last_commit_at;" json:"lastCommitAt"`
+	ContributorsJSON string     `gorm:"column:contributors_json;type:text;" json:"-"`
+	// 版本指针列保留（v19 单一事件源遗留，GitHub SSOT 后不再推进；
+	// 保留避免动 topics/posts 水印物化函数面）。
 	PublishedRevisionNo int            `gorm:"column:published_revision_no;type:int;not null;default:0;" json:"publishedRevisionNo"`
 	DeletedAt           gorm.DeletedAt `gorm:"column:deleted_at;" json:"-"`
 	CreatedAt           time.Time      `gorm:"column:created_at;autoCreateTime;<-:create;" json:"createdAt"`

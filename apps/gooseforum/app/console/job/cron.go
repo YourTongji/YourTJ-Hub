@@ -18,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/robfig/cron/v3"
 )
 
@@ -97,6 +98,15 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
+	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
+	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
+	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")
+	entryID, err = scheduler.AddFunc(wikiSpec, upCmd(func() {
+		if _, syncErr := wikiservice.Sync("schedule"); syncErr != nil {
+			slog.Warn("wiki scheduled sync failed", "error", syncErr)
+		}
+	}))
+	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
 	running = true
 	scheduler.Start()
 }
