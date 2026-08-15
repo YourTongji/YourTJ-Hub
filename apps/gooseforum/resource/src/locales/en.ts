@@ -373,6 +373,8 @@ export default {
     sortByRating: 'Sort by rating',
     sortDefault: 'Default order',
     allDepartments: 'All departments',
+    allTerms: 'All terms',
+    allCampuses: 'All campuses',
     clearFilters: 'Clear filters',
     rating: '{score}',
     noRating: 'No rating yet',

@@ -3,6 +3,7 @@ package course
 import (
 	"slices"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"gorm.io/gorm"
@@ -15,6 +16,7 @@ var courseRepTestModels = []any{
 	&InstructorEntity{},
 	&OfferingInstructorEntity{},
 	&CourseStatsEntity{},
+	&TermEntity{},
 }
 
 // setupCourseRepTest 迁移并清空目录筛选相关表（共享全局连接，与 course 域其它测试一致）。
@@ -63,6 +65,36 @@ func createTestInstructor(t *testing.T, conn *gorm.DB, name, normalized, pinyin,
 		t.Fatalf("create instructor: %v", err)
 	}
 	return ins.Id
+}
+
+// createTerm 创建学期，返回学期 ID。
+func createTerm(t *testing.T, conn *gorm.DB, code, name string, startsOn *time.Time) uint64 {
+	t.Helper()
+	term := TermEntity{Code: code, Name: name, StartsOn: startsOn}
+	if err := conn.Create(&term).Error; err != nil {
+		t.Fatalf("create term: %v", err)
+	}
+	return term.Id
+}
+
+// createOffering 为课程创建指定学期/校区的可见开课实例，返回 offering ID。
+func createOffering(t *testing.T, conn *gorm.DB, courseId, termId uint64, campus string) uint64 {
+	t.Helper()
+	offering := OfferingEntity{CourseId: courseId, TermId: termId, Campus: campus, Status: OfferingStatusVisible}
+	if err := conn.Create(&offering).Error; err != nil {
+		t.Fatalf("create offering: %v", err)
+	}
+	return offering.Id
+}
+
+// parseTermDate 解析 "2006-01-02" 日期（starts_on 列用）。
+func parseTermDate(t *testing.T, s string) *time.Time {
+	t.Helper()
+	d, err := time.Parse("2006-01-02", s)
+	if err != nil {
+		t.Fatalf("parse term date %q: %v", s, err)
+	}
+	return &d
 }
 
 // setCourseStats 写入课程级评价统计。
@@ -224,6 +256,108 @@ func TestListDistinctDepartments(t *testing.T) {
 			t.Fatalf("ListDistinctDepartments = %v, want %v", got, want)
 		}
 	}
+}
+
+// TestListDistinctTerms 学期列表去重与排序：仅可见课程的可见 offering 关联学期，
+// 排除隐藏课程/隐藏 offering/软删数据与空 code；按 starts_on 倒序（回退 code 字典序）。
+func TestListDistinctTerms(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100080", "CS")
+	// t1 2024 秋冬（starts_on 最早）→ 应排最后；t2 2025 春 → 应排最前；t3 无 starts_on 按 code 回退。
+	t1 := createTerm(t, conn, "2024-2025-1", "2024 秋", parseTermDate(t, "2024-09-01"))
+	t2 := createTerm(t, conn, "2025-2026-2", "2026 春", parseTermDate(t, "2026-03-01"))
+	t3 := createTerm(t, conn, "2025-2026-1", "2025 秋", nil)
+	_ = createOffering(t, conn, c, t1, "四平路校区")
+	_ = createOffering(t, conn, c, t2, "嘉定校区")
+	_ = createOffering(t, conn, c, t3, "四平路校区")
+	// t4 被隐藏 offering 引用 → 不应出现；t5 被隐藏课程引用 → 不应出现；t6 空 code → 不应出现。
+	hiddenOffering := OfferingEntity{CourseId: c, TermId: t2, Status: OfferingStatusHidden}
+	if err := conn.Create(&hiddenOffering).Error; err != nil {
+		t.Fatalf("create hidden offering: %v", err)
+	}
+	_ = createOffering(t, conn, c, t2, "四平路校区") // 与 t2 重复（t2 已有可见 offering）→ 去重
+	t4 := createTerm(t, conn, "2023-2024-1", "2023 秋", parseTermDate(t, "2023-09-01"))
+	hiddenCourse := createCourse(t, conn, "100081", "CS")
+	if err := conn.Model(&Entity{}).Where("id = ?", hiddenCourse).Update("status", StatusHidden).Error; err != nil {
+		t.Fatalf("hide course: %v", err)
+	}
+	_ = createOffering(t, conn, hiddenCourse, t4, "嘉定校区")
+	ghost := createCourse(t, conn, "100082", "CS")
+	if err := conn.Delete(&Entity{Id: ghost}).Error; err != nil {
+		t.Fatalf("soft-delete course: %v", err)
+	}
+	_ = createOffering(t, conn, ghost, t4, "沪西校区")
+	t5 := createTerm(t, conn, "2022-2023-1", "", parseTermDate(t, "2022-09-01"))
+	_ = createOffering(t, conn, c, t5, "嘉定校区")
+	t6 := createTerm(t, conn, "", "空 code", parseTermDate(t, "2021-09-01"))
+	_ = createOffering(t, conn, c, t6, "四平路校区")
+	if err := conn.Delete(&TermEntity{Id: t5}).Error; err != nil {
+		t.Fatalf("soft-delete term: %v", err)
+	}
+
+	got, err := ListDistinctTerms()
+	if err != nil {
+		t.Fatalf("ListDistinctTerms err = %v", err)
+	}
+	want := []string{"2025-2026-2", "2025-2026-1", "2024-2025-1"} // starts_on 倒序，t3 无日期回退 code
+	if len(got) != len(want) {
+		t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+	}
+	for i, w := range want {
+		if got[i].Code != w {
+			t.Fatalf("ListDistinctTerms codes = %v, want %v", termCodes(got), want)
+		}
+	}
+}
+
+// TestListDistinctCampuses 校区列表去重与排序：仅可见课程的可见 offering 校区，
+// 排除空值、隐藏课程、隐藏 offering 与软删 offering；按字典序。
+func TestListDistinctCampuses(t *testing.T) {
+	conn := setupCourseRepTest(t)
+	c := createCourse(t, conn, "100090", "CS")
+	_ = createOffering(t, conn, c, 0, "四平路校区")
+	_ = createOffering(t, conn, c, 0, "嘉定校区")
+	_ = createOffering(t, conn, c, 0, "四平路校区") // 重复校区 → 去重
+	_ = createOffering(t, conn, c, 0, "")      // 空校区 → 排除
+	hiddenCourse := createCourse(t, conn, "100091", "CS")
+	if err := conn.Model(&Entity{}).Where("id = ?", hiddenCourse).Update("status", StatusHidden).Error; err != nil {
+		t.Fatalf("hide course: %v", err)
+	}
+	_ = createOffering(t, conn, hiddenCourse, 0, "沪西校区")
+	hiddenOffering := OfferingEntity{CourseId: c, Campus: "临港校区", Status: OfferingStatusHidden}
+	if err := conn.Create(&hiddenOffering).Error; err != nil {
+		t.Fatalf("create hidden offering: %v", err)
+	}
+	ghostOffering := OfferingEntity{CourseId: c, Campus: "虹口校区", Status: OfferingStatusVisible}
+	if err := conn.Create(&ghostOffering).Error; err != nil {
+		t.Fatalf("create offering: %v", err)
+	}
+	if err := conn.Delete(&OfferingEntity{Id: ghostOffering.Id}).Error; err != nil {
+		t.Fatalf("soft-delete offering: %v", err)
+	}
+
+	got, err := ListDistinctCampuses()
+	if err != nil {
+		t.Fatalf("ListDistinctCampuses err = %v", err)
+	}
+	want := []string{"嘉定校区", "四平路校区"}
+	if len(got) != len(want) {
+		t.Fatalf("ListDistinctCampuses = %v, want %v", got, want)
+	}
+	for i := range want {
+		if got[i] != want[i] {
+			t.Fatalf("ListDistinctCampuses = %v, want %v", got, want)
+		}
+	}
+}
+
+// termCodes 提取学期的 code 序列，便于断言排序结果。
+func termCodes(terms []TermEntity) []string {
+	codes := make([]string, 0, len(terms))
+	for _, t := range terms {
+		codes = append(codes, t.Code)
+	}
+	return codes
 }
 
 // TestListCoursesLikeEscaping Instructor 的 LIKE 通配符（%/_）被转义：输入 % 只按字面匹配，不会命中全部课程。

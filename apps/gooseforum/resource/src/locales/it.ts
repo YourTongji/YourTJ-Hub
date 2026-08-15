@@ -373,6 +373,8 @@ export default {
     sortByRating: 'Ordina per valutazione',
     sortDefault: 'Ordine predefinito',
     allDepartments: 'Tutti i dipartimenti',
+    allTerms: 'Tutti i semestri',
+    allCampuses: 'Tutti i campus',
     clearFilters: 'Cancella i filtri',
     rating: '{score}',
     noRating: 'Nessuna valutazione',

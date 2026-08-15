@@ -373,6 +373,8 @@ export default {
     sortByRating: '評価順に並べ替え',
     sortDefault: '標準の並び順',
     allDepartments: 'すべての学部・学科',
+    allTerms: 'すべての学期',
+    allCampuses: 'すべてのキャンパス',
     clearFilters: '絞り込みを解除',
     rating: '{score} 点',
     noRating: '評価なし',
