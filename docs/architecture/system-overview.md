@@ -88,26 +88,33 @@
 
 ### Wiki 分站 (Current)
 
-Wiki 已原生化进论坛单二进制（同二进制内嵌视图，不再是独立 VitePress 静态站；旧 wiki 站点与部署已废弃）。
+Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
+论坛为只读投影（GitHub 唯一真实源，SSOT）。旧 VitePress 静态站与站内写模型已废弃。
 
-- **后端分层**: `app/models/forum/wikiNamespaces` / `wikiNamespaceEditors` / `wikiPages` /
-  `wikiPageRevisions` → `app/service/wikiservice`（Create/Edit 写即发布 + CAS 编辑锁、Rollback/Diff、
-  BuildTree/BuildHome/ListRevisions、贡献者；admin 树操作/命名空间管理/编辑者管理）→ controllers：
+- **后端分层**: `app/models/forum/wikiNamespaces` / `wikiPages` / `wikiSyncRuns` →
+  `app/service/wikiservice`（同步引擎 `sync.go`：`clone --depth=1` + `fetch` + `reset --hard`、
+  frontmatter 解析、sha256 幂等 diff、upsert/软删/恢复、贡献者快照；查询 `query.go`：
+  BuildTree/BuildHome/贡献者；管理：命名空间 CRUD + 只读树）→ controllers：
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
-  `app/http/controllers/api/wikiController.go`（公开 API + `/api/admin/wiki/*` 管理端）。
+  `app/http/controllers/api/wikiController.go`（公开读 + `/api/admin/wiki/*` 管理端）+
+  `wikiSyncController.go`（`/api/wiki/webhook` + `/api/admin/wiki/sync*`）。
+- **同步触发**: 每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+  `/admin/wiki` 同步面板手动触发 + GitHub webhook（`POST /api/wiki/webhook`，HMAC-SHA256
+  验签，push 事件，仅默认分支）。同步运行写入 `wiki_sync_runs`
+  （trigger/status/head_sha/变更计数/错误）。
 - **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；公开 API
-  `GET /api/wiki/{tree,namespaces,home,revisions}`；登录写
-  `POST /api/wiki/pages`、`PUT /api/wiki/pages/:pageId`（写即发布，`baseRevisionNo` CAS 冲突 409）；
-  管理端 `/api/admin/wiki/*`（PageManager 权限：namespaces CRUD、editors、tree、tree ops、
-  revisions 版本历史、rollback（不可撤销硬删后续修订）、diff（任意两版本对比））。
-- **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` / `WikiPageActions`
-  组件（`PostStream` 从 TopicPage 抽取共享），AppShell 侧栏 wiki 模式；admin 区 `WikiManage.vue`
-  （`/admin/wiki`，PageManager）。
+  `GET /api/wiki/{tree,namespaces,home}` + `POST /api/wiki/webhook`；管理端
+  `/api/admin/wiki/*`（PageManager：namespaces CRUD、只读树、`sync/status` /
+  `sync` / `sync/runs`）。站内写/回滚/diff/编辑者/版本历史端点已退役。
+- **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` /
+  `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式；admin 区
+  `WikiManage.vue`（`/admin/wiki`，PageManager：命名空间 + 只读页面树 + 同步面板）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
-  sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；编辑/回滚后向订阅者发
+  sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；同步更新后向订阅者发
   `wiki_updated` 通知（`notifications.templates.wikiUpdated`，同页面 10 分钟节流）。
-- **契约**: OpenAPI wiki 域已覆盖（16 操作，`paths/wiki.yaml`），生成 TS
-  类型 + 手写 Dart mirror（`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+- **契约**: OpenAPI wiki 域覆盖公开读 + 管理同步端点 + webhook（`paths/wiki.yaml` +
+  `paths/wiki-sync.yaml`），生成 TS 类型 + 手写 Dart mirror
+  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 ### Points (phase 2)
 
