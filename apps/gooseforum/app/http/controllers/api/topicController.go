@@ -163,7 +163,7 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			return component.FailResponseCode(
 				component.MessageTopicPostCooldown,
 
@@ -184,6 +184,11 @@ func writeTopic(req component.BetterRequest[WriteTopicReq], agent bool) componen
 	var firstPost posts.Entity
 	if req.Params.TopicId != 0 {
 		topic = topics.Get(req.Params.TopicId)
+		// wiki 分站页面由 wiki 修订审核流程管理，禁止经论坛编辑端点直接改写
+		// topic 行/首楼，避免绕过 wiki_page_revisions 版本流（review N1）。
+		if topic.TopicType == topics.TopicTypeWiki {
+			return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+		}
 		if topic.UserId != req.UserId {
 			return component.FailResponseCode(component.MessageTopicOwnerMismatch, nil)
 		}
@@ -330,6 +335,10 @@ func UpdateTopicStatus(req component.BetterRequest[TopicStatusReq]) component.Re
 	if topic.Id == 0 {
 		return component.FailResponseCode(component.MessageTopicNotFound, nil)
 	}
+	// wiki 分站页面上下架/发布由 wiki 修订流程管理，禁止经论坛端点操作。
+	if topic.TopicType == topics.TopicTypeWiki {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 	if topic.UserId != req.UserId {
 		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
 	}
@@ -431,7 +440,7 @@ func createPost(req component.BetterRequest[CreatePostReq], agent bool) componen
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.TextControl.NewUserPostCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.TextControl.NewUserPostCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			return component.FailResponseCode(
 				component.MessageCommentPostCooldown,
 
@@ -548,6 +557,13 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 	if topicEntity.Id == 0 || !forum.CanViewTopicSimple(&topicEntity, req.UserId) {
 		return component.FailResponseCode(component.MessagePostNotFound, nil)
 	}
+	// wiki 分站首楼由 wiki_page_revisions 版本流独占（review High：此前
+	// UpdatePost 可直改 wiki 首楼，绕过版本流 + 写时敏感词拦截，导致 posts
+	// 行与 published_revision_no 指向的修订脱同步，下次 wiki Edit 静默覆盖）。
+	// 回复流（post_no>1）不受影响。
+	if topicEntity.TopicType == topics.TopicTypeWiki && postEntity.PostNo <= 1 {
+		return component.FailResponseCode(component.MessageTopicOperationDenied, nil)
+	}
 
 	content := strings.TrimSpace(req.Params.Content)
 	if len(content) < postingConfig.TextControl.MinPostLength {
@@ -650,9 +666,9 @@ func UpdatePost(req component.BetterRequest[UpdatePostReq]) component.Response {
 		"postNo":          postEntity.PostNo,
 		"content":         postEntity.Content,
 		"renderedContent": postEntity.RenderedHTML,
-		"updatedAt":       postEntity.UpdatedAt.Format(time.DateTime),
+		"updatedAt":       postEntity.UpdatedAt.Format(time.RFC3339),
 		"lastEditorId":    postEntity.LastEditorId,
-		"lastEditedAt":    postEntity.LastEditedAt.Format(time.DateTime),
+		"lastEditedAt":    postEntity.LastEditedAt.Format(time.RFC3339),
 		"revisionCount":   postRevisions.CountByPostIds([]uint64{postEntity.Id})[postEntity.Id],
 	})
 }

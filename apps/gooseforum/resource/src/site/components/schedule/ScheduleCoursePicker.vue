@@ -4,6 +4,7 @@
 // 提交时分类：必修直接从 compulsoryCourses 构造，选修与搜索批量取 course-details 构造
 // stagedCourse 进备选池（验收标准 1：必修来自 courses-by-major、选修来自 course-details、搜索来自 course-search）。
 import { computed, ref, watch } from 'vue'
+import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
 import { useI18n } from 'vue-i18n'
 import { Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -31,8 +32,30 @@ const emit = defineEmits<{
   close: []
 }>()
 
+// 弹窗无障碍（issue #227）：焦点移入/Tab 圈禁/Esc 关闭/焦点恢复/滚动锁定
+const { panelRef } = useDialogAccessibility(computed(() => props.open), {
+  onClose: () => emit('close'),
+})
+
 type TabKey = 'required' | 'optional' | 'search'
 const activeTab = ref<TabKey>('required')
+
+const TAB_KEYS: TabKey[] = ['required', 'optional', 'search']
+
+/** tablist 方向键切换（WAI-ARIA APG Tabs，issue #227）。 */
+function handleTabKeydown(event: KeyboardEvent) {
+  const current = TAB_KEYS.indexOf(activeTab.value)
+  let next: number | undefined
+  if (event.key === 'ArrowRight') next = (current + 1) % TAB_KEYS.length
+  else if (event.key === 'ArrowLeft') next = (current - 1 + TAB_KEYS.length) % TAB_KEYS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = TAB_KEYS.length - 1
+  if (next === undefined) return
+  event.preventDefault()
+  activeTab.value = TAB_KEYS[next]
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  buttons?.[next]?.focus()
+}
 const selectedKeys = ref<Set<string>>(new Set())
 const submitting = ref(false)
 const error = ref('')
@@ -256,18 +279,25 @@ async function submit() {
 <template>
   <Teleport to="body">
     <Transition name="gf-fade">
-      <div v-if="open" class="fixed inset-0 z-[2000]">
+      <div
+        v-if="open"
+        ref="panelRef"
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="schedule-picker-title"
+        class="fixed inset-0 z-[2000]"
+      >
         <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
         <div class="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[92vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
           <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
-            <h2 class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
+            <h2 id="schedule-picker-title" class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
             <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
               <X class="h-4 w-4" />
             </button>
           </div>
 
           <!-- tabs -->
-          <div class="flex gap-1 border-b border-line/60 px-3 pt-2">
+          <div role="tablist" aria-label="course picker tabs" class="flex gap-1 border-b border-line/60 px-3 pt-2">
             <button
               v-for="tab in ([
                 { key: 'required', label: t('schedule.tabRequired') },
@@ -276,9 +306,12 @@ async function submit() {
               ] as const)"
               :key="tab.key"
               type="button"
+              role="tab"
+              :aria-selected="activeTab === tab.key"
               class="gf-tab"
               :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
               @click="activeTab = tab.key"
+              @keydown="handleTabKeydown"
             >
               {{ tab.label }}
             </button>
@@ -294,18 +327,23 @@ async function submit() {
               <EmptyState
                 v-if="!requiredGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.emptyRequired')"
               />
               <section v-for="group in requiredGroups" :key="group.grade">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
                 <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
                   <li v-for="course in group.courses" :key="course.courseCode">
-                    <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
+                    <label
+                      class="flex cursor-pointer items-center gap-2 px-3 py-2"
+                      :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
+                      :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
+                    >
                       <input
                         type="checkbox"
                         class="checkbox checkbox-sm"
                         :checked="isChecked(`必_${group.grade}_${course.courseCode}`)"
                         :disabled="isAlreadyStaged(course.courseCode)"
+                        :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
                         @change="toggleKey(`必_${group.grade}_${course.courseCode}`)"
                       />
                       <span class="min-w-0 flex-1">
@@ -328,7 +366,7 @@ async function submit() {
               <EmptyState
                 v-if="!optionalGroups.length"
                 :icon="Search"
-                :title="t('schedule.empty')"
+                :title="t('schedule.emptyOptional')"
               />
               <section v-for="group in optionalGroups" :key="group.label">
                 <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
@@ -371,11 +409,11 @@ async function submit() {
                 </label>
                 <label class="block">
                   <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
-                  <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" />
+                  <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.campus')" />
                 </label>
                 <label class="block sm:col-span-2">
                   <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
-                  <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" />
+                  <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.faculty')" />
                 </label>
                 <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
                   <Search class="h-4 w-4" />
@@ -385,12 +423,17 @@ async function submit() {
 
               <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
                 <li v-for="course in searchResults" :key="course.courseCode">
-                  <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
+                  <label
+                    class="flex cursor-pointer items-center gap-2 px-3 py-2"
+                    :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
+                    :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
+                  >
                     <input
                       type="checkbox"
                       class="checkbox checkbox-sm"
                       :checked="isChecked(`查_${course.courseCode}`)"
                       :disabled="isAlreadyStaged(course.courseCode)"
+                      :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
                       @change="toggleKey(`查_${course.courseCode}`)"
                     />
                     <span class="min-w-0 flex-1">
@@ -403,6 +446,7 @@ async function submit() {
                 </li>
               </ul>
               <EmptyState v-else-if="searchLoading" :icon="Search" :title="t('schedule.loading')" loading />
+              <EmptyState v-else :icon="Search" :title="t('schedule.emptySearch')" />
             </div>
           </div>
 

@@ -129,7 +129,7 @@ func GetUserBadges(userID uint64) []UserBadge {
 			Badge:     badge,
 			Source:    record.Source,
 			Reason:    record.Reason,
-			GrantedAt: record.GrantedAt.Format(time.DateTime),
+			GrantedAt: record.GrantedAt.Format(time.RFC3339),
 		})
 	}
 	sort.SliceStable(result, func(i, j int) bool {
@@ -191,7 +191,7 @@ func wornBadgesFromRecords(selected map[uint64]string, records []*userBadges.Ent
 			Badge:     badge,
 			Source:    record.Source,
 			Reason:    record.Reason,
-			GrantedAt: record.GrantedAt.Format(time.DateTime),
+			GrantedAt: record.GrantedAt.Format(time.RFC3339),
 		}
 	}
 	return result

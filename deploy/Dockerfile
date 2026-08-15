@@ -5,7 +5,7 @@ RUN apk add --no-cache ca-certificates tzdata \
     && adduser -D -u 1000 app
 
 WORKDIR /app
-COPY yourtj-hub /app/yourtj-hub
+COPY --chmod=0755 yourtj-hub /app/yourtj-hub
 
 # 挂载卷:
 #   config.toml -> /app/config.toml (只读)

@@ -1,4 +1,4 @@
-name: deploy-dev
+name: Deploy / dev
 
 on:
   push:
@@ -8,7 +8,7 @@ on:
       - "research/**"
       - ".playwright-mcp/**"
       # markdown 文档变更不触发部署; paths-ignore 不支持 "!" 取反,
-      # 故逐目录枚举 md 忽略, wiki/** 刻意不列出(飞书同步产物是 .md, 必须触发)
+      # 故逐目录枚举 md 忽略。
       - "*.md"
       - "apps/**/*.md"
       - "packages/**/*.md"
@@ -27,72 +27,48 @@ jobs:
       - uses: actions/checkout@v4
       - uses: ./.github/actions/build-binary
 
-  wiki-build:
+  build-image:
+    needs: build
     runs-on: ubuntu-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: 20
-      - name: Install pnpm via corepack
-        run: |
-          corepack enable
-          corepack prepare pnpm@9.15.4 --activate
-      - name: Build wiki static site
-        run: |
-          cd wiki
-          COREPACK_ENABLE_PROJECT_SPEC=0 pnpm install --frozen-lockfile
-          pnpm build
-        # secret 经 env 映射注入(security N1): 避免内联 shell 展开
-        # 引入命令注入面(secret 内容变化时); 未配置时为空串,
-        # Layout.vue trim 后判定为无评论, 构建不失败
-        env:
-          VITE_WALINE_SERVER_URL: ${{ secrets.WIKI_WALINE_SERVER_URL }}
-      - name: Package wiki dist
-        run: tar -czf wiki-dist.tar.gz -C wiki/.vitepress/dist .
-      - name: Upload wiki dist artifact
-        uses: actions/upload-artifact@v4
-        with:
-          name: wiki-dist
-          path: wiki-dist.tar.gz
-          retention-days: 7
-
-  deploy:
-    needs: [build, wiki-build]
-    runs-on: ubuntu-latest
-    timeout-minutes: 20
+    permissions:
+      contents: read
+      packages: write
     steps:
       - uses: actions/checkout@v4
       - uses: actions/download-artifact@v4
         with:
           name: yourtj-hub
           path: ./bin
-      - uses: actions/download-artifact@v4
+      - name: Stage binary into build context
+        run: |
+          cp bin/yourtj-hub deploy/yourtj-hub
+          # upload/download-artifact 不保留 Unix 执行位, 必须显式恢复,
+          # 否则镜像入口 /app/yourtj-hub 无执行权限导致部署回滚
+          chmod +x deploy/yourtj-hub
+      - name: Log in to GHCR
+        uses: docker/login-action@v3
         with:
-          name: wiki-dist
-          path: ./wiki-dist
-      - name: Upload binary to dev host
-        uses: appleboy/scp-action@v0.1.7
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+      # GHCR 包首次创建默认 private: 首次运行后需手动把包设为 public,
+      # 否则服务器匿名 pull 401(见 docs/operations/deployment.md 迁移 runbook)
+      - name: Build and push image
+        uses: docker/build-push-action@v6
         with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "bin/yourtj-hub"
-          target: "/tmp"
-          strip_components: 1
-      - name: Upload wiki dist to dev host
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "wiki-dist/wiki-dist.tar.gz"
-          target: "/tmp"
-          # 路径仅 2 层(wiki-dist/wiki-dist.tar.gz), strip 1 恰好剩文件名;
-          # strip 2 会剥光路径导致解包为空目录(review 实测)
-          strip_components: 1
+          context: deploy/
+          file: deploy/Dockerfile
+          push: true
+          tags: ghcr.io/yourtongji/yourtj-hub:dev-${{ github.sha }}
+
+  deploy:
+    needs: [build, build-image]
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      # 上传到 run-specific 路径, 避免与 deploy-main 并发部署时
+      # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to dev host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -100,22 +76,14 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/scripts/deploy-wiki.sh,deploy/scripts/bootstrap-wiki-assets.sh"
-          target: "/tmp"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/sync-db-from-main.sh,deploy/scripts/pgdsn.sh,deploy/nginx/yourtj.conf"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
-      - name: Upload wiki deploy assets to dev host
-        uses: appleboy/scp-action@v0.1.7
-        with:
-          host: ${{ secrets.VM_HOST }}
-          username: ${{ secrets.VM_USER }}
-          key: ${{ secrets.VM_SSH_KEY }}
-          port: ${{ secrets.VM_SSH_PORT || '22' }}
-          # strip 1 保留相对结构: /tmp/build/wiki.Dockerfile + /tmp/docker-compose.yaml,
-          # bootstrap-wiki-assets.sh 幂等安装到 /opt/yourtj(存量服务器免手动 init-server)
-          source: "deploy/build/wiki.Dockerfile,deploy/build/wiki.nginx.conf,deploy/docker-compose.yaml"
-          target: "/tmp"
-          strip_components: 1
-      - name: Deploy to dev (sync db from main + build image + restart + smoke)
+      # compose 由 init-server.sh 一次性安装到服务器, dev 部署不更新它:
+      #   - dev 分支的 compose 变更不应影响共享的生产 nginx 服务(PR review #3)
+      #   - 避免覆盖含未迁移 wiki 服务的现有 compose(PR review #2)
+      # 部署只需 pull 镜像 + up 已有 compose 中的服务
+      - name: Deploy to dev (sync db from main + pull image + restart + smoke)
         uses: appleboy/ssh-action@v1.2.0
         with:
           host: ${{ secrets.VM_HOST }}
@@ -127,18 +95,12 @@ jobs:
             # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
             #    sync-db-from-main.sh source pgdsn.sh, 必须一并下发, 否则
             #    set -e 下 source 失败阻断部署(review W2)。
-            install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
-            install -m 0755 /tmp/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
-            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
-            install -m 0755 /tmp/deploy-wiki.sh /opt/yourtj/scripts/deploy-wiki.sh
-            install -m 0755 /tmp/bootstrap-wiki-assets.sh /opt/yourtj/scripts/bootstrap-wiki-assets.sh
-            # 0.5 幂等补齐 wiki 部署资产(Dockerfile/nginx.conf/compose 服务/.env WIKI_*),
-            #     存量服务器无需手动重跑 init-server.sh
-            /opt/yourtj/scripts/bootstrap-wiki-assets.sh
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/deploy.sh /opt/yourtj/scripts/deploy.sh
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/sync-db-from-main.sh /opt/yourtj/scripts/sync-db-from-main.sh
+            install -m 0755 /tmp/yourtj-deploy-${{ github.run_id }}/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
+            install -D -m 0644 /tmp/yourtj-deploy-${{ github.run_id }}/yourtj.conf /opt/yourtj/nginx/yourtj.conf
             # 1. 同步 main 数据库一致性快照(dev 用 main 真实数据预演迁移)
             /opt/yourtj/scripts/sync-db-from-main.sh
-            # 2. 构建镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
+            # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), dev 对外端口 5235
             #    dev 部署频繁, 镜像只保留最近 3 个(含当前) + prev
-            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev /tmp/yourtj-hub dev-${{ github.sha }} 5235
-            # 3. wiki 静态站部署(nginx 镜像, 端口 5285), 同样失败回滚
-            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-${{ github.sha }} 5285
+            IMAGE_KEEP_N=3 /opt/yourtj/scripts/deploy.sh dev dev-${{ github.sha }} 5235

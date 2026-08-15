@@ -433,3 +433,56 @@ export interface AdminAgentRotateResult {
   agentId: number
   token: string
 }
+
+export interface WikiNamespace {
+  name: string
+  description: string
+  sortOrder: number
+  pageCount: number
+  updatedAt: string
+}
+
+export interface WikiEditor {
+  userId: number
+  username: string
+  avatarUrl?: string
+}
+
+export interface WikiPageNode {
+  pageId: number
+  path: string
+  title: string
+  sortOrder: number
+}
+
+export interface WikiNamespaceTree {
+  name: string
+  label: string
+  pages: WikiPageNode[]
+}
+
+export interface WikiTreeOp {
+  op: 'move' | 'rename' | 'sort' | 'delete'
+  pageId: number
+  parentPath?: string
+  newPath?: string
+  newTitle?: string
+  sortOrder?: number
+}
+
+export interface WikiRevision {
+  revisionId: number
+  pageId: number
+  path: string
+  title: string
+  content: string
+  editorName: string
+  updatedAt: string
+}
+
+export interface WikiRevisionPage {
+  list: WikiRevision[]
+  page: number
+  pageSize: number
+  hasNext: boolean
+}

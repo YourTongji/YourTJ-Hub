@@ -33,6 +33,27 @@ const store = useScheduleStore()
 const isMobile = ref(false)
 const mobileTab = ref<'timetable' | 'list' | 'detail'>('timetable')
 
+const MOBILE_TABS: Array<{ key: 'timetable' | 'list' | 'detail'; label: string }> = [
+  { key: 'timetable', label: t('schedule.timetable') },
+  { key: 'list', label: t('schedule.pickCourses') },
+  { key: 'detail', label: t('schedule.detail') },
+]
+
+/** 移动端 tab 方向键切换（WAI-ARIA APG Tabs，issue #227）。 */
+function handleMobileTabKeydown(event: KeyboardEvent) {
+  const current = MOBILE_TABS.findIndex((tab) => tab.key === mobileTab.value)
+  let next: number | undefined
+  if (event.key === 'ArrowRight') next = (current + 1) % MOBILE_TABS.length
+  else if (event.key === 'ArrowLeft') next = (current - 1 + MOBILE_TABS.length) % MOBILE_TABS.length
+  else if (event.key === 'Home') next = 0
+  else if (event.key === 'End') next = MOBILE_TABS.length - 1
+  if (next === undefined) return
+  event.preventDefault()
+  mobileTab.value = MOBILE_TABS[next].key
+  const buttons = (event.currentTarget as HTMLElement).parentElement?.querySelectorAll<HTMLButtonElement>('[role="tab"]')
+  buttons?.[next]?.focus()
+}
+
 const pickerOpen = ref(false)
 const conflictDetail = ref<PkCourseDetail | null>(null)
 const conflictList = ref<PkConflictItem[]>([])
@@ -131,7 +152,7 @@ function handleOpenDetail(course: PkCourseOnTable) {
 
 function handleCellClick(_day: number, _section: number) {
   // 点击课表空格：引导用户通过「选择课程」添加课程（时段查课端点 P10 属 #187）。
-  flash(t('schedule.empty'), 'info')
+  flash(t('schedule.cellClickHint'), 'info')
 }
 
 // ---- 导出（与课表一致：含已排入课表的所有班级）----
@@ -190,7 +211,7 @@ function exportCsv() {
   closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
-    flash(t('schedule.empty'), 'warning')
+    flash(t('schedule.exportEmpty'), 'warning')
     return
   }
   const rows = codesToCsvRows(codes, store.state.commonLists.stagedCourses)
@@ -201,7 +222,7 @@ function exportXls() {
   closeExportMenu()
   const codes = exportableClassCodes()
   if (codes.length === 0) {
-    flash(t('schedule.empty'), 'warning')
+    flash(t('schedule.exportEmpty'), 'warning')
     return
   }
   const rows = codesToXlsRows(codes, store.state.commonLists.stagedCourses)
@@ -235,7 +256,7 @@ onBeforeUnmount(() => {
           <button
             v-if="dataOutdated"
             type="button"
-            class="gf-button gf-button-md gf-button-danger"
+            class="gf-button gf-button-md gf-button-primary"
             @click="syncLatest"
           >
             <RefreshCw class="h-4 w-4" />
@@ -276,7 +297,7 @@ onBeforeUnmount(() => {
 
     <!-- 移动端：三 tab（课表/选课/详情） -->
     <div v-if="isMobile" class="mt-4 space-y-3">
-      <div class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
+      <div role="tablist" aria-label="schedule tabs" class="flex gap-1 rounded-lg border border-line/60 bg-base-200/40 p-1">
         <button
           v-for="tab in ([
             { key: 'timetable', label: t('schedule.timetable') },
@@ -285,9 +306,12 @@ onBeforeUnmount(() => {
           ] as const)"
           :key="tab.key"
           type="button"
+          role="tab"
+          :aria-selected="mobileTab === tab.key"
           class="gf-tab flex-1"
           :class="mobileTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
           @click="mobileTab = tab.key"
+          @keydown="handleMobileTabKeydown"
         >
           {{ tab.label }}
         </button>

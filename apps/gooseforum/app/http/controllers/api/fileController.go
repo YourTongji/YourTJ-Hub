@@ -86,7 +86,7 @@ func saveImgByGinContext(c *gin.Context, adminUpload bool) {
 		cooldownTime := userEntity.CreatedAt.Add(time.Duration(postingConfig.UploadControl.NewUserUploadCooldownMinutes) * time.Minute)
 		if time.Now().Before(cooldownTime) {
 			minutes := postingConfig.UploadControl.NewUserUploadCooldownMinutes
-			availableAt := cooldownTime.Format("2006-01-02 15:04:05")
+			availableAt := cooldownTime.Format(time.RFC3339)
 			c.JSON(http.StatusBadRequest, component.FailDataCode(
 				component.MessageUploadCooldown,
 

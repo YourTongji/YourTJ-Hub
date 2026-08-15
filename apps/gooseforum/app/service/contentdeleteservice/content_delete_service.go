@@ -23,6 +23,8 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/reports"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
@@ -117,6 +119,19 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 
 	if err := markTopicDeleted(topic.Id, visibility, operatorID, reason); err != nil {
 		return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+	}
+
+	// wiki 分站页面话题：同步清理 wiki_pages 及其修订，避免删除话题后残留
+	// 孤儿页面继续出现在公开导航树/首页（与 DeleteAllUserContent 级联一致）。
+	if topic.TopicType == topics.TopicTypeWiki {
+		if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+			if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
+				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+			}
+			if err := wikiPages.Delete(page.Id); err != nil {
+				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
+			}
+		}
 	}
 
 	// 无回复时级联软删全部回复并递减统计；有回复时保留他人讨论。
@@ -322,6 +337,7 @@ func RestoreContent(userID uint64, contentType ContentType, contentID uint64) er
 			return component.NewMessageError(component.MessageContentRestoreFailed, "恢复话题失败", component.MessageParams{"error": err.Error()})
 		}
 		restoreTopicPosts(topic.Id, userID)
+		restoreWikiTopicPages(topic)
 		rebuildTopicSearchIndex(contentID)
 		fileusageservice.RecoverTargetFiles(topicsTarget(contentID))
 		hotdataserve.ClearTopicListCache()
@@ -422,6 +438,28 @@ func restoreTopicPosts(topicID uint64, operatorID uint64) {
 	}
 }
 
+// restoreWikiTopicPages 恢复 wiki 分站页面话题时一并恢复其 wiki_pages 与全部修订
+// （清除 deleted_at）。删除时页面/修订随话题软删；只恢复 topics 会出现
+// "话题可见、页面消失"的幽灵状态（review wiki soft-delete alignment）。
+func restoreWikiTopicPages(topic topics.Entity) {
+	if topic.TopicType != topics.TopicTypeWiki {
+		return
+	}
+	var page wikiPages.Entity
+	if err := dbconnect.Connect().Unscoped().Table("wiki_pages").
+		Where("topic_id = ?", topic.Id).First(&page).Error; err != nil || page.Id == 0 {
+		return
+	}
+	if err := dbconnect.Connect().Unscoped().Table("wiki_pages").
+		Where("id = ?", page.Id).Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
+		slog.Error("failed to restore wiki page", "pageId", page.Id, "error", err)
+	}
+	if err := dbconnect.Connect().Unscoped().Table("wiki_page_revisions").
+		Where("page_id = ?", page.Id).Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
+		slog.Error("failed to restore wiki page revisions", "pageId", page.Id, "error", err)
+	}
+}
+
 // RestoreTopicAsModerator 管理端恢复被治理删除的话题（PRD R7 / review MEDIUM-2）。
 // 仅可恢复 MODERATOR_REMOVED 的话题：作者不可自行恢复管理端删除，管理端是
 // 唯一的恢复通道。恢复级联删除的回复、重建搜索索引、恢复附件可见性并写审计。
@@ -437,6 +475,7 @@ func RestoreTopicAsModerator(moderatorID uint64, topicID uint64) error {
 		return component.NewMessageError(component.MessageContentRestoreFailed, "恢复话题失败", component.MessageParams{"error": err.Error()})
 	}
 	restoreModeratorRemovedTopicPosts(topic, moderatorID)
+	restoreWikiTopicPages(topic)
 	rebuildTopicSearchIndex(topicID)
 	fileusageservice.RecoverTargetFiles(topicsTarget(topicID))
 	hotdataserve.ClearTopicListCache()
@@ -811,6 +850,39 @@ func DeleteAllUserContent(userID uint64) error {
 		if topicCursor == 0 {
 			break
 		}
+	}
+	// 再删 wiki 分站页面话题（review P1：GetActiveByUserPage 的 topic_type=forum
+	// 过滤会导致 wiki 页面漏删）。先删页面与修订行，再走话题删除生命周期，
+	// 避免 topic 删除后残留孤儿 wiki_pages/wiki_page_revisions。
+	var wikiCursor uint64
+	for {
+		activeWikiTopics := topics.GetActiveWikiByUserPage(userID, wikiCursor, batchSize)
+		if len(activeWikiTopics) == 0 {
+			break
+		}
+		for _, topic := range activeWikiTopics {
+			if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+				if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
+					slog.Warn("delete wiki page revisions on account close failed", "userId", userID, "pageId", page.Id, "err", err)
+				}
+				if err := wikiPages.Delete(page.Id); err != nil {
+					slog.Warn("delete wiki page on account close failed", "userId", userID, "pageId", page.Id, "err", err)
+				}
+			}
+			if err := DeleteTopicByUser(userID, topic.Id); err != nil {
+				slog.Warn("delete user wiki topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
+			}
+		}
+		wikiCursor = activeWikiTopics[len(activeWikiTopics)-1].Id
+		if wikiCursor == 0 {
+			break
+		}
+	}
+	// 他人 wiki 页面上 editor_id=注销者 的修订一并清理（对齐"删除全部本人内容"
+	// 策略）。此刻本人页面及其修订已在上方 DeleteByPage 清理，DeleteByEditor
+	// 只命中他人页面残留的本人修订，幂等无副作用。
+	if err := wikiPageRevisions.DeleteByEditor(userID); err != nil {
+		slog.Warn("delete wiki revisions by editor on account close failed", "userId", userID, "err", err)
 	}
 	// 再删剩余未删除的本人回复（他人话题下的回复）。
 	var postCursor uint64

@@ -132,15 +132,15 @@ onMounted(() => {
     <div class="flex flex-col gap-3 md:flex-row md:items-end">
       <label class="block min-w-0 flex-1">
         <span class="mb-1.5 block text-[13px] font-medium text-base-content/70">{{ t('schedule.calendar') }}</span>
-        <SiteSelect v-model="calendarValue" :options="calendarOptions" :placeholder="t('schedule.selectPlaceholder')" />
+        <SiteSelect v-model="calendarValue" :options="calendarOptions" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.calendar')" />
       </label>
       <label class="block min-w-0 flex-1">
         <span class="mb-1.5 block text-[13px] font-medium text-base-content/70">{{ t('schedule.grade') }}</span>
-        <SiteSelect v-model="gradeValue" :options="gradeOptions" :placeholder="t('schedule.selectPlaceholder')" />
+        <SiteSelect v-model="gradeValue" :options="gradeOptions" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.grade')" />
       </label>
       <label class="block min-w-0 flex-1">
         <span class="mb-1.5 block text-[13px] font-medium text-base-content/70">{{ t('schedule.major') }}</span>
-        <SiteSelect v-model="majorValue" :options="majorOptions" :placeholder="t('schedule.selectPlaceholder')" />
+        <SiteSelect v-model="majorValue" :options="majorOptions" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.major')" />
       </label>
     </div>
     <p v-if="error" class="mt-2 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">

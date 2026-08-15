@@ -200,6 +200,25 @@ type SidebarPayload struct {
 	Groups     []SidebarGroupPayload `json:"groups,omitempty"`
 	Categories []CategoryNavPayload  `json:"categories"`
 	ActiveKey  string                `json:"activeKey"`
+	// Mode 指示当前视图：forum（默认）/ wiki。
+	Mode string `json:"mode,omitempty"`
+	// WikiTree 在 wiki 模式下填充（左栏导航树）。
+	WikiTree []WikiTreeNamespacePayload `json:"wikiTree,omitempty"`
+}
+
+// WikiTreeNamespacePayload wiki 导航树的 namespace 分组。
+type WikiTreeNamespacePayload struct {
+	Name  string                `json:"name"`
+	Label string                `json:"label"`
+	Pages []WikiTreePagePayload `json:"pages"`
+}
+
+// WikiTreePagePayload wiki 导航树的一页。
+type WikiTreePagePayload struct {
+	PageId uint64 `json:"pageId"`
+	Path   string `json:"path"`
+	Title  string `json:"title"`
+	Active bool   `json:"active"`
 }
 
 type FooterPayload struct {
@@ -1262,7 +1281,7 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			editor := authorPayload(item.LastEditorId)
 			lastEditor = &editor
 			if item.LastEditedAt != nil {
-				lastEditedAt = item.LastEditedAt.Format(time.DateTime)
+				lastEditedAt = item.LastEditedAt.Format(time.RFC3339)
 			}
 		}
 		res = append(res, PostPayload{
@@ -1277,12 +1296,12 @@ func buildPostPayloads(postEntities []*posts.Entity, userMap map[uint64]*users.E
 			IsModeratorRemoved: isModeratorRemoved,
 			CanModerate:        canModerate,
 			Author:             author,
-			CreatedAt:          item.CreatedAt.Format(time.DateTime),
+			CreatedAt:          item.CreatedAt.Format(time.RFC3339),
 			ReplyToPostID:      item.ReplyToPostId,
 			ReplyToUserID:      replyToUserID,
 			ReplyToUsername:    replyToName,
 			IsOwnPost:          currentUserID == item.UserId,
-			UpdatedAt:          item.UpdatedAt.Format(time.DateTime),
+			UpdatedAt:          item.UpdatedAt.Format(time.RFC3339),
 			LastEditor:         lastEditor,
 			LastEditedAt:       lastEditedAt,
 		})
@@ -1407,8 +1426,8 @@ func buildTopicDetailPayload(c *gin.Context, topic *topics.Entity, firstPost *po
 		IsLiked:          isLiked,
 		IsBookmarked:     isBookmarked,
 		IsWatched:        isWatched,
-		CreatedAt:        createdAt.Format(time.DateTime),
-		UpdatedAt:        updatedAt.Format(time.DateTime),
+		CreatedAt:        createdAt.Format(time.RFC3339),
+		UpdatedAt:        updatedAt.Format(time.RFC3339),
 	}
 }
 
@@ -1881,7 +1900,7 @@ func buildUserLikes(refs []topicUserAction.LikedTopicRef) []UserLikePayload {
 			TopicID: ref.TopicID,
 			Title:   topic.Title,
 			URL:     urlconfig.PostDetail(ref.TopicID),
-			LikedAt: ref.LikedAt.Format(time.DateTime),
+			LikedAt: ref.LikedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -1907,7 +1926,7 @@ func buildUserBookmarks(refs []topicUserAction.BookmarkedTopicRef) []UserBookmar
 			TopicID:      ref.TopicID,
 			Title:        topic.Title,
 			URL:          urlconfig.PostDetail(ref.TopicID),
-			BookmarkedAt: ref.BookmarkedAt.Format(time.DateTime),
+			BookmarkedAt: ref.BookmarkedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2044,7 +2063,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				TopicID:      ref.topicID,
 				Title:        topic.Title,
 				URL:          urlconfig.PostDetail(ref.topicID),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		case "post":
 			post := postMap[ref.postID]
@@ -2064,7 +2083,7 @@ func buildBookmarkPayloads(refs []mergedBookmarkRef) []UserBookmarkPayload {
 				Title:        topic.Title,
 				Excerpt:      bookmarkExcerpt(post.Content),
 				URL:          buildPostAnchorURL(post.TopicId, post.PostNo, post.Id),
-				BookmarkedAt: ref.bookmarkedAt.Format(time.DateTime),
+				BookmarkedAt: ref.bookmarkedAt.Format(time.RFC3339),
 			})
 		}
 	}
@@ -2106,7 +2125,7 @@ func buildUserActivities(activities []*userActivities.Entity) []UserActivityPayl
 			ContentPreview: contentPreview,
 			URL:            userActivityURL(activity, replyByID),
 			Label:          userActivityLabel(activity.Action),
-			CreatedAt:      activity.CreatedAt.Format(time.DateTime),
+			CreatedAt:      activity.CreatedAt.Format(time.RFC3339),
 		})
 	}
 	return res
@@ -2462,8 +2481,8 @@ func buildDraftPayloads(entities []*topics.Entity) []DraftPayload {
 			ReplyCount:    entity.ReplyCount,
 			ViewCount:     entity.ViewCount,
 			ProcessStatus: entity.ProcessStatus,
-			UpdatedAt:     entity.UpdatedAt.Format(time.DateTime),
-			CreatedAt:     entity.CreatedAt.Format(time.DateTime),
+			UpdatedAt:     entity.UpdatedAt.Format(time.RFC3339),
+			CreatedAt:     entity.CreatedAt.Format(time.RFC3339),
 			Categories:    categories,
 		})
 	}
@@ -2502,7 +2521,7 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 		ID:        notification.Id,
 		EventType: notification.EventType,
 		IsRead:    notification.IsRead,
-		CreatedAt: notification.CreatedAt.Format(time.DateTime),
+		CreatedAt: notification.CreatedAt.Format(time.RFC3339),
 		Title:     notificationTitle(notification.EventType, payload),
 		Content:   payload.Content,
 		Actor: TopicAuthorPayload{
@@ -2516,7 +2535,10 @@ func BuildNotificationPayload(notification *eventNotification.Entity) Notificati
 	}
 	if payload.TopicId > 0 {
 		topicURL := urlconfig.PostDetail(payload.TopicId)
-		if payload.PostId > 0 {
+		// wiki 页面更新通知：目标 URL 为 wiki 页面而非帖子详情（review P2）。
+		if notification.EventType == eventNotification.EventTypeWikiUpdated && payload.Extra.ProfileURL != "" {
+			topicURL = payload.Extra.ProfileURL
+		} else if payload.PostId > 0 {
 			topicURL = fmt.Sprintf("%s#post-%d", topicURL, payload.PostId)
 		}
 		item.Topic = &NotificationTopicPayload{
@@ -2570,7 +2592,7 @@ func buildSettingsPageProps(user users.EntityComplete) SettingsPageProps {
 			LikeReceivedCount: stats.LikeReceivedCount,
 			LikeGivenCount:    stats.LikeGivenCount,
 			CollectionCount:   stats.CollectionCount,
-			CreatedAt:         user.CreatedAt.Format(time.DateTime),
+			CreatedAt:         user.CreatedAt.Format(time.RFC3339),
 		},
 		Tabs: settingsTabs(),
 	}
@@ -2665,10 +2687,11 @@ func buildSearchPageProps(query string, scope string, page int) SearchPageProps 
 		offset = (page - 1) * pageSize
 	}
 	result, err := searchservice.AggregateSearch(searchservice.AggregateSearchRequest{
-		Query:  query,
-		Scope:  normalizedScope,
-		Limit:  limit,
-		Offset: offset,
+		Query:     query,
+		Scope:     normalizedScope,
+		Limit:     limit,
+		Offset:    offset,
+		TopicType: topics.TopicTypePtr(topics.TopicTypeForum),
 	})
 	if errors.Is(err, searchservice.ErrSearchUnavailable) {
 		props.SearchUnavailable = true

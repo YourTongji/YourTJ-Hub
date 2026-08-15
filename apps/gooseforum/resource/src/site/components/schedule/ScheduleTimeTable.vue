@@ -3,7 +3,10 @@
 // 对齐上游 TimeTable.vue 的渲染算法与交互：点击空格查时段课程、长按课程块看详情。
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
+import { BookOpen } from '@lucide/vue'
+import EmptyState from '@/site/components/EmptyState.vue'
 import { useScheduleStore } from '@/site/composables/useScheduleStore'
+import { courseColorSlotFor, courseContentVar, courseSlotVar } from '@/site/utils/courseColors'
 import type { PkCourseOnTable } from '@/site/types/pk'
 
 const { t } = useI18n()
@@ -79,12 +82,17 @@ function hashColor(input: string): number {
 }
 
 function courseCardStyle(course: PkCourseOnTable): Record<string, string> {
-  const seed = hashColor(course.code || course.courseName || course.showText || 'course')
-  const hue = seed % 360
-  if (isMobile.value) {
-    return { background: `linear-gradient(135deg, hsl(${hue}, 82%, 52%), hsl(${(hue + 24) % 360}, 82%, 42%))` }
+  const seed = course.code || course.courseName || course.showText || 'course'
+  const slot = courseColorSlotFor(seed)
+  const bgVar = courseSlotVar(slot)
+  const contentVar = courseContentVar(slot)
+  return {
+    // 先给单值底做回退（不支持 color-mix 的浏览器），再覆盖渐变
+    background: `var(${bgVar})`,
+    backgroundImage: `linear-gradient(135deg, var(${bgVar}), color-mix(in oklab, var(${bgVar}) 80%, black))`,
+    color: `var(${contentVar})`,
+    borderColor: `var(${contentVar})`,
   }
-  return { background: 'linear-gradient(135deg, #5d57e8, #4b3fd9)' }
 }
 
 function compactName(name: string): string {
@@ -92,7 +100,7 @@ function compactName(name: string): string {
     .replace(/[（(][^()（）]*[）)]/g, '')
     .replace(/\s+/g, '')
     .trim()
-  if (!cleaned) return '课程'
+  if (!cleaned) return t('schedule.courseFallback')
   const chars = Array.from(cleaned)
   return chars.length > 7 ? `${chars.slice(0, 6).join('')}…` : cleaned
 }
@@ -136,8 +144,8 @@ function formatCourseLines(course: PkCourseOnTable): CourseLineInfo {
     }
   }
   return {
-    title: course.courseName || course.code || '课程',
-    mobileTitle: compactName(course.courseName || course.code || '课程'),
+    title: course.courseName || course.code || t('schedule.courseFallback'),
+    mobileTitle: compactName(course.courseName || course.code || t('schedule.courseFallback')),
     mobileMeta: course.code || '',
     sub: raw,
     meta: course.code || '',
@@ -232,6 +240,9 @@ const creditSummary = computed(() => {
   return store.creditSummary()
 })
 
+/** 课表是否已有课程（决定渲染网格还是空态引导，issue #229）。 */
+const hasCourses = computed(() => timeTable.value.some((row) => row.some((cell) => cell.length > 0)))
+
 function handleCellClick(dayIndex: number, rowIndex: number) {
   if (!store.isMajorSelected()) return
   if ((store.state.occupied?.[rowIndex]?.[dayIndex] ?? []).length > 0) return
@@ -263,15 +274,14 @@ onBeforeUnmount(() => {
     </div>
 
     <div
-      class="overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-sm"
-      :style="{ minHeight: (isMobile ? 620 : 820) + 'px' }"
+      class="overflow-x-auto rounded-2xl border border-line/70 bg-base-100 shadow-sm"
     >
       <div
         v-if="creditSummary"
         class="relative border-b border-line/70 bg-base-200/45 px-3 py-2"
       >
         <span
-          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[10px] font-black leading-none text-base-100"
+          class="absolute right-2 top-2 flex h-4 w-4 cursor-help items-center justify-center rounded-full bg-warning text-[11px] font-black leading-none text-warning-content"
           :title="t('schedule.creditNote')"
         >
           !
@@ -284,16 +294,28 @@ onBeforeUnmount(() => {
         </div>
       </div>
 
-      <table class="w-full border-collapse table-fixed">
+      <EmptyState
+        v-if="timeTable.length > 0 && !hasCourses"
+        class="border-b border-line/60"
+        :icon="BookOpen"
+        :title="t('schedule.timetableEmptyTitle')"
+        :description="t('schedule.timetableEmptyHint')"
+      />
+      <EmptyState v-else-if="timeTable.length === 0" :icon="BookOpen" :title="t('schedule.selectMajorFirst')" />
+      <table
+        v-if="hasCourses || timeTable.length === 0"
+        class="w-full border-collapse table-fixed"
+        :class="isMobile ? 'min-w-[400px]' : ''"
+      >
         <thead>
           <tr class="bg-base-200/60">
-            <th class="w-[42px] border border-line/70 p-1 text-[10px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
+            <th class="w-[42px] border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:w-[78px] md:p-2 md:text-xs">
               {{ t('schedule.arrangement') }}
             </th>
             <th
               v-for="day in WEEKDAY_KEYS"
               :key="day"
-              class="border border-line/70 p-1 text-[10px] font-semibold text-base-content/70 md:p-2 md:text-xs"
+              class="border border-line/70 p-1 text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
             >
               {{ t(`schedule.weekdays.${day}`) }}
             </th>
@@ -303,10 +325,10 @@ onBeforeUnmount(() => {
           <tr
             v-for="(row, index) in timeTable"
             :key="index"
-            :class="[index === timeTable.length - 1 ? 'bg-error/5' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
+            :class="[index === timeTable.length - 1 ? 'bg-base-200/50' : index % 2 === 0 ? 'bg-base-100' : 'bg-base-200/30']"
           >
             <td
-              class="border border-line/70 p-1 text-center text-[10px] font-semibold text-base-content/70 md:p-2 md:text-xs"
+              class="border border-line/70 p-1 text-center text-[11px] font-semibold text-base-content/70 md:p-2 md:text-xs"
             >
               {{ t('schedule.sectionLabel', { section: index + 1 }) }}
             </td>
@@ -316,7 +338,12 @@ onBeforeUnmount(() => {
                 v-if="!occupiedGrid[index][dayIndex]"
                 class="border border-line/70 p-[2px] align-top text-center md:p-1"
                 :rowspan="maxSpans[index][dayIndex]"
+                :tabindex="courses.length > 0 ? undefined : 0"
+                :role="courses.length > 0 ? undefined : 'button'"
+                :aria-label="courses.length > 0 ? undefined : t('schedule.emptyCell')"
                 @click="handleCellClick(dayIndex, index)"
+                @keydown.enter.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
+                @keydown.space.prevent="courses.length === 0 && handleCellClick(dayIndex, index)"
               >
                 <div
                   v-if="courses.length > 0"
@@ -326,8 +353,8 @@ onBeforeUnmount(() => {
                   <div
                     v-for="(course, courseIndex) in courses"
                     :key="course.code + '_' + courseIndex"
-                    class="flex min-h-0 flex-1 flex-col justify-center overflow-hidden px-1 py-1 text-[10px] leading-tight text-white md:px-2 md:py-2 md:text-[11px]"
-                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed border-white/60' : '']"
+                    class="flex min-h-0 flex-1 flex-col justify-center overflow-y-auto px-1 py-1 text-[11px] leading-tight md:px-2 md:py-2 md:text-xs"
+                    :class="[isMobile ? 'text-center' : 'text-left', courseIndex !== courses.length - 1 ? 'border-b border-dashed' : '']"
                     :style="courseCardStyle(course)"
                     @touchstart.stop="onPressStart(course, $event)"
                     @touchmove.stop="onPressMove($event)"
@@ -336,11 +363,16 @@ onBeforeUnmount(() => {
                     @mousedown.stop="onPressStart(course, $event)"
                     @mouseup.stop="onPressCancel()"
                     @mouseleave.stop="onPressCancel()"
+                    tabindex="0"
+                    role="button"
+                    :aria-label="course.courseName || course.code"
                     @click.stop="emit('openDetail', course)"
+                    @keydown.enter.stop.prevent="emit('openDetail', course)"
+                    @keydown.space.stop.prevent="emit('openDetail', course)"
                   >
                     <template v-if="isMobile">
-                      <span class="max-w-full truncate text-[9.5px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
-                      <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[8px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
+                      <span class="max-w-full truncate text-[11px] font-extrabold leading-tight">{{ formatCourseLines(course).mobileTitle }}</span>
+                      <span v-if="formatCourseLines(course).mobileMeta" class="mt-0.5 max-w-full truncate text-[10px] opacity-85">{{ formatCourseLines(course).mobileMeta }}</span>
                     </template>
                     <template v-else>
                       <span class="break-words font-extrabold tracking-tight">{{ formatCourseLines(course).title }}</span>

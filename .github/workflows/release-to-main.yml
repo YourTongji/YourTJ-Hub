@@ -1,4 +1,4 @@
-name: release-to-main
+name: Release / main
 
 on:
   workflow_dispatch:

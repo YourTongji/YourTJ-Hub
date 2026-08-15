@@ -99,7 +99,7 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 				ContentType: "topic",
 				Title:       topic.Title,
 				Excerpt:     topic.Excerpt,
-				CreatedAt:   topic.CreatedAt.Format(time.DateTime),
+				CreatedAt:   topic.CreatedAt.Format(time.RFC3339),
 			})
 		}
 		return component.SuccessResponse(map[string]any{
@@ -122,7 +122,7 @@ func MyContentList(req component.BetterRequest[MyContentListReq]) component.Resp
 				Excerpt:     excerptOf(post.Content),
 				TopicID:     post.TopicId,
 				PostNo:      post.PostNo,
-				CreatedAt:   post.CreatedAt.Format(time.DateTime),
+				CreatedAt:   post.CreatedAt.Format(time.RFC3339),
 			})
 		}
 		return component.SuccessResponse(map[string]any{
@@ -407,7 +407,7 @@ func formatDeletedAt(t time.Time) string {
 	if t.IsZero() {
 		return ""
 	}
-	return t.Format(time.DateTime)
+	return t.Format(time.RFC3339)
 }
 
 func canRestore(visibility string, retention string) bool {

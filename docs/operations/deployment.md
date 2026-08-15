@@ -6,7 +6,7 @@
 >
 > Owner: Platform maintainers
 >
-> Last verified: 2026-08-06
+> Last verified: 2026-08-14
 
 ## Deployment shape
 
@@ -16,42 +16,72 @@
   `[db.default] connection = "postgres"`); SQLite is the local development/test default; the file
   database `[db.file]` stays SQLite; MySQL is **not supported**; optional Meilisearch; optional
   built-in OIDC Provider ([oidc] in config.toml).
-- **Reverse proxy + SSL by 1Panel** (openresty): `forum.yourtj.de` → `127.0.0.1:5234` (main),
-  `dev.yourtj.de` → `127.0.0.1:5235` (dev). Both behind Cloudflare (proxied, origin IP hidden).
-- Backend containers bind `127.0.0.1` only; nothing else is exposed publicly.
+- **Image pipeline**: CI builds the single binary and packages it into an OCI image pushed to GHCR
+  (`ghcr.io/yourtongji/yourtj-hub:<instance>-<sha>`; repo is public, so servers pull anonymously —
+  no registry credentials on the server).
+- **Reverse proxy**: a self-managed `nginx` container (`deploy/nginx/yourtj.conf`, mounted into the
+  compose `nginx` service) terminates Cloudflare origin traffic on `:80` and proxies
+  `forum.yourtj.de` → `main:5234`, `dev.yourtj.de` → `dev:5234`. Backend addressing uses a variable +
+  Docker DNS resolver so nginx never blocks on backend startup. Backend containers bind
+  `127.0.0.1` only; only nginx (and SSH) is exposed publicly.
 - **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
-  (`engine.SetTrustedProxies`). If an additional proxy sits in front of the binary, add it to
-  `server.trusted_proxies` in `config.toml` so rate-limit IP attribution cannot be bypassed via
-  a forged `X-Forwarded-For` header.
-- **Two instances on one VM** (Ubuntu 24.04, ssh alias `yourtj`), managed as one compose project:
+  (`engine.SetTrustedProxies`). With the compose nginx container in front, `server.trusted_proxies`
+  must include the docker network (`deploy/config.toml.example` defaults to `["172.16.0.0/12"]`) so
+  rate-limit IP attribution cannot be bypassed via a forged `X-Forwarded-For` header.
+- **Two instances on one VM** (Debian 12, ssh `root`), managed as one compose project:
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
   - DB sync is one-way: dev gets a consistent snapshot of main on each deploy (below).
-- **Wiki static site** (VitePress + Pagefind, separate from the binary): two nginx containers
-  `wiki-main` (127.0.0.1:5284) / `wiki-dev` (127.0.0.1:5285) in the same compose project, deployed by
-  `deploy-wiki.sh` from the `wiki-dist` artifact built in CI. Public reverse-proxy DNS for the wiki is
-  a post-merge ops task.
+- **Wiki 分站（论坛内嵌）**: wiki 由单二进制直接服务（`/wiki` SSR 视图），无独立部署、无独立
+  nginx 容器；旧 VitePress 静态站部署（deploy-wiki.sh / wiki-dist / Waline）已废弃。
+  **存量服务器一次性退役旧 wiki 容器/镜像**（PR #219 后，旧 bootstrap 流程初始化过的服务器
+  `/opt/yourtj/docker-compose.yaml` 仍可能保留 `wiki-main`/`wiki-dev` 服务定义与运行中的
+  `yourtj-wiki-main`(127.0.0.1:5284)/`yourtj-wiki-dev`(127.0.0.1:5285) 容器）:
+  - 当前 CI 部署只下发 `deploy/scripts/*.sh` 与二进制，**不替换**远程 compose 文件；只要远程
+    compose 仍定义 `wiki-main`/`wiki-dev`，这两个容器就不是孤儿，`deploy.sh` 的
+    `up -d --remove-orphans` 不会动它们。需先手动把 `/opt/yourtj/docker-compose.yaml` 换成
+    不含 wiki 服务的当前版本（取仓库 `deploy/docker-compose.yaml`，或直接删除文件中
+    `wiki-main`/`wiki-dev` 两个 service 块），之后下一次部署的 `--remove-orphans` 会停删它们。
+  - 想在下次 CI 部署前立即退役：`docker rm -f yourtj-wiki-main yourtj-wiki-dev`
+    （`restart: unless-stopped` 不会复活已 `rm` 的容器）；残留镜像手动清理
+    `docker images | awk '/yourtj-wiki/{print $3}' | xargs -r docker rmi -f`
+    （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
+  - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
 
-## Server layout (1Panel container orchestration)
+### 旧 VitePress wiki 内容重建（PR #219 后）
+
+论坛内嵌 wiki 是全新实现，**没有**自动导入旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）
+内容的迁移通道。旧站内容如需保留，需手动重建：
+
+1. 旧 VitePress 站点仓库仍保留 `docs/`（Markdown 源文件）。按
+   `docs/product/current-state.md` 的 wiki 使用说明，在管理端创建 namespace，
+   然后把每个 Markdown 文件作为新页面手动发布（正文粘贴原 Markdown，标题取
+   front-matter 的 `title`；旧站路径映射为 `<namespace>/<slug>`）。
+2. 旧站的静态资源（图片/附件）若在仓库内，随正文重新上传；若引用旧域名
+   （如 `https://wiki.example.com/...`），需先下载到本地再上传，或改写为
+   相对路径后上传到新站附件。
+3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
+   后以人工方式并入对应新页面（wiki 无评论表，评论仍走论坛回复流）。
+4. 重建期间旧站可继续在线（只读），全部内容迁移完成、新站 `/wiki` 导航树
+   核对无误后再按上方步骤退役旧容器与路由。
+
+## Server layout (Docker Compose)
 
 ```
 /opt/yourtj/
-  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/WIKI_*_TAG + POSTGRES_USER/POSTGRES_PASSWORD/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev + meili + wiki-main + wiki-dev services (created by init-server.sh)
+  .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/IMAGE_REPO + POSTGRES_*/MEILI_MASTER_KEY (created by init-server.sh)
+  docker-compose.yaml     # main + dev + nginx + postgres + meilisearch services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
-  build/
-    Dockerfile            # alpine + binary
-    wiki.Dockerfile       # nginx + wiki static dist
-    wiki-dist/            # unpacked wiki dist (deploy-wiki.sh)
-  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, deploy-wiki.sh, bootstrap-wiki-assets.sh, pgdsn.sh
+  nginx/
+    yourtj.conf           # reverse proxy config (mounted into the nginx container)
+  scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
-    storage/              # sqlite.db + file.db + logs (uid 1000) — PG 部署时 sqlite.db 不产生
+    storage/              # file.db + logs (uid 1000); PG 部署时 sqlite.db 不产生
   dev/
     config.toml           # dev config
     storage/
   snapshots/
-    main/sqlite-*.db      # pre-deploy backups (keep 7) — SQLite 部署
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 ```
 
@@ -59,28 +89,24 @@
 
 - `dev` is the default branch and the main development line; merges to `dev` trigger
   `.github/workflows/deploy-dev.yml`:
-  1. Build single binary (frontend + go build) on GitHub Actions.
-  2. Upload binary via scp; SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
+  1. Build single binary (frontend + go build) and push GHCR image `dev-<sha>` on GitHub Actions.
+  2. SSH: `sync-db-from-main.sh` (auto-detects mode: SQLite `.backup` snapshot
      or PG `pg_dump|psql` rebuild of dev db).
-  3. SSH: `deploy.sh dev <binary> dev-<sha> 5235` → build image, compose up, health check, rollback;
+  3. SSH: `deploy.sh dev dev-<sha> 5235` → pull image, compose up, health check, rollback;
      after a successful deploy the script prunes old images (keeps the newest
      `IMAGE_KEEP_N` tags of the instance prefix including the current one, plus the `prev`
-     rollback tag) and build cache older than 72h.
+     rollback tag).
      The dev workflow sets `IMAGE_KEEP_N=3` because dev deploys frequently.
-  4. SSH: `deploy-wiki.sh dev /tmp/wiki-dist.tar.gz wiki-dev-<sha> 5285` → build nginx image from the
-     unpacked static dist, compose up, health check, rollback (the `wiki-build` job builds the site
-     and uploads the `wiki-dist` artifact).
 - `main` is the production site; merges to `main` trigger `.github/workflows/deploy-main.yml`:
-  1. Build single binary on GitHub Actions.
+  1. Build single binary and push GHCR image `main-<sha>` on GitHub Actions.
   2. SSH: `backup-db.sh main` (pre-deploy consistent snapshot, keep 7).
-  3. SSH: `deploy.sh main <binary> main-<sha> 5234` → build image, compose up, health check,
-     auto-rollback to previous image tag on failure; same post-deploy image/cache pruning as dev
+  3. SSH: `deploy.sh main main-<sha> 5234` → pull image, compose up, health check,
+     auto-rollback to previous image tag on failure; same post-deploy image pruning as dev
      (`IMAGE_KEEP_N=5`, keeps more rollback candidates for production).
-  4. SSH: `deploy-wiki.sh main /tmp/wiki-dist.tar.gz wiki-main-<sha> 5284` → same as dev, on 5284.
 - **Release gate**: `.github/workflows/release-to-main.yml` (manual `workflow_dispatch`) merges `dev` →
   `main`, bumps the version (`patch` / `minor` / `major`, computed from the latest `vX.Y.Z` tag, first
   release: patch → `v0.0.1`, minor → `v0.1.0`, major → `v1.0.0`), tags it, and pushes via a PAT
-  (secret `RELEASE_TOKEN`) so `deploy-main` triggers. Run it from Actions → Release to main → Run
+  (secret `RELEASE_TOKEN`) so `deploy-main` triggers. Run it from Actions → `Release / main` → Run
   workflow → choose bump type.
 - Why dev syncs main's db: migrations (`app/migration` AutoMigrate + versioned data migrations) run at
   startup, so each dev deploy rehearses the exact migration the next main deploy will run.
@@ -95,21 +121,15 @@
   manual `init-server.sh` re-run. `pgdsn.sh` is a runtime dependency (`source`d by
   `backup-db.sh` / `sync-db-from-main.sh`); keep it in the scp/install list whenever deploying
   script updates.
-- Wiki deploy assets are also CI-provisioned: each deploy uploads
-  `deploy/build/wiki.Dockerfile` / `wiki.nginx.conf` / `docker-compose.yaml` and runs
-  `bootstrap-wiki-assets.sh`, which idempotently installs them under `/opt/yourtj/build` and appends
-  missing `WIKI_*` vars to `/opt/yourtj/.env`. Existing servers therefore need no manual
-  `init-server.sh` re-run before the first wiki deploy; the compose file is only replaced when the
-  `wiki-*` services are missing (preserving any server-side local edits).
 
 ## GitHub Actions secrets
 
 | Secret | Value |
 |---|---|
-| `VM_HOST` | server public IP or hostname (`20.205.27.178`) |
-| `VM_USER` | SSH user (e.g. `yourtj`) |
-| `VM_SSH_KEY` | private key for that user (full PEM, including `-----BEGIN ...` lines) |
-| `WIKI_WALINE_SERVER_URL` | optional Waline comment server URL, injected at wiki build time (`VITE_WALINE_SERVER_URL`); empty = comments disabled |
+| `VM_HOST` | server public IP or hostname (`43.108.84.213`) |
+| `VM_USER` | SSH user (`root`) |
+| `VM_SSH_KEY` | PEM private key for that user (full PEM, including `-----BEGIN ...` lines; e.g. `YourTJ_Korean.pem`) |
+| `VM_SSH_PORT` | SSH port (default 22) |
 
 Deploy workflows use `appleboy/scp-action` + `appleboy/ssh-action` with these secrets.
 
@@ -121,8 +141,9 @@ sudo bash /opt/yourtj/scripts/init-server.sh \
   https://forum.yourtj.de https://dev.yourtj.de
 ```
 
-This creates `/opt/yourtj/{.env,build,docker-compose.yaml,main,dev}` with randomized signing keys.
-The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
+This creates `/opt/yourtj/{.env,docker-compose.yaml,nginx,main,dev}` with randomized signing keys,
+PG/Meili passwords, starts `postgres` + `meilisearch`, and creates the `yourtj_main`/`yourtj_dev`
+databases. The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
 
 ## Build (local)
 
@@ -145,9 +166,8 @@ make build     # cd apps/gooseforum/resource && pnpm build → cd apps/gooseforu
   surfacing as runtime API failures (the original issue #8 login/register outage). It also means a
   deploy with an incompatible schema change will roll back — rehearse on dev (which syncs main's db)
   before main.
-- Rollback: `deploy.sh` tags the previous image `yourtj-hub:prev` and re-points the instance on
-  health-check failure; forward-compatible migrations mean an older binary can still start.
-- Pre-deploy snapshot in `snapshots/main/` is the data-level restore point (SQLite).
+- Rollback: `deploy.sh` tags the previous image `ghcr.io/yourtongji/yourtj-hub:prev` and re-points
+  the instance on health-check failure; forward-compatible migrations mean an older binary can still start.
 
 ### Upgrade note: `app.signingKey` is now mandatory and fail-closed
 
@@ -374,6 +394,142 @@ instance:
   进程崩溃后若需立即重跑，可等待窗口过期或手动清掉该学期 `pk_fetch_log`。
 - 注意：`app.signingKey` 轮换会使管理端已存的一系统 Cookie 密文失效（与 TOTP 相同），
   需到管理端重新保存。
+
+## 服务器迁移 runbook（旧机 → 新机）
+
+旧生产服务器（20.205.27.178, 1Panel）迁移到新机（43.108.84.213, Docker Compose + GHCR）的完整步骤。
+**原则：signingKey 必须原样复制，绝不重新生成**（否则全部会话 / TOTP / 重置链接失效，fail-closed）。
+
+### 0. 前置
+
+- 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
+  也可手动拷贝 `deploy/` 后在服务器执行）。
+- 仓库侧 GHCR 镜像流 PR 已合并；**合并后先更新 GitHub Secrets（`VM_HOST` → 新机 IP、
+  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**；若 dev 在更新前自动部署到旧机，
+  会因 :80 被 1Panel openresty 占用导致 nginx 容器启动失败（部署报错，旧服务不受影响，重跑即可）。
+- **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
+  Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
+- 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
+
+### 1. 新机初始化
+
+```bash
+ssh -i ~/Documents/YourTJ_Korean.pem root@43.108.84.213
+mkdir -p /opt/yourtj && cd /opt/yourtj
+# 从仓库拷贝 deploy/ 目录后:
+sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.yourtj.de
+```
+
+这会生成 `/opt/yourtj/{.env,docker-compose.yaml,nginx,main/config.toml,dev/config.toml}`，
+启动 postgres + meilisearch，创建 `yourtj_main` / `yourtj_dev` 数据库。
+
+### 2. 数据迁移（main + dev）
+
+在旧机（1Panel 部署）上导出，再导入新机。**旧机 / 新机 PostgreSQL 版本一致（16）**。
+
+> **⚠️ 旧机是 1Panel 管理**：下列命令假设 compose 项目在 `/opt/yourtj`（与仓库约定一致）。
+> 实际路径以旧机 1Panel 配置为准（1Panel 项目目录可能是 `/opt/1panel/apps/...` 或自定义），
+> 执行前先 `ls` 确认。`docker compose` 命令在 1Panel 的 compose 项目目录下执行；
+> 1Panel 的 compose 版本若为 v1（无 `exec -T` 的 `-T` 参数），去掉 `-T`。
+
+```bash
+# 旧机: 导出主库到宿主机 /tmp(exec -T 流式输出, 重定向在宿主机执行;
+#       若在容器内重定向, 文件落在容器 /tmp, 宿主机 scp 找不到)
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_main' > /tmp/yourtj_main.sql
+docker compose exec -T postgres sh -c 'pg_dump -U yourtj -d yourtj_dev' > /tmp/yourtj_dev.sql
+
+# 旧机 → 新机: 直传
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/yourtj_main.sql /tmp/yourtj_dev.sql \
+  root@43.108.84.213:/tmp/
+
+# 新机: 导入(在 postgres 容器内)
+docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_main' < /tmp/yourtj_main.sql
+docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_dev' < /tmp/yourtj_dev.sql
+```
+
+文件库 `file.db`（SQLite，附件 BLOB）直接拷贝。**注意实际路径是
+`storage/database/file.db`**（见 config.toml `[db.file].path`）：
+
+```bash
+# 旧机: 用 sqlite3 .backup 做一致性快照(实例仍在运行, 直接 scp 活库会拿到 torn copy;
+#       与 backup-db.sh 相同做法; 旧机已装 sqlite3, init-server.sh 也会装)
+sqlite3 /opt/yourtj/main/storage/database/file.db ".backup '/tmp/main-file.db'"
+sqlite3 /opt/yourtj/dev/storage/database/file.db ".backup '/tmp/dev-file.db'"
+# 或直接复用旧机已有的 backup-db.sh(它已做一致性快照):
+#   /opt/yourtj/scripts/backup-db.sh main && scp ... root@<旧机>:/opt/yourtj/snapshots/main/file-*.db /tmp/main-file.db
+
+# 旧机 → 新机
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/main-file.db /tmp/dev-file.db \
+  root@43.108.84.213:/tmp/
+
+# 新机: 安装 + 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
+install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/database/file.db
+install -m 0664 /tmp/dev-file.db /opt/yourtj/dev/storage/database/file.db
+chown 1000:1000 /opt/yourtj/main/storage/database/file.db /opt/yourtj/dev/storage/database/file.db
+```
+
+### 3. 配置迁移（完整拷贝 + reconcile，关键！）
+
+**不要只复制 signingKey**：`config.toml` 还包含 GitHub OAuth `client_id`/`client_secret`、
+OIDC 设置（含 signing_key_file PEM）、一系统同步 Cookie 密文等，全部需要原样迁移：
+
+```bash
+# 旧机: 完整拷贝两个 config.toml 与 OIDC 密钥文件
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/config.toml /tmp/main-config.toml
+scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /tmp/dev-config.toml
+# 若 [oidc] signing_key_file 启用, 一并拷贝对应 PEM
+
+# 新机: 用旧配置覆盖, 然后 reconcile 以下部署相关键:
+#   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
+#   - [server] trusted_proxies: 包含 docker 网段 ["172.16.0.0/12"]
+#   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
+#   - [server] url: 保持 https://forum.yourtj.de / https://dev.yourtj.de
+install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
+install -m 0644 /tmp/dev-config.toml /opt/yourtj/dev/config.toml
+```
+
+### 4. 首次部署 + 健康检查
+
+```bash
+# 手动拉取并启动(等价于 CI deploy.sh main main-<sha> 5234)
+cd /opt/yourtj
+IMAGE_KEEP_N=5 bash scripts/deploy.sh main main-<latest-sha> 5234
+IMAGE_KEEP_N=3 bash scripts/deploy.sh dev dev-<latest-sha> 5235
+# 验证
+curl -fsS http://127.0.0.1:5234/health && echo MAIN_OK
+curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
+curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 nginx
+```
+
+### 5. Cloudflare SSL 模式 + DNS 切换
+
+**先改 SSL/TLS 模式，再切 DNS**（否则切换瞬间 521/525）：
+
+1. **Cloudflare SSL/TLS 模式**：旧机由 1Panel 提供 origin 证书，当前模式很可能是
+   Full (strict)（Cloudflare → origin 走 HTTPS:443）。新机 nginx 只监听 :80，
+   切换前把 `SSL/TLS → Overview → SSL/TLS encryption mode` 改为 **Flexible**
+   （Cloudflare → origin 走 HTTP:80）。若必须保持端到端加密，需在新机 nginx
+   配置 443 监听 + Cloudflare origin 证书（本仓库 compose 默认只暴露 80）。
+2. **DNS**：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
+   改为新机 IP（43.108.84.213）。
+3. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、
+   登录/发帖/附件/搜索 spot-check。
+4. **观察期（≥7 天）内旧机保持运行**；确认稳定后退役旧机（`docker compose down`，保留数据快照）。
+5. 更新 GitHub Secrets `VM_HOST` → 新机 IP；旧机从 CI 摘除。
+
+### 风险与回滚
+
+- 迁移窗口内的新写入不会进入 dump；**切换前在旧机再跑一次 `backup-db.sh main`** 生成最新快照，
+  接受分钟级数据窗口。
+- **回滚不是简单的 DNS 切回**：DNS 切换到新机后，新机接受了新的发帖/注册/附件写入。
+  若此时切回旧机，这些新写入会丢失。因此回滚前必须**反向同步**：
+  1. 停写：临时把 Cloudflare 页面规则或新机 nginx 置为维护模式（或直接切 DNS 前先接受
+     "最近写入可能丢失" 的窗口）；
+  2. 从新机 `pg_dump yourtj_main/yourtj_dev` 回灌旧机对应库（与 §2 相同方式反向）；
+  3. 把新机 `storage/database/file.db` 拷回旧机对应路径并 `chown 1000:1000`；
+  4. 再切 DNS 回旧机。
+  - 若回滚发生在切换后很短时间内且写入量可忽略，可接受不回灌，但文档不承诺"数据无损"。
+- Meilisearch 索引不迁移，首次启动后由 `rebuild-search-index` 重建（ADR-003：索引是可重建投影）。
 
 ## Runbooks to write
 

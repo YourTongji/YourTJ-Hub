@@ -8,6 +8,7 @@ import (
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/vo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/resource"
 )
 
@@ -18,7 +19,7 @@ func TestServerTemplatesParse(t *testing.T) {
 	if err != nil {
 		t.Fatalf("newRegistry: %v", err)
 	}
-	for _, name := range []string{"app_shell.gohtml", "home.gohtml", "user.gohtml", "topic.gohtml", "links.gohtml", "sponsors.gohtml"} {
+	for _, name := range []string{"app_shell.gohtml", "home.gohtml", "user.gohtml", "topic.gohtml", "links.gohtml", "sponsors.gohtml", "wiki.gohtml"} {
 		if reg.templates[name] == nil {
 			t.Errorf("template %s failed to register", name)
 		}
@@ -263,6 +264,33 @@ func TestNoscriptTemplatesRenderRepresentativePayloads(t *testing.T) {
 			},
 			want: "reply body",
 		},
+		{
+			name:     "wiki home",
+			template: "wiki.gohtml",
+			payload: PagePayload{
+				Component: PageComponentWikiHome,
+				Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
+					Path:       "dev/hello",
+					Title:      "Hello",
+					EditorName: "Alice",
+				}}},
+			},
+			want: "Hello",
+		},
+		{
+			name:     "wiki detail",
+			template: "wiki.gohtml",
+			payload: PagePayload{
+				Component: PageComponentWikiDetail,
+				Props: WikiDetailProps{Page: wikiservice.PageDetail{
+					Namespace: "dev",
+					Path:      "dev/hello",
+					Title:     "Hello page",
+					Content:   "<p>body</p>",
+				}},
+			},
+			want: "Hello page",
+		},
 	}
 
 	for _, tt := range cases {
@@ -276,6 +304,55 @@ func TestNoscriptTemplatesRenderRepresentativePayloads(t *testing.T) {
 			}
 		})
 	}
+}
+
+// TestWikiTemplateSSRRendersHomeAndDetail guards the wiki SSR branch that
+// discriminates on the plain-string .Payload.Component (WikiHomeProps carries
+// no Page field, so the detail article must not be evaluated on home).
+func TestWikiTemplateSSRRendersHomeAndDetail(t *testing.T) {
+	reg, err := newRegistry(resource.GetTemplateFS())
+	if err != nil {
+		t.Fatalf("newRegistry: %v", err)
+	}
+
+	t.Run("home renders recent pages without Page props", func(t *testing.T) {
+		payload := PagePayload{
+			Component: PageComponentWikiHome,
+			Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
+				Path:       "dev/hello",
+				Title:      "Hello",
+				EditorName: "Alice",
+			}}},
+		}
+		var buf bytes.Buffer
+		if err := reg.render(&buf, "wiki.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+			t.Fatalf("render wiki home template: %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, `href="/wiki/dev/hello"`) || !strings.Contains(out, "Hello") || !strings.Contains(out, "Alice") {
+			t.Fatalf("wiki home noscript missing recent page link: %s", out)
+		}
+	})
+
+	t.Run("detail renders page title and content", func(t *testing.T) {
+		payload := PagePayload{
+			Component: PageComponentWikiDetail,
+			Props: WikiDetailProps{Page: wikiservice.PageDetail{
+				Namespace: "dev",
+				Path:      "dev/hello",
+				Title:     "Hello page",
+				Content:   "<p>body</p>",
+			}},
+		}
+		var buf bytes.Buffer
+		if err := reg.render(&buf, "wiki.gohtml", templateData{Payload: payload, Lang: "en"}); err != nil {
+			t.Fatalf("render wiki detail template: %v", err)
+		}
+		out := buf.String()
+		if !strings.Contains(out, "Hello page") || !strings.Contains(out, "<p>body</p>") {
+			t.Fatalf("wiki detail noscript missing page title/content: %s", out)
+		}
+	})
 }
 
 func TestUserTemplateRendersCrawlerProfileStructure(t *testing.T) {
@@ -431,11 +508,11 @@ func TestErrorTemplateLocalizesMessageCode(t *testing.T) {
 	}
 
 	cases := []struct {
-		name       string
-		lang       string
+		name        string
+		lang        string
 		messageCode component.MessageCode
-		params     component.MessageParams
-		want       string // localized message expected in the output
+		params      component.MessageParams
+		want        string // localized message expected in the output
 	}{
 		{
 			name:        "known flat code",

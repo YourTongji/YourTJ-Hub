@@ -103,3 +103,37 @@ func TestDeletePostReversesPrestigeWithoutBalanceRow(t *testing.T) {
 		t.Errorf("user_points row should be absent for backfill, got %v / %+v", err, balance)
 	}
 }
+
+// review N1：wiki 分站页面上下架/发布由 wiki 修订流程管理，禁止经论坛端点 UpdateTopicStatus 操作。
+func TestUpdateTopicStatusRejectsWikiTopic(t *testing.T) {
+	conn := setupLLMSCacheTestDB(t)
+	base := uint64(time.Now().UnixNano()%1_000_000_000) + 9_408_000_000
+	ownerID := base + 1
+	topicID := base + 2
+	postID := base + 3
+	now := time.Now().Add(-time.Hour)
+	if err := conn.Create(&users.EntityComplete{Id: ownerID, Username: fmt.Sprintf("wiki-owner-%d", ownerID)}).Error; err != nil {
+		t.Fatalf("create user: %v", err)
+	}
+	if err := conn.Create(&posts.Entity{Id: postID, TopicId: topicID, PostNo: 1, UserId: ownerID, Content: "wiki body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki first post: %v", err)
+	}
+	if err := conn.Create(&topics.Entity{Id: topicID, Title: "Wiki page", FirstPostId: postID, Status: 1, ProcessStatus: topics.ProcessStatusNormal, TopicType: topics.TopicTypeWiki, UserId: ownerID, CreatedAt: now, UpdatedAt: now}).Error; err != nil {
+		t.Fatalf("create wiki topic: %v", err)
+	}
+	t.Cleanup(func() {
+		conn.Unscoped().Where("id = ?", postID).Delete(&posts.Entity{})
+		conn.Unscoped().Where("id = ?", topicID).Delete(&topics.Entity{})
+	})
+
+	res := UpdateTopicStatus(component.BetterRequest[TopicStatusReq]{
+		UserId: ownerID,
+		Params: TopicStatusReq{TopicId: topicID, TopicStatus: 0},
+	})
+	if res.Data.Code != component.FAIL || res.Data.MessageCode != component.MessageTopicOperationDenied {
+		t.Fatalf("UpdateTopicStatus wiki = code=%v msg=%v, want FAIL/MessageTopicOperationDenied", res.Data.Code, res.Data.MessageCode)
+	}
+	if got := topics.Get(topicID); got.Status != 1 {
+		t.Fatalf("wiki topic status mutated = %d, want 1", got.Status)
+	}
+}

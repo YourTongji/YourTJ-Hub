@@ -274,7 +274,7 @@ defineExpose({ resetTransform, save: handleSave })
         ref="imageRef"
         :src="imageUrl"
         :style="imageStyle"
-        :alt="t('settings.cover.cropAlt')"
+        :alt="t('settings.avatar.cropAlt')"
         class="cover-editor-image"
         draggable="false"
         @pointerdown="startDrag"

@@ -4,27 +4,42 @@
 // XLS 生成 Excel 兼容的 SpreadsheetML 2003 格式（.xls 扩展名，Excel/WPS 可直接打开）。
 // 导出内容遍历 selectedCourses + stagedCourses 的班级时间槽，与课表数据同源，保证一致。
 
+import { i18n } from '@/runtime/i18n'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
 import type { PkCsvCourse, PkStagedCourse, PkXlsCourse } from '@/site/types/pk'
 
-const CSV_HEADER: PkCsvCourse = {
-  courseName: '课程名称',
-  occupyDay: '星期',
-  start: '开始节数',
-  end: '结束节数',
-  teacherName: '老师',
-  occupyRoom: '地点',
-  occucpyWeek: '周数',
+function exportT(key: string, named?: Record<string, unknown>): string {
+  return i18n.global.t(key, named ?? {})
 }
 
-const XLS_HEADER = ['课程代码', '课程名称', '教师姓名']
+/** CSV 表头按当前界面语言生成（issue #225：导出产物随 UI 语言切换）。 */
+function csvHeader(): PkCsvCourse {
+  return {
+    courseName: exportT('schedule.exportColCourseName'),
+    occupyDay: exportT('schedule.exportColWeekday'),
+    start: exportT('schedule.exportColStart'),
+    end: exportT('schedule.exportColEnd'),
+    teacherName: exportT('schedule.exportColTeacher'),
+    occupyRoom: exportT('schedule.exportColRoom'),
+    occucpyWeek: exportT('schedule.exportColWeeks'),
+  }
+}
+
+/** XLS 表头按当前界面语言生成。 */
+function xlsHeader(): string[] {
+  return [
+    exportT('schedule.exportColCode'),
+    exportT('schedule.exportColCourseName'),
+    exportT('schedule.exportColTeacherName'),
+  ]
+}
 
 /**
  * 将已选班级课号数组映射为 CSV 行（一门课的一个时间段一行）。
  * codes 为班级课号（含班号）；staged 为备选/已选课程池。
  */
 export function codesToCsvRows(codes: readonly string[], staged: readonly PkStagedCourse[]): PkCsvCourse[] {
-  const rows: PkCsvCourse[] = [CSV_HEADER]
+  const rows: PkCsvCourse[] = [csvHeader()]
   for (const code of codes) {
     const base = getCourseBaseCode(code)
     const course = staged.find((c) => c.courseCode === base)
@@ -77,11 +92,11 @@ export function formatWeeks(weeks: readonly number[]): string {
       prev = cur
       continue
     }
-    ranges.push(start === prev ? `${start}周` : `${start}-${prev}周`)
+    ranges.push(start === prev ? exportT('schedule.exportWeekRange', { range: start }) : exportT('schedule.exportWeekRange', { range: `${start}-${prev}` }))
     start = cur
     prev = cur
   }
-  return ranges.join('、')
+  return ranges.join(exportT('schedule.exportWeekJoin'))
 }
 
 /** 从 "教师名(工号),教师名2(工号2)" 提取纯教师名列表。 */
@@ -113,7 +128,8 @@ export function jsonToCsv(rows: PkCsvCourse[]): string {
 }
 
 /** 生成 SpreadsheetML 2003（.xls）XML 字符串。 */
-export function xlsRowsToXml(rows: PkXlsCourse[], sheetName = '辅助表'): string {
+export function xlsRowsToXml(rows: PkXlsCourse[], sheetName?: string): string {
+  const finalSheetName = sheetName ?? exportT('schedule.exportSheetName')
   const escape = xmlEscape
   const lines: string[] = [
     `<?xml version="1.0" encoding="UTF-8"?>`,
@@ -123,11 +139,11 @@ export function xlsRowsToXml(rows: PkXlsCourse[], sheetName = '辅助表'): stri
     ` xmlns:x="urn:schemas-microsoft-com:office:excel"`,
     ` xmlns:ss="urn:schemas-microsoft-com:office:spreadsheet"`,
     ` xmlns:html="http://www.w3.org/TR/REC-html40">`,
-    `<Worksheet ss:Name="${escape(sheetName)}">`,
+    `<Worksheet ss:Name="${escape(finalSheetName)}">`,
     `<Table>`,
   ]
 
-  lines.push(`<Row>${XLS_HEADER.map((h) => `<Cell><Data ss:Type="String">${escape(h)}</Data></Cell>`).join('')}</Row>`)
+  lines.push(`<Row>${xlsHeader().map((h) => `<Cell><Data ss:Type="String">${escape(h)}</Data></Cell>`).join('')}</Row>`)
   for (const row of rows) {
     lines.push(
       `<Row><Cell><Data ss:Type="String">${escape(row.code)}</Data></Cell>` +
@@ -166,8 +182,8 @@ export function downloadXls(filename: string, xml: string): void {
 
 function csvEscape(value: string | number): string {
   let s = String(value)
-  // 防 Excel 公式注入：以 = + - @ 开头的单元格加前导单引号，令其按文本显示。
-  if (/^[=+\-@]/.test(s)) s = `'${s}`
+  // 防 Excel 公式注入：以 = + - @ \t \r 开头的单元格加前导单引号（OWASP CSV-Injection）。
+  if (/^[=+\-@\t\r]/.test(s)) s = `'${s}`
   if (/[",\r\n]/.test(s)) return `"${s.replace(/"/g, '""')}"`
   return s
 }

@@ -15,6 +15,9 @@ url = "REPLACE_SERVER_URL"
 port = 5234
 accessLog = false
 gzip = true
+# 信任的反向代理网段: nginx 容器在 compose 网络(默认 172.16.0.0/12)内访问本服务,
+# 必须信任该网段才能正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
+trusted_proxies = ["172.16.0.0/12"]
 
 [jwtopt]
 validTime = 604800
@@ -47,8 +50,8 @@ maxLifeSeconds = 300
 
 
 [meilisearch]
-url = "http://localhost:7700"
-masterkey = ""
+url = "http://meilisearch:7700"
+masterkey = "REPLACE_MEILI_KEY"
 
 [log]
 type = "file"
@@ -85,14 +88,14 @@ id_token_ttl = 3600
 # 第一方客户端（public 客户端不填 secret，PKCE 强制；confidential 客户端用 client_secret_basic）
 # redirect_uris 精确匹配；回调带动态 query/路径段时用 redirect_uris_globs
 # 兜底(doublestar pattern, 配置加载时校验, 非法 pattern 拒绝整个 OIDC 配置)。
-# 示例为 Waline 评论登录: 注册 Waline 服务端回调(带动态 redirect query)。
+# 示例：第三方客户端授权回调带动态 redirect query（授权后回跳应用深层页）时用 globs 兜底。
 # 注意(zitadel/oidc v3.49 实测): 匹配前会再 QueryUnescape 一次 redirect_uri,
 # 实际匹配串中内层页面 URL 的 %2F 已是字面 /; doublestar 的 * 嵌在 query
 # 值中不能跨 /, 只有 ** 作为末尾 segment 可以。因此按"钉死站点域名前缀"
 # 拆两条。\? 转义匹配字面 ?; TOML 单引号字面串保证反斜杠原样传给解析器
 # redirect_uris_globs = [
-#   'https://comment.example.com/api/oauth\?redirect=https://wiki.example.com/**',
-#   'https://comment.example.com/api/oauth\?redirect=/**',
+#   'https://app.example.com/api/oauth\?redirect=https://app.example.com/**',
+#   'https://app.example.com/api/oauth\?redirect=/**',
 # ]
 [[oidc.clients]]
 id = "yourtj-mobile"

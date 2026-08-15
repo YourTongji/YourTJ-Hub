@@ -1,9 +1,9 @@
-# yourtj-hub 双实例编排(main 正式 / dev 测试)
-# 用法: docker compose up -d [main|dev]
-# 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
+# yourtj-hub 双实例编排(main 正式 / dev 测试) + 自管 nginx 反向代理
+# 用法: docker compose up -d [main|dev|nginx]
+# 镜像来自 GHCR(CI 构建推送, 服务器匿名 pull), 环境变量来自 /opt/yourtj/.env(见 init-server.sh)
 services:
   main:
-    image: yourtj-hub:${MAIN_TAG:-latest}
+    image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${MAIN_TAG:-latest}
     container_name: yourtj-main
     restart: unless-stopped
     ports:
@@ -22,7 +22,7 @@ services:
       start_period: 10s
 
   dev:
-    image: yourtj-hub:${DEV_TAG:-latest}
+    image: ${IMAGE_REPO:-ghcr.io/yourtongji/yourtj-hub}:${DEV_TAG:-latest}
     container_name: yourtj-dev
     restart: unless-stopped
     ports:
@@ -39,6 +39,24 @@ services:
       timeout: 5s
       retries: 30
       start_period: 10s
+
+  # 反向代理: Cloudflare 终止 TLS 后回源本容器(80)。
+  #   公网流量一律走 nginx(0.0.0.0:80); 后端容器只绑 127.0.0.1。
+  nginx:
+    image: nginx:1.27-alpine
+    container_name: yourtj-nginx
+    restart: unless-stopped
+    ports:
+      - "80:80"
+    volumes:
+      - ./nginx/yourtj.conf:/etc/nginx/conf.d/default.conf:ro
+    # 不依赖 main/dev: 后端寻址用变量 + Docker DNS resolver,
+    # 避免 compose 因 depends_on 把未部署的实例一起拉起(拉取不存在的 tag)
+    healthcheck:
+      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1/healthz >/dev/null 2>&1 || exit 1"]
+      interval: 10s
+      timeout: 5s
+      retries: 10
 
   postgres:
     image: postgres:16-alpine
@@ -72,34 +90,6 @@ services:
       interval: 10s
       timeout: 5s
       retries: 10
-
-  # wiki 静态站(VitePress + Pagefind, nginx 镜像; 由 deploy-wiki.sh 部署)
-  wiki-main:
-    image: yourtj-wiki:${WIKI_MAIN_TAG:-latest}
-    container_name: yourtj-wiki-main
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${WIKI_MAIN_PORT:-5284}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-
-  wiki-dev:
-    image: yourtj-wiki:${WIKI_DEV_TAG:-latest}
-    container_name: yourtj-wiki-dev
-    restart: unless-stopped
-    ports:
-      - "127.0.0.1:${WIKI_DEV_PORT:-5285}:80"
-    healthcheck:
-      test: ["CMD-SHELL", "wget -qO- http://127.0.0.1:80/ >/dev/null 2>&1 || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 30
-      start_period: 5s
-
 
 volumes:
   pgdata:

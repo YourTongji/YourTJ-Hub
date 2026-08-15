@@ -210,5 +210,50 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(18)
 		currentVersion = 18
 	}
+	if currentVersion < 19 {
+		// 单一事件源架构（wiki 写即发布 + 版本指针 + 物化水印）：
+		// 为存量 wiki 页面回填 published_revision_no（= 最新 approved revision_no），
+		// 并初始化 topics/posts 的 wiki_synced_revision_no 水印（当前内容即最新版）。
+		// 幂等：指针已 >0 的页面跳过。部署前已存在的 wiki 页面（发布即通过）
+		// 不先回填指针，CAS 编辑将永远无法匹配 published_revision_no=0 的基线。
+		singleSourceResult := datamigration.BackfillWikiSingleSource()
+		slog.Info("app migration wiki single source backfill done",
+			"pages", singleSourceResult.PagesSeeded,
+			"topics", singleSourceResult.TopicsSeeded,
+			"posts", singleSourceResult.PostsSeeded,
+			"skipped", singleSourceResult.Skipped,
+			"failed", singleSourceResult.Failed,
+			"lastFailed", singleSourceResult.LastFailed)
+		if singleSourceResult.Failed > 0 {
+			slog.Error("app migration wiki single source backfill has failures", "failed", singleSourceResult.Failed, "lastFailed", singleSourceResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(19)
+		currentVersion = 19
+	}
+	if currentVersion < 20 {
+		// 话题搜索索引文档补齐 topicType 字段（review：存量部署的索引在
+		// topicType 加入前构建，聚合搜索按 topicType 过滤会失败/漏检；
+		// 全量重建写入新字段，filterable 属性由启动 EnsureTopicIndexConfigured 保证）。
+		// Meilisearch 不可用时跳过且不推进版本，下次启动重试（与 v13 同模式）。
+		topicIndexResult := datamigration.MigrateTopicSearchIndex()
+		slog.Info("app migration topic search index topicType rebuild done",
+			"skipped", topicIndexResult.Skipped,
+			"rebuilt", topicIndexResult.Rebuilt,
+			"processed", topicIndexResult.ProcessedCount,
+			"failedCount", topicIndexResult.FailedCount,
+			"failed", topicIndexResult.Failed,
+			"lastFailed", topicIndexResult.LastFailed)
+		if topicIndexResult.Skipped {
+			slog.Warn("app migration topic search index topicType rebuild skipped (meilisearch unavailable), will retry on next start")
+			return
+		}
+		if topicIndexResult.Failed > 0 || topicIndexResult.FailedCount > 0 {
+			slog.Error("app migration topic search index topicType rebuild has failures", "failed", topicIndexResult.Failed, "failedCount", topicIndexResult.FailedCount, "lastFailed", topicIndexResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(20)
+		currentVersion = 20
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

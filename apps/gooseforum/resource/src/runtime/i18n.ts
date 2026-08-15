@@ -62,8 +62,10 @@ export const i18n = createI18n({
   locale: detectLocale(),
   fallbackLocale,
   messages,
-  missingWarn: false,
-  fallbackWarn: false,
+  // 开发环境开启缺失键告警（issue #225/#230）：键名泄漏在 dev 控制台即时可见，
+  // 生产保持静默降级（fallback zh）。
+  missingWarn: import.meta.env.DEV,
+  fallbackWarn: import.meta.env.DEV,
 })
 
 export function setLocale(locale: Locale) {

@@ -777,6 +777,230 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public wiki page tree across namespaces */
+        get: operations["getWikiTree"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List public wiki namespaces with page counts */
+        get: operations["listWikiNamespaces"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/home": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Public wiki home feed with namespaces and recent approved revisions */
+        get: operations["getWikiHome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List revisions of one wiki page */
+        get: operations["listWikiRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/pages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a wiki page in a namespace (publishes revision 1 as approved) */
+        post: operations["createWikiPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wiki/pages/{pageId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update an existing wiki page (write-publish: the new revision is immediately approved) */
+        put: operations["updateWikiPage"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/pages/{pageId}/rollback": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Roll back a wiki page to an earlier revision (PageManager or Admin only) */
+        post: operations["rollbackWikiPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/pages/{pageId}/diff": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Fetch two revisions of a wiki page for diffing (PageManager or Admin only) */
+        get: operations["diffWikiPage"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create a wiki namespace (PageManager or Admin only) */
+        post: operations["createWikiNamespace"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces/{name}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        /** Update a wiki namespace description (PageManager or Admin only) */
+        put: operations["updateWikiNamespace"];
+        post?: never;
+        /** Delete a wiki namespace (PageManager or Admin only) */
+        delete: operations["deleteWikiNamespace"];
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/namespaces/{name}/editors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List editors of a wiki namespace (PageManager or Admin only) */
+        get: operations["listWikiNamespaceEditors"];
+        /** Replace the editor set of a wiki namespace (PageManager or Admin only) */
+        put: operations["updateWikiNamespaceEditors"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/tree": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Admin wiki page tree with sort order (PageManager or Admin only) */
+        get: operations["getAdminWikiTree"];
+        /** Apply tree operations (move, rename, sort, delete) to wiki pages (PageManager or Admin only) */
+        put: operations["updateAdminWikiTree"];
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** List wiki revision history with page path (PageManager or Admin only) */
+        get: operations["listAdminWikiRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pk/calendars": {
         parameters: {
             query?: never;
@@ -2035,6 +2259,270 @@ export interface components {
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
         };
+        WikiTreePage: {
+            /** Format: uint64 */
+            pageId: number;
+            /** @description Canonical page path within the namespace (slash-separated). */
+            path: string;
+            title: string;
+            /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
+            active: boolean;
+        };
+        WikiTreeNamespace: {
+            name: string;
+            /** @description Display label of the namespace. */
+            label: string;
+            pages: components["schemas"]["WikiTreePage"][];
+        };
+        WikiTreeResult: {
+            namespaces: components["schemas"]["WikiTreeNamespace"][];
+        };
+        WikiTreeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiTreeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiNamespaceSummary: {
+            name: string;
+            description: string;
+            /** @description Ordering key; smaller values come first. */
+            sortOrder: number;
+            /**
+             * Format: int64
+             * @description Number of pages with at least one approved revision.
+             */
+            pageCount: number;
+            /** Format: date-time */
+            updatedAt: string;
+            /** @description Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages. */
+            firstPagePath?: string;
+        };
+        /** @description The raw namespace array; an empty listing is an empty array, never null. */
+        WikiNamespaceListResult: components["schemas"]["WikiNamespaceSummary"][];
+        WikiNamespaceListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiNamespaceListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiRecentPage: {
+            /** Format: uint64 */
+            pageId: number;
+            /** @description Full path (namespace/slug) for direct linking (review P2). */
+            path: string;
+            title: string;
+            /** Format: date-time */
+            updatedAt: string;
+            /** Format: uint64 */
+            editorId: number;
+            /** @description Display name of the last approved-revision editor. */
+            editorName: string;
+        };
+        WikiHomeResult: {
+            namespaces: components["schemas"]["WikiNamespaceSummary"][];
+            recent: components["schemas"]["WikiRecentPage"][];
+        };
+        WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiHomeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiRevision: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            pageId: number;
+            /** @description 1-based revision number of the page, incremented per edit. */
+            revisionNo: number;
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+            /** @enum {string} */
+            status: "approved" | "pending" | "rejected" | "superseded";
+            /** Format: uint64 */
+            editorId: number;
+            editorName: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description The raw revision array; an empty listing is an empty array, never null. */
+        WikiRevisionListResult: components["schemas"]["WikiRevision"][];
+        WikiRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiRevisionListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiCreatePageRequest: {
+            namespace: string;
+            /** @description Page path within the namespace; the parent segment must reference an existing page when present. */
+            path: string;
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+        };
+        WikiCreatePageResult: {
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+        };
+        WikiCreatePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiCreatePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiUpdatePageRequest: {
+            title: string;
+            /** @description Raw wiki markup content. */
+            content: string;
+            /**
+             * @description The published revision number the editor based this edit on (optimistic lock).
+             *     REQUIRED: the API rejects edits without it (model-1 edit lock; a missing value
+             *     would let a stale client silently overwrite newer published content). When it no
+             *     longer equals the page's current published revision, the request fails with
+             *     `wiki.revision.conflict` (409 semantics) and the client must reload the latest
+             *     revision and re-edit.
+             */
+            baseRevisionNo: number;
+        };
+        WikiUpdatePageResult: {
+            /** Format: uint64 */
+            revisionId: number;
+            /**
+             * @description Write-publish: the new revision is immediately approved and visible.
+             * @constant
+             */
+            status: "approved";
+            /** @description The newly published revision number (previous published number + 1). */
+            revisionNo: number;
+        };
+        WikiUpdatePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiUpdatePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiRollbackRequest: {
+            /** @description Target revision number; every revision with a higher number is permanently deleted. */
+            toRevisionNo: number;
+        };
+        WikiRollbackResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiRollbackResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiRollbackResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiDiffSide: {
+            revisionNo: number;
+            title: string;
+            /** @description Raw wiki markup content of the revision. */
+            content: string;
+            /** Format: uint64 */
+            editorId: number;
+            /** Format: date-time */
+            createdAt: string;
+        };
+        WikiDiffResult: {
+            /** @description Older side; null when the `from` query parameter was absent (empty baseline before the page existed). */
+            from: components["schemas"]["WikiDiffSide"] | null;
+            to: components["schemas"]["WikiDiffSide"];
+        };
+        WikiDiffResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiDiffResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiCreateNamespaceRequest: {
+            /** @description Namespace key, lowercase letters, digits, and hyphens. */
+            name: string;
+            description: string;
+        };
+        WikiUpdateNamespaceRequest: {
+            description: string;
+        };
+        WikiNamespaceActionResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiNamespaceActionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiNamespaceActionResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiEditorSummary: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            avatarUrl: string;
+        };
+        /** @description The raw editor array; an empty listing is an empty array, never null. */
+        WikiEditorListResult: components["schemas"]["WikiEditorSummary"][];
+        WikiEditorListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiEditorListResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiUpdateEditorsRequest: {
+            /** @description Replaces the namespace editor set; an empty array removes all editors. */
+            userIds: number[];
+        };
+        WikiAdminTreePage: {
+            /** Format: uint64 */
+            pageId: number;
+            path: string;
+            title: string;
+            sortOrder: number;
+        };
+        WikiAdminTreeNamespace: {
+            name: string;
+            label: string;
+            pages: components["schemas"]["WikiAdminTreePage"][];
+        };
+        /** @description The raw namespace tree array; an empty listing is an empty array, never null. */
+        WikiAdminTreeResult: components["schemas"]["WikiAdminTreeNamespace"][];
+        WikiAdminTreeResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAdminTreeResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiTreeOp: {
+            /** @enum {string} */
+            op: "move" | "rename" | "sort" | "delete";
+            /** Format: uint64 */
+            pageId: number;
+            /** @description Target parent path for move operations; empty or absent means the namespace root. */
+            parentPath?: string;
+            /** @description New page path for rename operations. */
+            newPath?: string;
+            /** @description New page title for rename operations. */
+            newTitle?: string;
+            /** @description New sort order for sort operations. */
+            sortOrder?: number;
+        };
+        WikiTreeOpsRequest: {
+            /** @description Applied in order; any failure aborts the batch before further operations run. */
+            ops: components["schemas"]["WikiTreeOp"][];
+        };
+        WikiTreeOpsResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiTreeOpsResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiTreeOpsResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAdminRevision: {
+            /** Format: uint64 */
+            revisionId: number;
+            /** Format: uint64 */
+            pageId: number;
+            /** @description 1-based revision number of the page (the version number used by the diff and rollback endpoints). */
+            revisionNo: number;
+            path: string;
+            title: string;
+            content: string;
+            /**
+             * @description Approved for all revisions created after write-publish; legacy values only for pre-v19 rows.
+             * @enum {string}
+             */
+            status: "approved" | "pending" | "rejected" | "superseded";
+            /** Format: uint64 */
+            editorId: number;
+            editorName: string;
+            /** Format: date-time */
+            updatedAt: string;
+        };
+        /** @description Paged revision listing; an empty page is an empty `list`, never null. */
+        WikiAdminRevisionListResult: {
+            /** @description Revisions on the current page ordered by creation time desc. */
+            list: components["schemas"]["WikiAdminRevision"][];
+            /** @description The 1-based page number returned. */
+            page: number;
+            /** @description The page size applied to this page. */
+            pageSize: number;
+            /** @description Whether more pages follow the current one. */
+            hasNext: boolean;
+        };
+        WikiAdminRevisionListResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAdminRevisionListResult"];
+        }) | components["schemas"]["ApiFailure"];
         PkSuccess: {
             /**
              * @description PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
@@ -4060,6 +4548,795 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace-labeled page tree with an active-page flag for each page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiTreeResponse"];
+                };
+            };
+            /** @description Wiki tree query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiNamespaces: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespaces ordered by sort order then name, each with its approved-page count. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceListResponse"];
+                };
+            };
+            /** @description Namespace query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiHome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace overview plus recently updated pages ordered by update time desc. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiHomeResponse"];
+                };
+            };
+            /** @description Wiki home query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiRevisions: {
+        parameters: {
+            query: {
+                pageId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Published revisions of the page ordered by revision number desc. Only approved
+             *     (published) revisions are listed; pending/rejected/superseded revisions carry
+             *     unpublished content and are exposed only to editors and reviewers (Blueprint
+             *     risk item: pending content must not leak to the public). Request-level validation
+             *     failures (missing pageId) and unknown pages are returned as legacy HTTP 200
+             *     envelopes (issue #176 B4 style: the contract documents the actual route behavior):
+             *     `common.request.invalidParams` for a missing pageId, `wiki.page.notFound` for an
+             *     unknown page.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiRevisionListResponse"];
+                };
+            };
+            /** @description Malformed query string (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    createWikiPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiCreatePageRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Created page id and canonical path. Business failures are returned as legacy
+             *     HTTP 200 envelopes with stable message codes (issue #176 B4 style: the contract
+             *     documents the actual route behavior): request-level validation failures
+             *     (`common.request.invalidParams`, including illegal paths), namespace missing or
+             *     the account not being an editor of the namespace (`wiki.namespace.notFound`),
+             *     and a path collision (`wiki.page.pathConflict`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiCreatePageResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdatePageRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description New revision is created and immediately published (write-publish; no review step).
+             *     The caller must be the page creator, a namespace editor, or a PageManager/Admin.
+             *     Business failures are returned as legacy HTTP 200 envelopes with stable message
+             *     codes: request-level validation failures (`common.request.invalidParams`), the
+             *     page or its namespace missing or the account not being an editor
+             *     (`wiki.namespace.notFound`, `wiki.page.notFound`), a version conflict when
+             *     `baseRevisionNo` no longer matches the published revision (`wiki.revision.conflict`),
+             *     and content hitting the sensitive-word filter (`content.sensitive.blocked`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiUpdatePageResponse"];
+                };
+            };
+            /** @description Malformed URI or JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    rollbackWikiPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                pageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiRollbackRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Rollback executed and cannot be undone: every revision with a revision number
+             *     greater than the target is permanently deleted, the page's published revision
+             *     pointer moves back to the target, and materialized views (forum post, topic
+             *     metadata, search index) are resynchronized. Business failures are returned as
+             *     legacy HTTP 200 envelopes: a caller lacking PageManager/Admin
+             *     (`permission.denied`), an unknown page (`wiki.page.notFound`), and an unknown
+             *     target revision (`wiki.revision.notFound`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiRollbackResponse"];
+                };
+            };
+            /** @description Malformed URI or JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    diffWikiPage: {
+        parameters: {
+            query: {
+                /** @description Revision number of the older side; absent means an empty baseline (page before creation). */
+                from?: number;
+                to: number;
+            };
+            header?: never;
+            path: {
+                pageId: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Raw markdown of the two requested revisions (or an empty baseline when `from`
+             *     is absent) for rendering a diff in the admin UI. Business failures are returned
+             *     as legacy HTTP 200 envelopes: an unknown page (`wiki.page.notFound`) and an
+             *     unknown revision number (`wiki.revision.notFound`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiDiffResponse"];
+                };
+            };
+            /** @description Malformed query string (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    createWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiCreateNamespaceRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Namespace created. Business failures are returned as legacy HTTP 200 envelopes:
+             *     malformed bodies degrade to `common.request.invalidParams` (non-strict binding),
+             *     an illegal name is `common.request.invalidParams`, and an existing name is
+             *     `wiki.namespace.nameConflict`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdateNamespaceRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Namespace updated. Business failures are returned as legacy HTTP 200 envelopes:
+             *     request-level validation failures (`common.request.invalidParams`) and an unknown
+             *     namespace (`wiki.namespace.notFound`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed URI or JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deleteWikiNamespace: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Namespace deleted. Business failures are returned as legacy HTTP 200 envelopes:
+             *     an unknown namespace (`wiki.namespace.notFound`) and a namespace that still
+             *     contains pages (`wiki.namespace.hasPages`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed URI (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listWikiNamespaceEditors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Editor user summaries of the namespace. An unknown namespace is returned as a
+             *     legacy HTTP 200 envelope `wiki.namespace.notFound`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiEditorListResponse"];
+                };
+            };
+            /** @description Malformed URI (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateWikiNamespaceEditors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                name: string;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiUpdateEditorsRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Editor set replaced. Business failures are returned as legacy HTTP 200 envelopes:
+             *     request-level validation failures (`common.request.invalidParams`) and an unknown
+             *     namespace (`wiki.namespace.notFound`).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
+                };
+            };
+            /** @description Malformed URI or JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getAdminWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Namespace-labeled page tree including sort order for admin editing. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAdminTreeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    updateAdminWikiTree: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiTreeOpsRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Tree operations applied in order; any failure aborts the batch. Business failures
+             *     are returned as legacy HTTP 200 envelopes: illegal operations and empty `ops`
+             *     lists are `common.request.invalidParams`, an unknown target page is
+             *     `wiki.page.notFound`, a path collision is `wiki.page.pathConflict`, and deleting
+             *     a page with children is `wiki.page.hasChildren`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiTreeOpsResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listAdminWikiRevisions: {
+        parameters: {
+            query?: {
+                /** @description When present, only revisions of this page are listed (per-page version history for the diff/rollback view). */
+                pageId?: number;
+                /** @description 1-based page number for the revision history; values below 1 are treated as 1. */
+                page?: number;
+                /** @description Page size for the revision history. The server uses the default 20 for values <= 0 or > 100; the schema accepts 1..100 to reflect tolerated input. */
+                pageSize?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Revision history (all revisions; write-publish means every revision is an
+             *     approved published version) ordered by creation time desc, paginated by the
+             *     `page`/`pageSize` query parameters (page defaults to 1, pageSize defaults to 20).
+             *     Each page returns a `list` of revisions plus `page`, `pageSize`, and `hasNext`
+             *     paging metadata so consumers can detect the next page. This listing feeds the
+             *     admin version-history view: pick any two revisions for the diff endpoint or a
+             *     target revision for the rollback endpoint.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAdminRevisionListResponse"];
+                };
+            };
+            /** @description Malformed query string (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
