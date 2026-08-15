@@ -28,7 +28,8 @@ const { t } = useI18n()
             {{ t('wiki.homeSubtitle') }}
           </p>
           <div v-if="props.canManage" class="mt-5">
-            <a href="/admin" class="gf-button gf-button-md gf-button-neutral">
+            <!-- GitHub SSOT：管理入口直达 Wiki 管理页（同步面板/命名空间）。 -->
+            <a href="/admin/wiki" class="gf-button gf-button-md gf-button-neutral">
               {{ t('wiki.goToAdmin') }}
               <ExternalLink class="h-4 w-4" aria-hidden="true" />
             </a>

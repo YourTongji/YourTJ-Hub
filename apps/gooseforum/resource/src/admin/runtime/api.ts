@@ -35,13 +35,11 @@ import type {
   SiteSettings,
   SiteStatistics,
   SponsorsConfig,
-  StorageSettings,
   TermsOfServiceConfig,
   UserBadgeOptions,
-  WikiEditor,
+  StorageSettings,
   WikiNamespace,
   WikiNamespaceTree,
-  WikiTreeOp,
 } from '@/admin/types'
 
 function responseMessage(data: ApiEnvelope<unknown>, fallback: string) {
@@ -488,10 +486,6 @@ export function getWikiNamespaces() {
   return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
 }
 
-export function createWikiPage(data: { namespace: string, path: string, title: string, content: string }) {
-  return postJson<{ pageId: number, path: string }>('/api/wiki/pages', data, adminText('k00n0'))
-}
-
 export function createWikiNamespace(data: { name: string, description: string }) {
   return postJson<unknown>('/api/admin/wiki/namespaces', data, adminText('k00n0'))
 }
@@ -504,70 +498,47 @@ export function deleteWikiNamespace(name: string) {
   return deleteJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, adminText('k00n0'))
 }
 
-export function getWikiEditors(namespace: string) {
-  return getJson<WikiEditor[]>(`/api/admin/wiki/namespaces/${encodeURIComponent(namespace)}/editors`, adminText('k00n1'))
-}
-
-export function saveWikiEditors(namespace: string, userIds: number[]) {
-  return putJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(namespace)}/editors`, { userIds }, adminText('k00n1'))
-}
-
 export function getWikiTree() {
   return getJson<WikiNamespaceTree[]>('/api/admin/wiki/tree', adminText('k00n2'))
 }
 
-export function saveWikiTree(ops: WikiTreeOp[]) {
-  return putJson<unknown>('/api/admin/wiki/tree', { ops }, adminText('k00n2'))
+// ---- GitHub SSOT 同步面板 ----
+
+export interface WikiSyncRunView {
+  id: number
+  headSha: string
+  trigger: string
+  status: 'running' | 'success' | 'failed'
+  pagesAdded: number
+  pagesUpdated: number
+  pagesDeleted: number
+  error?: string
+  startedAt: string
+  finishedAt?: string
 }
 
-export interface AdminWikiRevision {
-  revisionId: number
-  pageId: number
-  revisionNo: number
-  path: string
-  title: string
-  content: string
-  status: string
-  editorId: number
-  editorName: string
-  updatedAt: string
+export interface WikiSyncStatus {
+  enabled: boolean
+  repo: string
+  branch: string
+  headSha: string
+  lastRun?: WikiSyncRunView
+  recentRuns?: WikiSyncRunView[]
+  pages: { total: number, namespaces: number }
 }
 
-export interface AdminWikiRevisionPage {
-  list: AdminWikiRevision[]
-  page: number
-  pageSize: number
-  hasNext: boolean
+export interface WikiSyncAccepted {
+  accepted: boolean
 }
 
-export interface AdminWikiDiffSide {
-  revisionNo: number
-  title: string
-  content: string
-  editorId: number
-  createdAt: string
+export function getWikiSyncStatus() {
+  return getJson<WikiSyncStatus>('/api/admin/wiki/sync/status', adminText('k00n0'))
 }
 
-export interface AdminWikiDiff {
-  from: AdminWikiDiffSide | null
-  to: AdminWikiDiffSide
+export function triggerWikiSync() {
+  return postJson<WikiSyncAccepted>('/api/admin/wiki/sync', {}, adminText('k00n0'))
 }
 
-export function listAdminWikiRevisions(pageId?: number, page = 1, pageSize = 20) {
-  const params = new URLSearchParams()
-  if (pageId !== undefined) params.set('pageId', String(pageId))
-  params.set('page', String(page))
-  params.set('pageSize', String(pageSize))
-  return getJson<AdminWikiRevisionPage>(`/api/admin/wiki/revisions?${params.toString()}`, adminText('k00p9'))
-}
-
-export function rollbackWikiPage(pageId: number, toRevisionNo: number) {
-  return postJson<{ ok: true }>(`/api/admin/wiki/pages/${pageId}/rollback`, { toRevisionNo }, adminText('k00p9'))
-}
-
-export function diffWikiPage(pageId: number, from: number | undefined, to: number) {
-  const params = new URLSearchParams()
-  if (from !== undefined) params.set('from', String(from))
-  params.set('to', String(to))
-  return getJson<AdminWikiDiff>(`/api/admin/wiki/pages/${pageId}/diff?${params.toString()}`, adminText('k00p9'))
+export function getWikiSyncRuns() {
+  return getJson<WikiSyncRunView[]>('/api/admin/wiki/sync/runs', adminText('k00n0'))
 }
