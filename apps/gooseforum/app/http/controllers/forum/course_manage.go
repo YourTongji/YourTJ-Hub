@@ -248,7 +248,7 @@ func CourseManagement(c *gin.Context) {
 			Title:       pageTitle(i18n.T(requestLang(c), "meta.courseManagement")),
 			Description: i18n.T(requestLang(c), "meta.courseManagementDesc"),
 		},
-		Layout:  buildLayout(c, "courses"),
+		Layout:  buildLayout(c, "courseManage"),
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}

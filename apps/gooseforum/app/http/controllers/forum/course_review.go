@@ -331,7 +331,7 @@ func CourseReviewModeration(c *gin.Context) {
 			Title:       pageTitle(i18n.T(requestLang(c), "meta.courseReviewModeration")),
 			Description: i18n.T(requestLang(c), "meta.courseReviewModerationDesc"),
 		},
-		Layout:  buildLayout(c, "courses"),
+		Layout:  buildLayout(c, "courseReviews"),
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}
