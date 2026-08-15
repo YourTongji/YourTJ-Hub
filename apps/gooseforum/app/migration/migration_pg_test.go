@@ -84,6 +84,7 @@ func TestSchemaMigratesOnPostgreSQL(t *testing.T) {
 	}
 	assertPkFetchLogLeaseSchema(t, db)
 	assertPointsSourceKeySchema(t, db)
+	assertWikiProjectionSchema(t, db)
 }
 
 // TestSchemaUpgradeCreatesNewTablesOnPostgreSQL 模拟存量实例升级场景：
