@@ -72,6 +72,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 ### Operations
 
 - [Deployment & release](operations/deployment.md)
+- [Wiki git 同步部署](operations/wiki-git-sync.md)
 
 ### Decision records
 

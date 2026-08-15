@@ -16,7 +16,9 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
 fi
 
 # 2. 目录结构
-mkdir -p "$ROOT"/{scripts,snapshots,nginx,main/storage,dev/storage}
+#    main/dev 的 storage/wiki-git 为 wiki 同步引擎(issue #265)克隆目录:
+#    config.toml 以 :ro 挂载, clone_dir 只能放 storage 卷内
+mkdir -p "$ROOT"/{scripts,snapshots,nginx,main/storage,dev/storage,main/storage/wiki-git,dev/storage/wiki-git}
 
 # 3. 复制 compose / nginx 反代配置 / 配置模板 / 脚本(源=目标时跳过)
 copy_if_diff() {
@@ -46,8 +48,10 @@ chmod +x "$ROOT/scripts/"*.sh
 #      POSTGRES_PASSWORD 由 init 生成随机值(compose 要求非空; 部署默认 PG 主库)
 PG_PASS="$(openssl rand -hex 16)"
 MEILI_KEY="$(openssl rand -hex 16)"
+# wiki 同步 webhook 验签密钥(issue #265): 供 config.toml [wiki.git] webhook_secret 使用
+WIKI_WEBHOOK_SECRET="$(openssl rand -hex 32)"
 if [ ! -f "$ROOT/.env" ]; then
-  cat > "$ROOT/.env" <<EOF
+  cat >"$ROOT/.env" <<EOF
 MAIN_PORT=5234
 DEV_PORT=5235
 MAIN_TAG=latest
@@ -57,13 +61,14 @@ POSTGRES_USER=yourtj
 POSTGRES_PASSWORD=$PG_PASS
 POSTGRES_DB=postgres
 MEILI_MASTER_KEY=$MEILI_KEY
+WIKI_WEBHOOK_SECRET=$WIKI_WEBHOOK_SECRET
 EOF
   echo "init: $ROOT/.env created"
 else
   append_if_missing() {
     local key="$1" val="$2"
     if ! grep -q "^$key=" "$ROOT/.env"; then
-      printf '%s=%s\n' "$key" "$val" >> "$ROOT/.env"
+      printf '%s=%s\n' "$key" "$val" >>"$ROOT/.env"
       echo "init: $ROOT/.env += $key=$val"
     fi
   }
@@ -73,6 +78,7 @@ else
   append_if_missing DEV_TAG latest
   append_if_missing IMAGE_REPO ghcr.io/yourtongji/yourtj-hub
   append_if_missing MEILI_MASTER_KEY "$MEILI_KEY"
+  append_if_missing WIKI_WEBHOOK_SECRET "$WIKI_WEBHOOK_SECRET"
   append_if_missing POSTGRES_USER yourtj
   if grep -q "^POSTGRES_PASSWORD=" "$ROOT/.env" && [ -z "$(grep '^POSTGRES_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)" ]; then
     sed -i.bak -E "s/^POSTGRES_PASSWORD=.*/POSTGRES_PASSWORD=$PG_PASS/" "$ROOT/.env" && rm -f "$ROOT/.env.bak"
@@ -83,22 +89,23 @@ else
   append_if_missing POSTGRES_DB postgres
 fi
 
-
 # 5. 生成 config.toml(随机 signingKey, 域名参数化, PG DSN)
 GEN_KEY="$(openssl rand -base64 32 | tr -d '/+=' | head -c 32)"
 PG_USER="$(grep '^POSTGRES_USER=' "$ROOT/.env" | cut -d= -f2-)"
 PG_PASS="$(grep '^POSTGRES_PASSWORD=' "$ROOT/.env" | cut -d= -f2-)"
 MEILI_KEY="$(grep '^MEILI_MASTER_KEY=' "$ROOT/.env" | cut -d= -f2-)"
+WIKI_WEBHOOK_SECRET="$(grep '^WIKI_WEBHOOK_SECRET=' "$ROOT/.env" | cut -d= -f2-)"
 for inst in main dev; do
   if [ ! -f "$ROOT/$inst/config.toml" ]; then
     domain="$MAIN_DOMAIN"
     [ "$inst" = "dev" ] && domain="$DEV_DOMAIN"
     pg_dsn="host=postgres user=$PG_USER password=$PG_PASS dbname=yourtj_$inst port=5432 sslmode=disable"
     sed -e "s|REPLACE_SIGNING_KEY|$GEN_KEY|" \
-        -e "s|REPLACE_SERVER_URL|$domain|" \
-        -e "s|REPLACE_POSTGRES_DSN|$pg_dsn|" \
-        -e "s|REPLACE_MEILI_KEY|$MEILI_KEY|" \
-      "$ROOT/config.toml.example" > "$ROOT/$inst/config.toml"
+      -e "s|REPLACE_SERVER_URL|$domain|" \
+      -e "s|REPLACE_POSTGRES_DSN|$pg_dsn|" \
+      -e "s|REPLACE_MEILI_KEY|$MEILI_KEY|" \
+      -e "s|REPLACE_WIKI_WEBHOOK_SECRET|$WIKI_WEBHOOK_SECRET|" \
+      "$ROOT/config.toml.example" >"$ROOT/$inst/config.toml"
     echo "init: $ROOT/$inst/config.toml created (domain: $domain, db: yourtj_$inst)"
   fi
 done
@@ -109,6 +116,30 @@ for inst in main dev; do
   if [ -f "$ROOT/$inst/config.toml" ] && grep -qE '^\s*masterkey\s*=\s*""|^\s*masterkey\s*=\s*"REPLACE_MEILI_KEY"' "$ROOT/$inst/config.toml"; then
     sed -i.bak -E "s|^(\s*masterkey\s*=\s*)\"\"|\1\"$MEILI_KEY\"|; s|^(\s*masterkey\s*=\s*)\"REPLACE_MEILI_KEY\"|\1\"$MEILI_KEY\"|" "$ROOT/$inst/config.toml" && rm -f "$ROOT/$inst/config.toml.bak"
     echo "init: $ROOT/$inst/config.toml masterkey 已同步 .env 的 MEILI_MASTER_KEY"
+  fi
+done
+
+# 5.3 存量 config 同步 wiki webhook secret: 旧 config 无 [wiki.git] 或 secret 为
+#     空/占位符时写入 .env 的 WIKI_WEBHOOK_SECRET（幂等；已有真实值不动）
+for inst in main dev; do
+  if [ -f "$ROOT/$inst/config.toml" ]; then
+    if ! grep -q '^\s*\[wiki\.git\]' "$ROOT/$inst/config.toml"; then
+      cat >>"$ROOT/$inst/config.toml" <<EOF
+
+# Wiki 同步引擎（issue #256/#265）: git 真源克隆配置
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-git"
+webhook_secret = "$WIKI_WEBHOOK_SECRET"
+# 默认每日 03:00，需与现有 03:03-03:10 的定时任务错峰
+schedule = "0 3 * * *"
+EOF
+      echo "init: $ROOT/$inst/config.toml += [wiki.git] (webhook_secret 注入)"
+    elif grep -qE '^\s*webhook_secret\s*=\s*""|^\s*webhook_secret\s*=\s*"REPLACE_WIKI_WEBHOOK_SECRET"' "$ROOT/$inst/config.toml"; then
+      sed -i.bak -E "s|^(\s*webhook_secret\s*=\s*)\"\"|\1\"$WIKI_WEBHOOK_SECRET\"|; s|^(\s*webhook_secret\s*=\s*)\"REPLACE_WIKI_WEBHOOK_SECRET\"|\1\"$WIKI_WEBHOOK_SECRET\"|" "$ROOT/$inst/config.toml" && rm -f "$ROOT/$inst/config.toml.bak"
+      echo "init: $ROOT/$inst/config.toml webhook_secret 已同步 .env 的 WIKI_WEBHOOK_SECRET"
+    fi
   fi
 done
 
@@ -128,8 +159,6 @@ for pgdb in yourtj_main yourtj_dev; do
     echo "init: postgres database $pgdb exists"
   fi
 done
-
-
 
 # 6. 权限: 宿主部署用户 yourtj uid=1000 与容器内 app uid=1000 一致,
 #    整体交给 1000:1000, 保证 CI 可写、容器可写 storage

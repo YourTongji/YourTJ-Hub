@@ -78,9 +78,11 @@
   main/
     config.toml           # production config (signingKey, db path) — never in git
     storage/              # file.db + logs (uid 1000); PG 部署时 sqlite.db 不产生
+    storage/wiki-git/     # wiki 同步引擎克隆目录(issue #265, init-server.sh 预创建)
   dev/
     config.toml           # dev config
     storage/
+    storage/wiki-git/
   snapshots/
     main/pg-*.sql         # pre-deploy pg_dump backups (keep 7) — PostgreSQL 部署
 ```

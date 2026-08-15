@@ -28,12 +28,14 @@ var configTempl []byte
 
 func GenerateConfig() ([]byte, error) {
 	signingKey := algorithm.SafeGenerateSigningKey(32)
+	wikiWebhookSecret := algorithm.SafeGenerateSigningKey(32)
 
 	var b bytes.Buffer
 	t := template.New("config.templ.toml")
 	t = template.Must(t.Parse(string(configTempl)))
 	err := t.Execute(&b, map[string]any{
-		"SigningKey": signingKey,
+		"SigningKey":        signingKey,
+		"WikiWebhookSecret": wikiWebhookSecret,
 	})
 	if err != nil {
 		return nil, err

@@ -1,7 +1,8 @@
 # yourtj-hub 单二进制运行镜像(前端已 go:embed 进二进制)
 FROM alpine:3.20
 
-RUN apk add --no-cache ca-certificates tzdata \
+# git: wiki 同步引擎(issue #256/#265) 运行时依赖, 克隆/拉取 wiki 真源仓库(约 +10MB)
+RUN apk add --no-cache ca-certificates tzdata git \
     && adduser -D -u 1000 app
 
 WORKDIR /app

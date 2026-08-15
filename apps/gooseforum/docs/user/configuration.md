@@ -130,6 +130,23 @@ client_secret = ""                # GitHub OAuth App Client Secret
 - 需要在 GitHub Settings > Developer settings > OAuth Apps 创建应用
 - Authorization callback URL: `https://yourdomain.com/api/oauth/github/callback`
 
+### [wiki.git] Wiki 同步配置（issue #265）
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-git"
+webhook_secret = "<随机值>"
+schedule = "0 3 * * *"
+```
+
+**配置说明：**
+- `repo` / `branch`: wiki 内容真源仓库与同步分支（同步引擎 issue #260 消费）
+- `clone_dir`: 仓库克隆目录，需落在可写卷（容器内 `config.toml` 以 `:ro` 挂载，放 `storage` 卷）
+- `webhook_secret`: webhook 验签密钥（issue #261 消费）；本地自动生成，部署由 `init-server.sh` 注入
+- `schedule`: 轮询兜底 cron，默认每日 03:00（与 03:03-03:10 的定时任务错峰）
+
 ## 🔄 配置文件热重载
 
 GooseForum 支持配置文件热重载，修改 `config.toml` 文件后无需重启服务即可生效（部分配置除外）。

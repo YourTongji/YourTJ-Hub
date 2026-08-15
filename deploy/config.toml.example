@@ -75,6 +75,18 @@ slowSQLThreshold = "200ms"
 client_id = ""
 client_secret = ""
 
+# Wiki 同步引擎（issue #256/#265）：git 仓库是 wiki 内容真源，同步引擎（issue #260）克隆/拉取后
+# 写为只读投影，webhook（issue #261）用 webhook_secret 验签。init-server.sh 用 openssl rand 生成
+# 随机 secret 替换 REPLACE_WIKI_WEBHOOK_SECRET（.env 的 WIKI_WEBHOOK_SECRET）。
+# clone_dir 落在 storage 卷（容器内 config.toml 以 :ro 挂载，storage 才是可写卷）。
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-git"
+webhook_secret = "REPLACE_WIKI_WEBHOOK_SECRET"
+# 默认每日 03:00，需与现有 03:03-03:10 的定时任务错峰
+schedule = "0 3 * * *"
+
 [oidc]
 enabled = false
 # issuer 默认取 site_url + /api/oauth；显式配置可覆盖

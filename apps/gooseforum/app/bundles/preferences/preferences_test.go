@@ -1,10 +1,35 @@
 package preferences
 
-import "testing"
+import (
+	"strings"
+	"testing"
+)
 
 func TestSpliceConfig(t *testing.T) {
 	if got := GetIntSlice("missing.list"); len(got) != 0 {
 		t.Fatalf("GetIntSlice() = %v, want empty slice for missing key", got)
+	}
+}
+
+// issue #265: GenerateConfig 必须产出 [wiki.git] 段，且 webhook_secret
+// 模板占位符被解析为随机值（不得残留 {{.WikiWebhookSecret}} 或空串）。
+func TestGenerateConfigIncludesWikiGit(t *testing.T) {
+	cfg, err := GenerateConfig()
+	if err != nil {
+		t.Fatalf("GenerateConfig() error: %v", err)
+	}
+	s := string(cfg)
+	if !strings.Contains(s, "[wiki.git]") {
+		t.Fatal("generated config missing [wiki.git] section")
+	}
+	if !strings.Contains(s, `clone_dir = "./storage/wiki-git"`) {
+		t.Fatal("generated config missing wiki.git clone_dir")
+	}
+	if strings.Contains(s, "{{.WikiWebhookSecret}}") {
+		t.Fatal("generated config left wiki.git webhook_secret placeholder unresolved")
+	}
+	if strings.Contains(s, `webhook_secret = ""`) {
+		t.Fatal("generated config has empty wiki.git webhook_secret")
 	}
 }
 
