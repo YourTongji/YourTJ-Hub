@@ -1921,6 +1921,7 @@ export default {
     'wiki.namespace.notFound': '命名空间不存在。',
     'wiki.namespace.hasPages': '该命名空间下仍有页面，无法删除。',
     'wiki.namespace.nameInvalid': '命名空间名称不合法（仅支持小写字母、数字和连字符）。',
+    'wiki.namespace.nameConflict': '该命名空间已存在。',
     'wiki.path.invalid': 'Wiki 路径不合法。',
     'wiki.page.notFound': 'Wiki 页面不存在。',
     'wiki.page.hasChildren': '该页面存在子页面，无法删除。',

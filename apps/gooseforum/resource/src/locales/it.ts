@@ -1921,6 +1921,7 @@ export default {
     'wiki.namespace.notFound': 'Namespace non trovato.',
     'wiki.namespace.hasPages': 'Il namespace contiene ancora pagine e non può essere eliminato.',
     'wiki.namespace.nameInvalid': 'Nome namespace non valido (solo lettere minuscole, cifre e trattini).',
+    'wiki.namespace.nameConflict': 'Il namespace esiste già.',
     'wiki.path.invalid': 'Percorso wiki non valido.',
     'wiki.page.notFound': 'Pagina wiki non trovata.',
     'wiki.page.hasChildren': 'La pagina ha sottopagine e non può essere eliminata.',

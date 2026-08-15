@@ -7,6 +7,8 @@ describe('isValidNamespaceName（与后端 wikiservice.ValidateNamespace 对齐�
     expect(isValidNamespaceName('deploy')).toBe(true)
     expect(isValidNamespaceName('getting-started')).toBe(true)
     expect(isValidNamespaceName('v2-docs-2026')).toBe(true)
+    expect(isValidNamespaceName('1guide')).toBe(true)
+    expect(isValidNamespaceName('2026')).toBe(true)
   })
 
   test('大写输入按小写归一后通过', () => {
@@ -19,13 +21,15 @@ describe('isValidNamespaceName（与后端 wikiservice.ValidateNamespace 对齐�
     expect(isValidNamespaceName('  guide  ')).toBe(true)
   })
 
-  test('拒绝中文、下划线、点号、空格、斜杠、连续连字符', () => {
+  test('拒绝中文、下划线、点号、空格、斜杠、连字符边界非法', () => {
     expect(isValidNamespaceName('使用指南')).toBe(false)
     expect(isValidNamespaceName('My_Namespace')).toBe(false)
     expect(isValidNamespaceName('my.name')).toBe(false)
     expect(isValidNamespaceName('my namespace')).toBe(false)
     expect(isValidNamespaceName('my/namespace')).toBe(false)
     expect(isValidNamespaceName('my--ns')).toBe(false)
+    expect(isValidNamespaceName('-guide')).toBe(false)
+    expect(isValidNamespaceName('guide-')).toBe(false)
   })
 
   test('拒绝空值与超长名称', () => {
