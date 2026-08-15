@@ -31,6 +31,19 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   `POST /api/forum/topics/watch`, `POST /api/forum/posts/like`,
   `POST /api/forum/posts/bookmark`, `POST /api/forum/follow-user`, and
   `POST /api/forum/report`;
+- user account and identity (issue #277 P2): `GET /api/get-captcha`,
+  `GET /api/user-card`, `POST /api/set-user-info`,
+  `POST /api/set-user-profile-cover`, `POST /api/set-user-email`,
+  `POST /api/resend-activation-email`, `POST /api/set-user-name`,
+  `POST /api/set-preset-avatar`, `POST /api/wear-badge`,
+  `POST /api/upload-avatar`, `POST /api/change-password`,
+  `GET /api/oauth/bindings`, and `POST /api/auth/{provider}/unbind`;
+- notifications, unread state, and chat (issue #277 P2):
+  `GET /api/forum/unread-status`, `GET /api/forum/notifications`,
+  `POST /api/forum/notification/mark-read`,
+  `POST /api/forum/notification/mark-all-read`,
+  `POST /api/forum/chat/send`, `POST /api/forum/chat/messages`, and
+  `POST /api/forum/chat/mark-read`;
 - `GET /api/user/sessions`;
 - `POST /api/user/sessions/revoke`;
 - `POST /api/user/sessions/revoke-all`;

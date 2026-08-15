@@ -10,3 +10,5 @@ rules:
 # Same for the parameterless PK GET endpoints (`pkListCalendars` / `pkListCampuses` /
 # `pkListFaculties` / `pkGetLatestUpdate`): they take no input and only fail with 500 on internal
 # error, so they intentionally keep the `operation-4xx-response` warning.
+# `getCaptcha` is likewise a parameterless fully-public GET with no documented failure branch
+# (see paths/user-account.yaml) and intentionally keeps the same warning.

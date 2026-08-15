@@ -1,0 +1,189 @@
+getUnreadStatus:
+  get:
+    tags: [Forum]
+    summary: Read the caller's unread status flags
+    operationId: getUnreadStatus
+    description: |
+      Lightweight polling endpoint (mounts NoUpdateUserActivity, so polling does
+      not extend the caller's online presence). Reports unread notifications,
+      unread chat messages, and open moderation reports; latestNotificationType is
+      present only when an unread notification exists.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Unread status flags.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UnreadStatusResponse
+            examples:
+              success:
+                externalValue: ../fixtures/unread-status-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/unread-status-unauthenticated.json
+
+getNotifications:
+  get:
+    tags: [Forum]
+    summary: List the caller's notifications with cursor pagination
+    operationId: getNotifications
+    description: |
+      Cursor-paginated notification feed (mounts NoUpdateUserActivity). Query
+      binding is strict: malformed values fail with HTTP 400 and
+      `common.request.parseFailed`. A filter outside ""/all/unread fails with
+      `common.request.invalidParams` (HTTP 200). limit <= 0 falls back to 20 and
+      values above 50 clamp to 50. A service-side query failure surfaces as HTTP
+      200 `common.request.parseFailed` with params error. Pass the returned
+      nextCursor as cursor for the next (older) page.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: filter
+        in: query
+        schema:
+          type: string
+          enum: ['', all, unread]
+          description: Empty or `all` returns every notification, `unread` restricts to unread ones; any other value fails with `common.request.invalidParams` (HTTP 200).
+      - name: cursor
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 0
+          description: Return notifications older than this notification id; omit or send 0 for the newest page.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          description: Page size; values <= 0 fall back to 20 and values above 50 clamp to 50.
+    responses:
+      '200':
+        description: Notification page, or a legacy business failure envelope (`common.request.invalidParams` / `common.request.parseFailed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/NotificationListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/notifications-success.json
+              invalidFilter:
+                externalValue: ../fixtures/notifications-invalid-filter.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/notifications-parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/notifications-unauthenticated.json
+
+markNotificationRead:
+  post:
+    tags: [Forum]
+    summary: Mark one notification as read
+    operationId: markNotificationRead
+    description: |
+      Marks a single notification of the caller as read. Note the update carries a
+      user_id condition, so marking someone else's or a nonexistent id silently
+      succeeds (zero rows updated is not an error). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because notificationId is required.
+      Business failure: `notification.markRead.failed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/MarkNotificationReadRequest
+    responses:
+      '200':
+        description: Notification marked read, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/NotificationMarkReadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/notification-mark-read-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/notification-mark-read-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/notification-mark-read-forbidden.json
+
+markAllNotificationsRead:
+  post:
+    tags: [Forum]
+    summary: Mark all of the caller's notifications as read
+    operationId: markAllNotificationsRead
+    description: |
+      Marks every notification of the caller as read and invalidates the cached
+      unread status. The request takes no body. Business failure:
+      `notification.markAllRead.failed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All notifications marked read, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/NotificationMarkAllReadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/notification-mark-all-read-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/notification-mark-all-read-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/notification-mark-all-read-forbidden.json

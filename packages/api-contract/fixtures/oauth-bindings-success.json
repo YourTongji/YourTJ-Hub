@@ -1,0 +1,14 @@
+{
+  "result": {
+    "github": {
+      "bound": true,
+      "provider": "github",
+      "createdAt": "2025-10-02T09:30:00Z",
+      "updatedAt": "2025-10-02T09:30:00Z"
+    },
+    "google": {
+      "bound": false
+    }
+  },
+  "code": 0
+}

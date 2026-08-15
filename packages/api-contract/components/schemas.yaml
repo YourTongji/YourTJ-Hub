@@ -3377,3 +3377,829 @@ WikiWebhookFailure:
     error:
       type: string
   additionalProperties: false
+
+
+# ================= User account / notifications / chat（Issue #277 P2）=================
+
+CaptchaResult:
+  type: object
+  required: [captchaId, captchaImg]
+  properties:
+    captchaId:
+      type: string
+      minLength: 1
+      description: Captcha challenge id; echoed back as captchaId on captcha-guarded writes.
+    captchaImg:
+      type: string
+      minLength: 1
+      description: Captcha image as a `data:image/png;base64` data URI, renderable directly in an <img> element.
+  additionalProperties: false
+
+CaptchaSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/CaptchaResult'
+
+ExternalInformationItem:
+  type: object
+  required: [link]
+  properties:
+    link:
+      type: string
+      description: External profile URL; empty when unset.
+  additionalProperties: false
+
+ExternalInformation:
+  type: object
+  required: [github, weibo, bilibili, twitter, linkedIn, zhihu]
+  properties:
+    github:
+      $ref: '#/ExternalInformationItem'
+    weibo:
+      $ref: '#/ExternalInformationItem'
+    bilibili:
+      $ref: '#/ExternalInformationItem'
+    twitter:
+      $ref: '#/ExternalInformationItem'
+    linkedIn:
+      $ref: '#/ExternalInformationItem'
+    zhihu:
+      $ref: '#/ExternalInformationItem'
+  additionalProperties: false
+
+UserBadge:
+  type: object
+  required: [code, type, grantMode, name, description, iconType, iconKey, iconUrl, color, level, isEnabled, isWearable, sortOrder, source, reason, grantedAt]
+  properties:
+    code:
+      type: string
+    type:
+      type: string
+    grantMode:
+      type: string
+    name:
+      type: string
+    description:
+      type: string
+    iconType:
+      type: string
+    iconKey:
+      type: string
+    iconUrl:
+      type: string
+    color:
+      type: string
+    level:
+      type: string
+    isEnabled:
+      type: boolean
+    isWearable:
+      type: boolean
+    sortOrder:
+      type: integer
+    source:
+      type: string
+      description: How the badge was granted (system or manual).
+    reason:
+      type: string
+    grantedAt:
+      type: string
+      description: Grant time in RFC 3339 format.
+  additionalProperties: false
+
+UserCard:
+  type: object
+  required: [userId, username, nickname, avatarUrl, profileCoverUrl, bio, signature, websiteName, website, prestige, isAdmin, topicCount, replyCount, likeReceivedCount, likeGivenCount, followerCount, followingCount, collectionCount, isOnline, isFollowing, externalInformation, isSelf, badges, lastActiveTime, createdAt, isAccountClosed]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    nickname:
+      type: string
+    avatarUrl:
+      type: string
+    profileCoverUrl:
+      type: string
+    bio:
+      type: string
+    signature:
+      type: string
+    websiteName:
+      type: string
+    website:
+      type: string
+    prestige:
+      type: integer
+      format: int64
+    isAdmin:
+      type: boolean
+    topicCount:
+      type: integer
+      minimum: 0
+    replyCount:
+      type: integer
+      minimum: 0
+    likeReceivedCount:
+      type: integer
+      minimum: 0
+    likeGivenCount:
+      type: integer
+      minimum: 0
+    followerCount:
+      type: integer
+      minimum: 0
+    followingCount:
+      type: integer
+      minimum: 0
+    collectionCount:
+      type: integer
+      minimum: 0
+    isOnline:
+      type: boolean
+    isFollowing:
+      type: boolean
+      description: Viewer-specific; always false on this route because the route group mounts no JWT middleware.
+    externalInformation:
+      $ref: '#/ExternalInformation'
+    isSelf:
+      type: boolean
+      description: Viewer-specific; always false on this route because the route group mounts no JWT middleware.
+    badges:
+      type: array
+      items:
+        $ref: '#/UserBadge'
+      description: Always an array (empty when the user holds no badges), never null.
+    wornBadge:
+      $ref: '#/UserBadge'
+    lastActiveTime:
+      type: string
+      format: date-time
+    createdAt:
+      type: string
+      format: date-time
+      description: Account creation time in RFC 3339 format.
+    isAccountClosed:
+      type: boolean
+      description: True renders the tombstone card of a closed (soft-deleted) account; the other fields then carry zero values.
+  additionalProperties: false
+
+UserCardSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/UserCard'
+
+UserCardResponse:
+  oneOf:
+    - $ref: '#/UserCardSuccess'
+    - $ref: '#/ApiFailure'
+
+UserUpdateSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 更新成功
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: user.updateSuccess
+
+UserUpdateResponse:
+  oneOf:
+    - $ref: '#/UserUpdateSuccess'
+    - $ref: '#/ApiFailure'
+
+SetUserInfoRequest:
+  type: object
+  properties:
+    nickname:
+      type: string
+    bio:
+      type: string
+      description: Full-overwrite semantics; an empty string clears the field.
+    signature:
+      type: string
+      description: Full-overwrite semantics; an empty string clears the field.
+    website:
+      type: string
+    websiteName:
+      type: string
+    locale:
+      type: string
+      description: UI locale; only applied when non-empty after trimming.
+    externalInformation:
+      $ref: '#/ExternalInformation'
+  additionalProperties: false
+
+SetUserProfileCoverRequest:
+  type: object
+  properties:
+    profileCoverUrl:
+      type: string
+      description: Cover image URL; trimmed server-side, an empty string clears the cover.
+  additionalProperties: false
+
+SetUserEmailRequest:
+  type: object
+  required: [email, password]
+  properties:
+    email:
+      type: string
+      format: email
+      description: New email address; lower-cased and trimmed server-side.
+    password:
+      type: string
+      minLength: 1
+      description: Current account password as second-factor confirmation.
+  additionalProperties: false
+
+ResendActivationResult:
+  type: object
+  required: [remainingToday]
+  properties:
+    remainingToday:
+      type: integer
+      minimum: 0
+      description: Remaining activation-email resends allowed today (daily limit 3).
+  additionalProperties: false
+
+ResendActivationSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode, params]
+      properties:
+        result:
+          $ref: '#/ResendActivationResult'
+        messageCode:
+          type: string
+          const: auth.activation.resendSuccess
+        params:
+          type: object
+          required: [remainingToday]
+          properties:
+            remainingToday:
+              type: integer
+              minimum: 0
+          additionalProperties: true
+
+ResendActivationResponse:
+  oneOf:
+    - $ref: '#/ResendActivationSuccess'
+    - $ref: '#/ApiFailure'
+
+SetUserNameRequest:
+  type: object
+  required: [username]
+  properties:
+    username:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]{6,32}$'
+      description: New username; values outside the pattern fail with `auth.username.invalid` (HTTP 200).
+  additionalProperties: false
+
+SetPresetAvatarRequest:
+  type: object
+  required: [avatarUrl]
+  properties:
+    avatarUrl:
+      type: string
+      enum:
+        - /static/pic/1.webp
+        - /static/pic/2.webp
+        - /static/pic/3.webp
+        - /static/pic/4.webp
+        - /static/pic/5.webp
+        - /static/pic/6.webp
+        - /static/pic/7.webp
+        - /static/pic/8.webp
+        - /static/pic/9.webp
+        - /static/pic/10.webp
+        - /static/pic/11.webp
+        - /static/pic/12.webp
+      description: Built-in preset avatar; any other value fails with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+PresetAvatarResult:
+  type: object
+  required: [avatarUrl]
+  properties:
+    avatarUrl:
+      type: string
+      description: Web URL of the applied preset avatar.
+  additionalProperties: false
+
+PresetAvatarSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PresetAvatarResult'
+
+PresetAvatarResponse:
+  oneOf:
+    - $ref: '#/PresetAvatarSuccess'
+    - $ref: '#/ApiFailure'
+
+WearBadgeRequest:
+  type: object
+  properties:
+    badgeCode:
+      type: string
+      description: Badge to wear; an empty string (or omitted field) takes the current badge off. Unknown or not-owned codes fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+UploadAvatarRequest:
+  type: object
+  required: [avatar]
+  properties:
+    avatar:
+      type: string
+      format: binary
+      description: Primary avatar image file.
+    avatarMedium:
+      type: string
+      format: binary
+      description: Optional pre-cropped medium avatar; when present the server stores both files and returns avatarMediumUrl.
+  additionalProperties: false
+
+UploadAvatarResult:
+  type: object
+  required: [avatarUrl]
+  properties:
+    avatarUrl:
+      type: string
+    avatarMediumUrl:
+      type: string
+      description: Present only when an avatarMedium file was uploaded.
+  additionalProperties: false
+
+UploadAvatarSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          $ref: '#/UploadAvatarResult'
+        messageCode:
+          type: string
+          const: upload.success
+
+UploadAvatarResponse:
+  oneOf:
+    - $ref: '#/UploadAvatarSuccess'
+    - $ref: '#/ApiFailure'
+
+ChangePasswordRequest:
+  type: object
+  required: [oldPassword, newPassword]
+  properties:
+    oldPassword:
+      type: string
+      minLength: 1
+      description: Current password; a wrong value fails with `auth.password.oldInvalid` (HTTP 200).
+    newPassword:
+      type: string
+      minLength: 1
+      description: 6-64 characters containing at least one letter and one digit; violations fail with `auth.password.tooShort` (params minLength) / `auth.password.tooLong` / `auth.password.needsLetterNumber` (HTTP 200).
+  additionalProperties: false
+
+ChangePasswordSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 密码修改成功
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: auth.password.updateSuccess
+
+ChangePasswordResponse:
+  oneOf:
+    - $ref: '#/ChangePasswordSuccess'
+    - $ref: '#/ApiFailure'
+
+OAuthBinding:
+  oneOf:
+    - type: object
+      required: [bound, provider, createdAt, updatedAt]
+      properties:
+        bound:
+          type: boolean
+          const: true
+        provider:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        updatedAt:
+          type: string
+          format: date-time
+      additionalProperties: false
+    - type: object
+      required: [bound]
+      properties:
+        bound:
+          type: boolean
+          const: false
+      additionalProperties: false
+
+OAuthBindingsResult:
+  type: object
+  required: [github, google]
+  properties:
+    github:
+      $ref: '#/OAuthBinding'
+    google:
+      $ref: '#/OAuthBinding'
+  additionalProperties: false
+  description: Binding state keyed by provider; the response always carries the fixed github and google keys.
+
+OAuthBindingsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/OAuthBindingsResult'
+
+OAuthBindingsResponse:
+  oneOf:
+    - $ref: '#/OAuthBindingsSuccess'
+    - $ref: '#/ApiFailure'
+
+UnbindOAuthSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode, params]
+      properties:
+        result:
+          type: string
+          const: 解绑成功
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: oauth.unbind.success
+        params:
+          type: object
+          required: [provider]
+          properties:
+            provider:
+              type: string
+          additionalProperties: true
+
+UnbindOAuthResponse:
+  oneOf:
+    - $ref: '#/UnbindOAuthSuccess'
+    - $ref: '#/ApiFailure'
+
+UnreadStatusResult:
+  type: object
+  required: [notifications, messages, moderationReports]
+  properties:
+    notifications:
+      type: boolean
+      description: True when the user has unread notifications.
+    messages:
+      type: boolean
+      description: True when the user has unread chat messages.
+    moderationReports:
+      type: boolean
+      description: True when the user has open moderation reports.
+    latestNotificationType:
+      type: string
+      description: Event type of the latest unread notification; omitted when there are no unread notifications.
+  additionalProperties: false
+
+UnreadStatusSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/UnreadStatusResult'
+
+UnreadStatusResponse:
+  oneOf:
+    - $ref: '#/UnreadStatusSuccess'
+    - $ref: '#/ApiFailure'
+
+NotificationTopicRef:
+  type: object
+  required: [id, title, url]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    title:
+      type: string
+    url:
+      type: string
+  additionalProperties: false
+
+NotificationPayload:
+  type: object
+  required: [id, eventType, isRead, createdAt, title, content, actor, payload]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    eventType:
+      type: string
+      description: Notification event type (for example reply/like/system); the payload shape varies with it.
+    isRead:
+      type: boolean
+    createdAt:
+      type: string
+      description: Notification creation time in RFC 3339 format.
+    title:
+      type: string
+    content:
+      type: string
+    actor:
+      $ref: '#/TopicAuthorPayload'
+    topic:
+      $ref: '#/NotificationTopicRef'
+    payload:
+      type: object
+      additionalProperties: true
+      description: Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType.
+  additionalProperties: false
+
+NotificationListResult:
+  type: object
+  required: [items, nextCursor, hasNext, unreadCount]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/NotificationPayload'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Cursor for the next (older) page; 0 when no further page exists.
+    hasNext:
+      type: boolean
+    unreadCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total unread notification count of the caller, independent of the current filter.
+  additionalProperties: false
+
+NotificationListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/NotificationListResult'
+
+NotificationListResponse:
+  oneOf:
+    - $ref: '#/NotificationListSuccess'
+    - $ref: '#/ApiFailure'
+
+MarkNotificationReadRequest:
+  type: object
+  required: [notificationId]
+  properties:
+    notificationId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+NotificationMarkReadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 标记已读成功
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: notification.markRead.success
+
+NotificationMarkReadResponse:
+  oneOf:
+    - $ref: '#/NotificationMarkReadSuccess'
+    - $ref: '#/ApiFailure'
+
+NotificationMarkAllReadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 标记全部已读成功
+          description: Human-readable success message; messageCode is the stable identifier.
+        messageCode:
+          type: string
+          const: notification.markAllRead.success
+
+NotificationMarkAllReadResponse:
+  oneOf:
+    - $ref: '#/NotificationMarkAllReadSuccess'
+    - $ref: '#/ApiFailure'
+
+SendChatMessageRequest:
+  type: object
+  required: [peerId, content, msgType]
+  properties:
+    peerId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
+    content:
+      type: string
+      minLength: 1
+      description: Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params word).
+    msgType:
+      type: integer
+      enum: [1, 2, 3]
+      description: 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+SendChatMessageResult:
+  type: object
+  required: [convId]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Conversation id the message was stored under; reuse it for messages/mark-read.
+  additionalProperties: false
+
+SendChatMessageSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/SendChatMessageResult'
+
+SendChatMessageResponse:
+  oneOf:
+    - $ref: '#/SendChatMessageSuccess'
+    - $ref: '#/ApiFailure'
+
+GetChatMessagesRequest:
+  type: object
+  required: [convId]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target conversation; non-members and unknown ids fail with `chat.messages.failed` (HTTP 200) without revealing which case matched.
+    beforeId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Return the page of messages older than this message id; mutually exclusive with afterId. 0 is treated as omitted.
+    afterId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Return the page of messages newer than this message id; mutually exclusive with beforeId. 0 is treated as omitted.
+    limit:
+      type: integer
+      minimum: 1
+      maximum: 100
+      description: Page size; omitted or 0 falls back to the server default (30), values above 100 fail validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+ChatMessageVo:
+  type: object
+  required: [id, senderId, content, msgType, isRead, createdAt, isSelf]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    senderId:
+      type: integer
+      format: uint64
+      minimum: 1
+    content:
+      type: string
+    msgType:
+      type: integer
+      enum: [1, 2, 3]
+      description: 1 text, 2 image, 3 voice.
+    isRead:
+      type: integer
+      enum: [0, 1]
+      description: Numeric read flag (0 unread, 1 read), not a boolean.
+    createdAt:
+      type: string
+      description: Message creation time in RFC 3339 format.
+    isSelf:
+      type: boolean
+      description: True when the caller sent this message.
+  additionalProperties: false
+
+ChatMessagesResult:
+  type: object
+  required: [list, hasMoreBefore, hasMoreAfter, nextBeforeId, latestId]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/ChatMessageVo'
+      description: Ascending by message id within the page.
+    hasMoreBefore:
+      type: boolean
+      description: True when older messages exist beyond this page (only meaningful for latest/beforeId reads).
+    hasMoreAfter:
+      type: boolean
+      description: True when newer messages exist beyond this page (only set for afterId reads).
+    nextBeforeId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Id of the oldest returned message; pass as beforeId for the next older page. 0 when the page is empty.
+    latestId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Id of the newest returned message. 0 when the page is empty.
+  additionalProperties: false
+
+ChatMessagesSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ChatMessagesResult'
+
+ChatMessagesResponse:
+  oneOf:
+    - $ref: '#/ChatMessagesSuccess'
+    - $ref: '#/ApiFailure'
+
+MarkChatReadRequest:
+  type: object
+  required: [convId]
+  properties:
+    convId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Conversation to clear; non-members and unknown ids fail with `chat.markRead.failed` (HTTP 200) without revealing which case matched.
+  additionalProperties: false
+
+ChatMarkReadSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: 'null'
+          description: The success envelope carries no payload (result is null and no messageCode is emitted).
+
+ChatMarkReadResponse:
+  oneOf:
+    - $ref: '#/ChatMarkReadSuccess'
+    - $ref: '#/ApiFailure'

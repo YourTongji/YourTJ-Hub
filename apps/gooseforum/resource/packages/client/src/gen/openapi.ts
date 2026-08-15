@@ -797,6 +797,525 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/get-captcha": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Generate a captcha challenge
+         * @description Fully public endpoint: no authentication, no rate limit, no input. Returns a
+         *     fresh captcha id plus the image as a `data:image/png;base64` data URI. The id
+         *     is echoed back as captchaId on captcha-guarded operations (for example
+         *     posts/create when risk controls request a captcha). This endpoint has no
+         *     business failure branch.
+         */
+        get: operations["getCaptcha"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/user-card": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the compact public profile card of a user
+         * @description Public read endpoint with no rate limit. Note the route group mounts no JWT
+         *     middleware, so the viewer-specific flags isSelf and isFollowing are always
+         *     false. Query binding is strict: a missing or non-numeric userId fails with
+         *     HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
+         *     `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
+         *     successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
+         *     remaining fields zero-valued).
+         */
+        get: operations["getUserCard"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-info": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update the caller's profile fields
+         * @description Full-overwrite update of nickname/bio/signature/website/websiteName/
+         *     externalInformation; every field is optional in the request, and bio/signature
+         *     accept an empty string to clear the stored value. locale is applied only when
+         *     non-empty after trimming. JSON binding is lenient: a malformed body binds to
+         *     zero values and still succeeds as an all-empty overwrite. Business failures:
+         *     `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setUserInfo"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-profile-cover": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update the caller's profile cover image
+         * @description Sets the profile cover URL (trimmed server-side; an empty string clears the
+         *     cover). Accounts with RoleId 0 are rejected with `permission.denied` (HTTP
+         *     200). JSON binding is lenient: a malformed body binds to zero values and
+         *     clears the cover. Other business failures: `user.fetchFailed`,
+         *     `user.updateFailed`.
+         */
+        post: operations["setUserProfileCover"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's email address
+         * @description Changes the account email behind a password second-factor check. On success
+         *     the account activation state flips back to pending, an activation email is
+         *     sent to the new address, a change notification is queued to the old address,
+         *     and the new address cannot be used for forgot-password within 24 hours of the
+         *     change (EmailChangedAt cooldown). JSON binding is lenient: a malformed body
+         *     binds to zero values and fails validation as `common.request.invalidParams`
+         *     (HTTP 200). Business failures: `common.request.invalidParams`,
+         *     `auth.password.oldInvalid`, `auth.password.oauthRequired` (OAuth-only account
+         *     without a password), `auth.emailDomain.notAllowed`, `auth.email.exists`,
+         *     `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setUserEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/resend-activation-email": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resend the account activation email
+         * @description Resends the activation email to the caller's pending-verification address.
+         *     The route mounts no rate-limit middleware; throttling is enforced inside the
+         *     service and surfaces as business failure codes: `auth.activation.disabled`
+         *     (site-wide email verification off), `auth.activation.alreadyVerified`,
+         *     `auth.activation.resendCooldown` (params retryAfterSeconds),
+         *     `auth.activation.resendDaily` (params limit, daily cap 3) and
+         *     `auth.activation.resendFailed`. The request takes no body.
+         */
+        post: operations["resendActivationEmail"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-user-name": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's username
+         * @description Renames the account. The new username must match `^[a-zA-Z0-9_-]{6,32}$`
+         *     (`auth.username.invalid`) and survives the reserved/banned lists
+         *     (`auth.username.reserved` / `auth.username.banned`) and the uniqueness check
+         *     (`auth.username.exists`). JSON binding is lenient: a malformed body binds to
+         *     zero values and fails validation as `common.request.invalidParams` (HTTP 200)
+         *     because username is required. Other business failures: `user.fetchFailed`,
+         *     `user.updateFailed`.
+         */
+        post: operations["setUserName"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/set-preset-avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Switch the caller to a built-in preset avatar
+         * @description Applies one of the twelve built-in avatars (/static/pic/1.webp through
+         *     /static/pic/12.webp); any other value fails with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation the same way because
+         *     avatarUrl is required. The success envelope carries no messageCode. Other
+         *     business failures: `user.fetchFailed`, `user.updateFailed`.
+         */
+        post: operations["setPresetAvatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/wear-badge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Wear or take off a badge
+         * @description Pins one of the caller's granted badges on the profile; an empty (or omitted)
+         *     badgeCode takes the current badge off. Every rejection — unknown code, badge
+         *     not owned, badge not wearable — collapses into `common.request.invalidParams`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values and
+         *     takes the badge off.
+         */
+        post: operations["wearBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/upload-avatar": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload a custom avatar image
+         * @description Multipart upload of a custom avatar. The `avatar` file part is required;
+         *     `avatarMedium` is an optional pre-cropped medium file stored alongside.
+         *     Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown`
+         *     (new-account upload cooldown, params minutes/availableAt),
+         *     `upload.file.missing`, `upload.filename.required`,
+         *     `upload.dailyLimit.avatar` (params count/fileCount), `upload.file.tooLarge`
+         *     (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+         *     `upload.image.unsupported`, `upload.image.invalidContent`,
+         *     `upload.saveFailed` (params error). Frozen accounts are rejected by the
+         *     route-level CheckWritableAccount middleware with the standard params
+         *     action=写入 / actionCode=write (the controller's own 上传附件 /
+         *     uploadAttachment permission check is unreachable behind that middleware).
+         *     When the site mandates verified email, the same controller check can
+         *     reject pending-activation accounts with HTTP 403 `permission.emailRequired`.
+         */
+        post: operations["uploadAvatar"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/change-password": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Change the caller's password
+         * @description Changes the account password. On success the account TokenVersion increments,
+         *     so every previously issued JWT — including the one used for this request —
+         *     is immediately invalid and no replacement token is minted; the client must log
+         *     in again. The new password must be 6-64 characters and contain at least one
+         *     letter and one digit (`auth.password.tooShort` params minLength=6,
+         *     `auth.password.tooLong`, `auth.password.needsLetterNumber`). Bot (Agent)
+         *     accounts are rejected with `auth.password.oldInvalid`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because both fields are required.
+         *     Other business failures: `auth.password.oldInvalid`,
+         *     `auth.password.updateFailed`.
+         */
+        post: operations["changePassword"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/oauth/bindings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's OAuth bindings
+         * @description Read-only endpoint guarded by authentication only (no writable-account
+         *     check), so frozen accounts can still read their binding state. The result is
+         *     keyed by provider and always carries the fixed github and google entries; a
+         *     bound entry includes provider/createdAt/updatedAt, an unbound entry is just
+         *     `{bound: false}`.
+         */
+        get: operations["getOAuthBindings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/auth/{provider}/unbind": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unbind an OAuth provider from the caller's account
+         * @description Removes the OAuth binding named by the provider path parameter (the value is
+         *     not validated against a provider list). Unbinding the last remaining login
+         *     method — an account without an email address whose other OAuth bindings count
+         *     to zero — is refused, and any service-side failure surfaces as HTTP 200
+         *     `oauth.unbind.failed` with params error/provider. The request takes no body.
+         */
+        post: operations["unbindOAuth"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/unread-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the caller's unread status flags
+         * @description Lightweight polling endpoint (mounts NoUpdateUserActivity, so polling does
+         *     not extend the caller's online presence). Reports unread notifications,
+         *     unread chat messages, and open moderation reports; latestNotificationType is
+         *     present only when an unread notification exists.
+         */
+        get: operations["getUnreadStatus"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notifications": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List the caller's notifications with cursor pagination
+         * @description Cursor-paginated notification feed (mounts NoUpdateUserActivity). Query
+         *     binding is strict: malformed values fail with HTTP 400 and
+         *     `common.request.parseFailed`. A filter outside ""/all/unread fails with
+         *     `common.request.invalidParams` (HTTP 200). limit <= 0 falls back to 20 and
+         *     values above 50 clamp to 50. A service-side query failure surfaces as HTTP
+         *     200 `common.request.parseFailed` with params error. Pass the returned
+         *     nextCursor as cursor for the next (older) page.
+         */
+        get: operations["getNotifications"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notification/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark one notification as read
+         * @description Marks a single notification of the caller as read. Note the update carries a
+         *     user_id condition, so marking someone else's or a nonexistent id silently
+         *     succeeds (zero rows updated is not an error). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because notificationId is required.
+         *     Business failure: `notification.markRead.failed`.
+         */
+        post: operations["markNotificationRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/notification/mark-all-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark all of the caller's notifications as read
+         * @description Marks every notification of the caller as read and invalidates the cached
+         *     unread status. The request takes no body. Business failure:
+         *     `notification.markAllRead.failed`.
+         */
+        post: operations["markAllNotificationsRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/send": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a direct chat message
+         * @description Sends a direct message, creating the conversation on first contact. msgType
+         *     is effectively required (1 text, 2 image, 3 voice): although the field lacks
+         *     a `required` validate tag, omitting it binds 0 and the `oneof=1 2 3` check
+         *     fails with `common.request.invalidParams` (HTTP 200). Content hitting the
+         *     sensitive-word list is blocked outright with `chat.sensitive.blocked`
+         *     (params word) — chat has no delayed-visibility state. Messaging oneself and
+         *     other service failures surface as `chat.send.failed` (params error). JSON
+         *     binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200). The success
+         *     envelope carries no messageCode.
+         */
+        post: operations["sendChatMessage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/messages": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a cursor-paginated page of chat messages
+         * @description Read-only endpoint guarded by authentication only (no writable-account
+         *     check), so frozen accounts can still read their conversations. beforeId and
+         *     afterId are mutually exclusive cursors; passing both, targeting an unknown
+         *     conversation, or reading a conversation the caller is not a member of all
+         *     fail with `chat.messages.failed` (HTTP 200) without revealing which case
+         *     matched. limit <= 0 falls back to 30; values above 100 fail validation with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation the same way because
+         *     convId is required.
+         */
+        post: operations["getChatMessages"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/chat/mark-read": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Mark a chat conversation as read
+         * @description Clears the caller's unread state in one conversation. Membership is checked
+         *     first and a membership failure shares the same `chat.markRead.failed` code as
+         *     a database failure, so the endpoint cannot be used to enumerate conversation
+         *     ids (issue #111). JSON binding is lenient: a malformed body binds to zero
+         *     values and fails validation as `common.request.invalidParams` (HTTP 200)
+         *     because convId is required. The success envelope carries result null and no
+         *     messageCode.
+         */
+        post: operations["markChatRead"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/me": {
         parameters: {
             query?: never;
@@ -2237,6 +2756,420 @@ export interface components {
             /** @description Optional context; the server trims whitespace and truncates to 300 runes. */
             note?: string;
         };
+        CaptchaResult: {
+            /** @description Captcha challenge id; echoed back as captchaId on captcha-guarded writes. */
+            captchaId: string;
+            /** @description Captcha image as a `data:image/png;base64` data URI, renderable directly in an <img> element. */
+            captchaImg: string;
+        };
+        CaptchaSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CaptchaResult"];
+        };
+        ExternalInformationItem: {
+            /** @description External profile URL; empty when unset. */
+            link: string;
+        };
+        ExternalInformation: {
+            github: components["schemas"]["ExternalInformationItem"];
+            weibo: components["schemas"]["ExternalInformationItem"];
+            bilibili: components["schemas"]["ExternalInformationItem"];
+            twitter: components["schemas"]["ExternalInformationItem"];
+            linkedIn: components["schemas"]["ExternalInformationItem"];
+            zhihu: components["schemas"]["ExternalInformationItem"];
+        };
+        UserBadge: {
+            code: string;
+            type: string;
+            grantMode: string;
+            name: string;
+            description: string;
+            iconType: string;
+            iconKey: string;
+            iconUrl: string;
+            color: string;
+            level: string;
+            isEnabled: boolean;
+            isWearable: boolean;
+            sortOrder: number;
+            /** @description How the badge was granted (system or manual). */
+            source: string;
+            reason: string;
+            /** @description Grant time in RFC 3339 format. */
+            grantedAt: string;
+        };
+        UserCard: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            profileCoverUrl: string;
+            bio: string;
+            signature: string;
+            websiteName: string;
+            website: string;
+            /** Format: int64 */
+            prestige: number;
+            isAdmin: boolean;
+            topicCount: number;
+            replyCount: number;
+            likeReceivedCount: number;
+            likeGivenCount: number;
+            followerCount: number;
+            followingCount: number;
+            collectionCount: number;
+            isOnline: boolean;
+            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            isFollowing: boolean;
+            externalInformation: components["schemas"]["ExternalInformation"];
+            /** @description Viewer-specific; always false on this route because the route group mounts no JWT middleware. */
+            isSelf: boolean;
+            /** @description Always an array (empty when the user holds no badges), never null. */
+            badges: components["schemas"]["UserBadge"][];
+            wornBadge?: components["schemas"]["UserBadge"];
+            /** Format: date-time */
+            lastActiveTime: string;
+            /**
+             * Format: date-time
+             * @description Account creation time in RFC 3339 format.
+             */
+            createdAt: string;
+            /** @description True renders the tombstone card of a closed (soft-deleted) account; the other fields then carry zero values. */
+            isAccountClosed: boolean;
+        };
+        UserCardSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UserCard"];
+        };
+        UserCardResponse: components["schemas"]["UserCardSuccess"] | components["schemas"]["ApiFailure"];
+        UserUpdateSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "更新成功";
+            /** @constant */
+            messageCode: "user.updateSuccess";
+        };
+        UserUpdateResponse: components["schemas"]["UserUpdateSuccess"] | components["schemas"]["ApiFailure"];
+        SetUserInfoRequest: {
+            nickname?: string;
+            /** @description Full-overwrite semantics; an empty string clears the field. */
+            bio?: string;
+            /** @description Full-overwrite semantics; an empty string clears the field. */
+            signature?: string;
+            website?: string;
+            websiteName?: string;
+            /** @description UI locale; only applied when non-empty after trimming. */
+            locale?: string;
+            externalInformation?: components["schemas"]["ExternalInformation"];
+        };
+        SetUserProfileCoverRequest: {
+            /** @description Cover image URL; trimmed server-side, an empty string clears the cover. */
+            profileCoverUrl?: string;
+        };
+        SetUserEmailRequest: {
+            /**
+             * Format: email
+             * @description New email address; lower-cased and trimmed server-side.
+             */
+            email: string;
+            /** @description Current account password as second-factor confirmation. */
+            password: string;
+        };
+        ResendActivationResult: {
+            /** @description Remaining activation-email resends allowed today (daily limit 3). */
+            remainingToday: number;
+        };
+        ResendActivationSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ResendActivationResult"];
+            /** @constant */
+            messageCode: "auth.activation.resendSuccess";
+            params: {
+                remainingToday: number;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        ResendActivationResponse: components["schemas"]["ResendActivationSuccess"] | components["schemas"]["ApiFailure"];
+        SetUserNameRequest: {
+            /** @description New username; values outside the pattern fail with `auth.username.invalid` (HTTP 200). */
+            username: string;
+        };
+        SetPresetAvatarRequest: {
+            /**
+             * @description Built-in preset avatar; any other value fails with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            avatarUrl: "/static/pic/1.webp" | "/static/pic/2.webp" | "/static/pic/3.webp" | "/static/pic/4.webp" | "/static/pic/5.webp" | "/static/pic/6.webp" | "/static/pic/7.webp" | "/static/pic/8.webp" | "/static/pic/9.webp" | "/static/pic/10.webp" | "/static/pic/11.webp" | "/static/pic/12.webp";
+        };
+        PresetAvatarResult: {
+            /** @description Web URL of the applied preset avatar. */
+            avatarUrl: string;
+        };
+        PresetAvatarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PresetAvatarResult"];
+        };
+        PresetAvatarResponse: components["schemas"]["PresetAvatarSuccess"] | components["schemas"]["ApiFailure"];
+        WearBadgeRequest: {
+            /** @description Badge to wear; an empty string (or omitted field) takes the current badge off. Unknown or not-owned codes fail with `common.request.invalidParams` (HTTP 200). */
+            badgeCode?: string;
+        };
+        UploadAvatarRequest: {
+            /**
+             * Format: binary
+             * @description Primary avatar image file.
+             */
+            avatar: string;
+            /**
+             * Format: binary
+             * @description Optional pre-cropped medium avatar; when present the server stores both files and returns avatarMediumUrl.
+             */
+            avatarMedium?: string;
+        };
+        UploadAvatarResult: {
+            avatarUrl: string;
+            /** @description Present only when an avatarMedium file was uploaded. */
+            avatarMediumUrl?: string;
+        };
+        UploadAvatarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UploadAvatarResult"];
+            /** @constant */
+            messageCode: "upload.success";
+        };
+        UploadAvatarResponse: components["schemas"]["UploadAvatarSuccess"] | components["schemas"]["ApiFailure"];
+        ChangePasswordRequest: {
+            /** @description Current password; a wrong value fails with `auth.password.oldInvalid` (HTTP 200). */
+            oldPassword: string;
+            /** @description 6-64 characters containing at least one letter and one digit; violations fail with `auth.password.tooShort` (params minLength) / `auth.password.tooLong` / `auth.password.needsLetterNumber` (HTTP 200). */
+            newPassword: string;
+        };
+        ChangePasswordSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "密码修改成功";
+            /** @constant */
+            messageCode: "auth.password.updateSuccess";
+        };
+        ChangePasswordResponse: components["schemas"]["ChangePasswordSuccess"] | components["schemas"]["ApiFailure"];
+        OAuthBinding: {
+            /** @constant */
+            bound: true;
+            provider: string;
+            /** Format: date-time */
+            createdAt: string;
+            /** Format: date-time */
+            updatedAt: string;
+        } | {
+            /** @constant */
+            bound: false;
+        };
+        /** @description Binding state keyed by provider; the response always carries the fixed github and google keys. */
+        OAuthBindingsResult: {
+            github: components["schemas"]["OAuthBinding"];
+            google: components["schemas"]["OAuthBinding"];
+        };
+        OAuthBindingsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["OAuthBindingsResult"];
+        };
+        OAuthBindingsResponse: components["schemas"]["OAuthBindingsSuccess"] | components["schemas"]["ApiFailure"];
+        UnbindOAuthSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "解绑成功";
+            /** @constant */
+            messageCode: "oauth.unbind.success";
+            params: {
+                provider: string;
+            } & {
+                [key: string]: unknown;
+            };
+        };
+        UnbindOAuthResponse: components["schemas"]["UnbindOAuthSuccess"] | components["schemas"]["ApiFailure"];
+        UnreadStatusResult: {
+            /** @description True when the user has unread notifications. */
+            notifications: boolean;
+            /** @description True when the user has unread chat messages. */
+            messages: boolean;
+            /** @description True when the user has open moderation reports. */
+            moderationReports: boolean;
+            /** @description Event type of the latest unread notification; omitted when there are no unread notifications. */
+            latestNotificationType?: string;
+        };
+        UnreadStatusSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UnreadStatusResult"];
+        };
+        UnreadStatusResponse: components["schemas"]["UnreadStatusSuccess"] | components["schemas"]["ApiFailure"];
+        NotificationTopicRef: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            url: string;
+        };
+        NotificationPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Notification event type (for example reply/like/system); the payload shape varies with it. */
+            eventType: string;
+            isRead: boolean;
+            /** @description Notification creation time in RFC 3339 format. */
+            createdAt: string;
+            title: string;
+            content: string;
+            actor: components["schemas"]["TopicAuthorPayload"];
+            topic?: components["schemas"]["NotificationTopicRef"];
+            /** @description Raw event payload (title/content/templateKey/templateParams/actorId/topicId/postId/metadata and friends); shape varies by eventType. */
+            payload: {
+                [key: string]: unknown;
+            };
+        };
+        NotificationListResult: {
+            items: components["schemas"]["NotificationPayload"][];
+            /**
+             * Format: uint64
+             * @description Cursor for the next (older) page; 0 when no further page exists.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+            /**
+             * Format: int64
+             * @description Total unread notification count of the caller, independent of the current filter.
+             */
+            unreadCount: number;
+        };
+        NotificationListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["NotificationListResult"];
+        };
+        NotificationListResponse: components["schemas"]["NotificationListSuccess"] | components["schemas"]["ApiFailure"];
+        MarkNotificationReadRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            notificationId: number;
+        };
+        NotificationMarkReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "标记已读成功";
+            /** @constant */
+            messageCode: "notification.markRead.success";
+        };
+        NotificationMarkReadResponse: components["schemas"]["NotificationMarkReadSuccess"] | components["schemas"]["ApiFailure"];
+        NotificationMarkAllReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Human-readable success message; messageCode is the stable identifier.
+             * @constant
+             */
+            result: "标记全部已读成功";
+            /** @constant */
+            messageCode: "notification.markAllRead.success";
+        };
+        NotificationMarkAllReadResponse: components["schemas"]["NotificationMarkAllReadSuccess"] | components["schemas"]["ApiFailure"];
+        SendChatMessageRequest: {
+            /**
+             * Format: uint64
+             * @description Recipient user id; messaging oneself fails with `chat.send.failed` (HTTP 200).
+             */
+            peerId: number;
+            /** @description Message content; sensitive-word hits fail with `chat.sensitive.blocked` (HTTP 200, params word). */
+            content: string;
+            /**
+             * @description 1 text, 2 image, 3 voice. Effectively required — omitting it binds 0 and fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            msgType: 1 | 2 | 3;
+        };
+        SendChatMessageResult: {
+            /**
+             * Format: uint64
+             * @description Conversation id the message was stored under; reuse it for messages/mark-read.
+             */
+            convId: number;
+        };
+        SendChatMessageSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SendChatMessageResult"];
+        };
+        SendChatMessageResponse: components["schemas"]["SendChatMessageSuccess"] | components["schemas"]["ApiFailure"];
+        GetChatMessagesRequest: {
+            /**
+             * Format: uint64
+             * @description Target conversation; non-members and unknown ids fail with `chat.messages.failed` (HTTP 200) without revealing which case matched.
+             */
+            convId: number;
+            /**
+             * Format: uint64
+             * @description Return the page of messages older than this message id; mutually exclusive with afterId. 0 is treated as omitted.
+             */
+            beforeId?: number;
+            /**
+             * Format: uint64
+             * @description Return the page of messages newer than this message id; mutually exclusive with beforeId. 0 is treated as omitted.
+             */
+            afterId?: number;
+            /** @description Page size; omitted or 0 falls back to the server default (30), values above 100 fail validation with `common.request.invalidParams` (HTTP 200). */
+            limit?: number;
+        };
+        ChatMessageVo: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            senderId: number;
+            content: string;
+            /**
+             * @description 1 text, 2 image, 3 voice.
+             * @enum {integer}
+             */
+            msgType: 1 | 2 | 3;
+            /**
+             * @description Numeric read flag (0 unread, 1 read), not a boolean.
+             * @enum {integer}
+             */
+            isRead: 0 | 1;
+            /** @description Message creation time in RFC 3339 format. */
+            createdAt: string;
+            /** @description True when the caller sent this message. */
+            isSelf: boolean;
+        };
+        ChatMessagesResult: {
+            /** @description Ascending by message id within the page. */
+            list: components["schemas"]["ChatMessageVo"][];
+            /** @description True when older messages exist beyond this page (only meaningful for latest/beforeId reads). */
+            hasMoreBefore: boolean;
+            /** @description True when newer messages exist beyond this page (only set for afterId reads). */
+            hasMoreAfter: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the oldest returned message; pass as beforeId for the next older page. 0 when the page is empty.
+             */
+            nextBeforeId: number;
+            /**
+             * Format: uint64
+             * @description Id of the newest returned message. 0 when the page is empty.
+             */
+            latestId: number;
+        };
+        ChatMessagesSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ChatMessagesResult"];
+        };
+        ChatMessagesResponse: components["schemas"]["ChatMessagesSuccess"] | components["schemas"]["ApiFailure"];
+        MarkChatReadRequest: {
+            /**
+             * Format: uint64
+             * @description Conversation to clear; non-members and unknown ids fail with `chat.markRead.failed` (HTTP 200) without revealing which case matched.
+             */
+            convId: number;
+        };
+        ChatMarkReadSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description The success envelope carries no payload (result is null and no messageCode is emitted). */
+            result: null;
+        };
+        ChatMarkReadResponse: components["schemas"]["ChatMarkReadSuccess"] | components["schemas"]["ApiFailure"];
         RateLimitedFailure: components["schemas"]["ApiFailure"] & {
             params: {
                 action: string;
@@ -4656,6 +5589,809 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getCaptcha: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Fresh captcha challenge. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CaptchaSuccess"];
+                };
+            };
+        };
+    };
+    getUserCard: {
+        parameters: {
+            query: {
+                userId: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description User card, or a legacy business failure envelope (`user.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserCardResponse"];
+                };
+            };
+            /** @description Missing or malformed userId query parameter. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserInfo: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserInfoRequest"];
+            };
+        };
+        responses: {
+            /** @description Profile updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserProfileCover: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserProfileCoverRequest"];
+            };
+        };
+        responses: {
+            /** @description Cover updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserEmailRequest"];
+            };
+        };
+        responses: {
+            /** @description Email updated (activation email sent to the new address), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Email-change rate limit (action `email.change`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    resendActivationEmail: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Activation email resent (result and params carry remainingToday), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ResendActivationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setUserName: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetUserNameRequest"];
+            };
+        };
+        responses: {
+            /** @description Username updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    setPresetAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SetPresetAvatarRequest"];
+            };
+        };
+        responses: {
+            /** @description Preset avatar applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PresetAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    wearBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WearBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge updated, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UserUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    uploadAvatar: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["UploadAvatarRequest"];
+            };
+        };
+        responses: {
+            /** @description Avatar stored, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UploadAvatarResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Upload rate limit (action `upload`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    changePassword: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ChangePasswordRequest"];
+            };
+        };
+        responses: {
+            /** @description Password changed (all existing sessions invalidated), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChangePasswordResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Password-change rate limit (action `password.change`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getOAuthBindings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Binding state keyed by provider. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["OAuthBindingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    unbindOAuth: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                /** @description Provider key as registered at bind time (for example github or google); not validated by the server. */
+                provider: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Provider unbound, or a legacy business failure envelope (`oauth.unbind.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnbindOAuthResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getUnreadStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Unread status flags. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UnreadStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getNotifications: {
+        parameters: {
+            query?: {
+                filter?: "" | "all" | "unread";
+                cursor?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notification page, or a legacy business failure envelope (`common.request.invalidParams` / `common.request.parseFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markNotificationRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkNotificationReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Notification marked read, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMarkReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markAllNotificationsRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All notifications marked read, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["NotificationMarkAllReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    sendChatMessage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SendChatMessageRequest"];
+            };
+        };
+        responses: {
+            /** @description Message stored (result carries the conversation id), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SendChatMessageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Message-send rate limit (action `message.send`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getChatMessages: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["GetChatMessagesRequest"];
+            };
+        };
+        responses: {
+            /** @description Message page, or a legacy business failure envelope (`chat.messages.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMessagesResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    markChatRead: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["MarkChatReadRequest"];
+            };
+        };
+        responses: {
+            /** @description Conversation marked read (result is null), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ChatMarkReadResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };

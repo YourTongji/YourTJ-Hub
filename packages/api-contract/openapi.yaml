@@ -8,7 +8,10 @@ info:
     session management (list/revoke/revoke-all), mobile OIDC code exchange, account
     registration, password recovery (forgot/reset), topic writing, forum post CRUD
     (create/update/delete, window and revision reads), forum interactions
-    (like/bookmark/watch on topics and posts, follow, report),
+    (like/bookmark/watch on topics and posts, follow, report), user account and
+    profile operations (captcha, user card, profile/email/username/avatar/password
+    changes, OAuth bindings), notification reads and read-marking, direct chat
+    (send/messages/mark-read),
     and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
@@ -19,6 +22,8 @@ tags:
     description: Session login and authentication flows.
   - name: Forum
     description: Forum writing operations.
+  - name: User
+    description: User account and profile operations.
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
   - name: Wiki
@@ -88,6 +93,46 @@ paths:
     $ref: ./paths/forum-interactions.yaml#/followUser
   /api/forum/report:
     $ref: ./paths/forum-interactions.yaml#/createReport
+  /api/get-captcha:
+    $ref: ./paths/user-account.yaml#/getCaptcha
+  /api/user-card:
+    $ref: ./paths/user-account.yaml#/getUserCard
+  /api/set-user-info:
+    $ref: ./paths/user-account.yaml#/setUserInfo
+  /api/set-user-profile-cover:
+    $ref: ./paths/user-account.yaml#/setUserProfileCover
+  /api/set-user-email:
+    $ref: ./paths/user-account.yaml#/setUserEmail
+  /api/resend-activation-email:
+    $ref: ./paths/user-account.yaml#/resendActivationEmail
+  /api/set-user-name:
+    $ref: ./paths/user-account.yaml#/setUserName
+  /api/set-preset-avatar:
+    $ref: ./paths/user-account.yaml#/setPresetAvatar
+  /api/wear-badge:
+    $ref: ./paths/user-account.yaml#/wearBadge
+  /api/upload-avatar:
+    $ref: ./paths/user-account.yaml#/uploadAvatar
+  /api/change-password:
+    $ref: ./paths/user-account.yaml#/changePassword
+  /api/oauth/bindings:
+    $ref: ./paths/user-account.yaml#/getOAuthBindings
+  /api/auth/{provider}/unbind:
+    $ref: ./paths/user-account.yaml#/unbindOAuth
+  /api/forum/unread-status:
+    $ref: ./paths/forum-notifications.yaml#/getUnreadStatus
+  /api/forum/notifications:
+    $ref: ./paths/forum-notifications.yaml#/getNotifications
+  /api/forum/notification/mark-read:
+    $ref: ./paths/forum-notifications.yaml#/markNotificationRead
+  /api/forum/notification/mark-all-read:
+    $ref: ./paths/forum-notifications.yaml#/markAllNotificationsRead
+  /api/forum/chat/send:
+    $ref: ./paths/forum-chat.yaml#/sendChatMessage
+  /api/forum/chat/messages:
+    $ref: ./paths/forum-chat.yaml#/getChatMessages
+  /api/forum/chat/mark-read:
+    $ref: ./paths/forum-chat.yaml#/markChatRead
   /api/v1/agent/me:
     $ref: ./paths/agent.yaml#/agentMe
   /api/v1/agent/topics:
@@ -401,6 +446,126 @@ components:
       $ref: ./components/schemas.yaml#/FollowUserRequest
     CreateReportRequest:
       $ref: ./components/schemas.yaml#/CreateReportRequest
+    CaptchaResult:
+      $ref: ./components/schemas.yaml#/CaptchaResult
+    CaptchaSuccess:
+      $ref: ./components/schemas.yaml#/CaptchaSuccess
+    ExternalInformationItem:
+      $ref: ./components/schemas.yaml#/ExternalInformationItem
+    ExternalInformation:
+      $ref: ./components/schemas.yaml#/ExternalInformation
+    UserBadge:
+      $ref: ./components/schemas.yaml#/UserBadge
+    UserCard:
+      $ref: ./components/schemas.yaml#/UserCard
+    UserCardSuccess:
+      $ref: ./components/schemas.yaml#/UserCardSuccess
+    UserCardResponse:
+      $ref: ./components/schemas.yaml#/UserCardResponse
+    UserUpdateSuccess:
+      $ref: ./components/schemas.yaml#/UserUpdateSuccess
+    UserUpdateResponse:
+      $ref: ./components/schemas.yaml#/UserUpdateResponse
+    SetUserInfoRequest:
+      $ref: ./components/schemas.yaml#/SetUserInfoRequest
+    SetUserProfileCoverRequest:
+      $ref: ./components/schemas.yaml#/SetUserProfileCoverRequest
+    SetUserEmailRequest:
+      $ref: ./components/schemas.yaml#/SetUserEmailRequest
+    ResendActivationResult:
+      $ref: ./components/schemas.yaml#/ResendActivationResult
+    ResendActivationSuccess:
+      $ref: ./components/schemas.yaml#/ResendActivationSuccess
+    ResendActivationResponse:
+      $ref: ./components/schemas.yaml#/ResendActivationResponse
+    SetUserNameRequest:
+      $ref: ./components/schemas.yaml#/SetUserNameRequest
+    SetPresetAvatarRequest:
+      $ref: ./components/schemas.yaml#/SetPresetAvatarRequest
+    PresetAvatarResult:
+      $ref: ./components/schemas.yaml#/PresetAvatarResult
+    PresetAvatarSuccess:
+      $ref: ./components/schemas.yaml#/PresetAvatarSuccess
+    PresetAvatarResponse:
+      $ref: ./components/schemas.yaml#/PresetAvatarResponse
+    WearBadgeRequest:
+      $ref: ./components/schemas.yaml#/WearBadgeRequest
+    UploadAvatarRequest:
+      $ref: ./components/schemas.yaml#/UploadAvatarRequest
+    UploadAvatarResult:
+      $ref: ./components/schemas.yaml#/UploadAvatarResult
+    UploadAvatarSuccess:
+      $ref: ./components/schemas.yaml#/UploadAvatarSuccess
+    UploadAvatarResponse:
+      $ref: ./components/schemas.yaml#/UploadAvatarResponse
+    ChangePasswordRequest:
+      $ref: ./components/schemas.yaml#/ChangePasswordRequest
+    ChangePasswordSuccess:
+      $ref: ./components/schemas.yaml#/ChangePasswordSuccess
+    ChangePasswordResponse:
+      $ref: ./components/schemas.yaml#/ChangePasswordResponse
+    OAuthBinding:
+      $ref: ./components/schemas.yaml#/OAuthBinding
+    OAuthBindingsResult:
+      $ref: ./components/schemas.yaml#/OAuthBindingsResult
+    OAuthBindingsSuccess:
+      $ref: ./components/schemas.yaml#/OAuthBindingsSuccess
+    OAuthBindingsResponse:
+      $ref: ./components/schemas.yaml#/OAuthBindingsResponse
+    UnbindOAuthSuccess:
+      $ref: ./components/schemas.yaml#/UnbindOAuthSuccess
+    UnbindOAuthResponse:
+      $ref: ./components/schemas.yaml#/UnbindOAuthResponse
+    UnreadStatusResult:
+      $ref: ./components/schemas.yaml#/UnreadStatusResult
+    UnreadStatusSuccess:
+      $ref: ./components/schemas.yaml#/UnreadStatusSuccess
+    UnreadStatusResponse:
+      $ref: ./components/schemas.yaml#/UnreadStatusResponse
+    NotificationTopicRef:
+      $ref: ./components/schemas.yaml#/NotificationTopicRef
+    NotificationPayload:
+      $ref: ./components/schemas.yaml#/NotificationPayload
+    NotificationListResult:
+      $ref: ./components/schemas.yaml#/NotificationListResult
+    NotificationListSuccess:
+      $ref: ./components/schemas.yaml#/NotificationListSuccess
+    NotificationListResponse:
+      $ref: ./components/schemas.yaml#/NotificationListResponse
+    MarkNotificationReadRequest:
+      $ref: ./components/schemas.yaml#/MarkNotificationReadRequest
+    NotificationMarkReadSuccess:
+      $ref: ./components/schemas.yaml#/NotificationMarkReadSuccess
+    NotificationMarkReadResponse:
+      $ref: ./components/schemas.yaml#/NotificationMarkReadResponse
+    NotificationMarkAllReadSuccess:
+      $ref: ./components/schemas.yaml#/NotificationMarkAllReadSuccess
+    NotificationMarkAllReadResponse:
+      $ref: ./components/schemas.yaml#/NotificationMarkAllReadResponse
+    SendChatMessageRequest:
+      $ref: ./components/schemas.yaml#/SendChatMessageRequest
+    SendChatMessageResult:
+      $ref: ./components/schemas.yaml#/SendChatMessageResult
+    SendChatMessageSuccess:
+      $ref: ./components/schemas.yaml#/SendChatMessageSuccess
+    SendChatMessageResponse:
+      $ref: ./components/schemas.yaml#/SendChatMessageResponse
+    GetChatMessagesRequest:
+      $ref: ./components/schemas.yaml#/GetChatMessagesRequest
+    ChatMessageVo:
+      $ref: ./components/schemas.yaml#/ChatMessageVo
+    ChatMessagesResult:
+      $ref: ./components/schemas.yaml#/ChatMessagesResult
+    ChatMessagesSuccess:
+      $ref: ./components/schemas.yaml#/ChatMessagesSuccess
+    ChatMessagesResponse:
+      $ref: ./components/schemas.yaml#/ChatMessagesResponse
+    MarkChatReadRequest:
+      $ref: ./components/schemas.yaml#/MarkChatReadRequest
+    ChatMarkReadSuccess:
+      $ref: ./components/schemas.yaml#/ChatMarkReadSuccess
+    ChatMarkReadResponse:
+      $ref: ./components/schemas.yaml#/ChatMarkReadResponse
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
     AgentMe:

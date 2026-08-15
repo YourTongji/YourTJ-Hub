@@ -1,0 +1,9 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "oauth.unbind.failed",
+  "params": {
+    "error": "解绑失败：您必须至少保留一种登录方式（邮箱或其他OAuth绑定）",
+    "provider": "github"
+  }
+}
