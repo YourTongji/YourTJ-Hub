@@ -48,22 +48,48 @@
     （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
   - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
 
-### 旧 VitePress wiki 内容重建（PR #219 后）
+### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
 
-论坛内嵌 wiki 是全新实现，**没有**自动导入旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）
-内容的迁移通道。旧站内容如需保留，需手动重建：
+论坛 wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑），
+论坛侧只读投影。旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）内容如需
+保留，迁移到 GitHub 仓库后由同步器自动投影：
 
-1. 旧 VitePress 站点仓库仍保留 `docs/`（Markdown 源文件）。按
-   `docs/product/current-state.md` 的 wiki 使用说明，在管理端创建 namespace，
-   然后把每个 Markdown 文件作为新页面手动发布（正文粘贴原 Markdown，标题取
-   front-matter 的 `title`；旧站路径映射为 `<namespace>/<slug>`）。
-2. 旧站的静态资源（图片/附件）若在仓库内，随正文重新上传；若引用旧域名
-   （如 `https://wiki.example.com/...`），需先下载到本地再上传，或改写为
-   相对路径后上传到新站附件。
+1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
+   顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
+   （旧站路径映射为 `<namespace>/<slug>.md`）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
+   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
-   后以人工方式并入对应新页面（wiki 无评论表，评论仍走论坛回复流）。
-4. 重建期间旧站可继续在线（只读），全部内容迁移完成、新站 `/wiki` 导航树
-   核对无误后再按上方步骤退役旧容器与路由。
+   后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
+4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
+   同步，`/wiki` 导航树核对无误后再退役旧容器与路由（见上文 VitePress 退役）。
+
+### Wiki GitHub 唯一真实源同步
+
+wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
+论坛只保留只读投影。配置 `[wiki.git]` 后启用（见 `deploy/config.toml.example`）：
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"      # 每日定时同步（默认 03:00）
+webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端点 403
+```
+
+- **同步触发**：每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+  `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
+- **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
+  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Content type：`application/json`；Secret：与 `webhook_secret` 一致
+  - Events：仅 `push`（PR merge 触发）
+  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(webhook_secret, body)，验签失败/未配置返回 403/401。
+- **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
+  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+- **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+- **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
+  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
 
 ## Server layout (Docker Compose)
 

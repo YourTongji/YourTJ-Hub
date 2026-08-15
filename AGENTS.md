@@ -38,8 +38,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, account
   registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
   the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
-  (16 ops: public tree/namespaces/home/revisions, login page writes with write-publish + CAS, admin
-  `/api/admin/wiki/*` incl. version history + rollback + diff), and the PK scheduler (14 ops:
+  (public tree/namespaces/home + admin sync/status|sync|sync/runs + webhook; the legacy in-forum
+  write/revision/rollback/diff/editor endpoints were retired with the GitHub-SSoT model),
+  and the PK scheduler (14 ops:
   courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
   latest-update/course-info-sync/course-review-brief),
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
