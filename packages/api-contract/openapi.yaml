@@ -20,7 +20,7 @@ tags:
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
   - name: Wiki
-    description: Wiki public reading and logged-in writing operations.
+    description: Wiki public reading operations; content is a read-only projection synced from the GitHub wiki repository (single source of truth).
   - name: Wiki Admin
     description: Wiki administration operations restricted to PageManager or Admin accounts.
   - name: PK
@@ -121,21 +121,6 @@ paths:
   /api/wiki/home:
     get:
       $ref: ./paths/wiki.yaml#/getWikiHome/get
-  /api/wiki/revisions:
-    get:
-      $ref: ./paths/wiki.yaml#/listWikiRevisions/get
-  /api/wiki/pages:
-    post:
-      $ref: ./paths/wiki.yaml#/createWikiPage/post
-  /api/wiki/pages/{pageId}:
-    put:
-      $ref: ./paths/wiki.yaml#/updateWikiPage/put
-  /api/admin/wiki/pages/{pageId}/rollback:
-    post:
-      $ref: ./paths/wiki.yaml#/rollbackWikiPage/post
-  /api/admin/wiki/pages/{pageId}/diff:
-    get:
-      $ref: ./paths/wiki.yaml#/diffWikiPage/get
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -144,19 +129,21 @@ paths:
       $ref: ./paths/wiki.yaml#/updateWikiNamespace/put
     delete:
       $ref: ./paths/wiki.yaml#/deleteWikiNamespace/delete
-  /api/admin/wiki/namespaces/{name}/editors:
-    get:
-      $ref: ./paths/wiki.yaml#/listWikiNamespaceEditors/get
-    put:
-      $ref: ./paths/wiki.yaml#/updateWikiNamespaceEditors/put
   /api/admin/wiki/tree:
     get:
       $ref: ./paths/wiki.yaml#/getAdminWikiTree/get
-    put:
-      $ref: ./paths/wiki.yaml#/updateAdminWikiTree/put
-  /api/admin/wiki/revisions:
+  /api/wiki/webhook:
+    post:
+      $ref: ./paths/wiki-sync.yaml#/wikiWebhook/post
+  /api/admin/wiki/sync/status:
     get:
-      $ref: ./paths/wiki.yaml#/listAdminWikiRevisions/get
+      $ref: ./paths/wiki-sync.yaml#/getWikiSyncStatus/get
+  /api/admin/wiki/sync:
+    post:
+      $ref: ./paths/wiki-sync.yaml#/runWikiSync/post
+  /api/admin/wiki/sync/runs:
+    get:
+      $ref: ./paths/wiki-sync.yaml#/listWikiSyncRuns/get
   # PK 排课器 13 端点（Issue #187）。
   /api/pk/calendars:
     get:
@@ -478,36 +465,6 @@ components:
       $ref: ./components/schemas.yaml#/WikiHomeResult
     WikiHomeResponse:
       $ref: ./components/schemas.yaml#/WikiHomeResponse
-    WikiRevision:
-      $ref: ./components/schemas.yaml#/WikiRevision
-    WikiRevisionListResult:
-      $ref: ./components/schemas.yaml#/WikiRevisionListResult
-    WikiRevisionListResponse:
-      $ref: ./components/schemas.yaml#/WikiRevisionListResponse
-    WikiCreatePageRequest:
-      $ref: ./components/schemas.yaml#/WikiCreatePageRequest
-    WikiCreatePageResult:
-      $ref: ./components/schemas.yaml#/WikiCreatePageResult
-    WikiCreatePageResponse:
-      $ref: ./components/schemas.yaml#/WikiCreatePageResponse
-    WikiUpdatePageRequest:
-      $ref: ./components/schemas.yaml#/WikiUpdatePageRequest
-    WikiUpdatePageResult:
-      $ref: ./components/schemas.yaml#/WikiUpdatePageResult
-    WikiUpdatePageResponse:
-      $ref: ./components/schemas.yaml#/WikiUpdatePageResponse
-    WikiRollbackRequest:
-      $ref: ./components/schemas.yaml#/WikiRollbackRequest
-    WikiRollbackResult:
-      $ref: ./components/schemas.yaml#/WikiRollbackResult
-    WikiRollbackResponse:
-      $ref: ./components/schemas.yaml#/WikiRollbackResponse
-    WikiDiffSide:
-      $ref: ./components/schemas.yaml#/WikiDiffSide
-    WikiDiffResult:
-      $ref: ./components/schemas.yaml#/WikiDiffResult
-    WikiDiffResponse:
-      $ref: ./components/schemas.yaml#/WikiDiffResponse
     WikiCreateNamespaceRequest:
       $ref: ./components/schemas.yaml#/WikiCreateNamespaceRequest
     WikiUpdateNamespaceRequest:
@@ -516,14 +473,6 @@ components:
       $ref: ./components/schemas.yaml#/WikiNamespaceActionResult
     WikiNamespaceActionResponse:
       $ref: ./components/schemas.yaml#/WikiNamespaceActionResponse
-    WikiEditorSummary:
-      $ref: ./components/schemas.yaml#/WikiEditorSummary
-    WikiEditorListResult:
-      $ref: ./components/schemas.yaml#/WikiEditorListResult
-    WikiEditorListResponse:
-      $ref: ./components/schemas.yaml#/WikiEditorListResponse
-    WikiUpdateEditorsRequest:
-      $ref: ./components/schemas.yaml#/WikiUpdateEditorsRequest
     WikiAdminTreePage:
       $ref: ./components/schemas.yaml#/WikiAdminTreePage
     WikiAdminTreeNamespace:
@@ -532,20 +481,26 @@ components:
       $ref: ./components/schemas.yaml#/WikiAdminTreeResult
     WikiAdminTreeResponse:
       $ref: ./components/schemas.yaml#/WikiAdminTreeResponse
-    WikiTreeOp:
-      $ref: ./components/schemas.yaml#/WikiTreeOp
-    WikiTreeOpsRequest:
-      $ref: ./components/schemas.yaml#/WikiTreeOpsRequest
-    WikiTreeOpsResult:
-      $ref: ./components/schemas.yaml#/WikiTreeOpsResult
-    WikiTreeOpsResponse:
-      $ref: ./components/schemas.yaml#/WikiTreeOpsResponse
-    WikiAdminRevision:
-      $ref: ./components/schemas.yaml#/WikiAdminRevision
-    WikiAdminRevisionListResult:
-      $ref: ./components/schemas.yaml#/WikiAdminRevisionListResult
-    WikiAdminRevisionListResponse:
-      $ref: ./components/schemas.yaml#/WikiAdminRevisionListResponse
+    WikiSyncPages:
+      $ref: ./components/schemas.yaml#/WikiSyncPages
+    WikiSyncRunView:
+      $ref: ./components/schemas.yaml#/WikiSyncRunView
+    WikiSyncStatus:
+      $ref: ./components/schemas.yaml#/WikiSyncStatus
+    WikiSyncStatusResponse:
+      $ref: ./components/schemas.yaml#/WikiSyncStatusResponse
+    WikiSyncAccepted:
+      $ref: ./components/schemas.yaml#/WikiSyncAccepted
+    WikiSyncRunResponse:
+      $ref: ./components/schemas.yaml#/WikiSyncRunResponse
+    WikiSyncRunsResult:
+      $ref: ./components/schemas.yaml#/WikiSyncRunsResult
+    WikiSyncRunsResponse:
+      $ref: ./components/schemas.yaml#/WikiSyncRunsResponse
+    WikiWebhookSuccess:
+      $ref: ./components/schemas.yaml#/WikiWebhookSuccess
+    WikiWebhookFailure:
+      $ref: ./components/schemas.yaml#/WikiWebhookFailure
     PkSuccess:
       $ref: ./components/schemas.yaml#/PkSuccess
     PkFailure:

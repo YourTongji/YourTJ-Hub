@@ -60,6 +60,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 	"gorm.io/gorm"
 )
 
@@ -227,6 +228,7 @@ func SchemaModels() []any {
 		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
 		&wikiPageRevisions.Entity{},
+		&wikiSyncRuns.Entity{},
 		&topicUserStat.Entity{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},

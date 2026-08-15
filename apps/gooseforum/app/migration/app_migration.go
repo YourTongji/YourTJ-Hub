@@ -255,5 +255,23 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(20)
 		currentVersion = 20
 	}
+	if currentVersion < 21 {
+		// GitHub SSOT 架构 v21：把存量 wiki 页面最新 approved 修订内容快照
+		// 复制到 wiki_pages 投影列（title/content/rendered_html/toc/content_hash）。
+		// 升级后公开读直接读投影列；content_hash 与 GitHub 仓库文件不一致时，
+		// 首次同步自然触发更新（幂等衔接，无需人工干预）。
+		gitSSOTResult := datamigration.BackfillWikiGitSSOT()
+		slog.Info("app migration wiki git ssot backfill done",
+			"pagesBackfilled", gitSSOTResult.PagesBackfilled,
+			"pagesSkipped", gitSSOTResult.PagesSkipped,
+			"failed", gitSSOTResult.Failed,
+			"lastFailed", gitSSOTResult.LastFailed)
+		if gitSSOTResult.Failed > 0 {
+			slog.Error("app migration wiki git ssot backfill has failures", "failed", gitSSOTResult.Failed, "lastFailed", gitSSOTResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(21)
+		currentVersion = 21
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

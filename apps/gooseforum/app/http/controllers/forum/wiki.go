@@ -105,7 +105,11 @@ func WikiDetail(c *gin.Context) {
 		props.Page.Bookmarked = action.BookmarkedAt != nil
 		props.Page.Watched = action.WatchedAt != nil
 	}
-	props.Page.CanEdit = wikiservice.CanEditPage(loginUserID, &page, &topic)
+	// GitHub SSOT：编辑/历史走仓库外链（公开 fork + PR），站内无编辑。
+	cfg := wikiservice.LoadGitConfig()
+	props.Page.CanEdit = cfg.Enabled()
+	props.Page.EditUrl = cfg.EditURL(page.Path)
+	props.Page.HistoryUrl = cfg.HistoryURL(page.Path)
 
 	payload := PagePayload{
 		Component: PageComponentWikiDetail,
