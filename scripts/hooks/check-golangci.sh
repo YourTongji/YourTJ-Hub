@@ -8,17 +8,16 @@ if ! command -v golangci-lint >/dev/null 2>&1; then
   exit 1
 fi
 
-# Resolve the incremental base before changing directory: git may inject a
-# relative GIT_DIR during hook execution, which breaks git lookups after cd.
-incremental_base=""
-if git rev-parse --verify origin/dev >/dev/null 2>&1; then
-  incremental_base=origin/dev
-fi
+# git injects a relative GIT_DIR while running hooks. After `cd apps/gooseforum`
+# that path no longer resolves, so golangci silently falls back to the full
+# repository scan and blocks pushes that only touch docs/config. Drop it and let
+# git rediscover the worktree root from the subdirectory.
+unset GIT_DIR
 
 cd apps/gooseforum
 
-if [ -n "$incremental_base" ]; then
-  exec golangci-lint run --new-from-rev="$incremental_base"
+if git rev-parse --verify origin/dev >/dev/null 2>&1; then
+  exec golangci-lint run --new-from-rev=origin/dev
 fi
 
 exec golangci-lint run
