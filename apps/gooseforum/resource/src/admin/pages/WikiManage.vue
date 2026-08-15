@@ -267,11 +267,12 @@ async function loadSyncRuns() {
 }
 
 async function runSync() {
-  if (syncTriggering.value) return
+  // 未启用/加载中/运行中时按钮已禁用；此处兜底防直接调用。
+  if (syncTriggering.value || syncLoading.value || !syncStatus.value?.enabled) return
   syncTriggering.value = true
   try {
     await triggerWikiSync()
-    adminToast.success(adminText('k00qj'))
+    adminToast.success(adminText('k00qw'))
   } catch (err) {
     const messageCode = (err as { messageCode?: string } | null)?.messageCode
     if (messageCode === 'wiki.sync.running') {
@@ -440,7 +441,7 @@ onMounted(() => {
                     <History class="size-4 shrink-0 text-muted-foreground" />
                     <span class="text-sm font-medium">{{ adminText('k00q0') }}</span>
                   </div>
-                  <Button type="button" size="sm" :disabled="syncTriggering || syncStatus?.lastRun?.status === 'running'" @click="runSync">
+                  <Button type="button" size="sm" :disabled="syncTriggering || syncLoading || !syncStatus?.enabled || syncStatus?.lastRun?.status === 'running'" @click="runSync">
                     <RefreshCw class="size-3.5" :class="syncTriggering ? 'animate-spin' : ''" />
                     {{ syncTriggering ? adminText('k00q8') : adminText('k00q7') }}
                   </Button>

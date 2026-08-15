@@ -527,11 +527,8 @@ export interface WikiSyncStatus {
   pages: { total: number, namespaces: number }
 }
 
-export interface WikiSyncResult {
-  headSha: string
-  pagesAdded: number
-  pagesUpdated: number
-  pagesDeleted: number
+export interface WikiSyncAccepted {
+  accepted: boolean
 }
 
 export function getWikiSyncStatus() {
@@ -539,7 +536,7 @@ export function getWikiSyncStatus() {
 }
 
 export function triggerWikiSync() {
-  return postJson<WikiSyncResult>('/api/admin/wiki/sync', {}, adminText('k00n0'))
+  return postJson<WikiSyncAccepted>('/api/admin/wiki/sync', {}, adminText('k00n0'))
 }
 
 export function getWikiSyncRuns() {
