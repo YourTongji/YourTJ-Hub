@@ -99,9 +99,21 @@ docs/        Docs center (product/architecture/development/operations)
   see docs/README.md.
 - Docs describe only the currently supported model — no timeline or milestones
   (see docs/development/documentation.md).
+- Any new feature PR must include documentation changes: user-visible features update the docs center
+  and status words; purely internal changes at least update the relevant README or code comments
+  (see docs/development/documentation.md).
+- config.toml contains signingKey — never commit it (gitignored).
 - Research files goto research/, and should not be included in git.
 
 ## 4. Verification
+- Run only the checks relevant to the change locally; CI owns the full repository-wide gate matrix.
+  Before push, lefthook pre-push runs `go vet ./...` + `golangci-lint run` (incremental against
+  `origin/dev`, full fallback) + `pnpm typecheck` (see `make hooks`).
+- Bug fixes start red: write the smallest failing test first, run it to confirm the failure, then
+  implement and turn it green. Mechanical changes (rename, formatting, dependency bump, docs-only)
+  are exempt; the regression test stays.
+- TODO markers use three tiers (`FIXME` / `TODO` / `XXX`), see
+  docs/development/coding-conventions.md.
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration

@@ -1,6 +1,6 @@
 ---
 name: yourtj-development
-description: Develop, fix, refactor, review, test, document, or publish changes in the yourtj-hub repository. Use for any task involving the GooseForum forum (apps/gooseforum Go backend + Vue resource), Flutter mobile (apps/mobile), OpenAPI contract (packages/api-contract), services/deployment, repository documentation, commits, pushes, or pull requests so layer boundaries, verification, documentation impact, and publication authority are handled consistently.
+description: Develop, fix, refactor, review, test, document, or publish changes in the yourtj-hub repository. Use for any task involving the GooseForum forum (apps/gooseforum Go backend + Vue resource), Flutter mobile (apps/mobile), OpenAPI contract (packages/api-contract), services/deployment, repository documentation, commits, pushes, or pull requests so layer boundaries, verification, documentation impact, and publication authority are handled consistently. Read-only analysis, review, and diagnosis also route here; use $yourtj-pre-push-checks before pushing or claiming checks pass.
 ---
 
 # yourtj Development
@@ -17,13 +17,10 @@ Classify the request before changing state:
 - **Publish:** commit, push, open/update a PR, deploy, or mutate an external system. Require explicit
   authorization for the requested publication action; change authorization alone is insufficient.
 
-Run `git status --short --branch`, inspect worktrees, and preserve existing changes. Never work directly on
-`dev` or `main`. `dev` is the default branch and the main development line: create branches from current
-`origin/dev` using `feat/<topic>` / `fix/<topic>` / `docs/<topic>` and open PRs against `dev`. `main` is
-the production site: merges to `main` go through PR + CI and auto-deploy to the production instance; the
-dev instance syncs a consistent snapshot of the main database on each deploy so DB migrations are
-rehearsed on dev before reaching main. Prefer a worktree when the current checkout is dirty. Never discard
-or include unrelated work.
+Follow the branch, worktree, and commit discipline in `AGENTS.md` §5 and
+[`docs/development/pull-requests.md`](../../../docs/development/pull-requests.md); do not duplicate it here.
+Run `git status --short --branch` first, inspect worktrees, and preserve existing changes. Prefer a worktree
+when the current checkout is dirty. Never discard or include unrelated work.
 
 ## 2. Read the governing sources
 
@@ -67,55 +64,44 @@ Use this order where applicable:
 6. focused tests, then scope-wide verification;
 7. documentation and operational runbooks.
 
-Hard constraints that must never be violated:
-
-- **Deployment stays a single binary** (resource/static/dist + templates go:embed). No nginx/CDN split.
-- **User IDs must be numeric (uint64)** once Casdoor auth lands — credit's `GetID()` only parses
-  numeric sub; UUID collapses all users to 0. Enforce and test in the auth layer.
-- **Casdoor is the only identity source** once integrated; the forum JWT is a session credential.
-- **Contract changes ship with generated output and fixtures in the same PR** (once the pipeline exists).
-- config.toml contains signingKey — never commit it (gitignored).
+Repository hard constraints live in `AGENTS.md` §3 — single binary, numeric user IDs, contract changes ship
+generated output and fixtures in the same PR, docs status words, and new-feature documentation. Read them
+before implementing and never violate them.
 
 ## 5. Verify proportionally
 
-Read and follow [`docs/development/testing.md`](../../../docs/development/testing.md). Always run:
+Read and follow [`docs/development/testing.md`](../../../docs/development/testing.md). Run only the checks
+that cover the changed surface; CI owns the full repository-wide gate matrix. The lefthook pre-push hook
+already runs `go vet` + `golangci-lint` + `pnpm typecheck` (install with `make hooks`) — do not repeat them
+manually for the same push.
+
+Always run:
 
 ```bash
 git diff --check
 ```
 
-Then run the exact gates for changed paths:
+Select evidence by changed surface:
 
-- Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
-  if module fetch times out).
-- **PostgreSQL migration gate (mandatory for any model/migration change):** run the PG migration
-  tests against a real PostgreSQL. The models must not hardcode dialect-only types
-  (`bigint unsigned` / `datetime` / `tinyint`) — GORM generates `bigint unsigned` from such tags and
-  PG rejects it, the table is never created, and the service starts with a broken schema (issue #8
-  regression). Verify with:
-  ```bash
-  docker run -d --name yourtj-pg-verify -e POSTGRES_USER=postgres -e POSTGRES_PASSWORD=postgres \
-    -e POSTGRES_DB=postgres -p 55432:5432 postgres:16-alpine
-  cd apps/gooseforum && YOURTJ_TEST_PG_URL="host=127.0.0.1 port=55432 user=postgres password=postgres \
-    dbname=postgres sslmode=disable" go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v
-  ```
-  CI runs the same gate in the `ci-backend-pg` job; do not rely on it passing locally — run it.
-- Web: `cd apps/gooseforum/resource && pnpm typecheck && pnpm test && pnpm build` (output lands in static/dist).
-- Full build: `make build` then smoke-test the binary (`./bin/yourtj-hub serve`, then curl the
-  configured port, default 5234).
-- Contract (once the pipeline exists): regenerate openapi.yaml + TS/Dart, inspect diff, run fixture
-  contract tests.
-- Auth/PII/governance/credit/search: include documented negative, replay, privacy, failure, and
-  reconciliation cases.
+| Surface | Evidence |
+|---|---|
+| Backend (bundles/models/service/controllers) | `cd apps/gooseforum && go vet ./... && go test ./...` — focus on affected packages with `-run` when practical |
+| Model/migration change (mandatory PG gate) | run the PostgreSQL migration tests (docker `postgres:16-alpine` + `YOURTJ_TEST_PG_URL=... go test ./app/migration/ -run TestSchemaMigratesOnPostgreSQL -v`; command in testing.md) |
+| Frontend (`resource/**`) | `cd apps/gooseforum/resource && pnpm typecheck` + affected component tests |
+| Contract (`packages/api-contract/**`) | `make contract-check` (regenerates and requires committed TS output) |
+| Docs | `git diff --check` + verify links and status words |
+| Auth/PII/governance/credit/search | documented negative, replay, privacy, failure, and reconciliation cases |
+| Cross-cutting, CI diagnosis, or explicit user request | full `make test` / `make build` |
 
 Report commands that failed, skipped, or were not run. Never infer CI success from a local subset.
 
 ## 6. Synchronize documentation
 
-Follow [`docs/development/documentation.md`](../../../docs/development/documentation.md). Update the owning
-product/architecture/development/operations documents and status words (`Current`/`Partial`/`Planned`/
-`Decision needed`) in the same PR. Documents describe the current supported model only — no timeline or
-milestones. Big decisions are recorded in the project ADR note (not in git), append-only numbering.
+Follow [`docs/development/documentation.md`](../../../docs/development/documentation.md). Any new feature PR
+must include documentation changes: user-visible features update the docs center and status words
+(`Current`/`Partial`/`Planned`/`Decision needed`); purely internal changes at least update the relevant
+README or code comments. Documents describe the current supported model only — no timeline or milestones.
+Big decisions are recorded in the project ADR note (not in git), append-only numbering.
 
 ## 7. Deliver
 
