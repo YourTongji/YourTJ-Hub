@@ -648,8 +648,6 @@ export default {
       reviews: 'Reviews',
     },
     loading: 'Loading…',
-    loadMore: 'Load more',
-    noMore: 'No more',
     coursesEmpty: 'No courses',
     coursesEmptyDesc: 'New courses will appear here.',
     reviewsEmpty: 'No reviews',

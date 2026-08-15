@@ -648,8 +648,6 @@ export default {
       reviews: 'Recensioni',
     },
     loading: 'Caricamento…',
-    loadMore: 'Carica altro',
-    noMore: 'Fine',
     coursesEmpty: 'Nessun corso',
     coursesEmptyDesc: 'I nuovi corsi appariranno qui.',
     reviewsEmpty: 'Nessuna recensione',

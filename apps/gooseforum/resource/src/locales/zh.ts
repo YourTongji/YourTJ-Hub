@@ -648,8 +648,6 @@ export default {
       reviews: '评价管理',
     },
     loading: '加载中…',
-    loadMore: '加载更多',
-    noMore: '没有更多了',
     coursesEmpty: '暂无课程',
     coursesEmptyDesc: '新增课程后会显示在这里。',
     reviewsEmpty: '暂无评价',
