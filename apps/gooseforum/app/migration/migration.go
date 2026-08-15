@@ -60,6 +60,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 	"gorm.io/gorm"
 )
 
@@ -83,8 +84,8 @@ func migrateSchema() {
 		slog.Error("dbconnect course_review legacy upgrade failed", "err", err)
 		os.Exit(1)
 	}
-	if err = dedupeWikiRevisionNumbers(db); err != nil {
-		slog.Error("dbconnect wiki revision dedupe failed", "err", err)
+	if err = upgradeWikiPagesProjectionColumns(db); err != nil {
+		slog.Error("dbconnect wiki_pages projection columns upgrade failed", "err", err)
 		os.Exit(1)
 	}
 	if err = upgradeImportRunCompositeIndex(db); err != nil {
@@ -223,10 +224,11 @@ func SchemaModels() []any {
 		&topicCategoryIndex.Entity{},
 		&topicUserAction.Entity{},
 		&postUserAction.Entity{},
-		&wikiNamespaces.Entity{},
 		&wikiNamespaceEditors.Entity{},
-		&wikiPages.Entity{},
+		&wikiNamespaces.Entity{},
 		&wikiPageRevisions.Entity{},
+		&wikiPages.Entity{},
+		&wikiSyncRuns.Entity{},
 		&topicUserStat.Entity{},
 		&contentDeleteEvent.Entity{},
 		&role.Entity{},
@@ -389,49 +391,41 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 
 const courseReviewTableName = "course_review"
 
-// dedupeWikiRevisionNumbers 在 AutoMigrate 创建 uniq_wiki_rev_page_no 唯一索引前，
-// 清理存量 wiki_page_revisions 中 (page_id, revision_no) 重复的行（旧版并发写入
-// 或回滚残留可能产生同号修订；唯一索引不区分 deleted_at，软删行同样占用索引槽，
-// 因此对全部行含软删去重）。每组保留 id 最大（最新写入）的一行，其余物理删除。
-func dedupeWikiRevisionNumbers(db *gorm.DB) error {
-	if !db.Migrator().HasTable("wiki_page_revisions") {
-		return nil
+// upgradeWikiPagesProjectionColumns 为存量 wiki_pages 表补上迁移 v21 的 6 个投影/溯源列。
+//
+// PostgreSQL：AutoMigrate 对加列走 ALTER COLUMN ADD COLUMN，不重建表、不丢数据，
+// 无需干预（由 PG 迁移测试覆盖），此处直接返回。
+// SQLite：GORM 的整表重建（temp 表 + INSERT SELECT）只复制"列变化检测"涉及的列，
+// 实测存量行数据丢失（与 upgradeImportRunCompositeIndex 同源坑，issue #183）。因此
+// 在 AutoMigrate 之前显式 ALTER TABLE ADD COLUMN（带默认值，保留存量数据），加完列后
+// AutoMigrate 无差异可检，不再重建。仅检测列缺失时执行；全新库/已升级库跳过。
+func upgradeWikiPagesProjectionColumns(db *gorm.DB) error {
+	if db.Dialector.Name() != "sqlite" {
+		return nil // PG 由 AutoMigrate ALTER COLUMN 处理
 	}
-	var dups []struct {
-		PageId     uint64
-		RevisionNo int
-		Cnt        int64
+	if !db.Migrator().HasTable("wiki_pages") {
+		return nil // 全新库，AutoMigrate 直接建全表
 	}
-	if err := db.Table("wiki_page_revisions").Unscoped().
-		Select("page_id, revision_no, COUNT(*) AS cnt").
-		Group("page_id, revision_no").
-		Having("COUNT(*) > 1").
-		Scan(&dups).Error; err != nil {
-		return fmt.Errorf("inspect duplicate wiki revisions: %w", err)
+	// SQLite ADD COLUMN 约束：NOT NULL 列必须带常量默认值；时间列可空不加默认。
+	columns := []struct {
+		name string
+		ddl  string
+	}{
+		{"content_hash", `ALTER TABLE wiki_pages ADD COLUMN content_hash varchar(64) NOT NULL DEFAULT ''`},
+		{"last_commit_sha", `ALTER TABLE wiki_pages ADD COLUMN last_commit_sha varchar(40) NOT NULL DEFAULT ''`},
+		{"last_commit_at", `ALTER TABLE wiki_pages ADD COLUMN last_commit_at datetime`},
+		{"rendered_html", `ALTER TABLE wiki_pages ADD COLUMN rendered_html text`},
+		{"toc", `ALTER TABLE wiki_pages ADD COLUMN toc text`},
+		{"contributors_json", `ALTER TABLE wiki_pages ADD COLUMN contributors_json text`},
 	}
-	if len(dups) == 0 {
-		return nil
-	}
-	slog.Warn("migration: found duplicate wiki revision numbers", "groups", len(dups))
-	for _, d := range dups {
-		var keepID uint64
-		if err := db.Table("wiki_page_revisions").Unscoped().
-			Where("page_id = ?", d.PageId).
-			Where("revision_no = ?", d.RevisionNo).
-			Order("id DESC").
-			Limit(1).
-			Pluck("id", &keepID).Error; err != nil {
-			return fmt.Errorf("find keep wiki revision: %w", err)
+	for _, col := range columns {
+		if db.Migrator().HasColumn(&wikiPages.Entity{}, col.name) {
+			continue
 		}
-		// Unscoped + Delete = 物理删除：软删行仍占用唯一索引，必须真正删除。
-		if err := db.Table("wiki_page_revisions").Unscoped().
-			Where("page_id = ?", d.PageId).
-			Where("revision_no = ?", d.RevisionNo).
-			Where("id <> ?", keepID).
-			Delete(&wikiPageRevisions.Entity{}).Error; err != nil {
-			return fmt.Errorf("dedupe wiki revisions (page=%d rev=%d): %w", d.PageId, d.RevisionNo, err)
+		if err := db.Exec(col.ddl).Error; err != nil {
+			return fmt.Errorf("add wiki_pages.%s column: %w", col.name, err)
 		}
+		slog.Info("dbconnect wiki_pages." + col.name + " column added (SQLite explicit ALTER)")
 	}
-	slog.Info("migration: wiki revision dedupe done", "groups", len(dups))
 	return nil
 }

@@ -98,6 +98,10 @@ than a hand-maintained duplicate baseline.
 - Migrations: upstream `app/migration` (Go migrations, run at startup/CLI); PostgreSQL is the
   default deployment database and SQLite the local development/test default; MySQL is not
   supported; the file db stays SQLite.
+- Wiki git projection migration v21 is an expand step: it adds the rendered/provenance columns and
+  `wiki_sync_runs`, then backfills them from approved revisions and namespace editors. The legacy
+  revision/editor tables remain registered while the current HTTP readers and writers still consume
+  them; their physical removal belongs to the #262 contract step after those consumers switch.
 - Post content revisions: `post_revisions` is an append-only snapshot table (post_id, version,
   editor_id, content, rendered_html, process_status, created_at). Every content edit — first post
   (post_no = 1) and replies alike, by the author — appends a new version inside the edit

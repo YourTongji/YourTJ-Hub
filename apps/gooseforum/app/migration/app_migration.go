@@ -211,11 +211,8 @@ func runVersionedDataMigrations() {
 		currentVersion = 18
 	}
 	if currentVersion < 19 {
-		// 单一事件源架构（wiki 写即发布 + 版本指针 + 物化水印）：
-		// 为存量 wiki 页面回填 published_revision_no（= 最新 approved revision_no），
-		// 并初始化 topics/posts 的 wiki_synced_revision_no 水印（当前内容即最新版）。
-		// 幂等：指针已 >0 的页面跳过。部署前已存在的 wiki 页面（发布即通过）
-		// 不先回填指针，CAS 编辑将永远无法匹配 published_revision_no=0 的基线。
+		// Preserve the v19 bridge for instances upgrading directly from <=18:
+		// v21 adds git projection columns, but v19 owns the topic/post revision watermarks.
 		singleSourceResult := datamigration.BackfillWikiSingleSource()
 		slog.Info("app migration wiki single source backfill done",
 			"pages", singleSourceResult.PagesSeeded,
@@ -254,6 +251,24 @@ func runVersionedDataMigrations() {
 		}
 		pageConfig.SyncMigrationVersion(20)
 		currentVersion = 20
+	}
+	if currentVersion < 21 {
+		// wiki_pages 加渲染/溯源列 + wiki_sync_runs 建表并回填旧 revision/editors 数据。
+		// 旧表仍服务过渡期读写 API；物理删除与 #262 消费者切换同批完成。
+		wikiV21 := datamigration.MigrateWikiProjectionV21()
+		slog.Info("app migration wiki projection v21 done",
+			"pagesBackfilled", wikiV21.PagesBackfilled,
+			"pagesSkipped", wikiV21.PagesSkipped,
+			"editorsMigrated", wikiV21.EditorsMigrated,
+			"editorsSkipped", wikiV21.EditorsSkipped,
+			"failed", wikiV21.Failed,
+			"lastFailed", wikiV21.LastFailed)
+		if wikiV21.Failed > 0 {
+			slog.Error("app migration wiki projection v21 has failures", "failed", wikiV21.Failed, "lastFailed", wikiV21.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(21)
+		currentVersion = 21
 	}
 	slog.Info("app migration end", "version", currentVersion)
 }
