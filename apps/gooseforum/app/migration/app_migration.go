@@ -273,5 +273,23 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(21)
 		currentVersion = 21
 	}
+	if currentVersion < 22 {
+		// 命名空间 slug 列 v22：为存量 wiki_namespaces 行回填 slug。
+		// name 为纯 ASCII slug 形态（如 guide/deployment）直接用 name 回填；
+		// 中文等非 ASCII 名称保持 NULL（由 GitHub 同步在 index.md frontmatter
+		// 提供 slug 时填充）。幂等：slug 已非空的行走过。
+		slugResult := datamigration.BackfillWikiNamespaceSlugs()
+		slog.Info("app migration wiki namespace slug backfill done",
+			"backfilled", slugResult.Backfilled,
+			"skipped", slugResult.Skipped,
+			"failed", slugResult.Failed,
+			"lastFailed", slugResult.LastFailed)
+		if slugResult.Failed > 0 {
+			slog.Error("app migration wiki namespace slug backfill has failures", "failed", slugResult.Failed, "lastFailed", slugResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(22)
+		currentVersion = 22
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

@@ -290,13 +290,14 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 }
 
 // TestParseMarkdownFileFrontmatter frontmatter 解析边界：
-// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文。
+// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文、slug 解析。
 func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	cases := []struct {
 		name      string
 		file      repoFile
 		wantTitle string
 		wantOrder int
+		wantSlug  string
 		wantBody  string
 	}{
 		{
@@ -305,6 +306,13 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 			wantTitle: "完整",
 			wantOrder: 3,
 			wantBody:  "# 正文",
+		},
+		{
+			name:      "frontmatter with slug",
+			file:      repoFile{Path: "同济新手教程/index.md", Content: []byte("---\ntitle: 教程\nslug: tongji-freshman-guide\n---\n\n# 首页")},
+			wantTitle: "教程",
+			wantSlug:  "tongji-freshman-guide",
+			wantBody:  "# 首页",
 		},
 		{
 			name:      "no frontmatter uses filename",
@@ -337,12 +345,15 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			title, order, _, body := parseMarkdownFile(tc.file)
+			title, order, _, slug, body := parseMarkdownFile(tc.file)
 			if title != tc.wantTitle {
 				t.Fatalf("title=%q, want %q", title, tc.wantTitle)
 			}
 			if order != tc.wantOrder {
 				t.Fatalf("order=%d, want %d", order, tc.wantOrder)
+			}
+			if slug != tc.wantSlug {
+				t.Fatalf("slug=%q, want %q", slug, tc.wantSlug)
 			}
 			if body != tc.wantBody {
 				t.Fatalf("body=%q, want %q", body, tc.wantBody)
@@ -487,5 +498,112 @@ func TestApplyRepoToDBDeleteNamespace(t *testing.T) {
 	}
 	if page.TopicId != topicID {
 		t.Fatalf("topic changed after namespace restore: %d → %d, want reuse", topicID, page.TopicId)
+	}
+}
+func namespaceSlugOrEmpty(t *testing.T, name string) string {
+	t.Helper()
+	ns := wikiNamespaces.GetByName(name)
+	if ns.Id == 0 {
+		t.Fatalf("namespace %s missing", name)
+	}
+	return ns.SlugOrEmpty()
+}
+
+// TestApplyRepoToDBSlugDefaultsToASCIIDirName 纯 ASCII 目录名且未声明 slug →
+// 默认 slug=目录名；index.md 变更 frontmatter slug 后跟随更新。
+func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "guide" {
+		t.Fatalf("slug=%q, want default dir name guide", got)
+	}
+
+	// index.md 显式声明 slug → 覆盖目录名默认值。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: tongji-guide\n---\n\n# 指南首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "tongji-guide" {
+		t.Fatalf("slug=%q, want tongji-guide from frontmatter", got)
+	}
+}
+
+// TestApplyRepoToDBSlugKeepsChineseNameNull 中文目录名且 index.md 未声明 slug
+// → slug 保持 NULL（回填/同步均不推导拼音），后续由仓库声明 slug 填充。
+func TestApplyRepoToDBSlugKeepsChineseNameNull(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "" {
+		t.Fatalf("slug=%q, want empty for chinese name without frontmatter slug", got)
+	}
+
+	// 仓库 index.md 声明 slug → 填充。
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "tongji-freshman-guide" {
+		t.Fatalf("slug=%q, want tongji-freshman-guide", got)
+	}
+}
+
+// TestApplyRepoToDBSlugConflictKeepsOldValue slug 已被其他命名空间占用 →
+// 报错并保留旧值（fail-fast，run 标记 failed）。
+// 两个命名空间同时索要 slug=guide：一个目录名默认（guide），一个 index.md
+// frontmatter 显式声明（指南）。map 遍历顺序不确定，但无论谁先处理，
+// 恰好一个持有 slug=guide、另一个冲突保留旧值（空），且同步报错。
+func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	writeRepoFile(t, repo, "指南/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "指南/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on slug conflict")
+	}
+	slugs := map[string]string{}
+	for _, ns := range wikiNamespaces.List() {
+		slugs[ns.Name] = ns.SlugOrEmpty()
+	}
+	guideHas := slugs["guide"] == "guide"
+	zhinanHas := slugs["指南"] == "guide"
+	if guideHas == zhinanHas {
+		t.Fatalf("slug=guide must be held by exactly one namespace, got guide=%q 指南=%q", slugs["guide"], slugs["指南"])
+	}
+}
+
+// TestApplyRepoToDBSlugInvalidFromFrontmatter 声明非法 slug（大写/特殊字符）→
+// fail-fast 报错且不落库（保留旧值 NULL）；页面本身仍正常同步。
+func TestApplyRepoToDBSlugInvalidFromFrontmatter(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: Bad_Slug!\n---\n\n# 指南首页")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on invalid slug")
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "" {
+		t.Fatalf("slug=%q, want empty (invalid slug rejected, keep old value)", got)
+	}
+	if page := wikiPages.GetByPath("guide/index"); page.Id == 0 {
+		t.Fatal("page should still be synced despite invalid namespace slug")
 	}
 }

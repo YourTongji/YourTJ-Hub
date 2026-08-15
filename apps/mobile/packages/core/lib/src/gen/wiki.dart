@@ -12,6 +12,7 @@ library;
 class WikiNamespace {
   const WikiNamespace({
     required this.name,
+    required this.slug,
     required this.description,
     required this.sortOrder,
     required this.pageCount,
@@ -20,6 +21,10 @@ class WikiNamespace {
   });
 
   final String name;
+
+  /// URL 友好标识（^[a-z0-9]+(-[a-z0-9]+)*$ ≤64），与显示名 name 分离；
+  /// 未分配时为空串。
+  final String slug;
   final String description;
   final int sortOrder;
   final int pageCount;
@@ -29,6 +34,7 @@ class WikiNamespace {
   factory WikiNamespace.fromJson(Map<String, dynamic> json) {
     return WikiNamespace(
       name: json['name'] as String? ?? '',
+      slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       pageCount: (json['pageCount'] as num?)?.toInt() ?? 0,
@@ -40,6 +46,7 @@ class WikiNamespace {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
+      'slug': slug,
       'description': description,
       'sortOrder': sortOrder,
       'pageCount': pageCount,

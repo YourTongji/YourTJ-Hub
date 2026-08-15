@@ -794,4 +794,5 @@ export default {
   "k00r4": "GitHub リポジトリの Settings → Webhooks で設定したシークレットと一致すると、PR マージ時に自動同期が実行されます。シークレットは暗号化して保存され、表示されることはありません。",
   "k00r5": "新しいシークレット（空欄で保存するとクリア）",
   "k00r6": "GitHub webhook シークレットを入力",
+  "k00r7": "Slug",
 } as const

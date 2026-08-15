@@ -7,7 +7,8 @@
         "sortOrder": 10,
         "pageCount": 3,
         "updatedAt": "2026-08-10T15:00:00+08:00",
-        "firstPagePath": "guide/getting-started"
+        "firstPagePath": "guide/getting-started",
+        "slug": "guide"
       }
     ],
     "recent": [

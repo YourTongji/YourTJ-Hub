@@ -794,4 +794,5 @@ export default {
   "k00r4": "When the secret matches the one set in GitHub repo Settings → Webhooks, PR merges trigger a sync automatically. The secret is stored encrypted and never echoed.",
   "k00r5": "New secret (leave empty and save to clear)",
   "k00r6": "Enter GitHub webhook secret",
+  "k00r7": "Slug",
 } as const

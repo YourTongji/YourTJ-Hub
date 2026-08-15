@@ -385,11 +385,14 @@ type pageFrontmatter struct {
 	Title       string `yaml:"title"`
 	Order       int    `yaml:"order"`
 	Description string `yaml:"description"`
+	Slug        string `yaml:"slug"`
 }
 
 // parseMarkdownFile 解析 md：frontmatter + 正文（去掉 frontmatter 块）。
 // title 缺失时用文件名（去 .md）兜底。
-func parseMarkdownFile(f repoFile) (title string, order int, description string, body string) {
+// 返回 (title, order, description, slug, body)；slug 仅在 frontmatter 显式
+// 声明时非空（命名空间 URL 标识，与显示名分离）。
+func parseMarkdownFile(f repoFile) (title string, order int, description string, slug string, body string) {
 	content := string(f.Content)
 	title = strings.TrimSuffix(filepath.Base(f.Path), ".md")
 	if strings.HasPrefix(content, "---") {
@@ -403,6 +406,7 @@ func parseMarkdownFile(f repoFile) (title string, order int, description string,
 				}
 				order = parsed.Order
 				description = parsed.Description
+				slug = strings.TrimSpace(parsed.Slug)
 			}
 			// 正文 = 第二个 --- 之后，去掉前导空行。
 			body = strings.TrimLeft(rest[idx+4:], "\n")
@@ -525,7 +529,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			slog.Debug("wiki sync: skip non-page md", "path", rel)
 			continue
 		}
-		title, order, _, body := parseMarkdownFile(f)
+		title, order, _, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
 			path:       norm,
 			sourcePath: strings.TrimSuffix(f.Path, ".md"),
@@ -539,11 +543,13 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 2.5 顶层目录 index.md → 命名空间元数据（D4：description/sort_order 跟随
-	// frontmatter）。仅当 index.md 实际携带 description/order 时才应用，
-	// 避免无 frontmatter 的 index.md 清空命名空间描述。
+	// frontmatter；slug 为 URL 友好标识，与显示名分离）。
+	// 仅当 index.md 实际携带 description/order/slug 时才应用，
+	// 避免无 frontmatter 的 index.md 清空命名空间元数据。
 	type nsMeta struct {
 		description string
 		order       int
+		slug        string
 	}
 	namespaceMeta := map[string]nsMeta{}
 	for _, f := range files {
@@ -551,11 +557,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if len(parts) < 2 || parts[len(parts)-1] != "index.md" {
 			continue
 		}
-		_, order, description, _ := parseMarkdownFile(f)
-		if description == "" && order == 0 {
+		_, order, description, slug, _ := parseMarkdownFile(f)
+		if description == "" && order == 0 && slug == "" {
 			continue
 		}
-		namespaceMeta[parts[0]] = nsMeta{description: description, order: order}
+		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, slug: slug}
 	}
 
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
@@ -623,18 +629,53 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 5. 命名空间元数据同步（D4）：顶层目录 index.md 的 frontmatter
-	// description/order → wiki_namespaces.description/sort_order。
-	// 幂等：描述与排序都未变时跳过（CompareAndSwap 语义）。
-	for nsName, meta := range namespaceMeta {
+	// description/order/slug → wiki_namespaces 对应列。
+	// slug 语义：URL 友好标识（^[a-z0-9]+(-[a-z0-9]+)*$ ≤64），与显示名 name
+	// （可为中文目录名）分离；目录名纯 ASCII 且未声明 slug 时默认 slug=目录名。
+	// 冲突策略：slug 已被其他命名空间占用 → 报错并保留旧值（fail-fast，
+	// run 标记 failed，避免 URL 与仓库不一致）；空 slug 不参与唯一约束。
+	// 幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
+	// 遍历全部仓库命名空间（而非仅 index.md 携带元数据的）：纯 ASCII 目录
+	// 即使无 index.md 也获得默认 slug=目录名；无 index.md 的中文目录保留空 slug。
+	repoNamespaces := make(map[string]struct{}, len(wanted))
+	for _, wp := range wanted {
+		repoNamespaces[wp.namespace] = struct{}{}
+	}
+	for nsName := range repoNamespaces {
+		meta := namespaceMeta[nsName]
 		ns := wikiNamespaces.GetByName(nsName)
 		if ns.Id == 0 {
 			continue // 页面 upsert 阶段会创建；此处仅更新已存在的
 		}
-		if ns.Description == meta.description && ns.SortOrder == meta.order {
+		// 推导目标 slug：frontmatter 显式声明优先；否则目录名纯 ASCII 时默认目录名。
+		wantSlug := meta.slug
+		if wantSlug == "" && isPureASCIISlug(nsName) {
+			wantSlug = nsName
+		}
+		if !ValidateSlug(wantSlug) {
+			errs = append(errs, fmt.Sprintf("invalid slug for namespace %s: %q", nsName, wantSlug))
+			continue
+		}
+		curSlug := ns.SlugOrEmpty()
+		if ns.Description == meta.description && ns.SortOrder == meta.order &&
+			curSlug == wantSlug {
+			continue
+		}
+		// slug 变化时做占用检测（排除自身）。
+		if wantSlug != "" && wantSlug != curSlug && wikiNamespaces.SlugExists(wantSlug, ns.Id) {
+			errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by another namespace (keep old value)", nsName, wantSlug))
 			continue
 		}
 		ns.Description = meta.description
 		ns.SortOrder = meta.order
+		if wantSlug != curSlug {
+			if wantSlug == "" {
+				ns.Slug = nil
+			} else {
+				v := wantSlug
+				ns.Slug = &v
+			}
+		}
 		if err := wikiNamespaces.Save(&ns); err != nil {
 			errs = append(errs, fmt.Sprintf("update namespace meta %s: %v", nsName, err))
 		}
@@ -644,10 +685,6 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 仓库中实际存在的顶层目录 = 全部 wanted 页面 path 的首段。
 	// 同步驱动可绕过 hasPages 守卫：仓库是唯一真实源，目录删除即权威删除信号；
 	// 页面已在第 4 步软删（topic 一并转入 USER_DELETED，评论/互动保留）。
-	repoNamespaces := make(map[string]struct{}, len(wanted))
-	for _, wp := range wanted {
-		repoNamespaces[wp.namespace] = struct{}{}
-	}
 	for _, ns := range wikiNamespaces.List() {
 		if _, ok := repoNamespaces[ns.Name]; ok {
 			continue

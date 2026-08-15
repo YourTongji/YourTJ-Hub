@@ -2211,7 +2211,10 @@ export interface components {
             result: components["schemas"]["WikiTreeResult"];
         }) | components["schemas"]["ApiFailure"];
         WikiNamespaceSummary: {
+            /** @description Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese). */
             name: string;
+            /** @description URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned. */
+            slug: string;
             description: string;
             /** @description Ordering key; smaller values come first. */
             sortOrder: number;

@@ -794,4 +794,5 @@ export default {
   "k00r4": "GitHub 仓库 Settings → Webhooks 中填写的 Secret 与此处一致时，PR 合并将自动触发同步。密钥经加密存储，不会回显。",
   "k00r5": "新密钥（留空并保存可清除）",
   "k00r6": "输入 GitHub webhook secret",
+  "k00r7": "Slug",
 } as const

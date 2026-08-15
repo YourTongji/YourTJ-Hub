@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"errors"
+	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
@@ -79,6 +80,27 @@ func ValidateNamespace(name string) bool {
 		return false
 	}
 	return validSegment(name)
+}
+
+// slugRe URL 友好 slug 约束（与旧 namespace 规则一致）：
+// 小写字母、数字、连字符，段间以单个连字符分隔，≤64。
+// slug 与 display name（可为中文目录名）分离，作为 URL/引用标识。
+var slugRe = regexp.MustCompile(`^[a-z0-9]+(-[a-z0-9]+)*$`)
+
+// ValidateSlug 校验命名空间 slug（^[a-z0-9]+(-[a-z0-9]+)*$，≤64 字节）。
+// 空串视为「未分配」，返回 true（可空字段语义：NULL 不参与唯一约束）。
+func ValidateSlug(slug string) bool {
+	slug = strings.TrimSpace(slug)
+	if slug == "" {
+		return true
+	}
+	return len(slug) <= maxSlugLen && slugRe.MatchString(slug)
+}
+
+// isPureASCIISlug 判断目录名是否为纯 ASCII slug（小写字母/数字/连字符）。
+// 目录名为纯 ASCII 且 index.md 未声明 slug 时，默认 slug=目录名。
+func isPureASCIISlug(name string) bool {
+	return name != "" && slugRe.MatchString(name)
 }
 
 // ValidatePath 校验完整 wiki 路径："namespace/slug[/slug...]"。

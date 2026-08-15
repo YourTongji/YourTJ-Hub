@@ -794,4 +794,5 @@ export default {
   "k00r4": "Quando il segreto corrisponde a quello impostato in GitHub → Settings → Webhooks, i merge delle PR attivano automaticamente la sincronizzazione. Il segreto è cifrato e mai mostrato.",
   "k00r5": "Nuovo segreto (lasciare vuoto e salvare per cancellare)",
   "k00r6": "Inserisci il segreto del webhook GitHub",
+  "k00r7": "Slug",
 } as const

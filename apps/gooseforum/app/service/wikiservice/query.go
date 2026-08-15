@@ -183,6 +183,7 @@ func BuildAdminTree() []AdminTreeNamespace {
 // NamespaceSummary 首页 namespace 卡。
 type NamespaceSummary struct {
 	Name          string    `json:"name"`
+	Slug          string    `json:"slug"`
 	Description   string    `json:"description"`
 	SortOrder     int       `json:"sortOrder"`
 	PageCount     int64     `json:"pageCount"`
@@ -213,6 +214,7 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 		}
 		summaries = append(summaries, NamespaceSummary{
 			Name:          ns.Name,
+			Slug:          ns.SlugOrEmpty(),
 			Description:   ns.Description,
 			SortOrder:     ns.SortOrder,
 			PageCount:     int64(len(nsPages)),
