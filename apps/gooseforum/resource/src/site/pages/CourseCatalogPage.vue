@@ -20,6 +20,7 @@ import type { CourseCatalogPageProps, CourseSummaryPayload, LayoutPayload, PageP
 const page = defineProps<{
   layout: LayoutPayload
   props: CourseCatalogPageProps
+  pageUrl: string
 }>()
 
 const { t } = useI18n()
@@ -43,12 +44,14 @@ const pagination = ref(page.props.pagination)
 const loadingMore = ref(false)
 const loadError = ref('')
 
-// 整页导航（筛选提交/翻页）后 SSR props 变化，重置本地列表；初始挂载即填充。
+// 整页导航（筛选提交/翻页）后 pageUrl 变化，重置本地列表；初始挂载即填充。
+// 监听 pageUrl 而非 props 引用：keep-alive 恢复时新 payload 会带来新的 props
+// 引用，但 URL 未变，不应重置已累计的无限滚动列表（PR review P2）。
 watch(
-  () => [page.props.courses, page.props.pagination] as const,
-  ([incomingCourses, incomingPagination]) => {
-    courses.value = incomingCourses
-    pagination.value = incomingPagination
+  () => page.pageUrl,
+  () => {
+    courses.value = page.props.courses
+    pagination.value = page.props.pagination
     loadingMore.value = false
     loadError.value = ''
   },

@@ -42,6 +42,9 @@ function observe() {
 watch(
   () => [props.hasNext, props.loading, props.error] as const,
   () => observe(),
+  // post-flush：loading 变化后模板才重新渲染 sentinel，pre-flush 时 ref 仍为 null
+  // 会提前退出，导致只自动加载一页后失效（PR review P1）。
+  { flush: 'post' },
 )
 
 onMounted(() => observe())
