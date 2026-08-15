@@ -20,15 +20,46 @@ type TreePage struct {
 }
 
 // TreeNamespace 导航树中的一个 namespace 分组。
+// Name/Label = 显示名（中文目录名）；Slug = 有效 URL key（未分配 slug 时
+// 降级=显示名），消费方拼 href 用（D7：URL 用 slug）。
 type TreeNamespace struct {
 	Name  string     `json:"name"`
 	Label string     `json:"label"`
+	Slug  string     `json:"slug"`
 	Pages []TreePage `json:"pages"`
 }
 
 // WikiTreeResult 公开导航树响应（契约包裹层）。
 type WikiTreeResult struct {
 	Namespaces []TreeNamespace `json:"namespaces"`
+}
+
+// ResolvePageByURLPath 按外部 URL path 解析页面（D7 路由语义：URL 用 slug）。
+// 解析顺序：
+//  1. 直查 path（slug 首段，新 URL）；
+//  2. 首段 = 显示名时按 name→urlKey 重建（存量/降级 URL，如中文目录声明
+//     slug 前发布的旧链接、或直接访问中文显示名 URL）。
+//
+// 返回零值实体表示未命中（404）。
+func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
+	if urlPath == "" {
+		return
+	}
+	entity = wikiPages.GetByPath(urlPath)
+	if entity.Id != 0 {
+		return entity
+	}
+	// 回退：首段按显示名解析 → 重建为 URL key 路径再直查。
+	first := NamespaceOf(urlPath)
+	if first == "" {
+		return
+	}
+	ns := wikiNamespaces.GetByName(first)
+	if ns.Id == 0 {
+		return
+	}
+	rebuilt := namespaceURLKey(&ns) + strings.TrimPrefix(urlPath, first)
+	return wikiPages.GetByPath(rebuilt)
 }
 
 // BuildTree 构建 wiki 导航树（按 namespace 分组，当前页 active）。
@@ -61,6 +92,7 @@ func BuildTree(activePath string) []TreeNamespace {
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
+			Slug:  namespaceURLKey(ns),
 			Pages: items,
 		})
 	}
@@ -130,6 +162,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
+			Slug:  urlKey,
 			Pages: items,
 		})
 	}

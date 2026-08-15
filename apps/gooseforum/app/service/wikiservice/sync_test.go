@@ -629,3 +629,51 @@ func TestApplyRepoToDBSlugInvalidFromFrontmatter(t *testing.T) {
 		t.Fatal("page should still be synced despite invalid namespace slug")
 	}
 }
+
+// TestResolvePageByURLPath D7 路由语义（URL 用 slug）：
+//  1. slug 首段路径直查命中（新 URL，如 /wiki/tongji-freshman-guide/start）；
+//  2. 中文显示名 URL 回退：无 slug 时 path 首段=显示名，直接命中；
+//  3. 声明 slug 后旧链接兼容：首段=显示名的 URL 按 name→urlKey 重建命中。
+func TestResolvePageByURLPath(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	// 新 URL：slug 首段直查命中。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("slug URL tongji-freshman-guide/start should resolve directly")
+	}
+	// 旧链接兼容：中文显示名 URL（声明 slug 前的链接）按 name→slug 重建命中。
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("display-name URL 同济新手教程/start should resolve via name→slug rebuild")
+	}
+	// 未命中：不存在的页面。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/nope"); page.Id != 0 {
+		t.Fatal("nonexistent page should not resolve")
+	}
+	if page := ResolvePageByURLPath("不存在的命名空间/start"); page.Id != 0 {
+		t.Fatal("nonexistent namespace should not resolve")
+	}
+}
+
+// TestResolvePageByURLPathFallbackUnassigned 中文目录未声明 slug 时
+// path 首段=显示名（降级），直查即命中（无需回退）。
+func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("fallback URL (display name as URL key) should resolve directly")
+	}
+}

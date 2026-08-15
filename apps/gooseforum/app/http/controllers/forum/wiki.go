@@ -7,7 +7,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/topicviewservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/gin-gonic/gin"
@@ -61,13 +60,15 @@ func WikiDetail(c *gin.Context) {
 	}
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
-	// GitHub SSOT：path 存库保留仓库原始大小写与 Unicode（中文命名空间/页面），
-	// 不再小写归一；gin 已解码 URL 段，按原样查询。
+	// D7 URL 语义（URL 用 slug）：path 首段 = URL key（slug，降级=显示名）。
+	// ResolvePageByURLPath 先直查 slug 路径，未命中时回退按显示名解析重建
+	// （兼容中文目录声明 slug 前的旧链接 / 直接访问中文显示名 URL）。
+	// gin 已解码 URL 段，按原样查询。
 	if path == "" || strings.Contains(path, "//") {
 		renderNotFound(c)
 		return
 	}
-	page := wikiPages.GetByPath(path)
+	page := wikiservice.ResolvePageByURLPath(path)
 	if page.Id == 0 {
 		renderNotFound(c)
 		return
@@ -150,6 +151,7 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 		result = append(result, WikiTreeNamespacePayload{
 			Name:  ns.Name,
 			Label: ns.Label,
+			Slug:  ns.Slug,
 			Pages: pages,
 		})
 	}

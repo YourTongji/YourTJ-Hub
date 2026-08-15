@@ -2199,9 +2199,12 @@ export interface components {
             active: boolean;
         };
         WikiTreeNamespace: {
+            /** @description Display name (top-level directory name; may contain Unicode such as Chinese). */
             name: string;
             /** @description Display label of the namespace. */
             label: string;
+            /** @description Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}. */
+            slug: string;
             pages: components["schemas"]["WikiTreePage"][];
         };
         WikiTreeResult: {

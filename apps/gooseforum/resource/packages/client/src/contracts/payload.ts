@@ -273,6 +273,8 @@ export interface WikiTreePage {
 export interface WikiTreeNamespace {
   name: string
   label: string
+  /** 有效 URL key（slug，未分配时降级=显示名）；拼 /wiki/{slug}/{page.path} 用。 */
+  slug: string
   pages: WikiTreePage[]
 }
 

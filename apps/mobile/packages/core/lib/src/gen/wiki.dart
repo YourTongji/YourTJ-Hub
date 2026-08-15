@@ -89,17 +89,23 @@ class WikiTreeNamespace {
   const WikiTreeNamespace({
     required this.name,
     required this.label,
+    required this.slug,
     required this.pages,
   });
 
   final String name;
   final String label;
+
+  /// 有效 URL key（slug，未分配时降级=显示名）；消费方拼
+  /// `/wiki/{slug}/{page.path}` href 用。
+  final String slug;
   final List<WikiTreePage> pages;
 
   factory WikiTreeNamespace.fromJson(Map<String, dynamic> json) {
     return WikiTreeNamespace(
       name: json['name'] as String? ?? '',
       label: json['label'] as String? ?? '',
+      slug: json['slug'] as String? ?? '',
       pages: (json['pages'] as List<dynamic>? ?? const [])
           .map((item) => WikiTreePage.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -110,6 +116,7 @@ class WikiTreeNamespace {
     return {
       'name': name,
       'label': label,
+      'slug': slug,
       'pages': pages.map((page) => page.toJson()).toList(),
     };
   }
