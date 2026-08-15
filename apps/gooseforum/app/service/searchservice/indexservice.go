@@ -29,7 +29,14 @@ type IndexBuildResult struct {
 func convertTopicToSearchDocument(topic *topics.Entity, firstPost *posts.Entity) TopicSearchDocument {
 	searchContent := ""
 	if firstPost != nil {
-		searchContent = markdown2html.ExtractSearchContent(firstPost.Content)
+		content := firstPost.Content
+		// wiki 页面以 GitHub 仓库 Markdown 为唯一真源，可携带 YAML frontmatter
+		// 元数据（issue #258）：搜索索引只索引剥离后的正文。写入路径已剥离，
+		// 此处为存量/历史数据防御，frontmatter 元数据行不得进入 SearchContent。
+		if topic != nil && topic.TopicType == topics.TopicTypeWiki {
+			_, content = markdown2html.SplitFrontmatter(content)
+		}
+		searchContent = markdown2html.ExtractSearchContent(content)
 	}
 	return TopicSearchDocument{
 		ID:            topic.Id,

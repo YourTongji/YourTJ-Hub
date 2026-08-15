@@ -1066,3 +1066,142 @@ func TestRollbackEditConcurrent(t *testing.T) {
 		t.Fatalf("revision sequence does not start at 1: first=%d", prev)
 	}
 }
+
+// TestCreateEditStripsFrontmatter 写路径 frontmatter 剥离（issue #258）：
+// 渲染/摘要/首图/物化视图只含剥离后的 body，frontmatter 元数据不进入公开派生
+// 内容；修订原文保留完整 frontmatter（编辑器往返）。
+func TestCreateEditStripsFrontmatter(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+
+	fmContent := "---\ntitle: 元数据标题\ndescription: 元数据描述\ntags:\n  - 标签\n---\n\n![图](/uploads/a.png)\n\n# 标题一\n\n正文内容"
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/fm", Title: "页面标题", Content: fmContent, UserId: editor})
+	if err != nil {
+		t.Fatalf("create with frontmatter: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	topic := topics.Get(page.TopicId)
+	firstPost := posts.Get(topic.FirstPostId)
+
+	if strings.Contains(firstPost.Content, "---") || strings.Contains(firstPost.Content, "title:") || strings.Contains(firstPost.Content, "description:") {
+		t.Fatalf("first post content must be frontmatter-stripped, got %q", firstPost.Content)
+	}
+	if !strings.Contains(firstPost.Content, "正文内容") {
+		t.Fatalf("first post content should keep body, got %q", firstPost.Content)
+	}
+	if strings.Contains(topic.Excerpt, "元数据") || strings.Contains(topic.Excerpt, "description:") {
+		t.Fatalf("topic excerpt must not contain frontmatter, got %q", topic.Excerpt)
+	}
+	if !strings.Contains(topic.Excerpt, "正文内容") {
+		t.Fatalf("topic excerpt should contain body text, got %q", topic.Excerpt)
+	}
+	if topic.FirstImageURL != "/uploads/a.png" {
+		t.Fatalf("first image=%q, want /uploads/a.png (body image, not frontmatter)", topic.FirstImageURL)
+	}
+
+	rev := wikiPageRevisions.GetByPageAndRevisionNo(page.Id, 1)
+	if rev.Content != fmContent {
+		t.Fatalf("revision content should keep full frontmatter for editor round-trip")
+	}
+	if strings.Contains(rev.RenderedHTML, "元数据") || strings.Contains(rev.RenderedHTML, "---") {
+		t.Fatalf("rendered HTML must not contain frontmatter, got %q", rev.RenderedHTML)
+	}
+	if !strings.Contains(rev.RenderedHTML, "标题一") {
+		t.Fatalf("rendered HTML should contain body heading, got %q", rev.RenderedHTML)
+	}
+
+	// Edit：同样剥离。
+	fmEdit := "---\ntitle: 新元数据\n---\n\n![图](/uploads/b.png)\n\n# 新标题\n\n新正文"
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "页面标题 v2", Content: fmEdit, UserId: editor, BaseRevisionNo: 1}); err != nil {
+		t.Fatalf("edit with frontmatter: %v", err)
+	}
+	firstPost = posts.Get(topic.FirstPostId)
+	if strings.Contains(firstPost.Content, "新元数据") || strings.Contains(firstPost.Content, "---") {
+		t.Fatalf("first post content after edit must be stripped, got %q", firstPost.Content)
+	}
+	if !strings.Contains(firstPost.Content, "新正文") {
+		t.Fatalf("first post content after edit should keep body, got %q", firstPost.Content)
+	}
+	rev2 := wikiPageRevisions.GetByPageAndRevisionNo(page.Id, 2)
+	if rev2.Content != fmEdit {
+		t.Fatalf("revision 2 content should keep full frontmatter")
+	}
+	if strings.Contains(rev2.RenderedHTML, "新元数据") {
+		t.Fatalf("rendered HTML after edit must not contain frontmatter, got %q", rev2.RenderedHTML)
+	}
+}
+
+// TestFrontmatterInvalidRejected 非法 frontmatter（必填缺失/类型错误/yaml 语法
+// 错误）在创建与编辑时都必须拒绝（issue #258 校验要求）。
+func TestFrontmatterInvalidRejected(t *testing.T) {
+	setupWikiTestDB(t)
+	editor := seedWikiUser(t, false)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{editor}, editor); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+
+	badContents := []string{
+		"---\ndescription: 缺标题\n---\n\n正文",
+		"---\ntitle: 123\n---\n\n正文",
+		"---\ntitle: [未闭合\n---\n\n正文",
+		"---\ntitle: 标题\ndraft: maybe\n---\n\n正文",
+	}
+	for i, bad := range badContents {
+		if _, err := Create(CreateParams{Namespace: "guide", Path: fmt.Sprintf("guide/bad%d", i), Title: "B", Content: bad, UserId: editor}); err != ErrFrontmatterInvalid {
+			t.Fatalf("create bad frontmatter #%d err=%v, want ErrFrontmatterInvalid", i, err)
+		}
+	}
+
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/ok", Title: "OK", Content: "---\ntitle: 合法\n---\n\n正文", UserId: editor})
+	if err != nil {
+		t.Fatalf("create valid frontmatter: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "B2", Content: "---\ntags: [1]\n---\n\n正文", UserId: editor, BaseRevisionNo: 1}); err != ErrFrontmatterInvalid {
+		t.Fatalf("edit bad frontmatter err=%v, want ErrFrontmatterInvalid", err)
+	}
+}
+
+// TestRollbackStripsFrontmatter 回滚目标修订携带 frontmatter 时，物化视图与
+// 派生字段同样剥离（issue #258：回滚后公开内容不得被元数据污染）。
+func TestRollbackStripsFrontmatter(t *testing.T) {
+	setupWikiTestDB(t)
+	manager := seedWikiUser(t, true)
+	if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: "guide", Description: "指南"}); err != nil {
+		t.Fatalf("create namespace: %v", err)
+	}
+	if err := wikiNamespaceEditors.SetEditorsTx(dbconnect.Connect(), "guide", []uint64{manager}, manager); err != nil {
+		t.Fatalf("set editors: %v", err)
+	}
+	created, err := Create(CreateParams{Namespace: "guide", Path: "guide/fmrb", Title: "v1", Content: "---\ntitle: 旧元数据\n---\n\n回滚正文", UserId: manager})
+	if err != nil {
+		t.Fatalf("create: %v", err)
+	}
+	page := wikiPages.Get(created.PageId)
+	if _, err := Edit(EditParams{PageID: page.Id, Title: "v2", Content: "c2", UserId: manager, BaseRevisionNo: 1}); err != nil {
+		t.Fatalf("edit2: %v", err)
+	}
+	if err := Rollback(RollbackParams{PageID: page.Id, ToRevisionNo: 1, UserId: manager}); err != nil {
+		t.Fatalf("rollback: %v", err)
+	}
+	topic := topics.Get(page.TopicId)
+	firstPost := posts.Get(topic.FirstPostId)
+	if strings.Contains(firstPost.Content, "旧元数据") || strings.Contains(firstPost.Content, "---") {
+		t.Fatalf("first post content after rollback must be stripped, got %q", firstPost.Content)
+	}
+	if !strings.Contains(firstPost.Content, "回滚正文") {
+		t.Fatalf("first post content after rollback should keep body, got %q", firstPost.Content)
+	}
+	if strings.Contains(topic.Excerpt, "旧元数据") {
+		t.Fatalf("topic excerpt after rollback must not contain frontmatter, got %q", topic.Excerpt)
+	}
+}

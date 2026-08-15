@@ -47,6 +47,38 @@ func TestConvertTopicToSearchDocument(t *testing.T) {
 	}
 }
 
+func TestConvertTopicToSearchDocumentStripsWikiFrontmatter(t *testing.T) {
+	// issue #258：wiki 页面可携带 YAML frontmatter，搜索索引只索引剥离后的正文，
+	// 元数据行（title/description/tags）不得进入 SearchContent。
+	topic := &topics.Entity{
+		Id:            7,
+		Title:         "Wiki page",
+		TopicType:     topics.TopicTypeWiki,
+		Status:        1,
+		ProcessStatus: topics.ProcessStatusNormal,
+	}
+	firstPost := &posts.Entity{Content: "---\ntitle: 元数据标题\ndescription: 元数据描述\ntags:\n  - 标签\n---\n\n# 标题\n\n正文内容"}
+
+	got := convertTopicToSearchDocument(topic, firstPost)
+
+	for _, forbidden := range []string{"元数据标题", "元数据描述", "标签", "title:", "description:", "---"} {
+		if strings.Contains(got.SearchContent, forbidden) {
+			t.Fatalf("SearchContent must not contain frontmatter %q, got %q", forbidden, got.SearchContent)
+		}
+	}
+	if !strings.Contains(got.SearchContent, "正文内容") {
+		t.Fatalf("SearchContent should contain body text, got %q", got.SearchContent)
+	}
+
+	// 非 wiki 话题不走剥离（原有行为不变）。
+	forumTopic := &topics.Entity{Id: 8, Title: "Forum", TopicType: 0}
+	forumPost := &posts.Entity{Content: "---\ntitle: 元数据\n---\n\n论坛正文"}
+	forumGot := convertTopicToSearchDocument(forumTopic, forumPost)
+	if !strings.Contains(forumGot.SearchContent, "元数据") {
+		t.Fatalf("non-wiki content should stay unstripped, got %q", forumGot.SearchContent)
+	}
+}
+
 func TestTopicIndexUsesTopicName(t *testing.T) {
 	if TopicIndex != "topics" {
 		t.Fatalf("TopicIndex = %q, want topics", TopicIndex)

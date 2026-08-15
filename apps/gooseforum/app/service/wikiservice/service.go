@@ -134,6 +134,18 @@ func Create(params CreateParams) (*CreateResult, error) {
 	if strings.TrimSpace(params.Content) == "" {
 		return nil, ErrContentEmpty
 	}
+	// frontmatter 解析与剥离（issue #258）：wiki 以 GitHub 仓库 Markdown 为唯一
+	// 真源，页面可携带 YAML frontmatter 元数据；渲染/摘要/首图/TOC 统一走剥离后
+	// 的 body，元数据不进入任何公开派生内容。修订原文保留完整 frontmatter
+	//（编辑器往返与后续 content_hash 计算）。
+	_, body, err := markdown2html.ParseFrontmatter(params.Content)
+	if err != nil {
+		return nil, ErrFrontmatterInvalid
+	}
+	// 仅含 frontmatter（无正文）视为空内容：剥离后没有可渲染/可搜索的正文。
+	if strings.TrimSpace(body) == "" {
+		return nil, ErrContentEmpty
+	}
 
 	// 嵌套路径（>=3 段）时校验父页面存在并记录 parent_id（review P2：
 	// 此前嵌套路径直接创建会留下 parent_id=0，树层级断裂）。
@@ -153,8 +165,8 @@ func Create(params CreateParams) (*CreateResult, error) {
 		Status:           1,
 		ProcessStatus:    topics.ProcessStatusNormal,
 		TopicType:        topics.TopicTypeWiki,
-		Excerpt:          markdown2html.ExtractDescription(params.Content, 200),
-		FirstImageURL:    markdown2html.ExtractFirstImageURL(params.Content),
+		Excerpt:          markdown2html.ExtractDescription(body, 200),
+		FirstImageURL:    markdown2html.ExtractFirstImageURL(body),
 		VisibilityStatus: topics.VisibilityActive,
 		RetentionStatus:  topics.RetentionNormal,
 	}
@@ -164,7 +176,7 @@ func Create(params CreateParams) (*CreateResult, error) {
 
 	topic.WikiSyncedRevisionNo = 1
 	firstPost.WikiSyncedRevisionNo = 1
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	err = dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := topics.CreateTx(tx, &topic); err != nil {
 			return err
 		}
@@ -172,7 +184,7 @@ func Create(params CreateParams) (*CreateResult, error) {
 			TopicId:          topic.Id,
 			PostNo:           1,
 			UserId:           params.UserId,
-			Content:          params.Content,
+			Content:          body,
 			RenderedHTML:     "",
 			RenderedVersion:  markdown2html.GetPostVersion(),
 			ProcessStatus:    posts.ProcessStatusNormal,
@@ -198,8 +210,8 @@ func Create(params CreateParams) (*CreateResult, error) {
 		if err := wikiPages.CreateTx(tx, &page); err != nil {
 			return err
 		}
-		renderedHTML := markdown2html.PostMarkdownToHTML(params.Content)
-		toc, err := encodeTOC(markdown2html.ExtractHeadings(params.Content))
+		renderedHTML := markdown2html.PostMarkdownToHTML(body)
+		toc, err := encodeTOC(markdown2html.ExtractHeadings(body))
 		if err != nil {
 			return err
 		}
@@ -223,7 +235,7 @@ func Create(params CreateParams) (*CreateResult, error) {
 	}
 
 	// 提交后副作用：文件引用 + 搜索索引 + 发布事件。
-	fileusageservice.ReplaceTopic(topic.Id, params.UserId, params.Content)
+	fileusageservice.ReplaceTopic(topic.Id, params.UserId, body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki create: search index sync failed", "topicId", topic.Id, "error", err)
 	}
@@ -259,6 +271,16 @@ func Edit(params EditParams) (*EditResult, error) {
 	if strings.TrimSpace(params.Content) == "" {
 		return nil, ErrContentEmpty
 	}
+	// frontmatter 解析与剥离（issue #258）：见 Create 注释；编辑同样只把剥离后
+	// 的 body 写入物化视图/派生字段，修订原文保留完整 frontmatter。
+	_, body, err := markdown2html.ParseFrontmatter(params.Content)
+	if err != nil {
+		return nil, ErrFrontmatterInvalid
+	}
+	// 仅含 frontmatter（无正文）视为空内容。
+	if strings.TrimSpace(body) == "" {
+		return nil, ErrContentEmpty
+	}
 	// CAS 基线必填：0 = 客户端省略 baseRevisionNo 绕过乐观锁（review Medium：
 	// 基于陈旧基线提交会静默覆盖他人已发布的较新版本）。
 	if params.BaseRevisionNo <= 0 {
@@ -266,13 +288,13 @@ func Edit(params EditParams) (*EditResult, error) {
 	}
 	// 写时敏感词拦截：写即发布无审核兜底，命中直接拒绝（review 决策）。
 	if hit, word := moderationservice.CheckContentAllowed(params.Title + "\n" + params.Content); hit {
-		moderationservice.SensitiveContentBlocked(params.UserId, "wiki", params.PageID, word, markdown2html.ExtractDescription(params.Content, 200))
+		moderationservice.SensitiveContentBlocked(params.UserId, "wiki", params.PageID, word, markdown2html.ExtractDescription(body, 200))
 		return nil, ErrSensitiveBlocked
 	}
 
 	var revision wikiPageRevisions.Entity
 	var firstPost posts.Entity
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	err = dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		// 行锁 page 行：同一页面并发编辑串行化（模型 1 编辑锁）。
 		var locked wikiPages.Entity
 		if err := tx.Clauses(clause.Locking{Strength: "UPDATE"}).
@@ -284,8 +306,8 @@ func Edit(params EditParams) (*EditResult, error) {
 			return ErrConflict
 		}
 		nextNo := locked.PublishedRevisionNo + 1
-		renderedHTML := markdown2html.PostMarkdownToHTML(params.Content)
-		toc, err := encodeTOC(markdown2html.ExtractHeadings(params.Content))
+		renderedHTML := markdown2html.PostMarkdownToHTML(body)
+		toc, err := encodeTOC(markdown2html.ExtractHeadings(body))
 		if err != nil {
 			return err
 		}
@@ -312,7 +334,7 @@ func Edit(params EditParams) (*EditResult, error) {
 		if firstPost.Id == 0 {
 			return ErrPageNotFound
 		}
-		firstPost.Content = params.Content
+		firstPost.Content = body
 		firstPost.RenderedHTML = renderedHTML
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
@@ -321,8 +343,8 @@ func Edit(params EditParams) (*EditResult, error) {
 			return err
 		}
 		topic.Title = params.Title
-		topic.Excerpt = markdown2html.ExtractDescription(params.Content, 200)
-		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(params.Content)
+		topic.Excerpt = markdown2html.ExtractDescription(body, 200)
+		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(body)
 		topic.WikiSyncedRevisionNo = nextNo
 		return topics.UpdateWikiSyncedMetaTx(tx, &topic)
 	})
@@ -331,7 +353,7 @@ func Edit(params EditParams) (*EditResult, error) {
 	}
 
 	// 提交后副作用：文件引用 + 搜索 + 通知（节流）。
-	fileusageservice.ReplaceTopic(topic.Id, params.UserId, params.Content)
+	fileusageservice.ReplaceTopic(topic.Id, params.UserId, body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki edit: search index sync failed", "topicId", topic.Id, "error", err)
 	}
@@ -361,6 +383,7 @@ func Rollback(params RollbackParams) error {
 	var target wikiPageRevisions.Entity
 	var topic topics.Entity
 	var firstPost posts.Entity
+	body := ""
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		// 行锁 page 行：与 Edit 的 CAS/指针前移串行化（review High：回滚与并发
 		// 编辑交错会丢失已提交的编辑，或让指针指向被硬删的版本）。
@@ -402,7 +425,13 @@ func Rollback(params RollbackParams) error {
 		if firstPost.Id == 0 {
 			return ErrPageNotFound
 		}
-		firstPost.Content = target.Content
+		// 回滚目标修订可能携带 frontmatter（issue #258）：物化视图与派生字段
+		// 统一走剥离后的 body，与 Create/Edit 一致。回滚对象是历史已存储修订，
+		// 其中可能含本特性落地前的旧内容（--- 开头但并非合法 frontmatter），
+		// 因此用宽松剥离（块存在即剥离，解析失败不阻断回滚），避免管理员无法
+		// 回滚到旧版本。
+		_, body = markdown2html.SplitFrontmatter(target.Content)
+		firstPost.Content = body
 		firstPost.RenderedHTML = target.RenderedHTML
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
@@ -411,8 +440,8 @@ func Rollback(params RollbackParams) error {
 			return err
 		}
 		topic.Title = target.Title
-		topic.Excerpt = markdown2html.ExtractDescription(target.Content, 200)
-		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(target.Content)
+		topic.Excerpt = markdown2html.ExtractDescription(body, 200)
+		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(body)
 		topic.WikiSyncedRevisionNo = params.ToRevisionNo
 		return topics.UpdateWikiSyncedMetaTx(tx, &topic)
 	})
@@ -420,7 +449,7 @@ func Rollback(params RollbackParams) error {
 		return err
 	}
 	// 提交后副作用：文件引用 + 搜索 + 通知 watcher。
-	fileusageservice.ReplaceTopic(topic.Id, target.EditorId, target.Content)
+	fileusageservice.ReplaceTopic(topic.Id, target.EditorId, body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki rollback: search index sync failed", "topicId", topic.Id, "error", err)
 	}

@@ -55,6 +55,7 @@ status. Do not use PR-relative "shipped this / later" labels as long-term status
 - [Current state & gaps](product/current-state.md)
 - [Identity, login & account lifecycle](product/identity-and-access.md)
 - [Points & cross-platform settlement](product/credit-and-escrow.md)
+- [Wiki Markdown 格式规范](product/wiki-markdown-format.md)
 
 ### Architecture
 

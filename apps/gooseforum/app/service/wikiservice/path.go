@@ -31,6 +31,10 @@ var (
 	// ErrBaseRevisionRequired 编辑未携带 baseRevisionNo（契约 required,min=1；
 	// 0 = 客户端绕过 CAS 基线校验，静默覆盖他人已发布版本，必须拒绝）。
 	ErrBaseRevisionRequired = errors.New("wiki: base revision required")
+	// ErrFrontmatterInvalid 内容 frontmatter 非法：必填字段缺失、字段类型错误或
+	// yaml 语法错误（issue #258：wiki 以 GitHub 仓库 Markdown 为唯一真源，
+	// frontmatter 是页面元数据，渲染/摘要/搜索/TOC 前必须剥离）。
+	ErrFrontmatterInvalid = errors.New("wiki: frontmatter invalid")
 )
 
 var (
