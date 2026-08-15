@@ -30,7 +30,6 @@ var running = false
 var jobContext, cancelJobs = context.WithCancel(context.Background())
 
 func Run() {
-	jobContext, cancelJobs = context.WithCancel(context.Background())
 	closer.RegisterPriority(closer.PriorityProducer, Stop)
 	slog.Info("start cron")
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
