@@ -1923,6 +1923,7 @@ export default {
     'wiki.namespace.notFound': '名前空間が見つかりません。',
     'wiki.namespace.hasPages': 'この名前空間にはまだページがあるため削除できません。',
     'wiki.namespace.nameInvalid': '名前空間名が不正です（小文字、数字、ハイフンのみ使用可能）。',
+    'wiki.namespace.nameConflict': 'その名前空間は既に存在します。',
     'wiki.path.invalid': 'Wiki パスが不正です。',
     'wiki.page.notFound': 'Wiki ページが見つかりません。',
     'wiki.page.hasChildren': 'このページには子ページがあるため削除できません。',

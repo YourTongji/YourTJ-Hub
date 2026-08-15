@@ -749,7 +749,6 @@ export default {
   "k00ne": "Delete Namespace",
   "k00nf": "Delete namespace \"{name}\"? This action cannot be undone.",
   "k00ng": "Namespace name is required",
-  "k00nh": "Enter namespace name",
   "k00ni": "Enter namespace description (optional)",
   "k00nj": "No namespaces",
   "k00nk": "Delete failed: the namespace still has pages.",

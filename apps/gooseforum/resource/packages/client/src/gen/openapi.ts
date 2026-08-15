@@ -2417,7 +2417,7 @@ export interface components {
             result: components["schemas"]["WikiDiffResult"];
         }) | components["schemas"]["ApiFailure"];
         WikiCreateNamespaceRequest: {
-            /** @description Namespace key, lowercase letters, digits, and hyphens. */
+            /** @description Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars). */
             name: string;
             description: string;
         };

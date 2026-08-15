@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
-import { isValidNamespaceName } from '@/admin/utils/wiki'
+import { isValidNamespaceName, MAX_NAMESPACE_NAME_LENGTH } from '@/admin/utils/wiki'
 
 import { computed, onMounted, reactive, ref, watch } from 'vue'
 import {
@@ -975,7 +975,7 @@ onMounted(() => {
         <form class="grid gap-4" @submit.prevent="submitNamespace">
           <label v-if="nsDialog?.mode === 'create'" class="grid gap-2 text-sm font-medium">
             {{ adminText('k00af') }}
-            <Input v-model="nsForm.name" :placeholder="adminText('k00o6')" />
+            <Input v-model="nsForm.name" :placeholder="adminText('k00o6')" :maxlength="MAX_NAMESPACE_NAME_LENGTH" />
           </label>
           <label class="grid gap-2 text-sm font-medium">
             {{ adminText('k00ag') }}
