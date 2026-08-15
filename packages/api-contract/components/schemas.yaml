@@ -2952,8 +2952,9 @@ WikiCreateNamespaceRequest:
     name:
       type: string
       minLength: 1
-      pattern: '^[a-z0-9-]+$'
-      description: Namespace key, lowercase letters, digits, and hyphens.
+      maxLength: 64
+      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
+      description: Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars).
     description:
       type: string
   additionalProperties: false
