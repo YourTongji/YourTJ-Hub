@@ -17,6 +17,7 @@ import {
   type AdminReviewItem,
 } from '@/runtime/api'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseManagementPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -496,18 +497,14 @@ watch(activeTab, (tab) => {
           :description="t('courseManagement.coursesEmptyDesc')"
         />
 
-        <footer v-if="courseLoaded && (courseItems.length || courseHasNext)" class="border-t border-line px-4 py-3 text-center">
-          <button
-            v-if="courseHasNext"
-            type="button"
-            class="gf-button gf-button-sm gf-button-ghost"
-            :disabled="courseLoading"
-            @click="loadCourses(false)"
-          >
-            {{ courseLoading ? t('courseManagement.loading') : t('courseManagement.loadMore') }}
-          </button>
-          <span v-else-if="courseItems.length" class="text-xs text-base-content/45">{{ t('courseManagement.noMore') }}</span>
-        </footer>
+        <InfiniteScrollFooter
+          v-if="courseLoaded && (courseItems.length || courseHasNext)"
+          :has-next="courseHasNext"
+          :loading="courseLoading"
+          :error="''"
+          :has-items="courseItems.length > 0"
+          @load-more="loadCourses(false)"
+        />
       </div>
     </section>
 
@@ -608,18 +605,14 @@ watch(activeTab, (tab) => {
           :description="t('courseManagement.reviewsEmptyDesc')"
         />
 
-        <footer v-if="reviewLoaded && (reviewItems.length || reviewHasNext)" class="border-t border-line px-4 py-3 text-center">
-          <button
-            v-if="reviewHasNext"
-            type="button"
-            class="gf-button gf-button-sm gf-button-ghost"
-            :disabled="reviewLoading"
-            @click="loadReviews(false)"
-          >
-            {{ reviewLoading ? t('courseManagement.loading') : t('courseManagement.loadMore') }}
-          </button>
-          <span v-else-if="reviewItems.length" class="text-xs text-base-content/45">{{ t('courseManagement.noMore') }}</span>
-        </footer>
+        <InfiniteScrollFooter
+          v-if="reviewLoaded && (reviewItems.length || reviewHasNext)"
+          :has-next="reviewHasNext"
+          :loading="reviewLoading"
+          :error="''"
+          :has-items="reviewItems.length > 0"
+          @load-more="loadReviews(false)"
+        />
       </div>
     </section>
 

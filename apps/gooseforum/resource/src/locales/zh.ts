@@ -72,6 +72,7 @@ export default {
     nextPage: '下一页',
     currentPage: '第 {page} 页',
     page: '第 {page} / {total} 页',
+    allShown: '已显示全部',
   },
   shell: {
     openMenu: '打开菜单',

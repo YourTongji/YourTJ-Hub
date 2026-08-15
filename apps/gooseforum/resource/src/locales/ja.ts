@@ -72,6 +72,7 @@ export default {
     nextPage: '次へ',
     currentPage: '{page} ページ目',
     page: '{page} / {total} ページ',
+    allShown: 'すべて表示しました',
   },
   shell: {
     openMenu: 'メニューを開く',

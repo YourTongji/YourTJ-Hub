@@ -72,6 +72,7 @@ export default {
     nextPage: 'Next',
     currentPage: 'Page {page}',
     page: 'Page {page} / {total}',
+    allShown: 'All shown',
   },
   shell: {
     openMenu: 'Open menu',

@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import {
   BookOpen,
@@ -11,8 +11,11 @@ import {
   UsersRound,
 } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
-import type { CourseCatalogPageProps, LayoutPayload } from '@gooseforum/client'
+import { fetchPage } from '@/runtime/router'
+import { mergeCourses } from '@/site/utils/course-merge'
+import type { CourseCatalogPageProps, CourseSummaryPayload, LayoutPayload, PagePayload } from '@gooseforum/client'
 
 const page = defineProps<{
   layout: LayoutPayload
@@ -33,13 +36,46 @@ const hasActiveFilters = computed(() => {
       q.sortBy,
   )
 })
+
+// 无限滚动（对齐首页帖子流）：SSR 首屏 props 复制到本地 ref，滚动到底自动加载下一页。
+const courses = ref<CourseSummaryPayload[]>([])
+const pagination = ref(page.props.pagination)
+const loadingMore = ref(false)
+const loadError = ref('')
+
+// 整页导航（筛选提交/翻页）后 SSR props 变化，重置本地列表；初始挂载即填充。
+watch(
+  () => [page.props.courses, page.props.pagination] as const,
+  ([incomingCourses, incomingPagination]) => {
+    courses.value = incomingCourses
+    pagination.value = incomingPagination
+    loadingMore.value = false
+    loadError.value = ''
+  },
+  { immediate: true },
+)
+
+async function loadMore() {
+  if (loadingMore.value || !pagination.value.hasNext || !pagination.value.nextUrl) return
+  loadingMore.value = true
+  loadError.value = ''
+  try {
+    const payload = (await fetchPage(new URL(pagination.value.nextUrl, window.location.origin))) as PagePayload<CourseCatalogPageProps>
+    courses.value = mergeCourses(courses.value, payload.props.courses)
+    pagination.value = payload.props.pagination
+  } catch (error) {
+    loadError.value = error instanceof Error ? error.message : t('common.loadFailed')
+  } finally {
+    loadingMore.value = false
+  }
+}
 </script>
 
 <template>
   <div class="pb-12">
     <PageHeader :title="t('coursesPage.title')" :description="t('coursesPage.subtitle')">
       <template #badge>
-        <span class="gf-badge gf-badge-muted">{{ page.props.pagination.page }}</span>
+        <span class="gf-badge gf-badge-muted">{{ pagination.page }}</span>
       </template>
     </PageHeader>
 
@@ -153,7 +189,7 @@ const hasActiveFilters = computed(() => {
         </div>
       </form>
       <EmptyState
-        v-if="!page.props.courses.length"
+        v-if="!courses.length"
         class="gf-panel"
         :icon="BookOpen"
         :title="t('coursesPage.noResult')"
@@ -169,7 +205,7 @@ const hasActiveFilters = computed(() => {
       </EmptyState>
 
       <ul v-else class="grid gap-3 md:grid-cols-2 xl:grid-cols-3">
-        <li v-for="course in page.props.courses" :key="course.id">
+        <li v-for="course in courses" :key="course.id">
           <a
             :href="`/courses/${course.id}`"
             class="group block rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 transition hover:border-primary/25 hover:bg-info/10 sm:bg-base-100"
@@ -207,14 +243,13 @@ const hasActiveFilters = computed(() => {
         </li>
       </ul>
 
-      <nav v-if="page.props.pagination.hasNext" class="flex justify-center pt-2">
-        <a
-          :href="page.props.pagination.nextUrl"
-          class="gf-button gf-button-md gf-button-outline"
-        >
-          {{ t('common.loadMore') }}
-        </a>
-      </nav>
+      <InfiniteScrollFooter
+        :has-next="pagination.hasNext"
+        :loading="loadingMore"
+        :error="loadError"
+        :has-items="courses.length > 0"
+        @load-more="loadMore"
+      />
     </div>
   </div>
 </template>

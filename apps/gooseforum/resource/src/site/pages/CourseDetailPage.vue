@@ -18,6 +18,7 @@ import { useFlashMessages } from '@/runtime/flash-message'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
 import {
   nextReviewTotalOnCreate,
@@ -810,16 +811,15 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <div v-if="reviewNextCursor" class="mt-4 flex justify-center">
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
-          :disabled="reviewLoadingMore"
-          @click="loadMoreReviews"
-        >
-          {{ reviewLoadingMore ? t('courseDetailPage.reviewsLoading') : t('courseDetailPage.loadMoreReviews') }}
-        </button>
-      </div>
+      <InfiniteScrollFooter
+        v-if="reviewLoaded && (reviews.length || reviewNextCursor)"
+        :has-next="!!reviewNextCursor"
+        :loading="reviewLoadingMore"
+        :error="''"
+        :has-items="reviews.length > 0"
+        :load-label="t('courseDetailPage.loadMoreReviews')"
+        @load-more="loadMoreReviews"
+      />
     </section>
 
     <!-- 举报弹窗 -->
