@@ -1,0 +1,21 @@
+# Git hooks (lefthook)。本地快速检查点；CI 拥有全量门禁矩阵。
+# 安装：make hooks（检测 lefthook，缺失时提示 brew install lefthook）。
+
+pre-commit:
+  parallel: true
+  jobs:
+    - name: whitespace (staged)
+      run: git diff --cached --check
+    - name: gofmt (staged Go files)
+      glob: '**/*.go'
+      run: test -z "$(gofmt -l {staged_files})"
+      # 校验模式：gofmt -l 列出未格式化文件（退出码恒为 0），test -z 使其在存在输出时失败
+
+pre-push:
+  jobs:
+    - name: go vet
+      run: cd apps/gooseforum && go vet ./...
+    - name: golangci-lint (incremental, full fallback)
+      run: scripts/hooks/check-golangci.sh
+    - name: frontend typecheck
+      run: cd apps/gooseforum/resource && pnpm typecheck
