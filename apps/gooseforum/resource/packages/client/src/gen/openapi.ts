@@ -430,6 +430,373 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/topics/status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Unlist or republish an own topic
+         * @description Idempotent status toggle owned by the topic author: setting the current status
+         *     again is a no-op success. Wiki subsite topics are managed by the wiki revision
+         *     flow and are rejected with `topic.operationDenied`; republishing a topic under
+         *     moderation is rejected the same way. JSON binding is lenient: a malformed body
+         *     binds to zero values and fails validation as `common.request.invalidParams`
+         *     (HTTP 200) because topicId is required. Business failures: `topic.notFound`,
+         *     `topic.operationDenied`, `common.request.invalidParams`.
+         */
+        post: operations["updateTopicStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Soft-delete an own topic
+         * @description Soft-deletes a topic owned by the caller with tombstone semantics: a topic
+         *     without replies disappears with its posts; a topic with replies keeps other
+         *     users' replies visible behind an author-deleted placeholder. Note the route
+         *     shares the generic interaction rate limit (action `interact`), not a dedicated
+         *     delete limit. Burst deletion beyond the server threshold requires
+         *     force+password confirmation (`content.batchDelete.confirmRequired`, params
+         *     count; a wrong password fails with `auth.credentials.invalid`). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because topicId is required. Business
+         *     failures: `topic.notFound`, `topic.ownerMismatch`.
+         */
+        post: operations["deleteTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Like or unlike a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing like stays
+         *     allowed even when the topic has since been hidden, so counters never get stuck.
+         *     JSON binding is lenient: a malformed body binds to zero values and the request
+         *     then fails as `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["likeTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing bookmark
+         *     stays allowed even when the topic has since been hidden. JSON binding is lenient:
+         *     a malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["bookmarkTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/topics/watch": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Watch or unwatch a topic
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing watch stays
+         *     allowed even when the topic has since been hidden. JSON binding is lenient: a
+         *     malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. Business failures:
+         *     `topic.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["watchTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a reply post in a topic
+         * @description Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+         *     a malformed body binds to zero values and the request then fails as
+         *     `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
+         *     field silently succeeds with result true and creates nothing. New accounts may
+         *     be challenged with a captcha (`common.captchaRequired`, params action=post.create;
+         *     a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
+         *     cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
+         *     email verification is enabled, unverified accounts fail with
+         *     `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+         *     Content length violations fail with `comment.content.tooShort` /
+         *     `comment.content.tooLong` (params minLength/maxLength).
+         */
+        post: operations["createPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit an own post and append a revision
+         * @description Replaces the content of a post owned by the caller and appends a version-history
+         *     entry in the same transaction. Editing the first post also refreshes the topic
+         *     excerpt/imagery and search document; the wiki subsite first post is owned by the
+         *     wiki revision flow and is rejected with `topic.operationDenied`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails as `post.notFound`
+         *     (HTTP 200). Other business failures: `post.notFound`, `topic.operationDenied`,
+         *     `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength).
+         */
+        post: operations["updatePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Soft-delete an own reply post
+         * @description Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
+         *     idempotent and keeps a tombstone so the discussion tree stays intact. The topic
+         *     first post is rejected as `post.notFound` (delete the topic instead). JSON binding
+         *     is lenient: a malformed body binds to zero values and fails as `post.notFound`
+         *     (HTTP 200). Burst deletion beyond the server threshold requires force+password
+         *     confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
+         *     password fails with `auth.credentials.invalid`). Other business failures:
+         *     `topic.operationDenied` for someone else's post.
+         */
+        post: operations["deletePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/window": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read a window of posts around an anchor or page boundary
+         * @description Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes
+         *     viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); anonymous callers
+         *     receive the same posts. Query binding is strict: malformed values fail with HTTP
+         *     400 and `common.request.parseFailed`. A missing/zero topicId, an unknown or
+         *     not-viewable topic fails with `topic.notFound` (HTTP 200); an anchor outside the
+         *     topic fails with `post.notFound` (HTTP 200). Positioning parameters are mutually
+         *     exclusive with priority anchorPostNo > anchorPostId > beforePostNo > afterPostNo;
+         *     without any of them the first page is returned. limit <= 0 or > 50 falls back to
+         *     the server default (20).
+         */
+        get: operations["getPostWindow"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/revisions": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the version history of a post
+         * @description Public read endpoint: any caller who can view the topic can read the history.
+         *     An optional valid JWT (cookie or Bearer) only affects masking; revisions of
+         *     deleted posts and pending/blocked revisions are masked (empty content, zero
+         *     editor payload) for non-moderators. Query binding is strict: malformed values
+         *     fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
+         *     unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
+         *     cursor: omit beforeVersion (or send 0) for the newest page, then pass the
+         *     returned beforeVersion for older pages.
+         */
+        get: operations["getPostRevisions"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/like": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Like or unlike a post
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing like stays
+         *     allowed even when the topic has since been hidden, so counters never get stuck.
+         *     JSON binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200) because postId is
+         *     required. Business failures: `post.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["likePost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/posts/bookmark": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Bookmark or unbookmark a post
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. A cancel (action=2) by a caller holding an existing bookmark
+         *     stays allowed even when the topic has since been hidden. JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because postId is required. Business
+         *     failures: `post.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["bookmarkPost"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/follow-user": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Follow or unfollow a user
+         * @description Set-semantics and idempotent: repeating the same transition returns true without
+         *     double counting. JSON binding is lenient: a malformed body binds to zero values
+         *     and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
+         *     Business failures: `user.notFound`, `common.request.invalidParams`.
+         */
+        post: operations["followUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/report": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a topic or post to moderators
+         * @description Files a moderation report against a visible topic or post and snapshots the
+         *     target content as evidence at creation time. One open report per reporter and
+         *     target: a second report for the same target fails with `report.duplicate`
+         *     (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
+         *     not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["createReport"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/me": {
         parameters: {
             query?: never;
@@ -1632,6 +1999,244 @@ export interface components {
             result: number | true;
         };
         WriteTopicResponse: components["schemas"]["WriteTopicSuccess"] | components["schemas"]["ApiFailure"];
+        TopicInteractionRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 1 sets the interaction (like/bookmark/watch), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        PostInteractionRequest: {
+            /**
+             * Format: uint64
+             * @description Target post; unknown ids or posts inside not-viewable topics fail with `post.notFound` (HTTP 200).
+             */
+            postId: number;
+            /**
+             * @description 1 sets the interaction (like/bookmark), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        InteractionSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Set-semantics and idempotent; repeating the same state transition also returns true.
+             * @constant
+             */
+            result: true;
+        };
+        InteractionResponse: components["schemas"]["InteractionSuccess"] | components["schemas"]["ApiFailure"];
+        UpdateTopicStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 0 unlists the topic, 1 publishes it. Values outside 0-1 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            topicStatus: 0 | 1;
+        };
+        DeleteTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
+            force?: boolean;
+            /** @description Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200). */
+            password?: string;
+        };
+        CreatePostRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Markdown reply content. The server trims whitespace and enforces configurable length bounds (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength). */
+            content: string;
+            /**
+             * Format: uint64
+             * @description Optional parent post inside the same topic; an id outside the topic fails with `comment.parentPostMissing` (HTTP 200).
+             */
+            replyToPostId?: number;
+            /** @description Compatibility honeypot field. Normal clients must not render or submit it; a populated value silently succeeds with result true and creates nothing. */
+            website?: string;
+            /** @description Required only when server-side posting risk controls request a captcha. */
+            captchaId?: string;
+            /** @description Required only when server-side posting risk controls request a captcha. */
+            captchaCode?: string;
+        };
+        CreatePostResult: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Assigned floor number; replies created here are always postNo 2 or higher.
+             */
+            postNo: number;
+            /** @description Rendered HTML of the stored content. */
+            renderedContent: string;
+        };
+        CreatePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CreatePostResult"] | true;
+        };
+        CreatePostResponse: components["schemas"]["CreatePostSuccess"] | components["schemas"]["ApiFailure"];
+        UpdatePostRequest: {
+            /**
+             * Format: uint64
+             * @description Post owned by the caller; someone else's post fails with `topic.operationDenied` (HTTP 200).
+             */
+            postId: number;
+            /** @description Replacement markdown content; trimmed and length-checked like posts/create. */
+            content: string;
+        };
+        UpdatePostResult: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            postNo: number;
+            /** @description Stored (trimmed) markdown content after the edit. */
+            content: string;
+            /** @description Rendered HTML of the stored content. */
+            renderedContent: string;
+            /** @description Post update time in RFC 3339 format. */
+            updatedAt: string;
+            /**
+             * Format: uint64
+             * @description Always the caller of this update.
+             */
+            lastEditorId: number;
+            /** @description Edit time in RFC 3339 format. */
+            lastEditedAt: string;
+            /**
+             * Format: int64
+             * @description Number of stored revisions after appending this edit.
+             */
+            revisionCount: number;
+        };
+        UpdatePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["UpdatePostResult"];
+        };
+        UpdatePostResponse: components["schemas"]["UpdatePostSuccess"] | components["schemas"]["ApiFailure"];
+        DeletePostRequest: {
+            /**
+             * Format: uint64
+             * @description Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+             */
+            postId: number;
+            /** @description Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`). */
+            force?: boolean;
+            /** @description Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200). */
+            password?: string;
+        };
+        DeletePostResult: {
+            /** @description The capital-H key is intentional — the Go result struct carries no json tag, so the wire key stays `HasChildren`. True when the soft-deleted reply keeps visible children (tombstone placeholder). */
+            HasChildren: boolean;
+        };
+        DeletePostSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DeletePostResult"];
+        };
+        DeletePostResponse: components["schemas"]["DeletePostSuccess"] | components["schemas"]["ApiFailure"];
+        PostWindowPayload: {
+            posts: components["schemas"]["PostPayload"][];
+            /** @description Preview payloads for replied-to posts outside the window; null when the window has no out-of-window reply targets. */
+            replyTargets: components["schemas"]["ReplyTargetPayload"][] | null;
+            /**
+             * Format: uint64
+             * @description Present only when an anchorPostId query located the window.
+             */
+            anchorPostId?: number;
+            /**
+             * Format: uint64
+             * @description Post number of the first returned post; omitted when the window is empty.
+             */
+            beforePostNo?: number;
+            /**
+             * Format: uint64
+             * @description Post number of the last returned post; omitted when the window is empty.
+             */
+            afterPostNo?: number;
+            hasBefore: boolean;
+            hasAfter: boolean;
+            /**
+             * Format: int64
+             * @description Total post sequence of the topic.
+             */
+            total: number;
+            /**
+             * Format: uint64
+             * @description Highest assigned post number of the topic.
+             */
+            maxPostNo: number;
+        };
+        PostWindowSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PostWindowPayload"];
+        };
+        PostWindowResponse: components["schemas"]["PostWindowSuccess"] | components["schemas"]["ApiFailure"];
+        PostRevisionPayload: {
+            /** Format: uint64 */
+            version: number;
+            /** @description Zero author payload (id 0, empty strings) when the revision is masked for non-moderators. */
+            editor: components["schemas"]["TopicAuthorPayload"];
+            /** @description Revision markdown snapshot; emptied when the revision is masked for non-moderators. */
+            content: string;
+            /** @description Rendered HTML snapshot; emptied when the revision is masked for non-moderators. */
+            renderedHTML: string;
+            /**
+             * @description 0 normal, 1 blocked, 2 pending moderation.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            /** @description Revision creation time in RFC 3339 format. */
+            createdAt: string;
+        };
+        PostRevisionsResult: {
+            /** Format: uint64 */
+            postId: number;
+            /** @description Ascending by version within the page. */
+            versions: components["schemas"]["PostRevisionPayload"][];
+            /** @description True when older revisions exist beyond this page. */
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Cursor for the next (older) page; 0 when no older page exists.
+             */
+            beforeVersion: number;
+        };
+        PostRevisionsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["PostRevisionsResult"];
+        };
+        PostRevisionsResponse: components["schemas"]["PostRevisionsSuccess"] | components["schemas"]["ApiFailure"];
+        FollowUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+             */
+            id: number;
+            /**
+             * @description 1 follows, 2 unfollows. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            action: 1 | 2;
+        };
+        CreateReportRequest: {
+            /** @enum {string} */
+            targetType: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            /** @description Optional context; the server trims whitespace and truncates to 300 runes. */
+            note?: string;
+        };
         RateLimitedFailure: components["schemas"]["ApiFailure"] & {
             params: {
                 action: string;
@@ -2168,6 +2773,71 @@ export interface components {
             /** @description Present only when the user wears a badge. */
             wornBadge?: Record<string, never> | null;
         };
+        PostPayload: {
+            /** Format: uint64 */
+            id: number;
+            /** Format: uint64 */
+            topicId: number;
+            /** Format: uint64 */
+            postNo: number;
+            /** @description Raw post content; emptied for hidden or removed posts. */
+            content: string;
+            /** @description Rendered HTML; emptied for hidden or removed posts. */
+            renderedContent: string;
+            /**
+             * @description 0 normal, 1 blocked, 2 pending moderation.
+             * @enum {integer}
+             */
+            processStatus: 0 | 1 | 2;
+            isHidden: boolean;
+            isAuthorDeleted: boolean;
+            isModeratorRemoved: boolean;
+            canModerate: boolean;
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Post creation time in the server's `2006-01-02 15:04:05` format. */
+            createdAt: string;
+            /**
+             * Format: uint64
+             * @description Present only when the post replies to an in-window post.
+             */
+            replyToPostId?: number;
+            /** Format: uint64 */
+            replyToUserId?: number;
+            replyToUsername?: string;
+            isOwnPost: boolean;
+            /** @description Post update time in the server's `2006-01-02 15:04:05` format. */
+            updatedAt: string;
+            /** @description Present only when the post was edited after creation. */
+            lastEditor?: components["schemas"]["TopicAuthorPayload"];
+            /** @description Last edit time in RFC 3339 format; present only when the post was edited. */
+            lastEditedAt?: string;
+            /**
+             * Format: int64
+             * @description Number of stored revisions in the post version history.
+             */
+            revisionCount: number;
+            /** Format: uint64 */
+            likeCount: number;
+            isLiked: boolean;
+            isBookmarked: boolean;
+        };
+        ReplyTargetPayload: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Present only when the target post is available.
+             */
+            postNo?: number;
+            /** @description The zero author payload when unavailable is true. */
+            author: components["schemas"]["TopicAuthorPayload"];
+            /** @description Present only when the target post is available and not author or moderator removed. */
+            renderedContent?: string;
+            isAuthorDeleted?: boolean;
+            isModeratorRemoved?: boolean;
+            /** @description True when the replied-to post is outside the window, purged, or pending moderation. */
+            unavailable?: boolean;
+        };
         RevokeSessionRequest: {
             /**
              * Format: uint64
@@ -2554,62 +3224,6 @@ export interface components {
         };
         PkReviewBriefResponse: components["schemas"]["PkSuccess"] & {
             data: components["schemas"]["PkReviewBrief"];
-        };
-        PostPayload: {
-            /** Format: uint64 */
-            id: number;
-            /** Format: uint64 */
-            topicId: number;
-            /** Format: uint64 */
-            postNo: number;
-            /** @description Raw post content; emptied for hidden or removed posts. */
-            content: string;
-            /** @description Rendered HTML; emptied for hidden or removed posts. */
-            renderedContent: string;
-            /**
-             * @description 0 normal, 1 blocked, 2 pending moderation.
-             * @enum {integer}
-             */
-            processStatus: 0 | 1 | 2;
-            isHidden: boolean;
-            isAuthorDeleted: boolean;
-            isModeratorRemoved: boolean;
-            canModerate: boolean;
-            author: components["schemas"]["TopicAuthorPayload"];
-            /** @description Post creation time in the server's `2006-01-02 15:04:05` format. */
-            createdAt: string;
-            /**
-             * Format: uint64
-             * @description Present only when the post replies to an in-window post.
-             */
-            replyToPostId?: number;
-            /** Format: uint64 */
-            replyToUserId?: number;
-            replyToUsername?: string;
-            isOwnPost: boolean;
-            /** @description Post update time in the server's `2006-01-02 15:04:05` format. */
-            updatedAt: string;
-            /** Format: uint64 */
-            likeCount: number;
-            isLiked: boolean;
-            isBookmarked: boolean;
-        };
-        ReplyTargetPayload: {
-            /** Format: uint64 */
-            id: number;
-            /**
-             * Format: uint64
-             * @description Present only when the target post is available.
-             */
-            postNo?: number;
-            /** @description The zero author payload when unavailable is true. */
-            author: components["schemas"]["TopicAuthorPayload"];
-            /** @description Present only when the target post is available and not author or moderator removed. */
-            renderedContent?: string;
-            isAuthorDeleted?: boolean;
-            isModeratorRemoved?: boolean;
-            /** @description True when the replied-to post is outside the window, purged, or pending moderation. */
-            unavailable?: boolean;
         };
         TopicCategoryPayload: {
             /** Format: uint64 */
@@ -3342,6 +3956,699 @@ export interface operations {
                 };
             };
             /** @description Topic-writing rate limit exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updateTopicStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdateTopicStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied (or already in the target state), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Topic-status rate limit (action `topic.status`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    deleteTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeleteTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic deleted, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    likeTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    bookmarkTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    watchTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TopicInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    createPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Created post summary, honeypot silent success, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CreatePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-creation rate limit (action `post.create`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    updatePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["UpdatePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated post summary, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["UpdatePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-update rate limit (action `post.update`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    deletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["DeletePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Deletion outcome (note the capital-H `HasChildren` result key), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletePostResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Post-deletion rate limit (action `post.delete`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    getPostWindow: {
+        parameters: {
+            query: {
+                topicId: number;
+                anchorPostId?: number;
+                anchorPostNo?: number;
+                beforePostNo?: number;
+                afterPostNo?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Post window, or a legacy business failure envelope (`topic.notFound` / `post.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostWindowResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getPostRevisions: {
+        parameters: {
+            query: {
+                postId: number;
+                beforeVersion?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Revision page, or a legacy business failure envelope (`post.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PostRevisionsResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    likePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    bookmarkPost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PostInteractionRequest"];
+            };
+        };
+        responses: {
+            /** @description Interaction applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    followUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["FollowUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Follow state applied, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    createReport: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["CreateReportRequest"];
+            };
+        };
+        responses: {
+            /** @description Report created, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["InteractionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
             429: {
                 headers: {
                     "Retry-After": number;

@@ -23,6 +23,14 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - `POST /api/logout`;
 - `POST /api/auth/oidc/exchange`;
 - `POST /api/forum/topics/write`;
+- forum core interactions (issue #277 P1): `POST /api/forum/posts/create`,
+  `POST /api/forum/posts/update`, `POST /api/forum/posts/delete`,
+  `GET /api/forum/posts/window`, `GET /api/forum/posts/revisions`,
+  `POST /api/forum/topics/status`, `POST /api/forum/topics/delete`,
+  `POST /api/forum/topics/like`, `POST /api/forum/topics/bookmark`,
+  `POST /api/forum/topics/watch`, `POST /api/forum/posts/like`,
+  `POST /api/forum/posts/bookmark`, `POST /api/forum/follow-user`, and
+  `POST /api/forum/report`;
 - `GET /api/user/sessions`;
 - `POST /api/user/sessions/revoke`;
 - `POST /api/user/sessions/revoke-all`;

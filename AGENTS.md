@@ -35,7 +35,9 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   (`jti` + `user_sessions`) in place. Casdoor is not enabled.
 - Contract: **Partial** — `packages/api-contract/openapi.yaml` is the controlled contract center for
   password login, login public-key retrieval, TOTP login verification and account management, logout,
-  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, account
+  mobile OIDC exchange, session management (list/revoke/revoke-all), topic writing, forum core
+  interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
+  post like/bookmark, follow-user, report), account
   registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
   the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
   (public tree/namespaces/home + admin sync/status|sync|sync/runs + webhook; the legacy in-forum

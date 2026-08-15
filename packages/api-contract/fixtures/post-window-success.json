@@ -1,0 +1,38 @@
+{
+  "result": {
+    "posts": [
+      {
+        "id": 9201,
+        "topicId": 9101,
+        "postNo": 1,
+        "content": "Topic first post content",
+        "renderedContent": "<p>Topic first post content</p>\n",
+        "processStatus": 0,
+        "isHidden": false,
+        "isAuthorDeleted": false,
+        "isModeratorRemoved": false,
+        "canModerate": false,
+        "author": {
+          "id": 9301,
+          "username": "contract-window-author",
+          "avatarUrl": "/static/pic/3.webp"
+        },
+        "createdAt": "2026-08-01T12:00:00Z",
+        "isOwnPost": false,
+        "updatedAt": "2026-08-01T12:00:00Z",
+        "revisionCount": 0,
+        "likeCount": 0,
+        "isLiked": false,
+        "isBookmarked": false
+      }
+    ],
+    "replyTargets": [],
+    "beforePostNo": 1,
+    "afterPostNo": 1,
+    "hasBefore": false,
+    "hasAfter": false,
+    "total": 1,
+    "maxPostNo": 1
+  },
+  "code": 0
+}

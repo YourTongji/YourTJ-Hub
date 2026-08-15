@@ -1,0 +1,136 @@
+followUser:
+  post:
+    tags: [Forum]
+    summary: Follow or unfollow a user
+    operationId: followUser
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. JSON binding is lenient: a malformed body binds to zero values
+      and the request then fails as `user.notFound` (HTTP 200) rather than a 400.
+      Business failures: `user.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/FollowUserRequest
+    responses:
+      '200':
+        description: Follow state applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/follow-user-success.json
+              userNotFound:
+                externalValue: ../fixtures/follow-user-user-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/follow-user-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/follow-user-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/follow-user-forbidden.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/follow-user-rate-limited.json
+
+createReport:
+  post:
+    tags: [Forum]
+    summary: Report a topic or post to moderators
+    operationId: createReport
+    description: |
+      Files a moderation report against a visible topic or post and snapshots the
+      target content as evidence at creation time. One open report per reporter and
+      target: a second report for the same target fails with `report.duplicate`
+      (HTTP 200). Reporting own content fails with `report.ownContent`; an unknown or
+      not-viewable target fails with `report.targetInvalid`. JSON binding is lenient:
+      a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/CreateReportRequest
+    responses:
+      '200':
+        description: Report created, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/report-create-success.json
+              targetInvalid:
+                externalValue: ../fixtures/report-create-target-invalid.json
+              duplicate:
+                externalValue: ../fixtures/report-create-duplicate.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/report-create-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/report-create-forbidden.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/report-create-rate-limited.json

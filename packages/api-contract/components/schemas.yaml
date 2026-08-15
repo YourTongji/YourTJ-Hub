@@ -674,7 +674,7 @@ AgentSearchResponse:
 # record.
 PostPayload:
   type: object
-  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, likeCount, isLiked, isBookmarked]
+  required: [id, topicId, postNo, content, renderedContent, processStatus, isHidden, isAuthorDeleted, isModeratorRemoved, canModerate, author, createdAt, isOwnPost, updatedAt, revisionCount, likeCount, isLiked, isBookmarked]
   properties:
     id:
       type: integer
@@ -727,6 +727,17 @@ PostPayload:
     updatedAt:
       type: string
       description: Post update time in the server's `2006-01-02 15:04:05` format.
+    lastEditor:
+      $ref: '#/TopicAuthorPayload'
+      description: Present only when the post was edited after creation.
+    lastEditedAt:
+      type: string
+      description: Last edit time in RFC 3339 format; present only when the post was edited.
+    revisionCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of stored revisions in the post version history.
     likeCount:
       type: integer
       format: uint64
@@ -1966,6 +1977,411 @@ ReportHandlerPayload:
       type: string
   additionalProperties: false
   description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.
+
+# ================= Forum interactions（Issue #277 P1）=================
+
+TopicInteractionRequest:
+  type: object
+  required: [topicId, action]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+    action:
+      type: integer
+      enum: [1, 2]
+      description: 1 sets the interaction (like/bookmark/watch), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+PostInteractionRequest:
+  type: object
+  required: [postId, action]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target post; unknown ids or posts inside not-viewable topics fail with `post.notFound` (HTTP 200).
+    action:
+      type: integer
+      enum: [1, 2]
+      description: 1 sets the interaction (like/bookmark), 2 clears it. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+InteractionSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+          description: Set-semantics and idempotent; repeating the same state transition also returns true.
+
+InteractionResponse:
+  oneOf:
+    - $ref: '#/InteractionSuccess'
+    - $ref: '#/ApiFailure'
+
+UpdateTopicStatusRequest:
+  type: object
+  required: [topicId, topicStatus]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+    topicStatus:
+      type: integer
+      enum: [0, 1]
+      description: 0 unlists the topic, 1 publishes it. Values outside 0-1 fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+DeleteTopicRequest:
+  type: object
+  required: [topicId]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+    force:
+      type: boolean
+      description: Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`).
+    password:
+      type: string
+      description: Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200).
+  additionalProperties: false
+
+CreatePostRequest:
+  type: object
+  required: [topicId, content]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target topic; unknown or not-viewable ids fail with `topic.notFound` (HTTP 200).
+    content:
+      type: string
+      minLength: 1
+      description: Markdown reply content. The server trims whitespace and enforces configurable length bounds (`comment.content.tooShort` / `comment.content.tooLong`, params minLength/maxLength).
+    replyToPostId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Optional parent post inside the same topic; an id outside the topic fails with `comment.parentPostMissing` (HTTP 200).
+    website:
+      type: string
+      description: Compatibility honeypot field. Normal clients must not render or submit it; a populated value silently succeeds with result true and creates nothing.
+    captchaId:
+      type: string
+      description: Required only when server-side posting risk controls request a captcha.
+    captchaCode:
+      type: string
+      description: Required only when server-side posting risk controls request a captcha.
+  additionalProperties: false
+
+CreatePostResult:
+  type: object
+  required: [id, postNo, renderedContent]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 2
+      description: Assigned floor number; replies created here are always postNo 2 or higher.
+    renderedContent:
+      type: string
+      description: Rendered HTML of the stored content.
+  additionalProperties: false
+
+CreatePostSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          oneOf:
+            - $ref: '#/CreatePostResult'
+            - type: boolean
+              const: true
+              description: Silent success returned only when the honeypot field is populated.
+
+CreatePostResponse:
+  oneOf:
+    - $ref: '#/CreatePostSuccess'
+    - $ref: '#/ApiFailure'
+
+UpdatePostRequest:
+  type: object
+  required: [postId, content]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Post owned by the caller; someone else's post fails with `topic.operationDenied` (HTTP 200).
+    content:
+      type: string
+      minLength: 1
+      description: Replacement markdown content; trimmed and length-checked like posts/create.
+  additionalProperties: false
+
+UpdatePostResult:
+  type: object
+  required: [id, postNo, content, renderedContent, updatedAt, lastEditorId, lastEditedAt, revisionCount]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    postNo:
+      type: integer
+      format: uint64
+      minimum: 1
+    content:
+      type: string
+      description: Stored (trimmed) markdown content after the edit.
+    renderedContent:
+      type: string
+      description: Rendered HTML of the stored content.
+    updatedAt:
+      type: string
+      description: Post update time in RFC 3339 format.
+    lastEditorId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Always the caller of this update.
+    lastEditedAt:
+      type: string
+      description: Edit time in RFC 3339 format.
+    revisionCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Number of stored revisions after appending this edit.
+  additionalProperties: false
+
+UpdatePostSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/UpdatePostResult'
+
+UpdatePostResponse:
+  oneOf:
+    - $ref: '#/UpdatePostSuccess'
+    - $ref: '#/ApiFailure'
+
+DeletePostRequest:
+  type: object
+  required: [postId]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Reply posts only; the topic first post (postNo 1) and unknown ids fail with `post.notFound` (HTTP 200).
+    force:
+      type: boolean
+      description: Set together with password to confirm once the short-window delete count exceeds the server threshold (`content.batchDelete.confirmRequired`).
+    password:
+      type: string
+      description: Account password, verified only when force confirms a burst deletion; a wrong password fails with `auth.credentials.invalid` (HTTP 200).
+  additionalProperties: false
+
+DeletePostResult:
+  type: object
+  required: [HasChildren]
+  properties:
+    HasChildren:
+      type: boolean
+      description: The capital-H key is intentional — the Go result struct carries no json tag, so the wire key stays `HasChildren`. True when the soft-deleted reply keeps visible children (tombstone placeholder).
+  additionalProperties: false
+
+DeletePostSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DeletePostResult'
+
+DeletePostResponse:
+  oneOf:
+    - $ref: '#/DeletePostSuccess'
+    - $ref: '#/ApiFailure'
+
+PostWindowPayload:
+  type: object
+  required: [posts, replyTargets, hasBefore, hasAfter, total, maxPostNo]
+  properties:
+    posts:
+      type: array
+      items:
+        $ref: '#/PostPayload'
+    replyTargets:
+      type: [array, 'null']
+      items:
+        $ref: '#/ReplyTargetPayload'
+      description: Preview payloads for replied-to posts outside the window; null when the window has no out-of-window reply targets.
+    anchorPostId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Present only when an anchorPostId query located the window.
+    beforePostNo:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Post number of the first returned post; omitted when the window is empty.
+    afterPostNo:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Post number of the last returned post; omitted when the window is empty.
+    hasBefore:
+      type: boolean
+    hasAfter:
+      type: boolean
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total post sequence of the topic.
+    maxPostNo:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Highest assigned post number of the topic.
+  additionalProperties: false
+
+PostWindowSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PostWindowPayload'
+
+PostWindowResponse:
+  oneOf:
+    - $ref: '#/PostWindowSuccess'
+    - $ref: '#/ApiFailure'
+
+PostRevisionPayload:
+  type: object
+  required: [version, editor, content, renderedHTML, processStatus, createdAt]
+  properties:
+    version:
+      type: integer
+      format: uint64
+      minimum: 1
+    editor:
+      $ref: '#/TopicAuthorPayload'
+      description: Zero author payload (id 0, empty strings) when the revision is masked for non-moderators.
+    content:
+      type: string
+      description: Revision markdown snapshot; emptied when the revision is masked for non-moderators.
+    renderedHTML:
+      type: string
+      description: Rendered HTML snapshot; emptied when the revision is masked for non-moderators.
+    processStatus:
+      type: integer
+      enum: [0, 1, 2]
+      description: 0 normal, 1 blocked, 2 pending moderation.
+    createdAt:
+      type: string
+      description: Revision creation time in RFC 3339 format.
+  additionalProperties: false
+
+PostRevisionsResult:
+  type: object
+  required: [postId, versions, hasMore, beforeVersion]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+    versions:
+      type: array
+      items:
+        $ref: '#/PostRevisionPayload'
+      description: Ascending by version within the page.
+    hasMore:
+      type: boolean
+      description: True when older revisions exist beyond this page.
+    beforeVersion:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Cursor for the next (older) page; 0 when no older page exists.
+  additionalProperties: false
+
+PostRevisionsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/PostRevisionsResult'
+
+PostRevisionsResponse:
+  oneOf:
+    - $ref: '#/PostRevisionsSuccess'
+    - $ref: '#/ApiFailure'
+
+FollowUserRequest:
+  type: object
+  required: [id, action]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target user id; unknown ids fail with `user.notFound` (HTTP 200).
+    action:
+      type: integer
+      enum: [1, 2]
+      description: 1 follows, 2 unfollows. Values outside 1-2 fail with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+CreateReportRequest:
+  type: object
+  required: [targetType, targetId, reason]
+  properties:
+    targetType:
+      type: string
+      enum: [topic, post]
+    targetId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+      description: Optional context; the server trims whitespace and truncates to 300 runes.
+  additionalProperties: false
 
 # ================= PK 排课器（Issue #187）=================
 

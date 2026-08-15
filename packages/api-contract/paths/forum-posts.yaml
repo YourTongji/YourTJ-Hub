@@ -1,0 +1,482 @@
+createPost:
+  post:
+    tags: [Forum]
+    summary: Create a reply post in a topic
+    operationId: createPost
+    description: |
+      Creates a reply (postNo 2 or higher) in a visible topic. JSON binding is lenient:
+      a malformed body binds to zero values and the request then fails as
+      `topic.notFound` (HTTP 200) rather than a 400. A populated `website` honeypot
+      field silently succeeds with result true and creates nothing. New accounts may
+      be challenged with a captcha (`common.captchaRequired`, params action=post.create;
+      a wrong or expired code fails with `auth.captcha.invalid`) or delayed by a posting
+      cooldown (`comment.post.cooldown`, params minutes/availableAt). When mandatory
+      email verification is enabled, unverified accounts fail with
+      `permission.emailRequired` (HTTP 200, params action=评论, actionCode=comment).
+      Content length violations fail with `comment.content.tooShort` /
+      `comment.content.tooLong` (params minLength/maxLength).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/CreatePostRequest
+    responses:
+      '200':
+        description: Created post summary, honeypot silent success, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CreatePostResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-create-success.json
+              topicNotFound:
+                externalValue: ../fixtures/post-create-topic-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/post-create-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/post-create-forbidden.json
+      '429':
+        description: Post-creation rate limit (action `post.create`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/post-create-rate-limited.json
+
+updatePost:
+  post:
+    tags: [Forum]
+    summary: Edit an own post and append a revision
+    operationId: updatePost
+    description: |
+      Replaces the content of a post owned by the caller and appends a version-history
+      entry in the same transaction. Editing the first post also refreshes the topic
+      excerpt/imagery and search document; the wiki subsite first post is owned by the
+      wiki revision flow and is rejected with `topic.operationDenied`. JSON binding is
+      lenient: a malformed body binds to zero values and fails as `post.notFound`
+      (HTTP 200). Other business failures: `post.notFound`, `topic.operationDenied`,
+      `comment.content.tooShort` / `comment.content.tooLong` (params minLength/maxLength).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/UpdatePostRequest
+    responses:
+      '200':
+        description: Updated post summary, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UpdatePostResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-update-success.json
+              postNotFound:
+                externalValue: ../fixtures/post-update-post-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/post-update-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/post-update-forbidden.json
+      '429':
+        description: Post-update rate limit (action `post.update`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/post-update-rate-limited.json
+
+deletePost:
+  post:
+    tags: [Forum]
+    summary: Soft-delete an own reply post
+    operationId: deletePost
+    description: |
+      Soft-deletes a reply (postNo 2 or higher) owned by the caller; deletion is
+      idempotent and keeps a tombstone so the discussion tree stays intact. The topic
+      first post is rejected as `post.notFound` (delete the topic instead). JSON binding
+      is lenient: a malformed body binds to zero values and fails as `post.notFound`
+      (HTTP 200). Burst deletion beyond the server threshold requires force+password
+      confirmation (`content.batchDelete.confirmRequired`, params count; a wrong
+      password fails with `auth.credentials.invalid`). Other business failures:
+      `topic.operationDenied` for someone else's post.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/DeletePostRequest
+    responses:
+      '200':
+        description: Deletion outcome (note the capital-H `HasChildren` result key), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/DeletePostResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-delete-success.json
+              postNotFound:
+                externalValue: ../fixtures/post-delete-post-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/post-delete-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/post-delete-forbidden.json
+      '429':
+        description: Post-deletion rate limit (action `post.delete`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/post-delete-rate-limited.json
+
+getPostWindow:
+  get:
+    tags: [Forum]
+    summary: Read a window of posts around an anchor or page boundary
+    operationId: getPostWindow
+    description: |
+      Public read endpoint. An optional valid JWT (cookie or Bearer) only personalizes
+      viewer flags (isOwnPost/isLiked/isBookmarked/canModerate); anonymous callers
+      receive the same posts. Query binding is strict: malformed values fail with HTTP
+      400 and `common.request.parseFailed`. A missing/zero topicId, an unknown or
+      not-viewable topic fails with `topic.notFound` (HTTP 200); an anchor outside the
+      topic fails with `post.notFound` (HTTP 200). Positioning parameters are mutually
+      exclusive with priority anchorPostNo > anchorPostId > beforePostNo > afterPostNo;
+      without any of them the first page is returned. limit <= 0 or > 50 falls back to
+      the server default (20).
+    security: []
+    parameters:
+      - name: topicId
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+      - name: anchorPostId
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+          description: Center the window on this post id.
+      - name: anchorPostNo
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+          description: Center the window on this post number.
+      - name: beforePostNo
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+          description: Return the page of posts immediately before this post number.
+      - name: afterPostNo
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+          description: Return the page of posts immediately after this post number.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          description: Window size; values <= 0 or > 50 fall back to the server default (20).
+    responses:
+      '200':
+        description: Post window, or a legacy business failure envelope (`topic.notFound` / `post.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PostWindowResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-window-success.json
+              topicNotFound:
+                externalValue: ../fixtures/post-window-topic-not-found.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/post-window-parse-failed.json
+
+getPostRevisions:
+  get:
+    tags: [Forum]
+    summary: Read the version history of a post
+    operationId: getPostRevisions
+    description: |
+      Public read endpoint: any caller who can view the topic can read the history.
+      An optional valid JWT (cookie or Bearer) only affects masking; revisions of
+      deleted posts and pending/blocked revisions are masked (empty content, zero
+      editor payload) for non-moderators. Query binding is strict: malformed values
+      fail with HTTP 400 and `common.request.parseFailed`. A missing/zero postId or an
+      unknown post fails with `post.notFound` (HTTP 200). Pages follow the version
+      cursor: omit beforeVersion (or send 0) for the newest page, then pass the
+      returned beforeVersion for older pages.
+    security: []
+    parameters:
+      - name: postId
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+      - name: beforeVersion
+        in: query
+        schema:
+          type: integer
+          format: uint64
+          minimum: 0
+          description: Return versions older than this version number; omit or send 0 for the newest page.
+      - name: limit
+        in: query
+        schema:
+          type: integer
+          description: Page size; values outside the server bounds fall back to the server default.
+    responses:
+      '200':
+        description: Revision page, or a legacy business failure envelope (`post.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PostRevisionsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-revisions-success.json
+              postNotFound:
+                externalValue: ../fixtures/post-revisions-post-not-found.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/post-revisions-parse-failed.json
+
+likePost:
+  post:
+    tags: [Forum]
+    summary: Like or unlike a post
+    operationId: likePost
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. A cancel (action=2) by a caller holding an existing like stays
+      allowed even when the topic has since been hidden, so counters never get stuck.
+      JSON binding is lenient: a malformed body binds to zero values and fails
+      validation as `common.request.invalidParams` (HTTP 200) because postId is
+      required. Business failures: `post.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PostInteractionRequest
+    responses:
+      '200':
+        description: Interaction applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-like-success.json
+              postNotFound:
+                externalValue: ../fixtures/post-like-post-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/post-like-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/post-like-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/post-like-forbidden.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/post-like-rate-limited.json
+
+bookmarkPost:
+  post:
+    tags: [Forum]
+    summary: Bookmark or unbookmark a post
+    operationId: bookmarkPost
+    description: |
+      Set-semantics and idempotent: repeating the same transition returns true without
+      double counting. A cancel (action=2) by a caller holding an existing bookmark
+      stays allowed even when the topic has since been hidden. JSON binding is lenient:
+      a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because postId is required. Business
+      failures: `post.notFound`, `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PostInteractionRequest
+    responses:
+      '200':
+        description: Interaction applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/InteractionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/post-bookmark-success.json
+              postNotFound:
+                externalValue: ../fixtures/post-bookmark-post-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/post-bookmark-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/post-bookmark-unauthenticated.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/post-bookmark-forbidden.json
+      '429':
+        description: Interaction rate limit (action `interact`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/post-bookmark-rate-limited.json

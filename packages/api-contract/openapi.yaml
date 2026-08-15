@@ -6,7 +6,9 @@ info:
     The controlled HTTP contract for yourtj-hub. Current coverage includes password login,
     login public-key retrieval, TOTP login verification and account management, logout,
     session management (list/revoke/revoke-all), mobile OIDC code exchange, account
-    registration, password recovery (forgot/reset), topic writing,
+    registration, password recovery (forgot/reset), topic writing, forum post CRUD
+    (create/update/delete, window and revision reads), forum interactions
+    (like/bookmark/watch on topics and posts, follow, report),
     and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
@@ -58,6 +60,34 @@ paths:
     $ref: ./paths/auth-sessions.yaml#/revokeAllSessions
   /api/forum/topics/write:
     $ref: ./paths/forum-topics.yaml#/writeTopic
+  /api/forum/topics/status:
+    $ref: ./paths/forum-topic-interactions.yaml#/updateTopicStatus
+  /api/forum/topics/delete:
+    $ref: ./paths/forum-topic-interactions.yaml#/deleteTopic
+  /api/forum/topics/like:
+    $ref: ./paths/forum-topic-interactions.yaml#/likeTopic
+  /api/forum/topics/bookmark:
+    $ref: ./paths/forum-topic-interactions.yaml#/bookmarkTopic
+  /api/forum/topics/watch:
+    $ref: ./paths/forum-topic-interactions.yaml#/watchTopic
+  /api/forum/posts/create:
+    $ref: ./paths/forum-posts.yaml#/createPost
+  /api/forum/posts/update:
+    $ref: ./paths/forum-posts.yaml#/updatePost
+  /api/forum/posts/delete:
+    $ref: ./paths/forum-posts.yaml#/deletePost
+  /api/forum/posts/window:
+    $ref: ./paths/forum-posts.yaml#/getPostWindow
+  /api/forum/posts/revisions:
+    $ref: ./paths/forum-posts.yaml#/getPostRevisions
+  /api/forum/posts/like:
+    $ref: ./paths/forum-posts.yaml#/likePost
+  /api/forum/posts/bookmark:
+    $ref: ./paths/forum-posts.yaml#/bookmarkPost
+  /api/forum/follow-user:
+    $ref: ./paths/forum-interactions.yaml#/followUser
+  /api/forum/report:
+    $ref: ./paths/forum-interactions.yaml#/createReport
   /api/v1/agent/me:
     $ref: ./paths/agent.yaml#/agentMe
   /api/v1/agent/topics:
@@ -317,6 +347,60 @@ components:
       $ref: ./components/schemas.yaml#/WriteTopicSuccess
     WriteTopicResponse:
       $ref: ./components/schemas.yaml#/WriteTopicResponse
+    TopicInteractionRequest:
+      $ref: ./components/schemas.yaml#/TopicInteractionRequest
+    PostInteractionRequest:
+      $ref: ./components/schemas.yaml#/PostInteractionRequest
+    InteractionSuccess:
+      $ref: ./components/schemas.yaml#/InteractionSuccess
+    InteractionResponse:
+      $ref: ./components/schemas.yaml#/InteractionResponse
+    UpdateTopicStatusRequest:
+      $ref: ./components/schemas.yaml#/UpdateTopicStatusRequest
+    DeleteTopicRequest:
+      $ref: ./components/schemas.yaml#/DeleteTopicRequest
+    CreatePostRequest:
+      $ref: ./components/schemas.yaml#/CreatePostRequest
+    CreatePostResult:
+      $ref: ./components/schemas.yaml#/CreatePostResult
+    CreatePostSuccess:
+      $ref: ./components/schemas.yaml#/CreatePostSuccess
+    CreatePostResponse:
+      $ref: ./components/schemas.yaml#/CreatePostResponse
+    UpdatePostRequest:
+      $ref: ./components/schemas.yaml#/UpdatePostRequest
+    UpdatePostResult:
+      $ref: ./components/schemas.yaml#/UpdatePostResult
+    UpdatePostSuccess:
+      $ref: ./components/schemas.yaml#/UpdatePostSuccess
+    UpdatePostResponse:
+      $ref: ./components/schemas.yaml#/UpdatePostResponse
+    DeletePostRequest:
+      $ref: ./components/schemas.yaml#/DeletePostRequest
+    DeletePostResult:
+      $ref: ./components/schemas.yaml#/DeletePostResult
+    DeletePostSuccess:
+      $ref: ./components/schemas.yaml#/DeletePostSuccess
+    DeletePostResponse:
+      $ref: ./components/schemas.yaml#/DeletePostResponse
+    PostWindowPayload:
+      $ref: ./components/schemas.yaml#/PostWindowPayload
+    PostWindowSuccess:
+      $ref: ./components/schemas.yaml#/PostWindowSuccess
+    PostWindowResponse:
+      $ref: ./components/schemas.yaml#/PostWindowResponse
+    PostRevisionPayload:
+      $ref: ./components/schemas.yaml#/PostRevisionPayload
+    PostRevisionsResult:
+      $ref: ./components/schemas.yaml#/PostRevisionsResult
+    PostRevisionsSuccess:
+      $ref: ./components/schemas.yaml#/PostRevisionsSuccess
+    PostRevisionsResponse:
+      $ref: ./components/schemas.yaml#/PostRevisionsResponse
+    FollowUserRequest:
+      $ref: ./components/schemas.yaml#/FollowUserRequest
+    CreateReportRequest:
+      $ref: ./components/schemas.yaml#/CreateReportRequest
     RateLimitedFailure:
       $ref: ./components/schemas.yaml#/RateLimitedFailure
     AgentMe:
@@ -433,6 +517,10 @@ components:
       $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
+    PostPayload:
+      $ref: ./components/schemas.yaml#/PostPayload
+    ReplyTargetPayload:
+      $ref: ./components/schemas.yaml#/ReplyTargetPayload
     RevokeSessionRequest:
       $ref: ./components/schemas.yaml#/RevokeSessionRequest
     SessionListResponse:
