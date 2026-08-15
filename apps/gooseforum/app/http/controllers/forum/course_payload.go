@@ -7,7 +7,11 @@ type CourseCatalogProps struct {
 	Query       CourseCatalogQueryPayload     `json:"query"`
 	Courses     []courseservice.CourseSummary `json:"courses"`
 	Departments []string                      `json:"departments"`
-	Pagination  PaginationPayload             `json:"pagination"`
+	// Terms 可筛选学期（value=code，label 优先学期名，按 starts_on 倒序），与 term 筛选值域一致。
+	Terms []courseservice.TermOption `json:"terms"`
+	// Campuses 可筛选校区（course_offering.campus 原始值，按字典序），与 campus 筛选值域一致。
+	Campuses   []string          `json:"campuses"`
+	Pagination PaginationPayload `json:"pagination"`
 }
 
 // CourseCatalogQueryPayload 课程目录页查询条件回显。

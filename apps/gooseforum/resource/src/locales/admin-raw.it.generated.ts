@@ -749,7 +749,6 @@ export default {
   "k00ne": "Elimina namespace",
   "k00nf": "Eliminare il namespace \"{name}\"? Questa azione non può essere annullata.",
   "k00ng": "Il nome del namespace è obbligatorio",
-  "k00nh": "Inserisci il nome del namespace",
   "k00ni": "Inserisci la descrizione del namespace (facoltativa)",
   "k00nj": "Nessun namespace",
   "k00nk": "Eliminazione non riuscita: il namespace contiene ancora pagine.",

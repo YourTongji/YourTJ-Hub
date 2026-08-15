@@ -86,26 +86,32 @@ const hasActiveFilters = computed(() => {
           <label class="sr-only" for="course-term">{{ t('coursesPage.term') }}</label>
           <div class="relative">
             <CalendarDays class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
-            <input
+            <select
               id="course-term"
               name="term"
-              type="text"
               :value="page.props.query.term"
-              :placeholder="t('coursesPage.term')"
-              class="gf-input gf-input-md w-full pl-9"
-            />
+              class="gf-input gf-input-md w-full cursor-pointer pl-9"
+            >
+              <option value="">{{ t('coursesPage.allTerms') }}</option>
+              <option v-for="term in page.props.terms" :key="term.value" :value="term.value">
+                {{ term.label }}
+              </option>
+            </select>
           </div>
           <label class="sr-only" for="course-campus">{{ t('coursesPage.campus') }}</label>
           <div class="relative">
             <MapPin class="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-base-content/40" />
-            <input
+            <select
               id="course-campus"
               name="campus"
-              type="text"
               :value="page.props.query.campus"
-              :placeholder="t('coursesPage.campus')"
-              class="gf-input gf-input-md w-full pl-9"
-            />
+              class="gf-input gf-input-md w-full cursor-pointer pl-9"
+            >
+              <option value="">{{ t('coursesPage.allCampuses') }}</option>
+              <option v-for="campus in page.props.campuses" :key="campus" :value="campus">
+                {{ campus }}
+              </option>
+            </select>
           </div>
         </div>
         <div class="grid gap-2 sm:grid-cols-3">
