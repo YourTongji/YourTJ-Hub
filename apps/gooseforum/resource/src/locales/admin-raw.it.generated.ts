@@ -769,6 +769,8 @@ export default {
   "k00ny": "Nessuna pagina",
   "k00nz": "Editor",
   "k00o4": "Il percorso è obbligatorio",
+  "k00o5": "Il nome del namespace può contenere solo lettere minuscole, cifre e trattini",
+  "k00o6": "Inserisci il nome del namespace (lettere minuscole, cifre, trattini)",
   "k00p0": "Riepilogo corsi AI",
   "k00p1": "Gestisci l'interruttore di generazione del riepilogo corsi AI e il limite di frequenza globale.",
   "k00p2": "Caricamento delle impostazioni del riepilogo corsi AI non riuscito",
