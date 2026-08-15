@@ -98,7 +98,7 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
   `app/http/controllers/api/wikiController.go`（公开读 + `/api/admin/wiki/*` 管理端）+
   `wikiSyncController.go`（`/api/wiki/webhook` + `/api/admin/wiki/sync*`）。
-- **同步触发**: 每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+- **同步触发**: `wiki.git.enabled=true` 时注册每日定时任务（默认 `30 3 * * *`，避开数据库备份）+ 管理端
   `/admin/wiki` 同步面板手动触发 + GitHub webhook（`POST /api/wiki/webhook`，HMAC-SHA256
   验签，push 事件，仅默认分支）。同步运行写入 `wiki_sync_runs`
   （trigger/status/head_sha/变更计数/错误）。

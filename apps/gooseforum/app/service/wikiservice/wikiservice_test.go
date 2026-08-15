@@ -8,6 +8,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -28,6 +29,7 @@ func setupWikiTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
+		&taskQueue.Entity{},
 		&wikiNamespaces.Entity{},
 		&wikiPages.Entity{},
 		&wikiSyncRuns.Entity{},

@@ -135,10 +135,15 @@ func TestWikiDetailSSRPayload(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	alice := createHTTPContractUser(t, conn, contractTestID())
 	seedWikiContract(t, conn, alice.Id)
-	// GitHub SSOT：canEdit 由 [wiki.git].repo 配置决定，未配置时关闭。
+	// GitHub SSOT：编辑外链必须显式 enabled；仅填写 repo 不启动同步。
 	prevRepo := preferences.GetString("wiki.git.repo", "")
+	prevEnabled := preferences.GetBool("wiki.git.enabled", false)
 	preferences.Set("wiki.git.repo", "")
-	t.Cleanup(func() { preferences.Set("wiki.git.repo", prevRepo) })
+	preferences.Set("wiki.git.enabled", false)
+	t.Cleanup(func() {
+		preferences.Set("wiki.git.repo", prevRepo)
+		preferences.Set("wiki.git.enabled", prevEnabled)
+	})
 
 	fetch := func(token string) (int, map[string]any) {
 		t.Helper()
@@ -182,7 +187,11 @@ func TestWikiDetailSSRPayload(t *testing.T) {
 
 	t.Run("repo configured exposes GitHub edit links", func(t *testing.T) {
 		preferences.Set("wiki.git.repo", "https://github.com/YourTongji/YourTJ-Wiki.git")
-		t.Cleanup(func() { preferences.Set("wiki.git.repo", "") })
+		preferences.Set("wiki.git.enabled", true)
+		t.Cleanup(func() {
+			preferences.Set("wiki.git.repo", "")
+			preferences.Set("wiki.git.enabled", false)
+		})
 		aliceToken := contractSessionToken(t, alice)
 		code, payload := fetch(aliceToken)
 		if code != http.StatusOK {
@@ -394,14 +403,17 @@ func TestWikiSyncStatusHTTPContract(t *testing.T) {
 	grantContractPermission(t, conn, bob.Id, permission.PageManager)
 	bobToken := contractSessionToken(t, bob)
 
-	// 未配置 [wiki.git].repo → enabled=false（空库：pages 0/0）。
+	// 未显式启用 → enabled=false（空库：pages 0/0）。
 	prevRepo := preferences.GetString("wiki.git.repo", "")
 	prevBranch := preferences.GetString("wiki.git.branch", "main")
+	prevEnabled := preferences.GetBool("wiki.git.enabled", false)
 	preferences.Set("wiki.git.repo", "")
 	preferences.Set("wiki.git.branch", "main")
+	preferences.Set("wiki.git.enabled", false)
 	t.Cleanup(func() {
 		preferences.Set("wiki.git.repo", prevRepo)
 		preferences.Set("wiki.git.branch", prevBranch)
+		preferences.Set("wiki.git.enabled", prevEnabled)
 	})
 
 	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/status", "", bobToken)

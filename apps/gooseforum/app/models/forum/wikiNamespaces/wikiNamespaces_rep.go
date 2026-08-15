@@ -2,6 +2,7 @@ package wikiNamespaces
 
 import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
+	"gorm.io/gorm"
 )
 
 func List() []*Entity {
@@ -20,6 +21,15 @@ func GetByName(name string) (entity Entity) {
 
 func Create(entity *Entity) error {
 	return builder().Create(entity).Error
+}
+
+func CreateTx(tx *gorm.DB, entity *Entity) error {
+	return tx.Table(tableName).Create(entity).Error
+}
+
+func ListTx(tx *gorm.DB) (entities []*Entity, err error) {
+	err = tx.Table(tableName).Order(queryopt.Asc("id")).Find(&entities).Error
+	return
 }
 
 func Save(entity *Entity) error {

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"io/fs"
 	"log/slog"
 	"os"
 	"os/exec"
@@ -19,7 +20,6 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -27,9 +27,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"go.yaml.in/yaml/v3"
 	"gorm.io/gorm"
 )
@@ -42,25 +39,29 @@ const wikiSystemUserID uint64 = 0
 
 // GitConfig GitHub wiki 仓库同步配置（config.toml [wiki.git] section）。
 type GitConfig struct {
-	Repo     string // 仓库地址（https://github.com/YourTongji/YourTJ-Wiki.git）
-	Branch   string // 默认分支（main）
-	CloneDir string // 本地 clone 目录（默认 ./storage/wiki-repo）
-	Schedule string // 定时同步 cron spec（默认 "0 3 * * *"）
+	Enable     bool   // 必须显式启用，默认 false
+	AllowEmpty bool   // 是否允许空源删除全部现有页面，默认 false
+	Repo       string // 仓库地址（https://github.com/YourTongji/YourTJ-Wiki.git）
+	Branch     string // 默认分支（main）
+	CloneDir   string // 本地 clone 目录（默认 ./storage/wiki-repo）
+	Schedule   string // 定时同步 cron spec（默认 "30 3 * * *"）
 }
 
 // LoadGitConfig 读取 [wiki.git] 配置。
 func LoadGitConfig() GitConfig {
 	return GitConfig{
-		Repo:     preferences.GetString("wiki.git.repo", ""),
-		Branch:   preferences.GetString("wiki.git.branch", "main"),
-		CloneDir: preferences.GetString("wiki.git.clone_dir", "./storage/wiki-repo"),
-		Schedule: preferences.GetString("wiki.git.schedule", "0 3 * * *"),
+		Enable:     preferences.GetBool("wiki.git.enabled", false),
+		AllowEmpty: preferences.GetBool("wiki.git.allow_empty", false),
+		Repo:       strings.TrimSpace(preferences.GetString("wiki.git.repo", "")),
+		Branch:     strings.TrimSpace(preferences.GetString("wiki.git.branch", "main")),
+		CloneDir:   strings.TrimSpace(preferences.GetString("wiki.git.clone_dir", "./storage/wiki-repo")),
+		Schedule:   strings.TrimSpace(preferences.GetString("wiki.git.schedule", "30 3 * * *")),
 	}
 }
 
 // Enabled 返回 wiki git 同步是否启用（repo 配置非空）。
 func (c GitConfig) Enabled() bool {
-	return c.Repo != ""
+	return c.Enable && c.Repo != ""
 }
 
 // RepoPath 返回规范化 "owner/repo"（供 GitHub 外链拼接；失败返回空）。
@@ -82,6 +83,9 @@ func (c GitConfig) RepoPath() string {
 
 // EditURL 返回某页面的 GitHub 编辑外链（{repo}/edit/{branch}/{path}.md）。
 func (c GitConfig) EditURL(pagePath string) string {
+	if !c.Enabled() {
+		return ""
+	}
 	if repo := c.RepoPath(); repo != "" {
 		return "https://github.com/" + repo + "/edit/" + c.Branch + "/" + pagePath + ".md"
 	}
@@ -90,6 +94,9 @@ func (c GitConfig) EditURL(pagePath string) string {
 
 // HistoryURL 返回某页面的 GitHub 历史外链（{repo}/commits/{branch}/{path}.md）。
 func (c GitConfig) HistoryURL(pagePath string) string {
+	if !c.Enabled() {
+		return ""
+	}
 	if repo := c.RepoPath(); repo != "" {
 		return "https://github.com/" + repo + "/commits/" + c.Branch + "/" + pagePath + ".md"
 	}
@@ -204,41 +211,64 @@ func ReleaseSyncLock() {
 // ensureClone 确保本地 clone 存在且 remote 与配置一致（无则 clone，有则 fetch + reset --hard）。
 // 返回当前 head SHA。本地工作区永不手动修改，reset --hard 比 pull 更确定。
 // 配置变更（repo 换源）时丢弃缓存 clone 重建，避免投影到错误仓库。
-func ensureClone(cfg GitConfig) (string, error) {
+const (
+	gitCommandTimeout = 2 * time.Minute
+	maxWikiPages      = 2000
+	maxWikiPageBytes  = 2 << 20
+	maxWikiTotalBytes = 64 << 20
+)
+
+func ensureClone(ctx context.Context, cfg GitConfig) (string, error) {
 	if cfg.Repo == "" {
 		return "", fmt.Errorf("wiki git repo not configured")
 	}
 	if cfg.CloneDir == "" {
 		cfg.CloneDir = "./storage/wiki-repo"
 	}
-	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
-		if out, err := runGit(cfg.CloneDir, "remote", "get-url", "origin"); err == nil {
-			if !sameRemote(strings.TrimSpace(out), cfg.Repo) {
-				slog.Warn("wiki sync: cached clone remote mismatch, recloning",
-					"cached", strings.TrimSpace(out), "configured", cfg.Repo)
-				if err := os.RemoveAll(cfg.CloneDir); err != nil {
-					return "", fmt.Errorf("remove stale clone: %w", err)
-				}
-			}
-		}
+	cloneDir, err := safeCloneDir(cfg.CloneDir)
+	if err != nil {
+		return "", err
 	}
+	cfg.CloneDir = cloneDir
 	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
-		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
+		out, err := runGit(ctx, cfg.CloneDir, "remote", "get-url", "origin")
+		if err != nil {
+			return "", fmt.Errorf("read cached clone remote: %w", err)
+		}
+		if !sameRemote(strings.TrimSpace(out), cfg.Repo) {
+			return "", fmt.Errorf("wiki git clone_dir origin does not match configured repository")
+		}
+		top, err := runGit(ctx, cfg.CloneDir, "rev-parse", "--show-toplevel")
+		if err != nil {
+			return "", fmt.Errorf("resolve cached clone root: %w", err)
+		}
+		if !samePath(strings.TrimSpace(top), cfg.CloneDir) {
+			return "", fmt.Errorf("wiki git clone_dir is not the repository root")
+		}
+		if out, err := runGit(ctx, cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
 			return "", fmt.Errorf("git fetch: %v: %s", err, out)
 		}
-		if out, err := runGit(cfg.CloneDir, "reset", "--hard", "origin/"+cfg.Branch); err != nil {
+		if out, err := runGit(ctx, cfg.CloneDir, "reset", "--hard", "origin/"+cfg.Branch); err != nil {
 			return "", fmt.Errorf("git reset: %v: %s", err, out)
 		}
 	} else {
+		if !os.IsNotExist(err) {
+			return "", fmt.Errorf("stat clone dir: %w", err)
+		}
+		if entries, readErr := os.ReadDir(cfg.CloneDir); readErr == nil && len(entries) != 0 {
+			return "", fmt.Errorf("wiki git clone_dir is non-empty and is not a git repository")
+		} else if readErr != nil && !os.IsNotExist(readErr) {
+			return "", fmt.Errorf("read clone dir: %w", readErr)
+		}
 		if err := os.MkdirAll(cfg.CloneDir, 0o755); err != nil {
 			return "", fmt.Errorf("mkdir clone dir: %w", err)
 		}
 		// 新 clone：--depth=1 只拉默认分支最新（同步只关心 head）。
-		if out, err := runGit("", "clone", "--depth=1", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
+		if out, err := runGit(ctx, "", "clone", "--depth=1", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
 			return "", fmt.Errorf("git clone: %v: %s", err, out)
 		}
 	}
-	out, err := runGit(cfg.CloneDir, "rev-parse", "HEAD")
+	out, err := runGit(ctx, cfg.CloneDir, "rev-parse", "HEAD")
 	if err != nil {
 		return "", fmt.Errorf("git rev-parse: %v: %s", err, out)
 	}
@@ -256,8 +286,10 @@ func sameRemote(a, b string) bool {
 	return norm(a) == norm(b)
 }
 
-func runGit(dir string, args ...string) (string, error) {
-	cmd := exec.Command("git", args...)
+func runGit(ctx context.Context, dir string, args ...string) (string, error) {
+	ctx, cancel := context.WithTimeout(ctx, gitCommandTimeout)
+	defer cancel()
+	cmd := exec.CommandContext(ctx, "git", args...)
 	if dir != "" {
 		cmd.Dir = dir
 	}
@@ -268,6 +300,51 @@ func runGit(dir string, args ...string) (string, error) {
 		return buf.String(), err
 	}
 	return buf.String(), nil
+}
+
+func safeCloneDir(value string) (string, error) {
+	if strings.TrimSpace(value) == "" {
+		return "", errors.New("wiki git clone_dir must not be empty")
+	}
+	dir, err := filepath.Abs(filepath.Clean(value))
+	if err != nil {
+		return "", fmt.Errorf("resolve clone_dir: %w", err)
+	}
+	root := filepath.VolumeName(dir) + string(filepath.Separator)
+	if samePath(dir, root) {
+		return "", errors.New("wiki git clone_dir must not be a filesystem root")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		return "", fmt.Errorf("resolve working directory: %w", err)
+	}
+	if samePath(dir, cwd) || pathContains(dir, cwd) {
+		return "", errors.New("wiki git clone_dir must not be the working directory or its ancestor")
+	}
+	if home, err := os.UserHomeDir(); err == nil && samePath(dir, home) {
+		return "", errors.New("wiki git clone_dir must not be the user home directory")
+	}
+	if info, err := os.Lstat(dir); err == nil && info.Mode()&os.ModeSymlink != 0 {
+		return "", errors.New("wiki git clone_dir must not be a symbolic link")
+	}
+	return dir, nil
+}
+
+func samePath(a, b string) bool {
+	return canonicalPath(a) == canonicalPath(b)
+}
+
+func pathContains(parent, child string) bool {
+	rel, err := filepath.Rel(canonicalPath(parent), canonicalPath(child))
+	return err == nil && rel != "." && rel != ".." && !strings.HasPrefix(rel, ".."+string(filepath.Separator))
+}
+
+func canonicalPath(value string) string {
+	clean := filepath.Clean(value)
+	if resolved, err := filepath.EvalSymlinks(clean); err == nil {
+		return resolved
+	}
+	return clean
 }
 
 // ---------- 仓库文件扫描 ----------
@@ -282,19 +359,37 @@ type repoFile struct {
 // scanRepoFiles 递归扫描 clone 目录下的 .md 文件（排除 .git、隐藏目录）。
 func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 	var files []repoFile
-	err := filepath.Walk(cloneDir, func(path string, info os.FileInfo, err error) error {
+	var totalBytes int64
+	err := filepath.WalkDir(cloneDir, func(path string, entry fs.DirEntry, err error) error {
 		if err != nil {
 			return err
 		}
-		if info.IsDir() {
-			name := info.Name()
+		if entry.IsDir() {
+			name := entry.Name()
 			if name == ".git" || strings.HasPrefix(name, ".") {
 				return filepath.SkipDir
 			}
 			return nil
 		}
-		if !strings.HasSuffix(info.Name(), ".md") {
+		if entry.Type()&os.ModeSymlink != 0 {
+			return fmt.Errorf("symbolic links are not allowed in wiki repository: %s", path)
+		}
+		if !strings.EqualFold(filepath.Ext(entry.Name()), ".md") {
 			return nil
+		}
+		info, err := entry.Info()
+		if err != nil {
+			return err
+		}
+		if info.Size() > maxWikiPageBytes {
+			return fmt.Errorf("wiki markdown exceeds %d bytes: %s", maxWikiPageBytes, path)
+		}
+		totalBytes += info.Size()
+		if totalBytes > maxWikiTotalBytes {
+			return fmt.Errorf("wiki markdown total exceeds %d bytes", maxWikiTotalBytes)
+		}
+		if len(files) >= maxWikiPages {
+			return fmt.Errorf("wiki repository exceeds %d pages", maxWikiPages)
 		}
 		rel, err := filepath.Rel(cloneDir, path)
 		if err != nil {
@@ -327,8 +422,8 @@ type gitContributor struct {
 
 // buildContributorsSnapshot 从 git log 统计某文件贡献者（同步时写入页面缓存）。
 // 公开仓库无鉴权；失败返回空快照（不阻断同步）。
-func buildContributorsSnapshot(cloneDir, relPath string) string {
-	out, err := runGit(cloneDir, "log", "--pretty=format:%an", "--", relPath)
+func buildContributorsSnapshot(ctx context.Context, cloneDir, relPath string) string {
+	out, err := runGit(ctx, cloneDir, "log", "--pretty=format:%an", "--", relPath)
 	if err != nil || strings.TrimSpace(out) == "" {
 		return ""
 	}
@@ -411,14 +506,22 @@ type SyncAccepted struct {
 // Sync 执行一次 GitHub → 论坛投影同步（webhook / 定时 / 手动共用）。
 // 幂等：内容 hash 不变则跳过（重复同步零变更）。
 func Sync(trigger string) (*SyncResult, error) {
-	return SyncWithConfig(LoadGitConfig(), trigger)
+	return SyncContext(context.Background(), trigger)
+}
+
+func SyncContext(ctx context.Context, trigger string) (*SyncResult, error) {
+	return SyncWithConfigContext(ctx, LoadGitConfig(), trigger)
 }
 
 // SyncWithConfig 使用显式配置执行一次同步（测试注入本地仓库用；
 // 生产路径 Sync 内部读取 [wiki.git] 配置）。
 func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
+	return SyncWithConfigContext(context.Background(), cfg, trigger)
+}
+
+func SyncWithConfigContext(ctx context.Context, cfg GitConfig, trigger string) (*SyncResult, error) {
 	if !cfg.Enabled() {
-		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
+		return nil, fmt.Errorf("wiki git sync disabled or not configured")
 	}
 	if !TryAcquireSyncLock() {
 		syncPending.Store(true)
@@ -428,29 +531,29 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		ReleaseSyncLock()
 		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
 		if syncPending.CompareAndSwap(true, false) {
-			if _, err := syncOnce(cfg, "webhook"); err != nil {
+			if _, err := syncOnce(ctx, cfg, "webhook"); err != nil {
 				slog.Warn("wiki sync: pending rerun failed", "error", err)
 			}
 		}
 	}()
-	return syncOnce(cfg, trigger)
+	return syncOnce(ctx, cfg, trigger)
 }
 
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
-func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
+func syncOnce(ctx context.Context, cfg GitConfig, trigger string) (*SyncResult, error) {
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {
 		return nil, fmt.Errorf("create sync run: %w", err)
 	}
 
-	head, err := ensureClone(cfg)
+	head, err := ensureClone(ctx, cfg)
 	if err != nil {
 		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error())
 		return nil, err
 	}
 
 	result := &SyncResult{HeadSha: head}
-	if err := applyRepoToDB(cfg, result); err != nil {
+	if err := applyRepoToDBContext(ctx, cfg, result); err != nil {
 		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error())
 		return result, err
 	}
@@ -470,24 +573,17 @@ type wantedPage struct {
 
 // applyRepoToDB 把仓库当前文件树投影到 DB（核心幂等 diff）。
 func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
+	return applyRepoToDBContext(context.Background(), cfg, result)
+}
+
+func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult) error {
 	files, err := scanRepoFiles(cfg.CloneDir)
 	if err != nil {
 		return fmt.Errorf("scan repo files: %w", err)
 	}
 
-	// 1. 收集现有页面（含软删，用于恢复）。
-	existing := wikiPages.ListAll()
-	byPath := make(map[string]*wikiPages.Entity, len(existing))
-	for _, p := range existing {
-		byPath[p.Path] = p
-	}
-	for _, p := range listAllUnscoped() {
-		if _, ok := byPath[p.Path]; !ok {
-			byPath[p.Path] = p
-		}
-	}
-
-	// 2. 仓库 md 文件 → 页面路径（去掉 .md 后缀，规范化小写 slug）。
+	// 仓库 md 文件 -> 页面路径。扫描和解析全部发生在事务前；任何错误都不会
+	// 触碰当前可读投影。
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
 	for _, f := range files {
@@ -507,76 +603,216 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			order:      order,
 			body:       body,
 		}
+		if _, duplicate := wantedByPath[norm]; duplicate {
+			return fmt.Errorf("multiple source files normalize to wiki path %s", norm)
+		}
 		wanted = append(wanted, wp)
 		wantedByPath[norm] = wp
 	}
+	if len(wanted) == 0 && !cfg.AllowEmpty && len(wikiPages.ListAll()) > 0 {
+		return errors.New("refusing to delete all wiki pages from an empty source; set wiki.git.allow_empty=true to confirm")
+	}
+	sort.Slice(wanted, func(i, j int) bool { return wanted[i].path < wanted[j].path })
 
-	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
-	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
-	var errs []string
-	for _, wp := range wanted {
-		existingPage, ok := byPath[wp.path]
-		if !ok {
-			if err := createPageFromRepo(cfg, wp); err != nil {
-				errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
+	stagedResult := SyncResult{HeadSha: result.HeadSha}
+	var effects []projectionEffect
+	err = dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		existing, err := wikiPages.ListAllUnscopedTx(tx)
+		if err != nil {
+			return fmt.Errorf("list existing wiki pages: %w", err)
+		}
+		assignments, matched := matchExistingPages(wantedByPath, existing)
+		if err := ensureNamespacesTx(tx, wanted); err != nil {
+			return err
+		}
+		if err := stageConflictingPathsTx(tx, wantedByPath, assignments, existing); err != nil {
+			return err
+		}
+
+		projectedByPath := make(map[string]*wikiPages.Entity, len(wanted))
+		for _, wp := range wanted {
+			page := assignments[wp.path]
+			if page == nil {
+				effect, err := createPageFromRepoTx(tx, wp)
+				if err != nil {
+					return fmt.Errorf("create %s: %w", wp.path, err)
+				}
+				stagedResult.PagesAdded++
+				effects = append(effects, effect)
+				projectedByPath[wp.path] = effect.page
 				continue
 			}
-			result.PagesAdded++
-			continue
-		}
-		curHash := sha256Hex(wp.body)
-		restored := existingPage.DeletedAt.Valid
-		// 仓库重新出现已删页面 → 先恢复页面行（复用原 topic/评论/点赞/订阅），
-		// 恢复必须优先于幂等判断：否则内容未变的软删页面永远无法解除 deleted_at。
-		if restored {
-			if err := wikiPages.RestoreSoftDeleted(existingPage.Id); err != nil {
-				errs = append(errs, fmt.Sprintf("restore %s: %v", wp.path, err))
+			changed := page.DeletedAt.Valid || page.Path != wp.path || page.Namespace != wp.namespace ||
+				page.ContentHash != sha256Hex(wp.body) || page.Title != wp.title ||
+				page.SortOrder != wp.order || page.SourcePath != wp.sourcePath
+			if !changed {
+				projectedByPath[wp.path] = page
 				continue
 			}
+			effect, err := updatePageFromRepoTx(tx, page, wp)
+			if err != nil {
+				return fmt.Errorf("update %s: %w", wp.path, err)
+			}
+			stagedResult.PagesUpdated++
+			effects = append(effects, effect)
+			projectedByPath[wp.path] = effect.page
 		}
-		// 幂等：正文 hash、frontmatter title/order、GitHub 源路径均未变且无需恢复
-		// → 零变更。只改 frontmatter（标题/排序）的提交也必须触发更新，否则投影
-		// 的标题/导航顺序永久陈旧。
-		if existingPage.ContentHash == curHash &&
-			existingPage.Title == wp.title &&
-			existingPage.SortOrder == wp.order &&
-			existingPage.SourcePath == wp.sourcePath &&
-			!restored {
-			continue
-		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
-			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
-			continue
-		}
-		result.PagesUpdated++
-	}
 
-	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
-	for _, p := range existing {
-		if _, ok := wantedByPath[p.Path]; ok {
-			continue
+		for _, page := range existing {
+			if matched[page.Id] || page.DeletedAt.Valid {
+				continue
+			}
+			if err := softDeleteWikiPageTx(tx, page); err != nil {
+				return fmt.Errorf("delete %s: %w", page.Path, err)
+			}
+			if err := enqueueWikiProjectionTaskTx(tx, result.HeadSha, page.Id, page.TopicId, false); err != nil {
+				return fmt.Errorf("enqueue delete side effects for %s: %w", page.Path, err)
+			}
+			stagedResult.PagesDeleted++
 		}
-		if p.DeletedAt.Valid {
-			continue
-		}
-		if err := softDeleteWikiPage(p); err != nil {
-			errs = append(errs, fmt.Sprintf("delete %s: %v", p.Path, err))
-			continue
-		}
-		result.PagesDeleted++
-	}
 
-	if len(errs) > 0 {
-		return fmt.Errorf("wiki sync: %d page(s) failed: %s", len(errs), strings.Join(errs, "; "))
+		// parent_id 取最终路径图计算，避免文件遍历顺序或 rename chain 产生旧父级。
+		for _, wp := range wanted {
+			page := projectedByPath[wp.path]
+			parentID := uint64(0)
+			if parent := projectedByPath[parentWikiPath(wp.path)]; parent != nil {
+				parentID = parent.Id
+			}
+			if page.ParentId != parentID {
+				if err := tx.Table("wiki_pages").Unscoped().Where("id = ?", page.Id).Update("parent_id", parentID).Error; err != nil {
+					return fmt.Errorf("set parent for %s: %w", wp.path, err)
+				}
+				page.ParentId = parentID
+			}
+		}
+		for _, effect := range effects {
+			if err := enqueueWikiProjectionTaskTx(tx, result.HeadSha, effect.page.Id, effect.topic.Id, effect.updated); err != nil {
+				return fmt.Errorf("enqueue projection side effects for %s: %w", effect.wp.path, err)
+			}
+		}
+		return nil
+	})
+	if err != nil {
+		return err
+	}
+	*result = stagedResult
+	refreshGitTrace(ctx, cfg, effects)
+	return nil
+}
+
+func matchExistingPages(wanted map[string]wantedPage, existing []*wikiPages.Entity) (map[string]*wikiPages.Entity, map[uint64]bool) {
+	assignments := make(map[string]*wikiPages.Entity, len(wanted))
+	matched := make(map[uint64]bool, len(existing))
+	activeByPath := make(map[string]*wikiPages.Entity, len(existing))
+	deletedByPath := make(map[string]*wikiPages.Entity, len(existing))
+	oldByHash := make(map[string][]*wikiPages.Entity)
+	newByHash := make(map[string][]string)
+	for _, page := range existing {
+		if page.DeletedAt.Valid {
+			deletedByPath[page.Path] = page
+			continue
+		}
+		activeByPath[page.Path] = page
+		if page.ContentHash != "" {
+			oldByHash[page.ContentHash] = append(oldByHash[page.ContentHash], page)
+		}
+	}
+	for pathValue, wp := range wanted {
+		newByHash[sha256Hex(wp.body)] = append(newByHash[sha256Hex(wp.body)], pathValue)
+	}
+	// 唯一 hash 是 rename 身份，必须先于路径匹配；这样 swap/chain 不会把目标路径
+	// 上原有页面错误消费掉。重复正文不猜测身份，回退到路径。
+	for hash, newPaths := range newByHash {
+		oldPages := oldByHash[hash]
+		if len(newPaths) == 1 && len(oldPages) == 1 {
+			assignments[newPaths[0]] = oldPages[0]
+			matched[oldPages[0].Id] = true
+		}
+	}
+	for pathValue := range wanted {
+		if assignments[pathValue] != nil {
+			continue
+		}
+		if page := activeByPath[pathValue]; page != nil && !matched[page.Id] {
+			assignments[pathValue] = page
+			matched[page.Id] = true
+		}
+	}
+	for pathValue := range wanted {
+		if assignments[pathValue] == nil {
+			if page := deletedByPath[pathValue]; page != nil {
+				assignments[pathValue] = page
+				matched[page.Id] = true
+			}
+		}
+	}
+	return assignments, matched
+}
+
+func stageConflictingPathsTx(tx *gorm.DB, wanted map[string]wantedPage, assignments map[string]*wikiPages.Entity, existing []*wikiPages.Entity) error {
+	byPath := make(map[string]*wikiPages.Entity, len(existing))
+	for _, page := range existing {
+		byPath[page.Path] = page
+	}
+	toStage := make(map[uint64]*wikiPages.Entity)
+	for pathValue := range wanted {
+		assigned, occupant := assignments[pathValue], byPath[pathValue]
+		if assigned != nil && assigned.Path != pathValue {
+			toStage[assigned.Id] = assigned
+		}
+		if occupant != nil && (assigned == nil || occupant.Id != assigned.Id) {
+			toStage[occupant.Id] = occupant
+		}
+	}
+	ids := make([]uint64, 0, len(toStage))
+	for id := range toStage {
+		ids = append(ids, id)
+	}
+	sort.Slice(ids, func(i, j int) bool { return ids[i] < ids[j] })
+	for _, id := range ids {
+		page := toStage[id]
+		oldPath := page.Path
+		stagingPath := fmt.Sprintf("%s/sync-staging-%d", page.Namespace, page.Id)
+		for suffix := 1; byPath[stagingPath] != nil; suffix++ {
+			stagingPath = fmt.Sprintf("%s/sync-staging-%d-%d", page.Namespace, page.Id, suffix)
+		}
+		if err := wikiPages.MovePathTx(tx, page.Id, stagingPath); err != nil {
+			return fmt.Errorf("stage occupied path %s: %w", oldPath, err)
+		}
+		delete(byPath, oldPath)
+		byPath[stagingPath] = page
+		page.Path = stagingPath
 	}
 	return nil
 }
 
-// listAllUnscoped 返回全部页面（含软删，供恢复检测）。
-func listAllUnscoped() []*wikiPages.Entity {
-	var entities []*wikiPages.Entity
-	dbconnect.Connect().Table("wiki_pages").Unscoped().Find(&entities)
-	return entities
+func ensureNamespacesTx(tx *gorm.DB, wanted []wantedPage) error {
+	existing, err := wikiNamespaces.ListTx(tx)
+	if err != nil {
+		return fmt.Errorf("list namespaces: %w", err)
+	}
+	seen := make(map[string]bool, len(existing))
+	for _, namespace := range existing {
+		seen[namespace.Name] = true
+	}
+	for _, wp := range wanted {
+		if seen[wp.namespace] {
+			continue
+		}
+		if err := wikiNamespaces.CreateTx(tx, &wikiNamespaces.Entity{Name: wp.namespace}); err != nil {
+			return fmt.Errorf("create namespace %s: %w", wp.namespace, err)
+		}
+		seen[wp.namespace] = true
+	}
+	return nil
+}
+
+func parentWikiPath(pathValue string) string {
+	index := strings.LastIndex(pathValue, "/")
+	if index <= 0 || !strings.Contains(pathValue[:index], "/") {
+		return ""
+	}
+	return pathValue[:index]
 }
 
 func sha256Hex(s string) string {
@@ -584,25 +820,20 @@ func sha256Hex(s string) string {
 	return hex.EncodeToString(sum[:])
 }
 
-// createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
-func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
+type projectionEffect struct {
+	page      *wikiPages.Entity
+	topic     *topics.Entity
+	firstPost *posts.Entity
+	wp        wantedPage
+	created   bool
+	updated   bool
+}
+
+// createPageFromRepoTx 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
+func createPageFromRepoTx(tx *gorm.DB, wp wantedPage) (projectionEffect, error) {
 	ns := wp.namespace
 	if ns == "" {
-		return fmt.Errorf("empty namespace for path %s", wp.path)
-	}
-	// 仓库顶层目录 = namespace；不存在则自动创建。
-	if !wikiNamespaces.Exists(ns) {
-		if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: ns}); err != nil {
-			return fmt.Errorf("create namespace %s: %w", ns, err)
-		}
-	}
-	// 嵌套路径：parent_id 关联父页面。
-	parentID := uint64(0)
-	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
-		parentPath := strings.Join(segments[:len(segments)-1], "/")
-		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
-			parentID = parent.Id
-		}
+		return projectionEffect{}, fmt.Errorf("empty namespace for path %s", wp.path)
 	}
 
 	rendered := markdown2html.PostMarkdownToHTML(wp.body)
@@ -619,152 +850,144 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 		VisibilityStatus: topics.VisibilityActive,
 		RetentionStatus:  topics.RetentionNormal,
 	}
-	var firstPost posts.Entity
-	var page wikiPages.Entity
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := topics.CreateTx(tx, &topic); err != nil {
-			return err
-		}
-		firstPost = posts.Entity{
-			TopicId:          topic.Id,
-			PostNo:           1,
-			UserId:           wikiSystemUserID,
-			Content:          wp.body,
-			RenderedHTML:     rendered,
-			RenderedVersion:  markdown2html.GetPostVersion(),
-			ProcessStatus:    posts.ProcessStatusNormal,
-			VisibilityStatus: posts.VisibilityActive,
-			RetentionStatus:  posts.RetentionNormal,
-		}
-		if err := posts.CreateTx(tx, &firstPost); err != nil {
-			return err
-		}
-		topic.FirstPostId = firstPost.Id
-		topic.LastPostId = firstPost.Id
-		topic.PostSeq = 1
-		if err := topics.SaveTx(tx, &topic); err != nil {
-			return err
-		}
-		page = wikiPages.Entity{
-			TopicId:             topic.Id,
-			Namespace:           ns,
-			Path:                wp.path,
-			SourcePath:          wp.sourcePath,
-			ParentId:            parentID,
-			SortOrder:           wp.order,
-			Title:               wp.title,
-			Content:             wp.body,
-			RenderedHTML:        rendered,
-			Toc:                 toc,
-			ContentHash:         sha256Hex(wp.body),
-			PublishedRevisionNo: 1,
-		}
-		return wikiPages.CreateTx(tx, &page)
-	})
-	if err != nil {
-		return err
+	if err := topics.CreateTx(tx, &topic); err != nil {
+		return projectionEffect{}, err
 	}
-	// 提交后副作用：文件引用 + 搜索索引 + 发布事件 + git 溯源快照。
-	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	firstPost := posts.Entity{
+		TopicId:          topic.Id,
+		PostNo:           1,
+		UserId:           wikiSystemUserID,
+		Content:          wp.body,
+		RenderedHTML:     rendered,
+		RenderedVersion:  markdown2html.GetPostVersion(),
+		ProcessStatus:    posts.ProcessStatusNormal,
+		VisibilityStatus: posts.VisibilityActive,
+		RetentionStatus:  posts.RetentionNormal,
 	}
-	eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
-	updateGitTrace(cfg, page.Id, wp.sourcePath)
-	return nil
+	if err := posts.CreateTx(tx, &firstPost); err != nil {
+		return projectionEffect{}, err
+	}
+	topic.FirstPostId = firstPost.Id
+	topic.LastPostId = firstPost.Id
+	topic.PostSeq = 1
+	if err := topics.SaveTx(tx, &topic); err != nil {
+		return projectionEffect{}, err
+	}
+	page := wikiPages.Entity{
+		TopicId:             topic.Id,
+		Namespace:           ns,
+		Path:                wp.path,
+		SourcePath:          wp.sourcePath,
+		ParentId:            0,
+		SortOrder:           wp.order,
+		Title:               wp.title,
+		Content:             wp.body,
+		RenderedHTML:        rendered,
+		Toc:                 toc,
+		ContentHash:         sha256Hex(wp.body),
+		PublishedRevisionNo: 1,
+	}
+	if err := wikiPages.CreateTx(tx, &page); err != nil {
+		return projectionEffect{}, err
+	}
+	return projectionEffect{page: &page, topic: &topic, firstPost: &firstPost, wp: wp, created: true}, nil
 }
 
-// updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
+// updatePageFromRepoTx 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
+func updatePageFromRepoTx(tx *gorm.DB, page *wikiPages.Entity, wp wantedPage) (projectionEffect, error) {
+	curHash := sha256Hex(wp.body)
 	rendered := markdown2html.PostMarkdownToHTML(wp.body)
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
-	topic := topics.UnscopedGet(page.TopicId)
-	if topic.Id == 0 {
-		return fmt.Errorf("topic %d not found for page %d", page.TopicId, page.Id)
+	var topic topics.Entity
+	if err := tx.Table("topics").Unscoped().First(&topic, page.TopicId).Error; err != nil {
+		return projectionEffect{}, fmt.Errorf("topic %d not found for page %d: %w", page.TopicId, page.Id, err)
 	}
-	firstPost := posts.UnscopedGet(topic.FirstPostId)
-	if firstPost.Id == 0 {
-		return fmt.Errorf("first post %d not found for topic %d", topic.FirstPostId, topic.Id)
+	var firstPost posts.Entity
+	if err := tx.Table("posts").Unscoped().First(&firstPost, topic.FirstPostId).Error; err != nil {
+		return projectionEffect{}, fmt.Errorf("first post %d not found for topic %d: %w", topic.FirstPostId, topic.Id, err)
 	}
 
-	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		// 页面恢复场景：topic 处于软删（USER_DELETED）时先恢复生命周期，
-		// 与 softDeleteWikiPage 的删除语义对称（Unscoped 写，不受 GORM 软删 scope 影响）。
-		if topic.DeletedAt.Valid {
-			if err := tx.Table("topics").Unscoped().Where("id = ?", topic.Id).Updates(map[string]any{
-				"deleted_at":        gorm.Expr("NULL"),
-				"visibility_status": topics.VisibilityActive,
-				"retention_status":  topics.RetentionNormal,
-				"deleted_by":        0,
-				"delete_reason":     "",
-			}).Error; err != nil {
-				return err
-			}
-		}
-		if err := tx.Table("wiki_pages").Where("id = ?", page.Id).Updates(map[string]any{
-			"title":         wp.title,
-			"content":       wp.body,
-			"rendered_html": rendered,
-			"toc":           toc,
-			"content_hash":  curHash,
-			"sort_order":    wp.order,
-			"source_path":   wp.sourcePath,
-			"updated_at":    time.Now(),
+	if topic.DeletedAt.Valid {
+		if err := tx.Table("topics").Unscoped().Where("id = ?", topic.Id).Updates(map[string]any{
+			"deleted_at":        gorm.Expr("NULL"),
+			"visibility_status": topics.VisibilityActive,
+			"retention_status":  topics.RetentionNormal,
+			"deleted_by":        0,
+			"delete_reason":     "",
 		}).Error; err != nil {
-			return err
+			return projectionEffect{}, err
 		}
-		// topic 物化（只更新 wiki 派生列，避免整行 Save 回写并发统计字段）。
-		topic.Title = wp.title
-		topic.Excerpt = markdown2html.ExtractDescription(wp.body, 200)
-		topic.FirstImageURL = markdown2html.ExtractFirstImageURL(wp.body)
-		if err := topics.UpdateWikiSyncedMetaTx(tx, &topic); err != nil {
-			return err
-		}
-		// post 物化。
-		firstPost.Content = wp.body
-		firstPost.RenderedHTML = rendered
-		firstPost.RenderedVersion = markdown2html.GetPostVersion()
-		firstPost.ProcessStatus = posts.ProcessStatusNormal
-		return posts.UpdateWikiSyncedContentTx(tx, &firstPost)
-	})
-	if err != nil {
-		return err
 	}
-	// 提交后副作用：文件引用 + 搜索 + git 溯源快照 + watcher 通知。
-	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	if err := tx.Table("wiki_pages").Unscoped().Where("id = ?", page.Id).Updates(map[string]any{
+		"deleted_at":    gorm.Expr("NULL"),
+		"namespace":     wp.namespace,
+		"path":          wp.path,
+		"title":         wp.title,
+		"content":       wp.body,
+		"rendered_html": rendered,
+		"toc":           toc,
+		"content_hash":  curHash,
+		"sort_order":    wp.order,
+		"source_path":   wp.sourcePath,
+		"updated_at":    time.Now(),
+	}).Error; err != nil {
+		return projectionEffect{}, err
 	}
-	updateGitTrace(cfg, page.Id, wp.sourcePath)
-	notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
-	return nil
+	topic.Title = wp.title
+	topic.Excerpt = markdown2html.ExtractDescription(wp.body, 200)
+	topic.FirstImageURL = markdown2html.ExtractFirstImageURL(wp.body)
+	if err := topics.UpdateWikiSyncedMetaTx(tx, &topic); err != nil {
+		return projectionEffect{}, err
+	}
+	firstPost.Content = wp.body
+	firstPost.RenderedHTML = rendered
+	firstPost.RenderedVersion = markdown2html.GetPostVersion()
+	firstPost.ProcessStatus = posts.ProcessStatusNormal
+	if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
+		return projectionEffect{}, err
+	}
+	page.Namespace = wp.namespace
+	page.Path = wp.path
+	page.SourcePath = wp.sourcePath
+	page.Title = wp.title
+	page.Content = wp.body
+	page.RenderedHTML = rendered
+	page.Toc = toc
+	page.ContentHash = curHash
+	page.SortOrder = wp.order
+	page.DeletedAt = gorm.DeletedAt{}
+	return projectionEffect{page: page, topic: &topic, firstPost: &firstPost, wp: wp, updated: true}, nil
 }
 
-// softDeleteWikiPage 仓库中已移除的页面 → 论坛软删（保留互动，走删除生命周期）。
-func softDeleteWikiPage(page *wikiPages.Entity) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": topics.VisibilityUserDeleted,
-			// 仓库移除 ≠ 用户删除：wiki 页面不进用户恢复/自动清除路径。
-			// RECOVERABLE 会在 30 天后被 retention 清扫永久清除；恢复由同步器
-			// 在页面重新出现时执行（updatePageFromRepo 恢复 ACTIVE/NORMAL）。
-			"retention_status": topics.RetentionNormal,
-		}).Error; err != nil {
-			return err
-		}
-		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
-	})
+// softDeleteWikiPageTx 仓库中已移除的页面 -> 论坛软删（保留互动）。
+func softDeleteWikiPageTx(tx *gorm.DB, page *wikiPages.Entity) error {
+	if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
+		"deleted_at":        time.Now(),
+		"visibility_status": topics.VisibilityUserDeleted,
+		// 仓库移除 ≠ 用户删除：wiki 页面不进用户恢复/自动清除路径。
+		// RECOVERABLE 会在 30 天后被 retention 清扫永久清除；恢复由同步器
+		// 在页面重新出现时执行（updatePageFromRepo 恢复 ACTIVE/NORMAL）。
+		"retention_status": topics.RetentionNormal,
+	}).Error; err != nil {
+		return err
+	}
+	return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
+}
+
+func refreshGitTrace(ctx context.Context, cfg GitConfig, effects []projectionEffect) {
+	for _, effect := range effects {
+		updateGitTrace(ctx, cfg, effect.page.Id, effect.wp.sourcePath)
+	}
 }
 
 // updateGitTrace 同步后更新页面的 git 溯源列（贡献者快照 + 最后提交 SHA/时间）。
 // 失败仅记日志，不阻断同步（贡献者为空时页面仍可读）。
-func updateGitTrace(cfg GitConfig, pageID uint64, relPath string) {
-	contributors := buildContributorsSnapshot(cfg.CloneDir, relPath)
+func updateGitTrace(ctx context.Context, cfg GitConfig, pageID uint64, relPath string) {
+	contributors := buildContributorsSnapshot(ctx, cfg.CloneDir, relPath)
 	commitSha := ""
 	var commitAt time.Time
-	if out, err := runGit(cfg.CloneDir, "log", "-1", "--format=%H%n%cI", "--", relPath); err == nil {
+	if out, err := runGit(ctx, cfg.CloneDir, "log", "-1", "--format=%H%n%cI", "--", relPath); err == nil {
 		lines := strings.SplitN(strings.TrimSpace(out), "\n", 2)
 		if len(lines) > 0 {
 			commitSha = strings.TrimSpace(lines[0])

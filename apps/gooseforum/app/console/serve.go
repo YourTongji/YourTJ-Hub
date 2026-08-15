@@ -31,6 +31,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/oidcservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/spf13/cast"
 
 	"github.com/gin-gonic/gin"
@@ -169,6 +170,9 @@ func ginServe() {
 	backgroundservice.RunWorker("data_export_worker", dataservice.TaskTypeExport, dataservice.RunExportTask)
 	// 课程搜索同步 worker：消费 course-search. 前缀 outbox 任务，投影到 Meili
 	backgroundservice.RunWorker("course_search_worker", searchservice.TaskTypeCourseSearch, searchservice.RunCourseSearchTask)
+	// Wiki projection side effects are transaction-bound outbox tasks. The
+	// worker retries file references, search and watcher delivery after crashes.
+	backgroundservice.RunWorker("wiki_projection_worker", wikiservice.TaskTypeWikiProjection, wikiservice.RunWikiProjectionTask)
 	// 课程统计重建 worker：消费 course-stats. 前缀任务（管理页“重建课程统计”触发）
 	backgroundservice.RunWorker("course_stats_worker", courseservice.TaskTypeCourseStatsRebuild, courseservice.RunCourseStatsRebuildTask)
 	// 课评删除隔离窗口清理 worker（issue #175 B3 隐私合规）：消费

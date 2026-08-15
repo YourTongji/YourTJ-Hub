@@ -53,14 +53,16 @@ maxLifeSeconds = 300
 url = "http://localhost:7700"
 masterkey = ""
 
-# Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
-# 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用（站内 wiki 读旧数据）。
+# Wiki GitHub 唯一真实源（可选）：显式启用后 wiki 内容由仓库同步（只读投影），
+# 编辑/审核/历史/贡献者全部走 GitHub PR。
 [wiki.git]
+enabled = false
+allow_empty = false
 repo = ""
 branch = "main"
 clone_dir = "./storage/wiki-repo"
-# 每日定时同步 cron spec（默认每日 03:00）
-schedule = "0 3 * * *"
+# 每日定时同步 cron spec（避开 03:00 数据库备份）
+schedule = "30 3 * * *"
 # GitHub webhook 验签密钥（GitHub 仓库 Settings → Webhooks 配置；
 # 留空 = webhook 端点 403 拒绝）
 webhook_secret = ""

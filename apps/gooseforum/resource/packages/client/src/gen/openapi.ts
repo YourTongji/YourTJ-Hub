@@ -2337,7 +2337,7 @@ export interface components {
             finishedAt?: string;
         };
         WikiSyncStatus: {
-            /** @description Whether GitHub wiki sync is configured ([wiki.git].repo non-empty). */
+            /** @description Whether GitHub wiki sync is explicitly enabled and a repository is configured. */
             enabled: boolean;
             /** @description Wiki repository URL; empty when sync is disabled. */
             repo: string;

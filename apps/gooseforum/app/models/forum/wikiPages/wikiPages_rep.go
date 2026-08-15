@@ -46,6 +46,12 @@ func ListAll() []*Entity {
 	return entities
 }
 
+// ListAllUnscopedTx 在调用方事务内返回全部页面（含软删）。
+func ListAllUnscopedTx(tx *gorm.DB) (entities []*Entity, err error) {
+	err = tx.Table(tableName).Unscoped().Order(queryopt.Asc("id")).Find(&entities).Error
+	return
+}
+
 // ListByIDs 按 id 集合批量返回页面（审核队列取 path 用，避免 ListAll 全表扫，
 // review N2/查询优化）。
 func ListByIDs(ids []uint64) []*Entity {
@@ -71,6 +77,11 @@ func Save(entity *Entity) error {
 
 func SaveTx(tx *gorm.DB, entity *Entity) error {
 	return tx.Table(tableName).Save(entity).Error
+}
+
+// MovePathTx 暂存或移动页面路径。调用方负责在同一事务内写入最终路径。
+func MovePathTx(tx *gorm.DB, id uint64, path string) error {
+	return tx.Table(tableName).Unscoped().Where(queryopt.Eq("id", id)).Update("path", path).Error
 }
 
 func Delete(id uint64) error {

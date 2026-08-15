@@ -16,15 +16,27 @@ type Usage struct {
 }
 
 func ReplaceTopic(topicID uint64, userID uint64, content string) {
-	replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(markdown2html.ExtractImageURLs(content), fileUsage.UsageInlineImage))
+	if err := ReplaceTopicWithError(topicID, userID, content); err != nil {
+		slog.Error("replace topic file usages failed", "topicId", topicID, "err", err)
+	}
+}
+
+// ReplaceTopicWithError replaces topic file usages and exposes persistence
+// failures to durable workers so they can retry instead of losing the update.
+func ReplaceTopicWithError(topicID uint64, userID uint64, content string) error {
+	return replace(fileUsage.TargetTopic, topicID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(markdown2html.ExtractImageURLs(content), fileUsage.UsageInlineImage))
 }
 
 func ReplacePost(postID uint64, userID uint64, content string) {
-	replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(markdown2html.ExtractImageURLs(content), fileUsage.UsageInlineImage))
+	if err := replace(fileUsage.TargetPost, postID, []string{fileUsage.UsageInlineImage}, userID, namesToUsages(markdown2html.ExtractImageURLs(content), fileUsage.UsageInlineImage)); err != nil {
+		slog.Error("replace post file usages failed", "postId", postID, "err", err)
+	}
 }
 
 func ReplaceAvatar(userId uint64, fileNames []string) {
-	replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar))
+	if err := replace(fileUsage.TargetUser, userId, []string{fileUsage.UsageAvatar}, userId, namesToUsages(fileNames, fileUsage.UsageAvatar)); err != nil {
+		slog.Error("replace avatar file usages failed", "userId", userId, "err", err)
+	}
 }
 
 func AddAdminUpload(userId uint64, fileName string) {
@@ -57,7 +69,7 @@ func namesToUsages(values []string, usageType string) []Usage {
 	return usages
 }
 
-func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage) {
+func replace(targetType string, targetId uint64, usageTypes []string, userId uint64, usages []Usage) error {
 	rows := make([]fileUsage.Entity, 0, len(usages))
 	for _, usage := range usages {
 		if usage.FileName == "" || usage.UsageType == "" {
@@ -71,9 +83,7 @@ func replace(targetType string, targetId uint64, usageTypes []string, userId uin
 			UserId:     userId,
 		})
 	}
-	if err := fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows); err != nil {
-		slog.Error("replace file usages failed", "targetType", targetType, "targetId", targetId, "err", err)
-	}
+	return fileUsage.ReplaceTargetUsages(targetType, targetId, usageTypes, rows)
 }
 
 func fileNameFromURL(value string) string {

@@ -1,11 +1,15 @@
 package wikiservice
 
 import (
+	"context"
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
@@ -76,6 +80,13 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("first sync: %v", err)
 	}
+	var tasksAfterFirst int64
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfterFirst).Error; err != nil {
+		t.Fatal(err)
+	}
+	if tasksAfterFirst != 1 {
+		t.Fatalf("projection tasks after first sync=%d, want 1", tasksAfterFirst)
+	}
 	res := &SyncResult{}
 	if err := applyRepoToDB(cfg, res); err != nil {
 		t.Fatalf("second sync: %v", err)
@@ -86,6 +97,142 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	pages := wikiPages.ListAll()
 	if len(pages) != 1 {
 		t.Fatalf("page count after second sync=%d, want 1", len(pages))
+	}
+	var tasksAfterSecond int64
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfterSecond).Error; err != nil {
+		t.Fatal(err)
+	}
+	if tasksAfterSecond != tasksAfterFirst {
+		t.Fatalf("unchanged sync enqueued tasks: before=%d after=%d", tasksAfterFirst, tasksAfterSecond)
+	}
+}
+
+func TestApplyRepoToDBRejectsEmptySourceByDefault(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	rel := "docs/page.md"
+	writeRepoFile(t, repo, rel, "---\ntitle: 页面\n---\n\n正文")
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("seed sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/page")
+	if err := os.Remove(filepath.Join(repo, rel)); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err == nil {
+		t.Fatal("empty source was accepted without allow_empty")
+	}
+	if got := wikiPages.GetByPath("docs/page"); got.Id != page.Id {
+		t.Fatalf("page changed after rejected empty sync: before=%d after=%d", page.Id, got.Id)
+	}
+}
+
+func TestApplyRepoToDBRollsBackWholeProjection(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A\n---\n\nold-a")
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B\n---\n\nold-b")
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("seed sync: %v", err)
+	}
+	var tasksBefore int64
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksBefore).Error; err != nil {
+		t.Fatal(err)
+	}
+	a := wikiPages.GetByPath("docs/a")
+	b := wikiPages.GetByPath("docs/b")
+	bTopic := topics.Get(b.TopicId)
+	if err := dbconnect.Connect().Model(&topics.Entity{}).Where("id = ?", bTopic.Id).Update("first_post_id", uint64(999999)).Error; err != nil {
+		t.Fatal(err)
+	}
+	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A2\n---\n\nnew-a")
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B2\n---\n\nnew-b")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err == nil {
+		t.Fatal("sync succeeded with a broken second projection")
+	}
+	if got := wikiPages.Get(a.Id); got.Title != "A" || got.Content != "old-a" {
+		t.Fatalf("first page escaped rolled-back transaction: %#v", got)
+	}
+	if res.PagesAdded != 0 || res.PagesUpdated != 0 || res.PagesDeleted != 0 {
+		t.Fatalf("failed transaction leaked result counters: %#v", res)
+	}
+	var tasksAfter int64
+	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfter).Error; err != nil {
+		t.Fatal(err)
+	}
+	if tasksAfter != tasksBefore {
+		t.Fatalf("rolled-back projection leaked outbox tasks: before=%d after=%d", tasksBefore, tasksAfter)
+	}
+}
+
+func TestApplyRepoToDBPathSwapKeepsTopicIdentity(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A\n---\n\nbody-a")
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B\n---\n\nbody-b")
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("seed sync: %v", err)
+	}
+	oldA, oldB := wikiPages.GetByPath("docs/a"), wikiPages.GetByPath("docs/b")
+	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: B\n---\n\nbody-b")
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: A\n---\n\nbody-a")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("swap sync: %v", err)
+	}
+	if got := wikiPages.GetByPath("docs/a"); got.Id != oldB.Id || got.TopicId != oldB.TopicId {
+		t.Fatalf("path a lost B identity: old=%#v got=%#v", oldB, got)
+	}
+	if got := wikiPages.GetByPath("docs/b"); got.Id != oldA.Id || got.TopicId != oldA.TopicId {
+		t.Fatalf("path b lost A identity: old=%#v got=%#v", oldA, got)
+	}
+	if res.PagesAdded != 0 || res.PagesUpdated != 2 || res.PagesDeleted != 0 {
+		t.Fatalf("swap result=%#v", res)
+	}
+}
+
+func TestApplyRepoToDBRenameChainKeepsTopicIdentity(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	for _, item := range []struct{ path, title, body string }{
+		{"docs/a.md", "A", "body-a"},
+		{"docs/b.md", "B", "body-b"},
+		{"docs/c.md", "C", "body-c"},
+	} {
+		writeRepoFile(t, repo, item.path, "---\ntitle: "+item.title+"\n---\n\n"+item.body)
+	}
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("seed sync: %v", err)
+	}
+	oldA := wikiPages.GetByPath("docs/a")
+	oldB := wikiPages.GetByPath("docs/b")
+	oldC := wikiPages.GetByPath("docs/c")
+	if err := os.Remove(filepath.Join(repo, "docs/a.md")); err != nil {
+		t.Fatal(err)
+	}
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: A\n---\n\nbody-a")
+	writeRepoFile(t, repo, "docs/c.md", "---\ntitle: B\n---\n\nbody-b")
+	writeRepoFile(t, repo, "docs/d.md", "---\ntitle: C\n---\n\nbody-c")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("rename chain sync: %v", err)
+	}
+	for _, check := range []struct {
+		path string
+		old  wikiPages.Entity
+	}{{"docs/b", oldA}, {"docs/c", oldB}, {"docs/d", oldC}} {
+		got := wikiPages.GetByPath(check.path)
+		if got.Id != check.old.Id || got.TopicId != check.old.TopicId {
+			t.Fatalf("%s lost identity: old=%#v got=%#v", check.path, check.old, got)
+		}
+	}
+	if res.PagesAdded != 0 || res.PagesUpdated != 3 || res.PagesDeleted != 0 {
+		t.Fatalf("chain result=%#v", res)
 	}
 }
 
@@ -140,7 +287,7 @@ func TestApplyRepoToDBDelete(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoFile(t, repo, "docs/gone.md", "---\ntitle: 删除\n---\n\n# 标题\n\n正文")
 
-	cfg := GitConfig{CloneDir: repo}
+	cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("first sync: %v", err)
 	}
@@ -179,7 +326,7 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 		content := "---\ntitle: 恢复\n---\n\n# 标题\n\n正文"
 		writeRepoFile(t, repo, rel, content)
 
-		cfg := GitConfig{CloneDir: repo}
+		cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
 		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 			t.Fatalf("first sync: %v", err)
 		}
@@ -240,7 +387,7 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 		rel := "docs/restore.md"
 		writeRepoFile(t, repo, rel, "---\ntitle: v1\n---\n\n# 标题\n\n旧正文")
 
-		cfg := GitConfig{CloneDir: repo}
+		cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
 		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 			t.Fatalf("first sync: %v", err)
 		}
@@ -377,5 +524,73 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
 		}
+	}
+}
+
+func TestGitConfigRequiresExplicitEnable(t *testing.T) {
+	if (GitConfig{Repo: "https://github.com/example/wiki.git"}).Enabled() {
+		t.Fatal("repo alone must not enable wiki sync")
+	}
+	if !(GitConfig{Enable: true, Repo: "https://github.com/example/wiki.git"}).Enabled() {
+		t.Fatal("explicit enable with repo should enable wiki sync")
+	}
+	if _, err := SyncWithConfigContext(context.Background(), GitConfig{Repo: "local"}, "test"); err == nil {
+		t.Fatal("disabled config should reject sync")
+	}
+}
+
+func TestScanRepoFilesRejectsUnsafeContent(t *testing.T) {
+	t.Run("symlink", func(t *testing.T) {
+		repo := t.TempDir()
+		target := filepath.Join(repo, "target.md")
+		if err := os.WriteFile(target, []byte("body"), 0o644); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.Symlink(target, filepath.Join(repo, "page.md")); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := scanRepoFiles(repo); err == nil || !strings.Contains(err.Error(), "symbolic links") {
+			t.Fatalf("scan error=%v, want symbolic-link rejection", err)
+		}
+	})
+
+	t.Run("oversized markdown", func(t *testing.T) {
+		repo := t.TempDir()
+		path := filepath.Join(repo, "page.md")
+		file, err := os.Create(path)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if err := file.Truncate(maxWikiPageBytes + 1); err != nil {
+			_ = file.Close()
+			t.Fatal(err)
+		}
+		if err := file.Close(); err != nil {
+			t.Fatal(err)
+		}
+		if _, err := scanRepoFiles(repo); err == nil || !strings.Contains(err.Error(), "exceeds") {
+			t.Fatalf("scan error=%v, want size rejection", err)
+		}
+	})
+}
+
+func TestSafeCloneDirRejectsDestructiveTargets(t *testing.T) {
+	if _, err := safeCloneDir(string(filepath.Separator)); err == nil {
+		t.Fatal("filesystem root should be rejected")
+	}
+	cwd, err := os.Getwd()
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := safeCloneDir(cwd); err == nil {
+		t.Fatal("working directory should be rejected")
+	}
+	target := t.TempDir()
+	link := filepath.Join(t.TempDir(), "clone-link")
+	if err := os.Symlink(target, link); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := safeCloneDir(link); err == nil {
+		t.Fatal("symlink clone_dir should be rejected")
 	}
 }

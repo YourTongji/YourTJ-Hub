@@ -1,6 +1,7 @@
 package job
 
 import (
+	"context"
 	"errors"
 	"log/slog"
 	"time"
@@ -26,8 +27,10 @@ var scheduler = cron.New(
 	cron.WithLogger(cron.VerbosePrintfLogger(logging.CronLogging{})),
 )
 var running = false
+var jobContext, cancelJobs = context.WithCancel(context.Background())
 
 func Run() {
+	jobContext, cancelJobs = context.WithCancel(context.Background())
 	closer.RegisterPriority(closer.PriorityProducer, Stop)
 	slog.Info("start cron")
 	backupSpec := preferences.Get("db.spec", "0 3 * * *")
@@ -98,15 +101,20 @@ func Run() {
 		}
 	}))
 	slog.Info("reg cron", "entryID", entryID, "spec", "10 3 * * *", "err", err)
-	// wiki GitHub 同步：默认每日 03:00（可配 [wiki.git].schedule 覆盖）；
-	// 未配置 [wiki.git].repo 时 Sync 直接报错跳过（幂等，配置后重启即生效）。
-	wikiSpec := preferences.GetString("wiki.git.schedule", "0 3 * * *")
-	entryID, err = scheduler.AddFunc(wikiSpec, upCmd(func() {
-		if _, syncErr := wikiservice.Sync("schedule"); syncErr != nil {
-			slog.Warn("wiki scheduled sync failed", "error", syncErr)
-		}
-	}))
-	slog.Info("reg cron", "entryID", entryID, "spec", wikiSpec, "err", err)
+	// Wiki 同步只有显式启用时才注册，避免仅填写 repo 就开始写投影。
+	wikiConfig := wikiservice.LoadGitConfig()
+	if wikiConfig.Enabled() {
+		entryID, err = scheduler.AddFunc(wikiConfig.Schedule, upCmd(func() {
+			ctx, cancel := context.WithTimeout(jobContext, 10*time.Minute)
+			defer cancel()
+			if _, syncErr := wikiservice.SyncContext(ctx, "schedule"); syncErr != nil {
+				slog.Warn("wiki scheduled sync failed", "error", syncErr)
+			}
+		}))
+		slog.Info("reg cron", "entryID", entryID, "spec", wikiConfig.Schedule, "err", err)
+	} else {
+		slog.Info("wiki git sync cron disabled")
+	}
 	running = true
 	scheduler.Start()
 }
@@ -115,6 +123,7 @@ func Stop() error {
 	if !running {
 		return nil
 	}
+	cancelJobs()
 	ctx := scheduler.Stop()
 	select {
 	case <-ctx.Done():

@@ -67,18 +67,20 @@
 ### Wiki GitHub 唯一真实源同步
 
 wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
-论坛只保留只读投影。配置 `[wiki.git]` 后启用（见 `deploy/config.toml.example`）：
+论坛只保留只读投影。完成仓库种子校验后显式启用 `[wiki.git]`（见 `deploy/config.toml.example`）：
 
 ```toml
 [wiki.git]
+enabled = false                # 首次导出/校验完成后才改为 true
+allow_empty = false            # 默认拒绝空仓库删除全部页面
 repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
 branch = "main"
 clone_dir = "./storage/wiki-repo"
-schedule = "0 3 * * *"      # 每日定时同步（默认 03:00）
+schedule = "30 3 * * *"     # 每日定时同步（默认 03:30，避开备份）
 webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端点 403
 ```
 
-- **同步触发**：每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+- **同步触发**：仅 `enabled=true` 时注册每日定时任务（`[wiki.git].schedule`，默认 `30 3 * * *`）+ 管理端
   `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
@@ -88,6 +90,7 @@ webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
   （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+- **删除保护**：有效页面扫描结果为空且论坛已有页面时默认拒绝同步；只有明确确认仓库应为空时才临时设置 `allow_empty=true`。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
 

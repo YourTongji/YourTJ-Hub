@@ -1,6 +1,7 @@
 package wikiservice
 
 import (
+	"fmt"
 	"log/slog"
 	"time"
 
@@ -33,21 +34,21 @@ func HasPageManagerPermission(userId uint64) bool {
 const wikiNotifyThrottleWindow = 10 * time.Minute
 
 // notifyWatchersThrottled 节流后通知 watcher：窗口内已有通知则跳过本次。
-func notifyWatchersThrottled(topicId uint64, pagePath string, title string, editorId uint64) {
+func notifyWatchersThrottled(topicId uint64, pagePath string, title string, editorId uint64) error {
 	latest := eventNotification.GetLatestByTopicAndType(topicId, eventNotification.EventTypeWikiUpdated)
 	if latest.Id != 0 && time.Since(latest.CreatedAt) < wikiNotifyThrottleWindow {
-		return
+		return nil
 	}
-	notifyWatchers(topicId, pagePath, title, editorId)
+	return notifyWatchers(topicId, pagePath, title, editorId)
 }
 
 // notifyWatchers 给全部 watcher 发送 wiki_updated 通知。
-func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint64) {
+func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint64) error {
 	after := uint64(0)
 	for {
 		watchers := topicUserAction.ListActiveWatchUserIDsAfter(topicId, after, nil, 500)
 		if len(watchers) == 0 {
-			return
+			return nil
 		}
 		notifications := make([]*eventNotification.Entity, 0, len(watchers))
 		for _, userId := range watchers {
@@ -77,6 +78,7 @@ func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint
 		if len(notifications) > 0 {
 			if err := eventNotification.CreateBatch(notifications, 100); err != nil {
 				slog.Warn("wiki: notify watchers failed", "topicId", topicId, "error", err)
+				return fmt.Errorf("create wiki watcher notifications: %w", err)
 			} else {
 				for _, userId := range watchers {
 					if userId != editorId {
@@ -87,7 +89,7 @@ func notifyWatchers(topicId uint64, pagePath string, title string, editorId uint
 		}
 		after = watchers[len(watchers)-1]
 		if len(watchers) < 500 {
-			return
+			return nil
 		}
 	}
 }
