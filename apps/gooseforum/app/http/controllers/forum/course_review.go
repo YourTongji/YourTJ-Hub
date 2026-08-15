@@ -319,6 +319,7 @@ func ModerationCourseReviewReveal(req component.BetterRequest[ModerationCourseRe
 
 // CourseReviewModeration 课评审核页面（/moderation/course-reviews）。
 // 独立 CourseManager 权限，与论坛版主工作台分开；数据全部走 JSON API 异步加载。
+// activeKey 与前端 AppShell.vue 侧边栏菜单 key（courseReviews）保持一致，避免高亮错位。
 func CourseReviewModeration(c *gin.Context) {
 	if !canModerateCourseReviews(component.LoginUserId(c)) {
 		renderNotFound(c)
@@ -331,7 +332,7 @@ func CourseReviewModeration(c *gin.Context) {
 			Title:       pageTitle(i18n.T(requestLang(c), "meta.courseReviewModeration")),
 			Description: i18n.T(requestLang(c), "meta.courseReviewModerationDesc"),
 		},
-		Layout:  buildLayout(c, "courses"),
+		Layout:  buildLayout(c, "courseReviews"),
 		URL:     buildPageURL(c),
 		Version: payloadVersion,
 	}
