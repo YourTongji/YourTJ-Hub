@@ -10,6 +10,13 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
+
+// GitHub SSOT：路径保留中文等 Unicode（不再小写归一），URL 按段编码。
+// 只编码每段，保留 "/" 分隔符。
+function wikiHref(path: string | undefined | null): string | undefined {
+  if (!path) return undefined
+  return '/wiki/' + path.split('/').map((seg) => encodeURIComponent(seg)).join('/')
+}
 </script>
 
 <template>
@@ -44,7 +51,7 @@ const { t } = useI18n()
           <a
             v-for="namespace in props.namespaces"
             :key="namespace.name"
-            :href="namespace.firstPagePath ? `/wiki/${namespace.firstPagePath}` : undefined"
+            :href="wikiHref(namespace.firstPagePath)"
             class="gf-card group block p-4 transition-colors hover:border-primary/40"
             :aria-disabled="!namespace.firstPagePath"
           >
@@ -76,7 +83,7 @@ const { t } = useI18n()
           <a
             v-for="(item, index) in props.recent"
             :key="item.pageId"
-            :href="`/wiki/${item.path}`"
+            :href="wikiHref(item.path)"
             class="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-base-200/60"
             :class="{ 'border-t border-line': index > 0 }"
           >

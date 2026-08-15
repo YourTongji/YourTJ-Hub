@@ -828,41 +828,6 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/wiki/namespaces": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        put?: never;
-        /** Create a wiki namespace (PageManager or Admin only) */
-        post: operations["createWikiNamespace"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/wiki/namespaces/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update a wiki namespace description (PageManager or Admin only) */
-        put: operations["updateWikiNamespace"];
-        post?: never;
-        /** Delete a wiki namespace (PageManager or Admin only) */
-        delete: operations["deleteWikiNamespace"];
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
     "/api/admin/wiki/tree": {
         parameters: {
             query?: never;
@@ -942,6 +907,24 @@ export interface paths {
         get: operations["listWikiSyncRuns"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync/webhook-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wiki webhook secret configuration status (PageManager or Admin only) */
+        get: operations["getWikiWebhookSecret"];
+        put?: never;
+        /** Save or clear the wiki webhook secret (PageManager or Admin only) */
+        post: operations["saveWikiWebhookSecret"];
         delete?: never;
         options?: never;
         head?: never;
@@ -2267,21 +2250,6 @@ export interface components {
         WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiHomeResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiCreateNamespaceRequest: {
-            /** @description Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars). */
-            name: string;
-            description: string;
-        };
-        WikiUpdateNamespaceRequest: {
-            description: string;
-        };
-        WikiNamespaceActionResult: {
-            /** @constant */
-            ok: true;
-        };
-        WikiNamespaceActionResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiNamespaceActionResult"];
-        }) | components["schemas"]["ApiFailure"];
         WikiAdminTreePage: {
             /** Format: uint64 */
             pageId: number;
@@ -2320,7 +2288,7 @@ export interface components {
              * @description What started the sync run.
              * @enum {string}
              */
-            trigger: "manual" | "schedule" | "webhook";
+            trigger: "manual" | "schedule" | "webhook" | "startup";
             /** @enum {string} */
             status: "running" | "success" | "failed";
             pagesAdded: number;
@@ -2376,6 +2344,24 @@ export interface components {
         WikiWebhookFailure: {
             error: string;
         };
+        WikiWebhookSecretStatus: {
+            /** @description Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config). */
+            configured: boolean;
+        };
+        WikiWebhookSecretStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiWebhookSecretStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiWebhookSecretSaveRequest: {
+            /** @description Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret. */
+            secret: string;
+        };
+        WikiWebhookSecretSaveResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiWebhookSecretSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiWebhookSecretSaveResult"];
+        }) | components["schemas"]["ApiFailure"];
         PkSuccess: {
             /**
              * @description PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
@@ -4492,163 +4478,6 @@ export interface operations {
             };
         };
     };
-    createWikiNamespace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiCreateNamespaceRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Namespace created. Business failures are returned as legacy HTTP 200 envelopes:
-             *     malformed bodies degrade to `common.request.invalidParams` (non-strict binding),
-             *     an illegal name is `common.request.invalidParams`, and an existing name is
-             *     `wiki.namespace.nameConflict`.
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    updateWikiNamespace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiUpdateNamespaceRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Namespace updated. Business failures are returned as legacy HTTP 200 envelopes:
-             *     request-level validation failures (`common.request.invalidParams`) and an unknown
-             *     namespace (`wiki.namespace.notFound`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed URI or JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    deleteWikiNamespace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody?: never;
-        responses: {
-            /**
-             * @description Namespace deleted. Business failures are returned as legacy HTTP 200 envelopes:
-             *     an unknown namespace (`wiki.namespace.notFound`) and a namespace that still
-             *     contains pages (`wiki.namespace.hasPages`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed URI (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
     getAdminWikiTree: {
         parameters: {
             query?: never;
@@ -4855,6 +4684,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WikiSyncRunsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Whether a webhook secret is configured. The secret itself is stored
+             *     encrypted (securestore) and is never returned; only the boolean flag
+             *     is exposed. A legacy plaintext secret in config.toml
+             *     `[wiki.git].webhook_secret` also counts as configured.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookSecretStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveWikiWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiWebhookSecretSaveRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Secret saved (encrypted at rest via securestore) or cleared when the
+             *     payload secret is empty. Business failures are returned as legacy
+             *     HTTP 200 envelopes (`common.request.invalidParams` for oversized
+             *     secrets).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookSecretSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

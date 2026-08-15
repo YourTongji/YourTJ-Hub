@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
@@ -29,6 +31,7 @@ func setupWikiTestDB(t *testing.T) {
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
 		&wikiNamespaces.Entity{},
+		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
 		&wikiSyncRuns.Entity{},
 	}
@@ -136,11 +139,18 @@ func TestValidatePath(t *testing.T) {
 		{"guide/getting-started", true},
 		{"deployment/waline", true},
 		{"guide/sub/page-name", true},
-		{"guide", false},                // 至少 namespace + 一个 slug 段
-		{"Guide/Getting-Started", true}, // 规范化小写
-		{"guide/..", false},             // 禁止 ..
-		{"guide/a b", false},            // 空格非法
-		{"guide/UPPER", true},           // 小写规范化后合法
+		{"同济新手教程/学校/简介", true},          // 中文命名空间与页面段（GitHub SSOT）
+		{"中文/目录/页面", true},               // 纯中文路径
+		{"Guide/Getting-Started", true},   // 保留大小写（不再小写归一）
+		{"guide/UPPER", true},             // 大写段合法
+		{"guide", false},                  // 至少 namespace + 一个 slug 段
+		{"guide/..", false},               // 禁止 ..
+		{"guide/.hidden", false},          // 禁止点开头段
+		{"guide/a b", false},              // 空格非法
+		{"guide/a\tb", false},             // 控制字符非法
+		{"guide/a:b", false},              // 保留字符非法
+		{"guide/a*b", false},              // 保留字符非法
+		{"guide/中文 空格", false},           // 中文路径含空格非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -148,20 +158,10 @@ func TestValidatePath(t *testing.T) {
 		if ok != tc.ok {
 			t.Fatalf("ValidatePath(%q) ok=%v, want %v", tc.input, ok, tc.ok)
 		}
-		if ok && got != tc.input && got != lower(tc.input) {
-			t.Fatalf("ValidatePath(%q) normalized=%q", tc.input, got)
+		if ok && got != tc.input {
+			t.Fatalf("ValidatePath(%q) normalized=%q, want unchanged (no lowercasing)", tc.input, got)
 		}
 	}
-}
-
-func lower(s string) string {
-	b := []byte(s)
-	for i := range b {
-		if b[i] >= 'A' && b[i] <= 'Z' {
-			b[i] += 'a' - 'A'
-		}
-	}
-	return string(b)
 }
 
 func TestValidateNamespace(t *testing.T) {
@@ -172,15 +172,34 @@ func TestValidateNamespace(t *testing.T) {
 		{"guide", true},
 		{"deployment", true},
 		{"my-namespace", true},
-		{"Guide", true}, // 小写
+		{"同济新手教程", true}, // 中文命名空间（GitHub 顶层目录名）
+		{"使用指南", true},    // 中文命名空间
+		{"Guide", true},    // 保留大小写
+		{"UPPER", true},    // 保留大小写
 		{"has space", false},
+		{"中文 空格", false}, // 中间空格非法
+		{" 前导空格", true},  // 首尾空格被 trim 后为合法名称（trim 后再校验）
+		{".hidden", false},    // 点开头（隐藏目录）非法
+		{"a:b", false},        // 保留字符非法
+		{"a*b", false},        // 保留字符非法
 		{"", false},
-		{"UPPER", true},
 	}
 	for _, tc := range cases {
 		if got := ValidateNamespace(tc.input); got != tc.ok {
 			t.Fatalf("ValidateNamespace(%q) = %v, want %v", tc.input, got, tc.ok)
 		}
+	}
+}
+
+func TestValidateNamespaceLengthByRunes(t *testing.T) {
+	// 长度按字符（rune）计数：64 个中文字符合法，65 个非法。
+	short := strings.Repeat("济", 64)
+	if !ValidateNamespace(short) {
+		t.Fatalf("ValidateNamespace(64 中文) = false, want true (按字符计数)")
+	}
+	long := strings.Repeat("济", 65)
+	if ValidateNamespace(long) {
+		t.Fatalf("ValidateNamespace(65 中文) = true, want false")
 	}
 }
 

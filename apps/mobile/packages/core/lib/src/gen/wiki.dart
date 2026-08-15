@@ -305,47 +305,6 @@ class WikiTocItem {
   }
 }
 
-/// 创建命名空间请求体（`POST /api/admin/wiki/namespaces`）。
-class WikiCreateNamespaceRequest {
-  const WikiCreateNamespaceRequest({
-    required this.name,
-    required this.description,
-  });
-
-  final String name;
-  final String description;
-
-  Map<String, dynamic> toJson() {
-    return {'name': name, 'description': description};
-  }
-}
-
-/// 更新命名空间请求体（`PUT /api/admin/wiki/namespaces/{name}`）。
-class WikiUpdateNamespaceRequest {
-  const WikiUpdateNamespaceRequest({required this.description});
-
-  final String description;
-
-  Map<String, dynamic> toJson() {
-    return {'description': description};
-  }
-}
-
-/// 命名空间管理操作的统一 result（`{ok: true}`）。
-class WikiNamespaceActionResponse {
-  const WikiNamespaceActionResponse({required this.ok});
-
-  final bool ok;
-
-  factory WikiNamespaceActionResponse.fromJson(Map<String, dynamic> json) {
-    return WikiNamespaceActionResponse(ok: json['ok'] as bool? ?? false);
-  }
-
-  Map<String, dynamic> toJson() {
-    return {'ok': ok};
-  }
-}
-
 /// 管理端树中的一页（`GET /api/admin/wiki/tree`）。
 class WikiAdminTreePage {
   const WikiAdminTreePage({
@@ -449,7 +408,7 @@ class WikiSyncRunView {
   final int id;
   final String headSha;
 
-  /// manual | schedule | webhook
+  /// manual | schedule | webhook | startup
   final String trigger;
 
   /// running | success | failed
@@ -556,5 +515,47 @@ class WikiSyncAccepted {
 
   Map<String, dynamic> toJson() {
     return {'accepted': accepted};
+  }
+}
+
+/// webhook 验签密钥配置状态（`GET /api/admin/wiki/sync/webhook-secret` 的 result）。
+class WikiWebhookSecretStatus {
+  const WikiWebhookSecretStatus({required this.configured});
+
+  final bool configured;
+
+  factory WikiWebhookSecretStatus.fromJson(Map<String, dynamic> json) {
+    return WikiWebhookSecretStatus(configured: json['configured'] as bool? ?? false);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'configured': configured};
+  }
+}
+
+/// 保存/清除 webhook 验签密钥请求体（`POST /api/admin/wiki/sync/webhook-secret`）。
+class WikiWebhookSecretSaveRequest {
+  const WikiWebhookSecretSaveRequest({required this.secret});
+
+  /// 明文密钥（仅保存瞬间存在）；空串表示清除已存密钥。
+  final String secret;
+
+  Map<String, dynamic> toJson() {
+    return {'secret': secret};
+  }
+}
+
+/// 保存 webhook 验签密钥的 result（`{ok: true}`）。
+class WikiWebhookSecretSaveResult {
+  const WikiWebhookSecretSaveResult({required this.ok});
+
+  final bool ok;
+
+  factory WikiWebhookSecretSaveResult.fromJson(Map<String, dynamic> json) {
+    return WikiWebhookSecretSaveResult(ok: json['ok'] as bool? ?? false);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'ok': ok};
   }
 }

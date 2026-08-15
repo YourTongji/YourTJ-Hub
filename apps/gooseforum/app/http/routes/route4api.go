@@ -358,13 +358,12 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-sponsors", UpButterReq(api.SaveSponsors)).
 		GET("announcement", UpButterReq(api.GetAnnouncement)).
 		POST("save-announcement", UpButterReq(api.SaveAnnouncement)).
-		POST("wiki/namespaces", UpButterReq(api.WikiCreateNamespace)).
-		PUT("wiki/namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace)).
-		DELETE("wiki/namespaces/:name", UpUriReq(api.WikiDeleteNamespace)).
 		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
 		GET("wiki/sync/status", UpButterReq(api.WikiSyncStatus)).
 		POST("wiki/sync", UpButterReq(api.WikiSyncRun)).
-		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns))
+		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns)).
+		GET("wiki/sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret)).
+		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).

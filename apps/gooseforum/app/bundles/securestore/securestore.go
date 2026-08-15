@@ -51,6 +51,10 @@ func Decrypt(encoded string) (string, error) {
 // 避免不同用途密文复用同一派生密钥（即使 signing key 泄露也不能跨用途解密）。
 const OneSystemCookiePurpose = "yourtj-onesystem-cookie"
 
+// WikiWebhookSecretPurpose wiki GitHub webhook 验签密钥的加密用途标签。
+// 与 TOTP/一系统隔离，避免不同用途密文复用同一派生密钥。
+const WikiWebhookSecretPurpose = "yourtj-wiki-webhook-secret"
+
 // EncryptPurpose encrypts plaintext with a purpose-scoped key derived as
 // HMAC-SHA256(baseKey, purpose), so different callers never share a cipher key.
 func EncryptPurpose(plaintext, purpose string) (string, error) {

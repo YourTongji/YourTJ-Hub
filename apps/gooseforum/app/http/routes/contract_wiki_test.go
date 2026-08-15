@@ -65,13 +65,12 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
 	wikiApi.POST("webhook", api.WikiWebhook)
 	adminWiki := router.Group("/api/admin/wiki", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.PageManager))
-	adminWiki.POST("namespaces", UpButterReq(api.WikiCreateNamespace))
-	adminWiki.PUT("namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace))
-	adminWiki.DELETE("namespaces/:name", UpUriReq(api.WikiDeleteNamespace))
 	adminWiki.GET("tree", UpButterReq(api.WikiAdminTree))
 	adminWiki.GET("sync/status", UpButterReq(api.WikiSyncStatus))
 	adminWiki.POST("sync", UpButterReq(api.WikiSyncRun))
 	adminWiki.GET("sync/runs", UpButterReq(api.WikiSyncRuns))
+	adminWiki.GET("sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret))
+	adminWiki.POST("sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
 	// 视图路由（与 route4api.go viewRoute 注册一致；JWTAuth 可选登录）。
 	wikiView := router.Group("/wiki")
 	wikiView.Use(middleware.JWTAuth)
@@ -349,41 +348,88 @@ func TestWikiHomeHTTPContract(t *testing.T) {
 	}
 }
 
-func TestWikiAdminNamespaceHTTPContract(t *testing.T) {
+func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	bob := createHTTPContractUser(t, conn, contractTestID())
 	grantContractPermission(t, conn, bob.Id, permission.PageManager)
 	bobToken := contractSessionToken(t, bob)
 
-	t.Run("manager creates namespace", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/namespaces",
-			`{"name":"deploy","description":"部署手册"}`, bobToken)
+	t.Run("unconfigured reports configured=false", func(t *testing.T) {
+		// 清空管理端设置与旧配置，保证未配置态。
+		prev := preferences.GetString("wiki.git.webhook_secret", "")
+		preferences.Set("wiki.git.webhook_secret", "")
+		t.Cleanup(func() { preferences.Set("wiki.git.webhook_secret", prev) })
+
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace create status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("webhook secret status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		env := decodeContractEnvelope(t, rec)
 		if env.Code != 0 {
-			t.Fatalf("admin namespace create code = %d, want 0: %s", env.Code, rec.Body.String())
+			t.Fatalf("webhook secret status code = %d, want 0", env.Code)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status result: %v", err)
+		}
+		if result["configured"] != false {
+			t.Fatalf("webhook secret configured = %v, want false", result["configured"])
 		}
 	})
 
-	t.Run("duplicate namespace conflicts", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/namespaces",
-			`{"name":"deploy","description":"again"}`, bobToken)
+	t.Run("manager saves secret then status reports configured=true", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/webhook-secret",
+			`{"secret":"s3cret-value"}`, bobToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace conflict status = %d, want 200: %s", rec.Code, rec.Body.String())
-		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-namespace-create-conflict.json"))
-	})
-
-	t.Run("manager deletes empty namespace", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodDelete, "/api/admin/wiki/namespaces/deploy", "", bobToken)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace delete status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("webhook secret save status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		env := decodeContractEnvelope(t, rec)
 		if env.Code != 0 {
-			t.Fatalf("admin namespace delete code = %d, want 0: %s", env.Code, rec.Body.String())
+			t.Fatalf("webhook secret save code = %d, want 0: %s", env.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-webhook-secret-save-success.json"))
+
+		// 保存后 status 应报告 configured=true（密文经 securestore 落库）。
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status after save: %v", err)
+		}
+		if result["configured"] != true {
+			t.Fatalf("webhook secret configured after save = %v, want true", result["configured"])
+		}
+
+		// 用保存的 secret 验证 webhook 签名可达（端到端：securestore 解密链路）。
+		body := `{"ref":"refs/heads/main"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/wiki/webhook", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Hub-Signature-256", webhookSignature("s3cret-value", body))
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("webhook with saved secret status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("manager clears secret", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/webhook-secret",
+			`{"secret":""}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("webhook secret clear status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("webhook secret clear code = %d, want 0", env.Code)
+		}
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status after clear: %v", err)
+		}
+		if result["configured"] != false {
+			t.Fatalf("webhook secret configured after clear = %v, want false", result["configured"])
 		}
 	})
 }

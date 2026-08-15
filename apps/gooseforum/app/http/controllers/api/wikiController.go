@@ -3,13 +3,8 @@ package api
 import (
 	"errors"
 	"log/slog"
-	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 )
 
@@ -30,75 +25,10 @@ func WikiHome(req component.BetterRequest[component.Null]) component.Response {
 	return component.SuccessResponse(wikiservice.BuildHome())
 }
 
-// ---------- admin：namespace 管理（PageManager/Admin） ----------
-
-// WikiCreateNamespaceReq 创建 namespace 请求。
-type WikiCreateNamespaceReq struct {
-	Name        string `json:"name" validate:"required"`
-	Description string `json:"description"`
-}
-
-func WikiCreateNamespace(req component.BetterRequest[WikiCreateNamespaceReq]) component.Response {
-	name := strings.ToLower(strings.TrimSpace(req.Params.Name))
-	if !wikiservice.ValidateNamespace(name) {
-		return component.FailResponseCode(component.MessageRequestInvalidParams, nil)
-	}
-	if wikiNamespaces.Exists(name) {
-		return component.FailResponseCode(component.MessageWikiNamespaceNameConflict, nil)
-	}
-	entity := &wikiNamespaces.Entity{
-		Name:        name,
-		Description: req.Params.Description,
-	}
-	if err := wikiNamespaces.Create(entity); err != nil {
-		slog.Error("wiki create namespace failed", "name", name, "error", err)
-		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)
-	}
-	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
-}
-
-// WikiUpdateNamespaceReq 更新 namespace 请求。
-type WikiUpdateNamespaceReq struct {
-	Name        string `uri:"name" json:"-" validate:"required"`
-	Description string `json:"description"`
-}
-
-// WikiUpdateNamespace 更新 namespace 描述（PageManager/Admin）。
-func WikiUpdateNamespace(req component.BetterRequest[WikiUpdateNamespaceReq]) component.Response {
-	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
-	if entity.Id == 0 {
-		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
-	}
-	entity.Description = req.Params.Description
-	if err := wikiNamespaces.Save(&entity); err != nil {
-		slog.Error("wiki update namespace failed", "name", req.Params.Name, "error", err)
-		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)
-	}
-	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
-}
-
-// WikiDeleteNamespaceReq 删除 namespace 请求。
-type WikiDeleteNamespaceReq struct {
-	Name string `uri:"name" json:"-" validate:"required"`
-}
-
-// WikiDeleteNamespace 删除 namespace（PageManager/Admin；存在页面时 409）。
-func WikiDeleteNamespace(req component.BetterRequest[WikiDeleteNamespaceReq]) component.Response {
-	entity := wikiNamespaces.GetByName(strings.ToLower(req.Params.Name))
-	if entity.Id == 0 {
-		return component.FailResponseCode(component.MessageWikiNamespaceNotFound, nil)
-	}
-	if len(wikiPagesList(req.Params.Name)) > 0 {
-		return component.FailResponseCode(component.MessageWikiNamespaceHasPages, nil)
-	}
-	if err := wikiservice.DeleteNamespace(req.Params.Name); err != nil {
-		slog.Error("wiki delete namespace failed", "name", req.Params.Name, "error", err)
-		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)
-	}
-	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
-}
+// ---------- admin：只读页面树（PageManager/Admin） ----------
 
 // WikiAdminTree 返回管理端导航树（PageManager/Admin）。
+// GitHub SSOT：命名空间与页面结构由仓库同步决定，管理端只读。
 func WikiAdminTree(req component.BetterRequest[component.Null]) component.Response {
 	return component.SuccessResponse(wikiservice.BuildAdminTree())
 }
@@ -121,12 +51,3 @@ func wikiErrorResponse(err error) component.Response {
 		return component.FailResponseCode(component.MessageWikiSaveFailed, nil)
 	}
 }
-
-// wikiPagesList 返回某 namespace 的页面列表。
-func wikiPagesList(namespace string) []*wikiPages.Entity {
-	return wikiPages.ListByNamespace(namespace)
-}
-
-// 保留 forum 引用（topic 可见性谓词在 forum 包）。
-var _ = forum.CanViewTopicSimple
-var _ = topics.TopicTypeWiki

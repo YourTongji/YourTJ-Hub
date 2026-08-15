@@ -5,8 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
@@ -377,5 +380,112 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
 		}
+	}
+}
+
+// TestApplyRepoToDBNamespaceMetaFromIndex 顶层目录 index.md 的 frontmatter
+// description/order → wiki_namespaces.description/sort_order（D4）。
+func TestApplyRepoToDBNamespaceMetaFromIndex(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	// index.md 携带 description/order；页面文件正常同步。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 社区使用指南\norder: 10\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	ns := wikiNamespaces.GetByName("guide")
+	if ns.Id == 0 {
+		t.Fatal("namespace guide missing")
+	}
+	if ns.Description != "社区使用指南" {
+		t.Fatalf("namespace description=%q, want 社区使用指南", ns.Description)
+	}
+	if ns.SortOrder != 10 {
+		t.Fatalf("namespace sort_order=%d, want 10", ns.SortOrder)
+	}
+
+	// 修改 index.md → 描述/排序更新；幂等检查。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 新版描述\norder: 20\n---\n\n# 指南首页")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	ns = wikiNamespaces.GetByName("guide")
+	if ns.Description != "新版描述" || ns.SortOrder != 20 {
+		t.Fatalf("namespace after update: desc=%q order=%d, want 新版描述/20", ns.Description, ns.SortOrder)
+	}
+}
+
+// TestApplyRepoToDBDeleteNamespace 仓库顶层目录消失 → 命名空间自动删除（D5）。
+// 页面先软删，命名空间行与贡献者记录一并清理。
+func TestApplyRepoToDBDeleteNamespace(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should exist after first sync")
+	}
+
+	// 贡献者记录预置一条，验证删除时一并清理。
+	if err := dbconnect.Connect().Create(&wikiNamespaceEditors.Entity{Namespace: "guide", UserId: 424242}).Error; err != nil {
+		t.Fatalf("seed editor: %v", err)
+	}
+
+	// 删除整个顶层目录 → 页面软删 + 命名空间删除。
+	if err := os.RemoveAll(filepath.Join(repo, "guide")); err != nil {
+		t.Fatal(err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("delete namespace sync: %v", err)
+	}
+	if res.PagesDeleted != 1 {
+		t.Fatalf("PagesDeleted=%d, want 1", res.PagesDeleted)
+	}
+	if res.NamespacesDeleted != 1 {
+		t.Fatalf("NamespacesDeleted=%d, want 1", res.NamespacesDeleted)
+	}
+	if wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be deleted")
+	}
+	page := wikiPages.GetByPathUnscoped("guide/start")
+	if page.Id == 0 || !page.DeletedAt.Valid {
+		t.Fatalf("page should be soft-deleted: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	// 贡献者记录清理。
+	var editors int64
+	if err := dbconnect.Connect().Table("wiki_namespace_editors").
+		Where("namespace = ?", "guide").Count(&editors).Error; err != nil {
+		t.Fatalf("count editors: %v", err)
+	}
+	if editors != 0 {
+		t.Fatalf("editors after namespace delete=%d, want 0", editors)
+	}
+
+	// 目录重新出现 → 命名空间重建 + 页面恢复（复用原 topic）。
+	// topic 已随页面软删，必须 Unscoped 读取（Get 带软删 scope 返回零值）。
+	topicID := topics.UnscopedGet(page.TopicId).Id
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	res = &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("restore namespace sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be recreated")
+	}
+	page = wikiPages.GetByPath("guide/start")
+	if page.Id == 0 || page.DeletedAt.Valid {
+		t.Fatalf("page should be restored: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	if page.TopicId != topicID {
+		t.Fatalf("topic changed after namespace restore: %d → %d, want reuse", topicID, page.TopicId)
 	}
 }

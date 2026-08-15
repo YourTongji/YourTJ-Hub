@@ -21,12 +21,14 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
@@ -56,6 +58,27 @@ func LoadGitConfig() GitConfig {
 		CloneDir: preferences.GetString("wiki.git.clone_dir", "./storage/wiki-repo"),
 		Schedule: preferences.GetString("wiki.git.schedule", "0 3 * * *"),
 	}
+}
+
+// LoadWebhookSecret 读取 GitHub webhook 验签密钥（D1/安全：secret 存 securestore）。
+// 读取优先级：
+//  1. 管理端设置（securestore 加密落库，读取时解密）；
+//  2. 兼容旧配置 config.toml [wiki.git].webhook_secret（明文；已配置时仍生效，
+//     但管理端保存后以管理端为准）。
+//
+// 返回空串表示未配置（webhook 端点 403 fail-closed）。
+func LoadWebhookSecret() string {
+	cfg := hotdataserve.GetWikiSyncSettingsConfigCache()
+	if v := strings.TrimSpace(cfg.WebhookSecretEncrypted); v != "" {
+		plain, err := securestore.DecryptPurpose(v, securestore.WikiWebhookSecretPurpose)
+		if err != nil {
+			slog.Warn("wiki webhook secret decrypt failed (signingKey rotated?), falling back to config",
+				"error", err)
+		} else if strings.TrimSpace(plain) != "" {
+			return strings.TrimSpace(plain)
+		}
+	}
+	return strings.TrimSpace(preferences.GetString("wiki.git.webhook_secret", ""))
 }
 
 // Enabled 返回 wiki git 同步是否启用（repo 配置非空）。
@@ -397,10 +420,11 @@ func parseMarkdownFile(f repoFile) (title string, order int, description string,
 
 // SyncResult 同步结果。
 type SyncResult struct {
-	HeadSha      string `json:"headSha"`
-	PagesAdded   int    `json:"pagesAdded"`
-	PagesUpdated int    `json:"pagesUpdated"`
-	PagesDeleted int    `json:"pagesDeleted"`
+	HeadSha           string `json:"headSha"`
+	PagesAdded        int    `json:"pagesAdded"`
+	PagesUpdated      int    `json:"pagesUpdated"`
+	PagesDeleted      int    `json:"pagesDeleted"`
+	NamespacesDeleted int    `json:"namespacesDeleted,omitempty"`
 }
 
 // SyncAccepted 手动触发同步的立即响应（同步异步执行，进度由 status/runs 轮询）。
@@ -455,6 +479,9 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return result, err
 	}
 	_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, "")
+	if result.NamespacesDeleted > 0 {
+		slog.Info("wiki sync: namespaces deleted", "count", result.NamespacesDeleted, "headSha", head)
+	}
 	return result, nil
 }
 
@@ -487,7 +514,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 	}
 
-	// 2. 仓库 md 文件 → 页面路径（去掉 .md 后缀，规范化小写 slug）。
+	// 2. 仓库 md 文件 → 页面路径（去掉 .md 后缀，保留原始大小写/Unicode）。
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
 	for _, f := range files {
@@ -511,10 +538,39 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		wantedByPath[norm] = wp
 	}
 
+	// 2.5 顶层目录 index.md → 命名空间元数据（D4：description/sort_order 跟随
+	// frontmatter）。仅当 index.md 实际携带 description/order 时才应用，
+	// 避免无 frontmatter 的 index.md 清空命名空间描述。
+	type nsMeta struct {
+		description string
+		order       int
+	}
+	namespaceMeta := map[string]nsMeta{}
+	for _, f := range files {
+		parts := strings.Split(f.Path, "/")
+		if len(parts) < 2 || parts[len(parts)-1] != "index.md" {
+			continue
+		}
+		_, order, description, _ := parseMarkdownFile(f)
+		if description == "" && order == 0 {
+			continue
+		}
+		namespaceMeta[parts[0]] = nsMeta{description: description, order: order}
+	}
+
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
 	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
 	var errs []string
 	for _, wp := range wanted {
+		// 仓库顶层目录 = namespace；不存在则自动创建。放在 upsert 循环内，
+		// 覆盖「目录曾被 D5 删除、页面重新出现走恢复路径」的场景（恢复路径
+		// 不经过 createPageFromRepo，命名空间行必须在此重建）。
+		if !wikiNamespaces.Exists(wp.namespace) {
+			if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: wp.namespace}); err != nil {
+				errs = append(errs, fmt.Sprintf("create namespace %s: %v", wp.namespace, err))
+				continue
+			}
+		}
 		existingPage, ok := byPath[wp.path]
 		if !ok {
 			if err := createPageFromRepo(cfg, wp); err != nil {
@@ -564,6 +620,56 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			continue
 		}
 		result.PagesDeleted++
+	}
+
+	// 5. 命名空间元数据同步（D4）：顶层目录 index.md 的 frontmatter
+	// description/order → wiki_namespaces.description/sort_order。
+	// 幂等：描述与排序都未变时跳过（CompareAndSwap 语义）。
+	for nsName, meta := range namespaceMeta {
+		ns := wikiNamespaces.GetByName(nsName)
+		if ns.Id == 0 {
+			continue // 页面 upsert 阶段会创建；此处仅更新已存在的
+		}
+		if ns.Description == meta.description && ns.SortOrder == meta.order {
+			continue
+		}
+		ns.Description = meta.description
+		ns.SortOrder = meta.order
+		if err := wikiNamespaces.Save(&ns); err != nil {
+			errs = append(errs, fmt.Sprintf("update namespace meta %s: %v", nsName, err))
+		}
+	}
+
+	// 6. 命名空间删除（D5）：仓库顶层目录消失 → 自动删除命名空间。
+	// 仓库中实际存在的顶层目录 = 全部 wanted 页面 path 的首段。
+	// 同步驱动可绕过 hasPages 守卫：仓库是唯一真实源，目录删除即权威删除信号；
+	// 页面已在第 4 步软删（topic 一并转入 USER_DELETED，评论/互动保留）。
+	repoNamespaces := make(map[string]struct{}, len(wanted))
+	for _, wp := range wanted {
+		repoNamespaces[wp.namespace] = struct{}{}
+	}
+	for _, ns := range wikiNamespaces.List() {
+		if _, ok := repoNamespaces[ns.Name]; ok {
+			continue
+		}
+		// 仍有未软删页面（页面删除失败保护）→ 不删除命名空间。
+		var activePages int64
+		if err := dbconnect.Connect().Table("wiki_pages").
+			Where("namespace = ? AND deleted_at IS NULL", ns.Name).
+			Count(&activePages).Error; err != nil {
+			errs = append(errs, fmt.Sprintf("count pages for namespace %s: %v", ns.Name, err))
+			continue
+		}
+		if activePages > 0 {
+			continue
+		}
+		if err := DeleteNamespace(ns.Name); err != nil {
+			errs = append(errs, fmt.Sprintf("delete namespace %s: %v", ns.Name, err))
+			continue
+		}
+		result.NamespacesDeleted++
+		slog.Info("wiki sync: namespace removed (top-level dir gone from repo)",
+			"namespace", ns.Name, "headSha", result.HeadSha)
 	}
 
 	if len(errs) > 0 {

@@ -40,11 +40,11 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   `POST /api/forum/moderation/course-review-reports`, and
   `POST /api/forum/moderation/course-review-reveal`.
 - Wiki 域（`paths/wiki.yaml`，GitHub 唯一真实源模型）：公开读
-  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者等站内写
-  端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR）；保留管理端
-  `/api/admin/wiki/*`（PageManager：命名空间 CRUD + 只读树 + `sync/status` /
-  `sync` / `sync/runs`）与公开 `POST /api/wiki/webhook`（GitHub push 事件，HMAC-SHA256
-  验签，触发即时同步）；生成 TS 类型 + 手写 Dart mirror
+  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者/命名空间
+  CRUD 等站内写端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR，命名空间由仓库顶层目录
+  同步驱动）；保留管理端 `/api/admin/wiki/*`（PageManager：只读树 + `sync/status` /
+  `sync` / `sync/runs` / `sync/webhook-secret` 读写）与公开 `POST /api/wiki/webhook`
+  （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,

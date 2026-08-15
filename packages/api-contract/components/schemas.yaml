@@ -2727,49 +2727,6 @@ WikiHomeResponse:
 
 
 
-WikiCreateNamespaceRequest:
-  type: object
-  required: [name, description]
-  properties:
-    name:
-      type: string
-      minLength: 1
-      maxLength: 64
-      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
-      description: Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars).
-    description:
-      type: string
-  additionalProperties: false
-
-WikiUpdateNamespaceRequest:
-  type: object
-  required: [description]
-  properties:
-    description:
-      type: string
-  additionalProperties: false
-
-WikiNamespaceActionResult:
-  type: object
-  required: [ok]
-  properties:
-    ok:
-      type: boolean
-      const: true
-  additionalProperties: false
-
-WikiNamespaceActionResponse:
-  oneOf:
-    - allOf:
-        - $ref: '#/ApiSuccess'
-        - type: object
-          required: [result]
-          properties:
-            result:
-              $ref: '#/WikiNamespaceActionResult'
-    - $ref: '#/ApiFailure'
-
-
 WikiAdminTreePage:
   type: object
   required: [pageId, path, title, sortOrder]
@@ -2845,7 +2802,7 @@ WikiSyncRunView:
       description: Git commit SHA of the synced head.
     trigger:
       type: string
-      enum: [manual, schedule, webhook]
+      enum: [manual, schedule, webhook, startup]
       description: What started the sync run.
     status:
       type: string
@@ -2961,3 +2918,53 @@ WikiWebhookFailure:
     error:
       type: string
   additionalProperties: false
+
+WikiWebhookSecretStatus:
+  type: object
+  required: [configured]
+  properties:
+    configured:
+      type: boolean
+      description: Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config).
+  additionalProperties: false
+
+WikiWebhookSecretStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretStatus'
+    - $ref: '#/ApiFailure'
+
+WikiWebhookSecretSaveRequest:
+  type: object
+  required: [secret]
+  properties:
+    secret:
+      type: string
+      maxLength: 1024
+      description: Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret.
+  additionalProperties: false
+
+WikiWebhookSecretSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiWebhookSecretSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretSaveResult'
+    - $ref: '#/ApiFailure'
