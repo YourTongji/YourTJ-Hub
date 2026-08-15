@@ -754,6 +754,8 @@ export default {
   "k00ny": "No pages",
   "k00o5": "Namespace name may only contain lowercase letters, digits, and hyphens",
   "k00o6": "Enter namespace name (lowercase letters, digits, hyphens)",
+  "k00o7": "Path may only contain lowercase letters, digits, and hyphens; format: namespace/slug",
+  "k00o8": "guide/getting-started",
   "k00p0": "AI Course Summary",
   "k00p1": "Manage the AI course summary generation switch and global rate limit.",
   "k00p2": "Failed to load AI course summary settings",

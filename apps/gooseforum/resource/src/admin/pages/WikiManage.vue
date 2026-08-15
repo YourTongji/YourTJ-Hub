@@ -1,6 +1,9 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
-import { isValidNamespaceName, MAX_NAMESPACE_NAME_LENGTH } from '@/admin/utils/wiki'
+import {
+  isValidNamespaceName,
+  MAX_NAMESPACE_NAME_LENGTH,
+} from '@/admin/utils/wiki'
 
 import { computed, onMounted, reactive, ref } from 'vue'
 import {
