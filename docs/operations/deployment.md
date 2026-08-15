@@ -83,7 +83,7 @@ webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端
 - **同步触发**：仅 `enabled=true` 时注册每日定时任务（`[wiki.git].schedule`，默认 `30 3 * * *`）+ 管理端
   `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
-  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Payload URL：`https://f.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 `webhook_secret` 一致
   - Events：仅 `push`（PR merge 触发）
   - 验签：`X-Hub-Signature-256` = HMAC-SHA256(webhook_secret, body)，验签失败/未配置返回 403/401。
@@ -93,6 +93,11 @@ webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端
 - **删除保护**：有效页面扫描结果为空且论坛已有页面时默认拒绝同步；只有明确确认仓库应为空时才临时设置 `allow_empty=true`。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
+
+> **升级注意（enabled 显式开关）**：本版本起 `[wiki.git]` 需要 `enabled = true`
+> 才会启动同步（此前仅 `repo` 非空即启用）。**已部署实例**升级后必须手动在
+> `config.toml` 的 `[wiki.git]` 段补 `enabled = true` 并重启，否则定时/手动/webhook
+> 三路同步都会静默停摆（管理端同步面板显示 disabled）。
 
 ## Server layout (Docker Compose)
 
