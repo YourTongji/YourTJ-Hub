@@ -427,6 +427,11 @@ sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.your
 
 在旧机（1Panel 部署）上导出，再导入新机。**旧机 / 新机 PostgreSQL 版本一致（16）**。
 
+> **⚠️ 旧机是 1Panel 管理**：下列命令假设 compose 项目在 `/opt/yourtj`（与仓库约定一致）。
+> 实际路径以旧机 1Panel 配置为准（1Panel 项目目录可能是 `/opt/1panel/apps/...` 或自定义），
+> 执行前先 `ls` 确认。`docker compose` 命令在 1Panel 的 compose 项目目录下执行；
+> 1Panel 的 compose 版本若为 v1（无 `exec -T` 的 `-T` 参数），去掉 `-T`。
+
 ```bash
 # 旧机: 导出主库到宿主机 /tmp(exec -T 流式输出, 重定向在宿主机执行;
 #       若在容器内重定向, 文件落在容器 /tmp, 宿主机 scp 找不到)
@@ -446,13 +451,20 @@ docker compose exec -T postgres sh -c 'psql -U yourtj -d yourtj_dev' < /tmp/your
 `storage/database/file.db`**（见 config.toml `[db.file].path`）：
 
 ```bash
-# 旧机: 拷贝文件库
-scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/main/storage/database/file.db /tmp/main-file.db
-scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/storage/database/file.db /tmp/dev-file.db
-# 新机
+# 旧机: 用 sqlite3 .backup 做一致性快照(实例仍在运行, 直接 scp 活库会拿到 torn copy;
+#       与 backup-db.sh 相同做法; 旧机已装 sqlite3, init-server.sh 也会装)
+sqlite3 /opt/yourtj/main/storage/database/file.db ".backup '/tmp/main-file.db'"
+sqlite3 /opt/yourtj/dev/storage/database/file.db ".backup '/tmp/dev-file.db'"
+# 或直接复用旧机已有的 backup-db.sh(它已做一致性快照):
+#   /opt/yourtj/scripts/backup-db.sh main && scp ... root@<旧机>:/opt/yourtj/snapshots/main/file-*.db /tmp/main-file.db
+
+# 旧机 → 新机
+scp -i ~/Documents/YourTJ_Korean.pem /tmp/main-file.db /tmp/dev-file.db \
+  root@43.108.84.213:/tmp/
+
+# 新机: 安装 + 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
 install -m 0664 /tmp/main-file.db /opt/yourtj/main/storage/database/file.db
 install -m 0664 /tmp/dev-file.db /opt/yourtj/dev/storage/database/file.db
-# 属主必须是容器内 app uid(1000), 否则附件写入报权限错误
 chown 1000:1000 /opt/yourtj/main/storage/database/file.db /opt/yourtj/dev/storage/database/file.db
 ```
 

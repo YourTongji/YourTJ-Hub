@@ -67,11 +67,17 @@ IMAGE="$(grep -E '^IMAGE_REPO=' "$ENV_FILE" 2>/dev/null | head -1 | cut -d= -f2-
 IMAGE="${IMAGE:-ghcr.io/yourtongji/yourtj-hub}"
 log "image repo: $IMAGE"
 
-# 1. 记录当前 tag 用于回滚
+# 1. 记录当前 tag 用于回滚。
+#    prev 仅代表"本脚本最近一次成功部署的镜像": 先清掉旧的 prev 引用,
+#    避免首次部署/镜像被 prune 后, 失败回滚时 prev 指向无关或已不存在的镜像;
+#    没有可回滚的 prev 时回滚步骤自然跳过(只改 .env, 容器保持旧镜像)。
 OLD_TAG="$(grep -E "^$TAG_VAR=" "$ENV_FILE" | cut -d= -f2 || true)"
 if [ -n "$OLD_TAG" ] && docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
+  docker image rm "$IMAGE:prev" >/dev/null 2>&1 || true
   docker tag "$IMAGE:$OLD_TAG" "$IMAGE:prev" >/dev/null 2>&1 || true
-  log "saved previous image tag: $OLD_TAG"
+  log "saved previous image tag: $OLD_TAG (as prev)"
+else
+  log "no previous local image for $OLD_TAG; rollback will only revert .env tag"
 fi
 
 # 2. 拉取新镜像(GHCR 公开镜像, 匿名 pull)
@@ -101,11 +107,17 @@ for ((i = 1; i <= 60; i++)); do
   sleep 3
 done
 
-# 5. 失败: 回滚到旧 tag
+# 5. 失败: 回滚到旧 tag(prev 不可用时仅改 .env, 容器保持旧镜像)
 log "FATAL: health check failed, rolling back"
 if [ -n "$OLD_TAG" ]; then
-  sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-  docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
-  log "rolled back to $OLD_TAG"
+  if docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
+    sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
+    docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
+    log "rolled back to $OLD_TAG"
+  else
+    log "WARNING: $IMAGE:$OLD_TAG not present locally, cannot roll back container; .env still points at new tag $IMAGE_TAG"
+  fi
+else
+  log "WARNING: no previous tag recorded, cannot roll back"
 fi
 exit 1
