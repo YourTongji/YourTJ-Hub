@@ -53,6 +53,8 @@ jobs:
     environment: production
     steps:
       - uses: actions/checkout@v4
+      # 上传到 run-specific 路径, 避免与 deploy-dev 并发部署时
+      # 互相覆盖 /tmp 下的同名文件(见 PR review #1)
       - name: Upload deploy scripts to prod host
         uses: appleboy/scp-action@v0.1.7
         with:
@@ -60,8 +62,8 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/nginx/yourtj.conf"
-          target: "/tmp"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/merge-wiki-services.sh,deploy/nginx/yourtj.conf"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
       # (scp-action 丢弃空路径), 必须单独上传不 strip
@@ -73,7 +75,7 @@ jobs:
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           source: "deploy/docker-compose.yaml"
-          target: "/tmp"
+          target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 1
       - name: Deploy to main (backup db + pull image + restart + smoke + rollback)
         uses: appleboy/ssh-action@v1.2.0
@@ -84,18 +86,31 @@ jobs:
           port: ${{ secrets.VM_SSH_PORT || '22' }}
           script: |
             set -e
+            RUN_DIR=/tmp/yourtj-deploy-${{ github.run_id }}
             # 0. 同步仓库最新脚本到服务器(install 保证可执行位)。
             #    backup-db.sh source pgdsn.sh, 必须一并下发, 否则 set -e 下
             #    source 失败阻断部署(review W2)。
-            install -m 0755 /tmp/deploy.sh /opt/yourtj/scripts/deploy.sh
-            install -m 0755 /tmp/backup-db.sh /opt/yourtj/scripts/backup-db.sh
-            install -m 0755 /tmp/pgdsn.sh /opt/yourtj/scripts/pgdsn.sh
-            # 0.5 同步新 compose + nginx 反代配置(存量服务器升级 GHCR 流必需,
-            #     旧 compose 引用本地镜像 yourtj-hub:* 与 pull 流不兼容)
-            install -m 0644 /tmp/docker-compose.yaml /opt/yourtj/docker-compose.yaml
-            install -D -m 0644 /tmp/yourtj.conf /opt/yourtj/nginx/yourtj.conf
+            install -m 0755 "$RUN_DIR/deploy.sh" /opt/yourtj/scripts/deploy.sh
+            install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
+            install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
+            install -m 0755 "$RUN_DIR/merge-wiki-services.sh" /opt/yourtj/scripts/merge-wiki-services.sh
+            install -D -m 0644 "$RUN_DIR/yourtj.conf" /opt/yourtj/nginx/yourtj.conf
+            # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
+            #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
+            #   - 若现有 compose 含未迁移的 wiki 服务, 保留 wiki 服务块,
+            #     避免 --remove-orphans 把未迁移内容带下线(PR review #2)
+            if [ -f /opt/yourtj/docker-compose.yaml ]; then
+              cp -f /opt/yourtj/docker-compose.yaml /opt/yourtj/docker-compose.yaml.prev
+              echo "main: backed up existing compose to docker-compose.yaml.prev"
+            fi
+            install -m 0644 "$RUN_DIR/docker-compose.yaml" /opt/yourtj/docker-compose.yaml
+            /opt/yourtj/scripts/merge-wiki-services.sh \
+              /opt/yourtj/docker-compose.yaml.prev \
+              /opt/yourtj/docker-compose.yaml
             # 1. 部署前一致性备份(保留最近 7 份)
             /opt/yourtj/scripts/backup-db.sh main
             # 2. 拉取 GHCR 镜像 + 部署 + 健康检查(失败自动回滚), main 对外端口 5234
             #    生产保留更多回滚候选, 镜像保留最近 5 个(含当前) + prev
             IMAGE_KEEP_N=5 /opt/yourtj/scripts/deploy.sh main main-${{ github.sha }} 5234
+            # 3. 部署成功后清理备份(失败时 deploy.sh 已恢复 compose)
+            rm -f /opt/yourtj/docker-compose.yaml.prev

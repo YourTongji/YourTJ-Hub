@@ -109,6 +109,14 @@ done
 
 # 5. 失败: 回滚到旧 tag(prev 不可用时仅改 .env, 容器保持旧镜像)
 log "FATAL: health check failed, rolling back"
+
+# 5.1 若 main 部署前备份了 compose(main workflow 更新共享 compose 时),
+#     一并恢复旧 compose, 避免新的 mounts/env/网络配置残留(PR review #4)
+if [ -f "$ROOT/docker-compose.yaml.prev" ]; then
+  cp -f "$ROOT/docker-compose.yaml.prev" "$ROOT/docker-compose.yaml"
+  log "restored previous compose file from docker-compose.yaml.prev"
+fi
+
 if [ -n "$OLD_TAG" ]; then
   if docker image inspect "$IMAGE:$OLD_TAG" >/dev/null 2>&1; then
     sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$OLD_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
