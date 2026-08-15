@@ -1,0 +1,28 @@
+{
+  "result": [
+    {
+      "id": 2,
+      "headSha": "9f8e7d6c5b4a39281706f5e4d3c2b1a098765432",
+      "trigger": "manual",
+      "status": "success",
+      "pagesAdded": 3,
+      "pagesUpdated": 1,
+      "pagesDeleted": 0,
+      "startedAt": "2026-08-15T10:00:00+08:00",
+      "finishedAt": "2026-08-15T10:00:06+08:00"
+    },
+    {
+      "id": 1,
+      "headSha": "1a2b3c4d5e6f708192a3b4c5d6e7f8091a2b3c4d5",
+      "trigger": "webhook",
+      "status": "failed",
+      "pagesAdded": 0,
+      "pagesUpdated": 0,
+      "pagesDeleted": 0,
+      "error": "git fetch failed: fatal: unable to access",
+      "startedAt": "2026-08-15T09:00:00+08:00",
+      "finishedAt": "2026-08-15T09:00:02+08:00"
+    }
+  ],
+  "code": 0
+}

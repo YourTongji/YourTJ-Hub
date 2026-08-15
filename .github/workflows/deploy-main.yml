@@ -62,7 +62,7 @@ jobs:
           username: ${{ secrets.VM_USER }}
           key: ${{ secrets.VM_SSH_KEY }}
           port: ${{ secrets.VM_SSH_PORT || '22' }}
-          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/merge-wiki-services.sh,deploy/nginx/yourtj.conf"
+          source: "deploy/scripts/deploy.sh,deploy/scripts/backup-db.sh,deploy/scripts/pgdsn.sh,deploy/scripts/merge-wiki-services.sh"
           target: "/tmp/yourtj-deploy-${{ github.run_id }}"
           strip_components: 2
       # docker-compose.yaml 只有两层路径, strip_components: 2 会把它剥没
@@ -94,7 +94,6 @@ jobs:
             install -m 0755 "$RUN_DIR/backup-db.sh" /opt/yourtj/scripts/backup-db.sh
             install -m 0755 "$RUN_DIR/pgdsn.sh" /opt/yourtj/scripts/pgdsn.sh
             install -m 0755 "$RUN_DIR/merge-wiki-services.sh" /opt/yourtj/scripts/merge-wiki-services.sh
-            install -D -m 0644 "$RUN_DIR/yourtj.conf" /opt/yourtj/nginx/yourtj.conf
             # 0.5 更新 compose(仅 main 部署更新共享 compose, 生产为权威):
             #   - 先备份现有 compose, 部署失败时由 deploy.sh 恢复(PR review #4)
             #   - 若现有 compose 含未迁移的 wiki 服务, 保留 wiki 服务块,

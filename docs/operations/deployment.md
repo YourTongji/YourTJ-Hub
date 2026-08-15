@@ -19,15 +19,15 @@
 - **Image pipeline**: CI builds the single binary and packages it into an OCI image pushed to GHCR
   (`ghcr.io/yourtongji/yourtj-hub:<instance>-<sha>`; repo is public, so servers pull anonymously —
   no registry credentials on the server).
-- **Reverse proxy**: a self-managed `nginx` container (`deploy/nginx/yourtj.conf`, mounted into the
-  compose `nginx` service) terminates Cloudflare origin traffic on `:80` and proxies
-  `forum.yourtj.de` → `main:5234`, `dev.yourtj.de` → `dev:5234`. Backend addressing uses a variable +
-  Docker DNS resolver so nginx never blocks on backend startup. Backend containers bind
-  `127.0.0.1` only; only nginx (and SSH) is exposed publicly.
+- **Reverse proxy**: public TLS is terminated by the **1Panel reverse proxy** on the host
+  (port 80/443), which proxies `forum.yourtj.de` → `127.0.0.1:5234` (main) and
+  `dev.yourtj.de` → `127.0.0.1:5235` (dev). There is no nginx container in the compose file;
+  backend containers bind `127.0.0.1` only, and only 1Panel/SSH is exposed publicly.
 - **Trusted proxies**: the binary only trusts `127.0.0.1`/`::1` reverse proxies by default
-  (`engine.SetTrustedProxies`). With the compose nginx container in front, `server.trusted_proxies`
-  must include the docker network (`deploy/config.toml.example` defaults to `["172.16.0.0/12"]`) so
-  rate-limit IP attribution cannot be bypassed via a forged `X-Forwarded-For` header.
+  (`engine.SetTrustedProxies`). 1Panel reverse-proxies from localhost, so
+  `server.trusted_proxies` defaults to `["127.0.0.1", "::1"]` (`deploy/config.toml.example`);
+  this lets rate-limit IP attribution use the real client IP via `X-Forwarded-For`
+  without trusting arbitrary networks.
 - **Two instances on one VM** (Debian 12, ssh `root`), managed as one compose project:
   - `main` — production, `/opt/yourtj/main`
   - `dev` — test line, `/opt/yourtj/dev`
@@ -48,32 +48,56 @@
     （`deploy.sh` 的镜像清理只保留 `yourtj-hub` 前缀 tag，不含 `yourtj-wiki:*`）。
   - 若反向代理仍把旧 wiki 域名指到 127.0.0.1:5284/5285，退役后需同步摘除路由。
 
-### 旧 VitePress wiki 内容重建（PR #219 后）
+### 旧 VitePress wiki 内容迁移（GitHub 唯一真实源）
 
-论坛内嵌 wiki 是全新实现，**没有**自动导入旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）
-内容的迁移通道。旧站内容如需保留，需手动重建：
+论坛 wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑），
+论坛侧只读投影。旧 VitePress 静态站（`wiki-dist`/`deploy-wiki.sh`）内容如需
+保留，迁移到 GitHub 仓库后由同步器自动投影：
 
-1. 旧 VitePress 站点仓库仍保留 `docs/`（Markdown 源文件）。按
-   `docs/product/current-state.md` 的 wiki 使用说明，在管理端创建 namespace，
-   然后把每个 Markdown 文件作为新页面手动发布（正文粘贴原 Markdown，标题取
-   front-matter 的 `title`；旧站路径映射为 `<namespace>/<slug>`）。
-2. 旧站的静态资源（图片/附件）若在仓库内，随正文重新上传；若引用旧域名
-   （如 `https://wiki.example.com/...`），需先下载到本地再上传，或改写为
-   相对路径后上传到新站附件。
+1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
+   顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
+   （旧站路径映射为 `<namespace>/<slug>.md`）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
+   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
-   后以人工方式并入对应新页面（wiki 无评论表，评论仍走论坛回复流）。
-4. 重建期间旧站可继续在线（只读），全部内容迁移完成、新站 `/wiki` 导航树
-   核对无误后再按上方步骤退役旧容器与路由。
+   后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
+4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
+   同步，`/wiki` 导航树核对无误后再退役旧容器与路由（见上文 VitePress 退役）。
+
+### Wiki GitHub 唯一真实源同步
+
+wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作编辑/审核/历史/贡献者），
+论坛只保留只读投影。配置 `[wiki.git]` 后启用（见 `deploy/config.toml.example`）：
+
+```toml
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+schedule = "0 3 * * *"      # 每日定时同步（默认 03:00）
+webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端点 403
+```
+
+- **同步触发**：每日定时（`[wiki.git].schedule`，默认 `0 3 * * *`）+ 管理端
+  `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
+- **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
+  - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
+  - Content type：`application/json`；Secret：与 `webhook_secret` 一致
+  - Events：仅 `push`（PR merge 触发）
+  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(webhook_secret, body)，验签失败/未配置返回 403/401。
+- **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
+  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+- **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+- **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
+  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
 
 ## Server layout (Docker Compose)
 
 ```
 /opt/yourtj/
   .env                    # MAIN_PORT/DEV_PORT/MAIN_TAG/DEV_TAG/IMAGE_REPO + POSTGRES_*/MEILI_MASTER_KEY (created by init-server.sh)
-  docker-compose.yaml     # main + dev + nginx + postgres + meilisearch services (created by init-server.sh)
+  docker-compose.yaml     # main + dev + postgres + meilisearch services (created by init-server.sh)
   config.toml.example     # template with REPLACE_* placeholders
-  nginx/
-    yourtj.conf           # reverse proxy config (mounted into the nginx container)
   scripts/                # snapshot-db.sh, sync-db-from-main.sh, backup-db.sh, deploy.sh, pgdsn.sh
   main/
     config.toml           # production config (signingKey, db path) — never in git
@@ -141,7 +165,7 @@ sudo bash /opt/yourtj/scripts/init-server.sh \
   https://forum.yourtj.de https://dev.yourtj.de
 ```
 
-This creates `/opt/yourtj/{.env,docker-compose.yaml,nginx,main,dev}` with randomized signing keys,
+This creates `/opt/yourtj/{.env,docker-compose.yaml,main,dev}` with randomized signing keys,
 PG/Meili passwords, starts `postgres` + `meilisearch`, and creates the `yourtj_main`/`yourtj_dev`
 databases. The script itself is deployed to the server by the first CI run (or copy `deploy/` manually).
 
@@ -405,8 +429,8 @@ instance:
 - 新机已装 Docker Engine + Compose + 2G swap（`deploy/scripts/init-server.sh` 会在 CI 首次部署时下发，
   也可手动拷贝 `deploy/` 后在服务器执行）。
 - 仓库侧 GHCR 镜像流 PR 已合并；**合并后先更新 GitHub Secrets（`VM_HOST` → 新机 IP、
-  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**；若 dev 在更新前自动部署到旧机，
-  会因 :80 被 1Panel openresty 占用导致 nginx 容器启动失败（部署报错，旧服务不受影响，重跑即可）。
+  `VM_USER` → `root`、`VM_SSH_KEY` → PEM 内容）再触发 dev 部署**。反代统一由 1Panel 承担
+  （自管 nginx 容器已移除, 不再有 :80 与 openresty 冲突的问题）。
 - **GHCR 包可见性**：首次 build-image 推送后，GitHub Packages → `yourtj-hub` → Settings →
   Change visibility → **Public**（默认 private，服务器匿名 pull 会 401）。
 - 备份密钥：`~/Documents/YourTJ_Korean.pem`（新机 SSH PEM）。
@@ -420,7 +444,7 @@ mkdir -p /opt/yourtj && cd /opt/yourtj
 sudo bash deploy/scripts/init-server.sh https://forum.yourtj.de https://dev.yourtj.de
 ```
 
-这会生成 `/opt/yourtj/{.env,docker-compose.yaml,nginx,main/config.toml,dev/config.toml}`，
+这会生成 `/opt/yourtj/{.env,docker-compose.yaml,main/config.toml,dev/config.toml}`，
 启动 postgres + meilisearch，创建 `yourtj_main` / `yourtj_dev` 数据库。
 
 ### 2. 数据迁移（main + dev）
@@ -481,7 +505,7 @@ scp -i ~/Documents/YourTJ_Korean.pem root@<旧机>:/opt/yourtj/dev/config.toml /
 
 # 新机: 用旧配置覆盖, 然后 reconcile 以下部署相关键:
 #   - [db.default] url: host 改为 postgres(compose 服务名), 不要沿用旧机 127.0.0.1
-#   - [server] trusted_proxies: 包含 docker 网段 ["172.16.0.0/12"]
+#   - [server] trusted_proxies: 1Panel 本机回源 → ["127.0.0.1", "::1"]
 #   - [meilisearch] masterkey: 与 /opt/yourtj/.env 的 MEILI_MASTER_KEY 一致
 #   - [server] url: 保持 https://forum.yourtj.de / https://dev.yourtj.de
 install -m 0644 /tmp/main-config.toml /opt/yourtj/main/config.toml
@@ -498,18 +522,16 @@ IMAGE_KEEP_N=3 bash scripts/deploy.sh dev dev-<latest-sha> 5235
 # 验证
 curl -fsS http://127.0.0.1:5234/health && echo MAIN_OK
 curl -fsS http://127.0.0.1:5235/health && echo DEV_OK
-curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 nginx
+curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 1Panel 反代
 ```
 
 ### 5. Cloudflare SSL 模式 + DNS 切换
 
 **先改 SSL/TLS 模式，再切 DNS**（否则切换瞬间 521/525）：
 
-1. **Cloudflare SSL/TLS 模式**：旧机由 1Panel 提供 origin 证书，当前模式很可能是
-   Full (strict)（Cloudflare → origin 走 HTTPS:443）。新机 nginx 只监听 :80，
-   切换前把 `SSL/TLS → Overview → SSL/TLS encryption mode` 改为 **Flexible**
-   （Cloudflare → origin 走 HTTP:80）。若必须保持端到端加密，需在新机 nginx
-   配置 443 监听 + Cloudflare origin 证书（本仓库 compose 默认只暴露 80）。
+1. **Cloudflare SSL/TLS 模式**：新旧机均由 1Panel 反代终止 TLS（保持与旧机一致的
+   模式，如 Full (strict)：Cloudflare → origin 走 HTTPS:443）。论坛容器只监听
+   127.0.0.1 回源端口，不直接暴露 80/443。
 2. **DNS**：`forum.yourtj.de` / `dev.yourtj.de` 的 A 记录从旧机 IP（20.205.27.178）
    改为新机 IP（43.108.84.213）。
 3. 等 TTL 过后从外网验证 `https://forum.yourtj.de` 与 `https://dev.yourtj.de` 可达、
@@ -523,7 +545,7 @@ curl -fsS -H "Host: forum.yourtj.de" http://127.0.0.1/ | head -5   # 经 nginx
   接受分钟级数据窗口。
 - **回滚不是简单的 DNS 切回**：DNS 切换到新机后，新机接受了新的发帖/注册/附件写入。
   若此时切回旧机，这些新写入会丢失。因此回滚前必须**反向同步**：
-  1. 停写：临时把 Cloudflare 页面规则或新机 nginx 置为维护模式（或直接切 DNS 前先接受
+  1. 停写：临时把 Cloudflare 页面规则或新机 1Panel 反代置为维护模式（或直接切 DNS 前先接受
      "最近写入可能丢失" 的窗口）；
   2. 从新机 `pg_dump yourtj_main/yourtj_dev` 回灌旧机对应库（与 §2 相同方式反向）；
   3. 把新机 `storage/database/file.db` 拷回旧机对应路径并 `chown 1000:1000`；

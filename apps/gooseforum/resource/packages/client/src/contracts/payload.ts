@@ -963,6 +963,10 @@ export interface CourseCatalogPageProps {
     nextUrl: string
   }
   departments: string[]
+  /** 可筛选学期（value=code，label 优先学期名），按 starts_on 倒序。 */
+  terms: Array<{ value: string; label: string }>
+  /** 可筛选校区（course_offering.campus 原始值），按字典序。 */
+  campuses: string[]
 }
 
 export interface CourseSummaryPayload {
@@ -1078,6 +1082,10 @@ export interface WikiPageDetailPayload {
   watched: boolean
   canEdit: boolean
   publishedRevisionNo: number
+  /** GitHub SSOT：仓库编辑外链（{repo}/edit/{branch}/{path}.md；未配置时为空）。 */
+  editUrl?: string
+  /** GitHub SSOT：仓库历史外链（{repo}/commits/{branch}/{path}.md；未配置时为空）。 */
+  historyUrl?: string
 }
 
 export interface WikiDetailProps {

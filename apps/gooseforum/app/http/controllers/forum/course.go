@@ -169,6 +169,16 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		slog.Error("course_departments_list_failed", "error", deptErr)
 		departments = []string{}
 	}
+	terms, termErr := courseservice.ListTerms()
+	if termErr != nil {
+		slog.Error("course_terms_list_failed", "error", termErr)
+		terms = []courseservice.TermOption{}
+	}
+	campuses, campusErr := courseservice.ListCampuses()
+	if campusErr != nil {
+		slog.Error("course_campuses_list_failed", "error", campusErr)
+		campuses = []string{}
+	}
 	nextPage := 0
 	if pageData.HasNext {
 		nextPage = pageData.Page + 1
@@ -187,6 +197,8 @@ func buildCourseCatalogProps(c *gin.Context, page, size int) CourseCatalogProps 
 		},
 		Courses:     pageData.List,
 		Departments: departments,
+		Terms:       terms,
+		Campuses:    campuses,
 		Pagination: PaginationPayload{
 			Page:     pageData.Page,
 			NextPage: nextPage,

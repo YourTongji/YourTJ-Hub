@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, watch } from 'vue'
-import { Bell, Bookmark, Heart, PencilLine } from '@lucide/vue'
+import { Bell, Bookmark, ExternalLink, Heart, History, PencilLine } from '@lucide/vue'
 import { bookmarkTopic, likeTopic, watchTopic } from '@/runtime/api'
 import { formatNumber } from '@/runtime/format'
 import { useFlashMessages } from '@/runtime/flash-message'
@@ -13,7 +13,6 @@ const props = defineProps<{
 }>()
 
 const emit = defineEmits<{
-  edit: []
   'interaction-change': [state: { likeCount: number; isLiked: boolean; isBookmarked: boolean; isWatched: boolean }]
 }>()
 
@@ -106,18 +105,31 @@ function emitInteraction() {
   })
 }
 </script>
-
 <template>
   <div class="flex flex-wrap items-center gap-2">
-    <button
-      v-if="canEdit"
-      type="button"
+    <!-- GitHub SSOT：编辑/历史走仓库外链（fork + PR），站内无编辑。 -->
+    <a
+      v-if="canEdit && page.editUrl"
+      :href="page.editUrl"
+      target="_blank"
+      rel="noopener noreferrer"
       class="gf-button gf-button-sm"
-      @click="emit('edit')"
     >
       <PencilLine class="h-4 w-4" />
       {{ t('wiki.editPage') }}
-    </button>
+      <ExternalLink class="h-3.5 w-3.5 opacity-60" />
+    </a>
+    <a
+      v-if="page.historyUrl"
+      :href="page.historyUrl"
+      target="_blank"
+      rel="noopener noreferrer"
+      class="gf-button gf-button-sm gf-button-muted"
+    >
+      <History class="h-4 w-4" />
+      {{ t('wiki.historyPage') }}
+      <ExternalLink class="h-3.5 w-3.5 opacity-60" />
+    </a>
     <button
       type="button"
       class="gf-button gf-button-sm px-2.5"

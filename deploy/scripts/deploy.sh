@@ -85,16 +85,10 @@ docker pull "$IMAGE:$IMAGE_TAG"
 log "pulled image $IMAGE:$IMAGE_TAG"
 
 # 3. 更新 .env tag 并启动实例。
-#    nginx 反代若在当前 compose 中定义则一并 up(新机首个实例部署时拉起;
-#    旧机 compose 无 nginx 服务时不传, 保持向后兼容)
+#    反代由 1Panel 负责(公网 TLS 终止 + 回源宿主机端口), 本 compose 不含 nginx 服务。
 sed -i.bak -E "s/^$TAG_VAR=.*/$TAG_VAR=$IMAGE_TAG/" "$ENV_FILE" && rm -f "$ENV_FILE.bak"
-SERVICES="$INSTANCE"
-if docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" config --services 2>/dev/null | grep -qx nginx; then
-  SERVICES="$SERVICES nginx"
-fi
-# shellcheck disable=SC2086
-docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans $SERVICES
-log "compose up $SERVICES with $IMAGE_TAG (--remove-orphans)"
+docker compose --env-file "$ENV_FILE" -f "$COMPOSE_FILE" up -d --remove-orphans "$INSTANCE"
+log "compose up $INSTANCE with $IMAGE_TAG (--remove-orphans)"
 
 # 4. 健康检查(覆盖启动 + AutoMigrate 大库迁移)
 for ((i = 1; i <= 60; i++)); do

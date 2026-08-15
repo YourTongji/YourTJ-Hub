@@ -1,0 +1,177 @@
+wikiWebhook:
+  post:
+    tags: [Wiki]
+    summary: GitHub webhook that triggers an immediate wiki sync after a PR merge
+    security: []
+    operationId: wikiWebhook
+    parameters:
+      - name: X-GitHub-Event
+        in: header
+        required: false
+        schema:
+          type: string
+        description: GitHub event name; only `push` events start a background sync.
+      - name: X-Hub-Signature-256
+        in: header
+        required: false
+        schema:
+          type: string
+        description: HMAC-SHA256 signature of the raw request body using the configured webhook secret, formatted as `sha256=<hex>`.
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            type: object
+            additionalProperties: true
+            description: Raw GitHub webhook payload. The server verifies the signature but does not parse the body.
+    responses:
+      '200':
+        description: |
+          Signature verified (when a secret is configured). A `push` event starts a
+          background sync; the response is sent immediately and does not wait for it.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookSuccess
+      '400':
+        description: Request body could not be read.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookFailure
+      '401':
+        description: Missing `sha256=` signature prefix or signature mismatch.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookFailure
+      '403':
+        description: Webhook secret is not configured (fail-closed; the endpoint is inert without it).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookFailure
+
+getWikiSyncStatus:
+  get:
+    tags: [Wiki Admin]
+    summary: Wiki sync status for the admin panel (PageManager or Admin only)
+    operationId: getWikiSyncStatus
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          Sync configuration plus recent run history. `enabled` is false when no
+          repository is configured; consumers must treat an empty `repo` as an
+          unconfigured state, not an error.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiSyncStatusResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-sync-status-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+runWikiSync:
+  post:
+    tags: [Wiki Admin]
+    summary: Manually trigger a wiki sync run (PageManager or Admin only)
+    operationId: runWikiSync
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          The sync run was accepted and executes asynchronously (git clone/fetch +
+          full projection can exceed the HTTP write timeout). Consumers poll
+          `sync/status` and `sync/runs` for progress; a run row starts with
+          `status=running` and terminates with `success` or `failed`. Business
+          failures are returned as legacy HTTP 200 envelopes: a sync already in
+          progress (`wiki.sync.running`, merged into a pending rerun) and an
+          unconfigured repository (`wiki.sync.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiSyncRunResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-sync-run-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+listWikiSyncRuns:
+  get:
+    tags: [Wiki Admin]
+    summary: List recent wiki sync runs (PageManager or Admin only)
+    operationId: listWikiSyncRuns
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          Recent sync runs ordered by id desc (newest first), up to 20 runs. An empty
+          listing is an empty array, never null.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiSyncRunsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-sync-runs-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json

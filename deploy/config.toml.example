@@ -15,9 +15,9 @@ url = "REPLACE_SERVER_URL"
 port = 5234
 accessLog = false
 gzip = true
-# 信任的反向代理网段: nginx 容器在 compose 网络(默认 172.16.0.0/12)内访问本服务,
-# 必须信任该网段才能正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
-trusted_proxies = ["172.16.0.0/12"]
+# 信任的反向代理来源: 1Panel 反代在宿主机本机回源(127.0.0.1/::1),
+# 仅信任本机回源即可正确解析 X-Forwarded-For(限流按真实客户端 IP 归并)
+trusted_proxies = ["127.0.0.1", "::1"]
 
 [jwtopt]
 validTime = 604800
@@ -52,6 +52,18 @@ maxLifeSeconds = 300
 [meilisearch]
 url = "http://meilisearch:7700"
 masterkey = "REPLACE_MEILI_KEY"
+
+# Wiki GitHub 唯一真实源（可选）：配置后 wiki 内容由仓库同步（只读投影），
+# 编辑/审核/历史/贡献者全部走 GitHub PR。repo 留空 = 不启用。
+[wiki.git]
+repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
+branch = "main"
+clone_dir = "./storage/wiki-repo"
+# 每日定时同步 cron spec（默认每日 03:00）
+schedule = "0 3 * * *"
+# GitHub webhook 验签密钥（GitHub 仓库 Settings → Webhooks 配置；
+# 留空 = webhook 端点 403 拒绝）
+webhook_secret = ""
 
 [log]
 type = "file"

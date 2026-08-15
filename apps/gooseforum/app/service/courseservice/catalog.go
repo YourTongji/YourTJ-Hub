@@ -64,6 +64,12 @@ func ratingAvgPtrFromStats(ratingCount, ratingSum int) *float64 {
 	return &avg
 }
 
+// TermOption 目录页学期筛选项：value 为筛选入参（course_term.code），label 为展示名称。
+type TermOption struct {
+	Value string `json:"value"`
+	Label string `json:"label"`
+}
+
 // CatalogQuery 目录筛选条件。
 type CatalogQuery struct {
 	Keyword    string
@@ -126,6 +132,31 @@ func ListCatalog(q CatalogQuery) (CatalogPage, error) {
 // ListDepartments 返回课程目录可筛选的院系列表（去重、按字典序）。
 func ListDepartments() ([]string, error) {
 	return course.ListDistinctDepartments()
+}
+
+// ListTerms 返回课程目录可筛选的学期列表（可见课程关联、去重、按时间倒序），
+// 与详情页开课列表的学期排序一致（starts_on 倒序，回退 code 字典序）。
+// label 优先学期名称，回退 code。
+func ListTerms() ([]TermOption, error) {
+	terms, err := course.ListDistinctTerms()
+	if err != nil {
+		return nil, err
+	}
+	options := make([]TermOption, 0, len(terms))
+	for _, t := range terms {
+		label := t.Name
+		if label == "" {
+			label = t.Code
+		}
+		options = append(options, TermOption{Value: t.Code, Label: label})
+	}
+	return options, nil
+}
+
+// ListCampuses 返回课程目录可筛选的校区列表（可见课程关联、去重、非空、按字典序），
+// 取 course_offering.campus 原始值，与筛选值域完全一致。
+func ListCampuses() ([]string, error) {
+	return course.ListDistinctCampuses()
 }
 
 // GetCourseDetail 返回课程详情；课程不存在或已隐藏时返回 ErrCourseNotFound。

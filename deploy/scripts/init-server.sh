@@ -16,26 +16,17 @@ if ! command -v sqlite3 >/dev/null 2>&1; then
 fi
 
 # 2. 目录结构
-mkdir -p "$ROOT"/{scripts,snapshots,nginx,main/storage,dev/storage}
+mkdir -p "$ROOT"/{scripts,snapshots,main/storage,dev/storage}
 
-# 3. 复制 compose / nginx 反代配置 / 配置模板 / 脚本(源=目标时跳过)
+# 3. 复制 compose / 配置模板 / 脚本(源=目标时跳过)
 copy_if_diff() {
   local src="$1" dst="$2"
   [ "$(realpath "$src")" = "$(realpath "$dst")" ] && return 0
   cp "$src" "$dst"
 }
 copy_if_diff "$SCRIPT_DIR/../docker-compose.yaml" "$ROOT/docker-compose.yaml"
-copy_if_diff "$SCRIPT_DIR/../nginx/yourtj.conf" "$ROOT/nginx/yourtj.conf"
 copy_if_diff "$SCRIPT_DIR/../config.toml.example" "$ROOT/config.toml.example"
 
-# nginx server_name 参数化: 从传入域名提取 host 并替换默认值
-MAIN_HOST="$(echo "$MAIN_DOMAIN" | sed -E 's|^https?://||; s|/.*$||')"
-DEV_HOST="$(echo "$DEV_DOMAIN" | sed -E 's|^https?://||; s|/.*$||')"
-sed -i.bak -E \
-  -e "s|server_name forum\.yourtj\.de;|server_name $MAIN_HOST;|" \
-  -e "s|server_name dev\.yourtj\.de;|server_name $DEV_HOST;|" \
-  "$ROOT/nginx/yourtj.conf" && rm -f "$ROOT/nginx/yourtj.conf.bak"
-echo "init: nginx server_name -> $MAIN_HOST / $DEV_HOST"
 for f in "$SCRIPT_DIR"/*.sh; do
   copy_if_diff "$f" "$ROOT/scripts/$(basename "$f")"
 done
