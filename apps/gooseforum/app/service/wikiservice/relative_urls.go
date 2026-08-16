@@ -54,18 +54,42 @@ func newWikiReferenceResolver(cfg GitConfig, pages []wantedPage, assetCDN string
 	}
 }
 
-// splitRepoOwnerName 从仓库地址解析 owner/name（供 jsDelivr 拼接）。
-// 无法解析时返回空（jsDelivr 模式会退回 self 路由）。
+// splitRepoOwnerName 从仓库地址解析 GitHub owner/name（供 jsDelivr 拼接）。
+// 仅接受 https://github.com/、http://github.com/ 或 git@github.com: 形式且
+// 路径恰好为 owner/repo 两段；其他形式（ssh://、file://、git://、非 GitHub
+// 主机、多余路径段）返回空 → jsDelivr 模式退回 self 路由，绝不产出畸形
+// CDN 链接。
 func splitRepoOwnerName(repo string) (owner, name string) {
-	repoPath := strings.TrimSuffix(repo, ".git")
-	repoPath = strings.TrimSuffix(repoPath, "/")
-	for _, prefix := range []string{"https://github.com/", "http://github.com/", "git@github.com:"} {
-		if strings.HasPrefix(repoPath, prefix) {
-			repoPath = strings.TrimPrefix(repoPath, prefix)
-			break
+	trimmed := strings.TrimSpace(repo)
+	switch {
+	case strings.HasPrefix(trimmed, "git@github.com:"):
+		return splitOwnerNamePath(strings.TrimPrefix(trimmed, "git@github.com:"))
+	case strings.HasPrefix(trimmed, "https://github.com/"), strings.HasPrefix(trimmed, "http://github.com/"):
+		parsed, err := url.Parse(trimmed)
+		if err != nil {
+			return "", ""
 		}
+		if !strings.EqualFold(parsed.Host, "github.com") {
+			return "", ""
+		}
+		// query/fragment 不是合法 git remote 形态：拒绝（回退 self），
+		// 避免把无关参数拼进 CDN URL。
+		if parsed.RawQuery != "" || parsed.Fragment != "" {
+			return "", ""
+		}
+		return splitOwnerNamePath(parsed.Path)
+	default:
+		return "", ""
 	}
-	parts := strings.SplitN(repoPath, "/", 2)
+}
+
+// splitOwnerNamePath 从 github.com 路径段解析 owner/repo（容忍尾随 / 与 .git）。
+func splitOwnerNamePath(p string) (owner, name string) {
+	p = strings.TrimSuffix(strings.Trim(p, "/"), ".git")
+	if strings.ContainsAny(p, "?#") {
+		return "", ""
+	}
+	parts := strings.Split(p, "/")
 	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
 		return "", ""
 	}

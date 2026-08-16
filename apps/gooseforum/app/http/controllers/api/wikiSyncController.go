@@ -12,7 +12,6 @@ import (
 	"net/http"
 	"strings"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -80,13 +79,12 @@ type SaveWikiAssetCDNReq struct {
 // 下次同步（webhook/手动/定时）按新配置重写资源 URL。
 func SaveWikiAssetCDN(req component.BetterRequest[SaveWikiAssetCDNReq]) component.Response {
 	cdn := strings.TrimSpace(req.Params.CDN)
-	entity := pageConfig.GetByPageType(pageConfig.WikiSyncSettings)
-	entity.PageType = pageConfig.WikiSyncSettings
-	// 保留既有密文/清除标记（读取当前落库形状，仅覆盖 CDN 字段）。
-	storage := pageConfig.GetConfigByPageType(pageConfig.WikiSyncSettings, pageConfig.WikiSyncSettingsStorage{})
-	storage.AssetCDN = cdn
-	entity.Config = jsonopt.Encode(storage)
-	pageConfig.CreateOrSave(&entity)
+	// 原子读改写：与 webhook secret 共用同一 Config blob，互斥区内
+	// 读改写避免并发保存互相覆盖（见 pageConfig.UpdateWikiSyncSettings）。
+	pageConfig.UpdateWikiSyncSettings(func(storage pageConfig.WikiSyncSettingsStorage) pageConfig.WikiSyncSettingsStorage {
+		storage.AssetCDN = cdn
+		return storage
+	})
 	hotdataserve.ClearWikiSyncSettingsConfigCache()
 	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
 }
@@ -123,14 +121,13 @@ func SaveWikiWebhookSecret(req component.BetterRequest[SaveWikiWebhookSecretReq]
 		}
 		encrypted = sealed
 	}
-	// 保留既有 AssetCDN 配置（读改写，避免保存密钥清掉 CDN 设置）。
-	storage := pageConfig.GetConfigByPageType(pageConfig.WikiSyncSettings, pageConfig.WikiSyncSettingsStorage{})
-	storage.WebhookSecretEncrypted = encrypted
-	storage.WebhookSecretCleared = cleared
-	entity := pageConfig.GetByPageType(pageConfig.WikiSyncSettings)
-	entity.PageType = pageConfig.WikiSyncSettings
-	entity.Config = jsonopt.Encode(storage)
-	pageConfig.CreateOrSave(&entity)
+	// 原子读改写：保留既有 AssetCDN 配置（互斥区内读改写，见
+	// pageConfig.UpdateWikiSyncSettings），避免保存密钥清掉 CDN 设置。
+	pageConfig.UpdateWikiSyncSettings(func(storage pageConfig.WikiSyncSettingsStorage) pageConfig.WikiSyncSettingsStorage {
+		storage.WebhookSecretEncrypted = encrypted
+		storage.WebhookSecretCleared = cleared
+		return storage
+	})
 	hotdataserve.ClearWikiSyncSettingsConfigCache()
 	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
 }

@@ -861,7 +861,15 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			!restored {
 			continue
 		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
+		// 纯渲染变化（CDN 切换等）不打扰 watcher：正文/标题/排序/源路径
+		// 均未变时内容语义未变，仅资源 URL 形态变化，通知会误导订阅者
+		// （review P2）。
+		contentChanged := existingPage.ContentHash != curHash ||
+			existingPage.Title != wp.title ||
+			existingPage.SortOrder != wp.order ||
+			existingPage.SourcePath != wp.sourcePath ||
+			restored
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, contentChanged); err != nil {
 			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
@@ -1057,7 +1065,9 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
+// contentChanged 表示正文/元数据/恢复事件是否变化：仅 CDN 切换导致的纯渲染
+// 变化（false）不发送 watcher 通知。
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string, contentChanged bool) error {
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1119,7 +1129,9 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
 	}
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
-	notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
+	if contentChanged {
+		notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
+	}
 	return nil
 }
 
