@@ -1,0 +1,88 @@
+searchForum:
+  get:
+    tags: [Forum]
+    summary: Aggregate search across topics, users, categories and courses
+    operationId: searchForum
+    description: |
+      Public aggregate search (issue #22); an optional JWT is accepted but does
+      not change the result. Query binding is strict: a non-numeric page fails
+      with HTTP 400 and `common.request.parseFailed`. q is trimmed; an empty q
+      short-circuits to an empty aggregate payload without touching the search
+      backend. scope is one of all/topics/users/categories/courses; any other
+      value falls back to all. Only the topics group paginates (10 per page via
+      page, 1-based; values < 1 fall back to 1); users/categories/courses are
+      single-page groups capped at 30 entries. Queries longer than 100 runes
+      return an empty aggregate payload (no failure marker). This endpoint is
+      backed by Meilisearch, an optional dependency: when no search backend is
+      configured (or every index query fails) there is no database fallback —
+      the response stays HTTP 200 code 0 with empty groups and
+      searchUnavailable: true. When only some indexes fail, the failed index
+      names are listed in failedScopes and the remaining groups are served
+      normally. The same payload shape is served to Agents at
+      /api/v1/agent/search.
+    security: []
+    parameters:
+      - name: q
+        in: query
+        schema:
+          type: string
+          maxLength: 100
+        description: Search text; trimmed server-side. Longer than 100 runes returns an empty payload.
+      - name: scope
+        in: query
+        schema:
+          type: string
+          enum: [all, topics, users, categories, courses]
+        description: Unknown or missing values fall back to all.
+      - name: page
+        in: query
+        schema:
+          type: integer
+          minimum: 1
+        description: 1-based page for the topics group only; values < 1 fall back to 1.
+    responses:
+      '200':
+        description: Aggregate search payload (possibly with searchUnavailable or failedScopes degradation markers).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ForumSearchResponse
+            examples:
+              emptyQuery:
+                externalValue: ../fixtures/forum-search-empty-query-success.json
+              searchUnavailable:
+                externalValue: ../fixtures/forum-search-unavailable.json
+      '400':
+        description: Malformed query parameters.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/forum-search-parse-failed.json
+
+getSiteStatistics:
+  get:
+    tags: [Forum]
+    summary: Read public site-wide counters
+    operationId: getSiteStatistics
+    description: |
+      Fully public endpoint: no authentication, no rate limit, no input, and no
+      business failure branch. Counters come from a 5-second server-side cache.
+      userCount/topicMaxId/postMaxId are the max id of the users/topics/posts
+      tables (monotonic allocation counters, not live row counts);
+      userMonthCount/topicMonthCount are the current calendar month's
+      registration/topic tallies; linksCount is the number of configured friend
+      links.
+    security: []
+    responses:
+      '200':
+        description: Site statistics snapshot.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/SiteStatisticsSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/site-statistics-success.json

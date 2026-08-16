@@ -1483,6 +1483,315 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/get-site-statistics": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read public site-wide counters
+         * @description Fully public endpoint: no authentication, no rate limit, no input, and no
+         *     business failure branch. Counters come from a 5-second server-side cache.
+         *     userCount/topicMaxId/postMaxId are the max id of the users/topics/posts
+         *     tables (monotonic allocation counters, not live row counts);
+         *     userMonthCount/topicMonthCount are the current calendar month's
+         *     registration/topic tallies; linksCount is the number of configured friend
+         *     links.
+         */
+        get: operations["getSiteStatistics"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Aggregate search across topics, users, categories and courses
+         * @description Public aggregate search (issue #22); an optional JWT is accepted but does
+         *     not change the result. Query binding is strict: a non-numeric page fails
+         *     with HTTP 400 and `common.request.parseFailed`. q is trimmed; an empty q
+         *     short-circuits to an empty aggregate payload without touching the search
+         *     backend. scope is one of all/topics/users/categories/courses; any other
+         *     value falls back to all. Only the topics group paginates (10 per page via
+         *     page, 1-based; values < 1 fall back to 1); users/categories/courses are
+         *     single-page groups capped at 30 entries. Queries longer than 100 runes
+         *     return an empty aggregate payload (no failure marker). This endpoint is
+         *     backed by Meilisearch, an optional dependency: when no search backend is
+         *     configured (or every index query fails) there is no database fallback —
+         *     the response stays HTTP 200 code 0 with empty groups and
+         *     searchUnavailable: true. When only some indexes fail, the failed index
+         *     names are listed in failedScopes and the remaining groups are served
+         *     normally. The same payload shape is served to Agents at
+         *     /api/v1/agent/search.
+         */
+        get: operations["searchForum"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/my-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page through the caller's own published topics or replies
+         * @description Login-required read (no writable-account check, so frozen accounts can still
+         *     read; the read does not bump user activity). Only content that is still
+         *     public is listed: published (status=1) ACTIVE forum topics, or ACTIVE reply
+         *     posts (postNo > 1); wiki-subsite topics and already deleted content are
+         *     excluded. Query binding is strict: a non-numeric cursorId/limit fails with
+         *     HTTP 400 and `common.request.parseFailed`; a missing or unsupported
+         *     contentType fails validation with `common.request.invalidParams` (HTTP 200).
+         *     Pagination is id-descending: pass the previous page's nextCursorId as
+         *     cursorId (rows with id < cursorId are returned); limit <= 0 or > 30 falls
+         *     back to 20. Post items render title as `回复 #<postNo>` and carry
+         *     topicId/postNo; excerpt is omitted when empty.
+         */
+        get: operations["myContentList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/deleted-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Page through the caller's recently deleted topics or replies
+         * @description Login-required read of the caller's deleted content (the "最近删除" bin; no
+         *     writable-account check, so frozen accounts can still read). Topics are
+         *     listed when visibility is USER_DELETED; replies are listed when visibility
+         *     is USER_DELETED or MODERATOR_REMOVED (moderator removals are visible but
+         *     carry canRestore=false/canPermanent=false); PURGED rows never appear.
+         *     deletedAt is RFC3339 and may be empty for tombstone rows that carry no
+         *     deleted_at timestamp. canRestore is true only for USER_DELETED +
+         *     RECOVERABLE rows still inside the 30-day recovery window; canPermanent is
+         *     true for USER_DELETED + RECOVERABLE rows regardless of the window. Query
+         *     binding and cursor pagination behave exactly like my-content.
+         */
+        get: operations["deletedContentList"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore an own deleted topic or reply inside the recovery window
+         * @description Restores caller-owned content deleted by the caller (visibility
+         *     USER_DELETED + retention RECOVERABLE) within the 30-day recovery window.
+         *     Restoring a topic also restores the replies that were cascade-deleted with
+         *     it, rebuilds the search document and re-applies post reward points. A
+         *     topic first post cannot be restored standalone, and a reply whose topic is
+         *     still deleted cannot be restored either. Business failures (HTTP 200):
+         *     `topic.notFound` / `post.notFound` (unknown or someone else's content),
+         *     `content.notRecoverable` (moderator-removed, already purged, not in the
+         *     recovery state, or first-post/parent-topic cases),
+         *     `content.recovery.expired` (past the 30-day window),
+         *     `content.restore.failed`, `common.request.invalidParams`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams`.
+         */
+        post: operations["restoreContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-batch-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Batch-delete own topics or replies
+         * @description Soft-deletes up to 50 caller-owned topics or replies in one call, each
+         *     entering the standard 30-day recovery window (same semantics as the
+         *     single-delete endpoints). Deletions are rate-gated per account: more than
+         *     20 deletions within 10 minutes — single deletes, purges and privacy
+         *     erases count into the same window — fail with
+         *     `content.batchDelete.confirmRequired` (HTTP 200, params.count carries the
+         *     projected total); the caller retries with force=true plus the current
+         *     password as second factor (a wrong password fails with
+         *     `auth.credentials.invalid`). The envelope stays code 0 even when
+         *     individual items fail; per-item outcomes are reported in results[] with
+         *     the failure text in message. Business failures:
+         *     `common.request.invalidParams` (empty id list, unsupported contentType),
+         *     `content.batchDelete.confirmRequired`, `auth.credentials.invalid`.
+         */
+        post: operations["batchDeleteContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-purge": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently delete an own already-deleted topic or reply
+         * @description Permanent deletion (跳过恢复窗口): only caller-owned content already in
+         *     visibility USER_DELETED + retention RECOVERABLE can be purged; ACTIVE
+         *     content must be deleted first and fails with `content.notRecoverable`.
+         *     Purging sets retention PURGED (irreversible — the content can no longer be
+         *     restored), releases attachment references and blanks notification
+         *     previews; moderation evidence snapshots and audit logs are retained.
+         *     Purging a topic also purges the caller's own replies under it and any
+         *     replies already in the deletion lifecycle; other users' still-active
+         *     replies keep their bodies but become unreachable. Moderator-removed
+         *     content fails with `content.notRecoverable` (privacy/purge paths cannot
+         *     bypass governance). Already-PURGED content succeeds idempotently. The
+         *     operation counts into the shared deletion rate window (see
+         *     content-batch-delete; `content.batchDelete.confirmRequired` /
+         *     `auth.credentials.invalid` on the force+password path). Other business
+         *     failures: `topic.notFound` / `post.notFound`, `content.purge.failed`,
+         *     `common.request.invalidParams`. The reason field is optional audit text.
+         */
+        post: operations["purgeContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-privacy-erase": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Privacy emergency-erase an own topic or reply
+         * @description Privacy emergency deletion (R8). Unlike purgeContent this also accepts
+         *     still-ACTIVE caller-owned content; the row is immediately hidden, made
+         *     unrecoverable (retention PURGED) and reply body fields are cleared across
+         *     all channels. Erasing a topic cascades to the caller's own replies under
+         *     it. The operation is refused with `content.notRecoverable` when the target
+         *     — or any of the caller's replies under a target topic — is
+         *     moderator-removed, so privacy erasure cannot destroy governance evidence.
+         *     It counts into the shared deletion rate window (see content-batch-delete;
+         *     `content.batchDelete.confirmRequired` / `auth.credentials.invalid` on the
+         *     force+password path). Other business failures: `topic.notFound` /
+         *     `post.notFound`, `content.purge.failed`, `common.request.invalidParams`.
+         */
+        post: operations["privacyEraseContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/content-event": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Report a frontend delete-lifecycle telemetry event
+         * @description Records frontend telemetry for the deletion lifecycle (PRD R14). Only the
+         *     click/confirmation events `content_delete_clicked` and
+         *     `content_delete_confirmed` are accepted; any other eventType — including
+         *     the backend-owned lifecycle events — fails with
+         *     `common.request.invalidParams` (HTTP 200). contentId is not checked for
+         *     existence. Backend state changes (delete/restore/purge/privacy-erase) are
+         *     recorded by the server itself and must not be reported here. JSON binding
+         *     is lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams`.
+         */
+        post: operations["reportContentEvent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/user/account-close": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Permanently close the caller's account
+         * @description Account closure (注销) is irreversible and requires the current password
+         *     as a second factor; a wrong password fails with
+         *     `auth.credentials.invalid` (HTTP 200) and an already-closed account fails
+         *     with `common.operation.failed`. mode=anonymize soft-deletes the account
+         *     while historical content stays visible under a "已注销用户" identity;
+         *     mode=delete first runs a best-effort deletion of every own topic and
+         *     reply (own wiki pages and revisions included; other users' replies under
+         *     an own topic follow the normal topic-deletion semantics), then closes the
+         *     account. On success the account token version increments, so every
+         *     existing session — including the one used for this request — is
+         *     immediately revoked (subsequent calls return 401) and no replacement
+         *     token is minted. Business failures: `common.request.invalidParams`
+         *     (validation), `auth.credentials.invalid`, `common.operation.failed`.
+         */
+        post: operations["closeAccount"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/agent/me": {
         parameters: {
             query?: never;
@@ -5769,26 +6078,7 @@ export interface components {
         }) | components["schemas"]["ApiFailure"];
         /** @description Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes. */
         AgentSearchResponse: components["schemas"]["ApiSuccess"] & {
-            result: {
-                query: string;
-                scope: string;
-                topics: components["schemas"]["TopicPayload"][];
-                users: components["schemas"]["UserSearchPayload"][];
-                categories: components["schemas"]["CategorySearchPayload"][];
-                courses: components["schemas"]["CourseSearchPayload"][];
-                /** Format: int64 */
-                total: number;
-                /** Format: int64 */
-                usersTotal: number;
-                /** Format: int64 */
-                categoriesTotal: number;
-                /** Format: int64 */
-                coursesTotal: number;
-                totalPages: number;
-                pagination: components["schemas"]["PaginationPayload"];
-                failedScopes?: string[];
-                searchUnavailable?: boolean;
-            };
+            result: components["schemas"]["SearchResultPayload"];
         };
         CourseSummary: {
             /** Format: uint64 */
@@ -8067,6 +8357,226 @@ export interface components {
         PkReviewBriefResponse: components["schemas"]["PkSuccess"] & {
             data: components["schemas"]["PkReviewBrief"];
         };
+        MyContentItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** @description Topic title; post items render as `回复 */
+            title: string;
+            /** @description Content excerpt (up to 100 runes); omitted when empty. */
+            excerpt?: string;
+            /**
+             * Format: uint64
+             * @description Parent topic id; post items only.
+             */
+            topicId?: number;
+            /**
+             * Format: uint64
+             * @description Floor number inside the topic; post items only.
+             */
+            postNo?: number;
+            /** @description RFC3339 timestamp. */
+            createdAt: string;
+        };
+        MyContentListResult: {
+            items: components["schemas"]["MyContentItem"][];
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+             */
+            nextCursorId: number;
+        };
+        MyContentListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["MyContentListResult"];
+        };
+        MyContentListResponse: components["schemas"]["MyContentListSuccess"] | components["schemas"]["ApiFailure"];
+        DeletedContentItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** @description Topic title; empty string on post items. */
+            title: string;
+            /** @description Content excerpt (up to 100 runes); omitted when empty. */
+            excerpt?: string;
+            /**
+             * Format: uint64
+             * @description Parent topic id; post items only.
+             */
+            topicId?: number;
+            /**
+             * Format: uint64
+             * @description Floor number inside the topic; post items only.
+             */
+            postNo?: number;
+            /** @enum {string} */
+            visibility: "USER_DELETED" | "MODERATOR_REMOVED";
+            /** @description Lifecycle retention state (for example RECOVERABLE); PURGED rows never appear in this list. */
+            retention: string;
+            /** @description RFC3339 deletion timestamp; empty for tombstone rows that carry no deleted_at. */
+            deletedAt: string;
+            /** @description True only for USER_DELETED + RECOVERABLE rows still inside the 30-day recovery window. */
+            canRestore: boolean;
+            /** @description True for USER_DELETED + RECOVERABLE rows (purgeable by the author). */
+            canPermanent: boolean;
+            /** @description Omitted unless the item carries reply context. */
+            hasReplies?: boolean;
+        };
+        DeletedContentListResult: {
+            items: components["schemas"]["DeletedContentItem"][];
+            hasMore: boolean;
+            /**
+             * Format: uint64
+             * @description Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+             */
+            nextCursorId: number;
+        };
+        DeletedContentListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["DeletedContentListResult"];
+        };
+        DeletedContentListResponse: components["schemas"]["DeletedContentListSuccess"] | components["schemas"]["ApiFailure"];
+        RestoreContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+        };
+        ContentLifecycleSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "操作成功";
+            /** @description content.restore.success / content.purge.success / content.privacy.erased, depending on the operation. */
+            messageCode: string;
+        };
+        ContentLifecycleResponse: components["schemas"]["ContentLifecycleSuccess"] | components["schemas"]["ApiFailure"];
+        BatchDeleteContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            contentIds: number[];
+            /** @description Second-confirmation flag required once the deletion rate gate trips (content.batchDelete.confirmRequired). */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        BatchDeleteResultItem: {
+            /** Format: uint64 */
+            contentId: number;
+            success: boolean;
+            /** @description Per-item failure text; omitted on success. */
+            message?: string;
+        };
+        BatchDeleteResult: {
+            succeeded: number;
+            failed: number;
+            results: components["schemas"]["BatchDeleteResultItem"][];
+        };
+        BatchDeleteContentSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["BatchDeleteResult"];
+        };
+        BatchDeleteContentResponse: components["schemas"]["BatchDeleteContentSuccess"] | components["schemas"]["ApiFailure"];
+        PurgeContentRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /** @description Optional audit text recorded with the purge. */
+            reason?: string;
+            /** @description Second-confirmation flag required once the deletion rate gate trips. */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        PrivacyEraseRequest: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /** @description Second-confirmation flag required once the deletion rate gate trips. */
+            force?: boolean;
+            /** @description Current account password; mandatory when force=true. */
+            password?: string;
+        };
+        ContentEventRequest: {
+            /**
+             * @description Frontend telemetry event; backend-owned lifecycle events are rejected with `common.request.invalidParams`.
+             * @enum {string}
+             */
+            eventType: "content_delete_clicked" | "content_delete_confirmed";
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /**
+             * Format: uint64
+             * @description Not checked for existence.
+             */
+            contentId: number;
+        };
+        AccountCloseRequest: {
+            /**
+             * @description anonymize keeps historical content under a closed-account identity; delete best-effort deletes all own topics/replies first.
+             * @enum {string}
+             */
+            mode: "anonymize" | "delete";
+            /** @description Current account password (irreversible operation second factor). */
+            password: string;
+        };
+        ContentActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        ContentActionResponse: components["schemas"]["ContentActionSuccess"] | components["schemas"]["ApiFailure"];
+        SiteStatisticsResult: {
+            /**
+             * Format: uint64
+             * @description Max users.id (allocation counter, not a live row count).
+             */
+            userCount: number;
+            /**
+             * Format: int64
+             * @description Registrations in the current calendar month.
+             */
+            userMonthCount: number;
+            /** Format: uint64 */
+            topicMaxId: number;
+            /**
+             * Format: int64
+             * @description Topics created in the current calendar month.
+             */
+            topicMonthCount: number;
+            /** Format: uint64 */
+            postMaxId: number;
+            /** @description Number of configured friend links. */
+            linksCount: number;
+        };
+        SiteStatisticsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SiteStatisticsResult"];
+        };
+        SearchResultPayload: {
+            query: string;
+            scope: string;
+            topics: components["schemas"]["TopicPayload"][];
+            users: components["schemas"]["UserSearchPayload"][];
+            categories: components["schemas"]["CategorySearchPayload"][];
+            courses: components["schemas"]["CourseSearchPayload"][];
+            /** Format: int64 */
+            total: number;
+            /** Format: int64 */
+            usersTotal: number;
+            /** Format: int64 */
+            categoriesTotal: number;
+            /** Format: int64 */
+            coursesTotal: number;
+            totalPages: number;
+            pagination: components["schemas"]["PaginationPayload"];
+            /** @description Index names whose query failed; omitted when every index answered. */
+            failedScopes?: string[];
+            /** @description True when no search backend is configured or every index query failed; groups are empty in that case. Omitted otherwise. */
+            searchUnavailable?: boolean;
+        };
+        ForumSearchSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["SearchResultPayload"];
+        };
+        ForumSearchResponse: components["schemas"]["ForumSearchSuccess"] | components["schemas"]["ApiFailure"];
         /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
         ReportHandlerPayload: {
             /**
@@ -10717,6 +11227,458 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getSiteStatistics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site statistics snapshot. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SiteStatisticsSuccess"];
+                };
+            };
+        };
+    };
+    searchForum: {
+        parameters: {
+            query?: {
+                /** @description Search text; trimmed server-side. Longer than 100 runes returns an empty payload. */
+                q?: string;
+                /** @description Unknown or missing values fall back to all. */
+                scope?: "all" | "topics" | "users" | "categories" | "courses";
+                /** @description 1-based page for the topics group only; values < 1 fall back to 1. */
+                page?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Aggregate search payload (possibly with searchUnavailable or failedScopes degradation markers). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ForumSearchResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    myContentList: {
+        parameters: {
+            query: {
+                contentType: "topic" | "post";
+                cursorId?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Own-content page, or a legacy business failure envelope (`common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["MyContentListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    deletedContentList: {
+        parameters: {
+            query: {
+                contentType: "topic" | "post";
+                cursorId?: number;
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Deleted-content page, or a legacy business failure envelope (`common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DeletedContentListResponse"];
+                };
+            };
+            /** @description Malformed query parameters. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    restoreContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["RestoreContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Restored (messageCode `content.restore.success`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    batchDeleteContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["BatchDeleteContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Per-item deletion outcome, or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["BatchDeleteContentResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    purgeContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PurgeContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Purged (messageCode `content.purge.success`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    privacyEraseContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["PrivacyEraseRequest"];
+            };
+        };
+        responses: {
+            /** @description Erased (messageCode `content.privacy.erased`), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentLifecycleResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    reportContentEvent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ContentEventRequest"];
+            };
+        };
+        responses: {
+            /** @description Event recorded (result true), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    closeAccount: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AccountCloseRequest"];
+            };
+        };
+        responses: {
+            /** @description Account closed (result true; all sessions revoked), or a legacy business failure envelope. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ContentActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Interaction rate limit (action `interact`) exceeded. */
+            429: {
+                headers: {
+                    "Retry-After": number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["RateLimitedFailure"];
                 };
             };
         };

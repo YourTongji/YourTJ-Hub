@@ -5,10 +5,10 @@
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
 - 快照路由总数：260
-- /api JSON 路由：204，已入契约：192（94%），已知未覆盖：12
-- 非 API 排除路由：56
+- /api JSON 路由：204，已入契约：202（99%），已知未覆盖：0
+- 非 API 排除路由：58
 
-## 已覆盖（192）
+## 已覆盖（202）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -46,10 +46,14 @@
 | GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
 | GET | `/api/forum/courses/:courseId/reviews` | `listCourseReviews` |
 | GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
+| GET | `/api/forum/get-site-statistics` | `getSiteStatistics` |
 | GET | `/api/forum/notifications` | `getNotifications` |
 | GET | `/api/forum/posts/revisions` | `getPostRevisions` |
 | GET | `/api/forum/posts/window` | `getPostWindow` |
+| GET | `/api/forum/search` | `searchForum` |
 | GET | `/api/forum/unread-status` | `getUnreadStatus` |
+| GET | `/api/forum/user/deleted-content` | `deletedContentList` |
+| GET | `/api/forum/user/my-content` | `myContentList` |
 | GET | `/api/get-captcha` | `getCaptcha` |
 | GET | `/api/login-public-key` | `getLoginPublicKey` |
 | GET | `/api/oauth/bindings` | `getOAuthBindings` |
@@ -173,6 +177,12 @@
 | POST | `/api/forum/topics/status` | `updateTopicStatus` |
 | POST | `/api/forum/topics/watch` | `watchTopic` |
 | POST | `/api/forum/topics/write` | `writeTopic` |
+| POST | `/api/forum/user/account-close` | `closeAccount` |
+| POST | `/api/forum/user/content-batch-delete` | `batchDeleteContent` |
+| POST | `/api/forum/user/content-event` | `reportContentEvent` |
+| POST | `/api/forum/user/content-privacy-erase` | `privacyEraseContent` |
+| POST | `/api/forum/user/content-purge` | `purgeContent` |
+| POST | `/api/forum/user/content-restore` | `restoreContent` |
 | POST | `/api/login` | `login` |
 | POST | `/api/logout` | `logout` |
 | POST | `/api/pk/course-details` | `pkFindCourseDetails` |
@@ -205,24 +215,12 @@
 | PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
-## 已知未覆盖（12）
+## 已知未覆盖（0）
 
 | Method | Path | 归属切片 |
 | --- | --- | --- |
-| GET | `/api/auth/:provider` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
-| GET | `/api/auth/:provider/callback` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
-| GET | `/api/forum/get-site-statistics` | pending #277 后续切片：site-statistics（站点统计） |
-| GET | `/api/forum/search` | pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约） |
-| GET | `/api/forum/user/deleted-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| GET | `/api/forum/user/my-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/account-close` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/content-batch-delete` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/content-event` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/content-privacy-erase` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/content-purge` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/forum/user/content-restore` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 
-## 排除（非 JSON API，56）
+## 排除（非 JSON API，58）
 
 | Method | Path | 原因 |
 | --- | --- | --- |
@@ -232,6 +230,8 @@
 | GET | `/activate` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/admin/*path` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/api/auth/:provider` | goth 浏览器 302 重定向流程（HTML/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进 |
+| GET | `/api/auth/:provider/callback` | goth 浏览器 302 重定向流程（HTML 错误页/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进 |
 | GET | `/assets/*filepath` | go:embed 静态资源（StaticFS 展开 GET+HEAD） |
 | GET | `/c/:slug/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API |
 | GET | `/c/:slug/:id/l/:sort` | SSR 页面（GoHTML 三模渲染），非 JSON API |

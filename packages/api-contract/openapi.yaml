@@ -21,7 +21,10 @@ info:
     http-notify/onesystem/ai-summary/legal documents, mail, storage with migration
     tasks, MCP), admin content operations (badge CRUD, review queue and review
     actions, file resources), admin media upload, and admin data portability
-    (export tasks, download, import), and the Agent (bot persona) public API.
+    (export tasks, download, import), the Agent (bot persona) public API,
+    the user content lifecycle (own/deleted content lists, restore,
+    batch-delete, purge, privacy erase, delete telemetry, account close),
+    aggregate search, and public site statistics.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -156,6 +159,26 @@ paths:
     $ref: ./paths/forum-chat.yaml#/getChatMessages
   /api/forum/chat/mark-read:
     $ref: ./paths/forum-chat.yaml#/markChatRead
+  /api/forum/get-site-statistics:
+    $ref: ./paths/forum-read.yaml#/getSiteStatistics
+  /api/forum/search:
+    $ref: ./paths/forum-read.yaml#/searchForum
+  /api/forum/user/my-content:
+    $ref: ./paths/user-content.yaml#/myContentList
+  /api/forum/user/deleted-content:
+    $ref: ./paths/user-content.yaml#/deletedContentList
+  /api/forum/user/content-restore:
+    $ref: ./paths/user-content.yaml#/restoreContent
+  /api/forum/user/content-batch-delete:
+    $ref: ./paths/user-content.yaml#/batchDeleteContent
+  /api/forum/user/content-purge:
+    $ref: ./paths/user-content.yaml#/purgeContent
+  /api/forum/user/content-privacy-erase:
+    $ref: ./paths/user-content.yaml#/privacyEraseContent
+  /api/forum/user/content-event:
+    $ref: ./paths/user-content.yaml#/reportContentEvent
+  /api/forum/user/account-close:
+    $ref: ./paths/user-content.yaml#/closeAccount
   /api/v1/agent/me:
     $ref: ./paths/agent.yaml#/agentMe
   /api/v1/agent/topics:
@@ -1373,3 +1396,57 @@ components:
       $ref: ./components/schemas.yaml#/PkCourseInfoSyncResponse
     PkReviewBriefResponse:
       $ref: ./components/schemas.yaml#/PkReviewBriefResponse
+    MyContentItem:
+      $ref: ./components/schemas.yaml#/MyContentItem
+    MyContentListResult:
+      $ref: ./components/schemas.yaml#/MyContentListResult
+    MyContentListSuccess:
+      $ref: ./components/schemas.yaml#/MyContentListSuccess
+    MyContentListResponse:
+      $ref: ./components/schemas.yaml#/MyContentListResponse
+    DeletedContentItem:
+      $ref: ./components/schemas.yaml#/DeletedContentItem
+    DeletedContentListResult:
+      $ref: ./components/schemas.yaml#/DeletedContentListResult
+    DeletedContentListSuccess:
+      $ref: ./components/schemas.yaml#/DeletedContentListSuccess
+    DeletedContentListResponse:
+      $ref: ./components/schemas.yaml#/DeletedContentListResponse
+    RestoreContentRequest:
+      $ref: ./components/schemas.yaml#/RestoreContentRequest
+    ContentLifecycleSuccess:
+      $ref: ./components/schemas.yaml#/ContentLifecycleSuccess
+    ContentLifecycleResponse:
+      $ref: ./components/schemas.yaml#/ContentLifecycleResponse
+    BatchDeleteContentRequest:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentRequest
+    BatchDeleteResultItem:
+      $ref: ./components/schemas.yaml#/BatchDeleteResultItem
+    BatchDeleteResult:
+      $ref: ./components/schemas.yaml#/BatchDeleteResult
+    BatchDeleteContentSuccess:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentSuccess
+    BatchDeleteContentResponse:
+      $ref: ./components/schemas.yaml#/BatchDeleteContentResponse
+    PurgeContentRequest:
+      $ref: ./components/schemas.yaml#/PurgeContentRequest
+    PrivacyEraseRequest:
+      $ref: ./components/schemas.yaml#/PrivacyEraseRequest
+    ContentEventRequest:
+      $ref: ./components/schemas.yaml#/ContentEventRequest
+    AccountCloseRequest:
+      $ref: ./components/schemas.yaml#/AccountCloseRequest
+    ContentActionSuccess:
+      $ref: ./components/schemas.yaml#/ContentActionSuccess
+    ContentActionResponse:
+      $ref: ./components/schemas.yaml#/ContentActionResponse
+    SiteStatisticsResult:
+      $ref: ./components/schemas.yaml#/SiteStatisticsResult
+    SiteStatisticsSuccess:
+      $ref: ./components/schemas.yaml#/SiteStatisticsSuccess
+    SearchResultPayload:
+      $ref: ./components/schemas.yaml#/SearchResultPayload
+    ForumSearchSuccess:
+      $ref: ./components/schemas.yaml#/ForumSearchSuccess
+    ForumSearchResponse:
+      $ref: ./components/schemas.yaml#/ForumSearchResponse

@@ -48,9 +48,13 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   and the PK scheduler (14 ops:
   courses-by-major/optional-types/courses-by-nature/course-details/course-search/courses-by-time/
   latest-update/course-info-sync/course-review-brief),
+  the user content lifecycle (my-content/deleted-content lists, content-restore/batch-delete/
+  purge/privacy-erase/event, account-close), aggregate search (`/api/forum/search`) and public
+  site statistics,
   with lint/bundle, generated TypeScript types, fixtures, and route-level HTTP tests;
-  paths are split per domain under `paths/`; broader route coverage still needs manual or
-  annotation-based work.
+  paths are split per domain under `paths/`. Route coverage (issue #277) is complete:
+  `route-coverage.json` knownUncovered is empty — every non-excluded `/api` route has a
+  contract operation; new routes must be added to the contract or the exclusion list.
 - Points: credit (linux-do) phase 2, merchant model, not implemented this phase.
 
 ## 2. Repository layout & boundary rules

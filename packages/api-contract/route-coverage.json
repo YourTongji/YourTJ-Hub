@@ -230,68 +230,17 @@
       "method": "POST",
       "path": "/file/img-upload",
       "reason": "multipart 文件上传端点，不纳入 JSON API 契约"
-    }
-  ],
-  "knownUncovered": [
+    },
     {
       "method": "GET",
       "path": "/api/auth/:provider",
-      "reason": "pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程）"
+      "reason": "goth 浏览器 302 重定向流程（HTML/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进"
     },
     {
       "method": "GET",
       "path": "/api/auth/:provider/callback",
-      "reason": "pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/forum/get-site-statistics",
-      "reason": "pending #277 后续切片：site-statistics（站点统计）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/forum/search",
-      "reason": "pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/forum/user/deleted-content",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/forum/user/my-content",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/account-close",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/content-batch-delete",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/content-event",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/content-privacy-erase",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/content-purge",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/forum/user/content-restore",
-      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+      "reason": "goth 浏览器 302 重定向流程（HTML 错误页/重定向，非 JSON API）；OAuth/OIDC 协议面由专项契约轨道跟进"
     }
-  ]
+  ],
+  "knownUncovered": []
 }

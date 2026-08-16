@@ -620,53 +620,58 @@ AgentSearchResponse:
       required: [result]
       properties:
         result:
-          type: object
-          required: [query, scope, topics, users, categories, courses, total, usersTotal, categoriesTotal, coursesTotal, totalPages, pagination]
-          properties:
-            query:
-              type: string
-            scope:
-              type: string
-            topics:
-              type: array
-              items:
-                $ref: '#/TopicPayload'
-            users:
-              type: array
-              items:
-                $ref: '#/UserSearchPayload'
-            categories:
-              type: array
-              items:
-                $ref: '#/CategorySearchPayload'
-            courses:
-              type: array
-              items:
-                $ref: '#/CourseSearchPayload'
-            total:
-              type: integer
-              format: int64
-            usersTotal:
-              type: integer
-              format: int64
-            categoriesTotal:
-              type: integer
-              format: int64
-            coursesTotal:
-              type: integer
-              format: int64
-            totalPages:
-              type: integer
-            pagination:
-              $ref: '#/PaginationPayload'
-            failedScopes:
-              type: array
-              items:
-                type: string
-            searchUnavailable:
-              type: boolean
-          additionalProperties: false
+          $ref: '#/SearchResultPayload'
   description: Mirrors the forum SearchJSON payload (including courses), including searchUnavailable and failedScopes.
+
+SearchResultPayload:
+  type: object
+  required: [query, scope, topics, users, categories, courses, total, usersTotal, categoriesTotal, coursesTotal, totalPages, pagination]
+  properties:
+    query:
+      type: string
+    scope:
+      type: string
+    topics:
+      type: array
+      items:
+        $ref: '#/TopicPayload'
+    users:
+      type: array
+      items:
+        $ref: '#/UserSearchPayload'
+    categories:
+      type: array
+      items:
+        $ref: '#/CategorySearchPayload'
+    courses:
+      type: array
+      items:
+        $ref: '#/CourseSearchPayload'
+    total:
+      type: integer
+      format: int64
+    usersTotal:
+      type: integer
+      format: int64
+    categoriesTotal:
+      type: integer
+      format: int64
+    coursesTotal:
+      type: integer
+      format: int64
+    totalPages:
+      type: integer
+    pagination:
+      $ref: '#/PaginationPayload'
+    failedScopes:
+      type: array
+      items:
+        type: string
+      description: Index names whose query failed; omitted when every index answered.
+    searchUnavailable:
+      type: boolean
+      description: True when no search backend is configured or every index query failed; groups are empty in that case. Omitted otherwise.
+  additionalProperties: false
 
 # Shared forum payloads reused by the Agent endpoints. Each mirrors the Go DTO
 # serialized by the corresponding forum controller so consumers can type-safely
@@ -7325,4 +7330,372 @@ AdminImportDataResponse:
           properties:
             result:
               $ref: '#/AdminImportReport'
+    - $ref: '#/ApiFailure'
+
+# --- User content lifecycle (issue #94) and forum read ops (issue #277) ---
+
+MyContentItem:
+  type: object
+  required: [id, contentType, title, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    contentType:
+      type: string
+      enum: [topic, post]
+    title:
+      type: string
+      description: Topic title; post items render as `回复 #<postNo>`.
+    excerpt:
+      type: string
+      description: Content excerpt (up to 100 runes); omitted when empty.
+    topicId:
+      type: integer
+      format: uint64
+      description: Parent topic id; post items only.
+    postNo:
+      type: integer
+      format: uint64
+      description: Floor number inside the topic; post items only.
+    createdAt:
+      type: string
+      description: RFC3339 timestamp.
+  additionalProperties: false
+
+MyContentListResult:
+  type: object
+  required: [items, hasMore, nextCursorId]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/MyContentItem'
+    hasMore:
+      type: boolean
+    nextCursorId:
+      type: integer
+      format: uint64
+      description: Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+  additionalProperties: false
+
+MyContentListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/MyContentListResult'
+
+MyContentListResponse:
+  oneOf:
+    - $ref: '#/MyContentListSuccess'
+    - $ref: '#/ApiFailure'
+
+DeletedContentItem:
+  type: object
+  required: [id, contentType, title, visibility, retention, deletedAt, canRestore, canPermanent]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    contentType:
+      type: string
+      enum: [topic, post]
+    title:
+      type: string
+      description: Topic title; empty string on post items.
+    excerpt:
+      type: string
+      description: Content excerpt (up to 100 runes); omitted when empty.
+    topicId:
+      type: integer
+      format: uint64
+      description: Parent topic id; post items only.
+    postNo:
+      type: integer
+      format: uint64
+      description: Floor number inside the topic; post items only.
+    visibility:
+      type: string
+      enum: [USER_DELETED, MODERATOR_REMOVED]
+    retention:
+      type: string
+      description: Lifecycle retention state (for example RECOVERABLE); PURGED rows never appear in this list.
+    deletedAt:
+      type: string
+      description: RFC3339 deletion timestamp; empty for tombstone rows that carry no deleted_at.
+    canRestore:
+      type: boolean
+      description: True only for USER_DELETED + RECOVERABLE rows still inside the 30-day recovery window.
+    canPermanent:
+      type: boolean
+      description: True for USER_DELETED + RECOVERABLE rows (purgeable by the author).
+    hasReplies:
+      type: boolean
+      description: Omitted unless the item carries reply context.
+  additionalProperties: false
+
+DeletedContentListResult:
+  type: object
+  required: [items, hasMore, nextCursorId]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/DeletedContentItem'
+    hasMore:
+      type: boolean
+    nextCursorId:
+      type: integer
+      format: uint64
+      description: Id of the last item; pass as cursorId for the next page. 0 when the page is empty.
+  additionalProperties: false
+
+DeletedContentListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/DeletedContentListResult'
+
+DeletedContentListResponse:
+  oneOf:
+    - $ref: '#/DeletedContentListSuccess'
+    - $ref: '#/ApiFailure'
+
+RestoreContentRequest:
+  type: object
+  required: [contentType, contentId]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+  additionalProperties: false
+
+ContentLifecycleSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 操作成功
+        messageCode:
+          type: string
+          description: content.restore.success / content.purge.success / content.privacy.erased, depending on the operation.
+
+ContentLifecycleResponse:
+  oneOf:
+    - $ref: '#/ContentLifecycleSuccess'
+    - $ref: '#/ApiFailure'
+
+BatchDeleteContentRequest:
+  type: object
+  required: [contentType, contentIds]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentIds:
+      type: array
+      minItems: 1
+      maxItems: 50
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+    force:
+      type: boolean
+      description: Second-confirmation flag required once the deletion rate gate trips (content.batchDelete.confirmRequired).
+    password:
+      type: string
+      description: Current account password; mandatory when force=true.
+  additionalProperties: false
+
+BatchDeleteResultItem:
+  type: object
+  required: [contentId, success]
+  properties:
+    contentId:
+      type: integer
+      format: uint64
+    success:
+      type: boolean
+    message:
+      type: string
+      description: Per-item failure text; omitted on success.
+  additionalProperties: false
+
+BatchDeleteResult:
+  type: object
+  required: [succeeded, failed, results]
+  properties:
+    succeeded:
+      type: integer
+    failed:
+      type: integer
+    results:
+      type: array
+      items:
+        $ref: '#/BatchDeleteResultItem'
+  additionalProperties: false
+
+BatchDeleteContentSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/BatchDeleteResult'
+
+BatchDeleteContentResponse:
+  oneOf:
+    - $ref: '#/BatchDeleteContentSuccess'
+    - $ref: '#/ApiFailure'
+
+PurgeContentRequest:
+  type: object
+  required: [contentType, contentId]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+    reason:
+      type: string
+      description: Optional audit text recorded with the purge.
+    force:
+      type: boolean
+      description: Second-confirmation flag required once the deletion rate gate trips.
+    password:
+      type: string
+      description: Current account password; mandatory when force=true.
+  additionalProperties: false
+
+PrivacyEraseRequest:
+  type: object
+  required: [contentType, contentId]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+    force:
+      type: boolean
+      description: Second-confirmation flag required once the deletion rate gate trips.
+    password:
+      type: string
+      description: Current account password; mandatory when force=true.
+  additionalProperties: false
+
+ContentEventRequest:
+  type: object
+  required: [eventType, contentType, contentId]
+  properties:
+    eventType:
+      type: string
+      enum: [content_delete_clicked, content_delete_confirmed]
+      description: Frontend telemetry event; backend-owned lifecycle events are rejected with `common.request.invalidParams`.
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Not checked for existence.
+  additionalProperties: false
+
+AccountCloseRequest:
+  type: object
+  required: [mode, password]
+  properties:
+    mode:
+      type: string
+      enum: [anonymize, delete]
+      description: anonymize keeps historical content under a closed-account identity; delete best-effort deletes all own topics/replies first.
+    password:
+      type: string
+      description: Current account password (irreversible operation second factor).
+  additionalProperties: false
+
+ContentActionSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+
+ContentActionResponse:
+  oneOf:
+    - $ref: '#/ContentActionSuccess'
+    - $ref: '#/ApiFailure'
+
+SiteStatisticsResult:
+  type: object
+  required: [userCount, userMonthCount, topicMaxId, topicMonthCount, postMaxId, linksCount]
+  properties:
+    userCount:
+      type: integer
+      format: uint64
+      description: Max users.id (allocation counter, not a live row count).
+    userMonthCount:
+      type: integer
+      format: int64
+      description: Registrations in the current calendar month.
+    topicMaxId:
+      type: integer
+      format: uint64
+    topicMonthCount:
+      type: integer
+      format: int64
+      description: Topics created in the current calendar month.
+    postMaxId:
+      type: integer
+      format: uint64
+    linksCount:
+      type: integer
+      description: Number of configured friend links.
+  additionalProperties: false
+
+SiteStatisticsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/SiteStatisticsResult'
+
+ForumSearchSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/SearchResultPayload'
+
+ForumSearchResponse:
+  oneOf:
+    - $ref: '#/ForumSearchSuccess'
     - $ref: '#/ApiFailure'
