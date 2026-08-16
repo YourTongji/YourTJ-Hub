@@ -931,6 +931,24 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/wiki/sync/cdn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the wiki asset CDN mode (PageManager or Admin only) */
+        get: operations["getWikiAssetCDN"];
+        put?: never;
+        /** Save the wiki asset CDN mode (PageManager or Admin only) */
+        post: operations["saveWikiAssetCDN"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/pk/calendars": {
         parameters: {
             query?: never;
@@ -2744,6 +2762,30 @@ export interface components {
             nickname?: string;
             avatarUrl: string;
         };
+        WikiAssetCDNStatus: {
+            /**
+             * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
+             * @enum {string}
+             */
+            cdn: "self" | "jsDelivr";
+        };
+        WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAssetCDNSaveRequest: {
+            /**
+             * @description Wiki asset CDN mode to persist.
+             * @enum {string}
+             */
+            cdn: "self" | "jsDelivr";
+        };
+        WikiAssetCDNSaveResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNSaveResult"];
+        }) | components["schemas"]["ApiFailure"];
     };
     responses: never;
     parameters: never;
@@ -4535,6 +4577,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki tree query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     wikiWebhook: {
@@ -4638,6 +4689,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki sync status query failed (page/namespace counts or run history). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     runWikiSync: {
@@ -4726,6 +4786,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki sync runs query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     getWikiWebhookSecret: {
@@ -4796,6 +4865,105 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WikiWebhookSecretSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiAssetCDN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description The configured wiki asset CDN mode: `self` (default; assets served by
+             *     the forum binary through /wiki/_assets/) or `jsDelivr` (assets served
+             *     through the jsDelivr gh mirror of the configured repository). Legacy
+             *     configs without the field report `self`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAssetCDNResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveWikiAssetCDN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiAssetCDNSaveRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Asset CDN mode saved. The next sync (webhook / manual / scheduled)
+             *     rewrites rendered asset URLs according to the new mode. Business
+             *     failures are returned as legacy HTTP 200 envelopes
+             *     (`common.request.invalidParams` for an unknown mode).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAssetCDNSaveResponse"];
                 };
             };
             /** @description Malformed JSON request body (strict binding failure). */

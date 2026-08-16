@@ -6,14 +6,19 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
@@ -256,7 +261,10 @@ func TestSyncOnceReconcilesStaleRunningRuns(t *testing.T) {
 	if got.Status != wikiSyncRuns.StatusFailed {
 		t.Fatalf("stale run status = %d, want failed (reconciled)", got.Status)
 	}
-	latest := wikiSyncRuns.Latest()
+	latest, err := wikiSyncRuns.Latest()
+	if err != nil {
+		t.Fatalf("load latest run: %v", err)
+	}
 	if latest.Id == stale.Id || latest.Status != wikiSyncRuns.StatusSuccess {
 		t.Fatalf("latest run = id %d status %d, want new success run", latest.Id, latest.Status)
 	}
@@ -272,7 +280,10 @@ func TestBuildSyncStatusReconcilesStaleRunning(t *testing.T) {
 		t.Fatalf("create stale running run: %v", err)
 	}
 
-	status := BuildSyncStatus()
+	status, err := BuildSyncStatus()
+	if err != nil {
+		t.Fatalf("build sync status: %v", err)
+	}
 	if status.LastRun == nil || status.LastRun.Status != "failed" {
 		t.Fatalf("lastRun after status read = %+v, want failed", status.LastRun)
 	}
@@ -291,10 +302,45 @@ func TestBuildSyncStatusKeepsLiveRunningWhileLockHeld(t *testing.T) {
 	}
 	defer ReleaseSyncLock()
 
-	status := BuildSyncStatus()
+	status, err := BuildSyncStatus()
+	if err != nil {
+		t.Fatalf("build sync status: %v", err)
+	}
 	if status.LastRun == nil || status.LastRun.Status != "running" {
 		t.Fatalf("live run must stay running while lock held, got %+v", status.LastRun)
 	}
+}
+
+// seedTopicInteractions 给 topic 预置互动：回复 + 点赞/收藏/订阅（watcher）。
+// 返回回复 ID，供收养后断言互动仍在原 topic。
+func seedTopicInteractions(t *testing.T, topicID uint64, userIDs []uint64) uint64 {
+	t.Helper()
+	reply := posts.Entity{
+		TopicId:          topicID,
+		PostNo:           2,
+		UserId:           userIDs[0],
+		Content:          "回复内容",
+		RenderedHTML:     "<p>回复内容</p>",
+		ProcessStatus:    posts.ProcessStatusNormal,
+		VisibilityStatus: posts.VisibilityActive,
+		RetentionStatus:  posts.RetentionNormal,
+	}
+	if err := posts.Create(&reply); err != nil {
+		t.Fatalf("create reply: %v", err)
+	}
+	now := time.Now()
+	for _, uid := range userIDs {
+		if !topicUserAction.SetLikedAt(uid, topicID, &now) {
+			t.Fatalf("set liked for user %d", uid)
+		}
+		if !topicUserAction.SetBookmarkedAt(uid, topicID, &now) {
+			t.Fatalf("set bookmarked for user %d", uid)
+		}
+		if !topicUserAction.SetWatchedAt(uid, topicID, &now) {
+			t.Fatalf("set watched for user %d", uid)
+		}
+	}
+	return reply.Id
 }
 
 // TestApplyRepoToDBFirstSync 首次同步：仓库 md → wiki_pages/topics/posts 行，
@@ -408,7 +454,10 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	if res.PagesAdded != 0 || res.PagesUpdated != 0 || res.PagesDeleted != 0 {
 		t.Fatalf("second sync added/updated/deleted=%d/%d/%d, want 0/0/0", res.PagesAdded, res.PagesUpdated, res.PagesDeleted)
 	}
-	pages := wikiPages.ListAll()
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		t.Fatalf("list pages after second sync: %v", err)
+	}
 	if len(pages) != 1 {
 		t.Fatalf("page count after second sync=%d, want 1", len(pages))
 	}
@@ -955,7 +1004,11 @@ func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
 		t.Fatal("want error on slug conflict")
 	}
 	slugs := map[string]string{}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		t.Fatalf("list namespaces: %v", err)
+	}
+	for _, ns := range namespaces {
 		slugs[ns.Name] = ns.SlugOrEmpty()
 	}
 	guideHas := slugs["guide"] == "guide"
@@ -1030,5 +1083,432 @@ func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
 	}
 	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
 		t.Fatal("fallback URL (display name as URL key) should resolve directly")
+	}
+}
+
+// TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers review P2：切换 CDN 只改变
+// RenderedHTML（正文/标题/排序未变）时更新页面但不发送 wiki_updated 通知；
+// 正文真正变化时仍通知（避免 CDN 切换给所有订阅者发误导通知）。
+func TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers(t *testing.T) {
+	setupWikiTestDB(t)
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate notification/page_config: %v", err)
+	}
+	conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&eventNotification.Entity{})
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		conn.Unscoped().Where("1 = 1").Delete(&eventNotification.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+	})
+
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n![图](../assets/a.png)")
+	writeRepoFile(t, repo, "assets/a.png", "png")
+	cfg := GitConfig{
+		CloneDir: repo,
+		Repo:     "https://github.com/YourTongji/YourTJ-Wiki.git",
+		Branch:   "main",
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/page")
+	if !strings.Contains(page.RenderedHTML, "/wiki/_assets/") {
+		t.Fatalf("first render should use self route: %s", page.RenderedHTML)
+	}
+	// 订阅者：任意用户 watch 该 topic。
+	watcher := seedWikiUser(t, false)
+	if !topicUserAction.SetWatched(watcher, page.TopicId, true) {
+		t.Fatal("set watcher failed")
+	}
+
+	countNotifications := func() int64 {
+		var n int64
+		conn.Table("event_notification").
+			Where("topic_id = ? AND event_type = ?", page.TopicId, eventNotification.EventTypeWikiUpdated).
+			Count(&n)
+		return n
+	}
+
+	// CDN 切换 → 仅渲染变化：页面更新但 watcher 不通知。
+	if err := conn.Create(&pageConfig.Entity{
+		PageType: pageConfig.WikiSyncSettings,
+		Config:   `{"assetCDN":"jsDelivr"}`,
+	}).Error; err != nil {
+		t.Fatalf("persist cdn setting: %v", err)
+	}
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("cdn-switch sync: %v", err)
+	}
+	if res.PagesUpdated != 1 {
+		t.Fatalf("PagesUpdated=%d, want 1", res.PagesUpdated)
+	}
+	page = wikiPages.GetByPath("docs/page")
+	if !strings.Contains(page.RenderedHTML, "cdn.jsdelivr.net") {
+		t.Fatalf("cdn render should use jsDelivr mirror: %s", page.RenderedHTML)
+	}
+	if got := countNotifications(); got != 0 {
+		t.Fatalf("wiki_updated notifications after CDN-only re-render = %d, want 0", got)
+	}
+
+	// 正文变化 → 通知照常发送。
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n![图](../assets/a.png)\n\n新增段落")
+	res = &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("content-change sync: %v", err)
+	}
+	if got := countNotifications(); got != 1 {
+		t.Fatalf("wiki_updated notifications after content change = %d, want 1", got)
+	}
+}
+
+// ---------- issue #288：重命名/移动收养 ----------
+
+// TestApplyRepoToDBRenamePreservesInteractions Git 重命名（内容不变）：
+// 同一逻辑页面的 path 迁移 + 原 topic 复用，回复/点赞/收藏/订阅全部保留，
+// watcher 通知与 URL 解析跟随新路径。
+func TestApplyRepoToDBRenamePreservesInteractions(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	content := "---\ntitle: 文档\n---\n\n# 标题\n\n正文"
+	writeRepoFile(t, repo, "docs/a.md", content)
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/a")
+	topicID := page.TopicId
+	replyID := seedTopicInteractions(t, topicID, []uint64{4242, 4243})
+
+	// 重命名 docs/a.md → docs/b.md（内容不变）。
+	if err := os.Rename(filepath.Join(repo, "docs/a.md"), filepath.Join(repo, "docs/b.md")); err != nil {
+		t.Fatal(err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("rename sync: %v", err)
+	}
+	if res.PagesAdded != 0 || res.PagesDeleted != 0 {
+		t.Fatalf("rename added/deleted=%d/%d, want 0/0 (must not create+delete)", res.PagesAdded, res.PagesDeleted)
+	}
+	if res.PagesUpdated != 1 {
+		t.Fatalf("PagesUpdated=%d, want 1 (adoption runs the update path)", res.PagesUpdated)
+	}
+	moved := wikiPages.GetByPath("docs/b")
+	if moved.Id == 0 {
+		t.Fatal("page docs/b missing after rename")
+	}
+	if moved.TopicId != topicID {
+		t.Fatalf("topic id changed after rename: %d → %d, want reuse", topicID, moved.TopicId)
+	}
+	if moved.SourcePath != "docs/b" {
+		t.Fatalf("source_path=%q, want docs/b", moved.SourcePath)
+	}
+	if old := wikiPages.GetByPathUnscoped("docs/a"); old.Id != 0 {
+		t.Fatalf("old path docs/a still exists after rename (id=%d, deleted=%v)", old.Id, old.DeletedAt.Valid)
+	}
+	// 互动保留：回复 + 点赞/收藏/订阅。
+	if reply := posts.UnscopedGet(replyID); reply.Id == 0 || reply.TopicId != topicID {
+		t.Fatalf("reply lost after rename: id=%d topic=%d", reply.Id, reply.TopicId)
+	}
+	for _, uid := range []uint64{4242, 4243} {
+		ua := topicUserAction.GetByTopicId(uid, topicID)
+		if ua.Id == 0 || ua.LikedAt == nil || ua.BookmarkedAt == nil || ua.WatchedAt == nil {
+			t.Fatalf("interaction lost after rename for user %d: %+v", uid, ua)
+		}
+	}
+	// topic 生命周期保持活跃。
+	topic := topics.Get(topicID)
+	if topic.Id == 0 || topic.DeletedAt.Valid || topic.VisibilityStatus != topics.VisibilityActive {
+		t.Fatalf("topic after rename: id=%d deleted=%v visibility=%q", topic.Id, topic.DeletedAt.Valid, topic.VisibilityStatus)
+	}
+	// watcher 通知跟随新路径。
+	notif := eventNotification.GetLatestByTopicAndType(topicID, eventNotification.EventTypeWikiUpdated)
+	if notif.Id == 0 {
+		t.Fatal("watcher notification missing after rename")
+	}
+	if notif.Payload.Extra.ProfileURL != "/wiki/docs/b" {
+		t.Fatalf("notification profileUrl=%q, want /wiki/docs/b", notif.Payload.Extra.ProfileURL)
+	}
+	// URL 解析：新路径命中，旧路径 404（文档化的旧链接行为）。
+	if page := ResolvePageByURLPath("docs/b"); page.Id == 0 {
+		t.Fatal("new URL docs/b should resolve")
+	}
+	if page := ResolvePageByURLPath("docs/a"); page.Id != 0 {
+		t.Fatal("old URL docs/a should not resolve (page migrated)")
+	}
+}
+
+// TestApplyRepoToDBRenameWithContentChange 重命名 + 内容修改（同一次同步）：
+// 无稳定信号可判定为同页 → 定义为新建 + 软删旧页（互动保留在旧 topic 上），
+// 不猜测合并（fail-safe）。
+func TestApplyRepoToDBRenameWithContentChange(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: v1\n---\n\n# 标题\n\n旧正文")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/a")
+	topicID := page.TopicId
+	replyID := seedTopicInteractions(t, topicID, []uint64{4242})
+
+	if err := os.Rename(filepath.Join(repo, "docs/a.md"), filepath.Join(repo, "docs/b.md")); err != nil {
+		t.Fatal(err)
+	}
+	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: v2\n---\n\n# 标题\n\n新正文")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("rename+edit sync: %v", err)
+	}
+	if res.PagesAdded != 1 || res.PagesDeleted != 1 {
+		t.Fatalf("rename+edit added/deleted=%d/%d, want 1/1", res.PagesAdded, res.PagesDeleted)
+	}
+	// 旧页软删、互动保留在旧 topic；新页全新 topic。
+	old := wikiPages.GetByPathUnscoped("docs/a")
+	if old.Id == 0 || !old.DeletedAt.Valid {
+		t.Fatalf("old page should be soft-deleted: id=%d deleted=%v", old.Id, old.DeletedAt.Valid)
+	}
+	if reply := posts.UnscopedGet(replyID); reply.Id == 0 || reply.TopicId != topicID {
+		t.Fatal("old topic interactions must be preserved on the soft-deleted page's topic")
+	}
+	created := wikiPages.GetByPath("docs/b")
+	if created.Id == 0 || created.TopicId == topicID {
+		t.Fatalf("new page should have a fresh topic: id=%d topic=%d", created.Id, created.TopicId)
+	}
+}
+
+// TestApplyRepoToDBMoveNestedDirectory 目录内移动（docs/guide/tips.md →
+// docs/other/tips.md）：同 topic 复用 + parent_id 重算到新父 index 页。
+// parent_id 语义（#303）：最近祖先 index 页；目录无 index.md 时归到 0。
+func TestApplyRepoToDBMoveNestedDirectory(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/guide/index.md", "---\ntitle: guide\n---\n\n# guide")
+	writeRepoFile(t, repo, "docs/guide/tips.md", "---\ntitle: tips\n---\n\n# tips")
+	writeRepoFile(t, repo, "docs/other/index.md", "---\ntitle: other\n---\n\n# other")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	tips := wikiPages.GetByPath("docs/guide/tips")
+	topicID := tips.TopicId
+	parentGuide := wikiPages.GetByPath("docs/guide/index")
+	if tips.ParentId != parentGuide.Id {
+		t.Fatalf("parent_id=%d, want guide index page %d", tips.ParentId, parentGuide.Id)
+	}
+
+	// 移动到 docs/other/tips.md（先建目标目录——git 中 other/index.md 文件与
+	// other/ 目录可共存，文件系统 rename 需要目标目录存在）。
+	if err := os.MkdirAll(filepath.Join(repo, "docs/other"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.Rename(filepath.Join(repo, "docs/guide/tips.md"), filepath.Join(repo, "docs/other/tips.md")); err != nil {
+		t.Fatal(err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("move sync: %v", err)
+	}
+	if res.PagesAdded != 0 || res.PagesDeleted != 0 {
+		t.Fatalf("move added/deleted=%d/%d, want 0/0", res.PagesAdded, res.PagesDeleted)
+	}
+	moved := wikiPages.GetByPath("docs/other/tips")
+	if moved.Id == 0 || moved.TopicId != topicID {
+		t.Fatalf("moved page: id=%d topic=%d, want same topic %d", moved.Id, moved.TopicId, topicID)
+	}
+	parentOther := wikiPages.GetByPath("docs/other/index")
+	if moved.ParentId != parentOther.Id {
+		t.Fatalf("parent_id after move=%d, want other index page %d", moved.ParentId, parentOther.Id)
+	}
+}
+
+// TestApplyRepoToDBMoveAcrossNamespaces 跨命名空间移动 docs/a.md → guide/a.md：
+// 同 topic 复用；旧命名空间无页面后自动删除，新命名空间自动创建。
+func TestApplyRepoToDBMoveAcrossNamespaces(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	content := "---\ntitle: 跨域\n---\n\n# 标题\n\n正文"
+	writeRepoFile(t, repo, "docs/a.md", content)
+	writeRepoFile(t, repo, "guide/stay.md", "---\ntitle: stay\n---\n\n# stay")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/a")
+	topicID := page.TopicId
+
+	if err := os.Rename(filepath.Join(repo, "docs/a.md"), filepath.Join(repo, "guide/a.md")); err != nil {
+		t.Fatal(err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("cross-ns move sync: %v", err)
+	}
+	if res.PagesAdded != 0 || res.PagesDeleted != 0 {
+		t.Fatalf("cross-ns move added/deleted=%d/%d, want 0/0", res.PagesAdded, res.PagesDeleted)
+	}
+	moved := wikiPages.GetByPath("guide/a")
+	if moved.Id == 0 || moved.TopicId != topicID {
+		t.Fatalf("moved page: id=%d topic=%d, want same topic %d", moved.Id, moved.TopicId, topicID)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should exist")
+	}
+	if wikiNamespaces.Exists("docs") {
+		t.Fatal("namespace docs should be deleted (no pages left after move)")
+	}
+}
+
+// TestApplyRepoToDBDeleteRecreateAdoptsSoftDeleted 删除后重建（新路径、同内容）：
+// 软删行按 content_hash 收养 → 恢复 + 迁移，复用原 topic（两步 rename）。
+func TestApplyRepoToDBDeleteRecreateAdoptsSoftDeleted(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	content := "---\ntitle: 重建\n---\n\n# 标题\n\n正文"
+	writeRepoFile(t, repo, "docs/a.md", content)
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/a")
+	topicID := page.TopicId
+
+	// 删除 → 软删。
+	if err := os.Remove(filepath.Join(repo, "docs/a.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("delete sync: %v", err)
+	}
+	// 新路径重建（同内容）。
+	writeRepoFile(t, repo, "docs/b.md", content)
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("recreate sync: %v", err)
+	}
+	if res.PagesAdded != 0 || res.PagesDeleted != 0 {
+		t.Fatalf("recreate added/deleted=%d/%d, want 0/0", res.PagesAdded, res.PagesDeleted)
+	}
+	reborn := wikiPages.GetByPath("docs/b")
+	if reborn.Id == 0 || reborn.DeletedAt.Valid {
+		t.Fatalf("page not restored: id=%d deleted=%v", reborn.Id, reborn.DeletedAt.Valid)
+	}
+	if reborn.TopicId != topicID {
+		t.Fatalf("topic changed after delete/recreate: %d → %d", topicID, reborn.TopicId)
+	}
+	topic := topics.UnscopedGet(topicID)
+	if topic.Id == 0 || topic.DeletedAt.Valid || topic.VisibilityStatus != topics.VisibilityActive {
+		t.Fatalf("topic not restored after delete/recreate: id=%d deleted=%v visibility=%q",
+			topic.Id, topic.DeletedAt.Valid, topic.VisibilityStatus)
+	}
+	if old := wikiPages.GetByPathUnscoped("docs/a"); old.Id != 0 {
+		t.Fatalf("old path docs/a still present after adoption (id=%d)", old.Id)
+	}
+}
+
+// TestApplyRepoToDBCopySameContentFailsSafe 复制（同内容两页并存）：同 hash 多个
+// wanted → 不收养（不猜测哪页是原页），新文件走新建、原页原地保留。
+func TestApplyRepoToDBCopySameContentFailsSafe(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	content := "---\ntitle: 复制\n---\n\n# 标题\n\n正文"
+	writeRepoFile(t, repo, "docs/a.md", content)
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/a")
+	topicID := page.TopicId
+
+	// 复制 a.md → b.md（两页并存）。
+	writeRepoFile(t, repo, "docs/b.md", content)
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("copy sync: %v", err)
+	}
+	if res.PagesAdded != 1 {
+		t.Fatalf("copy PagesAdded=%d, want 1 (new page created)", res.PagesAdded)
+	}
+	copied := wikiPages.GetByPath("docs/b")
+	if copied.Id == 0 || copied.TopicId == topicID {
+		t.Fatalf("copied page should have a fresh topic: id=%d topic=%d", copied.Id, copied.TopicId)
+	}
+	original := wikiPages.GetByPath("docs/a")
+	if original.Id == 0 || original.TopicId != topicID {
+		t.Fatalf("original page must keep its topic: id=%d topic=%d", original.Id, original.TopicId)
+	}
+}
+
+// TestApplyRepoToDBInvalidNestedPathFailsFast 非法嵌套页面路径 → 同步整体
+// 失败（fail-fast），绝不静默跳过并报告成功（issue #283）。
+// 根级 README/CONTRIBUTING 等元文件仍显式排除、不阻断同步。
+func TestApplyRepoToDBInvalidNestedPathFailsFast(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	// 合法中文路径页面（正常投影）。
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	// 非法嵌套路径：段含空格（保留字符，跨平台可创建；不用冒号——Windows
+	// 会把 "foo:bar" 解释为 NTFS Alternate Data Stream 语法，filepath.Walk
+	// 不会枚举到该文件，测试无法覆盖目标）。
+	writeRepoFile(t, repo, "guide/foo bar.md", "---\ntitle: 非法\n---\n\n# 非法")
+	// 根级元文件：显式排除，不阻断。
+	writeRepoFile(t, repo, "README.md", "# Wiki")
+	writeRepoFile(t, repo, "CONTRIBUTING.md", "# 贡献指南")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error for invalid nested page path, got nil")
+	}
+	if !strings.Contains(err.Error(), "guide/foo bar") {
+		t.Fatalf("error should name the invalid path, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "invalid segment") {
+		t.Fatalf("error should include the reason, got: %v", err)
+	}
+	// 非法路径存在时不得投影任何页面（fail-fast 在任何写入之前）。
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		t.Fatalf("list pages: %v", err)
+	}
+	if len(pages) != 0 {
+		t.Fatalf("pages projected despite invalid path: %d, want 0 (fail-fast before any write)", len(pages))
+	}
+}
+
+// TestApplyRepoToDBValidChinesePathProjects 中文目录/文件名路径正常投影
+// （issue #283 根因回归：ASCII-only 校验已放宽为 Unicode 目录名兼容）。
+func TestApplyRepoToDBValidChinesePathProjects(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/学校/简介.md", "---\ntitle: 简介\n---\n\n# 简介")
+	writeRepoFile(t, repo, "同济新手教程/学校/社团活动.md", "---\ntitle: 社团活动\n---\n\n# 社团活动")
+
+	cfg := GitConfig{CloneDir: repo}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if res.PagesAdded != 2 {
+		t.Fatalf("PagesAdded=%d, want 2 (中文嵌套路径全部投影)", res.PagesAdded)
+	}
+	if page := wikiPages.GetByPath("同济新手教程/学校/简介"); page.Id == 0 {
+		t.Fatal("中文嵌套页面 同济新手教程/学校/简介 missing after sync")
+	}
+	if page := wikiPages.GetByPath("同济新手教程/学校/社团活动"); page.Id == 0 {
+		t.Fatal("中文嵌套页面 同济新手教程/学校/社团活动 missing after sync")
 	}
 }

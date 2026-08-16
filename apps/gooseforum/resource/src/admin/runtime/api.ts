@@ -564,3 +564,15 @@ export function getWikiWebhookSecret() {
 export function saveWikiWebhookSecret(secret: string) {
   return postJson<unknown>('/api/admin/wiki/sync/webhook-secret', { secret }, adminText('k00n0'))
 }
+
+export interface WikiAssetCDNStatus {
+  cdn: string
+}
+
+export function getWikiAssetCDN() {
+  return getJson<WikiAssetCDNStatus>('/api/admin/wiki/sync/cdn', adminText('k00n0'))
+}
+
+export function saveWikiAssetCDN(cdn: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/cdn', { cdn }, adminText('k00n0'))
+}

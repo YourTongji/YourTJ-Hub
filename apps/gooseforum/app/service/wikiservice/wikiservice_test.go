@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
@@ -30,6 +31,7 @@ func setupWikiTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
+		&eventNotification.Entity{},
 		&wikiNamespaces.Entity{},
 		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
@@ -212,7 +214,10 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	tree := BuildTree("docs/new")
+	tree, err := BuildTree("docs/new")
+	if err != nil {
+		t.Fatalf("build tree: %v", err)
+	}
 	if len(tree) != 2 {
 		t.Fatalf("tree namespaces=%d, want 2: %+v", len(tree), tree)
 	}
@@ -255,7 +260,10 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/guide/tips", "Tips", base)
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(time.Hour))
 
-	res := BuildTreeAPI()
+	res, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("build tree api: %v", err)
+	}
 	if len(res.Namespaces) != 2 {
 		t.Fatalf("namespaces=%d, want 2: %+v", len(res.Namespaces), res.Namespaces)
 	}
@@ -295,7 +303,10 @@ func TestBuildTreePreservesRepositoryDirectories(t *testing.T) {
 		t.Fatalf("set process order: %v", err)
 	}
 
-	tree := BuildTree("guide/admission/process")
+	tree, err := BuildTree("guide/admission/process")
+	if err != nil {
+		t.Fatalf("build tree: %v", err)
+	}
 	if len(tree) != 1 {
 		t.Fatalf("namespaces=%d, want 1: %+v", len(tree), tree)
 	}
@@ -333,7 +344,10 @@ func TestBuildHomeRecentByUpdatedAt(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/mid", "Mid", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(2*time.Hour))
 
-	home := BuildHome()
+	home, err := BuildHome()
+	if err != nil {
+		t.Fatalf("build home: %v", err)
+	}
 	if len(home.Recent) != 3 {
 		t.Fatalf("recent count=%d, want 3: %+v", len(home.Recent), home.Recent)
 	}
@@ -354,7 +368,10 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/b", "B", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	summaries := BuildNamespaceSummaries()
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		t.Fatalf("build namespace summaries: %v", err)
+	}
 	if len(summaries) != 2 {
 		t.Fatalf("summaries=%d, want 2: %+v", len(summaries), summaries)
 	}

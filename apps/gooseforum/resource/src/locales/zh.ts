@@ -1929,6 +1929,7 @@ export default {
     'wiki.revision.notFound': '修订不存在。',
     'wiki.revision.conflict': '页面已被他人更新，请基于最新版本重新编辑。',
     'wiki.saveFailed': 'Wiki 保存失败，请稍后重试。',
+    'wiki.readFailed': 'Wiki 数据读取失败，请稍后重试。',
   },
   serverActions: {
     uploadAttachment: '上传附件',

@@ -183,10 +183,11 @@ func statusString(s int8) string {
 }
 
 // BuildSyncStatus 构建同步面板状态。
-func BuildSyncStatus() SyncStatus {
-	// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
-	// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
-	// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
+// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
+// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+// 页面/命名空间计数失败必须上抛：面板必须区分 DB 故障与真实零页面（issue #287）。
+func BuildSyncStatus() (SyncStatus, error) {
 	ReconcileStaleRuns()
 	cfg := LoadGitConfig()
 	status := SyncStatus{
@@ -194,17 +195,29 @@ func BuildSyncStatus() SyncStatus {
 		Repo:    cfg.Repo,
 		Branch:  cfg.Branch,
 	}
-	if latest := wikiSyncRuns.Latest(); latest.Id != 0 {
+	if latest, err := wikiSyncRuns.Latest(); err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return SyncStatus{}, fmt.Errorf("load latest wiki sync run: %w", err)
+		}
+	} else if latest.Id != 0 {
 		status.HeadSha = latest.HeadSha
 		last := ToRunView(latest)
 		status.LastRun = &last
 	}
-	for _, r := range wikiSyncRuns.ListRecent(10) {
+	recentRuns, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		return SyncStatus{}, fmt.Errorf("list recent wiki sync runs: %w", err)
+	}
+	for _, r := range recentRuns {
 		status.RecentRuns = append(status.RecentRuns, ToRunView(r))
 	}
-	dbconnect.Connect().Table("wiki_pages").Count(&status.Pages.Total)
-	dbconnect.Connect().Table("wiki_namespaces").Count(&status.Pages.Namespaces)
-	return status
+	if err := dbconnect.Connect().Table("wiki_pages").Count(&status.Pages.Total).Error; err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki pages: %w", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_namespaces").Count(&status.Pages.Namespaces).Error; err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki namespaces: %w", err)
+	}
+	return status, nil
 }
 
 // ToRunView 把同步运行实体映射为视图（控制器层导出用）。
@@ -234,8 +247,19 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 // 其他进程正在执行的同步。
 var syncMu sync.Mutex
 
-// syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
-// 避免投影停留在旧 head（并发丢弃 push 会 stale 到下次定时同步）。
+// syncHandoffMu 关闭「最终排空检查与解锁之间」的丢触发窗口（review P1）：
+// 到达方在 handoffMu 临界区内执行「TryLock 失败 → 置 pending」，持锁方在
+// handoffMu 临界区内执行「排空循环 + 释放锁」。二者互斥后，pending 的置位
+// 要么发生在持锁方最终检查之前（随后被排空循环消费），要么发生在锁释放
+// 之后（此时 TryLock 必然成功，触发直接进入正常同步）——不存在「已置位
+// 却无人消费」的窗口。锁序：到达方 handoffMu → syncMu.TryLock（非阻塞）；
+// 持锁方 syncMu（已持有）→ handoffMu。到达方临界区极短，补跑期间到达方
+// 短暂阻塞在 handoffMu 上等待补跑完成，不丢触发。
+var syncHandoffMu sync.Mutex
+
+// syncPending 运行期间到达的 webhook push 合并标记：当前同步持锁排空补跑
+// （SyncWithConfig defer 内循环 CAS 消费），避免投影停留在旧 head（并发
+// 丢弃 push 会 stale 到下次定时同步）。
 var syncPending atomic.Bool
 
 // ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
@@ -526,38 +550,80 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
 	}
 	if !TryAcquireSyncLock() {
-		syncPending.Store(true)
-		return nil, ErrSyncAlreadyRunning
+		// review P1（状态交接竞态）：TryLock 失败不能直接置 pending 返回——
+		// 持锁方可能正处于「最终检查与解锁之间」。在 handoffMu 临界区内
+		// 重试：若持锁方已完成交接（锁已释放）则 TryLock 成功，直接进入
+		// 正常同步（不丢触发）；若仍持锁则置 pending，持锁方的下一次临界区
+		// 检查必然消费它。任何情况下都不存在「已置位却无人消费」的窗口。
+		syncHandoffMu.Lock()
+		if !TryAcquireSyncLock() {
+			syncPending.Store(true)
+			syncHandoffMu.Unlock()
+			return nil, ErrSyncAlreadyRunning
+		}
+		syncHandoffMu.Unlock()
 	}
 	// 崩溃恢复（issue #290）：此刻锁空闲刚被本调用持有 = 本进程无其他在途
 	// 同步，库中 running 行必为崩溃/重启/MarkFinished 失败残留 → 回收，
 	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
 	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
 	markAbandonedRuns()
+	// 补跑必须持有同步锁执行（syncOnce 假定调用方持锁）。修复前 defer 先
+	// ReleaseSyncLock 再补跑：补跑期间到达的第三个触发会成功获取锁并并发
+	// 进入 syncOnce，对同一 clone fetch/reset、对同一投影并发 upsert（#285）。
+	// 循环排空 pending：补跑期间新到达的触发合并为下一次补跑——不丢失、不
+	// 并发；每次补跑都由一次新的到达触发（非自触发），到达停止即终止。
+	// 最终交接（review P1）：每次 pending 检查都在 handoffMu 临界区内，
+	// 与到达方的「TryLock 失败 → 置 pending」互斥——pending 置位要么被
+	// 本次/下一次检查消费，要么发生在锁释放之后（到达方随后 TryLock
+	// 成功直接同步），不存在无人消费的窗口。
 	defer func() {
-		ReleaseSyncLock()
-		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
-		if syncPending.CompareAndSwap(true, false) {
-			// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止
-			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
-			// startup/cron 之外的直接调用方）。
-			defer recovery.Recover("wiki_sync_pending_rerun")
-			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
-			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
-			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
-			if TryAcquireSyncLock() {
-				defer ReleaseSyncLock()
-				if _, err := syncOnce(cfg, "webhook"); err != nil {
-					slog.Warn("wiki sync: pending rerun failed", "error", err)
+		for {
+			syncHandoffMu.Lock()
+			if !syncPending.CompareAndSwap(true, false) {
+				if h := syncReleaseHook.Load(); h != nil {
+					(*h)() // 测试钩子：仍持 handoffMu+syncMu，即将释放
 				}
+				ReleaseSyncLock()
+				syncHandoffMu.Unlock()
+				return
 			}
+			syncHandoffMu.Unlock()
+			runPendingSync(cfg)
 		}
 	}()
 	return syncOnce(cfg, trigger)
 }
 
+// runPendingSync 持锁补跑一次合并的同步触发（调用方持有同步锁）。
+// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止进程
+// （webhook/manual 外层已有 Recover，此处再兜底，覆盖 startup/cron 之外
+// 的直接调用方）。
+func runPendingSync(cfg GitConfig) {
+	defer recovery.Recover("wiki_sync_pending_rerun")
+	if _, err := syncOnce(cfg, "webhook"); err != nil {
+		slog.Warn("wiki sync: pending rerun failed", "error", err)
+	}
+}
+
+// syncOnceEnterHook 测试专用钩子：每次 syncOnce 进入主体时调用（生产为 nil）。
+// 并发测试用它确定性阻塞 syncOnce，构造「主运行/补跑」重叠窗口验证锁串行化。
+// 原子装载：测试安装/清理与 syncOnce 并发读取之间无数据竞争（ci-backend-race
+// 在 -race 下运行该包）。
+var syncOnceEnterHook atomic.Pointer[func()]
+
+// syncReleaseHook 测试专用钩子：持锁方完成最终 pending 检查（确认无遗留）、
+// 即将 ReleaseSyncLock 时调用（此时仍持有 syncMu + syncHandoffMu）。并发
+// 测试用它确定性阻塞「最终交接」窗口，构造「检查已过、锁未放」的状态，
+// 验证该窗口内到达的触发被接管为正常同步而非丢弃（review P1 回归测试）。
+// 原子装载：与并发读取之间无数据竞争（ci-backend-race 在 -race 下运行）。
+var syncReleaseHook atomic.Pointer[func()]
+
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
 func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
+	if h := syncOnceEnterHook.Load(); h != nil {
+		(*h)()
+	}
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {
 		return nil, fmt.Errorf("create sync run: %w", err)
@@ -627,6 +693,91 @@ func migratePagePath(page *wikiPages.Entity, newPath, newNamespace string) error
 	})
 }
 
+// adoptDisappearedPage 尝试把「仓库中消失的页面行」收养为 wanted 页面
+// （Git 重命名/移动/命名空间重建）：迁移 path/namespace + 恢复软删 + 清空
+// content_hash，返回被收养的页面（调用方随后走 updatePageFromRepo，恢复
+// topic 生命周期并刷新内容/source_path；清空 hash 强制跳过幂等判断）。
+// 返回 nil 表示没有唯一可收养候选（调用方走 createPageFromRepo 新建）。
+//
+// 匹配优先级（每行最多被收养一次，adoptedIDs 防止同次同步重复收养）：
+//  1. source_path 精确匹配（review L5：命名空间删除→重建且 URL key 变化时，
+//     旧软删页面 path 首段已是旧 key，但仓库相对路径稳定）；
+//  2. content_hash 唯一匹配（issue #288：内容未变的文件换了路径；同 hash
+//     多候选、或同 hash 多个 wanted（复制）均视为歧义，fail-safe 不猜测
+//     合并，保持新建+软删的旧行为）。
+func adoptDisappearedPage(wp wantedPage, curHash string, disappearedByHash map[string][]*wikiPages.Entity, wantedCountByHash map[string]int, adoptedIDs map[uint64]struct{}) (*wikiPages.Entity, error) {
+	if orphan := wikiPages.GetBySourcePathUnscoped(wp.sourcePath); orphan.Id != 0 {
+		if _, done := adoptedIDs[orphan.Id]; !done {
+			oldPath := orphan.Path
+			if err := adoptWikiPage(&orphan, wp); err != nil {
+				return nil, err
+			}
+			adoptedIDs[orphan.Id] = struct{}{}
+			slog.Info("wiki sync: adopted orphaned page after namespace recreate",
+				"sourcePath", wp.sourcePath, "oldPath", oldPath, "path", wp.path)
+			return &orphan, nil
+		}
+	}
+	// 内容哈希收养仅在无歧义时生效：同 hash 的 wanted 多于 1 个（复制/
+	// 合并场景）或消失候选多于 1 个（多页同内容）都不猜测。
+	if wantedCountByHash[curHash] > 1 {
+		return nil, nil
+	}
+	var candidates []*wikiPages.Entity
+	for _, c := range disappearedByHash[curHash] {
+		if _, done := adoptedIDs[c.Id]; done {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	if len(candidates) == 1 {
+		adopted := candidates[0]
+		oldPath := adopted.Path
+		if err := adoptWikiPage(adopted, wp); err != nil {
+			return nil, err
+		}
+		adoptedIDs[adopted.Id] = struct{}{}
+		slog.Info("wiki sync: adopted renamed/moved page",
+			"oldPath", oldPath, "path", wp.path, "sourcePath", wp.sourcePath)
+		return adopted, nil
+	}
+	return nil, nil
+}
+
+// adoptWikiPage 执行收养落库：迁移 path/namespace、重算 parent_id、恢复软删、
+// 清空 content_hash，并同步更新内存实体（供调用方复用）。
+func adoptWikiPage(page *wikiPages.Entity, wp wantedPage) error {
+	if err := migratePagePath(page, wp.path, wp.namespace); err != nil {
+		return err
+	}
+	// 嵌套路径：parent_id 关联新路径的父页面（与 createPageFromRepo 同规则）。
+	parentID := uint64(0)
+	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
+		parentPath := strings.Join(segments[:len(segments)-1], "/")
+		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
+			parentID = parent.Id
+		}
+	}
+	if parentID != page.ParentId {
+		if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+			Update("parent_id", parentID).Error; err != nil {
+			return err
+		}
+		page.ParentId = parentID
+	}
+	// 页面行恢复 + 清空 hash 强制走 updatePageFromRepo：收养页面对应的
+	// topic 在软删时被同步软删，内容未变时幂等判断会跳过更新，topic 生命
+	// 周期将永远留在 USER_DELETED（updatePageFromRepo 内负责恢复 topic）。
+	if err := wikiPages.RestoreSoftDeleted(page.Id); err != nil {
+		return err
+	}
+	page.Path = wp.path
+	page.Namespace = wp.namespace
+	page.DeletedAt = gorm.DeletedAt{}
+	page.ContentHash = ""
+	return nil
+}
+
 // namespaceURLKey 返回命名空间的当前 URL key（slug 已分配时用 slug，
 // 未分配时降级用显示名——与同步器 2.6 的降级策略一致，供 D5 删除计数等
 // 按 URL key 查询 wiki_pages.namespace 列的场景使用）。
@@ -648,12 +799,19 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 1. 收集现有页面（含软删，用于恢复）。
-	existing := wikiPages.ListAll()
+	existing, err := wikiPages.ListAll()
+	if err != nil {
+		return fmt.Errorf("list existing wiki pages: %w", err)
+	}
 	byPath := make(map[string]*wikiPages.Entity, len(existing))
 	for _, p := range existing {
 		byPath[p.Path] = p
 	}
-	for _, p := range listAllUnscoped() {
+	unscoped, err := listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages: %w", err)
+	}
+	for _, p := range unscoped {
 		if _, ok := byPath[p.Path]; !ok {
 			byPath[p.Path] = p
 		}
@@ -759,12 +917,20 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 仓库真实路径（去 .md，保留大小写/Unicode），与 URL 解耦。
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
+	var invalidPaths []string
 	for _, f := range files {
 		rel := strings.TrimSuffix(f.Path, ".md")
-		norm, ok := ValidatePath(rel)
-		if !ok {
-			// 根级 README/CONTRIBUTING 等非 wiki 页面：合法仓库文件但非法页面路径，跳过。
-			slog.Debug("wiki sync: skip non-page md", "path", rel)
+		norm, err := ValidatePathError(rel)
+		if err != nil {
+			if strings.Contains(rel, "/") {
+				// 正式内容路径非法 → fail-fast：run 标记 failed，绝不静默
+				// 跳过并报告成功（issue #283）。
+				invalidPaths = append(invalidPaths, fmt.Sprintf("%s: %v", rel, err))
+				continue
+			}
+			// 仓库根级 README/CONTRIBUTING/LICENSE 等元文件：显式排除
+			// （合法仓库文件但非页面路径），不阻断同步。
+			slog.Debug("wiki sync: skip root-level non-page md", "path", rel)
 			continue
 		}
 		dir := NamespaceOf(norm)
@@ -785,7 +951,13 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
 	}
-	resolver := newWikiReferenceResolver(cfg.CloneDir, wanted)
+	if len(invalidPaths) > 0 {
+		// fail-fast 必须在任何 DB 写入（slug 迁移/upsert/软删/命名空间删除）
+		// 之前返回：非法路径未修正时同步整体失败，避免部分投影与误删。
+		return fmt.Errorf("wiki sync: %d invalid page path(s): %s", len(invalidPaths), strings.Join(invalidPaths, "; "))
+	}
+
+	resolver := newWikiReferenceResolver(cfg, wanted, hotdataserve.GetWikiSyncSettingsConfigCache().AssetCDN)
 	// review M1：单页引用校验/渲染失败 → 跳过该页并聚合告警（其余页面继续），
 	// 避免一个坏链接冻结整个 wiki 的更新与删除。但安全类错误（仓库根逃逸/
 	// 符号链接越界）必须整体失败：恶意链接不允许通过「坏页跳过」绕过校验。
@@ -827,7 +999,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if curKey == plan.urlKey {
 			continue
 		}
-		for _, p := range listAllUnscoped() {
+		unscoped, err := listAllUnscoped()
+		if err != nil {
+			return fmt.Errorf("list unscoped wiki pages for path migration: %w", err)
+		}
+		for _, p := range unscoped {
 			if NamespaceOf(p.Path) != curKey {
 				continue
 			}
@@ -843,6 +1019,33 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			slog.Info("wiki sync: page path migrated for URL key change",
 				"namespace", nsName, "oldKey", curKey, "newKey", plan.urlKey, "page", newPath)
 		}
+	}
+
+	// 2.8 计算「仓库中消失的页面行」索引（issue #288：重命名/移动收养用）。
+	// 消失 = 当前 path（2.7 已迁移）不在 wanted 中的页面行（含软删——先删除
+	// 后重建的两步 rename 需要软删候选）。按 content_hash 分组；同 hash 多
+	// 候选时由收养逻辑判定歧义（fail-safe，不猜测合并）。
+	disappearedByHash := make(map[string][]*wikiPages.Entity)
+	unscopedPages, err := listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages for adoption: %w", err)
+	}
+	for _, p := range unscopedPages {
+		if _, ok := wantedByPath[p.Path]; ok {
+			continue
+		}
+		if p.ContentHash == "" {
+			continue
+		}
+		disappearedByHash[p.ContentHash] = append(disappearedByHash[p.ContentHash], p)
+	}
+	adoptedIDs := make(map[uint64]struct{})
+
+	// 2.85 每 content_hash 的 wanted 页面计数（内容哈希收养的歧义判定：
+	// 同 hash 多个 wanted（复制场景）时禁止收养，fail-safe 不猜测合并）。
+	wantedCountByHash := make(map[string]int, len(wanted))
+	for _, wp := range wanted {
+		wantedCountByHash[sha256Hex(wp.body)]++
 	}
 
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
@@ -864,32 +1067,22 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			}
 		}
 		existingPage, ok := byPath[wp.path]
+		curHash := sha256Hex(wp.body)
 		if !ok {
-			// review L5：命名空间删除→重建且 URL key 变化时（如目录删除后
-			// index.md 新增 slug），旧软删页面按 path 无法命中，但 source_path
-			// （仓库相对路径）稳定 → 找回复用（迁移 path + 恢复），避免新建
-			// 重复 page/topic 并遗留孤儿软删页。
-			if orphan := wikiPages.GetBySourcePathUnscoped(wp.sourcePath); orphan.Id != 0 {
-				if err := migratePagePath(&orphan, wp.path, wp.namespace); err != nil {
-					errs = append(errs, fmt.Sprintf("adopt %s: %v", wp.path, err))
-					continue
-				}
-				// 页面行恢复 + 清空 hash 强制走 updatePageFromRepo：收养页面对应的
-				// topic 在命名空间删除时被同步软删，内容未变时幂等判断会跳过更新，
-				// topic 生命周期将永远留在 USER_DELETED（updatePageFromRepo 内
-				// 负责恢复 topic 生命周期）。
-				if err := wikiPages.RestoreSoftDeleted(orphan.Id); err != nil {
-					errs = append(errs, fmt.Sprintf("restore %s: %v", wp.path, err))
-					continue
-				}
-				orphan.Path = wp.path
-				orphan.Namespace = wp.namespace
-				orphan.DeletedAt = gorm.DeletedAt{}
-				orphan.ContentHash = ""
-				byPath[wp.path] = &orphan
-				existingPage = &orphan
-				slog.Info("wiki sync: adopted orphaned page after namespace recreate",
-					"sourcePath", wp.sourcePath, "path", wp.path)
+			// 收养「仓库中消失的页面行」：
+			//  - review L5：source_path 精确匹配（命名空间删除→重建且 URL key 变化）；
+			//  - issue #288：content_hash 唯一匹配（Git 重命名/移动——同内容不同路径）。
+			// 收养 = 迁移 path/namespace + 恢复软删 + 清空 hash 强制走
+			// updatePageFromRepo（topic 生命周期恢复 + source_path 刷新），
+			// 复用原 topic，回复/点赞/收藏/订阅全部保留。
+			adopted, adoptErr := adoptDisappearedPage(wp, curHash, disappearedByHash, wantedCountByHash, adoptedIDs)
+			if adoptErr != nil {
+				errs = append(errs, fmt.Sprintf("adopt %s: %v", wp.path, adoptErr))
+				continue
+			}
+			if adopted != nil {
+				byPath[wp.path] = adopted
+				existingPage = adopted
 			} else {
 				if err := createPageFromRepo(cfg, wp); err != nil {
 					errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
@@ -899,7 +1092,6 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 				continue
 			}
 		}
-		curHash := sha256Hex(wp.body)
 		restored := existingPage.DeletedAt.Valid
 		// 仓库重新出现已删页面 → 先恢复页面行（复用原 topic/评论/点赞/订阅），
 		// 恢复必须优先于幂等判断：否则内容未变的软删页面永远无法解除 deleted_at。
@@ -920,7 +1112,15 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			!restored {
 			continue
 		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
+		// 纯渲染变化（CDN 切换等）不打扰 watcher：正文/标题/排序/源路径
+		// 均未变时内容语义未变，仅资源 URL 形态变化，通知会误导订阅者
+		// （review P2）。
+		contentChanged := existingPage.ContentHash != curHash ||
+			existingPage.Title != wp.title ||
+			existingPage.SortOrder != wp.order ||
+			existingPage.SourcePath != wp.sourcePath ||
+			restored
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, contentChanged); err != nil {
 			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
@@ -929,7 +1129,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 
 	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
 	//    重新扫描最新 path（2.7 可能迁移过 URL key），按 URL key 匹配 wanted。
-	for _, p := range listAllUnscoped() {
+	unscopedPages, err = listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages for deletion pass: %w", err)
+	}
+	for _, p := range unscopedPages {
 		if _, ok := wantedByPath[p.Path]; ok {
 			continue
 		}
@@ -990,7 +1194,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	for _, wp := range wanted {
 		repoNamespaces[wp.displayName] = struct{}{}
 	}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return fmt.Errorf("list wiki namespaces for deletion pass: %w", err)
+	}
+	for _, ns := range namespaces {
 		if _, ok := repoNamespaces[ns.Name]; ok {
 			continue
 		}
@@ -1026,7 +1234,10 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 // the namespace root (0). Derived parent paths are always shorter, so a
 // successful reconciliation removes stale links and cannot create a cycle.
 func reconcileWikiPageParents() error {
-	pages := wikiPages.ListAll()
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		return err
+	}
 	byPath := make(map[string]*wikiPages.Entity, len(pages))
 	for _, page := range pages {
 		byPath[page.Path] = page
@@ -1060,10 +1271,11 @@ func parentIndexID(page *wikiPages.Entity, byPath map[string]*wikiPages.Entity) 
 }
 
 // listAllUnscoped 返回全部页面（含软删，供恢复检测）。
-func listAllUnscoped() []*wikiPages.Entity {
+// 查询失败必须上抛：删除 pass 依赖全量页面清单，吞错会漏删并谎报同步成功（issue #287）。
+func listAllUnscoped() ([]*wikiPages.Entity, error) {
 	var entities []*wikiPages.Entity
-	dbconnect.Connect().Table("wiki_pages").Unscoped().Find(&entities)
-	return entities
+	err := dbconnect.Connect().Table("wiki_pages").Unscoped().Find(&entities).Error
+	return entities, err
 }
 
 func sha256Hex(s string) string {
@@ -1157,7 +1369,9 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
+// contentChanged 表示正文/元数据/恢复事件是否变化：仅 CDN 切换导致的纯渲染
+// 变化（false）不发送 watcher 通知。
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string, contentChanged bool) error {
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1219,7 +1433,9 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
 	}
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
-	notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
+	if contentChanged {
+		notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
+	}
 	return nil
 }
 

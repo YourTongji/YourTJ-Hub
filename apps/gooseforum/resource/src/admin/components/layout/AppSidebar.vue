@@ -108,7 +108,7 @@ const navGroups = computed<NavGroup[]>(() => {
       { title: adminText('k00cj'), url: '/admin/settings/http-notify', icon: Webhook, permission: AdminPermission.SiteManager },
       { title: adminText('k00fn'), url: '/admin/settings/storage', icon: HardDrive, permission: AdminPermission.SiteManager },
       { title: adminText('k00gp'), url: '/admin/settings/terms', icon: ScrollText, permission: AdminPermission.SiteManager },
-      { title: adminText('k00s4'), url: '/admin/settings/onesystem', icon: RefreshCw, permission: AdminPermission.SiteManager },
+      { title: adminText('k00t4'), url: '/admin/settings/onesystem', icon: RefreshCw, permission: AdminPermission.SiteManager },
     ],
   },
   ].map(group => ({

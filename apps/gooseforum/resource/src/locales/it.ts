@@ -1929,6 +1929,7 @@ export default {
     'wiki.revision.notFound': 'Revisione non trovata.',
     'wiki.revision.conflict': 'La pagina è stata aggiornata da qualcun altro. Modifica in base alla versione più recente.',
     'wiki.saveFailed': 'Salvataggio wiki non riuscito. Riprova più tardi.',
+    'wiki.readFailed': 'Lettura dei dati wiki non riuscita. Riprova più tardi.',
   },
   serverActions: {
     uploadAttachment: 'caricare allegati',

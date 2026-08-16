@@ -78,6 +78,8 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	adminWiki.GET("sync/runs", UpButterReq(api.WikiSyncRuns))
 	adminWiki.GET("sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret))
 	adminWiki.POST("sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
+	adminWiki.GET("sync/cdn", UpButterReq(api.GetWikiAssetCDN))
+	adminWiki.POST("sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 	// 视图路由（与 route4api.go viewRoute 注册一致；JWTAuth 可选登录）。
 	wikiView := router.Group("/wiki")
 	wikiView.Use(middleware.JWTAuth)
@@ -459,6 +461,86 @@ func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 	})
 }
 
+func TestWikiAssetCDNHTTPContract(t *testing.T) {
+	conn, router := setupWikiContractTest(t)
+	bob := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, bob.Id, permission.PageManager)
+	bobToken := contractSessionToken(t, bob)
+
+	// 该测试持久化 wikiSyncSettings page_config 行（AssetCDN 字段），
+	// 中断的子测试会留下该行；无论结果如何都删除，避免污染共享测试库。
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+	})
+
+	t.Run("unconfigured reports default self", func(t *testing.T) {
+		// 清空管理端设置，保证未配置态。
+		conn.Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn status code = %d, want 0", env.Code)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status result: %v", err)
+		}
+		if result["cdn"] != "self" {
+			t.Fatalf("asset cdn = %v, want self", result["cdn"])
+		}
+	})
+
+	t.Run("manager saves jsDelivr then status reports it", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/cdn",
+			`{"cdn":"jsDelivr"}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn save status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn save code = %d, want 0: %s", env.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-asset-cdn-save-success.json"))
+
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status after save: %v", err)
+		}
+		if result["cdn"] != "jsDelivr" {
+			t.Fatalf("asset cdn after save = %v, want jsDelivr", result["cdn"])
+		}
+	})
+
+	t.Run("manager restores self", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/cdn",
+			`{"cdn":"self"}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn restore status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn restore code = %d, want 0", env.Code)
+		}
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status after restore: %v", err)
+		}
+		if result["cdn"] != "self" {
+			t.Fatalf("asset cdn after restore = %v, want self", result["cdn"])
+		}
+	})
+}
+
 func TestWikiSyncStatusHTTPContract(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	bob := createHTTPContractUser(t, conn, contractTestID())
@@ -573,5 +655,124 @@ func TestWikiUnauthenticatedHTTPContract(t *testing.T) {
 	env := decodeContractEnvelope(t, rec)
 	if env.MessageCode != "auth.required" {
 		t.Fatalf("wiki unauthenticated messageCode = %q, want auth.required", env.MessageCode)
+	}
+}
+
+// TestWikiReadFailuresHTTPContract 注入数据库故障：公开 wiki 读接口与
+// 管理端同步状态/运行日志必须返回 HTTP 500 + wiki.readFailed，
+// 不能把 DB 故障伪装成空 wiki 或零计数（issue #287）。
+func TestWikiReadFailuresHTTPContract(t *testing.T) {
+	setup := func(t *testing.T) (*gorm.DB, *gin.Engine) {
+		conn, router := setupWikiContractTest(t)
+		alice := createHTTPContractUser(t, conn, contractTestID())
+		seedWikiContract(t, conn, alice.Id)
+		return conn, router
+	}
+
+	t.Run("tree returns 500 when wiki_namespaces is missing", func(t *testing.T) {
+		conn, router := setup(t)
+		if err := conn.Migrator().DropTable(&wikiNamespaces.Entity{}); err != nil {
+			t.Fatalf("drop wiki_namespaces: %v", err)
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/tree", "", "")
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("wiki tree failure status = %d, want 500: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-read-failed.json"))
+	})
+
+	t.Run("namespaces returns 500 when wiki_pages is missing", func(t *testing.T) {
+		conn, router := setup(t)
+		if err := conn.Migrator().DropTable(&wikiPages.Entity{}); err != nil {
+			t.Fatalf("drop wiki_pages: %v", err)
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/namespaces", "", "")
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("wiki namespaces failure status = %d, want 500: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-read-failed.json"))
+	})
+
+	t.Run("home returns 500 when topics is missing", func(t *testing.T) {
+		conn, router := setup(t)
+		if err := conn.Migrator().DropTable(&topics.Entity{}); err != nil {
+			t.Fatalf("drop topics: %v", err)
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/home", "", "")
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("wiki home failure status = %d, want 500: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-read-failed.json"))
+	})
+
+	t.Run("admin sync status returns 500 when wiki_pages is missing", func(t *testing.T) {
+		conn, router := setup(t)
+		bob := createHTTPContractUser(t, conn, contractTestID())
+		grantContractPermission(t, conn, bob.Id, permission.PageManager)
+		bobToken := contractSessionToken(t, bob)
+		if err := conn.Migrator().DropTable(&wikiPages.Entity{}); err != nil {
+			t.Fatalf("drop wiki_pages: %v", err)
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/status", "", bobToken)
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("wiki sync status failure status = %d, want 500: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-read-failed.json"))
+	})
+
+	t.Run("admin sync runs returns 500 when wiki_sync_runs is missing", func(t *testing.T) {
+		conn, router := setup(t)
+		bob := createHTTPContractUser(t, conn, contractTestID())
+		grantContractPermission(t, conn, bob.Id, permission.PageManager)
+		bobToken := contractSessionToken(t, bob)
+		if err := conn.Migrator().DropTable(&wikiSyncRuns.Entity{}); err != nil {
+			t.Fatalf("drop wiki_sync_runs: %v", err)
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/runs", "", bobToken)
+		if rec.Code != http.StatusInternalServerError {
+			t.Fatalf("wiki sync runs failure status = %d, want 500: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-read-failed.json"))
+	})
+}
+
+// TestWikiEmptyDBHTTPContract 空库（无 namespace/页面）必须返回成功 + 空结果，
+// 与 DB 故障（HTTP 500）可区分（issue #287 验收标准）。
+func TestWikiEmptyDBHTTPContract(t *testing.T) {
+	conn, router := setupWikiContractTest(t)
+	_ = conn // 表已迁移，无种子数据。
+
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/tree", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty wiki tree status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	env := decodeContractEnvelope(t, rec)
+	if env.Code != 0 {
+		t.Fatalf("empty wiki tree code = %d, want 0: %s", env.Code, rec.Body.String())
+	}
+	var tree struct {
+		Namespaces []any `json:"namespaces"`
+	}
+	if err := json.Unmarshal(env.Result, &tree); err != nil {
+		t.Fatalf("decode empty wiki tree result: %v", err)
+	}
+	if len(tree.Namespaces) != 0 {
+		t.Fatalf("empty wiki tree namespaces = %#v, want []", tree.Namespaces)
+	}
+
+	rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/home", "", "")
+	if rec.Code != http.StatusOK {
+		t.Fatalf("empty wiki home status = %d, want 200: %s", rec.Code, rec.Body.String())
+	}
+	env = decodeContractEnvelope(t, rec)
+	var home struct {
+		Namespaces []any `json:"namespaces"`
+		Recent     []any `json:"recent"`
+	}
+	if err := json.Unmarshal(env.Result, &home); err != nil {
+		t.Fatalf("decode empty wiki home result: %v", err)
+	}
+	if len(home.Namespaces) != 0 || len(home.Recent) != 0 {
+		t.Fatalf("empty wiki home = %#v, want empty namespaces/recent", home)
 	}
 }

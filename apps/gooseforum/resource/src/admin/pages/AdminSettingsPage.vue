@@ -271,7 +271,7 @@ const pageMeta = computed(() => {
     announcement: { title: adminText('k0009'), description: adminText('k000a') },
     storage: { title: adminText('k00fn'), description: adminText('k00fo') },
     terms: { title: adminText('k00gp'), description: adminText('k00gq') },
-    onesystem: { title: adminText('k00s4'), description: adminText('k00s5') },
+    onesystem: { title: adminText('k00t4'), description: adminText('k00t5') },
   }
   return meta[props.kind]
 })
@@ -810,7 +810,7 @@ async function refreshSyncStatus() {
   try {
     syncStatusItems.value = await getPkSyncStatus()
   } catch (err) {
-    adminToast.error(err, adminText('k00s3'))
+    adminToast.error(err, adminText('k00t3'))
   } finally {
     syncStatusLoading.value = false
   }
@@ -822,9 +822,9 @@ async function saveCookie() {
     await saveOnesystemSettings(onesystemForm.cookie.trim())
     onesystemForm.cookieConfigured = onesystemForm.cookie.trim() !== ''
     onesystemForm.cookie = ''
-    adminToast.success(adminText('k00sv'))
+    adminToast.success(adminText('k00tv'))
   } catch (err) {
-    adminToast.error(err, adminText('k00s1'))
+    adminToast.error(err, adminText('k00t1'))
   } finally {
     savingCookie.value = false
   }
@@ -836,9 +836,9 @@ async function clearCookie() {
   try {
     await saveOnesystemSettings('')
     onesystemForm.cookieConfigured = false
-    adminToast.success(adminText('k00sw'))
+    adminToast.success(adminText('k00tw'))
   } catch (err) {
-    adminToast.error(err, adminText('k00s1'))
+    adminToast.error(err, adminText('k00t1'))
   } finally {
     savingCookie.value = false
   }
@@ -847,17 +847,17 @@ async function clearCookie() {
 async function startSync() {
   const term = syncForm.term.trim()
   if (!term) {
-    adminToast.warning(adminText('k00sy'))
+    adminToast.warning(adminText('k00ty'))
     return
   }
   syncingPk.value = true
   try {
     const depth = Math.min(Math.max(syncForm.depth || 1, 1), 8)
     const result = await syncPkCalendar(term, depth)
-    adminToast.success(adminText('k00sq', { term: result.term || term }))
+    adminToast.success(adminText('k00tq', { term: result.term || term }))
     startSyncPolling(result.calendarId)
   } catch (err) {
-    adminToast.error(err, adminText('k00s2'))
+    adminToast.error(err, adminText('k00t2'))
   } finally {
     syncingPk.value = false
   }
@@ -872,9 +872,9 @@ function startSyncPolling(calendarId: number) {
       if (!item || item.status === 'running') return
       stopSyncPolling()
       if (item.status === 'failed') {
-        adminToast.error(adminText('k00sz'))
+        adminToast.error(adminText('k00tz'))
       } else {
-        adminToast.success(adminText('k00sr'))
+        adminToast.success(adminText('k00tr'))
       }
     })
   }
@@ -891,10 +891,10 @@ function stopSyncPolling() {
 
 function statusLabel(status: string) {
   switch (status) {
-    case 'running': return adminText('k00ss')
-    case 'completed': return adminText('k00st')
-    case 'failed': return adminText('k00su')
-    default: return adminText('k00sx')
+    case 'running': return adminText('k00ts')
+    case 'completed': return adminText('k00tt')
+    case 'failed': return adminText('k00tu')
+    default: return adminText('k00tx')
   }
 }
 
@@ -1395,63 +1395,63 @@ onUnmounted(stopSyncPolling)
       <div v-else-if="kind === 'onesystem'" class="max-w-3xl space-y-8">
         <!-- Cookie 凭证配置 -->
         <form class="space-y-4 rounded-lg border border-border bg-card p-5" @submit.prevent="saveCookie">
-          <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText('k00s6') }}</div>
-          <p class="text-sm text-muted-foreground">{{ adminText('k00s7') }}</p>
+          <div class="flex items-center gap-2 text-base font-medium"><KeyRound class="size-4 text-muted-foreground" />{{ adminText('k00t6') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00t7') }}</p>
           <div class="flex items-center gap-2">
             <Badge :variant="onesystemForm.cookieConfigured ? 'default' : 'outline'">
-              {{ onesystemForm.cookieConfigured ? adminText('k00s8') : adminText('k00s9') }}
+              {{ onesystemForm.cookieConfigured ? adminText('k00t8') : adminText('k00t9') }}
             </Badge>
           </div>
           <label class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00sa') }}
-            <Textarea v-model="onesystemForm.cookie" :placeholder="adminText('k00sb')" rows="2" autocomplete="off" />
-            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00sc') }}</span>
+            {{ adminText('k00ta') }}
+            <Textarea v-model="onesystemForm.cookie" :placeholder="adminText('k00tb')" rows="2" autocomplete="off" />
+            <span class="text-xs font-normal text-muted-foreground">{{ adminText('k00tc') }}</span>
           </label>
           <div class="flex gap-2">
             <Button type="submit" :disabled="savingCookie">
               <Loader2 v-if="savingCookie" class="size-4 animate-spin" />
               <Save v-else class="size-4" />
-              {{ adminText('k00sd') }}
+              {{ adminText('k00td') }}
             </Button>
             <Button type="button" variant="outline" :disabled="savingCookie || !onesystemForm.cookieConfigured" @click="clearCookie">
-              {{ adminText('k00se') }}
+              {{ adminText('k00te') }}
             </Button>
           </div>
         </form>
 
         <!-- 排课数据同步（issue #248）-->
         <div class="space-y-4 rounded-lg border border-border bg-card p-5">
-          <div class="flex items-center gap-2 text-base font-medium"><RefreshCw class="size-4 text-muted-foreground" />{{ adminText('k00sf') }}</div>
-          <p class="text-sm text-muted-foreground">{{ adminText('k00sg') }}</p>
+          <div class="flex items-center gap-2 text-base font-medium"><RefreshCw class="size-4 text-muted-foreground" />{{ adminText('k00tf') }}</div>
+          <p class="text-sm text-muted-foreground">{{ adminText('k00tg') }}</p>
           <div class="flex flex-wrap items-end gap-3">
             <label class="grid min-w-0 flex-1 gap-2 text-sm font-medium">
-              {{ adminText('k00sh') }}
-              <Input v-model="syncForm.term" :placeholder="adminText('k00si')" />
+              {{ adminText('k00th') }}
+              <Input v-model="syncForm.term" :placeholder="adminText('k00ti')" />
             </label>
             <label class="grid w-28 gap-2 text-sm font-medium">
-              {{ adminText('k00sj') }}
+              {{ adminText('k00tj') }}
               <Input v-model.number="syncForm.depth" type="number" min="1" max="8" />
             </label>
             <Button type="button" :disabled="syncingPk" @click="startSync">
               <Loader2 v-if="syncingPk" class="size-4 animate-spin" />
               <RefreshCw v-else class="size-4" />
-              {{ adminText('k00sk') }}
+              {{ adminText('k00tk') }}
             </Button>
           </div>
 
           <div class="border-t pt-4">
             <div class="mb-2 flex items-center justify-between">
-              <span class="text-sm font-medium">{{ adminText('k00sl') }}</span>
+              <span class="text-sm font-medium">{{ adminText('k00tl') }}</span>
               <Button type="button" variant="ghost" size="sm" @click="refreshSyncStatus">
                 <RefreshCw class="size-3.5" />
-                {{ adminText('k00sm') }}
+                {{ adminText('k00tm') }}
               </Button>
             </div>
             <div v-if="syncStatusLoading" class="flex items-center justify-center gap-2 py-6 text-sm text-muted-foreground">
               <Loader2 class="size-4 animate-spin" />
-              {{ adminText('k00sn') }}
+              {{ adminText('k00tn') }}
             </div>
-            <p v-else-if="syncStatusItems.length === 0" class="py-6 text-center text-sm text-muted-foreground">{{ adminText('k00so') }}</p>
+            <p v-else-if="syncStatusItems.length === 0" class="py-6 text-center text-sm text-muted-foreground">{{ adminText('k00to') }}</p>
             <ul v-else class="divide-y divide-border">
               <li v-for="item in syncStatusItems" :key="item.calendarId" class="flex items-start gap-3 py-2.5">
                 <div class="min-w-0 flex-1">
@@ -1462,7 +1462,7 @@ onUnmounted(stopSyncPolling)
                   </div>
                   <p v-if="item.errorMsg" class="mt-1 text-xs text-destructive">{{ item.errorMsg }}</p>
                   <p class="mt-0.5 text-xs text-muted-foreground">
-                    {{ adminText('k00sp', { rows: item.rowsWritten }) }}
+                    {{ adminText('k00tp', { rows: item.rowsWritten }) }}
                     <span v-if="item.finishedAt"> · {{ formatTime(item.finishedAt) }}</span>
                   </p>
                 </div>

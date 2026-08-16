@@ -28,7 +28,12 @@ type WikiHomeProps struct {
 // WikiHome 渲染 wiki 首页（PageComponent: wiki.home）。
 func WikiHome(c *gin.Context) {
 	loginUser := component.GetLoginUser(c)
-	home := wikiservice.BuildHome()
+	home, err := wikiservice.BuildHome()
+	if err != nil {
+		slog.Error("wiki home build failed", "error", err)
+		renderInternalError(c)
+		return
+	}
 	props := WikiHomeProps{
 		Namespaces: home.Namespaces,
 		Recent:     home.Recent,
@@ -47,7 +52,13 @@ func WikiHome(c *gin.Context) {
 		Version: payloadVersion,
 	}
 	payload.Layout.Sidebar.Mode = "wiki"
-	payload.Layout.Sidebar.WikiTree = wikiTreePayload("")
+	tree, err := wikiTreePayload("")
+	if err != nil {
+		slog.Error("wiki home tree build failed", "error", err)
+		renderInternalError(c)
+		return
+	}
+	payload.Layout.Sidebar.WikiTree = tree
 	renderPage(c, "wiki.gohtml", payload)
 }
 
@@ -143,7 +154,13 @@ func WikiDetail(c *gin.Context) {
 		Version: payloadVersion,
 	}
 	payload.Layout.Sidebar.Mode = "wiki"
-	payload.Layout.Sidebar.WikiTree = wikiTreePayload(page.Path)
+	tree, err := wikiTreePayload(page.Path)
+	if err != nil {
+		slog.Error("wiki detail tree build failed", "path", path, "error", err)
+		renderInternalError(c)
+		return
+	}
+	payload.Layout.Sidebar.WikiTree = tree
 	renderPage(c, "wiki.gohtml", payload)
 	// 计一次浏览（review P2：TopicDetail 已记录，wiki 详情此前漏记）。
 	if shouldCountTopicView(&topic) {
@@ -233,8 +250,11 @@ func wikiAsset(c *gin.Context, assetPath string) {
 	http.ServeContent(c.Writer, c.Request, info.Name(), info.ModTime(), file)
 }
 
-func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
-	tree := wikiservice.BuildTree(activePath)
+func wikiTreePayload(activePath string) ([]WikiTreeNamespacePayload, error) {
+	tree, err := wikiservice.BuildTree(activePath)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]WikiTreeNamespacePayload, 0, len(tree))
 	for _, ns := range tree {
 		result = append(result, WikiTreeNamespacePayload{
@@ -244,7 +264,7 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 			Nodes: wikiTreeNodesPayload(ns.Nodes),
 		})
 	}
-	return result
+	return result, nil
 }
 
 func wikiTreeNodesPayload(nodes []wikiservice.TreeNode) []WikiTreeNodePayload {
