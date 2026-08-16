@@ -23,7 +23,10 @@ const (
 )
 
 // reservedPathChars 文件系统保留字符（Windows 保留，跨平台目录名安全）。
-const reservedPathChars = `/ \ : * ? " < > |`
+// 额外拒绝 % 与 #（review M2）：Markdown URL 语法无法可靠表示——`%` 是
+// 转义前缀（`100%done.md` 无法被 url.Parse 解析），`#` 开启 fragment
+// （`a#b.md` 被截断为 `a`）；GitHub 外链拼接同样受影响。
+const reservedPathChars = `/ \ : * ? " < > | % #`
 
 // validSegment 校验单个路径段（命名空间或 slug）是否合法。
 func validSegment(seg string) bool {

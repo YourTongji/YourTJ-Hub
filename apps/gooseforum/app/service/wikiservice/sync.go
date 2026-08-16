@@ -320,7 +320,14 @@ type repoFile struct {
 	Hash    string // sha256(content)
 }
 
+// maxWikiPageBytes 单页源文件大小上限（review F2）：仓库恶意/意外的大文件
+// （如符号链接指向 /dev/zero）会撑爆内存并卡死同步，超限直接报错。
+const maxWikiPageBytes = 4 << 20 // 4 MiB
+
 // scanRepoFiles 递归扫描 clone 目录下的 .md 文件（排除 .git、隐藏目录）。
+// 只接受普通文件（lstat IsRegular）：Git 克隆会把仓库符号链接物化为 symlink，
+// 若跟随读取可把服务器任意文件（如 ../../config.toml）投影为公开 wiki 页
+// （review F2），或读 /dev/zero 类目标永久阻塞同步。符号链接一律拒绝。
 func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 	var files []repoFile
 	err := filepath.Walk(cloneDir, func(path string, info os.FileInfo, err error) error {
@@ -336,6 +343,16 @@ func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 		}
 		if !strings.HasSuffix(info.Name(), ".md") {
 			return nil
+		}
+		// review F2：拒绝符号链接（lstat 语义，不跟随）。
+		if info.Mode()&os.ModeSymlink != 0 {
+			return fmt.Errorf("wiki page %s is a symlink (not allowed)", path)
+		}
+		if !info.Mode().IsRegular() {
+			return fmt.Errorf("wiki page %s is not a regular file", path)
+		}
+		if info.Size() > maxWikiPageBytes {
+			return fmt.Errorf("wiki page %s exceeds %d bytes", path, maxWikiPageBytes)
 		}
 		rel, err := filepath.Rel(cloneDir, path)
 		if err != nil {
@@ -516,13 +533,14 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 // 可中文）；namespace = URL key（wiki_pages.namespace 列）；sourcePath = 仓库
 // 真实相对路径（GitHub 外链拼接用，与 URL 解耦）。
 type wantedPage struct {
-	path        string
-	sourcePath  string
-	namespace   string
-	displayName string
-	title       string
-	order       int
-	body        string
+	path         string
+	sourcePath   string
+	namespace    string
+	displayName  string
+	title        string
+	order        int
+	body         string
+	renderedHTML string
 }
 
 // nsSlugPlan slug 定稿结果（D7：URL 用 slug，显示名与 URL key 分离）。
@@ -613,6 +631,8 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 默认 slug=guide，另一目录 frontmatter 声明 slug: guide）→ 后处理方
 	// 报错并降级为显示名（唯一索引保护；两行都尚不存在时 DB 冲突检测不可用）。
 	var errs []string
+	// review M1：引用校验/渲染失败的页面跳过（保留旧版本），聚合为 run 错误。
+	skipWanted := make(map[string]bool, 0)
 	repoDisplayNames := make(map[string]struct{}, len(files))
 	for _, f := range files {
 		rel := strings.TrimSuffix(f.Path, ".md")
@@ -689,6 +709,9 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			continue
 		}
 		dir := NamespaceOf(norm)
+		if dir == "_assets" {
+			return fmt.Errorf("wiki namespace %q is reserved for repository assets", dir)
+		}
 		urlKey := plans[dir].urlKey
 		title, order, _, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
@@ -702,6 +725,31 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
+	}
+	resolver := newWikiReferenceResolver(cfg.CloneDir, wanted)
+	// review M1：单页引用校验/渲染失败 → 跳过该页并聚合告警（其余页面继续），
+	// 避免一个坏链接冻结整个 wiki 的更新与删除。但安全类错误（仓库根逃逸/
+	// 符号链接越界）必须整体失败：恶意链接不允许通过「坏页跳过」绕过校验。
+	for i := range wanted {
+		wp := &wanted[i]
+		if err := resolver.Validate(*wp); err != nil {
+			if errors.Is(err, errWikiRefEscapesRepo) {
+				return err
+			}
+			errs = append(errs, fmt.Sprintf("skip %s: %v", wp.path, err))
+			skipWanted[wp.path] = true
+			continue
+		}
+		rendered, err := resolver.Render(*wp)
+		if err != nil {
+			if errors.Is(err, errWikiRefEscapesRepo) {
+				return err
+			}
+			errs = append(errs, fmt.Sprintf("skip %s: %v", wp.path, err))
+			skipWanted[wp.path] = true
+			continue
+		}
+		wp.renderedHTML = rendered
 	}
 
 	// 2.7 既有页面 path 迁移：URL key 变化（slug 变更/首回填）时，把该命名空间
@@ -741,6 +789,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
 	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
 	for _, wp := range wanted {
+		if skipWanted[wp.path] {
+			// review M1：引用校验/渲染失败的页面保留 DB 旧版本（不写空
+			// renderedHTML 覆盖），仅聚合告警；其余页面正常 upsert。
+			continue
+		}
 		// 仓库顶层目录 = namespace 显示名；不存在则自动创建（名字=显示名，
 		// 与 URL key 解耦）。放在 upsert 循环内，覆盖「目录曾被 D5 删除、
 		// 页面重新出现走恢复路径」的场景（恢复路径不经过 createPageFromRepo，
@@ -804,6 +857,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			existingPage.Title == wp.title &&
 			existingPage.SortOrder == wp.order &&
 			existingPage.SourcePath == wp.sourcePath &&
+			existingPage.RenderedHTML == wp.renderedHTML &&
 			!restored {
 			continue
 		}
@@ -969,7 +1023,9 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if wp.displayName == "" {
 		return fmt.Errorf("empty display name for path %s", wp.path)
 	}
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
+	// parent_id 由同步结束后的 reconcileWikiPageParents 统一重算（PR #303），
+	// 不在单页 upsert 内推导；renderedHTML 由引用解析器预渲染（review M1）。
+	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.Entity{
@@ -1043,7 +1099,7 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
 func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
+	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.UnscopedGet(page.TopicId)

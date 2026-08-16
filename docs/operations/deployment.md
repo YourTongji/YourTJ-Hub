@@ -57,8 +57,11 @@
 1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
    顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
    （旧站路径映射为 `<namespace>/<slug>.md`）。
-2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
-   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库。同步器只将 `.md` 作为页面投影，
+   但会把页面中的仓库相对资源引用重写为论坛二进制提供的受控
+   `/wiki/_assets/<repository-path>` 路由；不需要 GitHub raw URL。相对页面链接保留 `.md`
+   源文件后缀，投影后会变为无后缀的 `/wiki/...` 路由。作者语义与路径限制见
+   [Wiki authoring](../product/wiki-authoring.md)。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
    后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
 4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次

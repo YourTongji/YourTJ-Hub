@@ -103,12 +103,14 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `/admin/wiki` 同步面板手动触发 + GitHub webhook（`POST /api/wiki/webhook`，HMAC-SHA256
   验签，push 事件，仅默认分支）。同步运行写入 `wiki_sync_runs`
   （trigger/status/head_sha/变更计数/错误）。
-- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；公开 API
+- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；`/wiki/_assets/*path`
+  由同一 catch-all 分派并仅从当前仓库 clone 提供已验证的非 Markdown 资源；公开 API
   `GET /api/wiki/{tree,namespaces,home}` + `POST /api/wiki/webhook`；管理端
   `/api/admin/wiki/*`（PageManager：namespaces CRUD、只读树、`sync/status` /
   `sync` / `sync/runs`）。站内写/回滚/diff/编辑者/版本历史端点已退役。
 - **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` /
-  `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式；admin 区
+  `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式（桌面侧栏与
+  移动端抽屉均渲染完整 wiki 导航树）；admin 区
   `WikiManage.vue`（`/admin/wiki`，PageManager：命名空间 + 递归只读页面树 + 同步面板）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
   sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；同步更新后向订阅者发

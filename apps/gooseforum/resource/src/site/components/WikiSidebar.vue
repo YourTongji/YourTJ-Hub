@@ -9,6 +9,11 @@ const props = defineProps<{
   tree: WikiTreeNamespace[]
 }>()
 
+// 移动端抽屉复用本组件时，点击导航项后由宿主关闭抽屉。
+const emit = defineEmits<{
+  navigate: []
+}>()
+
 const { t } = useI18n()
 const collapsed = ref<Set<string>>(new Set())
 const isHome = computed(() => {
@@ -38,6 +43,7 @@ function toggleCollapse(name: string) {
         href="/wiki"
         class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-semibold transition-colors duration-150"
         :class="isHome ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+        @click="emit('navigate')"
       >
         {{ t('wiki.home') }}
       </a>
@@ -68,6 +74,7 @@ function toggleCollapse(name: string) {
           :key="`${node.kind}:${node.path}`"
           :node="node"
           :depth="0"
+          @navigate="emit('navigate')"
         />
       </div>
     </div>
