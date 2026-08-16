@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -23,6 +24,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -57,6 +59,11 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn.Unscoped().Where("id IN ?", []uint64{6001, 6002, 6003}).Delete(&topics.Entity{})
 	conn.Unscoped().Where("id IN ?", []uint64{11001, 11002, 11003}).Delete(&posts.Entity{})
 	conn.Where("permission_id = ?", permission.PageManager.Id()).Delete(&rolePermissionRs.Entity{})
+	// 清空 wiki 同步设置（webhook secret 密文/清除标记）：TestWikiWebhookSecretHTTPContract
+	// 会写入 page_config，不清空会污染共享测试库、令后续 webhook 验签测试 403
+	// （cleared=true 使 LoadWebhookSecret 恒返回空，fail-closed 生效）。
+	conn.Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
 
 	wikiApi := router.Group("/api/wiki")
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))

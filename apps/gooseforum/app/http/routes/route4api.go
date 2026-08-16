@@ -226,7 +226,9 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
-	wikiApi.POST("webhook", api.WikiWebhook)
+	// 公开端点加限流（review MEDIUM）：防未认证调用方以超大 body 刷 HMAC
+	// 计算（CPU DoS）与重放触发全量同步。
+	wikiApi.POST("webhook", middleware.RateLimit(middleware.RateLimitWikiWebhook), api.WikiWebhook)
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。

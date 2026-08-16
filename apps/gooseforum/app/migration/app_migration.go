@@ -291,5 +291,22 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(22)
 		currentVersion = 22
 	}
+	if currentVersion < 23 {
+		// 页面仓库路径列 v23（review MEDIUM）：为存量 wiki_pages 行回填
+		// source_path（= path 首段即仓库目录名的存量语义）。D7 下外链必须用
+		// source_path，存量行为空会导致 SSR 编辑/历史链接畸形（管理端有回退、
+		// SSR 已补回退，但回填仍是根治）。幂等：source_path 非空的行跳过。
+		sourcePathResult := datamigration.BackfillWikiPageSourcePaths()
+		slog.Info("app migration wiki page source_path backfill done",
+			"backfilled", sourcePathResult.Backfilled,
+			"failed", sourcePathResult.Failed,
+			"lastFailed", sourcePathResult.LastFailed)
+		if sourcePathResult.Failed > 0 {
+			slog.Error("app migration wiki page source_path backfill has failures", "failed", sourcePathResult.Failed, "lastFailed", sourcePathResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(23)
+		currentVersion = 23
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

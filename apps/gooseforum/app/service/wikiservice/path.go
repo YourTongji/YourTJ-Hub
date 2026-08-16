@@ -1,38 +1,10 @@
 package wikiservice
 
 import (
-	"errors"
 	"regexp"
 	"strings"
 	"unicode"
 	"unicode/utf8"
-)
-
-// 哨兵错误：控制器层据此映射稳定 messageCode。
-var (
-	ErrNamespaceNotFound    = errors.New("wiki: namespace not found")
-	ErrNamespaceExists      = errors.New("wiki: namespace already exists")
-	ErrNamespaceHasPages    = errors.New("wiki: namespace has pages")
-	ErrPathInvalid          = errors.New("wiki: path invalid")
-	ErrPathExists           = errors.New("wiki: path already exists")
-	ErrPageNotFound         = errors.New("wiki: page not found")
-	ErrForbidden            = errors.New("wiki: forbidden")
-	ErrRevisionNotFound     = errors.New("wiki: revision not found")
-	ErrPageHasChildren      = errors.New("wiki: page has children")
-	ErrNamespaceNameInvalid = errors.New("wiki: namespace name invalid")
-	// ErrConflict 版本 CAS 冲突：编辑基于的版本号已过期，需基于最新版本重编（409）。
-	ErrConflict = errors.New("wiki: revision conflict")
-	// ErrSensitiveBlocked 内容命中敏感词被拦截（写即发布无审核兜底，直接拒绝）。
-	ErrSensitiveBlocked = errors.New("wiki: content sensitive blocked")
-	// ErrTitleTooLong 标题超过 512 上限（独立哨兵，避免与 ErrPathInvalid 混淆）。
-	ErrTitleTooLong = errors.New("wiki: title too long")
-	// ErrContentEmpty 创建/编辑内容为空（契约 content minLength:1，写即发布无审核兜底）。
-	ErrContentEmpty = errors.New("wiki: content empty")
-	// ErrUserNotFound 贡献者设置引用了不存在的用户（避免幽灵贡献者行）。
-	ErrUserNotFound = errors.New("wiki: user not found")
-	// ErrBaseRevisionRequired 编辑未携带 baseRevisionNo（契约 required,min=1；
-	// 0 = 客户端绕过 CAS 基线校验，静默覆盖他人已发布版本，必须拒绝）。
-	ErrBaseRevisionRequired = errors.New("wiki: base revision required")
 )
 
 // 命名空间/路径段约束（GitHub 唯一真实源：顶层目录名即命名空间，须与文件系统

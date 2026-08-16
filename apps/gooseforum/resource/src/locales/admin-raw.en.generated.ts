@@ -745,8 +745,6 @@ export default {
   "k00nj": "No namespaces",
   "k00nv": "Open",
   "k00ny": "No pages",
-  "k00o7": "Path may only contain lowercase letters, digits, and hyphens; format: namespace/slug",
-  "k00o8": "guide/getting-started",
   "k00p0": "AI Course Summary",
   "k00p1": "Manage the AI course summary generation switch and global rate limit.",
   "k00p2": "Failed to load AI course summary settings",

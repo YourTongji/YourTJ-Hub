@@ -90,6 +90,7 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致
     （优先管理端 `/admin/wiki` → 同步面板「Webhook 验签密钥」保存，securestore 加密
     落库；也可用旧 `[wiki.git].webhook_secret` 明文配置）
+  - 管理端「Webhook 验签密钥」清除后，即使 config.toml 存在旧明文 `webhook_secret` 也会保持禁用（fail-closed，需删除明文配置才可重新启用）。
   - Events：仅 `push`（PR merge 触发）
   - 验签：`X-Hub-Signature-256` = HMAC-SHA256(secret, body)，验签失败/未配置返回 403/401。
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制

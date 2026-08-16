@@ -21,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -69,6 +70,11 @@ func LoadGitConfig() GitConfig {
 // 返回空串表示未配置（webhook 端点 403 fail-closed）。
 func LoadWebhookSecret() string {
 	cfg := hotdataserve.GetWikiSyncSettingsConfigCache()
+	// 管理端显式清除过密钥 → 即使 config.toml 存在旧明文也保持禁用（fail-closed），
+	// 避免管理员误以为已禁用而旧密钥仍生效（review L4）。
+	if cfg.WebhookSecretCleared {
+		return ""
+	}
 	if v := strings.TrimSpace(cfg.WebhookSecretEncrypted); v != "" {
 		plain, err := securestore.DecryptPurpose(v, securestore.WikiWebhookSecretPurpose)
 		if err != nil {
@@ -456,6 +462,10 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		ReleaseSyncLock()
 		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
 		if syncPending.CompareAndSwap(true, false) {
+			// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止
+			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
+			// startup/cron 之外的直接调用方）。
+			defer recovery.Recover("wiki_sync_pending_rerun")
 			if _, err := syncOnce(cfg, "webhook"); err != nil {
 				slog.Warn("wiki sync: pending rerun failed", "error", err)
 			}
@@ -568,6 +578,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		description string
 		order       int
 		slug        string
+		carried     bool // index.md 实际携带元数据（review L1：缺失时不得用零值覆盖）
 	}
 	namespaceMeta := map[string]nsMeta{}
 	for _, f := range files {
@@ -579,7 +590,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if description == "" && order == 0 && slug == "" {
 			continue
 		}
-		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, slug: slug}
+		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, slug: slug, carried: true}
 	}
 
 	// 2.5 slug 定稿：推导每个仓库命名空间的目标 slug/URL key。
@@ -730,12 +741,39 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 		existingPage, ok := byPath[wp.path]
 		if !ok {
-			if err := createPageFromRepo(cfg, wp); err != nil {
-				errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
+			// review L5：命名空间删除→重建且 URL key 变化时（如目录删除后
+			// index.md 新增 slug），旧软删页面按 path 无法命中，但 source_path
+			// （仓库相对路径）稳定 → 找回复用（迁移 path + 恢复），避免新建
+			// 重复 page/topic 并遗留孤儿软删页。
+			if orphan := wikiPages.GetBySourcePathUnscoped(wp.sourcePath); orphan.Id != 0 {
+				if err := migratePagePath(&orphan, wp.path, wp.namespace); err != nil {
+					errs = append(errs, fmt.Sprintf("adopt %s: %v", wp.path, err))
+					continue
+				}
+				// 页面行恢复 + 清空 hash 强制走 updatePageFromRepo：收养页面对应的
+				// topic 在命名空间删除时被同步软删，内容未变时幂等判断会跳过更新，
+				// topic 生命周期将永远留在 USER_DELETED（updatePageFromRepo 内
+				// 负责恢复 topic 生命周期）。
+				if err := wikiPages.RestoreSoftDeleted(orphan.Id); err != nil {
+					errs = append(errs, fmt.Sprintf("restore %s: %v", wp.path, err))
+					continue
+				}
+				orphan.Path = wp.path
+				orphan.Namespace = wp.namespace
+				orphan.DeletedAt = gorm.DeletedAt{}
+				orphan.ContentHash = ""
+				byPath[wp.path] = &orphan
+				existingPage = &orphan
+				slog.Info("wiki sync: adopted orphaned page after namespace recreate",
+					"sourcePath", wp.sourcePath, "path", wp.path)
+			} else {
+				if err := createPageFromRepo(cfg, wp); err != nil {
+					errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
+					continue
+				}
+				result.PagesAdded++
 				continue
 			}
-			result.PagesAdded++
-			continue
 		}
 		curHash := sha256Hex(wp.body)
 		restored := existingPage.DeletedAt.Valid
@@ -794,12 +832,16 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if plan.slug != nil {
 			wantSlug = *plan.slug
 		}
-		if ns.Description == meta.description && ns.SortOrder == meta.order &&
-			curSlug == wantSlug {
+		// 仅 index.md 实际携带 description/order 时应用（review L1：缺失或
+		// frontmatter 字段被删时，不得用零值清空已同步的命名空间元数据）。
+		metaChanged := meta.carried && (ns.Description != meta.description || ns.SortOrder != meta.order)
+		if !metaChanged && curSlug == wantSlug {
 			continue
 		}
-		ns.Description = meta.description
-		ns.SortOrder = meta.order
+		if meta.carried {
+			ns.Description = meta.description
+			ns.SortOrder = meta.order
+		}
 		if plan.setSlug {
 			ns.Slug = plan.slug
 		}

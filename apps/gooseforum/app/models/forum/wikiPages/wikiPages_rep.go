@@ -102,6 +102,14 @@ func GetByPathUnscoped(path string) (entity Entity) {
 	return
 }
 
+// GetBySourcePathUnscoped 按仓库真实路径取页面（含软删行）：命名空间删除后
+// 重建且 URL key 变化时，旧软删页面 path 首段已是旧 key，无法按 path 匹配，
+// 需按 source_path（仓库路径稳定）找回复用（review L5）。
+func GetBySourcePathUnscoped(sourcePath string) (entity Entity) {
+	builder().Unscoped().Where(queryopt.Eq("source_path", sourcePath)).First(&entity)
+	return
+}
+
 // RestoreSoftDeleted 恢复软删页面（清除 deleted_at）。
 func RestoreSoftDeleted(id uint64) error {
 	return builder().Unscoped().Where(queryopt.Eq("id", id)).Update("deleted_at", nil).Error

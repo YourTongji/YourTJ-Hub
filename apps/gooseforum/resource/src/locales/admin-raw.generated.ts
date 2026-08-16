@@ -745,8 +745,6 @@ export default {
   "k00nj": "暂无命名空间",
   "k00nv": "打开",
   "k00ny": "暂无页面",
-  "k00o7": "路径仅限小写字母、数字和连字符，格式：namespace/slug",
-  "k00o8": "guide/getting-started",
   "k00p0": "AI 课程总结",
   "k00p1": "管理课程 AI 总结的生成开关与全局频率上限。",
   "k00p2": "加载 AI 课程总结设置失败",

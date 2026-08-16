@@ -13,6 +13,7 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -36,6 +37,9 @@ func WikiSyncRun(req component.BetterRequest[component.Null]) component.Response
 		return component.FailResponseCode(component.MessageWikiSyncFailed, nil)
 	}
 	go func() {
+		// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
+		// 均有 paniclog.Recover，此处对齐）。
+		defer recovery.Recover("wiki_manual_sync")
 		if _, err := wikiservice.Sync("manual"); err != nil {
 			if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 				return // 已合并：运行中同步完成后会自动补跑（syncPending）
@@ -75,8 +79,13 @@ type SaveWikiWebhookSecretReq struct {
 // securestore 加密后落库（密文经 WikiSyncSettingsStorage 持久化，领域结构
 // json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
 func SaveWikiWebhookSecret(req component.BetterRequest[SaveWikiWebhookSecretReq]) component.Response {
+	secret := strings.TrimSpace(req.Params.Secret)
+	// cleared 语义（review L4）：管理端显式清除（空串保存）后，
+	// 即使 config.toml 存在旧明文 [wiki.git].webhook_secret 也保持禁用
+	// （fail-closed）；保存新密钥时清除该标记（重新启用）。
+	cleared := secret == ""
 	encrypted := ""
-	if secret := strings.TrimSpace(req.Params.Secret); secret != "" {
+	if secret != "" {
 		sealed, err := securestore.EncryptPurpose(secret, securestore.WikiWebhookSecretPurpose)
 		if err != nil {
 			return component.FailResponseError(fmt.Errorf("加密 wiki webhook secret 失败（请确认 app.signingKey 已配置）：%w", err))
@@ -85,7 +94,10 @@ func SaveWikiWebhookSecret(req component.BetterRequest[SaveWikiWebhookSecretReq]
 	}
 	entity := pageConfig.GetByPageType(pageConfig.WikiSyncSettings)
 	entity.PageType = pageConfig.WikiSyncSettings
-	entity.Config = jsonopt.Encode(pageConfig.WikiSyncSettingsStorage{WebhookSecretEncrypted: encrypted})
+	entity.Config = jsonopt.Encode(pageConfig.WikiSyncSettingsStorage{
+		WebhookSecretEncrypted: encrypted,
+		WebhookSecretCleared:   cleared,
+	})
 	pageConfig.CreateOrSave(&entity)
 	hotdataserve.ClearWikiSyncSettingsConfigCache()
 	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
@@ -133,7 +145,8 @@ func WikiWebhook(c *gin.Context) {
 	// 只同步默认分支的 push（PR merge = push；其他分支/删除分支的 push 忽略）。
 	if event == "push" {
 		var payload struct {
-			Ref string `json:"ref"`
+			Ref   string `json:"ref"`
+			After string `json:"after"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
@@ -144,7 +157,20 @@ func WikiWebhook(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true})
 			return
 		}
+		// 重放保护（review MEDIUM）：该 head SHA 已成功同步过 → 幂等跳过，
+		// 避免捕获的合法 (payload, signature) 被无限重放触发全量同步/DB churn。
+		if payload.After != "" {
+			for _, r := range wikiSyncRuns.ListRecent(10) {
+				if r.Status == wikiSyncRuns.StatusSuccess && r.HeadSha == payload.After {
+					c.JSON(http.StatusOK, gin.H{"ok": true})
+					return
+				}
+			}
+		}
 		go func() {
+			// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
+			// 均有 paniclog.Recover，此处对齐）。
+			defer recovery.Recover("wiki_webhook_sync")
 			if _, err := wikiservice.Sync("webhook"); err != nil {
 				if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 					return // 已合并：运行中同步完成后自动补跑

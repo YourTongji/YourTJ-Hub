@@ -159,8 +159,6 @@ const (
 	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
 
 	// wiki 分站
-	MessageWikiNamespaceNotFound     MessageCode = "wiki.namespace.notFound"     // namespace 不存在。
-	MessageWikiNamespaceHasPages     MessageCode = "wiki.namespace.hasPages"     // namespace 下存在页面，无法删除。
 	MessageWikiNamespaceNameInvalid  MessageCode = "wiki.namespace.nameInvalid"  // namespace 名称非法。
 	MessageWikiPathInvalid           MessageCode = "wiki.path.invalid"           // wiki 路径非法。
 	MessageWikiPageNotFound          MessageCode = "wiki.page.notFound"          // wiki 页面不存在。

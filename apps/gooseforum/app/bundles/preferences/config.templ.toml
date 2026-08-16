@@ -64,6 +64,7 @@ schedule = "0 3 * * *"
 # GitHub webhook 验签密钥（兼容旧配置的明文写法；推荐改用管理端
 # 「wiki 同步面板 → Webhook 验签密钥」保存，securestore 加密落库，
 # 留空 = webhook 端点 403 拒绝）
+# 管理端清除密钥后本配置失效（fail-closed）
 webhook_secret = ""
 
 [log]

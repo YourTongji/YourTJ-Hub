@@ -745,8 +745,6 @@ export default {
   "k00nj": "Nessun namespace",
   "k00nv": "Apri",
   "k00ny": "Nessuna pagina",
-  "k00o7": "Il percorso può contenere solo lettere minuscole, cifre e trattini; formato: namespace/slug",
-  "k00o8": "guide/getting-started",
   "k00p0": "Riepilogo corsi AI",
   "k00p1": "Gestisci l'interruttore di generazione del riepilogo corsi AI e il limite di frequenza globale.",
   "k00p2": "Caricamento delle impostazioni del riepilogo corsi AI non riuscito",
