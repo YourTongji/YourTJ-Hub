@@ -10,70 +10,32 @@
 
 ## Contract status
 
-The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point is
-`packages/api-contract/openapi.yaml`; it currently covers these operations only:
+The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
+protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
+`packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
+the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list
+(204 `/api` routes: 202 covered, 2 goth browser redirects excluded; CI rejects any route that is
+neither contracted nor listed). By domain:
 
-- `POST /api/login`;
-- `GET /api/login-public-key`;
-- `POST /api/auth/totp/verify`;
-- `GET /api/user/totp/status`;
-- `POST /api/user/totp/setup`;
-- `POST /api/user/totp/enable`;
-- `POST /api/user/totp/disable`;
-- `POST /api/logout`;
-- `POST /api/auth/oidc/exchange`;
-- `POST /api/forum/topics/write`;
-- forum core interactions (issue #277 P1): `POST /api/forum/posts/create`,
-  `POST /api/forum/posts/update`, `POST /api/forum/posts/delete`,
-  `GET /api/forum/posts/window`, `GET /api/forum/posts/revisions`,
-  `POST /api/forum/topics/status`, `POST /api/forum/topics/delete`,
-  `POST /api/forum/topics/like`, `POST /api/forum/topics/bookmark`,
-  `POST /api/forum/topics/watch`, `POST /api/forum/posts/like`,
-  `POST /api/forum/posts/bookmark`, `POST /api/forum/follow-user`, and
-  `POST /api/forum/report`;
-- user account and identity (issue #277 P2): `GET /api/get-captcha`,
-  `GET /api/user-card`, `POST /api/set-user-info`,
-  `POST /api/set-user-profile-cover`, `POST /api/set-user-email`,
-  `POST /api/resend-activation-email`, `POST /api/set-user-name`,
-  `POST /api/set-preset-avatar`, `POST /api/wear-badge`,
-  `POST /api/upload-avatar`, `POST /api/change-password`,
-  `GET /api/oauth/bindings`, and `POST /api/auth/{provider}/unbind`;
-- notifications, unread state, and chat (issue #277 P2):
-  `GET /api/forum/unread-status`, `GET /api/forum/notifications`,
-  `POST /api/forum/notification/mark-read`,
-  `POST /api/forum/notification/mark-all-read`,
-  `POST /api/forum/chat/send`, `POST /api/forum/chat/messages`, and
-  `POST /api/forum/chat/mark-read`;
-- moderation (issue #277 P3, first slice): the moderator workbench
-  `POST /api/forum/moderation/{topic-status,post-status,reports,report-status,logs,view-deleted-content}`
-  (in-controller moderator-scope checks, permission failures are HTTP 200
-  `permission.denied`), and the TopicsManager admin console endpoints
-  `POST /api/admin/topics/{list,source,edit,delete,restore,pin-edit,categories-edit}`
-  plus `POST /api/admin/posts/delete` (middleware `CheckPermission`,
-  permission failures are HTTP 403 with `params.permission`);
-- `GET /api/user/sessions`;
-- `POST /api/user/sessions/revoke`;
-- `POST /api/user/sessions/revoke-all`;
-- `GET /api/v1/agent/me`;
-- `GET /api/v1/agent/topics` and `POST /api/v1/agent/topics`;
-- `GET /api/v1/agent/topics/{topicId}/posts` and `POST /api/v1/agent/topics/{topicId}/posts`;
-- `GET /api/v1/agent/search`.
-- `GET /api/forum/courses` and `GET /api/forum/courses/{courseId}` (course catalog read endpoints, `security: []`);
-- `GET /api/forum/courses/{courseId}/reviews` and `POST /api/forum/course-reviews`;
-- `PATCH /api/forum/course-reviews/{reviewId}` and `DELETE /api/forum/course-reviews/{reviewId}`;
-- `PUT /api/forum/course-reviews/{reviewId}/helpful`,
-  `DELETE /api/forum/course-reviews/{reviewId}/helpful`, and
-  `POST /api/forum/course-reviews/{reviewId}/reports`;
-- `POST /api/forum/moderation/course-review-status`,
-  `POST /api/forum/moderation/course-review-reports`, and
-  `POST /api/forum/moderation/course-review-reveal`.
-- Wiki 域（`paths/wiki.yaml`，GitHub 唯一真实源模型）：公开读
-  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者等站内写
-  端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR）；保留管理端
-  `/api/admin/wiki/*`（PageManager：命名空间 CRUD + 只读树 + `sync/status` /
-  `sync` / `sync/runs`）与公开 `POST /api/wiki/webhook`（GitHub push 事件，HMAC-SHA256
-  验签，触发即时同步）；生成 TS 类型 + 手写 Dart mirror
-  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+- auth and account: password login, login public key, TOTP (verify + management), logout,
+  registration/password recovery, mobile OIDC exchange, session management, captcha, user-card,
+  profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
+  bindings/unbind, and the user content lifecycle (my-content, deleted-content, restore,
+  batch-delete, purge, privacy-erase, content-event, account-close);
+- forum: topic write, post CRUD/window/revisions, topic status/delete, like/bookmark/watch on
+  topics and posts, follow-user, report, aggregate search, site statistics, notifications/unread,
+  chat, and the moderator workbench (`/api/forum/moderation/*`);
+- admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
+  agent administration, operation records, traffic overview, page settings, site settings, and
+  data import/export;
+- Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, the PK scheduler,
+  and the Wiki domain (GitHub SSoT: public tree/namespaces/home, admin namespace/sync endpoints,
+  webhook; the retired in-forum write/revision/rollback/diff/editor endpoints must not reappear —
+  the coverage gate flags any route that is not contracted or listed).
+
+The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
+suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and
+hand-maintained Dart mirrors (generation remains Planned).
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
@@ -129,11 +91,11 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
   `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
   generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
 
-Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
-stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a
-base-versus-head bundled-spec breaking gate in a separate change only when `dev` has stable operation
-coverage on both sides of the comparison; that gate must compare the PR base and head contracts rather
-than a hand-maintained duplicate baseline.
+Breaking-change comparison is not a current gate. Enable a base-versus-head bundled-spec breaking
+gate (for example `oasdiff` against the bundled base and head specs) in a separate change; that gate
+must compare the PR base and head contracts rather than a hand-maintained duplicate baseline. Route
+coverage reached 100% of `/api` routes with issue #277, so both sides of a PR comparison now carry
+complete operation coverage and the precondition for such a gate is met.
 
 ## Data model
 
