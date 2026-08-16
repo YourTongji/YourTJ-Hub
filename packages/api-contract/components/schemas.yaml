@@ -6718,3 +6718,611 @@ AdminSavePrivacyPolicyRequest:
       $ref: '#/AdminLegalDocumentConfig'
   additionalProperties: false
   description: Replacement privacy-policy configuration. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+
+# ================= Admin integrations: mail / storage / MCP settings（Issue #277 P3 切片六）=================
+
+AdminMailSettingsConfig:
+  type: object
+  required: [enableMail, smtpHost, smtpPort, useSSL, smtpUsername, smtpPassword, fromName, fromEmail]
+  properties:
+    enableMail:
+      type: boolean
+    smtpHost:
+      type: string
+    smtpPort:
+      type: integer
+    useSSL:
+      type: boolean
+    smtpUsername:
+      type: string
+    smtpPassword:
+      type: string
+      description: SMTP credential returned in cleartext on this admin surface — there is no masking.
+    fromName:
+      type: string
+    fromEmail:
+      type: string
+  additionalProperties: false
+
+AdminMailSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminMailSettingsConfig'
+          description: Stored mail settings, or the built-in default when nothing has been saved.
+
+AdminSaveMailSettingsRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminMailSettingsConfig'
+  additionalProperties: false
+  description: Replacement mail settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+AdminTestMailConnectionRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminMailSettingsConfig'
+    testEmail:
+      type: string
+      format: email
+      description: Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route).
+  additionalProperties: false
+
+AdminConnectionTestResult:
+  type: object
+  required: [success, messageCode]
+  properties:
+    success:
+      type: boolean
+      description: Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`.
+    messageCode:
+      type: string
+      description: "`admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage."
+    params:
+      type: object
+      additionalProperties: true
+      description: On mail success `{email}`; on failure `{error}` with the raw dial/send error text.
+  additionalProperties: false
+
+AdminTestMailConnectionResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminConnectionTestResult'
+    - $ref: '#/ApiFailure'
+
+AdminStorageSettingsConfig:
+  type: object
+  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKey, secretKey, publicUrlPrefix]
+  properties:
+    provider:
+      type: string
+      enum: [local, s3]
+      description: Empty input is normalized to `local` on save; any other value fails with `common.request.invalidParams`.
+    endpoint:
+      type: string
+      description: S3-compatible endpoint; required with bucket when provider is `s3`.
+    bucket:
+      type: string
+    region:
+      type: string
+    bucketLookup:
+      type: string
+      description: "`auto` | `dns` | `path`."
+    secure:
+      type: boolean
+    accessKey:
+      type: string
+      description: Returned in cleartext on this admin surface — there is no masking.
+    secretKey:
+      type: string
+      description: Returned in cleartext on this admin surface — there is no masking.
+    publicUrlPrefix:
+      type: string
+      description: Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy.
+  additionalProperties: false
+
+AdminStorageSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminStorageSettingsConfig'
+          description: Stored storage settings, or the built-in default when nothing has been saved.
+
+AdminSaveStorageSettingsRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminStorageSettingsConfig'
+  additionalProperties: false
+  description: Replacement storage settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`).
+
+AdminTestStorageConnectionRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminStorageSettingsConfig'
+  additionalProperties: false
+  description: Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend.
+
+AdminTestStorageConnectionResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminConnectionTestResult'
+    - $ref: '#/ApiFailure'
+
+AdminCreateStorageMigrateTaskRequest:
+  type: object
+  properties:
+    clearAfterMigrate:
+      type: boolean
+      description: Clear the local BLOB column after each object has been migrated.
+  additionalProperties: false
+
+AdminTaskCreatedResult:
+  type: object
+  required: [taskId]
+  properties:
+    taskId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Id of the enqueued background task (task_queue row).
+  additionalProperties: false
+
+AdminTaskCreatedResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminTaskCreatedResult'
+    - $ref: '#/ApiFailure'
+
+AdminTaskQueueItem:
+  type: object
+  required: [id, type, status, taskJson, retryCount, lastError, createdAt, processedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    type:
+      type: string
+      description: Task type prefix (`export` for data exports, `file-migrate` for storage migrations).
+    status:
+      type: integer
+      description: "0=pending, 1=running, 2=success, 3=failed, 4=retrying."
+    taskJson:
+      type: string
+      description: Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate).
+    retryCount:
+      type: integer
+    lastError:
+      type: string
+    createdAt:
+      type: string
+      format: date-time
+    processedAt:
+      type: string
+      format: date-time
+      description: Lease start of the last run; the zero time `0001-01-01T00:00:00Z` when the task never ran.
+  additionalProperties: false
+
+AdminStorageMigrateTaskListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminTaskQueueItem'
+          description: Up to 20 most recent file-migration tasks, newest id first.
+
+AdminMcpSettingsConfig:
+  type: object
+  required: [enabled, writes]
+  properties:
+    enabled:
+      type: boolean
+      description: Master switch for the built-in `/mcp` endpoint.
+    writes:
+      type: boolean
+      description: Switch for the write tools (create_topic / create_post).
+  additionalProperties: false
+
+AdminMcpSettingsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminMcpSettingsConfig'
+          description: Stored MCP settings, or the built-in default when nothing has been saved.
+
+AdminSaveMcpSettingsRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminMcpSettingsConfig'
+  additionalProperties: false
+  description: Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+
+# ================= Admin content ops: badges / review queue / file resources（Issue #277 P3 切片六）=================
+
+AdminBadgeListItem:
+  allOf:
+    - $ref: '#/AdminBadge'
+    - type: object
+      required: [isSystem, canDelete]
+      properties:
+        isSystem:
+          type: boolean
+          description: True for built-in system badges (always listed; DB rows can only override their display fields).
+        canDelete:
+          type: boolean
+          description: System badges can never be deleted (`admin.badge.systemDeleteBlocked`).
+
+AdminBadgeListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminBadgeListItem'
+          description: All badges known to the admin console — the 15 built-in system badges (in definition order) followed by custom badges from the DB.
+
+AdminSaveBadgeRequest:
+  type: object
+  required: [name]
+  properties:
+    code:
+      type: string
+      description: Stable badge code. Required for `type=system` (must name an existing system definition); optional for `type=custom` — a `custom_`-prefixed code is generated when omitted.
+    type:
+      type: string
+      enum: [system, custom]
+      description: Empty input defaults to `custom`.
+    grantMode:
+      type: string
+      enum: [auto, manual]
+      description: Empty input defaults to `manual`; overridden by the system definition for `type=system`.
+    name:
+      type: string
+      minLength: 1
+      description: Trimmed; blank fails with `admin.badge.nameRequired`.
+    description:
+      type: string
+    iconType:
+      type: string
+      enum: [asset, key]
+      description: Empty input defaults to `asset`.
+    iconKey:
+      type: string
+    iconUrl:
+      type: string
+    color:
+      type: string
+    level:
+      type: string
+    isEnabled:
+      type: boolean
+    isWearable:
+      type: boolean
+    sortOrder:
+      type: integer
+  additionalProperties: false
+  description: Creates or fully overwrites the badge row for `code`. Saving a `system` code stores an override of the built-in definition rather than a new badge.
+
+AdminDeleteBadgeRequest:
+  type: object
+  properties:
+    code:
+      type: string
+      description: Trimmed; blank fails with `admin.badge.codeRequired`. System badges fail with `admin.badge.systemDeleteBlocked`.
+  additionalProperties: false
+
+AdminReviewQueueRequest:
+  type: object
+  required: [kind]
+  properties:
+    kind:
+      type: string
+      enum: [topic, post]
+      description: Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
+    page:
+      type: integer
+      minimum: 1
+      description: 1-based; values below 1 are clamped to 1.
+    pageSize:
+      type: integer
+      description: Values below 1 or above 50 fall back to 20.
+  additionalProperties: false
+
+AdminReviewQueueItem:
+  type: object
+  required: [id, title, excerpt, userId, username, processStatus, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      description: Topic id when kind=topic, post id when kind=post.
+    title:
+      type: string
+      description: Topic title; for posts, the title of the containing topic (empty when the topic is missing).
+    excerpt:
+      type: string
+      description: Topic excerpt (falling back to the title) or the post content truncated to 120 bytes.
+    userId:
+      type: integer
+      format: uint64
+    username:
+      type: string
+      description: Author username; empty when the user row is missing.
+    processStatus:
+      type: integer
+      description: "Always 2 (pending review) in this queue."
+    createdAt:
+      type: string
+      format: date-time
+      description: RFC 3339 timestamp.
+    topicId:
+      type: integer
+      format: uint64
+      description: Posts only; omitted for topics.
+    postNo:
+      type: integer
+      format: uint64
+      description: Posts only; omitted for topics.
+  additionalProperties: false
+
+AdminReviewQueueResult:
+  type: object
+  required: [items, total, page, pageSize]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/AdminReviewQueueItem'
+    total:
+      type: integer
+      format: int64
+    page:
+      type: integer
+    pageSize:
+      type: integer
+  additionalProperties: false
+
+AdminReviewQueueResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminReviewQueueResult'
+    - $ref: '#/ApiFailure'
+
+AdminReviewActionRequest:
+  type: object
+  required: [kind, id]
+  properties:
+    kind:
+      type: string
+      enum: [topic, post]
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    approve:
+      type: boolean
+      description: True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow.
+  additionalProperties: false
+
+AdminFileResourceItem:
+  type: object
+  required: [id, name, type, size, userId, createdAt, url, uploaderUsername]
+  properties:
+    id:
+      type: integer
+      format: uint64
+    name:
+      type: string
+      description: Storage object name (date-sharded path).
+    type:
+      type: string
+      description: MIME type recorded at upload time.
+    size:
+      type: integer
+      format: int64
+      description: Byte length of the stored content.
+    userId:
+      type: integer
+      format: uint64
+    createdAt:
+      type: string
+      format: date-time
+    url:
+      type: string
+      description: Public access path (`/file/img/...` under the local provider, or the configured public prefix).
+    uploaderUsername:
+      type: string
+      description: Empty when the uploader row is missing.
+  additionalProperties: false
+
+AdminFileResourcePageResult:
+  type: object
+  required: [list, page, size, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminFileResourceItem'
+    page:
+      type: integer
+    size:
+      type: integer
+      description: Effective page size (clamped into [10, 50]).
+    total:
+      type: integer
+      format: int64
+      description: Not a row count — this is the current max file id (keyset-pagination cursor).
+  additionalProperties: false
+
+AdminFileResourcePageRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+      description: 1-based; values below 1 are clamped to 1.
+    pageSize:
+      type: integer
+      description: Clamped into [10, 50]; 0 becomes 10.
+  additionalProperties: false
+
+AdminFileResourcePageResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminFileResourcePageResult'
+    - $ref: '#/ApiFailure'
+
+# ================= Admin data portability: export / import / media upload（Issue #277 P3 切片六）=================
+
+AdminImgUploadResult:
+  type: object
+  required: [url, filename, size]
+  properties:
+    url:
+      type: string
+      description: Public access path of the stored image (`/file/img/<yyyy/MM/dd>/<uuid>.<ext>` under the local provider).
+    filename:
+      type: string
+      description: Original multipart filename.
+    size:
+      type: integer
+      description: Stored byte length.
+  additionalProperties: false
+
+AdminImgUploadResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result, messageCode]
+          properties:
+            result:
+              $ref: '#/AdminImgUploadResult'
+            messageCode:
+              type: string
+              const: upload.success
+    - $ref: '#/ApiFailure'
+
+AdminCreateExportTaskRequest:
+  type: object
+  required: [tables, format]
+  properties:
+    tables:
+      type: array
+      minItems: 1
+      items:
+        type: string
+        enum: [users, topics, posts, postRevisions, topicCategoryIndex, topicUserStat]
+      description: Tables to dump. Unknown or duplicate entries fail with `admin.data.exportFailed` (params.error names the table).
+    format:
+      type: string
+      enum: [json, csv]
+  additionalProperties: false
+  description: |
+    Enqueues a background full-table export. The exported content is a verbatim table dump —
+    for `users` this includes email addresses, freeze/activation state, role ids and profile
+    fields, so the resulting file is sensitive personal data. Only SiteManager holders can
+    create, list and download export tasks.
+
+AdminExportTaskListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminTaskQueueItem'
+          description: Up to 20 most recent export tasks, newest id first.
+
+AdminImportReportError:
+  type: object
+  required: [line, table, reason]
+  properties:
+    line:
+      type: integer
+    table:
+      type: string
+    reason:
+      type: string
+  additionalProperties: false
+
+AdminImportReport:
+  type: object
+  required: [total, success, skipped, failed, errors, importedTables]
+  properties:
+    total:
+      type: integer
+    success:
+      type: integer
+    skipped:
+      type: integer
+      description: Rows skipped because an equivalent record already exists (idempotent re-import).
+    failed:
+      type: integer
+    errors:
+      type: array
+      items:
+        $ref: '#/AdminImportReportError'
+    importedTables:
+      type: array
+      items:
+        type: string
+  additionalProperties: false
+
+AdminImportDataResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminImportReport'
+    - $ref: '#/ApiFailure'

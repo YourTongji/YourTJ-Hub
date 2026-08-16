@@ -5,10 +5,10 @@
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
 - 快照路由总数：260
-- /api JSON 路由：204，已入契约：171（84%），已知未覆盖：33
+- /api JSON 路由：204，已入契约：192（94%），已知未覆盖：12
 - 非 API 排除路由：56
 
-## 已覆盖（171）
+## 已覆盖（192）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -17,9 +17,14 @@
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
+| GET | `/api/admin/badges` | `adminListBadges` |
+| GET | `/api/admin/data/export/download/:taskId` | `adminDownloadExportTask` |
+| GET | `/api/admin/data/export/tasks` | `adminListExportTasks` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
+| GET | `/api/admin/mail-settings` | `adminGetMailSettings` |
+| GET | `/api/admin/mcp-settings` | `adminGetMcpSettings` |
 | GET | `/api/admin/onesystem-settings` | `adminGetOnesystemSettings` |
 | GET | `/api/admin/posting-settings` | `adminGetPostingSettings` |
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
@@ -30,6 +35,8 @@
 | GET | `/api/admin/site-settings` | `adminGetSiteSettings` |
 | GET | `/api/admin/site-theme` | `adminGetSiteTheme` |
 | GET | `/api/admin/sponsors` | `adminGetSponsors` |
+| GET | `/api/admin/storage-migrate-tasks` | `adminListStorageMigrateTasks` |
+| GET | `/api/admin/storage-settings` | `adminGetStorageSettings` |
 | GET | `/api/admin/terms-of-service` | `adminGetTermsOfService` |
 | GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
 | GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
@@ -67,18 +74,26 @@
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/badge-delete` | `adminDeleteBadge` |
+| POST | `/api/admin/badge-save` | `adminSaveBadge` |
 | POST | `/api/admin/category-delete` | `adminCategoryDelete` |
 | POST | `/api/admin/category-list` | `adminCategoryList` |
 | POST | `/api/admin/category-moderator-add` | `adminCategoryModeratorAdd` |
 | POST | `/api/admin/category-moderator-delete` | `adminCategoryModeratorDelete` |
 | POST | `/api/admin/category-save` | `adminCategorySave` |
+| POST | `/api/admin/data/export` | `adminCreateExportTask` |
+| POST | `/api/admin/data/import` | `adminImportData` |
+| POST | `/api/admin/file-resources` | `adminListFileResources` |
 | POST | `/api/admin/get-permission-list` | `adminGetPermissionList` |
 | POST | `/api/admin/global-moderator-add` | `adminGlobalModeratorAdd` |
 | POST | `/api/admin/global-moderator-delete` | `adminGlobalModeratorDelete` |
 | POST | `/api/admin/global-moderator-list` | `adminGlobalModeratorList` |
+| POST | `/api/admin/img-upload` | `adminUploadImage` |
 | POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
 | POST | `/api/admin/publish-site-theme` | `adminPublishSiteTheme` |
+| POST | `/api/admin/review-action` | `adminReviewAction` |
+| POST | `/api/admin/review-queue` | `adminListReviewQueue` |
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
@@ -86,6 +101,8 @@
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
 | POST | `/api/admin/save-friend-links` | `adminSaveFriendLinks` |
 | POST | `/api/admin/save-http-notify-settings` | `adminSaveHttpNotifySettings` |
+| POST | `/api/admin/save-mail-settings` | `adminSaveMailSettings` |
+| POST | `/api/admin/save-mcp-settings` | `adminSaveMcpSettings` |
 | POST | `/api/admin/save-onesystem-settings` | `adminSaveOnesystemSettings` |
 | POST | `/api/admin/save-posting-settings` | `adminSavePostingSettings` |
 | POST | `/api/admin/save-privacy-policy` | `adminSavePrivacyPolicy` |
@@ -95,8 +112,12 @@
 | POST | `/api/admin/save-site-settings` | `adminSaveSiteSettings` |
 | POST | `/api/admin/save-site-theme` | `adminSaveSiteTheme` |
 | POST | `/api/admin/save-sponsors` | `adminSaveSponsors` |
+| POST | `/api/admin/save-storage-settings` | `adminSaveStorageSettings` |
 | POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
+| POST | `/api/admin/storage-migrate-task` | `adminCreateStorageMigrateTask` |
+| POST | `/api/admin/test-mail-connection` | `adminTestMailConnection` |
+| POST | `/api/admin/test-storage-connection` | `adminTestStorageConnection` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
 | POST | `/api/admin/topics/delete` | `adminDeleteTopic` |
 | POST | `/api/admin/topics/edit` | `adminEditTopic` |
@@ -184,37 +205,16 @@
 | PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
-## 已知未覆盖（33）
+## 已知未覆盖（12）
 
 | Method | Path | 归属切片 |
 | --- | --- | --- |
-| GET | `/api/admin/badges` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| GET | `/api/admin/data/export/download/:taskId` | pending #277 后续切片：data-portability（数据导入导出） |
-| GET | `/api/admin/data/export/tasks` | pending #277 后续切片：data-portability（数据导入导出） |
-| GET | `/api/admin/mail-settings` | pending #277 后续切片：mail（邮件配置） |
-| GET | `/api/admin/mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
-| GET | `/api/admin/storage-migrate-tasks` | pending #277 后续切片：storage（存储配置与迁移） |
-| GET | `/api/admin/storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
 | GET | `/api/auth/:provider` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
 | GET | `/api/auth/:provider/callback` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
 | GET | `/api/forum/get-site-statistics` | pending #277 后续切片：site-statistics（站点统计） |
 | GET | `/api/forum/search` | pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约） |
 | GET | `/api/forum/user/deleted-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | GET | `/api/forum/user/my-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/admin/badge-delete` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| POST | `/api/admin/badge-save` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| POST | `/api/admin/data/export` | pending #277 后续切片：data-portability（数据导入导出） |
-| POST | `/api/admin/data/import` | pending #277 后续切片：data-portability（数据导入导出） |
-| POST | `/api/admin/file-resources` | pending #277 后续切片：admin-media（后台文件资源） |
-| POST | `/api/admin/img-upload` | pending #277 后续切片：admin-media（后台文件资源） |
-| POST | `/api/admin/review-action` | pending #277 后续切片：review-queue（审核队列） |
-| POST | `/api/admin/review-queue` | pending #277 后续切片：review-queue（审核队列） |
-| POST | `/api/admin/save-mail-settings` | pending #277 后续切片：mail（邮件配置） |
-| POST | `/api/admin/save-mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
-| POST | `/api/admin/save-storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
-| POST | `/api/admin/storage-migrate-task` | pending #277 后续切片：storage（存储配置与迁移） |
-| POST | `/api/admin/test-mail-connection` | pending #277 后续切片：mail（邮件配置） |
-| POST | `/api/admin/test-storage-connection` | pending #277 后续切片：storage（存储配置与迁移） |
 | POST | `/api/forum/user/account-close` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | POST | `/api/forum/user/content-batch-delete` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | POST | `/api/forum/user/content-event` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |

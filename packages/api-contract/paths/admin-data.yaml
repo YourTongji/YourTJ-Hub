@@ -1,0 +1,346 @@
+adminUploadImage:
+  post:
+    tags: [Admin]
+    summary: Upload an image as a site asset (admin media library)
+    operationId: adminUploadImage
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. This is a bare gin handler (not the UpButterReq
+      wrapper), but the request/response envelope is still the standard
+      ResultStruct JSON. The multipart field is `file`; the content must
+      sniff as a real image (JPEG/PNG/GIF/WebP/BMP signatures) and pass the
+      posting-settings extension allowlist and size cap. Role-bearing
+      callers (any admin role, including SiteManager) skip the new-user
+      cooldown, the daily upload quota and the configured size cap downstep
+      (the hard 4MB ceiling still applies). On success the image is stored
+      date-sharded and recorded as an admin-upload usage reference; the
+      response `messageCode` is `upload.success`. Failure responses use real
+      HTTP error statuses: missing `file` field → HTTP 400
+      `upload.file.missing`; other validation failures (empty filename, too
+      large, disallowed extension, non-image content) → HTTP 400 with the
+      respective `upload.*` message code.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: Image file (JPEG/PNG/GIF/WebP/BMP).
+    responses:
+      '200':
+        description: Upload stored; `result` carries the public url, the original filename and the byte size.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminImgUploadResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-img-upload-success.json
+      '400':
+        description: Multipart/validation failure (e.g. missing `file` field).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              fileMissing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-img-upload-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-img-upload-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-img-upload-permission-denied.json
+
+adminCreateExportTask:
+  post:
+    tags: [Admin]
+    summary: Enqueue a background data-export task
+    operationId: adminCreateExportTask
+    description: |
+      Admin console operation gated by the `SiteManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`.
+      Enqueues a background task (task_queue type `export`) that dumps the
+      requested tables to a file under the server's data/export directory
+      and returns the task id; poll adminListExportTasks for progress and
+      download via adminDownloadExportTask. Data boundary: the dump is a
+      verbatim table copy — `users` rows include email addresses,
+      freeze/activation state, role ids and profile fields, so export files
+      are sensitive personal data. Validation: `tables` and `format` are
+      required (`format` must be `json` or `csv`); violations fail with HTTP
+      200 `common.request.invalidParams`. An empty table list, an unknown or
+      duplicated table fails with HTTP 200 `admin.data.exportFailed`
+      (params.error names the offending table in Chinese).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCreateExportTaskRequest
+    responses:
+      '200':
+        description: "Task id of the enqueued export, or a `code: 1` business failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminTaskCreatedResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-data-export-success.json
+              invalidParams:
+                externalValue: ../fixtures/admin-data-export-invalid-params.json
+              unsupportedTable:
+                externalValue: ../fixtures/admin-data-export-export-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-data-export-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-data-export-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-data-export-permission-denied.json
+
+adminListExportTasks:
+  get:
+    tags: [Admin]
+    summary: List recent data-export tasks
+    operationId: adminListExportTasks
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+      `export`, newest id first; `taskJson` is the serialized export payload
+      (tables/format/fileName/progress/errorCount). With no export tasks the
+      result is an empty list. JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Recent export tasks.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminExportTaskListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-data-export-tasks-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-data-export-tasks-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-data-export-tasks-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-data-export-tasks-permission-denied.json
+
+adminDownloadExportTask:
+  get:
+    tags: [Admin]
+    summary: Download a finished export file
+    operationId: adminDownloadExportTask
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. This is a bare gin handler (not the UpButterReq
+      wrapper). On success the response is the raw export file (not a JSON
+      envelope) with an `attachment` Content-Disposition carrying the file
+      name; the file contains the verbatim table dump (sensitive personal
+      data for `users`). Error responses are JSON envelopes with real HTTP
+      statuses: unknown task id (or a task of another type) → HTTP 404
+      `admin.data.taskNotFound`; task not finished (status other than
+      success) → HTTP 400 `admin.data.taskNotReady`; finished task whose
+      file is missing or resolves outside the export directory → HTTP 400
+      `admin.data.downloadDenied`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: taskId
+        in: path
+        required: true
+        schema:
+          type: string
+          description: Task id returned by adminCreateExportTask (non-numeric or unknown ids yield 404).
+    responses:
+      '200':
+        description: The export file bytes.
+        content:
+          application/octet-stream:
+            schema:
+              type: string
+              format: binary
+      '400':
+        description: Task not finished, or export file unavailable.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notReady:
+                externalValue: ../fixtures/admin-data-export-download-not-ready.json
+              downloadDenied:
+                externalValue: ../fixtures/admin-data-export-download-download-denied.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-data-export-download-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-data-export-download-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-data-export-download-permission-denied.json
+      '404':
+        description: Unknown task id, or the task is not an export task.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              notFound:
+                externalValue: ../fixtures/admin-data-export-download-not-found.json
+
+adminImportData:
+  post:
+    tags: [Admin]
+    summary: Import a JSON data file (users/topics/posts and derived tables)
+    operationId: adminImportData
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. This is a bare gin handler (not the UpButterReq
+      wrapper), but the request/response envelope is still the standard
+      ResultStruct JSON. The multipart field is `file` (request body capped
+      at 50MB); only JSON is accepted — either an object keyed by table name
+      (`users`/`topics`/`posts`/`postRevisions`/`topicCategoryIndex`/
+      `topicUserStat`) or an array of row objects with an optional `table`
+      field (defaulting to `users`). Import is idempotent (existing rows are
+      skipped and counted), runs in users → topics → posts → postRevisions →
+      derived-tables order, and rebuilds topic invariants afterwards. The
+      response report counts total/success/skipped/failed rows with per-row
+      error details. Failure responses use real HTTP statuses: missing
+      `file` field → HTTP 400 `admin.data.importFailed` (params.error
+      `未获取到上传文件`); unparsable content, an empty file, a payload
+      without known tables, or an unknown table name → HTTP 400
+      `admin.data.importInvalidFormat` (params.error carries the parse
+      detail). Note a `code: 0` envelope can still report per-row failures
+      inside `result.failed`/`result.errors`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            type: object
+            required: [file]
+            properties:
+              file:
+                type: string
+                format: binary
+                description: JSON export file produced by adminCreateExportTask (object or array form).
+    responses:
+      '200':
+        description: Import finished; `result` is the per-table report (may still contain per-row failures).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminImportDataResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-data-import-success.json
+      '400':
+        description: Missing file or unimportable payload.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              fileMissing:
+                externalValue: ../fixtures/admin-data-import-import-failed.json
+              invalidFormat:
+                externalValue: ../fixtures/admin-data-import-invalid-format.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-data-import-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-data-import-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-data-import-permission-denied.json

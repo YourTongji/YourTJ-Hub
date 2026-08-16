@@ -3582,6 +3582,635 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/mail-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the outbound mail (SMTP) settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored mail settings, or the built-in
+         *     default configuration when nothing has been saved yet. Exposure
+         *     boundary: `smtpPassword` is returned in cleartext — there is no
+         *     masking on this admin surface. JSON binding is lenient: query string
+         *     and body are ignored.
+         */
+        get: operations["adminGetMailSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-mail-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the outbound mail (SMTP) settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole mail configuration with the submitted value and
+         *     clears the mail-settings cache. There is no request validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a malformed or empty body binds to zero
+         *     values and is saved as-is.
+         */
+        post: operations["adminSaveMailSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/test-mail-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Send a probe email with the submitted SMTP settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Sends a
+         *     real test email through the submitted (unsaved) SMTP configuration —
+         *     nothing is persisted. The outcome is reported inside the success
+         *     envelope: the envelope `code` is 0 even when the send fails; inspect
+         *     `result.success` and `result.messageCode`
+         *     (`admin.mail.testSuccess` / `admin.mail.testFailed`, the latter with
+         *     `params.error` carrying the raw dial/send error text). A missing or
+         *     malformed `testEmail` fails request validation
+         *     (`validate:"required,email"`) with HTTP 200
+         *     `common.request.invalidParams` before the handler runs — the handler's
+         *     own `admin.mail.testEmailRequired` branch is unreachable through this
+         *     route.
+         */
+        post: operations["adminTestMailConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the file storage settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored storage settings, or the built-in
+         *     default (local provider) when nothing has been saved yet. Exposure
+         *     boundary: `accessKey`/`secretKey` are returned in cleartext — there is
+         *     no masking on this admin surface. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        get: operations["adminGetStorageSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-storage-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the file storage settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. An
+         *     empty `provider` is normalized to `local`; any provider other than
+         *     `local`/`s3` fails with HTTP 200 `common.request.invalidParams`; an
+         *     `s3` configuration without `endpoint` and `bucket` fails with HTTP 200
+         *     `admin.storage.saveFailed` (params.error is the fixed Chinese sentence
+         *     `S3 模式需要填写 Endpoint 与 Bucket`). On success the whole storage
+         *     configuration is replaced and the storage-settings cache is cleared.
+         *     The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing/malformed body saves
+         *     the normalized zero-value configuration (`provider=local`).
+         */
+        post: operations["adminSaveStorageSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/test-storage-connection": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Probe the submitted storage configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Tests
+         *     the submitted (unsaved) storage configuration — nothing is persisted.
+         *     An empty `provider` is normalized to `local`, and the local provider
+         *     always succeeds without touching any backend. For `s3` the server
+         *     performs a real bucket check; the outcome is reported inside the
+         *     success envelope (`code` stays 0): `result.success` plus
+         *     `admin.storage.testSuccess` / `admin.storage.testFailed`, the latter
+         *     with `params.error` carrying the raw connection error text.
+         */
+        post: operations["adminTestStorageConnection"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-migrate-task": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a background file-migration task to object storage
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Enqueues a background task (task_queue type `file-migrate`) that
+         *     migrates locally stored file BLOBs to the configured S3-compatible
+         *     storage; returns the task id. The migration only runs when the active
+         *     (already saved) storage provider is `s3`; with any other provider the
+         *     service rejects the request and the handler reports HTTP 200
+         *     `admin.storage.migrateFailed` with params.error `file migration
+         *     requires an s3-compatible storage provider`. Note: the
+         *     `admin.storage.migrateInvalidProvider` message code exists in the
+         *     codebase but is unreachable — the controller compares against a
+         *     distinct sentinel error, so the provider-mismatch path falls through
+         *     to `admin.storage.migrateFailed`. A configured-but-unreachable S3
+         *     backend also fails with `admin.storage.migrateFailed` (params.error
+         *     carries the wrapped connection error). JSON binding is lenient: a
+         *     missing body binds `clearAfterMigrate=false`.
+         */
+        post: operations["adminCreateStorageMigrateTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/storage-migrate-tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent file-migration tasks
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+         *     `file-migrate`, newest id first; `taskJson` is the serialized
+         *     migration payload (cursor/totals). With no migration tasks the result
+         *     is an empty list. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminListStorageMigrateTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/mcp-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the built-in MCP server settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored MCP settings (`enabled` master
+         *     switch for the `/mcp` endpoint, `writes` switch for the write tools),
+         *     or the built-in default configuration when nothing has been saved
+         *     yet. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetMcpSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-mcp-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the built-in MCP server settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole MCP configuration with the submitted value and
+         *     clears the MCP-settings cache. There is no request validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a malformed or empty body binds to zero
+         *     values and is saved as-is.
+         */
+        post: operations["adminSaveMcpSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all badges (system definitions plus custom badges)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh) — note these badge routes are registered in the
+         *     SiteManager group, not the UserManager group. Returns every badge
+         *     known to the console: the 15 built-in system badges first (in
+         *     definition order, with any stored DB overrides applied), then custom
+         *     badges from the database. System badges carry `isSystem=true` and
+         *     `canDelete=false`. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminListBadges"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badge-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or overwrite a badge
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group, not UserManager); callers without it fail with
+         *     HTTP 403 and `permission.denied`. Upserts the badge row for `code`
+         *     (created when absent, fully overwritten otherwise) and invalidates the
+         *     badge-definition and public-profile caches. Defaults applied before
+         *     validation: blank `type` → `custom`, blank `grantMode` → `manual`,
+         *     blank `iconType` → `asset`, and a blank `code` for a custom badge
+         *     auto-generates a `custom_`-prefixed code. Business failures (HTTP 200,
+         *     `code: 1`): blank `name` → `admin.badge.nameRequired`; unknown `type`
+         *     → `admin.badge.typeInvalid`; `type=system` without a `code` →
+         *     `admin.badge.codeRequired`; unknown `grantMode` →
+         *     `admin.badge.grantModeInvalid`; `type=system` naming a nonexistent
+         *     system definition → `admin.badge.systemNotFound`; persistence failure
+         *     → `admin.badge.saveFailed`. For `type=system` the `grantMode` is taken
+         *     from the system definition, not the request.
+         */
+        post: operations["adminSaveBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/badge-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a custom badge
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group, not UserManager); callers without it fail with
+         *     HTTP 403 and `permission.denied`. Deletes the badge row for `code` and
+         *     invalidates the badge-definition and public-profile caches. Business
+         *     failures (HTTP 200, `code: 1`): blank `code` →
+         *     `admin.badge.codeRequired`; a built-in system badge →
+         *     `admin.badge.systemDeleteBlocked` (system badges can never be
+         *     deleted); persistence failure → `admin.badge.deleteFailed`. Deleting
+         *     an unknown (but non-system) code succeeds silently.
+         */
+        post: operations["adminDeleteBadge"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/review-queue": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page the manual review queue (pending topics or posts)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Lists content held for manual review
+         *     (`processStatus=2`, e.g. sensitive-word matches): forum topics when
+         *     `kind=topic` (wiki-station pages and soft-deleted topics excluded),
+         *     posts when `kind=post` (wiki first posts excluded — they belong to the
+         *     wiki revision review flow — while wiki-station comments with
+         *     `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+         *     below 1 or above 50 falls back to 20. Any other `kind` fails
+         *     validation with HTTP 200 `common.request.invalidParams`. Topic items
+         *     omit `topicId`/`postNo`; post items include them and truncate the
+         *     excerpt to 120 bytes.
+         */
+        post: operations["adminListReviewQueue"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/review-action": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Approve or reject a queued topic or post
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Approving sets `processStatus=0`, rejecting sets
+         *     `processStatus=1`; approving a topic also updates its first post,
+         *     clears the topic-list cache, rebuilds the search document (rejected
+         *     topics are removed from the public index), publishes the deferred
+         *     publish/update events (statistics, points, notifications) and writes
+         *     an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
+         *     unknown target → `admin.review.notFound`; wiki-station topics and wiki
+         *     first posts → `admin.review.targetInvalid` (they belong to the wiki
+         *     revision review flow); target no longer pending →
+         *     `admin.review.processed`; persistence failure → `admin.review.failed`.
+         *     A missing/unknown `kind` or a missing `id` fails validation with HTTP
+         *     200 `common.request.invalidParams`.
+         */
+        post: operations["adminReviewAction"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/file-resources": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page uploaded file resources
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Keyset-paginates the file store newest id first:
+         *     `page` below 1 clamps to 1 and `pageSize` is clamped into [10, 50]
+         *     (0 becomes 10). Quirk: the envelope's `total` is not a row count — it
+         *     is the current max file id used as the pagination cursor. Each item
+         *     carries the uploader's username (empty when the user row is missing)
+         *     and a public access `url`. The file content itself is never inlined.
+         */
+        post: operations["adminListFileResources"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/img-upload": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Upload an image as a site asset (admin media library)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper), but the request/response envelope is still the standard
+         *     ResultStruct JSON. The multipart field is `file`; the content must
+         *     sniff as a real image (JPEG/PNG/GIF/WebP/BMP signatures) and pass the
+         *     posting-settings extension allowlist and size cap. Role-bearing
+         *     callers (any admin role, including SiteManager) skip the new-user
+         *     cooldown, the daily upload quota and the configured size cap downstep
+         *     (the hard 4MB ceiling still applies). On success the image is stored
+         *     date-sharded and recorded as an admin-upload usage reference; the
+         *     response `messageCode` is `upload.success`. Failure responses use real
+         *     HTTP error statuses: missing `file` field → HTTP 400
+         *     `upload.file.missing`; other validation failures (empty filename, too
+         *     large, disallowed extension, non-image content) → HTTP 400 with the
+         *     respective `upload.*` message code.
+         */
+        post: operations["adminUploadImage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Enqueue a background data-export task
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Enqueues a background task (task_queue type `export`) that dumps the
+         *     requested tables to a file under the server's data/export directory
+         *     and returns the task id; poll adminListExportTasks for progress and
+         *     download via adminDownloadExportTask. Data boundary: the dump is a
+         *     verbatim table copy — `users` rows include email addresses,
+         *     freeze/activation state, role ids and profile fields, so export files
+         *     are sensitive personal data. Validation: `tables` and `format` are
+         *     required (`format` must be `json` or `csv`); violations fail with HTTP
+         *     200 `common.request.invalidParams`. An empty table list, an unknown or
+         *     duplicated table fails with HTTP 200 `admin.data.exportFailed`
+         *     (params.error names the offending table in Chinese).
+         */
+        post: operations["adminCreateExportTask"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export/tasks": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List recent data-export tasks
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns up to 20 most recent task_queue rows of type
+         *     `export`, newest id first; `taskJson` is the serialized export payload
+         *     (tables/format/fileName/progress/errorCount). With no export tasks the
+         *     result is an empty list. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminListExportTasks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/export/download/{taskId}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Download a finished export file
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper). On success the response is the raw export file (not a JSON
+         *     envelope) with an `attachment` Content-Disposition carrying the file
+         *     name; the file contains the verbatim table dump (sensitive personal
+         *     data for `users`). Error responses are JSON envelopes with real HTTP
+         *     statuses: unknown task id (or a task of another type) → HTTP 404
+         *     `admin.data.taskNotFound`; task not finished (status other than
+         *     success) → HTTP 400 `admin.data.taskNotReady`; finished task whose
+         *     file is missing or resolves outside the export directory → HTTP 400
+         *     `admin.data.downloadDenied`.
+         */
+        get: operations["adminDownloadExportTask"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/data/import": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Import a JSON data file (users/topics/posts and derived tables)
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (SiteManager group); callers without it fail with HTTP 403 and
+         *     `permission.denied`. This is a bare gin handler (not the UpButterReq
+         *     wrapper), but the request/response envelope is still the standard
+         *     ResultStruct JSON. The multipart field is `file` (request body capped
+         *     at 50MB); only JSON is accepted — either an object keyed by table name
+         *     (`users`/`topics`/`posts`/`postRevisions`/`topicCategoryIndex`/
+         *     `topicUserStat`) or an array of row objects with an optional `table`
+         *     field (defaulting to `users`). Import is idempotent (existing rows are
+         *     skipped and counted), runs in users → topics → posts → postRevisions →
+         *     derived-tables order, and rebuilds topic invariants afterwards. The
+         *     response report counts total/success/skipped/failed rows with per-row
+         *     error details. Failure responses use real HTTP statuses: missing
+         *     `file` field → HTTP 400 `admin.data.importFailed` (params.error
+         *     `未获取到上传文件`); unparsable content, an empty file, a payload
+         *     without known tables, or an unknown table name → HTTP 400
+         *     `admin.data.importInvalidFormat` (params.error carries the parse
+         *     detail). Note a `code: 0` envelope can still report per-row failures
+         *     inside `result.failed`/`result.errors`.
+         */
+        post: operations["adminImportData"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -6658,6 +7287,324 @@ export interface components {
         AdminSavePrivacyPolicyRequest: {
             settings?: components["schemas"]["AdminLegalDocumentConfig"];
         };
+        AdminMailSettingsConfig: {
+            enableMail: boolean;
+            smtpHost: string;
+            smtpPort: number;
+            useSSL: boolean;
+            smtpUsername: string;
+            /** @description SMTP credential returned in cleartext on this admin surface — there is no masking. */
+            smtpPassword: string;
+            fromName: string;
+            fromEmail: string;
+        };
+        AdminMailSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored mail settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminMailSettingsConfig"];
+        };
+        /** @description Replacement mail settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveMailSettingsRequest: {
+            settings?: components["schemas"]["AdminMailSettingsConfig"];
+        };
+        AdminTestMailConnectionRequest: {
+            settings?: components["schemas"]["AdminMailSettingsConfig"];
+            /**
+             * Format: email
+             * @description Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route).
+             */
+            testEmail?: string;
+        };
+        AdminConnectionTestResult: {
+            /** @description Whether the probe succeeded. Note the envelope `code` stays 0 either way — the outcome is reported inside `result`. */
+            success: boolean;
+            /** @description `admin.mail.testSuccess` / `admin.mail.testFailed` for mail, `admin.storage.testSuccess` / `admin.storage.testFailed` for storage. */
+            messageCode: string;
+            /** @description On mail success `{email}`; on failure `{error}` with the raw dial/send error text. */
+            params?: {
+                [key: string]: unknown;
+            };
+        };
+        AdminTestMailConnectionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminConnectionTestResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminStorageSettingsConfig: {
+            /**
+             * @description Empty input is normalized to `local` on save; any other value fails with `common.request.invalidParams`.
+             * @enum {string}
+             */
+            provider: "local" | "s3";
+            /** @description S3-compatible endpoint; required with bucket when provider is `s3`. */
+            endpoint: string;
+            bucket: string;
+            region: string;
+            /** @description `auto` | `dns` | `path`. */
+            bucketLookup: string;
+            secure: boolean;
+            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            accessKey: string;
+            /** @description Returned in cleartext on this admin surface — there is no masking. */
+            secretKey: string;
+            /** @description Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy. */
+            publicUrlPrefix: string;
+        };
+        AdminStorageSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored storage settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        /** @description Replacement storage settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`). */
+        AdminSaveStorageSettingsRequest: {
+            settings?: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        /** @description Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend. */
+        AdminTestStorageConnectionRequest: {
+            settings?: components["schemas"]["AdminStorageSettingsConfig"];
+        };
+        AdminTestStorageConnectionResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminConnectionTestResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminCreateStorageMigrateTaskRequest: {
+            /** @description Clear the local BLOB column after each object has been migrated. */
+            clearAfterMigrate?: boolean;
+        };
+        AdminTaskCreatedResult: {
+            /**
+             * Format: uint64
+             * @description Id of the enqueued background task (task_queue row).
+             */
+            taskId: number;
+        };
+        AdminTaskCreatedResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTaskCreatedResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminTaskQueueItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Task type prefix (`export` for data exports, `file-migrate` for storage migrations). */
+            type: string;
+            /** @description 0=pending, 1=running, 2=success, 3=failed, 4=retrying. */
+            status: number;
+            /** @description Serialized task payload (JSON text; export payloads carry tables/format/fileName/progress/errorCount, migrate payloads carry lastId/total/processed/failed/clearAfterMigrate). */
+            taskJson: string;
+            retryCount: number;
+            lastError: string;
+            /** Format: date-time */
+            createdAt: string;
+            /**
+             * Format: date-time
+             * @description Lease start of the last run; the zero time `0001-01-01T00:00:00Z` when the task never ran.
+             */
+            processedAt: string;
+        };
+        AdminStorageMigrateTaskListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Up to 20 most recent file-migration tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        AdminMcpSettingsConfig: {
+            /** @description Master switch for the built-in `/mcp` endpoint. */
+            enabled: boolean;
+            /** @description Switch for the write tools (create_topic / create_post). */
+            writes: boolean;
+        };
+        AdminMcpSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored MCP settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        /** @description Replacement MCP settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveMcpSettingsRequest: {
+            settings?: components["schemas"]["AdminMcpSettingsConfig"];
+        };
+        AdminBadgeListItem: components["schemas"]["AdminBadge"] & {
+            /** @description True for built-in system badges (always listed; DB rows can only override their display fields). */
+            isSystem: boolean;
+            /** @description System badges can never be deleted (`admin.badge.systemDeleteBlocked`). */
+            canDelete: boolean;
+        };
+        AdminBadgeListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All badges known to the admin console — the 15 built-in system badges (in definition order) followed by custom badges from the DB. */
+            result: components["schemas"]["AdminBadgeListItem"][];
+        };
+        /** @description Creates or fully overwrites the badge row for `code`. Saving a `system` code stores an override of the built-in definition rather than a new badge. */
+        AdminSaveBadgeRequest: {
+            /** @description Stable badge code. Required for `type=system` (must name an existing system definition); optional for `type=custom` — a `custom_`-prefixed code is generated when omitted. */
+            code?: string;
+            /**
+             * @description Empty input defaults to `custom`.
+             * @enum {string}
+             */
+            type?: "system" | "custom";
+            /**
+             * @description Empty input defaults to `manual`; overridden by the system definition for `type=system`.
+             * @enum {string}
+             */
+            grantMode?: "auto" | "manual";
+            /** @description Trimmed; blank fails with `admin.badge.nameRequired`. */
+            name: string;
+            description?: string;
+            /**
+             * @description Empty input defaults to `asset`.
+             * @enum {string}
+             */
+            iconType?: "asset" | "key";
+            iconKey?: string;
+            iconUrl?: string;
+            color?: string;
+            level?: string;
+            isEnabled?: boolean;
+            isWearable?: boolean;
+            sortOrder?: number;
+        };
+        AdminDeleteBadgeRequest: {
+            /** @description Trimmed; blank fails with `admin.badge.codeRequired`. System badges fail with `admin.badge.systemDeleteBlocked`. */
+            code?: string;
+        };
+        AdminReviewQueueRequest: {
+            /**
+             * @description Any other value (including empty) fails validation with HTTP 200 `common.request.invalidParams`.
+             * @enum {string}
+             */
+            kind: "topic" | "post";
+            /** @description 1-based; values below 1 are clamped to 1. */
+            page?: number;
+            /** @description Values below 1 or above 50 fall back to 20. */
+            pageSize?: number;
+        };
+        AdminReviewQueueItem: {
+            /**
+             * Format: uint64
+             * @description Topic id when kind=topic, post id when kind=post.
+             */
+            id: number;
+            /** @description Topic title; for posts, the title of the containing topic (empty when the topic is missing). */
+            title: string;
+            /** @description Topic excerpt (falling back to the title) or the post content truncated to 120 bytes. */
+            excerpt: string;
+            /** Format: uint64 */
+            userId: number;
+            /** @description Author username; empty when the user row is missing. */
+            username: string;
+            /** @description Always 2 (pending review) in this queue. */
+            processStatus: number;
+            /**
+             * Format: date-time
+             * @description RFC 3339 timestamp.
+             */
+            createdAt: string;
+            /**
+             * Format: uint64
+             * @description Posts only; omitted for topics.
+             */
+            topicId?: number;
+            /**
+             * Format: uint64
+             * @description Posts only; omitted for topics.
+             */
+            postNo?: number;
+        };
+        AdminReviewQueueResult: {
+            items: components["schemas"]["AdminReviewQueueItem"][];
+            /** Format: int64 */
+            total: number;
+            page: number;
+            pageSize: number;
+        };
+        AdminReviewQueueResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminReviewQueueResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminReviewActionRequest: {
+            /** @enum {string} */
+            kind: "topic" | "post";
+            /** Format: uint64 */
+            id: number;
+            /** @description True approves (processStatus→0), false rejects (processStatus→1). Wiki-station topics and wiki first posts are rejected with `admin.review.targetInvalid` — they belong to the wiki revision review flow. */
+            approve?: boolean;
+        };
+        AdminFileResourceItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Storage object name (date-sharded path). */
+            name: string;
+            /** @description MIME type recorded at upload time. */
+            type: string;
+            /**
+             * Format: int64
+             * @description Byte length of the stored content.
+             */
+            size: number;
+            /** Format: uint64 */
+            userId: number;
+            /** Format: date-time */
+            createdAt: string;
+            /** @description Public access path (`/file/img/...` under the local provider, or the configured public prefix). */
+            url: string;
+            /** @description Empty when the uploader row is missing. */
+            uploaderUsername: string;
+        };
+        AdminFileResourcePageResult: {
+            list: components["schemas"]["AdminFileResourceItem"][];
+            page: number;
+            /** @description Effective page size (clamped into [10, 50]). */
+            size: number;
+            /**
+             * Format: int64
+             * @description Not a row count — this is the current max file id (keyset-pagination cursor).
+             */
+            total: number;
+        };
+        AdminFileResourcePageRequest: {
+            /** @description 1-based; values below 1 are clamped to 1. */
+            page?: number;
+            /** @description Clamped into [10, 50]; 0 becomes 10. */
+            pageSize?: number;
+        };
+        AdminFileResourcePageResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminFileResourcePageResult"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminImgUploadResult: {
+            /** @description Public access path of the stored image (`/file/img/<yyyy/MM/dd>/<uuid>.<ext>` under the local provider). */
+            url: string;
+            /** @description Original multipart filename. */
+            filename: string;
+            /** @description Stored byte length. */
+            size: number;
+        };
+        AdminImgUploadResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminImgUploadResult"];
+            /** @constant */
+            messageCode: "upload.success";
+        }) | components["schemas"]["ApiFailure"];
+        /**
+         * @description Enqueues a background full-table export. The exported content is a verbatim table dump —
+         *     for `users` this includes email addresses, freeze/activation state, role ids and profile
+         *     fields, so the resulting file is sensitive personal data. Only SiteManager holders can
+         *     create, list and download export tasks.
+         */
+        AdminCreateExportTaskRequest: {
+            /** @description Tables to dump. Unknown or duplicate entries fail with `admin.data.exportFailed` (params.error names the table). */
+            tables: ("users" | "topics" | "posts" | "postRevisions" | "topicCategoryIndex" | "topicUserStat")[];
+            /** @enum {string} */
+            format: "json" | "csv";
+        };
+        AdminExportTaskListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Up to 20 most recent export tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        AdminImportReportError: {
+            line: number;
+            table: string;
+            reason: string;
+        };
+        AdminImportReport: {
+            total: number;
+            success: number;
+            /** @description Rows skipped because an equivalent record already exists (idempotent re-import). */
+            skipped: number;
+            failed: number;
+            errors: components["schemas"]["AdminImportReportError"][];
+            importedTables: string[];
+        };
+        AdminImportDataResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminImportReport"];
+        }) | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -13411,6 +14358,910 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Mail settings including the cleartext SMTP password (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMailSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveMailSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveMailSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestMailConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTestMailConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe outcome inside a success envelope, or a `code: 1` validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTestMailConnectionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetStorageSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Storage settings including cleartext object-storage credentials (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveStorageSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveStorageSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`), or a `code: 1` business failure (invalid provider, incomplete S3 configuration). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTestStorageConnection: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTestStorageConnectionRequest"];
+            };
+        };
+        responses: {
+            /** @description Probe outcome inside a success envelope (`code` is 0 on both success and failure). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTestStorageConnectionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCreateStorageMigrateTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateStorageMigrateTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Task id of the enqueued migration, or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTaskCreatedResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListStorageMigrateTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent migration tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminStorageMigrateTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetMcpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description MCP settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminMcpSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveMcpSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveMcpSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All badges (system definitions merged with stored overrides, then custom badges). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBadgeListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge saved (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeleteBadge: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeleteBadgeRequest"];
+            };
+        };
+        responses: {
+            /** @description Badge deleted (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListReviewQueue: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewQueueRequest"];
+            };
+        };
+        responses: {
+            /** @description A page of pending-review items, or a `code: 1` validation failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminReviewQueueResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminReviewAction: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminReviewActionRequest"];
+            };
+        };
+        responses: {
+            /** @description Review applied (`result` is the string `success`), or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListFileResources: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminFileResourcePageRequest"];
+            };
+        };
+        responses: {
+            /** @description A page of file resources. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFileResourcePageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUploadImage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description Image file (JPEG/PNG/GIF/WebP/BMP).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Upload stored; `result` carries the public url, the original filename and the byte size. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImgUploadResponse"];
+                };
+            };
+            /** @description Multipart/validation failure (e.g. missing `file` field). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCreateExportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCreateExportTaskRequest"];
+            };
+        };
+        responses: {
+            /** @description Task id of the enqueued export, or a `code: 1` business failure. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTaskCreatedResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListExportTasks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Recent export tasks. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminExportTaskListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDownloadExportTask: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                taskId: string;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The export file bytes. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/octet-stream": string;
+                };
+            };
+            /** @description Task not finished, or export file unavailable. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Unknown task id, or the task is not an export task. */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminImportData: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": {
+                    /**
+                     * Format: binary
+                     * @description JSON export file produced by adminCreateExportTask (object or array form).
+                     */
+                    file: string;
+                };
+            };
+        };
+        responses: {
+            /** @description Import finished; `result` is the per-table report (may still contain per-row failures). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminImportDataResponse"];
+                };
+            };
+            /** @description Missing file or unimportable payload. */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

@@ -17,7 +17,11 @@ info:
     admin role management (permission options, role list/save/delete), admin
     category and moderator management (category CRUD, global and per-category
     moderators), admin page settings (friend links, sponsors, announcement),
-    and the Agent (bot persona) public API.
+    admin site/integration settings (site/chrome/theme/security/posting/rate-limit/
+    http-notify/onesystem/ai-summary/legal documents, mail, storage with migration
+    tasks, MCP), admin content operations (badge CRUD, review queue and review
+    actions, file resources), admin media upload, and admin data portability
+    (export tasks, download, import), and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -339,6 +343,48 @@ paths:
     $ref: ./paths/admin-site-settings.yaml#/adminGetPrivacyPolicy
   /api/admin/save-privacy-policy:
     $ref: ./paths/admin-site-settings.yaml#/adminSavePrivacyPolicy
+  /api/admin/mail-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetMailSettings
+  /api/admin/save-mail-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveMailSettings
+  /api/admin/test-mail-connection:
+    $ref: ./paths/admin-integrations.yaml#/adminTestMailConnection
+  /api/admin/storage-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetStorageSettings
+  /api/admin/save-storage-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveStorageSettings
+  /api/admin/test-storage-connection:
+    $ref: ./paths/admin-integrations.yaml#/adminTestStorageConnection
+  /api/admin/storage-migrate-task:
+    $ref: ./paths/admin-integrations.yaml#/adminCreateStorageMigrateTask
+  /api/admin/storage-migrate-tasks:
+    $ref: ./paths/admin-integrations.yaml#/adminListStorageMigrateTasks
+  /api/admin/mcp-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminGetMcpSettings
+  /api/admin/save-mcp-settings:
+    $ref: ./paths/admin-integrations.yaml#/adminSaveMcpSettings
+  /api/admin/badges:
+    $ref: ./paths/admin-content-ops.yaml#/adminListBadges
+  /api/admin/badge-save:
+    $ref: ./paths/admin-content-ops.yaml#/adminSaveBadge
+  /api/admin/badge-delete:
+    $ref: ./paths/admin-content-ops.yaml#/adminDeleteBadge
+  /api/admin/review-queue:
+    $ref: ./paths/admin-content-ops.yaml#/adminListReviewQueue
+  /api/admin/review-action:
+    $ref: ./paths/admin-content-ops.yaml#/adminReviewAction
+  /api/admin/file-resources:
+    $ref: ./paths/admin-content-ops.yaml#/adminListFileResources
+  /api/admin/img-upload:
+    $ref: ./paths/admin-data.yaml#/adminUploadImage
+  /api/admin/data/export:
+    $ref: ./paths/admin-data.yaml#/adminCreateExportTask
+  /api/admin/data/export/tasks:
+    $ref: ./paths/admin-data.yaml#/adminListExportTasks
+  /api/admin/data/export/download/{taskId}:
+    $ref: ./paths/admin-data.yaml#/adminDownloadExportTask
+  /api/admin/data/import:
+    $ref: ./paths/admin-data.yaml#/adminImportData
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -1109,6 +1155,84 @@ components:
       $ref: ./components/schemas.yaml#/AdminPrivacyPolicyResponse
     AdminSavePrivacyPolicyRequest:
       $ref: ./components/schemas.yaml#/AdminSavePrivacyPolicyRequest
+    AdminMailSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminMailSettingsConfig
+    AdminMailSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminMailSettingsResponse
+    AdminSaveMailSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveMailSettingsRequest
+    AdminTestMailConnectionRequest:
+      $ref: ./components/schemas.yaml#/AdminTestMailConnectionRequest
+    AdminConnectionTestResult:
+      $ref: ./components/schemas.yaml#/AdminConnectionTestResult
+    AdminTestMailConnectionResponse:
+      $ref: ./components/schemas.yaml#/AdminTestMailConnectionResponse
+    AdminStorageSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminStorageSettingsConfig
+    AdminStorageSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminStorageSettingsResponse
+    AdminSaveStorageSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveStorageSettingsRequest
+    AdminTestStorageConnectionRequest:
+      $ref: ./components/schemas.yaml#/AdminTestStorageConnectionRequest
+    AdminTestStorageConnectionResponse:
+      $ref: ./components/schemas.yaml#/AdminTestStorageConnectionResponse
+    AdminCreateStorageMigrateTaskRequest:
+      $ref: ./components/schemas.yaml#/AdminCreateStorageMigrateTaskRequest
+    AdminTaskCreatedResult:
+      $ref: ./components/schemas.yaml#/AdminTaskCreatedResult
+    AdminTaskCreatedResponse:
+      $ref: ./components/schemas.yaml#/AdminTaskCreatedResponse
+    AdminTaskQueueItem:
+      $ref: ./components/schemas.yaml#/AdminTaskQueueItem
+    AdminStorageMigrateTaskListResponse:
+      $ref: ./components/schemas.yaml#/AdminStorageMigrateTaskListResponse
+    AdminMcpSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminMcpSettingsConfig
+    AdminMcpSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminMcpSettingsResponse
+    AdminSaveMcpSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveMcpSettingsRequest
+    AdminBadgeListItem:
+      $ref: ./components/schemas.yaml#/AdminBadgeListItem
+    AdminBadgeListResponse:
+      $ref: ./components/schemas.yaml#/AdminBadgeListResponse
+    AdminSaveBadgeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveBadgeRequest
+    AdminDeleteBadgeRequest:
+      $ref: ./components/schemas.yaml#/AdminDeleteBadgeRequest
+    AdminReviewQueueRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueRequest
+    AdminReviewQueueItem:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueItem
+    AdminReviewQueueResult:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueResult
+    AdminReviewQueueResponse:
+      $ref: ./components/schemas.yaml#/AdminReviewQueueResponse
+    AdminReviewActionRequest:
+      $ref: ./components/schemas.yaml#/AdminReviewActionRequest
+    AdminFileResourceItem:
+      $ref: ./components/schemas.yaml#/AdminFileResourceItem
+    AdminFileResourcePageResult:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageResult
+    AdminFileResourcePageRequest:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageRequest
+    AdminFileResourcePageResponse:
+      $ref: ./components/schemas.yaml#/AdminFileResourcePageResponse
+    AdminImgUploadResult:
+      $ref: ./components/schemas.yaml#/AdminImgUploadResult
+    AdminImgUploadResponse:
+      $ref: ./components/schemas.yaml#/AdminImgUploadResponse
+    AdminCreateExportTaskRequest:
+      $ref: ./components/schemas.yaml#/AdminCreateExportTaskRequest
+    AdminExportTaskListResponse:
+      $ref: ./components/schemas.yaml#/AdminExportTaskListResponse
+    AdminImportReportError:
+      $ref: ./components/schemas.yaml#/AdminImportReportError
+    AdminImportReport:
+      $ref: ./components/schemas.yaml#/AdminImportReport
+    AdminImportDataResponse:
+      $ref: ./components/schemas.yaml#/AdminImportDataResponse
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     PostPayload:

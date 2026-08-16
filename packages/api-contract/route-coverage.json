@@ -235,41 +235,6 @@
   "knownUncovered": [
     {
       "method": "GET",
-      "path": "/api/admin/badges",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/data/export/download/:taskId",
-      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/data/export/tasks",
-      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/mail-settings",
-      "reason": "pending #277 后续切片：mail（邮件配置）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/mcp-settings",
-      "reason": "pending #277 后续切片：mcp-settings（MCP 开关配置）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/storage-migrate-tasks",
-      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/storage-settings",
-      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "GET",
       "path": "/api/auth/:provider",
       "reason": "pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程）"
     },
@@ -297,76 +262,6 @@
       "method": "GET",
       "path": "/api/forum/user/my-content",
       "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/badge-delete",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/badge-save",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/data/export",
-      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/data/import",
-      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/file-resources",
-      "reason": "pending #277 后续切片：admin-media（后台文件资源）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/img-upload",
-      "reason": "pending #277 后续切片：admin-media（后台文件资源）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/review-action",
-      "reason": "pending #277 后续切片：review-queue（审核队列）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/review-queue",
-      "reason": "pending #277 后续切片：review-queue（审核队列）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-mail-settings",
-      "reason": "pending #277 后续切片：mail（邮件配置）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-mcp-settings",
-      "reason": "pending #277 后续切片：mcp-settings（MCP 开关配置）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-storage-settings",
-      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/storage-migrate-task",
-      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/test-mail-connection",
-      "reason": "pending #277 后续切片：mail（邮件配置）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/test-storage-connection",
-      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
     },
     {
       "method": "POST",

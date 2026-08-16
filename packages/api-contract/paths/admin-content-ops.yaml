@@ -1,0 +1,361 @@
+adminListBadges:
+  get:
+    tags: [Admin]
+    summary: List all badges (system definitions plus custom badges)
+    operationId: adminListBadges
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh) — note these badge routes are registered in the
+      SiteManager group, not the UserManager group. Returns every badge
+      known to the console: the 15 built-in system badges first (in
+      definition order, with any stored DB overrides applied), then custom
+      badges from the database. System badges carry `isSystem=true` and
+      `canDelete=false`. JSON binding is lenient: query string and body are
+      ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All badges (system definitions merged with stored overrides, then custom badges).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBadgeListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-badges-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-badges-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-badges-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-badges-permission-denied.json
+
+adminSaveBadge:
+  post:
+    tags: [Admin]
+    summary: Create or overwrite a badge
+    operationId: adminSaveBadge
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group, not UserManager); callers without it fail with
+      HTTP 403 and `permission.denied`. Upserts the badge row for `code`
+      (created when absent, fully overwritten otherwise) and invalidates the
+      badge-definition and public-profile caches. Defaults applied before
+      validation: blank `type` → `custom`, blank `grantMode` → `manual`,
+      blank `iconType` → `asset`, and a blank `code` for a custom badge
+      auto-generates a `custom_`-prefixed code. Business failures (HTTP 200,
+      `code: 1`): blank `name` → `admin.badge.nameRequired`; unknown `type`
+      → `admin.badge.typeInvalid`; `type=system` without a `code` →
+      `admin.badge.codeRequired`; unknown `grantMode` →
+      `admin.badge.grantModeInvalid`; `type=system` naming a nonexistent
+      system definition → `admin.badge.systemNotFound`; persistence failure
+      → `admin.badge.saveFailed`. For `type=system` the `grantMode` is taken
+      from the system definition, not the request.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminSaveBadgeRequest
+    responses:
+      '200':
+        description: "Badge saved (`result` is the string `success`), or a `code: 1` business failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-badge-save-success.json
+              nameRequired:
+                externalValue: ../fixtures/admin-badge-save-name-required.json
+              typeInvalid:
+                externalValue: ../fixtures/admin-badge-save-type-invalid.json
+              codeRequired:
+                externalValue: ../fixtures/admin-badge-save-code-required.json
+              grantModeInvalid:
+                externalValue: ../fixtures/admin-badge-save-grant-mode-invalid.json
+              systemNotFound:
+                externalValue: ../fixtures/admin-badge-save-system-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-badge-save-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-badge-save-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-badge-save-permission-denied.json
+
+adminDeleteBadge:
+  post:
+    tags: [Admin]
+    summary: Delete a custom badge
+    operationId: adminDeleteBadge
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group, not UserManager); callers without it fail with
+      HTTP 403 and `permission.denied`. Deletes the badge row for `code` and
+      invalidates the badge-definition and public-profile caches. Business
+      failures (HTTP 200, `code: 1`): blank `code` →
+      `admin.badge.codeRequired`; a built-in system badge →
+      `admin.badge.systemDeleteBlocked` (system badges can never be
+      deleted); persistence failure → `admin.badge.deleteFailed`. Deleting
+      an unknown (but non-system) code succeeds silently.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminDeleteBadgeRequest
+    responses:
+      '200':
+        description: "Badge deleted (`result` is the string `success`), or a `code: 1` business failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-badge-delete-success.json
+              codeRequired:
+                externalValue: ../fixtures/admin-badge-delete-code-required.json
+              systemDeleteBlocked:
+                externalValue: ../fixtures/admin-badge-delete-system-delete-blocked.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-badge-delete-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-badge-delete-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-badge-delete-permission-denied.json
+
+adminListReviewQueue:
+  post:
+    tags: [Admin]
+    summary: Page the manual review queue (pending topics or posts)
+    operationId: adminListReviewQueue
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. Lists content held for manual review
+      (`processStatus=2`, e.g. sensitive-word matches): forum topics when
+      `kind=topic` (wiki-station pages and soft-deleted topics excluded),
+      posts when `kind=post` (wiki first posts excluded — they belong to the
+      wiki revision review flow — while wiki-station comments with
+      `postNo>1` are included). `page` below 1 clamps to 1; `pageSize`
+      below 1 or above 50 falls back to 20. Any other `kind` fails
+      validation with HTTP 200 `common.request.invalidParams`. Topic items
+      omit `topicId`/`postNo`; post items include them and truncate the
+      excerpt to 120 bytes.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewQueueRequest
+    responses:
+      '200':
+        description: "A page of pending-review items, or a `code: 1` validation failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminReviewQueueResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-review-queue-success.json
+              invalidKind:
+                externalValue: ../fixtures/admin-review-queue-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-review-queue-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-review-queue-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-review-queue-permission-denied.json
+
+adminReviewAction:
+  post:
+    tags: [Admin]
+    summary: Approve or reject a queued topic or post
+    operationId: adminReviewAction
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. Approving sets `processStatus=0`, rejecting sets
+      `processStatus=1`; approving a topic also updates its first post,
+      clears the topic-list cache, rebuilds the search document (rejected
+      topics are removed from the public index), publishes the deferred
+      publish/update events (statistics, points, notifications) and writes
+      an operation-audit log entry. Business failures (HTTP 200, `code: 1`):
+      unknown target → `admin.review.notFound`; wiki-station topics and wiki
+      first posts → `admin.review.targetInvalid` (they belong to the wiki
+      revision review flow); target no longer pending →
+      `admin.review.processed`; persistence failure → `admin.review.failed`.
+      A missing/unknown `kind` or a missing `id` fails validation with HTTP
+      200 `common.request.invalidParams`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminReviewActionRequest
+    responses:
+      '200':
+        description: "Review applied (`result` is the string `success`), or a `code: 1` business failure."
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-review-action-success.json
+              notFound:
+                externalValue: ../fixtures/admin-review-action-not-found.json
+              alreadyProcessed:
+                externalValue: ../fixtures/admin-review-action-processed.json
+              wikiTargetInvalid:
+                externalValue: ../fixtures/admin-review-action-target-invalid.json
+              invalidParams:
+                externalValue: ../fixtures/admin-review-action-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-review-action-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-review-action-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-review-action-permission-denied.json
+
+adminListFileResources:
+  post:
+    tags: [Admin]
+    summary: Page uploaded file resources
+    operationId: adminListFileResources
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (SiteManager group); callers without it fail with HTTP 403 and
+      `permission.denied`. Keyset-paginates the file store newest id first:
+      `page` below 1 clamps to 1 and `pageSize` is clamped into [10, 50]
+      (0 becomes 10). Quirk: the envelope's `total` is not a row count — it
+      is the current max file id used as the pagination cursor. Each item
+      carries the uploader's username (empty when the user row is missing)
+      and a public access `url`. The file content itself is never inlined.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminFileResourcePageRequest
+    responses:
+      '200':
+        description: A page of file resources.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminFileResourcePageResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-file-resources-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-file-resources-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-file-resources-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-file-resources-permission-denied.json
