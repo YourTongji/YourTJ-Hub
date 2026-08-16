@@ -7,22 +7,12 @@ import (
 	"gorm.io/gorm"
 )
 
-func SaveOrCreateById(entity *Entity) int64 {
-	if entity.Id == 0 {
-		return builder().Create(entity).RowsAffected
-	}
-
-	return builder().Save(entity).RowsAffected
-}
 
 func GetByTopicId(topicId uint64) (entities []*Entity) {
 	builder().Where("topic_id = ?", topicId).Find(&entities)
 	return
 }
 
-func DeleteByTopicId(topicId uint64) int64 {
-	return builder().Where("topic_id = ?", topicId).Delete(&Entity{}).RowsAffected
-}
 
 func GetOneByCategoryId(categoryId uint64) (entity Entity) {
 	builder().
