@@ -828,4 +828,6 @@ export default {
   "k00sx": "データあり",
   "k00sy": "学期（数字 calendarId または学期名）を入力してください",
   "k00sz": "一部の学期の同期に失敗しました。下のステータスで確認してください。",
+  "k00sv": "OneSystem Cookie を保存しました",
+  "k00sw": "OneSystem Cookie を削除しました",
 } as const

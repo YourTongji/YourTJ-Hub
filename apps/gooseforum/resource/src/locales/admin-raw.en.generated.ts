@@ -828,4 +828,6 @@ export default {
   "k00sx": "Has data",
   "k00sy": "Please enter a term (numeric calendarId or term name)",
   "k00sz": "Some terms failed to sync. Check the status list below.",
+  "k00sv": "OneSystem cookie saved",
+  "k00sw": "OneSystem cookie cleared",
 } as const

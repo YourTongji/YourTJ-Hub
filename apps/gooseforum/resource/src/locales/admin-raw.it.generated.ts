@@ -828,4 +828,6 @@ export default {
   "k00sx": "Ha dati",
   "k00sy": "Inserisci un semestre (calendarId numerico o nome)",
   "k00sz": "Alcuni semestri non sono stati sincronizzati. Controlla lo stato qui sotto.",
+  "k00sv": "Cookie OneSystem salvato",
+  "k00sw": "Cookie OneSystem cancellato",
 } as const

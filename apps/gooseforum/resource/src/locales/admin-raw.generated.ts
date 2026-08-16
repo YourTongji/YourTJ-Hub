@@ -828,4 +828,6 @@ export default {
   "k00sx": "有数据",
   "k00sy": "请输入学期（数字 calendarId 或学期名）",
   "k00sz": "部分学期同步失败，请查看下方状态详情。",
+  "k00sv": "一系统 Cookie 已保存",
+  "k00sw": "已清除一系统 Cookie",
 } as const

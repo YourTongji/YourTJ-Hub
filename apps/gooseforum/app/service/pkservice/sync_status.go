@@ -55,10 +55,13 @@ func SyncStatusOverview() ([]SyncStatusItem, error) {
 		return nil, err
 	}
 	var logs []pk.FetchLogEntity
-	if err := db.Connect().Model(&pk.FetchLogEntity{}).Order("id DESC").Find(&logs).Error; err != nil {
+	latestLogIDs := db.Connect().Model(&pk.FetchLogEntity{}).
+		Select("MAX(id)").Group("calendar_id")
+	if err := db.Connect().Model(&pk.FetchLogEntity{}).
+		Where("id IN (?)", latestLogIDs).Order("id DESC").Find(&logs).Error; err != nil {
 		return nil, err
 	}
-	// fetchlog 按 calendar 只取最新一条（id 最大即最近一次）。
+	// 子查询在数据库端每个 calendar 只保留最新一条，避免管理端轮询搬运完整历史。
 	latestByCalendar := make(map[uint64]pk.FetchLogEntity, len(logs))
 	for _, log := range logs {
 		if _, ok := latestByCalendar[log.CalendarId]; !ok {

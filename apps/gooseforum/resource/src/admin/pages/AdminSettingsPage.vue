@@ -855,7 +855,7 @@ async function startSync() {
     const depth = Math.min(Math.max(syncForm.depth || 1, 1), 8)
     const result = await syncPkCalendar(term, depth)
     adminToast.success(adminText('k00sq', { term: result.term || term }))
-    startSyncPolling()
+    startSyncPolling(result.calendarId)
   } catch (err) {
     adminToast.error(err, adminText('k00s2'))
   } finally {
@@ -863,23 +863,23 @@ async function startSync() {
   }
 }
 
-/** 同步为后台异步：启动后每 3s 轮询状态，直到没有 running 学期。
- *  结束时有 failed 学期 → 错误提示（同步失败/被拒），否则成功提示。 */
-function startSyncPolling() {
+/** 同步为后台异步：每 3s 只轮询本次取得租约的目标学期。 */
+function startSyncPolling(calendarId: number) {
   stopSyncPolling()
-  void refreshSyncStatus()
-  syncPollTimer = setInterval(() => {
+  const poll = () => {
     void refreshSyncStatus().then(() => {
-      const items = syncStatusItems.value
-      if (items.some((item) => item.status === 'running')) return
+      const item = syncStatusItems.value.find((status) => status.calendarId === calendarId)
+      if (!item || item.status === 'running') return
       stopSyncPolling()
-      if (items.some((item) => item.status === 'failed')) {
+      if (item.status === 'failed') {
         adminToast.error(adminText('k00sz'))
       } else {
         adminToast.success(adminText('k00sr'))
       }
     })
-  }, 3000)
+  }
+  poll()
+  syncPollTimer = setInterval(poll, 3000)
 }
 
 function stopSyncPolling() {

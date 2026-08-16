@@ -63,7 +63,7 @@ func TestSyncPkCalendarStartsAsyncSync(t *testing.T) {
 	var gotDepth int
 	syncCalled := make(chan struct{})
 	orig := runPkSync
-	runPkSync = func(_ context.Context, _ string, calendarId uint64, depth int, _ bool) (*pkservice.SyncReport, error) {
+	runPkSync = func(_ context.Context, _ string, calendarId uint64, depth int, _ bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
 		gotCalendarId = calendarId
 		gotDepth = depth
 		close(syncCalled)
@@ -100,7 +100,7 @@ func TestSyncPkCalendarClampsDepth(t *testing.T) {
 	var gotDepth int
 	syncCalled := make(chan struct{})
 	orig := runPkSync
-	runPkSync = func(_ context.Context, _ string, _ uint64, depth int, _ bool) (*pkservice.SyncReport, error) {
+	runPkSync = func(_ context.Context, _ string, _ uint64, depth int, _ bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
 		gotDepth = depth
 		close(syncCalled)
 		return &pkservice.SyncReport{}, nil
@@ -118,6 +118,44 @@ func TestSyncPkCalendarClampsDepth(t *testing.T) {
 	}
 	if gotDepth != maxPkSyncDepth {
 		t.Errorf("stub depth = %d, want clamped %d", gotDepth, maxPkSyncDepth)
+	}
+}
+
+func TestSyncPkCalendarRejectsConcurrentStart(t *testing.T) {
+	setupPkAdminTest(t)
+	t.Setenv("ONESYSTEM_COOKIE", "JWTUser=abc")
+
+	syncStarted := make(chan struct{})
+	releaseSync := make(chan struct{})
+	syncFinished := make(chan struct{})
+	orig := runPkSync
+	runPkSync = func(_ context.Context, _ string, _ uint64, _ int, _ bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
+		close(syncStarted)
+		<-releaseSync
+		close(syncFinished)
+		return &pkservice.SyncReport{}, nil
+	}
+	t.Cleanup(func() { runPkSync = orig })
+
+	first := SyncPkCalendar(component.BetterRequest[SyncPkCalendarReq]{Params: SyncPkCalendarReq{Term: "121"}})
+	if first.Data.Code != component.SUCCESS {
+		t.Fatalf("first start failed: %+v", first.Data)
+	}
+	select {
+	case <-syncStarted:
+	case <-time.After(2 * time.Second):
+		t.Fatal("async sync stub was not invoked")
+	}
+
+	second := SyncPkCalendar(component.BetterRequest[SyncPkCalendarReq]{Params: SyncPkCalendarReq{Term: "121"}})
+	if second.Data.Code != component.FAIL {
+		t.Fatalf("concurrent start: expected FAIL, got %+v", second.Data)
+	}
+	close(releaseSync)
+	select {
+	case <-syncFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("async sync stub did not finish")
 	}
 }
 
