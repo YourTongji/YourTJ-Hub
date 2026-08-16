@@ -43,7 +43,7 @@ import {
   type WikiSyncStatus,
 } from '@/admin/runtime/api'
 import {
-  isSyncTerminal,
+  syncTerminalToastKey,
   WIKI_SYNC_POLL_INTERVAL_MS,
   WIKI_SYNC_POLL_MAX_ATTEMPTS,
 } from './wiki-sync-poll'
@@ -234,12 +234,20 @@ async function runSync() {
       attempts++
       try {
         const status = await getWikiSyncStatus()
-        if (isSyncTerminal(status, beforeRunId)) {
+        const terminalToast = syncTerminalToastKey(status, beforeRunId)
+        if (terminalToast !== null) {
           clearSyncPoll()
           syncTriggering.value = false
           syncStatus.value = status
           await Promise.all([loadSyncRuns(), loadTree()])
-          adminToast.success(adminText('k00qj'))
+          // review #299：failed 终态必须提示「同步失败」（附 run error），
+          // 不能与 success 一样提示「同步完成」。
+          if (terminalToast === 'failed') {
+            const detail = status?.lastRun?.error
+            adminToast.error(detail ? new Error(detail) : undefined, adminText('k00ql'))
+          } else {
+            adminToast.success(adminText('k00qj'))
+          }
           return
         }
       } catch {

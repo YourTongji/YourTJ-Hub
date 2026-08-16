@@ -770,7 +770,6 @@ export default {
   "k00qh": "Fallita",
   "k00qi": "In esecuzione",
   "k00qj": "Sincronizzazione completata",
-  "k00qk": "Una sincronizzazione è già in esecuzione",
   "k00ql": "Sincronizzazione fallita",
   "k00qm": "Nessuna sincronizzazione registrata",
   "k00qn": "Registri di sincronizzazione",

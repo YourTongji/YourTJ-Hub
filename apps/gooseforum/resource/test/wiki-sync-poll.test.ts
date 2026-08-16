@@ -1,5 +1,5 @@
 import { describe, expect, test } from 'vitest'
-import { isSyncTerminal } from '../src/admin/pages/wiki-sync-poll'
+import { isSyncTerminal, syncTerminalToastKey } from '../src/admin/pages/wiki-sync-poll'
 import type { WikiSyncStatus } from '../src/admin/runtime/api'
 
 // issue #290 回归：手动同步 accepted 后，前端必须轮询到「比触发时更新的
@@ -52,5 +52,21 @@ describe('isSyncTerminal (wiki sync polling, issue #290)', () => {
 
   test('无任何历史记录时首个终态 run → 终态', () => {
     expect(isSyncTerminal(status(run(1, 'success')), 0)).toBe(true)
+  })
+})
+
+describe('syncTerminalToastKey (review #299)', () => {
+  test('非终态（旧 run / running / 无记录）→ null，继续轮询', () => {
+    expect(syncTerminalToastKey(status(undefined), 0)).toBeNull()
+    expect(syncTerminalToastKey(status(run(7, 'success')), 7)).toBeNull()
+    expect(syncTerminalToastKey(status(run(8, 'running')), 7)).toBeNull()
+  })
+
+  test('新 run 行 success → success 提示（同步完成）', () => {
+    expect(syncTerminalToastKey(status(run(8, 'success')), 7)).toBe('success')
+  })
+
+  test('新 run 行 failed → failed 提示（同步失败，非同步完成）', () => {
+    expect(syncTerminalToastKey(status(run(8, 'failed')), 7)).toBe('failed')
   })
 })

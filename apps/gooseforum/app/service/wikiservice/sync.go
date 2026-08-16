@@ -225,6 +225,13 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 
 // ---------- 并发防重入 ----------
 
+// syncMu 是进程内同步互斥锁。整个 wiki 同步（SyncWithConfig/syncOnce）全程
+// 持锁，ReconcileStaleRuns 在锁空闲时把库中遗留 running 行回收为 failed。
+// 该回收逻辑依赖「同一数据库上至多一个进程运行同步」的部署假设：当前部署
+// 每个环境只有一个应用容器（deploy/docker-compose.yaml，main/dev 各一实例），
+// 进程内锁即唯一仲裁者。若未来同一实例水平扩容（多副本共享同一数据库），
+// 进程内锁无法互斥跨进程同步，本回收逻辑必须换成 DB 级租约/锁，否则会误杀
+// 其他进程正在执行的同步。
 var syncMu sync.Mutex
 
 // syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，

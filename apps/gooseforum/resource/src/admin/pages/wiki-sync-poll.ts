@@ -23,3 +23,16 @@ export function isSyncTerminal(status: WikiSyncStatus | null, beforeRunId: numbe
   if (last.id <= beforeRunId) return false
   return last.status === 'success' || last.status === 'failed'
 }
+
+/**
+ * syncTerminalToastKey 返回轮询终态对应的提示（review #299）：新 run 行
+ * failed 时管理端 toast 必须报「同步失败」而不是「同步完成」；非终态返回
+ * null（继续轮询）。
+ */
+export function syncTerminalToastKey(
+  status: WikiSyncStatus | null,
+  beforeRunId: number,
+): 'success' | 'failed' | null {
+  if (!isSyncTerminal(status, beforeRunId)) return null
+  return status?.lastRun?.status === 'failed' ? 'failed' : 'success'
+}

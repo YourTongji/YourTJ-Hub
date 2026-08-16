@@ -770,7 +770,6 @@ export default {
   "k00qh": "Failed",
   "k00qi": "Running",
   "k00qj": "Sync completed",
-  "k00qk": "A sync is already running",
   "k00ql": "Sync failed",
   "k00qm": "No sync runs yet",
   "k00qn": "Sync runs",
