@@ -372,10 +372,7 @@ type WikiSyncSettingsStorage struct {
 
 // ToConfig 将落库形状转为领域结构。
 func (s WikiSyncSettingsStorage) ToConfig() WikiSyncSettingsConfig {
-	return WikiSyncSettingsConfig{
-		WebhookSecretEncrypted: s.WebhookSecretEncrypted,
-		WebhookSecretCleared:   s.WebhookSecretCleared,
-	}
+	return WikiSyncSettingsConfig(s)
 }
 
 type HttpNotifyEndpoint struct {
