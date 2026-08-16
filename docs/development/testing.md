@@ -62,7 +62,8 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | Go 黑盒测试（外部契约/集成行为） | 同目录 `*_test.go`，`package xxx_test` | 只通过导出 API 验证行为；需要外部文件（样例输入、golden 输出）时放同包 `testdata/` |
 | 前端组件/单元测试 | `apps/gooseforum/resource/test/*.test.ts` | Vitest 独立目录，避免混入 `src/`；fixtures 就近放 `test/fixtures/` |
 | Flutter 测试 | 各包 `apps/mobile/packages/<pkg>/test/` | `widget_test.dart` / `*_test.dart`，fixtures 放同目录 |
-| 契约测试与 fixtures | `packages/api-contract/fixtures/` | OpenAPI 生成的 TS 类型 + 路由级 HTTP fixture 断言；测试本身在 `go test ./...` 门禁内 |
+| 契约测试（路由级 HTTP 断言） | `apps/gooseforum/app/http/routes/*_test.go` | 位于 Go module 内，随 `go test ./...` 运行 |
+| 契约 fixtures 与生成类型 | `packages/api-contract/fixtures/` | 只放 fixture 数据与 OpenAPI 生成的 TS 类型；该目录不在 Go module 内，测试代码不放这里 |
 
 模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
 

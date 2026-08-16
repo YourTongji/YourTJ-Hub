@@ -12,7 +12,8 @@ description: Use when reviewing a yourtj-hub code change (own or others') before
 
 - 改动是否触及 OpenAPI 覆盖的操作？是 → 检查 `packages/api-contract/openapi.yaml`、生成 TypeScript 输出
   （`apps/gooseforum/resource/packages/client/src/gen`）、fixture 契约测试是否同 PR 同步；未完全覆盖的操作
-  还需同步 mobile Dart 镜像（`apps/mobile/packages/core/lib/src/gen/`）。
+  还需同步 mobile Dart 镜像（`apps/mobile/packages/core/lib/src/gen/`）与手动维护的 web TS 类型
+  （`apps/gooseforum/resource/packages/client/src/contracts/`）。
 - 路由/请求/响应结构是否改变？与 `packages/api-contract/openapi.yaml` 或 `app/http/controllers` 实际行为核对。
 
 ## Database & migration safety
