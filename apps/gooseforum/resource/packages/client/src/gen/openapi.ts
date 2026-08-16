@@ -4638,13 +4638,14 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description The sync run was accepted and executes asynchronously (git clone/fetch +
+             * @description The sync run is accepted and executes asynchronously (git clone/fetch +
              *     full projection can exceed the HTTP write timeout). Consumers poll
              *     `sync/status` and `sync/runs` for progress; a run row starts with
-             *     `status=running` and terminates with `success` or `failed`. Business
-             *     failures are returned as legacy HTTP 200 envelopes: a sync already in
-             *     progress (`wiki.sync.running`, merged into a pending rerun) and an
-             *     unconfigured repository (`wiki.sync.failed`).
+             *     `status=running` and terminates with `success` or `failed`. Requests
+             *     made while a sync is already in progress are also accepted and merged
+             *     into a pending rerun after the current run completes. The only business
+             *     failure is an unconfigured repository, returned as a legacy HTTP 200
+             *     envelope (`wiki.sync.failed`).
              */
             200: {
                 headers: {

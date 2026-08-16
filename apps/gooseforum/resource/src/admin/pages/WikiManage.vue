@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
 
-import { computed, onMounted, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   BookOpen,
   Clock,
@@ -42,6 +42,11 @@ import {
   type WikiSyncRunView,
   type WikiSyncStatus,
 } from '@/admin/runtime/api'
+import {
+  isSyncTerminal,
+  WIKI_SYNC_POLL_INTERVAL_MS,
+  WIKI_SYNC_POLL_MAX_ATTEMPTS,
+} from './wiki-sync-poll'
 import { adminToast } from '@/admin/runtime/toast'
 import type {
   AdminPayload,
@@ -71,6 +76,17 @@ const syncError = ref('')
 const syncRuns = ref<WikiSyncRunView[]>([])
 const runsLoading = ref(false)
 const syncTriggering = ref(false)
+
+// 手动同步后的轮询状态（issue #290）：accepted 后持续轮询 status/runs
+// 直到出现比触发时更新的 run 行进入终态；组件卸载时清理定时器。
+const syncPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+
+function clearSyncPoll() {
+  if (syncPollTimer.value !== null) {
+    clearInterval(syncPollTimer.value)
+    syncPollTimer.value = null
+  }
+}
 
 // webhook 验签密钥（securestore 加密落库，仅回显是否已配置）
 const webhookConfigured = ref(false)
@@ -201,17 +217,43 @@ async function runSync() {
   if (syncTriggering.value || syncLoading.value || !syncStatus.value?.enabled) return
   syncTriggering.value = true
   try {
+    const beforeRunId = syncStatus.value?.lastRun?.id ?? 0
     await triggerWikiSync()
     adminToast.success(adminText('k00qw'))
-  } catch (err) {
-    const messageCode = (err as { messageCode?: string } | null)?.messageCode
-    if (messageCode === 'wiki.sync.running') {
-      adminToast.warning(adminText('k00qk'))
-    } else {
-      adminToast.error(err, adminText('k00ql'))
+    // accepted 后轮询（issue #290）：后端 run 行可能晚于响应创建，且同步
+    // 可能持续数分钟 → 轮询到比 beforeRunId 更新的 run 进入终态后刷新
+    // 状态/运行记录/页面树（同步结果投影到树）。
+    let attempts = 0
+    const poll = async () => {
+      if (attempts >= WIKI_SYNC_POLL_MAX_ATTEMPTS) {
+        clearSyncPoll()
+        syncTriggering.value = false
+        adminToast.warning(adminText('k00r8'))
+        return
+      }
+      attempts++
+      try {
+        const status = await getWikiSyncStatus()
+        if (isSyncTerminal(status, beforeRunId)) {
+          clearSyncPoll()
+          syncTriggering.value = false
+          syncStatus.value = status
+          await Promise.all([loadSyncRuns(), loadTree()])
+          adminToast.success(adminText('k00qj'))
+          return
+        }
+      } catch {
+        // 单次轮询失败不中断：下次轮询重试；达到上限后以超时提示收尾。
+      }
     }
-  } finally {
+    await poll()
+    // 首轮已终态时 syncTriggering 已复位，不再启动轮询；否则进入定时间隔。
+    if (syncTriggering.value) {
+      syncPollTimer.value = setInterval(poll, WIKI_SYNC_POLL_INTERVAL_MS)
+    }
+  } catch (err) {
     syncTriggering.value = false
+    adminToast.error(err, adminText('k00ql'))
     await Promise.all([loadSyncStatus(), loadSyncRuns(), loadTree()])
   }
 }
@@ -250,6 +292,10 @@ async function loadAll() {
 
 onMounted(() => {
   void loadAll()
+})
+
+onUnmounted(() => {
+  clearSyncPoll()
 })
 </script>
 

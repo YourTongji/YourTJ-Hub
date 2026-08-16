@@ -184,6 +184,10 @@ func statusString(s int8) string {
 
 // BuildSyncStatus 构建同步面板状态。
 func BuildSyncStatus() SyncStatus {
+	// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
+	// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
+	// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+	ReconcileStaleRuns()
 	cfg := LoadGitConfig()
 	status := SyncStatus{
 		Enabled: cfg.Enabled(),
@@ -238,6 +242,37 @@ func TryAcquireSyncLock() bool {
 // ReleaseSyncLock 释放同步锁。
 func ReleaseSyncLock() {
 	syncMu.Unlock()
+}
+
+// abandonedRunErrMsg 崩溃/重启遗留 running 行的回收标记文案（issue #290）。
+const abandonedRunErrMsg = "abandoned: process restarted or run interrupted before completion"
+
+// markAbandonedRuns 把库中遗留的 running 运行行标记为 failed（issue #290
+// 崩溃恢复）。调用方必须持有同步锁（或已确认锁空闲）：同步全程持锁，锁
+// 空闲时 running 行只可能来自崩溃/重启/MarkFinished 失败 → 可安全回收。
+// 返回回收的行数。
+func markAbandonedRuns() int64 {
+	n, err := wikiSyncRuns.MarkAllRunningAbandoned(abandonedRunErrMsg)
+	if err != nil {
+		slog.Warn("wiki sync: reconcile stale running runs failed", "error", err)
+		return 0
+	}
+	if n > 0 {
+		slog.Warn("wiki sync: reconciled abandoned running runs", "count", n)
+	}
+	return n
+}
+
+// reconcileStaleRuns 回收遗留 running 运行行（issue #290 崩溃恢复）：锁空闲时
+// running 行只可能来自进程崩溃/重启或 MarkFinished 失败 → 统一标记 failed，
+// 让管理端 lastRun 呈现可恢复状态（手动同步按钮不再被永久禁用）。锁被占用
+// （同步真在运行）时跳过，避免误杀在途同步。供状态读取与进程启动时调用。
+func ReconcileStaleRuns() {
+	if !TryAcquireSyncLock() {
+		return // 锁被占用 = 同步真在运行，running 行是活的，不得回收
+	}
+	defer ReleaseSyncLock()
+	markAbandonedRuns()
 }
 
 // ---------- git 操作 ----------
@@ -470,6 +505,11 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		syncPending.Store(true)
 		return nil, ErrSyncAlreadyRunning
 	}
+	// 崩溃恢复（issue #290）：此刻锁空闲刚被本调用持有 = 本进程无其他在途
+	// 同步，库中 running 行必为崩溃/重启/MarkFinished 失败残留 → 回收，
+	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
+	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
+	markAbandonedRuns()
 	defer func() {
 		ReleaseSyncLock()
 		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
@@ -478,8 +518,14 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
 			// startup/cron 之外的直接调用方）。
 			defer recovery.Recover("wiki_sync_pending_rerun")
-			if _, err := syncOnce(cfg, "webhook"); err != nil {
-				slog.Warn("wiki sync: pending rerun failed", "error", err)
+			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
+			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
+			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
+			if TryAcquireSyncLock() {
+				defer ReleaseSyncLock()
+				if _, err := syncOnce(cfg, "webhook"); err != nil {
+					slog.Warn("wiki sync: pending rerun failed", "error", err)
+				}
 			}
 		}
 	}()
@@ -495,16 +541,22 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 
 	head, err := ensureClone(cfg)
 	if err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error())
+		if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error()); merr != nil {
+			slog.Error("wiki sync: mark run failed (clone) failed", "runId", run.Id, "error", merr)
+		}
 		return nil, err
 	}
 
 	result := &SyncResult{HeadSha: head}
 	if err := applyRepoToDB(cfg, result); err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error())
+		if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error()); merr != nil {
+			slog.Error("wiki sync: mark run failed (projection) failed", "runId", run.Id, "error", merr)
+		}
 		return result, err
 	}
-	_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, "")
+	if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, ""); merr != nil {
+		slog.Error("wiki sync: mark run success failed", "runId", run.Id, "error", merr)
+	}
 	if result.NamespacesDeleted > 0 {
 		slog.Info("wiki sync: namespaces deleted", "count", result.NamespacesDeleted, "headSha", head)
 	}
