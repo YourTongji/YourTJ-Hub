@@ -1,7 +1,9 @@
 package wikiservice
 
 import (
+	"encoding/json"
 	"fmt"
+	"os/exec"
 	"strings"
 	"testing"
 	"time"
@@ -423,12 +425,16 @@ func TestLoadPageDetailFromProjection(t *testing.T) {
 }
 
 // TestBuildContributorsFromProjection 贡献者读 wiki_pages.contributors_json 缓存；
-// GitHub 贡献者无论坛账号，userId/avatarUrl 恒为空，仅 username/count。
+// GitHub 贡献者无论坛账号，userId 恒 0；noreply 邮箱解析出 username 时
+// avatarUrl/githubUrl 可用，否则三者皆空（前端降级首字母占位）。
 func TestBuildContributorsFromProjection(t *testing.T) {
 	setupWikiTestDB(t)
 	page := seedProjectedWikiPage(t, "docs", "docs/contrib", "Contrib", time.Now())
 	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
-		Update("contributors_json", `[{"name":"Alice","count":5},{"name":"Bob","count":2}]`).Error; err != nil {
+		Update("contributors_json", `[
+			{"name":"Alice","email":"12345+alice@users.noreply.github.com","username":"alice","count":5},
+			{"name":"Bob","email":"bob@example.com","count":2}
+		]`).Error; err != nil {
 		t.Fatalf("set contributors: %v", err)
 	}
 	contribs := BuildContributors(page.Id)
@@ -438,14 +444,100 @@ func TestBuildContributorsFromProjection(t *testing.T) {
 	if contribs[0].Username != "Alice" || contribs[0].Count != 5 {
 		t.Fatalf("contributors[0]=%+v, want Alice/5", contribs[0])
 	}
+	if contribs[0].UserId != 0 {
+		t.Fatalf("contributor userId should be 0: %+v", contribs[0])
+	}
+	if contribs[0].AvatarUrl != "https://github.com/alice.png?size=56" {
+		t.Fatalf("contributor avatarUrl = %q, want github avatar URL", contribs[0].AvatarUrl)
+	}
+	if contribs[0].GithubUrl != "https://github.com/alice" {
+		t.Fatalf("contributor githubUrl = %q, want github profile URL", contribs[0].GithubUrl)
+	}
+	// 自定义邮箱：无头像/链接（降级）。
 	if contribs[1].Username != "Bob" || contribs[1].Count != 2 {
 		t.Fatalf("contributors[1]=%+v, want Bob/2", contribs[1])
 	}
-	if contribs[0].UserId != 0 || contribs[0].AvatarUrl != "" {
-		t.Fatalf("contributor user linkage should be empty: %+v", contribs[0])
+	if contribs[1].AvatarUrl != "" || contribs[1].GithubUrl != "" {
+		t.Fatalf("custom-email contributor should have no avatar/link: %+v", contribs[1])
 	}
 	if got := BuildContributors(0); len(got) != 0 {
 		t.Fatalf("unknown page contributors=%d, want 0", len(got))
+	}
+}
+
+// TestGithubUsernameFromEmail 从 GitHub noreply 隐私邮箱解析用户名：
+// 新版 {id}+{username}、旧版 {username}、自定义邮箱/非法用户名返回空。
+func TestGithubUsernameFromEmail(t *testing.T) {
+	cases := []struct {
+		email string
+		want  string
+	}{
+		{"12345+alice@users.noreply.github.com", "alice"},
+		{"bob@users.noreply.github.com", "bob"},
+		{"c-harlie@users.noreply.github.com", "c-harlie"},
+		{"bob@example.com", ""},                    // 自定义邮箱
+		{"", ""},                                   // 空
+		{"-bad@users.noreply.github.com", ""},      // 连字符开头非法
+		{"bad-@users.noreply.github.com", ""},      // 连字符结尾非法
+		{"has space@users.noreply.github.com", ""}, // 空格非法
+		{"12345+@users.noreply.github.com", ""},    // + 后为空
+		{"@users.noreply.github.com", ""},          // local 为空
+	}
+	for _, tc := range cases {
+		if got := githubUsernameFromEmail(tc.email); got != tc.want {
+			t.Errorf("githubUsernameFromEmail(%q) = %q, want %q", tc.email, got, tc.want)
+		}
+	}
+}
+
+// TestBuildContributorsSnapshotAggregatesByUsername 贡献者快照按可解析 username
+// 聚合（合并 GitHub 新旧 noreply 格式——username 相同；自定义邮箱降级按 email），
+// 展示名取最近提交的 name，count 排序。
+func TestBuildContributorsSnapshotAggregatesByUsername(t *testing.T) {
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	repo := t.TempDir()
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", repo}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	// 旧版 noreply 格式：{username}@users.noreply.github.com。
+	git("config", "user.email", "old@users.noreply.github.com")
+	git("config", "user.name", "Old Name")
+	writeRepoFile(t, repo, "guide/start.md", "# 一")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c1")
+	// 同一人换新版 noreply 格式（{id}+{username}）+ 改显示名 → 按 username 合并为 1 人。
+	git("config", "user.email", "12345+old@users.noreply.github.com")
+	git("config", "user.name", "New Name")
+	writeRepoFile(t, repo, "guide/start.md", "# 二")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c2")
+	// 自定义邮箱另一人（无法解析 username，按 email 聚合）。
+	git("config", "user.email", "bob@example.com")
+	git("config", "user.name", "Bob")
+	writeRepoFile(t, repo, "guide/start.md", "# 三")
+	git("add", "-A")
+	git("commit", "-q", "-m", "c3")
+
+	raw := buildContributorsSnapshot(repo, "guide/start.md")
+	var got []gitContributor
+	if err := json.Unmarshal([]byte(raw), &got); err != nil {
+		t.Fatalf("unmarshal snapshot %q: %v", raw, err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("contributors=%d, want 2 (same user merged): %+v", len(got), got)
+	}
+	// 同人合并后 count=2，展示名 = 最近提交的 New Name。
+	if got[0].Name != "New Name" || got[0].Count != 2 || got[0].Username != "old" {
+		t.Fatalf("merged contributor = %+v, want New Name/2/old", got[0])
+	}
+	if got[1].Name != "Bob" || got[1].Count != 1 || got[1].Username != "" {
+		t.Fatalf("custom email contributor = %+v, want Bob/1/no username", got[1])
 	}
 }
 

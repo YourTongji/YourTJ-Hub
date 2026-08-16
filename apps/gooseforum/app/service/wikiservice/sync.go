@@ -330,6 +330,12 @@ func ensureClone(cfg GitConfig) (string, error) {
 		}
 	}
 	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
+		// 存量浅克隆（v1 用 --depth=1 建立）→ 补全历史：贡献者统计依赖完整 git log。
+		if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git", "shallow")); err == nil {
+			if out, err := runGit(cfg.CloneDir, "fetch", "--unshallow", "origin", cfg.Branch); err != nil {
+				return "", fmt.Errorf("git fetch --unshallow: %v: %s", err, out)
+			}
+		}
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
 			return "", fmt.Errorf("git fetch: %v: %s", err, out)
 		}
@@ -340,8 +346,8 @@ func ensureClone(cfg GitConfig) (string, error) {
 		if err := os.MkdirAll(cfg.CloneDir, 0o755); err != nil {
 			return "", fmt.Errorf("mkdir clone dir: %w", err)
 		}
-		// 新 clone：--depth=1 只拉默认分支最新（同步只关心 head）。
-		if out, err := runGit("", "clone", "--depth=1", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
+		// 全量 clone（不用 --depth=1）：贡献者统计依赖完整 git log 历史。
+		if out, err := runGit("", "clone", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
 			return "", fmt.Errorf("git clone: %v: %s", err, out)
 		}
 	}
@@ -444,32 +450,67 @@ func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 }
 
 // gitContributor 仓库 git log 贡献者快照条目（BuildContributors 数据源）。
+// Email 用于聚合（同人改名不裂）；Username 由 GitHub noreply 邮箱解析，
+// 供前端拼头像与主页外链；自定义邮箱贡献者 username 为空（无链接降级）。
 type gitContributor struct {
-	Name  string `json:"name"`
-	Count int    `json:"count"`
+	Name     string `json:"name"`
+	Email    string `json:"email,omitempty"`
+	Username string `json:"username,omitempty"`
+	Count    int    `json:"count"`
 }
 
 // buildContributorsSnapshot 从 git log 统计某文件贡献者（同步时写入页面缓存）。
 // 公开仓库无鉴权；失败返回空快照（不阻断同步）。
+// 聚合键 = email（GitHub 隐私邮箱可解析 username；自定义邮箱按 email 聚合，
+// 仅当 email 也缺失时才退回按 name 聚合）；展示名取该邮箱最近一次提交的 name。
 func buildContributorsSnapshot(cloneDir, relPath string) string {
-	out, err := runGit(cloneDir, "log", "--pretty=format:%an", "--", relPath)
+	out, err := runGit(cloneDir, "log", "--pretty=format:%an%x1f%ae", "--", relPath)
 	if err != nil || strings.TrimSpace(out) == "" {
 		return ""
 	}
-	counts := make(map[string]int)
+	type agg struct {
+		name     string
+		email    string
+		username string
+		count    int
+	}
+	byKey := make(map[string]*agg)
 	for _, line := range strings.Split(out, "\n") {
-		name := strings.TrimSpace(line)
-		if name != "" {
-			counts[name]++
+		parts := strings.SplitN(line, "\x1f", 2)
+		name := strings.TrimSpace(parts[0])
+		if name == "" {
+			continue
 		}
+		email := ""
+		if len(parts) > 1 {
+			email = strings.TrimSpace(parts[1])
+		}
+		// 聚合键优先级：username（GitHub noreply 可解析——合并新旧邮箱格式、
+		// 以及「noreply + 自定义邮箱」双邮箱同人）→ email → name（匿名提交兜底）。
+		key := githubUsernameFromEmail(email)
+		if key == "" {
+			key = email
+		}
+		if key == "" {
+			key = name
+		}
+		item := byKey[key]
+		if item == nil {
+			// git log 新→旧：首个出现的提交即该贡献者最近一次提交，
+			// name 取首次（最新）值，后续旧提交不覆盖显示名。
+			item = &agg{name: name, email: email, username: githubUsernameFromEmail(email)}
+			byKey[key] = item
+		}
+		item.count++
 	}
-	type item struct {
-		Name  string `json:"name"`
-		Count int    `json:"count"`
-	}
-	items := make([]item, 0, len(counts))
-	for name, c := range counts {
-		items = append(items, item{Name: name, Count: c})
+	items := make([]gitContributor, 0, len(byKey))
+	for _, item := range byKey {
+		items = append(items, gitContributor{
+			Name:     item.name,
+			Email:    item.email,
+			Username: item.username,
+			Count:    item.count,
+		})
 	}
 	sort.Slice(items, func(i, j int) bool { return items[i].Count > items[j].Count })
 	data, err := json.Marshal(items)
@@ -477,6 +518,54 @@ func buildContributorsSnapshot(cloneDir, relPath string) string {
 		return ""
 	}
 	return string(data)
+}
+
+// githubNoReplySuffix GitHub 隐私邮箱后缀（公开仓库贡献者默认开启邮箱隐私）。
+const githubNoReplySuffix = "@users.noreply.github.com"
+
+// githubUsernameFromEmail 从 GitHub noreply 隐私邮箱解析用户名：
+//   - 新版格式 {id}+{username}@users.noreply.github.com（2021+）
+//   - 旧版格式 {username}@users.noreply.github.com（2017-2021）
+//   - 自定义邮箱 / 无法解析 → 返回空（前端降级为首字母占位、无外链）。
+func githubUsernameFromEmail(email string) string {
+	email = strings.TrimSpace(email)
+	local, ok := strings.CutSuffix(email, githubNoReplySuffix)
+	if !ok || local == "" {
+		return ""
+	}
+	// 新版 {id}+{username}：取最后一个 + 之后的部分（id 全数字）。
+	if i := strings.LastIndex(local, "+"); i >= 0 {
+		local = local[i+1:]
+	}
+	if !validGithubUsername(local) {
+		return ""
+	}
+	return local
+}
+
+// validGithubUsername GitHub 用户名宽松校验：字母数字连字符，不以连字符开头/结尾。
+func validGithubUsername(name string) bool {
+	if name == "" || len(name) > 39 || name[0] == '-' || name[len(name)-1] == '-' {
+		return false
+	}
+	for i := 0; i < len(name); i++ {
+		c := name[i]
+		if (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z') || (c >= '0' && c <= '9') || c == '-' {
+			continue
+		}
+		return false
+	}
+	return true
+}
+
+// githubAvatarURL GitHub 官方动态头像直链（无需 API/token；size 控制分辨率）。
+func githubAvatarURL(username string) string {
+	return "https://github.com/" + username + ".png?size=56"
+}
+
+// githubProfileURL GitHub 用户主页外链。
+func githubProfileURL(username string) string {
+	return "https://github.com/" + username
 }
 
 // ---------- frontmatter 解析 ----------
