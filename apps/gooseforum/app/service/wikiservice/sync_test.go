@@ -2,7 +2,9 @@ package wikiservice
 
 import (
 	"os"
+	"os/exec"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -11,6 +13,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 )
 
 // writeRepoFile 在临时仓库目录下写一个 md 文件（自动建父目录）。
@@ -22,6 +25,131 @@ func writeRepoFile(t *testing.T, root, rel string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write repo file %s: %v", rel, err)
+	}
+}
+
+// initGitRepo 在临时目录初始化 git 仓库并提交全部文件（同步器 ensureClone
+// 需要真实 git 仓库；测试环境缺 git 二进制时跳过）。
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "test@example.test")
+	git("config", "user.name", "test")
+	git("add", "-A")
+	git("commit", "-q", "-m", "init")
+}
+
+// TestMarkAllRunningAbandoned 崩溃恢复原语（issue #290）：全部 running 行统一
+// 标记 failed + error + finished_at，终态行不受影响。
+func TestMarkAllRunningAbandoned(t *testing.T) {
+	setupWikiTestDB(t)
+	running := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&running); err != nil {
+		t.Fatalf("create running run: %v", err)
+	}
+	done := wikiSyncRuns.Entity{Trigger: "webhook", Status: wikiSyncRuns.StatusSuccess}
+	if err := wikiSyncRuns.Create(&done); err != nil {
+		t.Fatalf("create success run: %v", err)
+	}
+
+	n, err := wikiSyncRuns.MarkAllRunningAbandoned("abandoned: process restarted before run finished")
+	if err != nil {
+		t.Fatalf("mark abandoned: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("abandoned count = %d, want 1", n)
+	}
+	got := wikiSyncRuns.GetById(running.Id)
+	if got.Status != wikiSyncRuns.StatusFailed {
+		t.Fatalf("abandoned run status = %d, want failed", got.Status)
+	}
+	if !strings.Contains(got.Error, "abandoned") {
+		t.Fatalf("abandoned run error = %q, want abandoned marker", got.Error)
+	}
+	if got.FinishedAt == nil {
+		t.Fatal("abandoned run finished_at not set")
+	}
+	if still := wikiSyncRuns.GetById(done.Id); still.Status != wikiSyncRuns.StatusSuccess {
+		t.Fatalf("terminal run status = %d, want success untouched", still.Status)
+	}
+}
+
+// TestSyncOnceReconcilesStaleRunningRuns 崩溃遗留的 running 行在下次同步开始前
+// 被回收（issue #290）：残留行标记 failed，新 run 正常执行并 success。
+func TestSyncOnceReconcilesStaleRunningRuns(t *testing.T) {
+	setupWikiTestDB(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n正文")
+	initGitRepo(t, repo)
+
+	stale := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&stale); err != nil {
+		t.Fatalf("create stale running run: %v", err)
+	}
+
+	cfg := GitConfig{Repo: "file://" + repo, Branch: "main", CloneDir: filepath.Join(t.TempDir(), "clone")}
+	res, err := SyncWithConfig(cfg, "manual")
+	if err != nil {
+		t.Fatalf("SyncWithConfig: %v", err)
+	}
+	if res.PagesAdded != 1 {
+		t.Fatalf("PagesAdded = %d, want 1", res.PagesAdded)
+	}
+
+	got := wikiSyncRuns.GetById(stale.Id)
+	if got.Status != wikiSyncRuns.StatusFailed {
+		t.Fatalf("stale run status = %d, want failed (reconciled)", got.Status)
+	}
+	latest := wikiSyncRuns.Latest()
+	if latest.Id == stale.Id || latest.Status != wikiSyncRuns.StatusSuccess {
+		t.Fatalf("latest run = id %d status %d, want new success run", latest.Id, latest.Status)
+	}
+}
+
+// TestBuildSyncStatusReconcilesStaleRunning 状态读取时自愈（issue #290）：
+// 进程内无同步锁占用时，残留 running 行在 BuildSyncStatus 内被标记 failed，
+// 管理端刷新页面即可解除按钮禁用。
+func TestBuildSyncStatusReconcilesStaleRunning(t *testing.T) {
+	setupWikiTestDB(t)
+	stale := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&stale); err != nil {
+		t.Fatalf("create stale running run: %v", err)
+	}
+
+	status := BuildSyncStatus()
+	if status.LastRun == nil || status.LastRun.Status != "failed" {
+		t.Fatalf("lastRun after status read = %+v, want failed", status.LastRun)
+	}
+}
+
+// TestBuildSyncStatusKeepsLiveRunningWhileLockHeld 同步锁被占用（本进程同步
+// 进行中）时，BuildSyncStatus 不得回收 running 行——误回收会杀死在途同步。
+func TestBuildSyncStatusKeepsLiveRunningWhileLockHeld(t *testing.T) {
+	setupWikiTestDB(t)
+	live := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&live); err != nil {
+		t.Fatalf("create live run: %v", err)
+	}
+	if !TryAcquireSyncLock() {
+		t.Fatal("acquire sync lock")
+	}
+	defer ReleaseSyncLock()
+
+	status := BuildSyncStatus()
+	if status.LastRun == nil || status.LastRun.Status != "running" {
+		t.Fatalf("live run must stay running while lock held, got %+v", status.LastRun)
 	}
 }
 

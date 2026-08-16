@@ -793,4 +793,5 @@ export default {
   "k00r5": "新密钥（留空并保存可清除）",
   "k00r6": "输入 GitHub webhook secret",
   "k00r7": "Slug",
+  "k00r8": "同步轮询超时，请手动刷新页面查看结果",
 } as const

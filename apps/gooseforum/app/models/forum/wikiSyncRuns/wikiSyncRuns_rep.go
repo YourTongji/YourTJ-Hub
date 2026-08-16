@@ -29,10 +29,28 @@ func MarkFinishedTx(tx *gorm.DB, id uint64, status int8, headSha string, added, 
 	return tx.Table(tableName).Where("id = ?", id).Updates(updates).Error
 }
 
+// GetById 返回指定 id 的同步运行。
+func GetById(id uint64) (entity Entity) {
+	builder().Where("id = ?", id).First(&entity)
+	return
+}
+
 // Latest 返回最近一次同步运行（同步面板状态展示）。
 func Latest() (entity Entity) {
 	builder().Order(queryopt.Desc("id")).First(&entity)
 	return
+}
+
+// MarkAllRunningAbandoned 把全部 status=running 的运行标记为 failed（issue #290
+// 崩溃恢复）：进程重启/被杀后旧 run 不可能继续执行，统一回收避免 UI 因
+// lastRun.status=running 永久禁用手动同步。返回受影响行数。
+func MarkAllRunningAbandoned(errMsg string) (int64, error) {
+	res := builder().Where("status = ?", StatusRunning).Updates(map[string]any{
+		"status":      StatusFailed,
+		"error":       errMsg,
+		"finished_at": gorm.Expr("CURRENT_TIMESTAMP"),
+	})
+	return res.RowsAffected, res.Error
 }
 
 // ListRecent 返回最近 N 次同步运行（倒序）。

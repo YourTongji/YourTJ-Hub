@@ -793,4 +793,5 @@ export default {
   "k00r5": "New secret (leave empty and save to clear)",
   "k00r6": "Enter GitHub webhook secret",
   "k00r7": "Slug",
+  "k00r8": "Sync polling timed out; refresh the page to see the result",
 } as const
