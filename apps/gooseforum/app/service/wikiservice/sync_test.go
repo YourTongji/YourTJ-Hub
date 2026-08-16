@@ -3,6 +3,7 @@ package wikiservice
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -675,5 +676,89 @@ func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
 	}
 	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
 		t.Fatal("fallback URL (display name as URL key) should resolve directly")
+	}
+}
+
+// TestApplyRepoToDBRewritesRelativeRefs 同步时重写仓库相对引用（issue #284）：
+// .md 链接 → /wiki/<path>（去 .md）；图片/附件 → GitHub raw 外链。仓库未配置
+// repo 时图片/附件重写报错（fail-fast），页面链接仍正常。
+func TestApplyRepoToDBRewritesRelativeRefs(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始\n\n[下一页](other.md)\n\n![图](../assets/a.png)")
+	writeRepoFile(t, repo, "guide/other.md", "---\ntitle: 其他\n---\n\n# 其他")
+	writeRepoFile(t, repo, "assets/a.png", "png-bytes")
+
+	cfg := GitConfig{CloneDir: repo, Repo: "https://github.com/YourTongji/YourTJ-Wiki.git", Branch: "main"}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("guide/start")
+	if page.Id == 0 {
+		t.Fatal("page guide/start missing")
+	}
+	if !strings.Contains(page.RenderedHTML, `href="/wiki/guide/other"`) {
+		t.Fatalf("page link not rewritten: %s", page.RenderedHTML)
+	}
+	if !strings.Contains(page.RenderedHTML, `src="https://raw.githubusercontent.com/YourTongji/YourTJ-Wiki/main/assets/a.png"`) {
+		t.Fatalf("image not rewritten to raw URL: %s", page.RenderedHTML)
+	}
+}
+
+// TestApplyRepoToDBBrokenRefFailsSync 相对引用越界/指向不存在文件/非法转义 →
+// 同步 fail-fast（run 报错），错误信息含页面路径与引用原文（可操作）。
+func TestApplyRepoToDBBrokenRefFailsSync(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始\n\n[缺失](missing.md)")
+	writeRepoFile(t, repo, "guide/other.md", "---\ntitle: 其他\n---\n\n# 其他")
+
+	cfg := GitConfig{CloneDir: repo, Repo: "https://github.com/YourTongji/YourTJ-Wiki.git", Branch: "main"}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on broken relative ref")
+	}
+	if !strings.Contains(err.Error(), "guide/start") || !strings.Contains(err.Error(), "missing.md") {
+		t.Fatalf("error should be actionable (page + ref): %v", err)
+	}
+}
+
+// TestApplyRepoToDBHealsStaleRenderedHTML 存量页面（内容 hash 未变但 rendered_html
+// 是链接重写落地前的旧快照）→ 同步时按渲染结果不一致强制更新，投影自愈。
+func TestApplyRepoToDBHealsStaleRenderedHTML(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	rel := "guide/start.md"
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	body := "---\ntitle: 开始\n---\n\n# 开始\n\n[下一页](other.md)"
+	writeRepoFile(t, repo, rel, body)
+	writeRepoFile(t, repo, "guide/other.md", "---\ntitle: 其他\n---\n\n# 其他")
+
+	cfg := GitConfig{CloneDir: repo, Repo: "https://github.com/YourTongji/YourTJ-Wiki.git", Branch: "main"}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("guide/start")
+	if !strings.Contains(page.RenderedHTML, `href="/wiki/guide/other"`) {
+		t.Fatalf("first sync should rewrite: %s", page.RenderedHTML)
+	}
+
+	// 模拟重写落地前的旧快照：rendered_html 为未重写版本，content_hash 不变。
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+		Update("rendered_html", `<p><a href="other.md">下一页</a></p>`).Error; err != nil {
+		t.Fatalf("set stale rendered_html: %v", err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("heal sync: %v", err)
+	}
+	if res.PagesUpdated != 1 {
+		t.Fatalf("PagesUpdated=%d, want 1 (stale rendered_html must heal)", res.PagesUpdated)
+	}
+	page = wikiPages.GetByPath("guide/start")
+	if !strings.Contains(page.RenderedHTML, `href="/wiki/guide/other"`) {
+		t.Fatalf("rendered_html not healed: %s", page.RenderedHTML)
 	}
 }

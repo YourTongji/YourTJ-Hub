@@ -58,7 +58,8 @@
    顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
    （旧站路径映射为 `<namespace>/<slug>.md`）。
 2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
-   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
+   图片等资源按「相对链接/资源」规则在同步时改写为 GitHub raw 外链，或直接用
+   完整 GitHub raw URL 引用）。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
    后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
 4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
@@ -85,6 +86,13 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
   `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
   description/order 写入命名空间元数据）。
+- **相对链接/资源（issue #284）**：仓库内页面可用仓库相对路径互相引用，同步时自动改写：
+  `.md` 链接 → 站内路由 `/wiki/<path>`（去 `.md`，首段 = URL key slug）；图片/附件 →
+  GitHub raw 外链（`raw.githubusercontent.com/{repo}/{branch}/{path}`，逐段转义）；
+  锚点/查询串/外部 URL/协议相对 URL 原样保留；`/wiki/...` 站内路由原样保留。相对引用
+  越界（逃出仓库根）、指向不存在的页面/文件、非法转义 → 该页同步 fail-fast（run 标记
+  failed，错误含页面路径与引用原文）。存量页面的旧渲染快照在内容未变时也会按新重写
+  结果自愈（rendered_html 不一致即触发更新）。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致

@@ -93,7 +93,9 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
 
 - **后端分层**: `app/models/forum/wikiNamespaces` / `wikiPages` / `wikiSyncRuns` →
   `app/service/wikiservice`（同步引擎 `sync.go`：`clone --depth=1` + `fetch` + `reset --hard`、
-  frontmatter 解析、sha256 幂等 diff、upsert/软删/恢复、贡献者快照；查询 `query.go`：
+  frontmatter 解析、sha256 幂等 diff、upsert/软删/恢复、贡献者快照；渲染快照同步时改写
+  仓库相对引用（issue #284）：`.md` 链接 → 站内 `/wiki/<path>`、图片/附件 → GitHub raw 外链，
+  越界/缺失/非法转义 fail-fast，存量旧快照自愈；查询 `query.go`：
   BuildTree/BuildHome/贡献者；管理：命名空间 CRUD + 只读树）→ controllers：
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
   `app/http/controllers/api/wikiController.go`（公开读 + `/api/admin/wiki/*` 管理端）+

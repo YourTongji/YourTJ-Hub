@@ -569,6 +569,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	if err != nil {
 		return fmt.Errorf("scan repo files: %w", err)
 	}
+	// 全量文件清单（含非 .md 资源）：链接重写校验图片/附件存在性用（issue #284）。
+	allFiles, err := scanRepoAllFiles(cfg.CloneDir)
+	if err != nil {
+		return fmt.Errorf("scan repo assets: %w", err)
+	}
 
 	// 1. 收集现有页面（含软删，用于恢复）。
 	existing := wikiPages.ListAll()
@@ -738,6 +743,19 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 	}
 
+	// 2.8 链接重写上下文（issue #284）：仓库相对引用 → 站内 wiki 路由 / GitHub raw。
+	// pageBySource：仓库相对路径（去 .md）→ wiki_pages.path（URL key 首段）；
+	// repoFiles：仓库全部文件（含非 .md 资源），校验图片/附件存在性。
+	pageBySource := make(map[string]string, len(wanted))
+	for _, wp := range wanted {
+		pageBySource[wp.sourcePath] = wp.path
+	}
+	repoFiles := make(map[string]struct{}, len(allFiles))
+	for _, f := range allFiles {
+		repoFiles[f] = struct{}{}
+	}
+	rewriteCtx := linkRewriteContext{cfg: cfg, pageBySource: pageBySource, repoFiles: repoFiles}
+
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
 	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
 	for _, wp := range wanted {
@@ -750,6 +768,13 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 				errs = append(errs, fmt.Sprintf("create namespace %s: %v", wp.displayName, err))
 				continue
 			}
+		}
+		// 渲染 + 仓库相对引用重写（issue #284）。重写失败（越界/缺失/非法转义）
+		// → 该页 fail-fast，run 标记 failed（错误含页面路径与引用原文，可操作）。
+		rendered, err := renderWikiPageHTML(rewriteCtx, wp)
+		if err != nil {
+			errs = append(errs, err.Error())
+			continue
 		}
 		existingPage, ok := byPath[wp.path]
 		if !ok {
@@ -779,7 +804,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 				slog.Info("wiki sync: adopted orphaned page after namespace recreate",
 					"sourcePath", wp.sourcePath, "path", wp.path)
 			} else {
-				if err := createPageFromRepo(cfg, wp); err != nil {
+				if err := createPageFromRepo(cfg, wp, rendered); err != nil {
 					errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
 					continue
 				}
@@ -800,14 +825,17 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		// 幂等：正文 hash、frontmatter title/order、GitHub 源路径均未变且无需恢复
 		// → 零变更。只改 frontmatter（标题/排序）的提交也必须触发更新，否则投影
 		// 的标题/导航顺序永久陈旧。
+		// 渲染快照（rendered_html）与重写结果不一致 → 强制更新：存量页面在
+		// 链接重写（issue #284）落地前投影的旧快照借此自愈（无需改正文 hash）。
 		if existingPage.ContentHash == curHash &&
 			existingPage.Title == wp.title &&
 			existingPage.SortOrder == wp.order &&
 			existingPage.SourcePath == wp.sourcePath &&
+			existingPage.RenderedHTML == rendered &&
 			!restored {
 			continue
 		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, rendered); err != nil {
 			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
@@ -916,7 +944,8 @@ func sha256Hex(s string) string {
 // createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
 // path/namespace 列均存 URL key（slug，降级=显示名）；命名空间行由 upsert
 // 循环按显示名创建（此处只做防御性校验）。
-func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
+// rendered 为已重写仓库相对引用的渲染快照（upsert 循环统一计算，issue #284）。
+func createPageFromRepo(cfg GitConfig, wp wantedPage, rendered string) error {
 	ns := wp.namespace
 	if ns == "" {
 		return fmt.Errorf("empty namespace for path %s", wp.path)
@@ -933,7 +962,6 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 		}
 	}
 
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.Entity{
@@ -1003,8 +1031,8 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
+// rendered 为已重写仓库相对引用的渲染快照（upsert 循环统一计算，issue #284）。
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string, rendered string) error {
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.UnscopedGet(page.TopicId)
