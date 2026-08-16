@@ -399,3 +399,70 @@ func TestHasPageManagerPermission(t *testing.T) {
 		t.Fatal("system user 0 should not have PageManager")
 	}
 }
+
+// TestValidatePathLengthByRunes 整路径长度按码点（rune）计数 ≤255：
+// 255 个 runes 合法、256 个非法；100 个中文字符（300 字节）按码点计数合法。
+// 与 DB varchar(255) 字符语义及前端码点计数对齐（review 建议 3）。
+// 注意：每段仍有 ≤64 的独立上限，构造长路径需多段分摊。
+func TestValidatePathLengthByRunes(t *testing.T) {
+	// ns=1 + 斜杠 + 四段 63/63/62/62 + 3 个斜杠 = 255 runes。
+	path255 := "a/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 62) + "/" +
+		strings.Repeat("b", 62)
+	if got, ok := ValidatePath(path255); !ok {
+		t.Fatalf("ValidatePath(255 ascii runes) = false, want true")
+	} else if got != path255 {
+		t.Fatalf("ValidatePath(255 runes) normalized=%q, want unchanged", got)
+	}
+	// 100 个中文字符（300 字节）：按码点计数合法（此前按字节会被误拒）。
+	chinese100 := "济/" + strings.Repeat("济", 63) + "/" + strings.Repeat("济", 34)
+	if _, ok := ValidatePath(chinese100); !ok {
+		t.Fatalf("ValidatePath(100 chinese runes, 300 bytes) = false, want true (counted by runes)")
+	}
+	// ns=1 + 四段 63/63/63/62 + 4 个斜杠 = 256 runes 非法。
+	path256 := "a/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 62)
+	if _, ok := ValidatePath(path256); ok {
+		t.Fatalf("ValidatePath(256 runes) = true, want false")
+	}
+}
+
+// TestGitConfigEditURLPathEscapesSegments GitHub 外链逐段转义：
+// `#`/`%` 等仓库合法目录字符必须被 PathEscape，避免 `#` 开启 fragment
+// 或 `%` 被当转义前缀 → GitHub 404（review 建议 2）。
+// 调用方传不带 .md 的仓库相对路径（source_path），扩展名由 EditURL 追加。
+func TestGitConfigEditURLPathEscapesSegments(t *testing.T) {
+	cfg := GitConfig{Repo: "https://github.com/YourTongji/YourTJ-Wiki.git", Branch: "main"}
+	got := cfg.EditURL("C#/x")
+	want := "https://github.com/YourTongji/YourTJ-Wiki/edit/main/C%23/x.md"
+	if got != want {
+		t.Fatalf("EditURL(C#/x) = %q, want %q", got, want)
+	}
+	got = cfg.EditURL("100%/README")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/100%25/README.md"
+	if got != want {
+		t.Fatalf("EditURL(100%%) = %q, want %q", got, want)
+	}
+	// 普通 slug 路径保持原样（无转义副作用）。
+	got = cfg.EditURL("guide/getting-started")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/guide/getting-started.md"
+	if got != want {
+		t.Fatalf("EditURL(guide/getting-started) = %q, want %q", got, want)
+	}
+	// 中文段被转义（URL 安全）。
+	got = cfg.EditURL("同济新手教程/start")
+	if !strings.Contains(got, "/edit/main/%E5%90%8C%E6%B5%8E%E6%96%B0%E6%89%8B%E6%95%99%E7%A8%8B/start.md") {
+		t.Fatalf("EditURL(chinese dir) = %q, want URL-escaped first segment", got)
+	}
+	// HistoryURL 同样逐段转义。
+	got = cfg.HistoryURL("C#/x")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/commits/main/C%23/x.md"
+	if got != want {
+		t.Fatalf("HistoryURL(C#/x) = %q, want %q", got, want)
+	}
+}

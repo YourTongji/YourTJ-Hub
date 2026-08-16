@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -353,6 +354,13 @@ func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 	bob := createHTTPContractUser(t, conn, contractTestID())
 	grantContractPermission(t, conn, bob.Id, permission.PageManager)
 	bobToken := contractSessionToken(t, bob)
+
+	// 该测试会持久化 wikiSyncSettings page_config 行，而 setupWikiContractTest
+	// 只清空 wiki 表；中断的子测试会留下该行，翻转下次运行的 configured=false
+	// 断言（共享测试库）。无论子测试结果如何都删除该行。
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	})
 
 	t.Run("unconfigured reports configured=false", func(t *testing.T) {
 		// 清空管理端设置与旧配置，保证未配置态。

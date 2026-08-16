@@ -9,6 +9,7 @@ import (
 	"errors"
 	"fmt"
 	"log/slog"
+	"net/url"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -103,10 +104,21 @@ func (c GitConfig) RepoPath() string {
 	return ""
 }
 
+// githubPathEscape 对仓库相对路径逐段做 URL 路径转义：仓库目录名/文件名允许
+// `#`/`%` 等字符（validSegment 未拒绝），但 GitHub 外链拼接时 `#` 会开启
+// URL fragment、`%` 可能被当作转义前缀 → 404。逐段 PathEscape 保留 `/` 分隔。
+func githubPathEscape(pagePath string) string {
+	segs := strings.Split(pagePath, "/")
+	for i, seg := range segs {
+		segs[i] = url.PathEscape(seg)
+	}
+	return strings.Join(segs, "/")
+}
+
 // EditURL 返回某页面的 GitHub 编辑外链（{repo}/edit/{branch}/{path}.md）。
 func (c GitConfig) EditURL(pagePath string) string {
 	if repo := c.RepoPath(); repo != "" {
-		return "https://github.com/" + repo + "/edit/" + c.Branch + "/" + pagePath + ".md"
+		return "https://github.com/" + repo + "/edit/" + c.Branch + "/" + githubPathEscape(pagePath) + ".md"
 	}
 	return ""
 }
@@ -114,7 +126,7 @@ func (c GitConfig) EditURL(pagePath string) string {
 // HistoryURL 返回某页面的 GitHub 历史外链（{repo}/commits/{branch}/{path}.md）。
 func (c GitConfig) HistoryURL(pagePath string) string {
 	if repo := c.RepoPath(); repo != "" {
-		return "https://github.com/" + repo + "/commits/" + c.Branch + "/" + pagePath + ".md"
+		return "https://github.com/" + repo + "/commits/" + c.Branch + "/" + githubPathEscape(pagePath) + ".md"
 	}
 	return ""
 }

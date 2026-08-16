@@ -56,7 +56,9 @@ const MAX_PATH_LENGTH = 255
 export function isValidWikiPath(path: string): boolean {
   if (typeof path !== 'string') return false
   const normalized = path.trim()
-  if (normalized === '' || normalized.length > MAX_PATH_LENGTH) {
+  // 按码点（code point）计数，与后端 utf8.RuneCountInString 对齐
+  // （此前用 .length 按 UTF-16 单元计数，代理对/宽字符会偏离后端）。
+  if (normalized === '' || [...normalized].length > MAX_PATH_LENGTH) {
     return false
   }
   const segments = normalized.split('/')
