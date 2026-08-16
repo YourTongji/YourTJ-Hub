@@ -46,3 +46,81 @@ html.theme-switching *::after {
     animation-duration: 0.01ms !important;
   }
 }
+
+/*
+ * 首页 ↔ Wiki 过场动画（机制对齐 codrops/PageFlipLayout 的 PageTurn）
+ *
+ * PageFlipLayout 的「翻页」本质是平面纸页盖入（revealer slide），不是整页
+ * 3D 旋转：纸页沿 x 轴从一侧盖到旧内容上，中点遮满时切换内容，再露出新页。
+ * 此前实现用 0.34s + rotateY(88deg)，整页对折到边缘消失再弹出 = 观感突然；
+ * 现改为：
+ * - 新页做「纸页盖入」：从右缘（前向）或左缘（后向）平铺滑入
+ * - 前缘带纸页厚度投影，落地时投影淡出（模拟一叠纸的厚度）
+ * - 0.7s + Quint easeInOut：起止缓、中段快，滑动全程连续无断点
+ * - 全程只动 transform（合成器友好），不做整页 3D 旋转
+ */
+html.gf-page-flip::view-transition-old(root) {
+  background-color: var(--gf-color-base-200);
+  /* 复位主题切换全局样式：mask 圆形扩散只服务主题切换，翻页用全幅快照 */
+  mask: none;
+  z-index: 1;
+}
+
+html.gf-page-flip::view-transition-new(root) {
+  background-color: var(--gf-color-base-200);
+  mask: none;
+  z-index: 2;
+}
+
+/* 前向：首页 → wiki，纸页从右缘盖入 */
+html.gf-page-flip--next::view-transition-new(root) {
+  animation: gf-page-flip-cover-right 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
+}
+
+/* 后向：wiki → 首页，纸页从左缘盖入 */
+html.gf-page-flip--prev::view-transition-new(root) {
+  animation: gf-page-flip-cover-left 0.7s cubic-bezier(0.86, 0, 0.07, 1) both;
+}
+
+@keyframes gf-page-flip-cover-right {
+  from {
+    transform: translateX(100%);
+    box-shadow: -48px 0 48px -24px rgb(15 23 42 / 0.5);
+  }
+  55% {
+    box-shadow: -24px 0 28px -16px rgb(15 23 42 / 0.28);
+  }
+  to {
+    transform: translateX(0);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+@keyframes gf-page-flip-cover-left {
+  from {
+    transform: translateX(-100%);
+    box-shadow: 48px 0 48px -24px rgb(15 23 42 / 0.5);
+  }
+  55% {
+    box-shadow: 24px 0 28px -16px rgb(15 23 42 / 0.28);
+  }
+  to {
+    transform: translateX(0);
+    box-shadow: 0 0 0 0 transparent;
+  }
+}
+
+/* 翻页期间抑制元素级 transition（组件 enter 动画/按钮过渡与 view transition
+   叠加会抖动），与主题切换的 theme-switching 抑制同理。 */
+html.gf-page-flip *,
+html.gf-page-flip *::before,
+html.gf-page-flip *::after {
+  transition: none !important;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  html.gf-page-flip::view-transition-old(root),
+  html.gf-page-flip::view-transition-new(root) {
+    animation-duration: 0.01ms !important;
+  }
+}
