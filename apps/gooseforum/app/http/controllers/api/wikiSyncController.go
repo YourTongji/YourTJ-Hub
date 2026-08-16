@@ -89,6 +89,13 @@ func WikiWebhook(c *gin.Context) {
 		c.JSON(http.StatusUnauthorized, gin.H{"error": "signature mismatch"})
 		return
 	}
+	// A signed delivery remains acknowledged while sync is disabled, but must not
+	// enqueue a run that is guaranteed to fail configuration validation.
+	config := wikiservice.LoadGitConfig()
+	if !config.Enabled() {
+		c.JSON(http.StatusOK, gin.H{"ok": true})
+		return
+	}
 	// 只同步默认分支的 push（PR merge = push；其他分支/删除分支的 push 忽略）。
 	if event == "push" {
 		var payload struct {
@@ -98,7 +105,7 @@ func WikiWebhook(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
 			return
 		}
-		branch := wikiservice.LoadGitConfig().Branch
+		branch := config.Branch
 		if payload.Ref != "" && payload.Ref != "refs/heads/"+branch {
 			c.JSON(http.StatusOK, gin.H{"ok": true})
 			return

@@ -90,6 +90,8 @@ webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
   （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
+  更换 `repo` 时，同步会拒绝复用 remote 不一致的既有 `clone_dir`；确认无其他用途后，删除该实例的
+  clone 目录并重新触发同步，避免把新仓库投影到旧工作副本。
 - **删除保护**：有效页面扫描结果为空且论坛已有页面时默认拒绝同步；只有明确确认仓库应为空时才临时设置 `allow_empty=true`。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。

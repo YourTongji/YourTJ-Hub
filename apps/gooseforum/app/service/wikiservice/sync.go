@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/eventbus"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -27,6 +28,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
 	"go.yaml.in/yaml/v3"
 	"gorm.io/gorm"
 )
@@ -463,7 +465,7 @@ type pageFrontmatter struct {
 // title 缺失时用文件名（去 .md）兜底。
 func parseMarkdownFile(f repoFile) (title string, order int, description string, body string) {
 	content := string(f.Content)
-	title = strings.TrimSuffix(filepath.Base(f.Path), ".md")
+	title = strings.TrimSuffix(filepath.Base(f.Path), filepath.Ext(f.Path))
 	if strings.HasPrefix(content, "---") {
 		rest := content[3:]
 		if idx := strings.Index(rest, "\n---"); idx >= 0 {
@@ -587,7 +589,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
 	for _, f := range files {
-		rel := strings.TrimSuffix(f.Path, ".md")
+		rel := strings.TrimSuffix(strings.ToLower(f.Path), ".md")
 		norm, ok := ValidatePath(rel)
 		if !ok {
 			// 根级 README/CONTRIBUTING 等非 wiki 页面：合法仓库文件但非法页面路径，跳过。
@@ -597,7 +599,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 		title, order, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
 			path:       norm,
-			sourcePath: strings.TrimSuffix(f.Path, ".md"),
+			sourcePath: strings.TrimSuffix(f.Path, filepath.Ext(f.Path)),
 			namespace:  NamespaceOf(norm),
 			title:      title,
 			order:      order,
@@ -696,6 +698,14 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 		return err
 	}
 	*result = stagedResult
+	// TopicPublishedEvent is part of the established creation contract: it updates
+	// daily topic stats, notification hooks, and the LLMS cache. Publish only after
+	// the projection transaction commits so consumers never observe rolled-back rows.
+	for _, effect := range effects {
+		if effect.created {
+			eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: effect.topic, FirstPost: effect.firstPost})
+		}
+	}
 	refreshGitTrace(ctx, cfg, effects)
 	return nil
 }

@@ -107,6 +107,37 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	}
 }
 
+func TestApplyRepoToDBSupportsUppercaseMarkdownExtension(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/Upper.MD", "# uppercase extension")
+
+	if err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{}); err != nil {
+		t.Fatalf("sync uppercase extension: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/upper")
+	if page.Id == 0 {
+		t.Fatal("uppercase-extension page was not projected")
+	}
+	if page.Title != "Upper" || page.SourcePath != "docs/Upper" {
+		t.Fatalf("page metadata=%#v, want title Upper and source path docs/Upper", page)
+	}
+
+	if err := os.Rename(filepath.Join(repo, "docs/Upper.MD"), filepath.Join(repo, "docs/Upper.md")); err != nil {
+		t.Fatalf("case-only extension rename: %v", err)
+	}
+	result := &SyncResult{}
+	if err := applyRepoToDB(GitConfig{CloneDir: repo}, result); err != nil {
+		t.Fatalf("sync case-only rename: %v", err)
+	}
+	if got := wikiPages.GetByPath("docs/upper"); got.Id != page.Id || got.DeletedAt.Valid {
+		t.Fatalf("case-only rename lost page identity: before=%#v after=%#v", page, got)
+	}
+	if result.PagesDeleted != 0 {
+		t.Fatalf("case-only rename deleted %d pages, want 0", result.PagesDeleted)
+	}
+}
+
 func TestApplyRepoToDBRejectsEmptySourceByDefault(t *testing.T) {
 	setupWikiTestDB(t)
 	repo := t.TempDir()
@@ -501,6 +532,7 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoFile(t, repo, "docs/a.md", "# A")
 	writeRepoFile(t, repo, "docs/b.md", "# B")
+	writeRepoFile(t, repo, "docs/c.MD", "# C")
 	writeRepoFile(t, repo, "docs/skip.txt", "not md")
 	writeRepoFile(t, repo, ".hidden/c.md", "# hidden")
 	writeRepoFile(t, repo, "docs/.secret.md", "# secret")
@@ -516,10 +548,10 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 	}
 	// 只跳过隐藏目录与非 .md 文件；隐藏 .md 文件（docs/.secret.md）仍按
 	// 普通 .md 收录（scanRepoFiles 只对目录做隐藏过滤）。
-	if len(files) != 4 {
-		t.Fatalf("scanned files=%d, want 4 (docs/.secret.md, docs/README.md, docs/a.md, docs/b.md): %+v", len(files), files)
+	if len(files) != 5 {
+		t.Fatalf("scanned files=%d, want 5 (docs/.secret.md, docs/README.md, docs/a.md, docs/b.md, docs/c.MD): %+v", len(files), files)
 	}
-	wantPaths := []string{"docs/.secret.md", "docs/README.md", "docs/a.md", "docs/b.md"}
+	wantPaths := []string{"docs/.secret.md", "docs/README.md", "docs/a.md", "docs/b.md", "docs/c.MD"}
 	for i, want := range wantPaths {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
