@@ -37,24 +37,30 @@ function resolveRef(doc, ref) {
 // Fully dereference a schema subtree so ajv can compile it standalone
 // (the bundle keeps internal $refs; ajv cannot resolve them from an
 // extracted schema object without the full document registered).
-function deref(doc, node, seen = new Set()) {
-  if (Array.isArray(node)) return node.map((n) => deref(doc, n, seen));
+// Recursive schemas (e.g. WikiTreeNode.children → WikiTreeNode, PR #303)
+// cannot be expanded into a finite object; fixtures are finite and shallow,
+// so $ref expansion is depth-capped and anything below the cap matches the
+// empty schema. Every reachable fixture level still validates against the
+// real schema.
+const maxDerefDepth = 50;
+
+function deref(doc, node, depth = 0) {
+  if (Array.isArray(node)) return node.map((n) => deref(doc, n, depth));
   if (!node || typeof node !== "object") return node;
   const out = {};
   for (const [key, value] of Object.entries(node)) {
     if (key === "$ref" && typeof value === "string") {
-      if (seen.has(value)) {
-        throw new Error(`circular $ref "${value}" cannot be dereferenced for fixture validation`);
+      if (depth >= maxDerefDepth) {
+        // Recursion cap reached: emit the empty schema for this ref.
+        continue;
       }
-      seen.add(value);
-      const target = deref(doc, resolveRef(doc, value), seen);
-      seen.delete(value);
+      const target = deref(doc, resolveRef(doc, value), depth + 1);
       for (const [tk, tv] of Object.entries(target)) {
         if (!(tk in out)) out[tk] = tv;
       }
       continue;
     }
-    out[key] = deref(doc, value, seen);
+    out[key] = deref(doc, value, depth);
   }
   return out;
 }
