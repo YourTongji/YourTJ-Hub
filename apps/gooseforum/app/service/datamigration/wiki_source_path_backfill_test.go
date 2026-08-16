@@ -20,13 +20,14 @@ func openSourcePathBackfillDB(t *testing.T) *gorm.DB {
 	return conn
 }
 
-func insertSourcePathPage(t *testing.T, conn *gorm.DB, path, sourcePath string) uint64 {
+// insertSourcePathPage 插入页面：topic_id 与 path 均有唯一索引
+// （uniq_wiki_page_topic / uniq_wiki_page_path），每次调用用独立 id/path。
+func insertSourcePathPage(t *testing.T, conn *gorm.DB, id uint64, path, sourcePath string) {
 	t.Helper()
-	p := wikiPages.Entity{Path: path, SourcePath: sourcePath}
+	p := wikiPages.Entity{Id: id, TopicId: 100000 + id, Path: path, SourcePath: sourcePath}
 	if err := conn.Create(&p).Error; err != nil {
 		t.Fatalf("insert page %q: %v", path, err)
 	}
-	return p.Id
 }
 
 func scanSourcePath(t *testing.T, conn *gorm.DB, id uint64) string {
@@ -40,8 +41,8 @@ func scanSourcePath(t *testing.T, conn *gorm.DB, id uint64) string {
 
 func TestBackfillWikiPageSourcePathsBackfillsEmptyRows(t *testing.T) {
 	conn := openSourcePathBackfillDB(t)
-	id := insertSourcePathPage(t, conn, "guide/start", "")
-	insertSourcePathPage(t, conn, "guide/start", "guide/start")
+	insertSourcePathPage(t, conn, 1, "guide/start", "")
+	insertSourcePathPage(t, conn, 2, "guide/content", "guide/content")
 
 	result := BackfillWikiPageSourcePathsWithDB(conn)
 	if result.Failed != 0 {
@@ -50,14 +51,14 @@ func TestBackfillWikiPageSourcePathsBackfillsEmptyRows(t *testing.T) {
 	if result.Backfilled != 1 {
 		t.Fatalf("backfilled = %d, want 1", result.Backfilled)
 	}
-	if got := scanSourcePath(t, conn, id); got != "guide/start" {
+	if got := scanSourcePath(t, conn, 1); got != "guide/start" {
 		t.Fatalf("source_path = %q, want guide/start", got)
 	}
 }
 
 func TestBackfillWikiPageSourcePathsIdempotentSecondRun(t *testing.T) {
 	conn := openSourcePathBackfillDB(t)
-	insertSourcePathPage(t, conn, "guide/start", "")
+	insertSourcePathPage(t, conn, 1, "guide/start", "")
 
 	if result := BackfillWikiPageSourcePathsWithDB(conn); result.Backfilled != 1 || result.Failed != 0 {
 		t.Fatalf("first run backfilled=%d failed=%d, want 1/0", result.Backfilled, result.Failed)
