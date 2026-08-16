@@ -102,7 +102,8 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `/admin/wiki` 同步面板手动触发 + GitHub webhook（`POST /api/wiki/webhook`，HMAC-SHA256
   验签，push 事件，仅默认分支）。同步运行写入 `wiki_sync_runs`
   （trigger/status/head_sha/变更计数/错误）。
-- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；公开 API
+- **路由**: `GET /wiki`、`GET /wiki/*path`（SSR 服务端渲染）；`/wiki/_assets/*path`
+  由同一 catch-all 分派并仅从当前仓库 clone 提供已验证的非 Markdown 资源；公开 API
   `GET /api/wiki/{tree,namespaces,home}` + `POST /api/wiki/webhook`；管理端
   `/api/admin/wiki/*`（PageManager：namespaces CRUD、只读树、`sync/status` /
   `sync` / `sync/runs`）。站内写/回滚/diff/编辑者/版本历史端点已退役。
