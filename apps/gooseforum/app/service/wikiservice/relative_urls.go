@@ -46,7 +46,7 @@ func (r *wikiReferenceResolver) Validate(page wantedPage) error {
 	var validationErr error
 	_ = ast.Walk(doc, func(node ast.Node, entering bool) (ast.WalkStatus, error) {
 		if validationErr != nil {
-			return ast.WalkStop, nil
+			return ast.WalkStop, validationErr
 		}
 		if !entering {
 			return ast.WalkContinue, nil
@@ -252,7 +252,7 @@ func validateWikiAssetPath(repoPath string, rejectMarkdown bool) error {
 		}
 	}
 	if rejectMarkdown && isMarkdownPath(repoPath) {
-		return fmt.Errorf("Markdown source files are not assets")
+		return fmt.Errorf("markdown source files are not assets")
 	}
 	return nil
 }

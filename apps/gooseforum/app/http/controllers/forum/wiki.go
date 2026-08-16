@@ -218,7 +218,7 @@ func wikiAsset(c *gin.Context, assetPath string) {
 		renderNotFound(c)
 		return
 	}
-	defer file.Close()
+	defer func() { _ = file.Close() }()
 	contentType, safe := wikiAssetType(info.Name())
 	if !safe {
 		// 未知/危险类型：强制下载，绝不内联（nosniff + CSP sandbox 双保险）。
