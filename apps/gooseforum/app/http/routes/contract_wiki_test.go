@@ -355,6 +355,59 @@ func TestWikiHomeHTTPContract(t *testing.T) {
 	}
 }
 
+func TestWikiQueryFailuresHTTPContract(t *testing.T) {
+	tests := []struct {
+		name      string
+		path      string
+		dropTable any
+		admin     bool
+	}{
+		{name: "tree", path: "/api/wiki/tree", dropTable: &wikiNamespaces.Entity{}},
+		{name: "namespaces", path: "/api/wiki/namespaces", dropTable: &wikiNamespaces.Entity{}},
+		{name: "home", path: "/api/wiki/home", dropTable: &wikiPages.Entity{}},
+		{name: "sync status", path: "/api/admin/wiki/sync/status", dropTable: &wikiPages.Entity{}, admin: true},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			conn, router := setupWikiContractTest(t)
+			token := ""
+			if tt.admin {
+				user := createHTTPContractUser(t, conn, contractTestID())
+				grantContractPermission(t, conn, user.Id, permission.PageManager)
+				token = contractSessionToken(t, user)
+			}
+			if err := conn.Migrator().DropTable(tt.dropTable); err != nil {
+				t.Fatalf("drop query table: %v", err)
+			}
+
+			rec := serveAuthSecurityJSON(router, http.MethodGet, tt.path, "", token)
+			if rec.Code != http.StatusInternalServerError {
+				t.Fatalf("%s query failure status = %d, want 500: %s", tt.name, rec.Code, rec.Body.String())
+			}
+			env := decodeContractEnvelope(t, rec)
+			if env.Code != 1 || string(env.Result) != "null" {
+				t.Fatalf("%s query failure envelope = %#v, want failure with null result", tt.name, env)
+			}
+		})
+	}
+}
+
+func TestWikiEmptyResultsHTTPContract(t *testing.T) {
+	_, router := setupWikiContractTest(t)
+	for _, path := range []string{"/api/wiki/tree", "/api/wiki/namespaces", "/api/wiki/home"} {
+		t.Run(path, func(t *testing.T) {
+			rec := serveAuthSecurityJSON(router, http.MethodGet, path, "", "")
+			if rec.Code != http.StatusOK {
+				t.Fatalf("empty wiki status = %d, want 200: %s", rec.Code, rec.Body.String())
+			}
+			if env := decodeContractEnvelope(t, rec); env.Code != 0 {
+				t.Fatalf("empty wiki envelope = %#v, want success", env)
+			}
+		})
+	}
+}
+
 func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	bob := createHTTPContractUser(t, conn, contractTestID())

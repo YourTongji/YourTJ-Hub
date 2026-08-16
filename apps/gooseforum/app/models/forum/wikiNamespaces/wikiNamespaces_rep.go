@@ -4,13 +4,19 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/queryopt"
 )
 
-func List() []*Entity {
+func List() ([]*Entity, error) {
 	var entities []*Entity
-	builder().
+	err := builder().
 		Order(queryopt.Asc("sort_order")).
 		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
+		Find(&entities).Error
+	return entities, err
+}
+
+func Count() (int64, error) {
+	var count int64
+	err := builder().Count(&count).Error
+	return count, err
 }
 
 func GetByName(name string) (entity Entity) {

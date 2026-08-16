@@ -22,7 +22,18 @@ type WikiHomeProps struct {
 // WikiHome 渲染 wiki 首页（PageComponent: wiki.home）。
 func WikiHome(c *gin.Context) {
 	loginUser := component.GetLoginUser(c)
-	home := wikiservice.BuildHome()
+	home, err := wikiservice.BuildHome()
+	if err != nil {
+		slog.Error("wiki home load failed", "error", err)
+		renderInternalError(c)
+		return
+	}
+	tree, err := wikiTreePayload("")
+	if err != nil {
+		slog.Error("wiki tree load failed", "error", err)
+		renderInternalError(c)
+		return
+	}
 	props := WikiHomeProps{
 		Namespaces: home.Namespaces,
 		Recent:     home.Recent,
@@ -41,7 +52,7 @@ func WikiHome(c *gin.Context) {
 		Version: payloadVersion,
 	}
 	payload.Layout.Sidebar.Mode = "wiki"
-	payload.Layout.Sidebar.WikiTree = wikiTreePayload("")
+	payload.Layout.Sidebar.WikiTree = tree
 	renderPage(c, "wiki.gohtml", payload)
 }
 
@@ -120,6 +131,12 @@ func WikiDetail(c *gin.Context) {
 	props.Page.EditUrl = cfg.EditURL(repoPath)
 	props.Page.HistoryUrl = cfg.HistoryURL(repoPath)
 
+	tree, err := wikiTreePayload(page.Path)
+	if err != nil {
+		slog.Error("wiki tree load failed", "path", path, "error", err)
+		renderInternalError(c)
+		return
+	}
 	payload := PagePayload{
 		Component: PageComponentWikiDetail,
 		Props:     props,
@@ -133,7 +150,7 @@ func WikiDetail(c *gin.Context) {
 		Version: payloadVersion,
 	}
 	payload.Layout.Sidebar.Mode = "wiki"
-	payload.Layout.Sidebar.WikiTree = wikiTreePayload(page.Path)
+	payload.Layout.Sidebar.WikiTree = tree
 	renderPage(c, "wiki.gohtml", payload)
 	// 计一次浏览（review P2：TopicDetail 已记录，wiki 详情此前漏记）。
 	if shouldCountTopicView(&topic) {
@@ -141,8 +158,11 @@ func WikiDetail(c *gin.Context) {
 	}
 }
 
-func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
-	tree := wikiservice.BuildTree(activePath)
+func wikiTreePayload(activePath string) ([]WikiTreeNamespacePayload, error) {
+	tree, err := wikiservice.BuildTree(activePath)
+	if err != nil {
+		return nil, err
+	}
 	result := make([]WikiTreeNamespacePayload, 0, len(tree))
 	for _, ns := range tree {
 		pages := make([]WikiTreePagePayload, 0, len(ns.Pages))
@@ -161,5 +181,5 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 			Pages: pages,
 		})
 	}
-	return result
+	return result, nil
 }

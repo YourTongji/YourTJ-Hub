@@ -183,7 +183,7 @@ func statusString(s int8) string {
 }
 
 // BuildSyncStatus 构建同步面板状态。
-func BuildSyncStatus() SyncStatus {
+func BuildSyncStatus() (SyncStatus, error) {
 	cfg := LoadGitConfig()
 	status := SyncStatus{
 		Enabled: cfg.Enabled(),
@@ -198,9 +198,16 @@ func BuildSyncStatus() SyncStatus {
 	for _, r := range wikiSyncRuns.ListRecent(10) {
 		status.RecentRuns = append(status.RecentRuns, ToRunView(r))
 	}
-	dbconnect.Connect().Table("wiki_pages").Count(&status.Pages.Total)
-	dbconnect.Connect().Table("wiki_namespaces").Count(&status.Pages.Namespaces)
-	return status
+	var err error
+	status.Pages.Total, err = wikiPages.Count()
+	if err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki pages: %w", err)
+	}
+	status.Pages.Namespaces, err = wikiNamespaces.Count()
+	if err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki namespaces: %w", err)
+	}
+	return status, nil
 }
 
 // ToRunView 把同步运行实体映射为视图（控制器层导出用）。
@@ -571,7 +578,10 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 1. 收集现有页面（含软删，用于恢复）。
-	existing := wikiPages.ListAll()
+	existing, err := wikiPages.ListAll()
+	if err != nil {
+		return fmt.Errorf("list existing wiki pages: %w", err)
+	}
 	byPath := make(map[string]*wikiPages.Entity, len(existing))
 	for _, p := range existing {
 		byPath[p.Path] = p
@@ -870,7 +880,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	for _, wp := range wanted {
 		repoNamespaces[wp.displayName] = struct{}{}
 	}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return fmt.Errorf("list existing wiki namespaces: %w", err)
+	}
+	for _, ns := range namespaces {
 		if _, ok := repoNamespaces[ns.Name]; ok {
 			continue
 		}

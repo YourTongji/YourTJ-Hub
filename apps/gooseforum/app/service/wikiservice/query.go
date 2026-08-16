@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 
@@ -66,12 +67,19 @@ func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 // GitHub SSOT 后内容/标题直接来自 wiki_pages 投影列（不再查修订表）。
 // D7 URL key 语义：page.Namespace 列 = URL key（slug，降级=显示名），
 // 分组按 URL key；输出 Name/Label 用显示名（中文目录名）。
-func BuildTree(activePath string) []TreeNamespace {
-	namespaces := wikiNamespaces.List()
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}
+func BuildTree(activePath string) ([]TreeNamespace, error) {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki namespaces: %w", err)
 	}
-	allPages := filterPublicPages(wikiPages.ListAll())
+	if len(namespaces) == 0 {
+		return []TreeNamespace{}, nil
+	}
+	allPages, err := wikiPages.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki pages: %w", err)
+	}
+	allPages = filterPublicPages(allPages)
 	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
 		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
@@ -96,7 +104,7 @@ func BuildTree(activePath string) []TreeNamespace {
 			Pages: items,
 		})
 	}
-	return result
+	return result, nil
 }
 
 // filterPublicPages 过滤出 topic 仍公开的页面：删除/隐藏的 wiki 页面不得
@@ -126,17 +134,28 @@ func filterPublicPages(pages []*wikiPages.Entity) []*wikiPages.Entity {
 }
 
 // BuildTreeAPI 构建公开导航树（契约形状）：path 为 namespace 内相对路径。
-func BuildTreeAPI() WikiTreeResult {
-	return WikiTreeResult{Namespaces: buildTree("", true)}
+func BuildTreeAPI() (WikiTreeResult, error) {
+	namespaces, err := buildTree("", true)
+	if err != nil {
+		return WikiTreeResult{}, err
+	}
+	return WikiTreeResult{Namespaces: namespaces}, nil
 }
 
 // buildTree 构建导航树；relative=true 时 path 相对 namespace（URL key 前缀）。
-func buildTree(activePath string, contractShape bool) []TreeNamespace {
-	namespaces := wikiNamespaces.List()
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}
+func buildTree(activePath string, contractShape bool) ([]TreeNamespace, error) {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki namespaces: %w", err)
 	}
-	allPages := filterPublicPages(wikiPages.ListAll())
+	if len(namespaces) == 0 {
+		return []TreeNamespace{}, nil
+	}
+	allPages, err := wikiPages.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki pages: %w", err)
+	}
+	allPages = filterPublicPages(allPages)
 	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
 		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
@@ -166,7 +185,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 			Pages: items,
 		})
 	}
-	return result
+	return result, nil
 }
 
 // AdminTreePage 管理端导航树中的一页。
@@ -188,12 +207,18 @@ type AdminTreeNamespace struct {
 }
 
 // BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，含 URL key 段）。
-func BuildAdminTree() []AdminTreeNamespace {
-	namespaces := wikiNamespaces.List()
-	if len(namespaces) == 0 {
-		return []AdminTreeNamespace{}
+func BuildAdminTree() ([]AdminTreeNamespace, error) {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki namespaces: %w", err)
 	}
-	allPages := wikiPages.ListAll()
+	if len(namespaces) == 0 {
+		return []AdminTreeNamespace{}, nil
+	}
+	allPages, err := wikiPages.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki pages: %w", err)
+	}
 	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
 		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
@@ -217,7 +242,7 @@ func BuildAdminTree() []AdminTreeNamespace {
 			Pages: items,
 		})
 	}
-	return result
+	return result, nil
 }
 
 // NamespaceSummary 首页 namespace 卡。
@@ -233,9 +258,16 @@ type NamespaceSummary struct {
 
 // BuildNamespaceSummaries 返回 namespace 摘要列表（页面数 + 最近更新时间）。
 // 分组按 URL key（page.Namespace），输出显示名/URL key 分离（D7）。
-func BuildNamespaceSummaries() []NamespaceSummary {
-	namespaces := wikiNamespaces.List()
-	pages := filterPublicPages(wikiPages.ListAll())
+func BuildNamespaceSummaries() ([]NamespaceSummary, error) {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki namespaces: %w", err)
+	}
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		return nil, fmt.Errorf("list wiki pages: %w", err)
+	}
+	pages = filterPublicPages(pages)
 	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, p := range pages {
 		byURLKey[p.Namespace] = append(byURLKey[p.Namespace], p)
@@ -263,7 +295,7 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 			FirstPagePath: firstPath,
 		})
 	}
-	return summaries
+	return summaries, nil
 }
 
 // RecentPage 首页最近更新条目。
@@ -283,9 +315,16 @@ type HomeData struct {
 }
 
 // BuildHome 组装 wiki 首页数据（最近更新 = 页面投影更新时间降序前 10）。
-func BuildHome() HomeData {
-	pages := filterPublicPages(wikiPages.ListAll())
-	summaries := BuildNamespaceSummaries()
+func BuildHome() (HomeData, error) {
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		return HomeData{}, fmt.Errorf("list wiki pages: %w", err)
+	}
+	pages = filterPublicPages(pages)
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		return HomeData{}, err
+	}
 
 	// 最近更新：按页面投影 updated_at 降序取 10。
 	all := make([]*wikiPages.Entity, 0, len(pages))
@@ -308,7 +347,7 @@ func BuildHome() HomeData {
 			UpdatedAt: item.UpdatedAt.Format(time.RFC3339),
 		})
 	}
-	return HomeData{Namespaces: summaries, Recent: recentPages}
+	return HomeData{Namespaces: summaries, Recent: recentPages}, nil
 }
 
 // Contributor 贡献者条目（GitHub SSOT：来源为仓库 git log 贡献者快照）。

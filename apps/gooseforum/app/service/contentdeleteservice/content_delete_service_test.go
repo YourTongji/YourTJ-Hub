@@ -549,7 +549,11 @@ func TestDeleteWikiTopicByUserCascadesPage(t *testing.T) {
 	if revs := wikiPageRevisions.ListByPage(pageID); len(revs) != 0 {
 		t.Fatalf("wiki revisions still present after topic delete: %d", len(revs))
 	}
-	for _, p := range wikiPages.ListAll() {
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		t.Fatalf("list wiki pages: %v", err)
+	}
+	for _, p := range pages {
 		if p != nil && p.Id == pageID {
 			t.Fatal("deleted wiki page still returned by wikiPages.ListAll()")
 		}

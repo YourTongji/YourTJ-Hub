@@ -86,7 +86,10 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	if res.PagesAdded != 0 || res.PagesUpdated != 0 || res.PagesDeleted != 0 {
 		t.Fatalf("second sync added/updated/deleted=%d/%d/%d, want 0/0/0", res.PagesAdded, res.PagesUpdated, res.PagesDeleted)
 	}
-	pages := wikiPages.ListAll()
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		t.Fatalf("list wiki pages: %v", err)
+	}
 	if len(pages) != 1 {
 		t.Fatalf("page count after second sync=%d, want 1", len(pages))
 	}
@@ -600,7 +603,11 @@ func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
 		t.Fatal("want error on slug conflict")
 	}
 	slugs := map[string]string{}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		t.Fatalf("list wiki namespaces: %v", err)
+	}
+	for _, ns := range namespaces {
 		slugs[ns.Name] = ns.SlugOrEmpty()
 	}
 	guideHas := slugs["guide"] == "guide"

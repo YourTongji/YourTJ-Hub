@@ -26,14 +26,20 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
-func ListAll() []*Entity {
+func ListAll() ([]*Entity, error) {
 	var entities []*Entity
-	builder().
+	err := builder().
 		Order(queryopt.Asc("namespace")).
 		Order(queryopt.Asc("sort_order")).
 		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
+		Find(&entities).Error
+	return entities, err
+}
+
+func Count() (int64, error) {
+	var count int64
+	err := builder().Count(&count).Error
+	return count, err
 }
 
 // ListByIDs 按 id 集合批量返回页面（审核队列取 path 用，避免 ListAll 全表扫，

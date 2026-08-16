@@ -25,7 +25,11 @@ import (
 
 // WikiSyncStatus 返回 wiki 同步面板状态（PageManager/Admin）。
 func WikiSyncStatus(req component.BetterRequest[component.Null]) component.Response {
-	return component.SuccessResponse(wikiservice.BuildSyncStatus())
+	data, err := wikiservice.BuildSyncStatus()
+	if err != nil {
+		return component.BuildResponse(http.StatusInternalServerError, component.FailData())
+	}
+	return component.SuccessResponse(data)
 }
 
 // WikiSyncRun 手动触发一次 wiki 同步（PageManager/Admin）。

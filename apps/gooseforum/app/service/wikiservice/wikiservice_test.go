@@ -140,17 +140,17 @@ func TestValidatePath(t *testing.T) {
 		{"deployment/waline", true},
 		{"guide/sub/page-name", true},
 		{"同济新手教程/学校/简介", true},          // 中文命名空间与页面段（GitHub SSOT）
-		{"中文/目录/页面", true},               // 纯中文路径
-		{"Guide/Getting-Started", true},   // 保留大小写（不再小写归一）
-		{"guide/UPPER", true},             // 大写段合法
-		{"guide", false},                  // 至少 namespace + 一个 slug 段
-		{"guide/..", false},               // 禁止 ..
-		{"guide/.hidden", false},          // 禁止点开头段
-		{"guide/a b", false},              // 空格非法
-		{"guide/a\tb", false},             // 控制字符非法
-		{"guide/a:b", false},              // 保留字符非法
-		{"guide/a*b", false},              // 保留字符非法
-		{"guide/中文 空格", false},           // 中文路径含空格非法
+		{"中文/目录/页面", true},              // 纯中文路径
+		{"Guide/Getting-Started", true}, // 保留大小写（不再小写归一）
+		{"guide/UPPER", true},           // 大写段合法
+		{"guide", false},                // 至少 namespace + 一个 slug 段
+		{"guide/..", false},             // 禁止 ..
+		{"guide/.hidden", false},        // 禁止点开头段
+		{"guide/a b", false},            // 空格非法
+		{"guide/a\tb", false},           // 控制字符非法
+		{"guide/a:b", false},            // 保留字符非法
+		{"guide/a*b", false},            // 保留字符非法
+		{"guide/中文 空格", false},          // 中文路径含空格非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -173,15 +173,15 @@ func TestValidateNamespace(t *testing.T) {
 		{"deployment", true},
 		{"my-namespace", true},
 		{"同济新手教程", true}, // 中文命名空间（GitHub 顶层目录名）
-		{"使用指南", true},    // 中文命名空间
-		{"Guide", true},    // 保留大小写
-		{"UPPER", true},    // 保留大小写
+		{"使用指南", true},   // 中文命名空间
+		{"Guide", true},  // 保留大小写
+		{"UPPER", true},  // 保留大小写
 		{"has space", false},
-		{"中文 空格", false}, // 中间空格非法
-		{" 前导空格", true},  // 首尾空格被 trim 后为合法名称（trim 后再校验）
-		{".hidden", false},    // 点开头（隐藏目录）非法
-		{"a:b", false},        // 保留字符非法
-		{"a*b", false},        // 保留字符非法
+		{"中文 空格", false},   // 中间空格非法
+		{" 前导空格", true},    // 首尾空格被 trim 后为合法名称（trim 后再校验）
+		{".hidden", false}, // 点开头（隐藏目录）非法
+		{"a:b", false},     // 保留字符非法
+		{"a*b", false},     // 保留字符非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -212,7 +212,10 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	tree := BuildTree("docs/new")
+	tree, err := BuildTree("docs/new")
+	if err != nil {
+		t.Fatalf("BuildTree: %v", err)
+	}
 	if len(tree) != 2 {
 		t.Fatalf("tree namespaces=%d, want 2: %+v", len(tree), tree)
 	}
@@ -255,7 +258,10 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/guide/tips", "Tips", base)
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(time.Hour))
 
-	res := BuildTreeAPI()
+	res, err := BuildTreeAPI()
+	if err != nil {
+		t.Fatalf("BuildTreeAPI: %v", err)
+	}
 	if len(res.Namespaces) != 2 {
 		t.Fatalf("namespaces=%d, want 2: %+v", len(res.Namespaces), res.Namespaces)
 	}
@@ -285,7 +291,10 @@ func TestBuildHomeRecentByUpdatedAt(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/mid", "Mid", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "docs", "docs/new", "New", base.Add(2*time.Hour))
 
-	home := BuildHome()
+	home, err := BuildHome()
+	if err != nil {
+		t.Fatalf("BuildHome: %v", err)
+	}
 	if len(home.Recent) != 3 {
 		t.Fatalf("recent count=%d, want 3: %+v", len(home.Recent), home.Recent)
 	}
@@ -306,7 +315,10 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 	seedProjectedWikiPage(t, "docs", "docs/b", "B", base.Add(time.Hour))
 	seedProjectedWikiPage(t, "guide", "guide/start", "Start", base.Add(2*time.Hour))
 
-	summaries := BuildNamespaceSummaries()
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		t.Fatalf("BuildNamespaceSummaries: %v", err)
+	}
 	if len(summaries) != 2 {
 		t.Fatalf("summaries=%d, want 2: %+v", len(summaries), summaries)
 	}
