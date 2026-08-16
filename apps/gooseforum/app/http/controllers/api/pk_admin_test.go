@@ -159,6 +159,47 @@ func TestSyncPkCalendarRejectsConcurrentStart(t *testing.T) {
 	}
 }
 
+func TestSyncPkCalendarMarksClaimFailedAfterPanic(t *testing.T) {
+	setupPkAdminTest(t)
+	t.Setenv("ONESYSTEM_COOKIE", "JWTUser=abc")
+
+	panicFinished := make(chan struct{})
+	orig := runPkSync
+	runPkSync = func(_ context.Context, _ string, _ uint64, _ int, _ bool, _ *pk.FetchLogEntity, _ bool) (*pkservice.SyncReport, error) {
+		defer close(panicFinished)
+		panic("injected sync panic")
+	}
+	t.Cleanup(func() { runPkSync = orig })
+
+	res := SyncPkCalendar(component.BetterRequest[SyncPkCalendarReq]{Params: SyncPkCalendarReq{Term: "121"}})
+	if res.Data.Code != component.SUCCESS {
+		t.Fatalf("sync start failed: %+v", res.Data)
+	}
+	select {
+	case <-panicFinished:
+	case <-time.After(2 * time.Second):
+		t.Fatal("panic sync stub was not invoked")
+	}
+
+	deadline := time.After(2 * time.Second)
+	var log pk.FetchLogEntity
+	for {
+		var ok bool
+		log, ok = pk.LatestFetchLogByCalendar(121)
+		if ok && log.Status == pk.FetchStatusFailed {
+			break
+		}
+		select {
+		case <-deadline:
+			t.Fatalf("fetch log after panic = %+v, want failed", log)
+		case <-time.After(10 * time.Millisecond):
+		}
+	}
+	if log.ErrorMsg == "" {
+		t.Fatal("panic failure should be recorded in fetch log")
+	}
+}
+
 func TestPkSyncStatusReturnsOverview(t *testing.T) {
 	setupPkAdminTest(t)
 	conn := db.Connect()

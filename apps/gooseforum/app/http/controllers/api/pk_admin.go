@@ -63,6 +63,9 @@ func SyncPkCalendar(req component.BetterRequest[SyncPkCalendarReq]) component.Re
 		defer func() {
 			if p := recover(); p != nil {
 				slog.Error("pk sync panic", "err", p)
+				if err := pkservice.FailSyncClaim(claim, fmt.Errorf("排课同步异常：%v", p)); err != nil {
+					slog.Error("pk sync panic failure record", "calendarId", calendarId, "err", err)
+				}
 			}
 		}()
 		report, syncErr := runPkSync(context.Background(), cookie, calendarId, depth, false, claim, resume)

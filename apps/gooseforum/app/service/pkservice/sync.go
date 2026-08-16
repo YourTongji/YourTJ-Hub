@@ -43,6 +43,11 @@ func SyncFromClaim(ctx context.Context, cookie string, calendarId uint64, depth 
 	return syncWithClaim(ctx, newOnesystemClient(), cookie, calendarId, depth, materialize, claim, resume)
 }
 
+// FailSyncClaim records a terminal failure for a worker that already claimed a sync lease.
+func FailSyncClaim(claim *pk.FetchLogEntity, err error) error {
+	return markFailed(claim, err)
+}
+
 // syncWith 注入 onesystemClient，便于测试使用本地 httptest 服务。
 func syncWith(ctx context.Context, client *onesystemClient, cookie string, calendarId uint64, depth int, materialize bool) (*SyncReport, error) {
 	return syncWithClaim(ctx, client, cookie, calendarId, depth, materialize, nil, false)
@@ -170,7 +175,7 @@ func syncOneCalendar(ctx context.Context, client *onesystemClient, cookie string
 
 	// cookie 有效后才清空：全新同步，或续跑且上一轮仅删未写（lastCommittedPage==0 且无写入）时补删。
 	if !resume || (log.LastCommittedPage == 0 && log.RowsWritten == 0) {
-		if err := deleteCalendarData(calendarId); err != nil {
+		if err := deleteCalendarData(log, calendarId); err != nil {
 			return result, markFailed(log, err)
 		}
 	}
@@ -306,7 +311,7 @@ func markFailed(log *pk.FetchLogEntity, err error) error {
 // commitBatch 在独立事务中写入一批教学班（约 500 行），成功后推进 fetchlog 游标。
 // 事务失败不影响已提交批次（AC2）。
 func commitBatch(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw, committedPage int) (int, error) {
-	n, err := writeBatchTx(calendarId, rows)
+	n, err := writeBatchWithLeaseTx(log, calendarId, rows)
 	if err != nil {
 		return 0, err
 	}
@@ -319,16 +324,29 @@ func commitBatch(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw, co
 }
 
 // deleteCalendarData 在单事务内清空某学期排课数据（幂等全量重写前置步骤）。
-func deleteCalendarData(calendarId uint64) error {
+func deleteCalendarData(log *pk.FetchLogEntity, calendarId uint64) error {
 	return db.Connect().Transaction(func(tx *gorm.DB) error {
+		if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
+			return err
+		}
 		return pk.DeleteCalendarDataTx(tx, calendarId)
 	})
 }
 
-// writeBatchTx 在单事务内批量 upsert 一批教学班（含查找表/专业/教师），返回处理行数。
+// writeBatchTx 是写入转换的无租约测试入口；同步流程必须使用 writeBatchWithLeaseTx。
 func writeBatchTx(calendarId uint64, rows []CourseRaw) (int, error) {
+	return writeBatchWithLeaseTx(nil, calendarId, rows)
+}
+
+// writeBatchWithLeaseTx 在单事务内续租并批量 upsert 一批教学班，返回处理行数。
+func writeBatchWithLeaseTx(log *pk.FetchLogEntity, calendarId uint64, rows []CourseRaw) (int, error) {
 	var n int
 	err := db.Connect().Transaction(func(tx *gorm.DB) error {
+		if log != nil {
+			if err := pk.RenewFetchLogLeaseTx(tx, log); err != nil {
+				return err
+			}
+		}
 		written, err := writeBatchTxInner(tx, calendarId, rows)
 		if err != nil {
 			return err
