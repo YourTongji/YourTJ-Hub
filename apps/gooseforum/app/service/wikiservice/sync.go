@@ -759,12 +759,20 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 仓库真实路径（去 .md，保留大小写/Unicode），与 URL 解耦。
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
+	var invalidPaths []string
 	for _, f := range files {
 		rel := strings.TrimSuffix(f.Path, ".md")
-		norm, ok := ValidatePath(rel)
-		if !ok {
-			// 根级 README/CONTRIBUTING 等非 wiki 页面：合法仓库文件但非法页面路径，跳过。
-			slog.Debug("wiki sync: skip non-page md", "path", rel)
+		norm, err := ValidatePathError(rel)
+		if err != nil {
+			if strings.Contains(rel, "/") {
+				// 正式内容路径非法 → fail-fast：run 标记 failed，绝不静默
+				// 跳过并报告成功（issue #283）。
+				invalidPaths = append(invalidPaths, fmt.Sprintf("%s: %v", rel, err))
+				continue
+			}
+			// 仓库根级 README/CONTRIBUTING/LICENSE 等元文件：显式排除
+			// （合法仓库文件但非页面路径），不阻断同步。
+			slog.Debug("wiki sync: skip root-level non-page md", "path", rel)
 			continue
 		}
 		dir := NamespaceOf(norm)
@@ -785,6 +793,12 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
 	}
+	if len(invalidPaths) > 0 {
+		// fail-fast 必须在任何 DB 写入（slug 迁移/upsert/软删/命名空间删除）
+		// 之前返回：非法路径未修正时同步整体失败，避免部分投影与误删。
+		return fmt.Errorf("wiki sync: %d invalid page path(s): %s", len(invalidPaths), strings.Join(invalidPaths, "; "))
+	}
+
 	resolver := newWikiReferenceResolver(cfg, wanted, hotdataserve.GetWikiSyncSettingsConfigCache().AssetCDN)
 	// review M1：单页引用校验/渲染失败 → 跳过该页并聚合告警（其余页面继续），
 	// 避免一个坏链接冻结整个 wiki 的更新与删除。但安全类错误（仓库根逃逸/

@@ -1,6 +1,7 @@
 package wikiservice
 
 import (
+	"fmt"
 	"regexp"
 	"strings"
 	"unicode"
@@ -83,20 +84,30 @@ func isPureASCIISlug(name string) bool {
 // 总长按码点（rune）计数 ≤255：与 DB varchar(255) 的字符语义及前端
 // 码点计数对齐（此前按字节 len() 计数，100 个中文字符 300 字节会被误拒）。
 func ValidatePath(path string) (string, bool) {
+	norm, err := ValidatePathError(path)
+	return norm, err == nil
+}
+
+// ValidatePathError 与 ValidatePath 同规则，但返回具体拒绝原因
+// （同步器等需要向运维暴露精确路径与原因的场景使用）。
+func ValidatePathError(path string) (string, error) {
 	path = strings.TrimSpace(path)
-	if path == "" || utf8.RuneCountInString(path) > maxPathLen {
-		return "", false
+	if path == "" {
+		return "", fmt.Errorf("path is empty")
+	}
+	if utf8.RuneCountInString(path) > maxPathLen {
+		return "", fmt.Errorf("path longer than %d characters", maxPathLen)
 	}
 	segments := strings.Split(path, "/")
 	if len(segments) < 2 {
-		return "", false // 至少 namespace + 一个 slug 段
+		return "", fmt.Errorf("path must be at least \"namespace/slug\", got %q", path)
 	}
 	for _, seg := range segments {
 		if !validSegment(seg) {
-			return "", false
+			return "", fmt.Errorf("invalid segment %q (must be 1..%d characters, no \".\"/\"..\"/leading dot, no whitespace/control characters, no reserved chars %s)", seg, maxSlugLen, reservedPathChars)
 		}
 	}
-	return path, true
+	return path, nil
 }
 
 // NamespaceOf 返回 path 的 namespace 段。
