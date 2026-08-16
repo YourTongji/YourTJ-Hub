@@ -22,9 +22,13 @@ contract-lint: ## Validate and bundle the OpenAPI contract
 contract-generate-ts: ## Generate OpenAPI TypeScript types for @gooseforum/client
 	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run generate:ts
 
+# pnpm run check also runs check:coverage (route → contract coverage gate,
+# scripts/check-route-coverage.mjs), which regenerates coverage-matrix.md; CI
+# asserts that generated file is committed, same as the TypeScript output below.
 contract-check: ## Validate, bundle, generate, and require committed OpenAPI TypeScript output
 	cd packages/api-contract && pnpm install --frozen-lockfile && pnpm run check
 	git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
+	git diff --exit-code -- packages/api-contract/coverage-matrix.md
 
 test: ## Run backend, contract, and frontend checks
 	cd apps/gooseforum && go vet ./... && go test ./...

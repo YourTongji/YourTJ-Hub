@@ -6,9 +6,11 @@
   "scripts": {
     "lint": "redocly lint openapi.yaml",
     "bundle": "redocly bundle openapi.yaml --output .tmp/openapi.bundle.yaml",
+    "bundle:json": "redocly bundle openapi.yaml --output .tmp/openapi.bundle.json",
     "generate:ts": "openapi-typescript openapi.yaml -o ../../apps/gooseforum/resource/packages/client/src/gen/openapi.ts",
     "check:gen": "node scripts/check-ts-gen.mjs",
-    "check": "pnpm run lint && pnpm run bundle && pnpm run generate:ts && pnpm run check:gen"
+    "check:coverage": "node scripts/check-route-coverage.mjs",
+    "check": "pnpm run lint && pnpm run bundle && pnpm run bundle:json && pnpm run generate:ts && pnpm run check:gen && pnpm run check:coverage"
   },
   "devDependencies": {
     "@redocly/cli": "2.45.0",

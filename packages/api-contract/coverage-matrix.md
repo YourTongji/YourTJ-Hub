@@ -1,0 +1,284 @@
+# Route → Contract 覆盖矩阵
+
+<!-- 本文件由 `pnpm run check:coverage`（scripts/check-route-coverage.mjs）生成，请勿手改。 -->
+
+路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
+
+- 快照路由总数：260
+- /api JSON 路由：204，已入契约：117（57%），已知未覆盖：87
+- 非 API 排除路由：56
+
+## 已覆盖（117）
+
+| Method | Path | operationId |
+| --- | --- | --- |
+| DELETE | `/api/admin/wiki/namespaces/:name` | `deleteWikiNamespace` |
+| DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
+| DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
+| GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
+| GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
+| GET | `/api/forum/courses` | `listCourses` |
+| GET | `/api/forum/courses/:courseId` | `getCourse` |
+| GET | `/api/forum/courses/:courseId/related` | `getCourseRelated` |
+| GET | `/api/forum/courses/:courseId/reviews` | `listCourseReviews` |
+| GET | `/api/forum/courses/:courseId/summary` | `getCourseSummary` |
+| GET | `/api/forum/notifications` | `getNotifications` |
+| GET | `/api/forum/posts/revisions` | `getPostRevisions` |
+| GET | `/api/forum/posts/window` | `getPostWindow` |
+| GET | `/api/forum/unread-status` | `getUnreadStatus` |
+| GET | `/api/get-captcha` | `getCaptcha` |
+| GET | `/api/login-public-key` | `getLoginPublicKey` |
+| GET | `/api/oauth/bindings` | `getOAuthBindings` |
+| GET | `/api/pk/calendars` | `pkListCalendars` |
+| GET | `/api/pk/campuses` | `pkListCampuses` |
+| GET | `/api/pk/course-review-brief` | `pkGetCourseReviewBrief` |
+| GET | `/api/pk/faculties` | `pkListFaculties` |
+| GET | `/api/pk/latest-update` | `pkGetLatestUpdate` |
+| GET | `/api/user-card` | `getUserCard` |
+| GET | `/api/user/sessions` | `listSessions` |
+| GET | `/api/user/totp/status` | `getTotpStatus` |
+| GET | `/api/v1/agent/me` | `agentMe` |
+| GET | `/api/v1/agent/search` | `agentSearch` |
+| GET | `/api/v1/agent/topics` | `agentTopicList` |
+| GET | `/api/v1/agent/topics/:topicId/posts` | `agentPostList` |
+| GET | `/api/wiki/home` | `getWikiHome` |
+| GET | `/api/wiki/namespaces` | `listWikiNamespaces` |
+| GET | `/api/wiki/tree` | `getWikiTree` |
+| PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
+| POST | `/api/admin/posts/delete` | `adminDeletePost` |
+| POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
+| POST | `/api/admin/topics/delete` | `adminDeleteTopic` |
+| POST | `/api/admin/topics/edit` | `adminEditTopic` |
+| POST | `/api/admin/topics/list` | `adminListTopics` |
+| POST | `/api/admin/topics/pin-edit` | `adminEditTopicPin` |
+| POST | `/api/admin/topics/restore` | `adminRestoreTopic` |
+| POST | `/api/admin/topics/source` | `adminGetTopicSource` |
+| POST | `/api/admin/wiki/namespaces` | `createWikiNamespace` |
+| POST | `/api/admin/wiki/sync` | `runWikiSync` |
+| POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
+| POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
+| POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
+| POST | `/api/change-password` | `changePassword` |
+| POST | `/api/forgot-password` | `forgotPassword` |
+| POST | `/api/forum/chat/mark-read` | `markChatRead` |
+| POST | `/api/forum/chat/messages` | `getChatMessages` |
+| POST | `/api/forum/chat/send` | `sendChatMessage` |
+| POST | `/api/forum/course-reviews` | `createCourseReview` |
+| POST | `/api/forum/course-reviews/:reviewId/reports` | `reportCourseReview` |
+| POST | `/api/forum/follow-user` | `followUser` |
+| POST | `/api/forum/moderation/course-create` | `adminCourseCreate` |
+| POST | `/api/forum/moderation/course-delete` | `adminCourseDelete` |
+| POST | `/api/forum/moderation/course-list` | `adminCourseList` |
+| POST | `/api/forum/moderation/course-review-delete` | `adminReviewDelete` |
+| POST | `/api/forum/moderation/course-review-edit` | `adminReviewUpdate` |
+| POST | `/api/forum/moderation/course-review-list` | `adminReviewList` |
+| POST | `/api/forum/moderation/course-review-reports` | `moderationCourseReviewReportList` |
+| POST | `/api/forum/moderation/course-review-reveal` | `moderationCourseReviewReveal` |
+| POST | `/api/forum/moderation/course-review-status` | `moderationCourseReviewStatus` |
+| POST | `/api/forum/moderation/course-stats-rebuild` | `adminCourseStatsRebuild` |
+| POST | `/api/forum/moderation/course-update` | `adminCourseUpdate` |
+| POST | `/api/forum/moderation/logs` | `listModerationLogs` |
+| POST | `/api/forum/moderation/post-status` | `moderationUpdatePostStatus` |
+| POST | `/api/forum/moderation/report-status` | `moderationUpdateReportStatus` |
+| POST | `/api/forum/moderation/reports` | `listModerationReports` |
+| POST | `/api/forum/moderation/topic-status` | `moderationUpdateTopicStatus` |
+| POST | `/api/forum/moderation/view-deleted-content` | `viewDeletedContent` |
+| POST | `/api/forum/notification/mark-all-read` | `markAllNotificationsRead` |
+| POST | `/api/forum/notification/mark-read` | `markNotificationRead` |
+| POST | `/api/forum/posts/bookmark` | `bookmarkPost` |
+| POST | `/api/forum/posts/create` | `createPost` |
+| POST | `/api/forum/posts/delete` | `deletePost` |
+| POST | `/api/forum/posts/like` | `likePost` |
+| POST | `/api/forum/posts/update` | `updatePost` |
+| POST | `/api/forum/report` | `createReport` |
+| POST | `/api/forum/topics/bookmark` | `bookmarkTopic` |
+| POST | `/api/forum/topics/delete` | `deleteTopic` |
+| POST | `/api/forum/topics/like` | `likeTopic` |
+| POST | `/api/forum/topics/status` | `updateTopicStatus` |
+| POST | `/api/forum/topics/watch` | `watchTopic` |
+| POST | `/api/forum/topics/write` | `writeTopic` |
+| POST | `/api/login` | `login` |
+| POST | `/api/logout` | `logout` |
+| POST | `/api/pk/course-details` | `pkFindCourseDetails` |
+| POST | `/api/pk/course-info-sync` | `pkSyncCourseInfo` |
+| POST | `/api/pk/course-search` | `pkSearchCourses` |
+| POST | `/api/pk/courses-by-major` | `pkFindCoursesByMajor` |
+| POST | `/api/pk/courses-by-nature` | `pkFindCoursesByNature` |
+| POST | `/api/pk/courses-by-time` | `pkFindCoursesByTime` |
+| POST | `/api/pk/grades` | `pkFindGrades` |
+| POST | `/api/pk/majors` | `pkFindMajors` |
+| POST | `/api/pk/optional-types` | `pkFindOptionalTypes` |
+| POST | `/api/register` | `register` |
+| POST | `/api/resend-activation-email` | `resendActivationEmail` |
+| POST | `/api/reset-password` | `resetPassword` |
+| POST | `/api/set-preset-avatar` | `setPresetAvatar` |
+| POST | `/api/set-user-email` | `setUserEmail` |
+| POST | `/api/set-user-info` | `setUserInfo` |
+| POST | `/api/set-user-name` | `setUserName` |
+| POST | `/api/set-user-profile-cover` | `setUserProfileCover` |
+| POST | `/api/upload-avatar` | `uploadAvatar` |
+| POST | `/api/user/sessions/revoke` | `revokeSession` |
+| POST | `/api/user/sessions/revoke-all` | `revokeAllSessions` |
+| POST | `/api/user/totp/disable` | `disableTotp` |
+| POST | `/api/user/totp/enable` | `enableTotp` |
+| POST | `/api/user/totp/setup` | `setupTotp` |
+| POST | `/api/v1/agent/topics` | `agentWriteTopic` |
+| POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
+| POST | `/api/wear-badge` | `wearBadge` |
+| POST | `/api/wiki/webhook` | `wikiWebhook` |
+| PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
+| PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
+
+## 已知未覆盖（87）
+
+| Method | Path | 归属切片 |
+| --- | --- | --- |
+| GET | `/api/admin/ai-summary-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/announcement` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| GET | `/api/admin/badges` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| GET | `/api/admin/data/export/download/:taskId` | pending #277 后续切片：data-portability（数据导入导出） |
+| GET | `/api/admin/data/export/tasks` | pending #277 后续切片：data-portability（数据导入导出） |
+| GET | `/api/admin/friend-links` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| GET | `/api/admin/get-all-role-item` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| GET | `/api/admin/http-notify-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/mail-settings` | pending #277 后续切片：mail（邮件配置） |
+| GET | `/api/admin/mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
+| GET | `/api/admin/onesystem-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/posting-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/privacy-policy` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/rate-limit-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/security-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/server-version` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/site-chrome` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/site-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/site-theme` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/admin/sponsors` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| GET | `/api/admin/storage-migrate-tasks` | pending #277 后续切片：storage（存储配置与迁移） |
+| GET | `/api/admin/storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
+| GET | `/api/admin/terms-of-service` | pending #277 后续切片：site-settings（站点配置族） |
+| GET | `/api/auth/:provider` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
+| GET | `/api/auth/:provider/callback` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
+| GET | `/api/forum/get-site-statistics` | pending #277 后续切片：site-statistics（站点统计） |
+| GET | `/api/forum/search` | pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约） |
+| GET | `/api/forum/user/deleted-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| GET | `/api/forum/user/my-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/admin/agent-create` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/agent-disable` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/agent-list` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/agent-rotate-token` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/agent-update` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/badge-delete` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/admin/badge-save` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/admin/category-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/category-list` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/category-moderator-add` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/category-moderator-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/category-save` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/data/export` | pending #277 后续切片：data-portability（数据导入导出） |
+| POST | `/api/admin/data/import` | pending #277 后续切片：data-portability（数据导入导出） |
+| POST | `/api/admin/file-resources` | pending #277 后续切片：admin-media（后台文件资源） |
+| POST | `/api/admin/get-permission-list` | pending #277 后续切片：role（角色与权限管理） |
+| POST | `/api/admin/global-moderator-add` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/global-moderator-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/global-moderator-list` | pending #277 后续切片：category/moderator（版块与版主管理） |
+| POST | `/api/admin/img-upload` | pending #277 后续切片：admin-media（后台文件资源） |
+| POST | `/api/admin/opt-record-page` | pending #277 后续切片：agent-admin（Agent 账号管理） |
+| POST | `/api/admin/publish-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/review-action` | pending #277 后续切片：review-queue（审核队列） |
+| POST | `/api/admin/review-queue` | pending #277 后续切片：review-queue（审核队列） |
+| POST | `/api/admin/role-delete` | pending #277 后续切片：role（角色与权限管理） |
+| POST | `/api/admin/role-list` | pending #277 后续切片：role（角色与权限管理） |
+| POST | `/api/admin/role-save` | pending #277 后续切片：role（角色与权限管理） |
+| POST | `/api/admin/save-ai-summary-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-announcement` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| POST | `/api/admin/save-friend-links` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| POST | `/api/admin/save-http-notify-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-mail-settings` | pending #277 后续切片：mail（邮件配置） |
+| POST | `/api/admin/save-mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
+| POST | `/api/admin/save-onesystem-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-posting-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-privacy-policy` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-rate-limit-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-security-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-site-chrome` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-site-settings` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-sponsors` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
+| POST | `/api/admin/save-storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
+| POST | `/api/admin/save-terms-of-service` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/save-user-badges` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/admin/storage-migrate-task` | pending #277 后续切片：storage（存储配置与迁移） |
+| POST | `/api/admin/test-mail-connection` | pending #277 后续切片：mail（邮件配置） |
+| POST | `/api/admin/test-storage-connection` | pending #277 后续切片：storage（存储配置与迁移） |
+| POST | `/api/admin/traffic-overview` | pending #277 后续切片：site-settings（站点配置族） |
+| POST | `/api/admin/user-badge-options` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/admin/user-edit` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/admin/user-list` | pending #277 后续切片：user-manager（用户/徽章管理） |
+| POST | `/api/forum/user/account-close` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/forum/user/content-batch-delete` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/forum/user/content-event` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/forum/user/content-privacy-erase` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/forum/user/content-purge` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+| POST | `/api/forum/user/content-restore` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
+
+## 排除（非 JSON API，56）
+
+| Method | Path | 原因 |
+| --- | --- | --- |
+| CONNECT | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| DELETE | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| GET | `/` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/activate` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/admin` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/admin/*path` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/assets/*filepath` | go:embed 静态资源（StaticFS 展开 GET+HEAD） |
+| GET | `/c/:slug/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/c/:slug/:id/l/:sort` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/courses` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/courses/:courseId` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/drafts` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/file/img/*filename` | 上传文件读取服务，非 JSON API |
+| GET | `/health` | 健康检查探针，infra 端点非 JSON API |
+| GET | `/links` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/llms-full.txt` | SEO/机器可读文本输出，非 JSON API |
+| GET | `/llms.txt` | SEO/机器可读文本输出，非 JSON API |
+| GET | `/login` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| GET | `/messages` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/moderation` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/moderation/course-reviews` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/moderation/courses` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/notifications` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/p/post/:id` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/p/post/:id/:postNo` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/p/posts/:document` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/privacy` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/publish` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/reload` | 开发期模板热重载端点，非 JSON API |
+| GET | `/reset-password` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/robots.txt` | SEO/机器可读文本输出，非 JSON API |
+| GET | `/rss.xml` | SEO/机器可读文本输出，非 JSON API |
+| GET | `/schedule` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/search` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/settings` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/site-theme.css` | 动态主题 CSS 输出，非 JSON API |
+| GET | `/sitemap.xml` | SEO/机器可读文本输出，非 JSON API |
+| GET | `/sponsors` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/static/*filepath` | 静态资源（StaticFS 展开 GET+HEAD） |
+| GET | `/terms` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/theme-preview` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/u/:userId` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/u/:userId/:section` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/u/:userId/:section/:subsection` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/wiki` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| GET | `/wiki/*path` | SSR 页面（GoHTML 三模渲染），非 JSON API |
+| HEAD | `/assets/*filepath` | go:embed 静态资源（StaticFS 展开 GET+HEAD） |
+| HEAD | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| HEAD | `/static/*filepath` | 静态资源（StaticFS 展开 GET+HEAD） |
+| OPTIONS | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| PATCH | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| POST | `/file/img-upload` | multipart 文件上传端点，不纳入 JSON API 契约 |
+| POST | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| PUT | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |
+| TRACE | `/mcp` | MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约 |

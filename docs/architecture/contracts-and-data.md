@@ -116,6 +116,18 @@ packages/api-contract/fixtures/      @gooseforum/client/openapi types
 - **Mobile/Dart generation is Planned**: no Dart generator or generated mobile artifact is maintained by
   this repository yet. Mobile response mirrors remain hand-maintained, and shared OpenAPI fixtures
   exercise their runtime deserialization where the mobile client consumes a controlled operation.
+- **Route coverage is gated**: `TestRoutesSnapshot` (`apps/gooseforum/app/http/routes/routes_dump_test.go`)
+  dumps every route `RegisterByGin` registers under the default config into
+  `packages/api-contract/fixtures/routes-snapshot.json` (OIDC `/api/oauth/*` endpoints are excluded —
+  they are only registered with `oidc.enabled=true` and are tracked in their own slice). After a route
+  change, regenerate with `YOURTJ_UPDATE_ROUTES_SNAPSHOT=1 go test ./app/http/routes/ -run TestRoutesSnapshot`;
+  `go test ./...` fails on snapshot drift. `scripts/check-route-coverage.mjs` (part of `pnpm run check`)
+  then requires every snapshot route to be either an OpenAPI operation or listed in
+  `packages/api-contract/route-coverage.json` (`excluded` for non-JSON-API routes such as SSR pages and
+  static assets, `knownUncovered` with an owning slice for pending `/api` routes), rejects stale or
+  dangling list entries and contract operations with no matching route, and regenerates the committed
+  `packages/api-contract/coverage-matrix.md` — CI rejects an uncommitted matrix diff, same as the
+  generated TypeScript types. Net effect: a new route that is neither contracted nor listed turns CI red.
 
 Breaking-change comparison is not a current gate. The `dev` base before this first coverage contains no
 stable operations to compare, so a snapshot baseline would be redundant and misleading. Enable a

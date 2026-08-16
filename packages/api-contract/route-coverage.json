@@ -1,0 +1,672 @@
+{
+  "$comment": "Go route → OpenAPI operation 覆盖清单（issue #277）。excluded=非 JSON API 路由；knownUncovered=已知未入契约的 /api 路由，须标注归属切片。method 支持 \"*\" 通配（用于 StaticFS/Any 展开的路由）。新增路由必须进 openapi.yaml 或本清单，否则 check:coverage 与 CI 红。",
+  "excluded": [
+    {
+      "method": "*",
+      "path": "/assets/*filepath",
+      "reason": "go:embed 静态资源（StaticFS 展开 GET+HEAD）"
+    },
+    {
+      "method": "*",
+      "path": "/mcp",
+      "reason": "MCP streamable HTTP 端点（Any 展开多方法），走 MCP 自有协议契约"
+    },
+    {
+      "method": "*",
+      "path": "/static/*filepath",
+      "reason": "静态资源（StaticFS 展开 GET+HEAD）"
+    },
+    {
+      "method": "GET",
+      "path": "/",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/activate",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/admin",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/admin/*path",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/c/:slug/:id",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/c/:slug/:id/l/:sort",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/courses",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/courses/:courseId",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/drafts",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/file/img/*filename",
+      "reason": "上传文件读取服务，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/health",
+      "reason": "健康检查探针，infra 端点非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/links",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/llms-full.txt",
+      "reason": "SEO/机器可读文本输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/llms.txt",
+      "reason": "SEO/机器可读文本输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/login",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/messages",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/moderation",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/moderation/course-reviews",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/moderation/courses",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/notifications",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/p/post/:id",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/p/post/:id/:postNo",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/p/posts/:document",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/privacy",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/publish",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/reload",
+      "reason": "开发期模板热重载端点，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/reset-password",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/robots.txt",
+      "reason": "SEO/机器可读文本输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/rss.xml",
+      "reason": "SEO/机器可读文本输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/schedule",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/search",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/settings",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/site-theme.css",
+      "reason": "动态主题 CSS 输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/sitemap.xml",
+      "reason": "SEO/机器可读文本输出，非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/sponsors",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/terms",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/theme-preview",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/u/:userId",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/u/:userId/:section",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/u/:userId/:section/:subsection",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/wiki",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "GET",
+      "path": "/wiki/*path",
+      "reason": "SSR 页面（GoHTML 三模渲染），非 JSON API"
+    },
+    {
+      "method": "POST",
+      "path": "/file/img-upload",
+      "reason": "multipart 文件上传端点，不纳入 JSON API 契约"
+    }
+  ],
+  "knownUncovered": [
+    {
+      "method": "GET",
+      "path": "/api/admin/ai-summary-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/announcement",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/badges",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/data/export/download/:taskId",
+      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/data/export/tasks",
+      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/friend-links",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/get-all-role-item",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/http-notify-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/mail-settings",
+      "reason": "pending #277 后续切片：mail（邮件配置）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/mcp-settings",
+      "reason": "pending #277 后续切片：mcp-settings（MCP 开关配置）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/onesystem-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/posting-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/privacy-policy",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/rate-limit-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/security-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/server-version",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/site-chrome",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/site-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/site-theme",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/sponsors",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/storage-migrate-tasks",
+      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/storage-settings",
+      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/admin/terms-of-service",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/:provider",
+      "reason": "pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/auth/:provider/callback",
+      "reason": "pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forum/get-site-statistics",
+      "reason": "pending #277 后续切片：site-statistics（站点统计）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forum/search",
+      "reason": "pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forum/user/deleted-content",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "GET",
+      "path": "/api/forum/user/my-content",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/agent-create",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/agent-disable",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/agent-list",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/agent-rotate-token",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/agent-update",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/badge-delete",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/badge-save",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/category-delete",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/category-list",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/category-moderator-add",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/category-moderator-delete",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/category-save",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/data/export",
+      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/data/import",
+      "reason": "pending #277 后续切片：data-portability（数据导入导出）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/file-resources",
+      "reason": "pending #277 后续切片：admin-media（后台文件资源）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/get-permission-list",
+      "reason": "pending #277 后续切片：role（角色与权限管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/global-moderator-add",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/global-moderator-delete",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/global-moderator-list",
+      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/img-upload",
+      "reason": "pending #277 后续切片：admin-media（后台文件资源）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/opt-record-page",
+      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/publish-site-theme",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/review-action",
+      "reason": "pending #277 后续切片：review-queue（审核队列）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/review-queue",
+      "reason": "pending #277 后续切片：review-queue（审核队列）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-delete",
+      "reason": "pending #277 后续切片：role（角色与权限管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-list",
+      "reason": "pending #277 后续切片：role（角色与权限管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/role-save",
+      "reason": "pending #277 后续切片：role（角色与权限管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-ai-summary-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-announcement",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-friend-links",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-http-notify-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-mail-settings",
+      "reason": "pending #277 后续切片：mail（邮件配置）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-mcp-settings",
+      "reason": "pending #277 后续切片：mcp-settings（MCP 开关配置）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-onesystem-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-posting-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-privacy-policy",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-rate-limit-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-security-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-site-chrome",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-site-settings",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-site-theme",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-sponsors",
+      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-storage-settings",
+      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-terms-of-service",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/save-user-badges",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/storage-migrate-task",
+      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/test-mail-connection",
+      "reason": "pending #277 后续切片：mail（邮件配置）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/test-storage-connection",
+      "reason": "pending #277 后续切片：storage（存储配置与迁移）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/traffic-overview",
+      "reason": "pending #277 后续切片：site-settings（站点配置族）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/user-badge-options",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/user-edit",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/admin/user-list",
+      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/account-close",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/content-batch-delete",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/content-event",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/content-privacy-erase",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/content-purge",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    },
+    {
+      "method": "POST",
+      "path": "/api/forum/user/content-restore",
+      "reason": "pending #277 后续切片：user-content（用户内容/账号生命周期管理）"
+    }
+  ]
+}

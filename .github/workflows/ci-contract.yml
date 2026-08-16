@@ -60,3 +60,6 @@ jobs:
       - name: Require generated TypeScript types to be committed
         if: steps.filter.outputs.contract == 'true'
         run: git diff --exit-code -- apps/gooseforum/resource/packages/client/src/gen
+      - name: Require generated route coverage matrix to be committed
+        if: steps.filter.outputs.contract == 'true'
+        run: git diff --exit-code -- packages/api-contract/coverage-matrix.md
