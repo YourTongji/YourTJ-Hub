@@ -16,10 +16,6 @@ const emit = defineEmits<{
 
 const { t } = useI18n()
 const collapsed = ref<Set<string>>(new Set())
-const isHome = computed(() => {
-  if (typeof window === 'undefined') return false
-  return window.location.pathname === '/wiki' || window.location.pathname === '/wiki/'
-})
 
 const groups = computed(() => props.tree || [])
 
@@ -38,17 +34,6 @@ function toggleCollapse(name: string) {
 
 <template>
   <nav class="py-3" aria-label="Wiki sidebar">
-    <div class="pb-2">
-      <a
-        href="/wiki"
-        class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-semibold transition-colors duration-150"
-        :class="isHome ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-        @click="emit('navigate')"
-      >
-        {{ t('wiki.home') }}
-      </a>
-    </div>
-
     <div v-if="!groups.length" class="px-2 py-3 text-xs text-base-content/55">
       {{ t('wiki.sidebarEmpty') }}
     </div>

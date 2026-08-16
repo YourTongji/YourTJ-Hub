@@ -130,7 +130,9 @@ func TestCollectScopeResultsTopics(t *testing.T) {
 		},
 		EstimatedTotalHits: 2,
 	}
-	collectScopeResults(resp, TopicIndex, searchResp)
+	if err := collectScopeResults(resp, TopicIndex, searchResp); err != nil {
+		t.Fatalf("collect topic scope results: %v", err)
+	}
 	if len(resp.Topics) != 2 {
 		t.Fatalf("topics results = %d, want 2", len(resp.Topics))
 	}
@@ -154,7 +156,9 @@ func TestCollectScopeResultsSkipsInvalidIDs(t *testing.T) {
 		},
 		EstimatedTotalHits: 1,
 	}
-	collectScopeResults(resp, TopicIndex, searchResp)
+	if err := collectScopeResults(resp, TopicIndex, searchResp); err != nil {
+		t.Fatalf("collect topic scope results: %v", err)
+	}
 	if len(resp.Topics) != 1 || resp.Topics[0].ID != 3 {
 		t.Fatalf("invalid id should be skipped: %+v", resp.Topics)
 	}
@@ -186,7 +190,9 @@ func TestCollectScopeResultsFiltersNonPublicTopics(t *testing.T) {
 		},
 		EstimatedTotalHits: 7,
 	}
-	collectScopeResults(resp, TopicIndex, searchResp)
+	if err := collectScopeResults(resp, TopicIndex, searchResp); err != nil {
+		t.Fatalf("collect topic scope results: %v", err)
+	}
 	if len(resp.Topics) != 1 || resp.Topics[0].ID != 1 {
 		t.Fatalf("only public topic should survive DB filter, got %+v", resp.Topics)
 	}
@@ -224,7 +230,9 @@ func TestCollectScopeResultsCoursesFillsStats(t *testing.T) {
 		},
 		EstimatedTotalHits: 2,
 	}
-	collectScopeResults(resp, CourseIndex, searchResp)
+	if err := collectScopeResults(resp, CourseIndex, searchResp); err != nil {
+		t.Fatalf("collect course scope results: %v", err)
+	}
 	if len(resp.Courses) != 2 {
 		t.Fatalf("courses results = %d, want 2", len(resp.Courses))
 	}

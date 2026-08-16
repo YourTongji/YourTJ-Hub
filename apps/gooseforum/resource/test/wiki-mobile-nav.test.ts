@@ -71,15 +71,6 @@ function makeLayout(mode: 'forum' | 'wiki'): LayoutPayload {
 const stubs = { Motion: MotionStub, AnimatePresence: AnimatePresenceStub }
 
 describe('WikiSidebar 导航事件', () => {
-  test('点击 wiki 首页链接发出 navigate 事件（供抽屉关闭）', async () => {
-    const wrapper = mount(WikiSidebar, {
-      props: { tree: wikiTree },
-      global: { plugins: [i18n] },
-    })
-    await wrapper.get('a[href="/wiki"]').trigger('click')
-    expect(wrapper.emitted('navigate')).toHaveLength(1)
-  })
-
   test('点击页面链接发出 navigate 事件，且中文路径按段编码', async () => {
     const wrapper = mount(WikiSidebar, {
       props: { tree: wikiTree },
@@ -113,14 +104,15 @@ describe('MobileDrawer wiki 模式', () => {
     })
   }
 
-  test('wiki 模式下渲染 wiki 首页 + 命名空间 + 页面树', () => {
+  test('wiki 模式下渲染命名空间 + 页面树（侧边栏已无 wiki 首页块）', () => {
     const wrapper = mountDrawer({ wikiMode: true, wikiTree })
     const drawer = wrapper.get('[role="dialog"]')
     expect(drawer.text()).toContain('同济新手教程')
     expect(drawer.text()).toContain('使用指南')
     expect(drawer.text()).toContain('学校简介')
     expect(drawer.text()).toContain('快速开始')
-    expect(drawer.get('a[href="/wiki"]').text()).toBe('Wiki')
+    // 需求：wiki 侧边栏移除顶部 pb-2 首页块 → 抽屉内不再有 /wiki 首页链接。
+    expect(drawer.find('a[href="/wiki"]').exists()).toBe(false)
   })
 
   test('活动页面保持高亮（与桌面侧栏一致）', () => {

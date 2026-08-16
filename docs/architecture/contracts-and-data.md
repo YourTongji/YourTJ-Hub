@@ -50,7 +50,10 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；公开与管理端树均返回递归
   `nodes`：`page` 节点对应 Markdown，`directory` 节点由路径投影且 `pageId=0`，完整路径在每层
   保持稳定；管理端页面节点带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
-  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。公开读与
+  `/api/admin/wiki/{tree,sync/status,sync/runs}` 在数据库查询失败时返回
+  **HTTP 500 + `wiki.readFailed`**（契约已声明 500 响应），与真实的空 wiki
+  （200 + 空结果/零计数）严格区分（issue #287）。
 - Wiki 首页/详情兼容性（issue #291）：GitHub SSOT 下站内无「编辑者」概念，
   `GET /api/wiki/home` 的 `recent[]` 与 wiki 详情负载的 `editorId`/`editorName`
   字段已**移除**（此前恒为零值且违反 OpenAPI `editorId minimum: 1`）。消费方需删除

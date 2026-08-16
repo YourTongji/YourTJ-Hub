@@ -26,14 +26,16 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
-func ListAll() []*Entity {
+// ListAll 返回全部页面（按 namespace/sort_order/id 升序）。
+// 显式返回查询错误：公开读必须区分 DB 故障与真实空数据，不能吞错（issue #287）。
+func ListAll() ([]*Entity, error) {
 	var entities []*Entity
-	builder().
+	err := builder().
 		Order(queryopt.Asc("namespace")).
 		Order(queryopt.Asc("sort_order")).
 		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
+		Find(&entities).Error
+	return entities, err
 }
 
 // ListAllUnscopedTx 在调用方事务内返回全部页面（含软删）。

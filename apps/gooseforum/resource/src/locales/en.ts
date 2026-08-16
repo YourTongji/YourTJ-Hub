@@ -1927,6 +1927,7 @@ export default {
     'wiki.revision.notFound': 'Revision not found.',
     'wiki.revision.conflict': 'The page was updated by someone else. Please re-edit based on the latest version.',
     'wiki.saveFailed': 'Failed to save wiki. Please try again later.',
+    'wiki.readFailed': 'Failed to read wiki data. Please try again later.',
   },
   serverActions: {
     uploadAttachment: 'upload attachments',
