@@ -131,6 +131,9 @@ docs/        Docs center (product/architecture/development/operations)
   are exempt; the regression test stays.
 - TODO markers use three tiers (`FIXME` / `TODO` / `XXX`), see
   docs/development/coding-conventions.md.
+- Test layout follows the per-language convention (Go `*_test.go` co-located, frontend `resource/test/`,
+  Flutter `test/`, contract fixtures under `packages/api-contract/fixtures/`), see
+  docs/development/testing.md#test-layout.
 
 - Backend: `cd apps/gooseforum && go vet ./... && go test ./...` (use `GOPROXY=https://goproxy.cn,direct`
   if module fetch times out). **Any model/migration change must also pass the PostgreSQL migration
@@ -161,5 +164,7 @@ docs/        Docs center (product/architecture/development/operations)
 
 - [Docs center](docs/README.md) (fact-source table + status words)
 - [Development entry](docs/development/README.md)
+- Repository skills: `$yourtj-development`, `$yourtj-pre-push-checks`, `$yourtj-simplifications`,
+  `$yourtj-doc-standards`, `$yourtj-code-review` (see `.agents/skills/`)
 - Architecture decision records live in the project note (yourtj-hub ADR note), not in git
 - Upstream: GooseForum (apps/gooseforum, the fork itself); YourTJ-Platform (local, same-brand archived repo)

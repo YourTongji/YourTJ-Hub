@@ -1062,7 +1062,10 @@ export interface WikiTocItem {
 export interface WikiContributorPayload {
   userId: number
   username: string
+  /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
   avatarUrl: string
+  /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
+  githubUrl?: string
   count: number
   lastEditedAt: string
 }

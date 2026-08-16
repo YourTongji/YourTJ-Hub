@@ -103,7 +103,9 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
   原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响。中文目录在
   `index.md` 声明 `slug` 后，页面 URL 首段迁移为 slug，旧链接仍可经显示名回退解析）。
-  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+  （同步用全量 `clone --single-branch` + `fetch` + `reset --hard`，**不使用 pull**；
+  全量历史用于页面贡献者统计。存量浅克隆（旧版 `--depth=1`）在下次同步自动
+  `fetch --unshallow` 补全历史并重建全部页面贡献者缓存，升级首轮耗时取决于仓库大小）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）；

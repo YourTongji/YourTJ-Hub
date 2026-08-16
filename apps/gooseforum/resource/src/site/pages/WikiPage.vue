@@ -181,6 +181,30 @@ function sameUrl(left: string, right: string) {
                       <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
                       <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
                     </a>
+                    <a
+                      v-else-if="contributor.githubUrl"
+                      :href="contributor.githubUrl"
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      class="flex min-w-0 items-center gap-2.5 rounded-md p-1 transition-colors hover:bg-base-200"
+                      :title="contributor.githubUrl"
+                    >
+                      <img
+                        v-if="contributor.avatarUrl"
+                        :src="contributor.avatarUrl"
+                        :alt="contributor.username"
+                        loading="lazy"
+                        class="h-7 w-7 shrink-0 rounded-full object-cover ring-1 ring-line"
+                      />
+                      <span
+                        v-else
+                        class="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-base-200 text-[11px] font-bold text-base-content/55"
+                      >
+                        {{ contributor.username.slice(0, 1).toUpperCase() }}
+                      </span>
+                      <span class="min-w-0 flex-1 truncate text-[13px] font-medium text-base-content/80">{{ contributor.username }}</span>
+                      <span class="shrink-0 text-xs tabular-nums text-base-content/45">{{ contributor.count }}</span>
+                    </a>
                     <div
                       v-else
                       class="flex min-w-0 items-center gap-2.5 rounded-md p-1"

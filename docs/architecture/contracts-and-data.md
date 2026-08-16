@@ -38,8 +38,10 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   公开读与 `/api/admin/wiki/{tree,sync/status,sync/runs}` 在数据库查询失败时返回
   **HTTP 500 + `wiki.readFailed`**（契约已声明 500 响应），与真实空 wiki（200 + 空结果）
   严格区分（issue #287）；GitHub SSOT 下站内无「编辑者」概念，`wiki.home` 的 `recent[]` 与
-  详情负载的 `editorId`/`editorName` 字段已移除，Git 作者信息由详情页 `contributors[]`
-  提供（issue #291）。
+  详情负载的 `editorId`/`editorName` 字段已移除；Git 作者信息由详情页 `contributors[]` 提供
+  （无论坛数字用户 ID）：同步器从仓库 `git log` 按 email 聚合贡献者与提交数，GitHub noreply
+  隐私邮箱解析出 `username` → 前端拼 `avatarUrl`（`github.com/{user}.png`）与 `githubUrl`
+  外链；自定义邮箱贡献者两者为空（前端降级首字母占位）（issues #291/#310）。
 
 The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
 suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and

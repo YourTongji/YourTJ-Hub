@@ -1,6 +1,7 @@
 package wikiservice
 
 import (
+	"encoding/json"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -267,6 +268,100 @@ func TestSyncOnceReconcilesStaleRunningRuns(t *testing.T) {
 	}
 	if latest.Id == stale.Id || latest.Status != wikiSyncRuns.StatusSuccess {
 		t.Fatalf("latest run = id %d status %d, want new success run", latest.Id, latest.Status)
+	}
+}
+
+// TestUnshallowMarkerSurvivesProjectionFailure 评论 P1 回归：unshallow 后
+// 首次投影失败、修复后重试仍刷新未变化页面的贡献者缓存。
+// 机制：ensureClone 在 unshallow 成功后写持久化标记（.git/wiki-trace-rebuild），
+// rebuildGitTraces 完成后删除；投影失败/崩溃后标记保留，下次同步的 ensureClone
+// 仍返回 unshallowed=true——.git/shallow 已被 git 删除，仅靠局部变量会永久
+// 丢失升级机会，depth-1 快照残留。
+func TestUnshallowMarkerSurvivesProjectionFailure(t *testing.T) {
+	setupWikiTestDB(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	// 源仓库：两位作者两次提交（贡献者统计依赖完整历史）。
+	src := t.TempDir()
+	git := func(dir string, args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git(src, "init", "-q", "-b", "main")
+	git(src, "config", "user.email", "alice@users.noreply.github.com")
+	git(src, "config", "user.name", "Alice")
+	writeRepoFile(t, src, "docs/page.md", "---\ntitle: 页面\n---\n\n# 一")
+	git(src, "add", "-A")
+	git(src, "commit", "-q", "-m", "c1")
+	git(src, "config", "user.email", "12345+bob@users.noreply.github.com")
+	git(src, "config", "user.name", "Bob")
+	writeRepoFile(t, src, "docs/page.md", "---\ntitle: 页面\n---\n\n# 二")
+	git(src, "add", "-A")
+	git(src, "commit", "-q", "-m", "c2")
+
+	// 存量浅克隆（模拟 v1 --depth=1 部署）。
+	cloneDir := filepath.Join(t.TempDir(), "clone")
+	if out, err := exec.Command("git", "clone", "-q", "--depth=1", "file://"+src, cloneDir).CombinedOutput(); err != nil {
+		t.Fatalf("shallow clone: %v: %s", err, out)
+	}
+	if _, err := os.Stat(filepath.Join(cloneDir, ".git", "shallow")); err != nil {
+		t.Fatal("test setup: expected shallow marker file")
+	}
+
+	cfg := GitConfig{Repo: "file://" + src, Branch: "main", CloneDir: cloneDir}
+	// 预置页面 + depth-1 时代缓存（只有 1 位作者）。
+	page := seedProjectedWikiPage(t, "docs", "docs/page", "页面", time.Now())
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+		Update("source_path", "docs/page").Error; err != nil {
+		t.Fatalf("set source_path: %v", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+		Update("contributors_json", `[{"name":"test","count":1}]`).Error; err != nil {
+		t.Fatalf("set old contributors: %v", err)
+	}
+
+	// 第一次同步：unshallow 成功 + 写标记；随后模拟投影失败（不消费标记）。
+	head, unshallowed, err := ensureClone(cfg)
+	if err != nil {
+		t.Fatalf("ensureClone: %v", err)
+	}
+	if head == "" || !unshallowed {
+		t.Fatalf("ensureClone after unshallow = (%q, %v), want unshallowed=true", head, unshallowed)
+	}
+	markerPath := filepath.Join(cloneDir, ".git", unshallowMarkerFile)
+	if _, err := os.Stat(markerPath); err != nil {
+		t.Fatal("unshallow marker not written after unshallow")
+	}
+
+	// 第二次同步（修复后重试）：.git/shallow 已删除，但标记保留 → 仍须重建。
+	if _, unshallowed, err = ensureClone(cfg); err != nil {
+		t.Fatalf("ensureClone retry: %v", err)
+	}
+	if !unshallowed {
+		t.Fatal("unshallowed lost after projection failure: marker present but ensureClone returned false")
+	}
+
+	// 重建完成：贡献者缓存刷新为 2 位作者，标记删除，后续同步不再重建。
+	rebuildGitTraces(cfg)
+	page = wikiPages.Get(page.Id)
+	var got []gitContributor
+	if err := json.Unmarshal([]byte(page.ContributorsJSON), &got); err != nil {
+		t.Fatalf("unmarshal refreshed contributors %q: %v", page.ContributorsJSON, err)
+	}
+	if len(got) != 2 {
+		t.Fatalf("contributors=%d, want 2 (both authors after rebuild): %+v", len(got), got)
+	}
+	if _, err := os.Stat(markerPath); !os.IsNotExist(err) {
+		t.Fatal("unshallow marker not removed after rebuildGitTraces")
+	}
+	if _, unshallowed, err = ensureClone(cfg); err != nil {
+		t.Fatalf("ensureClone after rebuild: %v", err)
+	}
+	if unshallowed {
+		t.Fatal("unshallowed should be false after marker consumed")
 	}
 }
 
