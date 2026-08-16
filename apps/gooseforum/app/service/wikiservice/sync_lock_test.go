@@ -180,7 +180,10 @@ func TestSyncWithConfigPendingRerunHoldsLock(t *testing.T) {
 	if got := calls.Load(); got != 3 {
 		t.Fatalf("syncOnce calls=%d, want 3 (A + rerun + rerun for C, C not lost)", got)
 	}
-	runs := wikiSyncRuns.ListRecent(10)
+	runs, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		t.Fatalf("list recent runs: %v", err)
+	}
 	if len(runs) != 3 {
 		t.Fatalf("sync run rows=%d, want 3", len(runs))
 	}
@@ -225,7 +228,10 @@ func TestSyncWithConfigPendingCoalesced(t *testing.T) {
 	if got := calls.Load(); got != 2 {
 		t.Fatalf("syncOnce calls=%d, want 2 (A + one coalesced pending rerun)", got)
 	}
-	runs := wikiSyncRuns.ListRecent(10)
+	runs, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		t.Fatalf("list recent runs: %v", err)
+	}
 	if len(runs) != 2 {
 		t.Fatalf("sync run rows=%d, want 2", len(runs))
 	}
@@ -247,7 +253,10 @@ func TestSyncWithConfigSequential(t *testing.T) {
 	if _, err := SyncWithConfig(cfg, "manual"); err != nil {
 		t.Fatalf("second sync: %v", err)
 	}
-	runs := wikiSyncRuns.ListRecent(10)
+	runs, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		t.Fatalf("list recent runs: %v", err)
+	}
 	if len(runs) != 2 {
 		t.Fatalf("sync run rows=%d, want 2", len(runs))
 	}
@@ -255,5 +264,104 @@ func TestSyncWithConfigSequential(t *testing.T) {
 		if r.Status != wikiSyncRuns.StatusSuccess {
 			t.Fatalf("run %d status=%d, want success", r.Id, r.Status)
 		}
+	}
+}
+
+// TestSyncWithConfigFinalHandoffNoLostTrigger review P1 回归：最终排空检查与
+// 解锁之间的窗口不得丢触发。
+// 场景：A 完成主运行，defer 进入最终交接（持有 syncMu+syncHandoffMu，
+// pending 检查已过，即将 ReleaseSyncLock，release 钩子阻塞此处）→ C 此刻
+// 到达：TryLock 失败后在 syncHandoffMu 上等待；A 释放锁后 C 取得
+// syncHandoffMu 并 TryLock 成功，直接进入正常同步——不返回
+// ErrSyncAlreadyRunning、不置 pending 后无人消费（修复前 C 会写 pending
+// 返回 ErrSyncAlreadyRunning，且已无持锁者消费该标记，更新 stale 到下次
+// 触发）。
+func TestSyncWithConfigFinalHandoffNoLostTrigger(t *testing.T) {
+	setupWikiTestDB(t)
+	cfg := initLocalWikiRepo(t)
+
+	calls := installSyncTestHook(t)
+
+	// release 钩子：阻塞持锁方在「最终检查已过、即将释放锁」的窗口。
+	releaseEntered := make(chan struct{})
+	releaseGate := make(chan struct{})
+	releaseAbort := make(chan struct{})
+	var releaseOnce sync.Once
+	rh := func() {
+		releaseOnce.Do(func() { close(releaseEntered) })
+		select {
+		case <-releaseGate:
+		case <-releaseAbort:
+		}
+	}
+	syncReleaseHook.Store(&rh)
+	// 清理顺序（LIFO）：先放行 release 钩子，再等 installSyncTestHook 的锁
+	// 释放等待——失败测试泄漏的锁/运行不会串入下一个测试。
+	t.Cleanup(func() {
+		close(releaseAbort)
+		syncReleaseHook.Store(nil)
+	})
+
+	g1 := make(chan struct{})
+	setSyncTestGate(g1)
+
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		if _, err := SyncWithConfig(cfg, "a"); err != nil {
+			t.Errorf("sync A: %v", err)
+		}
+	}()
+	waitSyncOnceCalls(t, calls, 1, "A entered syncOnce")
+
+	// 放行 A 主运行；A 的 defer 进入最终交接并阻塞在 release 钩子上。
+	close(g1)
+	select {
+	case <-releaseEntered:
+	case <-time.After(10 * time.Second):
+		t.Fatal("A did not reach final handoff (release hook)")
+	}
+
+	// C 此刻到达：TryLock 失败 → 在 syncHandoffMu 上等待 A 释放锁。
+	cDone := make(chan struct{})
+	var cErr error
+	go func() {
+		defer close(cDone)
+		_, cErr = SyncWithConfig(cfg, "c")
+	}()
+
+	// C 必须等待交接（锁未释放、不得以 ErrSyncAlreadyRunning 提前返回——
+	// 那正是修复前的丢触发窗口）。
+	select {
+	case <-cDone:
+		t.Fatalf("sync C returned before lock release: err=%v (must wait for handoff)", cErr)
+	case <-time.After(200 * time.Millisecond):
+	}
+
+	// 放行 A：释放锁 → C 取得 syncHandoffMu + TryLock 成功 → 直接进入同步。
+	close(releaseGate)
+	select {
+	case <-cDone:
+	case <-time.After(30 * time.Second):
+		t.Fatal("sync C did not complete after lock release")
+	}
+	if cErr != nil {
+		t.Fatalf("sync C err=%v, want nil (final handoff must not lose the trigger)", cErr)
+	}
+	select {
+	case <-done:
+	case <-time.After(30 * time.Second):
+		t.Fatal("sync A did not finish")
+	}
+	// A + C 各一次 syncOnce；C 直接同步（非 pending 补跑）。
+	if got := calls.Load(); got != 2 {
+		t.Fatalf("syncOnce calls=%d, want 2 (A + C direct)", got)
+	}
+	runs, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		t.Fatalf("list recent runs: %v", err)
+	}
+	if len(runs) != 2 {
+		t.Fatalf("sync run rows=%d, want 2 (A + C)", len(runs))
 	}
 }
