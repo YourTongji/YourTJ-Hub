@@ -147,7 +147,7 @@ func TestValidatePath(t *testing.T) {
 		{"中文/目录/页面", true},              // 纯中文路径
 		{"Guide/Getting-Started", true}, // 保留大小写（不再小写归一）
 		{"guide/UPPER", true},           // 大写段合法
-		{"guide", false},                // 至少 namespace + 一个 slug 段
+		{"guide", false},                // 至少 namespace + 一个页面段
 		{"guide/..", false},             // 禁止 ..
 		{"guide/.hidden", false},        // 禁止点开头段
 		{"guide/a b", false},            // 空格非法
@@ -392,6 +392,29 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 	}
 	if docs.FirstPagePath != "docs/a" {
 		t.Fatalf("docs firstPagePath=%q, want docs/a", docs.FirstPagePath)
+	}
+}
+
+// TestBuildNamespaceSummariesIndexPreferred 命名空间存在 index 页时，
+// firstPagePath 优先指向 {namespace}/index（仓库规范：顶层目录 index.md 即
+// 命名空间首页），而非按 id/排序取首个页面（issue：首页冒号跳转不符）。
+func TestBuildNamespaceSummariesIndexPreferred(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	// 模拟 id 顺序：academics 子页面先创建（id 更小），index 页后创建。
+	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/academics/课程、选择与培养", "课程", base)
+	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/index", "新手教程", base.Add(time.Hour))
+
+	summaries, err := BuildNamespaceSummaries()
+	if err != nil {
+		t.Fatalf("build namespace summaries: %v", err)
+	}
+	if len(summaries) != 1 {
+		t.Fatalf("summaries=%d, want 1: %+v", len(summaries), summaries)
+	}
+	if summaries[0].FirstPagePath != "同济新手教程/index" {
+		t.Fatalf("firstPagePath=%q, want 同济新手教程/index (index preferred over first page)",
+			summaries[0].FirstPagePath)
 	}
 }
 
@@ -719,7 +742,7 @@ func TestGitConfigEditURLPathEscapesSegments(t *testing.T) {
 	if got != want {
 		t.Fatalf("EditURL(100%%) = %q, want %q", got, want)
 	}
-	// 普通 slug 路径保持原样（无转义副作用）。
+	// 普通路径保持原样（无转义副作用）。
 	got = cfg.EditURL("guide/getting-started")
 	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/guide/getting-started.md"
 	if got != want {

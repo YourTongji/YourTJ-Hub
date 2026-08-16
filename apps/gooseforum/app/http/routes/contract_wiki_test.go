@@ -230,7 +230,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 	t.Helper()
 	// 固定时间（CST +08:00），与 fixtures 中 updatedAt 一致。
 	base := time.Date(2026, 8, 10, 14, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Slug: &[]string{"guide"}[0], Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
+	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
 		t.Fatalf("create wiki namespace: %v", err)
 	}
 

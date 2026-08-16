@@ -11,7 +11,7 @@
 Wiki content is authored in the public `YourTongji/YourTJ-Wiki` Git repository. The forum is a
 read-only projection: merge changes through GitHub, then wait for the scheduled sync or trigger the
 admin Wiki sync. Pages are Markdown files beneath a top-level namespace directory; page URLs omit the
-`.md` suffix and use the namespace slug where one is declared.
+`.md` suffix; the URL path segment is the top-level namespace directory name (the display name).
 
 ## Links And Assets
 
@@ -25,10 +25,10 @@ path and `.md` suffix, and author images or attachments with their repository-re
 ```
 
 During sync, page links are resolved from the source Markdown file and rendered as normalized
-`/wiki/<namespace-slug>/...` URLs without `.md`. Images and non-Markdown attachments are served by the
+`/wiki/<namespace-directory>/...` URLs without `.md`. Images and non-Markdown attachments are served by the
 single forum binary through `/wiki/_assets/<repository-path>`. Query strings, fragments, URL encoding,
-and nested paths are preserved. This lets an author keep links valid when a namespace directory has a
-display name different from its URL slug.
+and nested paths are preserved. Since the namespace directory name is the URL path segment,
+renaming a directory changes the page URL; update in-repo links in the same change.
 
 Absolute URLs, protocol-relative URLs, site-root URLs such as `/static/logo.svg`, and anchor-only or
 query-only links are left unchanged. Do not use relative links without a file extension for pages: page

@@ -274,26 +274,14 @@ func runVersionedDataMigrations() {
 		currentVersion = 21
 	}
 	if currentVersion < 22 {
-		// 命名空间 slug 列 v22：为存量 wiki_namespaces 行回填 slug。
-		// name 为纯 ASCII slug 形态（如 guide/deployment）直接用 name 回填；
-		// 中文等非 ASCII 名称保持 NULL（由 GitHub 同步在 index.md frontmatter
-		// 提供 slug 时填充）。幂等：slug 已非空的行走过。
-		slugResult := datamigration.BackfillWikiNamespaceSlugs()
-		slog.Info("app migration wiki namespace slug backfill done",
-			"backfilled", slugResult.Backfilled,
-			"skipped", slugResult.Skipped,
-			"failed", slugResult.Failed,
-			"lastFailed", slugResult.LastFailed)
-		if slugResult.Failed > 0 {
-			slog.Error("app migration wiki namespace slug backfill has failures", "failed", slugResult.Failed, "lastFailed", slugResult.LastFailed)
-			return
-		}
+		// 历史版本 v22（命名空间 slug 列回填）已随 slug 机制移除而删除：
+		// 旧部署迁移版本号可能已停在 22，直接推进到 23 继续执行后续步骤。
 		pageConfig.SyncMigrationVersion(22)
 		currentVersion = 22
 	}
 	if currentVersion < 23 {
 		// 页面仓库路径列 v23（review MEDIUM）：为存量 wiki_pages 行回填
-		// source_path（= path 首段即仓库目录名的存量语义）。D7 下外链必须用
+		// source_path（= path 首段即仓库目录名的存量语义）。外链必须用
 		// source_path，存量行为空会导致 SSR 编辑/历史链接畸形（管理端有回退、
 		// SSR 已补回退，但回填仍是根治）。幂等：source_path 非空的行跳过。
 		sourcePathResult := datamigration.BackfillWikiPageSourcePaths()
@@ -307,6 +295,24 @@ func runVersionedDataMigrations() {
 		}
 		pageConfig.SyncMigrationVersion(23)
 		currentVersion = 23
+	}
+	if currentVersion < 24 {
+		// slug 机制移除 v24：URL 语义回归"仓库顶层目录名即 path 首段"。
+		// 对已分配 slug 的存量命名空间，把其全部页面（含软删）的 path 首段
+		// 与 namespace 列迁回仓库目录名（显示名），并删除 wiki_namespaces.slug
+		// 列（AutoMigrate 在启动时已按新模型移除；此处做数据迁移）。
+		// 幂等：仅对 namespace 列 ≠ 目录名的行生效；slug 列已删的库零操作。
+		slugRemoval := datamigration.RevertWikiNamespaceSlugs()
+		slog.Info("app migration wiki slug removal done",
+			"migrated", slugRemoval.Migrated,
+			"failed", slugRemoval.Failed,
+			"lastFailed", slugRemoval.LastFailed)
+		if slugRemoval.Failed > 0 {
+			slog.Error("app migration wiki slug removal has failures", "failed", slugRemoval.Failed, "lastFailed", slugRemoval.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(24)
+		currentVersion = 24
 	}
 	slog.Info("app migration end", "version", currentVersion)
 }

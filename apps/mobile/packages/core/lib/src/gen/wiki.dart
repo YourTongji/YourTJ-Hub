@@ -12,7 +12,6 @@ library;
 class WikiNamespace {
   const WikiNamespace({
     required this.name,
-    required this.slug,
     required this.description,
     required this.sortOrder,
     required this.pageCount,
@@ -21,10 +20,6 @@ class WikiNamespace {
   });
 
   final String name;
-
-  /// URL 友好标识（^[a-z0-9]+(-[a-z0-9]+)*$ ≤64），与显示名 name 分离；
-  /// 未分配时为空串。
-  final String slug;
   final String description;
   final int sortOrder;
   final int pageCount;
@@ -34,7 +29,6 @@ class WikiNamespace {
   factory WikiNamespace.fromJson(Map<String, dynamic> json) {
     return WikiNamespace(
       name: json['name'] as String? ?? '',
-      slug: json['slug'] as String? ?? '',
       description: json['description'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       pageCount: (json['pageCount'] as num?)?.toInt() ?? 0,
@@ -46,7 +40,6 @@ class WikiNamespace {
   Map<String, dynamic> toJson() {
     return {
       'name': name,
-      'slug': slug,
       'description': description,
       'sortOrder': sortOrder,
       'pageCount': pageCount,
@@ -104,23 +97,17 @@ class WikiTreeNamespace {
   const WikiTreeNamespace({
     required this.name,
     required this.label,
-    required this.slug,
     required this.nodes,
   });
 
   final String name;
   final String label;
-
-  /// 有效 URL key（slug，未分配时降级=显示名）；消费方拼
-  /// `/wiki/{slug}/{page.path}` href 用。
-  final String slug;
   final List<WikiTreeNode> nodes;
 
   factory WikiTreeNamespace.fromJson(Map<String, dynamic> json) {
     return WikiTreeNamespace(
       name: json['name'] as String? ?? '',
       label: json['label'] as String? ?? '',
-      slug: json['slug'] as String? ?? '',
       nodes: (json['nodes'] as List<dynamic>? ?? const [])
           .map((item) => WikiTreeNode.fromJson(item as Map<String, dynamic>))
           .toList(),
@@ -131,7 +118,6 @@ class WikiTreeNamespace {
     return {
       'name': name,
       'label': label,
-      'slug': slug,
       'nodes': nodes.map((node) => node.toJson()).toList(),
     };
   }
@@ -335,7 +321,7 @@ class WikiAdminTreeNode {
   final String kind;
   final int pageId;
 
-  /// URL 友好路径（首段 = slug，降级 = 显示名）。
+  /// URL 友好路径（首段 = 仓库顶层目录名）。
   final String path;
 
   /// 仓库真实相对路径（GitHub 编辑/历史外链用）。
@@ -353,7 +339,9 @@ class WikiAdminTreeNode {
       title: json['title'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
       children: (json['children'] as List<dynamic>? ?? const [])
-          .map((item) => WikiAdminTreeNode.fromJson(item as Map<String, dynamic>))
+          .map(
+            (item) => WikiAdminTreeNode.fromJson(item as Map<String, dynamic>),
+          )
           .toList(),
     );
   }
