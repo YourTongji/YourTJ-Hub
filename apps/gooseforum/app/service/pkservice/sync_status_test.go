@@ -73,7 +73,7 @@ func TestSyncStatusOverview(t *testing.T) {
 	seedLog := func(id uint64, status string, rows int, errMsg string) {
 		t.Helper()
 		if err := conn.Create(&pk.FetchLogEntity{
-			CalendarId: id, Status: status, RowsWritten: rows, StartedAt: &now, FinishedAt: &now, SchemaVersion: pk.PKDataSchemaVersion,
+			CalendarId: id, Status: status, RowsWritten: rows, ErrorMsg: errMsg, StartedAt: &now, FinishedAt: &now, SchemaVersion: pk.PKDataSchemaVersion,
 		}).Error; err != nil {
 			t.Fatalf("seed fetch log %d: %v", id, err)
 		}

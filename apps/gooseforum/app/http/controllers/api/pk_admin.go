@@ -7,15 +7,12 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
 )
 
 // runPkSync 可注入的排课同步执行函数（测试替换为 stub，避免真实抓取一系统）。
-var runPkSync = func(ctx context.Context, cookie string, calendarId uint64, depth int, materialize bool, claim *pk.FetchLogEntity, resume bool) (*pkservice.SyncReport, error) {
-	return pkservice.SyncFromClaim(ctx, cookie, calendarId, depth, materialize, claim, resume)
-}
+var runPkSync = pkservice.SyncFromClaim
 
 // maxPkSyncDepth 管理端单次同步可向前回溯的学期数上限（对齐 ListCalendars 默认窗口）。
 // depth 过大意味着从学期 1 到目标的破坏性全量重写 + 全量抓取，且后台 goroutine 不可取消。
