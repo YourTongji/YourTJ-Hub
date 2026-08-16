@@ -32,8 +32,6 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/eventhandlers"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/fileusageservice"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/searchservice"
 	"go.yaml.in/yaml/v3"
 	"gorm.io/gorm"
 )
@@ -994,7 +992,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 				slog.Info("wiki sync: adopted orphaned page after namespace recreate",
 					"sourcePath", wp.sourcePath, "path", wp.path)
 			} else {
-				if err := createPageFromRepo(cfg, wp); err != nil {
+				if err := createPageFromRepo(cfg, wp, result.HeadSha); err != nil {
 					errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
 					continue
 				}
@@ -1023,7 +1021,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 			!restored {
 			continue
 		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash); err != nil {
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, result.HeadSha); err != nil {
 			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
@@ -1039,7 +1037,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 		if p.DeletedAt.Valid {
 			continue
 		}
-		if err := softDeleteWikiPage(p); err != nil {
+		if err := softDeleteWikiPage(p, result.HeadSha); err != nil {
 			errs = append(errs, fmt.Sprintf("delete %s: %v", p.Path, err))
 			continue
 		}
@@ -1177,7 +1175,7 @@ func sha256Hex(s string) string {
 // createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
 // path/namespace 列均存 URL key（slug，降级=显示名）；命名空间行由 upsert
 // 循环按显示名创建（此处只做防御性校验）。
-func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
+func createPageFromRepo(cfg GitConfig, wp wantedPage, headSHA string) error {
 	ns := wp.namespace
 	if ns == "" {
 		return fmt.Errorf("empty namespace for path %s", wp.path)
@@ -1244,23 +1242,22 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			ContentHash:         sha256Hex(wp.body),
 			PublishedRevisionNo: 1,
 		}
-		return wikiPages.CreateTx(tx, &page)
+		if err := wikiPages.CreateTx(tx, &page); err != nil {
+			return err
+		}
+		return enqueueWikiProjectionTaskTx(tx, headSHA, page.Id, topic.Id, false)
 	})
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索索引 + 发布事件 + git 溯源快照。
-	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
-	}
+	// 发布事件属于创建契约；文件、搜索与订阅副作用由同一事务中的 outbox 消费。
 	eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
 	return nil
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash, headSHA string) error {
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1311,23 +1308,21 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 		firstPost.RenderedHTML = rendered
 		firstPost.RenderedVersion = markdown2html.GetPostVersion()
 		firstPost.ProcessStatus = posts.ProcessStatusNormal
-		return posts.UpdateWikiSyncedContentTx(tx, &firstPost)
+		if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
+			return err
+		}
+		return enqueueWikiProjectionTaskTx(tx, headSHA, page.Id, topic.Id, true)
 	})
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索 + git 溯源快照 + watcher 通知。
-	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
-	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
-		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
-	}
+	// Git 溯源快照不影响投影读路径，提交后尽力更新；其余副作用由 outbox 消费。
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
-	notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
 	return nil
 }
 
 // softDeleteWikiPage 仓库中已移除的页面 → 论坛软删（保留互动，走删除生命周期）。
-func softDeleteWikiPage(page *wikiPages.Entity) error {
+func softDeleteWikiPage(page *wikiPages.Entity, headSHA string) error {
 	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
 			"deleted_at":        time.Now(),
@@ -1339,7 +1334,10 @@ func softDeleteWikiPage(page *wikiPages.Entity) error {
 		}).Error; err != nil {
 			return err
 		}
-		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
+		if err := tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error; err != nil {
+			return err
+		}
+		return enqueueWikiProjectionTaskTx(tx, headSHA, page.Id, page.TopicId, false)
 	})
 }
 
