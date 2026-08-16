@@ -558,7 +558,9 @@ class WikiWebhookSecretStatus {
   final bool configured;
 
   factory WikiWebhookSecretStatus.fromJson(Map<String, dynamic> json) {
-    return WikiWebhookSecretStatus(configured: json['configured'] as bool? ?? false);
+    return WikiWebhookSecretStatus(
+      configured: json['configured'] as bool? ?? false,
+    );
   }
 
   Map<String, dynamic> toJson() {
@@ -586,6 +588,49 @@ class WikiWebhookSecretSaveResult {
 
   factory WikiWebhookSecretSaveResult.fromJson(Map<String, dynamic> json) {
     return WikiWebhookSecretSaveResult(ok: json['ok'] as bool? ?? false);
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'ok': ok};
+  }
+}
+
+/// 资源 CDN 配置状态（`GET /api/admin/wiki/sync/cdn` 的 result）。
+class WikiAssetCDNStatus {
+  const WikiAssetCDNStatus({required this.cdn});
+
+  /// 当前 CDN 值：`self`（本站，默认）或 `jsDelivr`。
+  final String cdn;
+
+  factory WikiAssetCDNStatus.fromJson(Map<String, dynamic> json) {
+    return WikiAssetCDNStatus(cdn: json['cdn'] as String? ?? 'self');
+  }
+
+  Map<String, dynamic> toJson() {
+    return {'cdn': cdn};
+  }
+}
+
+/// 保存资源 CDN 配置请求体（`POST /api/admin/wiki/sync/cdn`）。
+class WikiAssetCDNSaveRequest {
+  const WikiAssetCDNSaveRequest({required this.cdn});
+
+  /// 目标 CDN 值：`self` 或 `jsDelivr`。
+  final String cdn;
+
+  Map<String, dynamic> toJson() {
+    return {'cdn': cdn};
+  }
+}
+
+/// 保存资源 CDN 配置的 result（`{ok: true}`）。
+class WikiAssetCDNSaveResult {
+  const WikiAssetCDNSaveResult({required this.ok});
+
+  final bool ok;
+
+  factory WikiAssetCDNSaveResult.fromJson(Map<String, dynamic> json) {
+    return WikiAssetCDNSaveResult(ok: json['ok'] as bool? ?? false);
   }
 
   Map<String, dynamic> toJson() {

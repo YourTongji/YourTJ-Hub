@@ -365,7 +365,9 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("wiki/sync", UpButterReq(api.WikiSyncRun)).
 		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns)).
 		GET("wiki/sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret)).
-		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
+		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret)).
+		GET("wiki/sync/cdn", UpButterReq(api.GetWikiAssetCDN)).
+		POST("wiki/sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).
