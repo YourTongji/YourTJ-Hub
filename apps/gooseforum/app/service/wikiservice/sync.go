@@ -309,11 +309,13 @@ func ReconcileStaleRuns() {
 // ---------- git 操作 ----------
 
 // ensureClone 确保本地 clone 存在且 remote 与配置一致（无则 clone，有则 fetch + reset --hard）。
-// 返回当前 head SHA。本地工作区永不手动修改，reset --hard 比 pull 更确定。
+// 返回当前 head SHA，以及本次是否发生了浅克隆→全量升级（unshallowed：调用方需要
+// 据此重建全部页面的 git 溯源缓存——存量 depth-1 缓存只有最后一位作者）。
+// 本地工作区永不手动修改，reset --hard 比 pull 更确定。
 // 配置变更（repo 换源）时丢弃缓存 clone 重建，避免投影到错误仓库。
-func ensureClone(cfg GitConfig) (string, error) {
+func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
 	if cfg.Repo == "" {
-		return "", fmt.Errorf("wiki git repo not configured")
+		return "", false, fmt.Errorf("wiki git repo not configured")
 	}
 	if cfg.CloneDir == "" {
 		cfg.CloneDir = "./storage/wiki-repo"
@@ -324,38 +326,41 @@ func ensureClone(cfg GitConfig) (string, error) {
 				slog.Warn("wiki sync: cached clone remote mismatch, recloning",
 					"cached", strings.TrimSpace(out), "configured", cfg.Repo)
 				if err := os.RemoveAll(cfg.CloneDir); err != nil {
-					return "", fmt.Errorf("remove stale clone: %w", err)
+					return "", false, fmt.Errorf("remove stale clone: %w", err)
 				}
 			}
 		}
 	}
 	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
 		// 存量浅克隆（v1 用 --depth=1 建立）→ 补全历史：贡献者统计依赖完整 git log。
+		// 升级后必须重建全部页面的贡献者缓存（P1：幂等同步不会触碰未变化页面）。
 		if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git", "shallow")); err == nil {
 			if out, err := runGit(cfg.CloneDir, "fetch", "--unshallow", "origin", cfg.Branch); err != nil {
-				return "", fmt.Errorf("git fetch --unshallow: %w: %s", err, out)
+				return "", false, fmt.Errorf("git fetch --unshallow: %w: %s", err, out)
 			}
+			unshallowed = true
 		}
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
-			return "", fmt.Errorf("git fetch: %v: %s", err, out)
+			return "", unshallowed, fmt.Errorf("git fetch: %v: %s", err, out)
 		}
 		if out, err := runGit(cfg.CloneDir, "reset", "--hard", "origin/"+cfg.Branch); err != nil {
-			return "", fmt.Errorf("git reset: %v: %s", err, out)
+			return "", unshallowed, fmt.Errorf("git reset: %v: %s", err, out)
 		}
 	} else {
 		if err := os.MkdirAll(cfg.CloneDir, 0o755); err != nil {
-			return "", fmt.Errorf("mkdir clone dir: %w", err)
+			return "", false, fmt.Errorf("mkdir clone dir: %w", err)
 		}
-		// 全量 clone（不用 --depth=1）：贡献者统计依赖完整 git log 历史。
-		if out, err := runGit("", "clone", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
-			return "", fmt.Errorf("git clone: %v: %s", err, out)
+		// 全量 clone（不用 --depth=1，贡献者统计依赖完整 git log 历史）+
+		// --single-branch（只取配置分支，避免拉取无关长驻分支的冗余对象）。
+		if out, err := runGit("", "clone", "--single-branch", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
+			return "", false, fmt.Errorf("git clone: %v: %s", err, out)
 		}
 	}
 	out, err := runGit(cfg.CloneDir, "rev-parse", "HEAD")
 	if err != nil {
-		return "", fmt.Errorf("git rev-parse: %v: %s", err, out)
+		return "", unshallowed, fmt.Errorf("git rev-parse: %v: %s", err, out)
 	}
-	return strings.TrimSpace(out), nil
+	return strings.TrimSpace(out), unshallowed, nil
 }
 
 // sameRemote 归一化比较仓库地址（忽略尾部 / 与 .git）。
@@ -450,19 +455,20 @@ func scanRepoFiles(cloneDir string) ([]repoFile, error) {
 }
 
 // gitContributor 仓库 git log 贡献者快照条目（BuildContributors 数据源）。
-// Email 用于聚合（同人改名不裂）；Username 由 GitHub noreply 邮箱解析，
-// 供前端拼头像与主页外链；自定义邮箱贡献者 username 为空（无链接降级）。
+// 注意：email 仅作内存聚合键，不持久化（P2：原始邮箱属个人数据，contributors_json
+// 会进入 DB/备份；BuildContributors 也不需要 email）。Username 由 GitHub noreply
+// 邮箱解析，供前端拼头像与主页外链；自定义邮箱贡献者 username 为空（无链接降级）。
 type gitContributor struct {
 	Name     string `json:"name"`
-	Email    string `json:"email,omitempty"`
 	Username string `json:"username,omitempty"`
 	Count    int    `json:"count"`
 }
 
 // buildContributorsSnapshot 从 git log 统计某文件贡献者（同步时写入页面缓存）。
 // 公开仓库无鉴权；失败返回空快照（不阻断同步）。
-// 聚合键 = email（GitHub 隐私邮箱可解析 username；自定义邮箱按 email 聚合，
-// 仅当 email 也缺失时才退回按 name 聚合）；展示名取该邮箱最近一次提交的 name。
+// 聚合键优先级：username（GitHub noreply 可解析，合并新旧邮箱格式同人）→
+// email（自定义邮箱）→ name（匿名提交兜底）。email 仅内存聚合键，不序列化。
+// 展示名取该聚合键最近一次提交的 name。
 func buildContributorsSnapshot(cloneDir, relPath string) string {
 	out, err := runGit(cloneDir, "log", "--pretty=format:%an%x1f%ae", "--", relPath)
 	if err != nil || strings.TrimSpace(out) == "" {
@@ -485,8 +491,9 @@ func buildContributorsSnapshot(cloneDir, relPath string) string {
 		if len(parts) > 1 {
 			email = strings.TrimSpace(parts[1])
 		}
-		// 聚合键优先级：username（GitHub noreply 可解析——合并新旧邮箱格式、
-		// 以及「noreply + 自定义邮箱」双邮箱同人）→ email → name（匿名提交兜底）。
+		// 聚合键优先级：username（GitHub noreply 可解析——合并新旧邮箱格式同人）→
+		// email（自定义邮箱）→ name（匿名提交兜底）。注意：同人混用 noreply 与
+		// 自定义邮箱时无可靠身份源（无 mailmap）可合并，会按不同键拆分为两人。
 		key := githubUsernameFromEmail(email)
 		if key == "" {
 			key = email
@@ -507,7 +514,6 @@ func buildContributorsSnapshot(cloneDir, relPath string) string {
 	for _, item := range byKey {
 		items = append(items, gitContributor{
 			Name:     item.name,
-			Email:    item.email,
 			Username: item.username,
 			Count:    item.count,
 		})
@@ -718,7 +724,7 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return nil, fmt.Errorf("create sync run: %w", err)
 	}
 
-	head, err := ensureClone(cfg)
+	head, unshallowed, err := ensureClone(cfg)
 	if err != nil {
 		if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error()); merr != nil {
 			slog.Error("wiki sync: mark run failed (clone) failed", "runId", run.Id, "error", merr)
@@ -732,6 +738,11 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 			slog.Error("wiki sync: mark run failed (projection) failed", "runId", run.Id, "error", merr)
 		}
 		return result, err
+	}
+	// 浅克隆→全量升级（review P1）：幂等同步跳过未变化页面，此处全量重建
+	// 贡献者缓存，否则存量 depth-1 页面的 contributors_json 永远停留最后一位作者。
+	if unshallowed {
+		rebuildGitTraces(cfg)
 	}
 	if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, ""); merr != nil {
 		slog.Error("wiki sync: mark run success failed", "runId", run.Id, "error", merr)
@@ -1572,6 +1583,25 @@ func updateGitTrace(cfg GitConfig, pageID uint64, relPath string) {
 	if err := wikiPages.UpdateGitTrace(pageID, updates); err != nil {
 		slog.Warn("wiki sync: update git trace failed", "pageId", pageID, "error", err)
 	}
+}
+
+// rebuildGitTraces 浅克隆→全量升级后重建全部页面的 git 溯源缓存
+// （review P1）：applyRepoToDB 幂等跳过未变化页面，若不在此全量重建，
+// 存量 depth-1 页面的 contributors_json 永远停留在最后一位作者。
+// 单页失败仅记日志，不阻断整体重建。
+func rebuildGitTraces(cfg GitConfig) {
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		slog.Warn("wiki sync: rebuild git traces failed to list pages", "error", err)
+		return
+	}
+	for _, p := range pages {
+		if p.SourcePath == "" {
+			continue
+		}
+		updateGitTrace(cfg, p.Id, p.SourcePath)
+	}
+	slog.Info("wiki sync: rebuilt git traces after unshallow upgrade", "pages", len(pages))
 }
 
 // encodeTOCOrEmpty 编码 TOC，失败返回空串（不阻断同步）。
