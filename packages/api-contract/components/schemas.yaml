@@ -1089,6 +1089,12 @@ OfferingSummary:
       type: string
     faculty:
       type: string
+    classCode:
+      type: string
+      description: Class code for this offering (e.g. 32000101); empty for legacy packages without class info.
+    className:
+      type: string
+      description: Class name for this offering (e.g. 01班); empty for legacy packages without class info.
     instructors:
       type: array
       items:

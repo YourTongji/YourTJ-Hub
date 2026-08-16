@@ -4,10 +4,14 @@
 
 ## 数据包格式（上游导出器输出）
 
-`export_legacy_course_package.py` 输出**单包 4 文件 + 1 manifest**（同一目录）：
+`jcourse_to_manifest.py`（`import-data/`，上游 jcourse SQLite 快照 → manifest 包）输出**单包 4 文件 + 1 manifest**（同一目录）：
 
 - `courses.jsonl` / `instructors.jsonl` / `offerings.jsonl` / `reviews.jsonl`
 - `manifest.yaml`：`schema_version: 1` + `source` + `source_commit` + `exported_at` + `rights_approval_ref` + `files{sha256}` + `counts`
+
+`offerings.jsonl` 每行含 `class_code` / `class_name` 班号信息（如 `32000101` / `01班`），
+供 Hub 课程详情页按班展示；每个教学班只挂载一门课（班号课优先，其次主码课），
+避免同一教学班同时挂主码课与班号课造成目录双写（旧版多挂载行为已废弃）。
 
 Hub 导入器按命令消费同一包：`course-import`（catalog）只处理前三个 JSONL，`course-import reviews` 只处理 reviews.jsonl；manifest 中属于其他命令的文件与计数被跳过，由对应命令校验。
 

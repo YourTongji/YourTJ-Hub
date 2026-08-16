@@ -1007,6 +1007,9 @@ export interface CourseDetailPageProps {
       termName?: string
       campus?: string
       faculty?: string
+      // 班号信息（如 32000101 / 01班）；旧数据包导入的 offering 无此字段。
+      classCode?: string
+      className?: string
       instructors?: string[]
       ratingAvg?: number
       reviewCount?: number
