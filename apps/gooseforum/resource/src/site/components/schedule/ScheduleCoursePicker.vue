@@ -4,7 +4,7 @@
 // 提交时分类：必修直接从 compulsoryCourses 构造，选修与搜索批量取 course-details 构造
 // stagedCourse 进备选池（验收标准 1：必修来自 courses-by-major、选修来自 course-details、搜索来自 course-search）。
 import { computed, ref, watch } from 'vue'
-import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import { Search, X } from '@lucide/vue'
 import EmptyState from '@/site/components/EmptyState.vue'
@@ -32,9 +32,12 @@ const emit = defineEmits<{
   close: []
 }>()
 
-// 弹窗无障碍（issue #227）：焦点移入/Tab 圈禁/Esc 关闭/焦点恢复/滚动锁定
-const { panelRef } = useDialogAccessibility(computed(() => props.open), {
-  onClose: () => emit('close'),
+// 弹窗无障碍（reka-ui Dialog）：焦点移入/Tab 圈禁/Esc 关闭/焦点恢复/滚动锁定由 Dialog 内置处理。
+const pickerDialogOpen = computed({
+  get: () => props.open,
+  set: (open: boolean) => {
+    if (!open) emit('close')
+  },
 })
 
 type TabKey = 'required' | 'optional' | 'search'
@@ -277,152 +280,56 @@ async function submit() {
 </script>
 
 <template>
-  <Teleport to="body">
-    <Transition name="gf-fade">
-      <div
-        v-if="open"
-        ref="panelRef"
-        role="dialog"
-        aria-modal="true"
-        aria-labelledby="schedule-picker-title"
-        class="fixed inset-0 z-[2000]"
+  <DialogRoot v-model:open="pickerDialogOpen">
+    <DialogPortal>
+      <DialogOverlay class="fixed inset-0 z-[2000] bg-black/40" />
+      <DialogContent
+        class="fixed left-1/2 top-1/2 z-[2000] flex max-h-[88vh] w-[92vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl outline-none"
       >
-        <div class="absolute inset-0 bg-black/40" @click="emit('close')"></div>
-        <div class="absolute left-1/2 top-1/2 flex max-h-[88vh] w-[92vw] max-w-3xl -translate-x-1/2 -translate-y-1/2 flex-col overflow-hidden rounded-2xl border border-line/70 bg-base-100 shadow-2xl">
-          <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
-            <h2 id="schedule-picker-title" class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</h2>
-            <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
-              <X class="h-4 w-4" />
-            </button>
-          </div>
+        <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
+          <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</DialogTitle>
+          <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
+            <X class="h-4 w-4" />
+          </button>
+        </div>
 
-          <!-- tabs -->
-          <div role="tablist" aria-label="course picker tabs" class="flex gap-1 border-b border-line/60 px-3 pt-2">
-            <button
-              v-for="tab in ([
-                { key: 'required', label: t('schedule.tabRequired') },
-                { key: 'optional', label: t('schedule.tabOptional') },
-                { key: 'search', label: t('schedule.tabSearch') },
-              ] as const)"
-              :key="tab.key"
-              type="button"
-              role="tab"
-              :aria-selected="activeTab === tab.key"
-              class="gf-tab"
-              :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
-              @click="activeTab = tab.key"
-              @keydown="handleTabKeydown"
-            >
-              {{ tab.label }}
-            </button>
-          </div>
+        <!-- tabs -->
+        <div role="tablist" aria-label="course picker tabs" class="flex gap-1 border-b border-line/60 px-3 pt-2">
+          <button
+            v-for="tab in ([
+              { key: 'required', label: t('schedule.tabRequired') },
+              { key: 'optional', label: t('schedule.tabOptional') },
+              { key: 'search', label: t('schedule.tabSearch') },
+            ] as const)"
+            :key="tab.key"
+            type="button"
+            role="tab"
+            :aria-selected="activeTab === tab.key"
+            class="gf-tab"
+            :class="activeTab === tab.key ? 'gf-tab-active' : 'gf-tab-idle'"
+            @click="activeTab = tab.key"
+            @keydown="handleTabKeydown"
+          >
+            {{ tab.label }}
+          </button>
+        </div>
 
-          <div class="min-h-0 flex-1 overflow-y-auto p-3">
-            <p v-if="error" class="mb-2 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
-              {{ error }}
-            </p>
+        <div class="min-h-0 flex-1 overflow-y-auto p-3">
+          <p v-if="error" class="mb-2 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
+            {{ error }}
+          </p>
 
-            <!-- Tab1 必修：按年级分组 -->
-            <div v-if="activeTab === 'required'" class="space-y-4">
-              <EmptyState
-                v-if="!requiredGroups.length"
-                :icon="Search"
-                :title="t('schedule.emptyRequired')"
-              />
-              <section v-for="group in requiredGroups" :key="group.grade">
-                <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
-                <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
-                  <li v-for="course in group.courses" :key="course.courseCode">
-                    <label
-                      class="flex cursor-pointer items-center gap-2 px-3 py-2"
-                      :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
-                      :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
-                    >
-                      <input
-                        type="checkbox"
-                        class="checkbox checkbox-sm"
-                        :checked="isChecked(`必_${group.grade}_${course.courseCode}`)"
-                        :disabled="isAlreadyStaged(course.courseCode)"
-                        :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
-                        @change="toggleKey(`必_${group.grade}_${course.courseCode}`)"
-                      />
-                      <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
-                        <span class="block text-[11px] text-base-content/50">
-                          {{ course.courseCode }} · {{ course.faculty }} · {{ t('schedule.credit', { credit: course.credit }) }}
-                        </span>
-                      </span>
-                      <span v-if="course.courseNature?.length" class="gf-badge gf-badge-ghost text-[11px]">
-                        {{ course.courseNature[0] }}
-                      </span>
-                    </label>
-                  </li>
-                </ul>
-              </section>
-            </div>
-
-            <!-- Tab2 通识：按类型分组 -->
-            <div v-else-if="activeTab === 'optional'" class="space-y-4">
-              <EmptyState
-                v-if="!optionalGroups.length"
-                :icon="Search"
-                :title="t('schedule.emptyOptional')"
-              />
-              <section v-for="group in optionalGroups" :key="group.label">
-                <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
-                <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
-                  <li v-for="course in group.courses" :key="course.courseCode">
-                    <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
-                      <input
-                        type="checkbox"
-                        class="checkbox checkbox-sm"
-                        :checked="isChecked(`选_${group.label}_${course.courseCode}`)"
-                        :disabled="isAlreadyStaged(course.courseCode)"
-                        @change="toggleKey(`选_${group.label}_${course.courseCode}`)"
-                      />
-                      <span class="min-w-0 flex-1">
-                        <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
-                        <span class="block text-[11px] text-base-content/50">
-                          {{ course.courseCode }} · {{ course.campus?.join('、') }} · {{ t('schedule.credit', { credit: course.credit }) }}
-                        </span>
-                      </span>
-                    </label>
-                  </li>
-                </ul>
-              </section>
-            </div>
-
-            <!-- Tab3 高级检索 -->
-            <div v-else class="space-y-3">
-              <form class="grid gap-2 sm:grid-cols-2" @submit.prevent="runSearch">
-                <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseName') }}</span>
-                  <input v-model="searchForm.courseName" type="text" class="gf-input gf-input-md w-full" :placeholder="t('schedule.searchPlaceholder')" />
-                </label>
-                <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseCode') }}</span>
-                  <input v-model="searchForm.courseCode" type="text" class="gf-input gf-input-md w-full" />
-                </label>
-                <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.teacher') }}</span>
-                  <input v-model="searchForm.teacherName" type="text" class="gf-input gf-input-md w-full" />
-                </label>
-                <label class="block">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
-                  <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.campus')" />
-                </label>
-                <label class="block sm:col-span-2">
-                  <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
-                  <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.faculty')" />
-                </label>
-                <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
-                  <Search class="h-4 w-4" />
-                  {{ t('schedule.searchButton') }}
-                </button>
-              </form>
-
-              <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
-                <li v-for="course in searchResults" :key="course.courseCode">
+          <!-- Tab1 必修：按年级分组 -->
+          <div v-if="activeTab === 'required'" class="space-y-4">
+            <EmptyState
+              v-if="!requiredGroups.length"
+              :icon="Search"
+              :title="t('schedule.emptyRequired')"
+            />
+            <section v-for="group in requiredGroups" :key="group.grade">
+              <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ t('schedule.gradeUnit', { grade: group.grade }) }}</h3>
+              <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
+                <li v-for="course in group.courses" :key="course.courseCode">
                   <label
                     class="flex cursor-pointer items-center gap-2 px-3 py-2"
                     :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
@@ -431,10 +338,10 @@ async function submit() {
                     <input
                       type="checkbox"
                       class="checkbox checkbox-sm"
-                      :checked="isChecked(`查_${course.courseCode}`)"
+                      :checked="isChecked(`必_${group.grade}_${course.courseCode}`)"
                       :disabled="isAlreadyStaged(course.courseCode)"
                       :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
-                      @change="toggleKey(`查_${course.courseCode}`)"
+                      @change="toggleKey(`必_${group.grade}_${course.courseCode}`)"
                     />
                     <span class="min-w-0 flex-1">
                       <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
@@ -442,24 +349,113 @@ async function submit() {
                         {{ course.courseCode }} · {{ course.faculty }} · {{ t('schedule.credit', { credit: course.credit }) }}
                       </span>
                     </span>
+                    <span v-if="course.courseNature?.length" class="gf-badge gf-badge-ghost text-[11px]">
+                      {{ course.courseNature[0] }}
+                    </span>
                   </label>
                 </li>
               </ul>
-              <EmptyState v-else-if="searchLoading" :icon="Search" :title="t('schedule.loading')" loading />
-              <EmptyState v-else :icon="Search" :title="t('schedule.emptySearch')" />
-            </div>
+            </section>
           </div>
 
-          <div class="flex justify-end gap-2 border-t border-line/60 px-4 py-3">
-            <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="emit('close')">
-              {{ t('schedule.cancel') }}
-            </button>
-            <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="submitting || selectedKeys.size === 0" @click="submit">
-              {{ t('schedule.submit') }}
-            </button>
+          <!-- Tab2 通识：按类型分组 -->
+          <div v-else-if="activeTab === 'optional'" class="space-y-4">
+            <EmptyState
+              v-if="!optionalGroups.length"
+              :icon="Search"
+              :title="t('schedule.emptyOptional')"
+            />
+            <section v-for="group in optionalGroups" :key="group.label">
+              <h3 class="mb-1.5 text-[13px] font-bold text-base-content/80">{{ group.label }}</h3>
+              <ul class="divide-y divide-line/60 rounded-lg border border-line/60">
+                <li v-for="course in group.courses" :key="course.courseCode">
+                  <label class="flex cursor-pointer items-center gap-2 px-3 py-2" :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''">
+                    <input
+                      type="checkbox"
+                      class="checkbox checkbox-sm"
+                      :checked="isChecked(`选_${group.label}_${course.courseCode}`)"
+                      :disabled="isAlreadyStaged(course.courseCode)"
+                      @change="toggleKey(`选_${group.label}_${course.courseCode}`)"
+                    />
+                    <span class="min-w-0 flex-1">
+                      <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
+                      <span class="block text-[11px] text-base-content/50">
+                        {{ course.courseCode }} · {{ course.campus?.join('、') }} · {{ t('schedule.credit', { credit: course.credit }) }}
+                      </span>
+                    </span>
+                  </label>
+                </li>
+              </ul>
+            </section>
+          </div>
+
+          <!-- Tab3 高级检索 -->
+          <div v-else class="space-y-3">
+            <form class="grid gap-2 sm:grid-cols-2" @submit.prevent="runSearch">
+              <label class="block">
+                <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseName') }}</span>
+                <input v-model="searchForm.courseName" type="text" class="gf-input gf-input-md w-full" :placeholder="t('schedule.searchPlaceholder')" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.courseCode') }}</span>
+                <input v-model="searchForm.courseCode" type="text" class="gf-input gf-input-md w-full" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.teacher') }}</span>
+                <input v-model="searchForm.teacherName" type="text" class="gf-input gf-input-md w-full" />
+              </label>
+              <label class="block">
+                <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.campus') }}</span>
+                <SiteSelect v-model="campusValue" :options="campuses.map((c) => ({ value: c.code, label: c.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.campus')" />
+              </label>
+              <label class="block sm:col-span-2">
+                <span class="mb-1 block text-[12px] text-base-content/70">{{ t('schedule.faculty') }}</span>
+                <SiteSelect v-model="facultyValue" :options="faculties.map((f) => ({ value: f.code, label: f.name }))" :placeholder="t('schedule.selectPlaceholder')" :label="t('schedule.faculty')" />
+              </label>
+              <button type="submit" class="gf-button gf-button-md gf-button-primary sm:col-span-2" :disabled="searchLoading">
+                <Search class="h-4 w-4" />
+                {{ t('schedule.searchButton') }}
+              </button>
+            </form>
+
+            <ul v-if="searchResults.length" class="divide-y divide-line/60 rounded-lg border border-line/60">
+              <li v-for="course in searchResults" :key="course.courseCode">
+                <label
+                  class="flex cursor-pointer items-center gap-2 px-3 py-2"
+                  :class="isAlreadyStaged(course.courseCode) ? 'opacity-40' : ''"
+                  :title="isAlreadyStaged(course.courseCode) ? t('schedule.alreadyStaged') : undefined"
+                >
+                  <input
+                    type="checkbox"
+                    class="checkbox checkbox-sm"
+                    :checked="isChecked(`查_${course.courseCode}`)"
+                    :disabled="isAlreadyStaged(course.courseCode)"
+                    :aria-label="course.courseName + (isAlreadyStaged(course.courseCode) ? '（' + t('schedule.alreadyStaged') + '）' : '')"
+                    @change="toggleKey(`查_${course.courseCode}`)"
+                  />
+                  <span class="min-w-0 flex-1">
+                    <span class="block truncate text-[13px] text-base-content">{{ course.courseName }}</span>
+                    <span class="block text-[11px] text-base-content/50">
+                      {{ course.courseCode }} · {{ course.faculty }} · {{ t('schedule.credit', { credit: course.credit }) }}
+                    </span>
+                  </span>
+                </label>
+              </li>
+            </ul>
+            <EmptyState v-else-if="searchLoading" :icon="Search" :title="t('schedule.loading')" loading />
+            <EmptyState v-else :icon="Search" :title="t('schedule.emptySearch')" />
           </div>
         </div>
-      </div>
-    </Transition>
-  </Teleport>
+
+        <div class="flex justify-end gap-2 border-t border-line/60 px-4 py-3">
+          <button type="button" class="gf-button gf-button-md gf-button-ghost" @click="emit('close')">
+            {{ t('schedule.cancel') }}
+          </button>
+          <button type="button" class="gf-button gf-button-md gf-button-primary" :disabled="submitting || selectedKeys.size === 0" @click="submit">
+            {{ t('schedule.submit') }}
+          </button>
+        </div>
+      </DialogContent>
+    </DialogPortal>
+  </DialogRoot>
 </template>
