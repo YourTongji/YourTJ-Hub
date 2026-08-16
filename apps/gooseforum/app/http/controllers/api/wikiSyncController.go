@@ -6,14 +6,19 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"io"
 	"log/slog"
 	"net/http"
 	"strings"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jsonopt"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/recovery"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/wikiservice"
 	"github.com/gin-gonic/gin"
 )
@@ -32,6 +37,9 @@ func WikiSyncRun(req component.BetterRequest[component.Null]) component.Response
 		return component.FailResponseCode(component.MessageWikiSyncFailed, nil)
 	}
 	go func() {
+		// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
+		// 均有 paniclog.Recover，此处对齐）。
+		defer recovery.Recover("wiki_manual_sync")
 		if _, err := wikiservice.Sync("manual"); err != nil {
 			if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 				return // 已合并：运行中同步完成后会自动补跑（syncPending）
@@ -52,6 +60,49 @@ func WikiSyncRuns(req component.BetterRequest[component.Null]) component.Respons
 	return component.SuccessResponse(views)
 }
 
+// GetWikiWebhookSecret 返回 webhook 验签密钥配置状态（PageManager/Admin）。
+// 仅回显是否已配置（securestore 密文不回显、不解密）；兼容旧
+// config.toml [wiki.git].webhook_secret 明文配置（已配置也算 configured）。
+func GetWikiWebhookSecret(req component.BetterRequest[component.Null]) component.Response {
+	return component.SuccessResponse(map[string]any{
+		"configured": wikiservice.LoadWebhookSecret() != "",
+	})
+}
+
+// SaveWikiWebhookSecretReq 保存 webhook 验签密钥请求。
+type SaveWikiWebhookSecretReq struct {
+	// Secret GitHub webhook 验签密钥（明文，仅在保存瞬间存在）；留空表示清除已存密钥。
+	Secret string `json:"secret" validate:"max=1024"`
+}
+
+// SaveWikiWebhookSecret 保存 GitHub webhook 验签密钥（PageManager/Admin）：
+// securestore 加密后落库（密文经 WikiSyncSettingsStorage 持久化，领域结构
+// json:"-" 防导出泄露），明文不持久化。清除时传空字符串。
+func SaveWikiWebhookSecret(req component.BetterRequest[SaveWikiWebhookSecretReq]) component.Response {
+	secret := strings.TrimSpace(req.Params.Secret)
+	// cleared 语义（review L4）：管理端显式清除（空串保存）后，
+	// 即使 config.toml 存在旧明文 [wiki.git].webhook_secret 也保持禁用
+	// （fail-closed）；保存新密钥时清除该标记（重新启用）。
+	cleared := secret == ""
+	encrypted := ""
+	if secret != "" {
+		sealed, err := securestore.EncryptPurpose(secret, securestore.WikiWebhookSecretPurpose)
+		if err != nil {
+			return component.FailResponseError(fmt.Errorf("加密 wiki webhook secret 失败（请确认 app.signingKey 已配置）：%w", err))
+		}
+		encrypted = sealed
+	}
+	entity := pageConfig.GetByPageType(pageConfig.WikiSyncSettings)
+	entity.PageType = pageConfig.WikiSyncSettings
+	entity.Config = jsonopt.Encode(pageConfig.WikiSyncSettingsStorage{
+		WebhookSecretEncrypted: encrypted,
+		WebhookSecretCleared:   cleared,
+	})
+	pageConfig.CreateOrSave(&entity)
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	return component.SuccessResponse(wikiservice.ActionResult{Ok: true})
+}
+
 // WikiWebhookReq GitHub webhook 请求体（仅校验事件，不解析内容）。
 type WikiWebhookReq struct{}
 
@@ -63,8 +114,10 @@ const maxWebhookBodyBytes = 5 << 20
 // WikiWebhook GitHub webhook 端点：PR merge 后触发即时同步。
 // 安全：X-Hub-Signature-256 = HMAC-SHA256(webhook_secret, rawBody)，
 // 与 GitHub 文档一致；secret 未配置时拒绝（fail-closed）。
+// secret 来源：管理端设置（securestore 加密落库）优先，
+// 兼容旧 config.toml [wiki.git].webhook_secret 明文配置。
 func WikiWebhook(c *gin.Context) {
-	secret := preferences.GetString("wiki.git.webhook_secret", "")
+	secret := wikiservice.LoadWebhookSecret()
 	if secret == "" {
 		c.JSON(http.StatusForbidden, gin.H{"error": "webhook not configured"})
 		return
@@ -99,7 +152,8 @@ func WikiWebhook(c *gin.Context) {
 	// 只同步默认分支的 push（PR merge = push；其他分支/删除分支的 push 忽略）。
 	if event == "push" {
 		var payload struct {
-			Ref string `json:"ref"`
+			Ref   string `json:"ref"`
+			After string `json:"after"`
 		}
 		if err := json.Unmarshal(body, &payload); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid payload"})
@@ -110,7 +164,20 @@ func WikiWebhook(c *gin.Context) {
 			c.JSON(http.StatusOK, gin.H{"ok": true})
 			return
 		}
+		// 重放保护（review MEDIUM）：该 head SHA 已成功同步过 → 幂等跳过，
+		// 避免捕获的合法 (payload, signature) 被无限重放触发全量同步/DB churn。
+		if payload.After != "" {
+			for _, r := range wikiSyncRuns.ListRecent(10) {
+				if r.Status == wikiSyncRuns.StatusSuccess && r.HeadSha == payload.After {
+					c.JSON(http.StatusOK, gin.H{"ok": true})
+					return
+				}
+			}
+		}
 		go func() {
+			// review MEDIUM：goroutine panic 会终止整个进程（startup/cron 同步
+			// 均有 paniclog.Recover，此处对齐）。
+			defer recovery.Recover("wiki_webhook_sync")
 			if _, err := wikiservice.Sync("webhook"); err != nil {
 				if errors.Is(err, wikiservice.ErrSyncAlreadyRunning) {
 					return // 已合并：运行中同步完成后自动补跑

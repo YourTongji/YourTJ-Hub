@@ -57,8 +57,11 @@
 1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
    顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
    （旧站路径映射为 `<namespace>/<slug>.md`）。
-2. 旧站的静态资源（图片/附件）随文件一并提交到仓库（同步器只投影 `.md`；
-   图片等资源从 GitHub raw 引用，或移入仓库后改写为相对路径）。
+2. 旧站的静态资源（图片/附件）随文件一并提交到仓库。同步器只将 `.md` 作为页面投影，
+   但会把页面中的仓库相对资源引用重写为论坛二进制提供的受控
+   `/wiki/_assets/<repository-path>` 路由；不需要 GitHub raw URL。相对页面链接保留 `.md`
+   源文件后缀，投影后会变为无后缀的 `/wiki/...` 路由。作者语义与路径限制见
+   [Wiki authoring](../product/wiki-authoring.md)。
 3. 旧站评论区（Waline）数据不迁移；如确有保留价值，导出 Waline 评论 JSON
    后以人工方式并入对应页面的论坛回复流（wiki 无评论表，评论走回复流）。
 4. 内容提交、PR 合并后，在管理端 `/admin/wiki` → GitHub 同步面板触发一次
@@ -77,24 +80,43 @@ repo = "https://github.com/YourTongji/YourTJ-Wiki.git"
 branch = "main"
 clone_dir = "./storage/wiki-repo"
 schedule = "30 3 * * *"     # 每日定时同步（默认 03:30，避开备份）
-webhook_secret = ""         # GitHub webhook 验签密钥；留空 = webhook 端点 403
+webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管理端「webhook 验签密钥」设置（securestore 加密落库）
 ```
 
-- **同步触发**：仅 `enabled=true` 时注册每日定时任务（`[wiki.git].schedule`，默认 `30 3 * * *`）+ 管理端
-  `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook（PR merge = push 事件）。
+- **同步触发**：进程启动时异步同步一次 + 仅 `enabled=true` 时注册每日定时任务（`[wiki.git].schedule`，默认
+  `30 3 * * *`）+ 管理端 `/admin/wiki` → GitHub 同步面板「立即同步」+ GitHub webhook
+  （PR merge = push 事件）。
+- **命名空间/页面来源**：命名空间 = 仓库顶层目录名（支持中文等 Unicode 字符，目录
+  消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
+  `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
+  description/order 写入命名空间元数据）。任意子目录都会在导航树中保留为可折叠目录节点，
+  不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
+  到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://f.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
-  - Content type：`application/json`；Secret：与 `webhook_secret` 一致
+  - Content type：`application/json`；Secret：与 webhook 验签密钥一致
+    （优先管理端 `/admin/wiki` → 同步面板「Webhook 验签密钥」保存，securestore 加密
+    落库；也可用旧 `[wiki.git].webhook_secret` 明文配置）
+  - 管理端「Webhook 验签密钥」清除后，即使 config.toml 存在旧明文 `webhook_secret` 也会保持禁用（fail-closed，需删除明文配置才可重新启用）。
   - Events：仅 `push`（PR merge 触发）
-  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(webhook_secret, body)，验签失败/未配置返回 403/401。
+  - 验签：`X-Hub-Signature-256` = HMAC-SHA256(secret, body)，验签失败/未配置返回 403/401。
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
+  （镜像升级后首次同步会保留仓库原始大小写/Unicode——此前实现做小写归一。对混合
+  大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
+  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响。中文目录在
+  `index.md` 声明 `slug` 后，页面 URL 首段迁移为 slug，旧链接仍可经显示名回退解析）。
   （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
   更换 `repo` 时，同步会拒绝复用 remote 不一致的既有 `clone_dir`；确认无其他用途后，删除该实例的
   clone 目录并重新触发同步，避免把新仓库投影到旧工作副本。
 - **删除保护**：有效页面扫描结果为空且论坛已有页面时默认拒绝同步；只有明确确认仓库应为空时才临时设置 `allow_empty=true`。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
-  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）。
+  同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）；
+  仓库移除页面 → 页面软删（评论/互动保留），仓库移除顶层目录 → 命名空间自动删除（含贡献者记录）。
+- **崩溃恢复**（issue #290）：进程被杀/重启遗留的 `running` 运行行在下次启动、状态读取（管理端
+  刷新 `/admin/wiki`）或下次同步开始时统一回收为 `failed`，不会永久禁用手动同步；管理端手动
+  同步 accepted 后轮询 `sync/status` + `sync/runs` 直到新 run 行进入终态并刷新页面树（约 5 分钟
+  上限，超时提示手动刷新）。
 
 > **升级注意（enabled 显式开关）**：本版本起 `[wiki.git]` 需要 `enabled = true`
 > 才会启动同步（此前仅 `repo` 非空即启用）。**已部署实例**升级后必须手动在

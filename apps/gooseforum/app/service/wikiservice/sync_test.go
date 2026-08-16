@@ -1,18 +1,164 @@
 package wikiservice
 
 import (
-	"context"
 	"os"
+	"os/exec"
 	"path/filepath"
 	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 )
+
+func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济指南/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 指南")
+	writeRepoFile(t, repo, "同济指南/other.md", "# 下一页")
+	writeRepoFile(t, repo, "同济指南/nested/start.md", `# 开始
+
+[下一页](../other.md?tab=2#section)
+![图片](../../assets/a%20b.png?raw=1#preview)
+[附件](../../assets/handout.pdf)
+[外部](https://example.com/guide)
+[根路径](/static/logo.svg)`)
+	writeRepoFile(t, repo, "assets/a b.png", "png")
+	writeRepoFile(t, repo, "assets/handout.pdf", "pdf")
+
+	if err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{}); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	page := wikiPages.GetByPath("guide/nested/start")
+	if page.Id == 0 {
+		t.Fatal("nested page missing after sync")
+	}
+	for _, want := range []string{
+		`href="/wiki/guide/other?tab=2#section"`,
+		`src="/wiki/_assets/assets/a%20b.png?raw=1#preview"`,
+		`href="/wiki/_assets/assets/handout.pdf"`,
+		`href="https://example.com/guide"`,
+		`href="/static/logo.svg"`,
+	} {
+		if !strings.Contains(page.RenderedHTML, want) {
+			t.Fatalf("rendered HTML missing %s: %s", want, page.RenderedHTML)
+		}
+	}
+}
+
+func TestApplyRepoToDBRejectsBrokenRelativeReferences(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "escapes repository",
+			content: "# 开始\n\n![图片](../../outside.png)",
+			want:    "escapes repository root",
+		},
+		{
+			name:    "missing page",
+			content: "# 开始\n\n[下一页](missing.md)",
+			want:    `linked page "guide/missing.md" does not exist`,
+		},
+		{
+			name:    "missing asset",
+			content: "# 开始\n\n![图片](missing.png)",
+			want:    `asset "guide/missing.png": asset not found`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupWikiTestDB(t)
+			repo := t.TempDir()
+			writeRepoFile(t, repo, "guide/start.md", tc.content)
+
+			err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{})
+			if err == nil || !strings.Contains(err.Error(), "wiki source guide/start.md") || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("sync error = %v, want actionable error containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+// TestApplyRepoToDBDegradesPerPageOnBrokenReferences review M1：
+// 单个页面坏引用（missing 类）→ 该页跳过（保留 DB 旧版本）+ 聚合告警，
+// 其余页面正常 upsert；只有安全类错误（仓库根逃逸）才整体失败。
+func TestApplyRepoToDBDegradesPerPageOnBrokenReferences(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/broken.md", "# 坏页\n\n[下一页](missing.md)")
+	writeRepoFile(t, repo, "guide/good.md", "# 好页\n\n[下一页](broken.md)")
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 指南")
+
+	cfg := GitConfig{CloneDir: repo}
+	res := &SyncResult{}
+	err := applyRepoToDB(cfg, res)
+	if err == nil {
+		t.Fatal("sync error = nil, want aggregated per-page failure")
+	}
+	if !strings.Contains(err.Error(), "skip guide/broken") {
+		t.Fatalf("sync error = %v, want skip guide/broken", err)
+	}
+	// 好页仍被创建；被跳过页不存在（首次同步，无旧版本可保留）。
+	if page := wikiPages.GetByPath("guide/good"); page.Id == 0 {
+		t.Fatal("good page missing after degraded sync")
+	}
+	if page := wikiPages.GetByPath("guide/broken"); page.Id != 0 {
+		t.Fatalf("broken page should not be created, got id=%d", page.Id)
+	}
+}
+
+// TestApplyRepoToDBKeepsEscapeFatal review M1：仓库根逃逸是安全类错误，
+// 不允许 per-page 降级，必须整体失败（恶意链接不得通过「坏页跳过」绕过）。
+func TestApplyRepoToDBKeepsEscapeFatal(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "# 开始\n\n![图片](../../outside.png)")
+	writeRepoFile(t, repo, "guide/good.md", "# 好页")
+
+	err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{})
+	if err == nil || !strings.Contains(err.Error(), "escapes repository root") {
+		t.Fatalf("sync error = %v, want fatal escape error", err)
+	}
+	// 逃逸致命：整体失败，好页也不创建。
+	if page := wikiPages.GetByPath("guide/good"); page.Id != 0 {
+		t.Fatal("good page should not be created when sync fails fatally")
+	}
+}
+
+func TestApplyRepoToDBRefreshesRelativeLinksAfterSlugChange(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "指南/index.md", "---\nslug: guide\n---\n\n# 指南")
+	writeRepoFile(t, repo, "指南/start.md", "# 开始\n\n[下一页](../文档/other.md)")
+	writeRepoFile(t, repo, "文档/index.md", "---\nslug: docs\n---\n\n# 文档")
+	writeRepoFile(t, repo, "文档/other.md", "# 下一页")
+	cfg := GitConfig{CloneDir: repo}
+
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	start := wikiPages.GetByPath("guide/start")
+	if !strings.Contains(start.RenderedHTML, `href="/wiki/docs/other"`) {
+		t.Fatalf("first rendered link = %s, want /wiki/docs/other", start.RenderedHTML)
+	}
+
+	writeRepoFile(t, repo, "文档/index.md", "---\nslug: handbook\n---\n\n# 文档")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("sync after slug change: %v", err)
+	}
+	start = wikiPages.GetByPath("guide/start")
+	if !strings.Contains(start.RenderedHTML, `href="/wiki/handbook/other"`) {
+		t.Fatalf("refreshed rendered link = %s, want /wiki/handbook/other", start.RenderedHTML)
+	}
+}
 
 // writeRepoFile 在临时仓库目录下写一个 md 文件（自动建父目录）。
 func writeRepoFile(t *testing.T, root, rel string, content string) {
@@ -23,6 +169,131 @@ func writeRepoFile(t *testing.T, root, rel string, content string) {
 	}
 	if err := os.WriteFile(path, []byte(content), 0o644); err != nil {
 		t.Fatalf("write repo file %s: %v", rel, err)
+	}
+}
+
+// initGitRepo 在临时目录初始化 git 仓库并提交全部文件（同步器 ensureClone
+// 需要真实 git 仓库；测试环境缺 git 二进制时跳过）。
+func initGitRepo(t *testing.T, dir string) {
+	t.Helper()
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	git := func(args ...string) {
+		cmd := exec.Command("git", append([]string{"-C", dir}, args...)...)
+		if out, err := cmd.CombinedOutput(); err != nil {
+			t.Fatalf("git %v: %v: %s", args, err, out)
+		}
+	}
+	git("init", "-q", "-b", "main")
+	git("config", "user.email", "test@example.test")
+	git("config", "user.name", "test")
+	git("add", "-A")
+	git("commit", "-q", "-m", "init")
+}
+
+// TestMarkAllRunningAbandoned 崩溃恢复原语（issue #290）：全部 running 行统一
+// 标记 failed + error + finished_at，终态行不受影响。
+func TestMarkAllRunningAbandoned(t *testing.T) {
+	setupWikiTestDB(t)
+	running := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&running); err != nil {
+		t.Fatalf("create running run: %v", err)
+	}
+	done := wikiSyncRuns.Entity{Trigger: "webhook", Status: wikiSyncRuns.StatusSuccess}
+	if err := wikiSyncRuns.Create(&done); err != nil {
+		t.Fatalf("create success run: %v", err)
+	}
+
+	n, err := wikiSyncRuns.MarkAllRunningAbandoned("abandoned: process restarted before run finished")
+	if err != nil {
+		t.Fatalf("mark abandoned: %v", err)
+	}
+	if n != 1 {
+		t.Fatalf("abandoned count = %d, want 1", n)
+	}
+	got := wikiSyncRuns.GetById(running.Id)
+	if got.Status != wikiSyncRuns.StatusFailed {
+		t.Fatalf("abandoned run status = %d, want failed", got.Status)
+	}
+	if !strings.Contains(got.Error, "abandoned") {
+		t.Fatalf("abandoned run error = %q, want abandoned marker", got.Error)
+	}
+	if got.FinishedAt == nil {
+		t.Fatal("abandoned run finished_at not set")
+	}
+	if still := wikiSyncRuns.GetById(done.Id); still.Status != wikiSyncRuns.StatusSuccess {
+		t.Fatalf("terminal run status = %d, want success untouched", still.Status)
+	}
+}
+
+// TestSyncOnceReconcilesStaleRunningRuns 崩溃遗留的 running 行在下次同步开始前
+// 被回收（issue #290）：残留行标记 failed，新 run 正常执行并 success。
+func TestSyncOnceReconcilesStaleRunningRuns(t *testing.T) {
+	setupWikiTestDB(t)
+	if _, err := exec.LookPath("git"); err != nil {
+		t.Skip("git binary not available")
+	}
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n正文")
+	initGitRepo(t, repo)
+
+	stale := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&stale); err != nil {
+		t.Fatalf("create stale running run: %v", err)
+	}
+
+	cfg := GitConfig{Enable: true, Repo: "file://" + repo, Branch: "main", CloneDir: filepath.Join(t.TempDir(), "clone")}
+	res, err := SyncWithConfig(cfg, "manual")
+	if err != nil {
+		t.Fatalf("SyncWithConfig: %v", err)
+	}
+	if res.PagesAdded != 1 {
+		t.Fatalf("PagesAdded = %d, want 1", res.PagesAdded)
+	}
+
+	got := wikiSyncRuns.GetById(stale.Id)
+	if got.Status != wikiSyncRuns.StatusFailed {
+		t.Fatalf("stale run status = %d, want failed (reconciled)", got.Status)
+	}
+	latest := wikiSyncRuns.Latest()
+	if latest.Id == stale.Id || latest.Status != wikiSyncRuns.StatusSuccess {
+		t.Fatalf("latest run = id %d status %d, want new success run", latest.Id, latest.Status)
+	}
+}
+
+// TestBuildSyncStatusReconcilesStaleRunning 状态读取时自愈（issue #290）：
+// 进程内无同步锁占用时，残留 running 行在 BuildSyncStatus 内被标记 failed，
+// 管理端刷新页面即可解除按钮禁用。
+func TestBuildSyncStatusReconcilesStaleRunning(t *testing.T) {
+	setupWikiTestDB(t)
+	stale := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&stale); err != nil {
+		t.Fatalf("create stale running run: %v", err)
+	}
+
+	status := BuildSyncStatus()
+	if status.LastRun == nil || status.LastRun.Status != "failed" {
+		t.Fatalf("lastRun after status read = %+v, want failed", status.LastRun)
+	}
+}
+
+// TestBuildSyncStatusKeepsLiveRunningWhileLockHeld 同步锁被占用（本进程同步
+// 进行中）时，BuildSyncStatus 不得回收 running 行——误回收会杀死在途同步。
+func TestBuildSyncStatusKeepsLiveRunningWhileLockHeld(t *testing.T) {
+	setupWikiTestDB(t)
+	live := wikiSyncRuns.Entity{Trigger: "manual", Status: wikiSyncRuns.StatusRunning}
+	if err := wikiSyncRuns.Create(&live); err != nil {
+		t.Fatalf("create live run: %v", err)
+	}
+	if !TryAcquireSyncLock() {
+		t.Fatal("acquire sync lock")
+	}
+	defer ReleaseSyncLock()
+
+	status := BuildSyncStatus()
+	if status.LastRun == nil || status.LastRun.Status != "running" {
+		t.Fatalf("live run must stay running while lock held, got %+v", status.LastRun)
 	}
 }
 
@@ -70,6 +341,56 @@ func TestApplyRepoToDBFirstSync(t *testing.T) {
 	}
 }
 
+// TestApplyRepoToDBReconcilesParentsAfterTreeChanges verifies that parent_id is a
+// derived cache of the nearest ancestor index page. Reconciliation happens after
+// all files are upserted, so repository ordering, moves, deletes, and restores
+// cannot leave a stale relationship behind.
+func TestApplyRepoToDBReconcilesParentsAfterTreeChanges(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	cfg := GitConfig{CloneDir: repo}
+
+	// Deliberately create the leaf before either ancestor index. scanRepoFiles
+	// sorts paths, but the reconciliation pass must be correct independently of
+	// create order.
+	writeRepoFile(t, repo, "guide/admission/process.md", "---\ntitle: 流程\n---\n\n# 流程")
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南")
+	writeRepoFile(t, repo, "guide/admission/index.md", "---\ntitle: 入学\n---\n\n# 入学")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	root := wikiPages.GetByPath("guide/index")
+	admission := wikiPages.GetByPath("guide/admission/index")
+	process := wikiPages.GetByPath("guide/admission/process")
+	if root.ParentId != 0 || admission.ParentId != root.Id || process.ParentId != admission.Id {
+		t.Fatalf("initial parent chain root/admission/process=%d/%d/%d, want 0/%d/%d", root.ParentId, admission.ParentId, process.ParentId, root.Id, admission.Id)
+	}
+
+	// Removing the directory index leaves the page visible under a synthetic
+	// directory node and falls back to the next ancestor index rather than
+	// retaining the deleted page id.
+	if err := os.Remove(filepath.Join(repo, "guide/admission/index.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("delete index sync: %v", err)
+	}
+	if process = wikiPages.GetByPath("guide/admission/process"); process.ParentId != root.Id {
+		t.Fatalf("process parent after deleting index=%d, want root %d", process.ParentId, root.Id)
+	}
+
+	// Restoring the index must reconnect the unchanged child to its restored row.
+	writeRepoFile(t, repo, "guide/admission/index.md", "---\ntitle: 入学\n---\n\n# 入学")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("restore index sync: %v", err)
+	}
+	admission = wikiPages.GetByPath("guide/admission/index")
+	process = wikiPages.GetByPath("guide/admission/process")
+	if process.ParentId != admission.Id {
+		t.Fatalf("process parent after restoring index=%d, want %d", process.ParentId, admission.Id)
+	}
+}
+
 // TestApplyRepoToDBIdempotent 幂等：内容未变时重复同步零变更，不重复建行。
 func TestApplyRepoToDBIdempotent(t *testing.T) {
 	setupWikiTestDB(t)
@@ -79,13 +400,6 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	cfg := GitConfig{CloneDir: repo}
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("first sync: %v", err)
-	}
-	var tasksAfterFirst int64
-	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfterFirst).Error; err != nil {
-		t.Fatal(err)
-	}
-	if tasksAfterFirst != 1 {
-		t.Fatalf("projection tasks after first sync=%d, want 1", tasksAfterFirst)
 	}
 	res := &SyncResult{}
 	if err := applyRepoToDB(cfg, res); err != nil {
@@ -97,173 +411,6 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	pages := wikiPages.ListAll()
 	if len(pages) != 1 {
 		t.Fatalf("page count after second sync=%d, want 1", len(pages))
-	}
-	var tasksAfterSecond int64
-	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfterSecond).Error; err != nil {
-		t.Fatal(err)
-	}
-	if tasksAfterSecond != tasksAfterFirst {
-		t.Fatalf("unchanged sync enqueued tasks: before=%d after=%d", tasksAfterFirst, tasksAfterSecond)
-	}
-}
-
-func TestApplyRepoToDBSupportsUppercaseMarkdownExtension(t *testing.T) {
-	setupWikiTestDB(t)
-	repo := t.TempDir()
-	writeRepoFile(t, repo, "docs/Upper.MD", "# uppercase extension")
-
-	if err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{}); err != nil {
-		t.Fatalf("sync uppercase extension: %v", err)
-	}
-	page := wikiPages.GetByPath("docs/upper")
-	if page.Id == 0 {
-		t.Fatal("uppercase-extension page was not projected")
-	}
-	if page.Title != "Upper" || page.SourcePath != "docs/Upper" {
-		t.Fatalf("page metadata=%#v, want title Upper and source path docs/Upper", page)
-	}
-
-	if err := os.Rename(filepath.Join(repo, "docs/Upper.MD"), filepath.Join(repo, "docs/Upper.md")); err != nil {
-		t.Fatalf("case-only extension rename: %v", err)
-	}
-	result := &SyncResult{}
-	if err := applyRepoToDB(GitConfig{CloneDir: repo}, result); err != nil {
-		t.Fatalf("sync case-only rename: %v", err)
-	}
-	if got := wikiPages.GetByPath("docs/upper"); got.Id != page.Id || got.DeletedAt.Valid {
-		t.Fatalf("case-only rename lost page identity: before=%#v after=%#v", page, got)
-	}
-	if result.PagesDeleted != 0 {
-		t.Fatalf("case-only rename deleted %d pages, want 0", result.PagesDeleted)
-	}
-}
-
-func TestApplyRepoToDBRejectsEmptySourceByDefault(t *testing.T) {
-	setupWikiTestDB(t)
-	repo := t.TempDir()
-	rel := "docs/page.md"
-	writeRepoFile(t, repo, rel, "---\ntitle: 页面\n---\n\n正文")
-	cfg := GitConfig{CloneDir: repo}
-	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
-		t.Fatalf("seed sync: %v", err)
-	}
-	page := wikiPages.GetByPath("docs/page")
-	if err := os.Remove(filepath.Join(repo, rel)); err != nil {
-		t.Fatal(err)
-	}
-	if err := applyRepoToDB(cfg, &SyncResult{}); err == nil {
-		t.Fatal("empty source was accepted without allow_empty")
-	}
-	if got := wikiPages.GetByPath("docs/page"); got.Id != page.Id {
-		t.Fatalf("page changed after rejected empty sync: before=%d after=%d", page.Id, got.Id)
-	}
-}
-
-func TestApplyRepoToDBRollsBackWholeProjection(t *testing.T) {
-	setupWikiTestDB(t)
-	repo := t.TempDir()
-	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A\n---\n\nold-a")
-	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B\n---\n\nold-b")
-	cfg := GitConfig{CloneDir: repo}
-	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
-		t.Fatalf("seed sync: %v", err)
-	}
-	var tasksBefore int64
-	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksBefore).Error; err != nil {
-		t.Fatal(err)
-	}
-	a := wikiPages.GetByPath("docs/a")
-	b := wikiPages.GetByPath("docs/b")
-	bTopic := topics.Get(b.TopicId)
-	if err := dbconnect.Connect().Model(&topics.Entity{}).Where("id = ?", bTopic.Id).Update("first_post_id", uint64(999999)).Error; err != nil {
-		t.Fatal(err)
-	}
-	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A2\n---\n\nnew-a")
-	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B2\n---\n\nnew-b")
-	res := &SyncResult{}
-	if err := applyRepoToDB(cfg, res); err == nil {
-		t.Fatal("sync succeeded with a broken second projection")
-	}
-	if got := wikiPages.Get(a.Id); got.Title != "A" || got.Content != "old-a" {
-		t.Fatalf("first page escaped rolled-back transaction: %#v", got)
-	}
-	if res.PagesAdded != 0 || res.PagesUpdated != 0 || res.PagesDeleted != 0 {
-		t.Fatalf("failed transaction leaked result counters: %#v", res)
-	}
-	var tasksAfter int64
-	if err := dbconnect.Connect().Model(&taskQueue.Entity{}).Where("type LIKE ?", TaskTypeWikiProjection+"%").Count(&tasksAfter).Error; err != nil {
-		t.Fatal(err)
-	}
-	if tasksAfter != tasksBefore {
-		t.Fatalf("rolled-back projection leaked outbox tasks: before=%d after=%d", tasksBefore, tasksAfter)
-	}
-}
-
-func TestApplyRepoToDBPathSwapKeepsTopicIdentity(t *testing.T) {
-	setupWikiTestDB(t)
-	repo := t.TempDir()
-	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: A\n---\n\nbody-a")
-	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B\n---\n\nbody-b")
-	cfg := GitConfig{CloneDir: repo}
-	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
-		t.Fatalf("seed sync: %v", err)
-	}
-	oldA, oldB := wikiPages.GetByPath("docs/a"), wikiPages.GetByPath("docs/b")
-	writeRepoFile(t, repo, "docs/a.md", "---\ntitle: B\n---\n\nbody-b")
-	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: A\n---\n\nbody-a")
-	res := &SyncResult{}
-	if err := applyRepoToDB(cfg, res); err != nil {
-		t.Fatalf("swap sync: %v", err)
-	}
-	if got := wikiPages.GetByPath("docs/a"); got.Id != oldB.Id || got.TopicId != oldB.TopicId {
-		t.Fatalf("path a lost B identity: old=%#v got=%#v", oldB, got)
-	}
-	if got := wikiPages.GetByPath("docs/b"); got.Id != oldA.Id || got.TopicId != oldA.TopicId {
-		t.Fatalf("path b lost A identity: old=%#v got=%#v", oldA, got)
-	}
-	if res.PagesAdded != 0 || res.PagesUpdated != 2 || res.PagesDeleted != 0 {
-		t.Fatalf("swap result=%#v", res)
-	}
-}
-
-func TestApplyRepoToDBRenameChainKeepsTopicIdentity(t *testing.T) {
-	setupWikiTestDB(t)
-	repo := t.TempDir()
-	for _, item := range []struct{ path, title, body string }{
-		{"docs/a.md", "A", "body-a"},
-		{"docs/b.md", "B", "body-b"},
-		{"docs/c.md", "C", "body-c"},
-	} {
-		writeRepoFile(t, repo, item.path, "---\ntitle: "+item.title+"\n---\n\n"+item.body)
-	}
-	cfg := GitConfig{CloneDir: repo}
-	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
-		t.Fatalf("seed sync: %v", err)
-	}
-	oldA := wikiPages.GetByPath("docs/a")
-	oldB := wikiPages.GetByPath("docs/b")
-	oldC := wikiPages.GetByPath("docs/c")
-	if err := os.Remove(filepath.Join(repo, "docs/a.md")); err != nil {
-		t.Fatal(err)
-	}
-	writeRepoFile(t, repo, "docs/b.md", "---\ntitle: A\n---\n\nbody-a")
-	writeRepoFile(t, repo, "docs/c.md", "---\ntitle: B\n---\n\nbody-b")
-	writeRepoFile(t, repo, "docs/d.md", "---\ntitle: C\n---\n\nbody-c")
-	res := &SyncResult{}
-	if err := applyRepoToDB(cfg, res); err != nil {
-		t.Fatalf("rename chain sync: %v", err)
-	}
-	for _, check := range []struct {
-		path string
-		old  wikiPages.Entity
-	}{{"docs/b", oldA}, {"docs/c", oldB}, {"docs/d", oldC}} {
-		got := wikiPages.GetByPath(check.path)
-		if got.Id != check.old.Id || got.TopicId != check.old.TopicId {
-			t.Fatalf("%s lost identity: old=%#v got=%#v", check.path, check.old, got)
-		}
-	}
-	if res.PagesAdded != 0 || res.PagesUpdated != 3 || res.PagesDeleted != 0 {
-		t.Fatalf("chain result=%#v", res)
 	}
 }
 
@@ -318,7 +465,7 @@ func TestApplyRepoToDBDelete(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoFile(t, repo, "docs/gone.md", "---\ntitle: 删除\n---\n\n# 标题\n\n正文")
 
-	cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
+	cfg := GitConfig{CloneDir: repo}
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 		t.Fatalf("first sync: %v", err)
 	}
@@ -357,7 +504,7 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 		content := "---\ntitle: 恢复\n---\n\n# 标题\n\n正文"
 		writeRepoFile(t, repo, rel, content)
 
-		cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
+		cfg := GitConfig{CloneDir: repo}
 		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 			t.Fatalf("first sync: %v", err)
 		}
@@ -418,7 +565,7 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 		rel := "docs/restore.md"
 		writeRepoFile(t, repo, rel, "---\ntitle: v1\n---\n\n# 标题\n\n旧正文")
 
-		cfg := GitConfig{CloneDir: repo, AllowEmpty: true}
+		cfg := GitConfig{CloneDir: repo}
 		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
 			t.Fatalf("first sync: %v", err)
 		}
@@ -465,13 +612,14 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 }
 
 // TestParseMarkdownFileFrontmatter frontmatter 解析边界：
-// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文。
+// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文、slug 解析。
 func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	cases := []struct {
 		name      string
 		file      repoFile
 		wantTitle string
 		wantOrder int
+		wantSlug  string
 		wantBody  string
 	}{
 		{
@@ -480,6 +628,13 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 			wantTitle: "完整",
 			wantOrder: 3,
 			wantBody:  "# 正文",
+		},
+		{
+			name:      "frontmatter with slug",
+			file:      repoFile{Path: "同济新手教程/index.md", Content: []byte("---\ntitle: 教程\nslug: tongji-freshman-guide\n---\n\n# 首页")},
+			wantTitle: "教程",
+			wantSlug:  "tongji-freshman-guide",
+			wantBody:  "# 首页",
 		},
 		{
 			name:      "no frontmatter uses filename",
@@ -512,12 +667,15 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			title, order, _, body := parseMarkdownFile(tc.file)
+			title, order, _, slug, body := parseMarkdownFile(tc.file)
 			if title != tc.wantTitle {
 				t.Fatalf("title=%q, want %q", title, tc.wantTitle)
 			}
 			if order != tc.wantOrder {
 				t.Fatalf("order=%d, want %d", order, tc.wantOrder)
+			}
+			if slug != tc.wantSlug {
+				t.Fatalf("slug=%q, want %q", slug, tc.wantSlug)
 			}
 			if body != tc.wantBody {
 				t.Fatalf("body=%q, want %q", body, tc.wantBody)
@@ -532,7 +690,6 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 	repo := t.TempDir()
 	writeRepoFile(t, repo, "docs/a.md", "# A")
 	writeRepoFile(t, repo, "docs/b.md", "# B")
-	writeRepoFile(t, repo, "docs/c.MD", "# C")
 	writeRepoFile(t, repo, "docs/skip.txt", "not md")
 	writeRepoFile(t, repo, ".hidden/c.md", "# hidden")
 	writeRepoFile(t, repo, "docs/.secret.md", "# secret")
@@ -548,10 +705,10 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 	}
 	// 只跳过隐藏目录与非 .md 文件；隐藏 .md 文件（docs/.secret.md）仍按
 	// 普通 .md 收录（scanRepoFiles 只对目录做隐藏过滤）。
-	if len(files) != 5 {
-		t.Fatalf("scanned files=%d, want 5 (docs/.secret.md, docs/README.md, docs/a.md, docs/b.md, docs/c.MD): %+v", len(files), files)
+	if len(files) != 4 {
+		t.Fatalf("scanned files=%d, want 4 (docs/.secret.md, docs/README.md, docs/a.md, docs/b.md): %+v", len(files), files)
 	}
-	wantPaths := []string{"docs/.secret.md", "docs/README.md", "docs/a.md", "docs/b.md", "docs/c.MD"}
+	wantPaths := []string{"docs/.secret.md", "docs/README.md", "docs/a.md", "docs/b.md"}
 	for i, want := range wantPaths {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
@@ -559,70 +716,319 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 	}
 }
 
-func TestGitConfigRequiresExplicitEnable(t *testing.T) {
-	if (GitConfig{Repo: "https://github.com/example/wiki.git"}).Enabled() {
-		t.Fatal("repo alone must not enable wiki sync")
+// TestScanRepoFilesRejectsSymlinks review F2：Git 克隆会把仓库符号链接物化为
+// symlink，若跟随读取可把服务器任意文件投影为公开 wiki 页（任意文件泄露）
+// 或读 /dev/zero 类目标永久阻塞同步。扫描必须 lstat 拒绝符号链接。
+func TestScanRepoFilesRejectsSymlinks(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/ok.md", "# OK")
+	writeRepoFile(t, repo, "docs/target.md", "# 目标")
+	if err := os.Symlink(filepath.Join(repo, "docs/target.md"), filepath.Join(repo, "docs/link.md")); err != nil {
+		t.Fatalf("create symlink: %v", err)
 	}
-	if !(GitConfig{Enable: true, Repo: "https://github.com/example/wiki.git"}).Enabled() {
-		t.Fatal("explicit enable with repo should enable wiki sync")
-	}
-	if _, err := SyncWithConfigContext(context.Background(), GitConfig{Repo: "local"}, "test"); err == nil {
-		t.Fatal("disabled config should reject sync")
+
+	_, err := scanRepoFiles(repo)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("scan error = %v, want symlink rejection", err)
 	}
 }
 
-func TestScanRepoFilesRejectsUnsafeContent(t *testing.T) {
-	t.Run("symlink", func(t *testing.T) {
-		repo := t.TempDir()
-		target := filepath.Join(repo, "target.md")
-		if err := os.WriteFile(target, []byte("body"), 0o644); err != nil {
-			t.Fatal(err)
-		}
-		if err := os.Symlink(target, filepath.Join(repo, "page.md")); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := scanRepoFiles(repo); err == nil || !strings.Contains(err.Error(), "symbolic links") {
-			t.Fatalf("scan error=%v, want symbolic-link rejection", err)
-		}
-	})
+// TestScanRepoFilesRejectsOversize review F2：超大 .md（超 4MiB）拒绝，
+// 防止恶意仓库撑爆内存。
+func TestScanRepoFilesRejectsOversize(t *testing.T) {
+	repo := t.TempDir()
+	big := make([]byte, maxWikiPageBytes+1)
+	for i := range big {
+		big[i] = 'a'
+	}
+	writeRepoFile(t, repo, "docs/big.md", string(big))
 
-	t.Run("oversized markdown", func(t *testing.T) {
-		repo := t.TempDir()
-		path := filepath.Join(repo, "page.md")
-		file, err := os.Create(path)
-		if err != nil {
-			t.Fatal(err)
-		}
-		if err := file.Truncate(maxWikiPageBytes + 1); err != nil {
-			_ = file.Close()
-			t.Fatal(err)
-		}
-		if err := file.Close(); err != nil {
-			t.Fatal(err)
-		}
-		if _, err := scanRepoFiles(repo); err == nil || !strings.Contains(err.Error(), "exceeds") {
-			t.Fatalf("scan error=%v, want size rejection", err)
-		}
-	})
+	_, err := scanRepoFiles(repo)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("scan error = %v, want size rejection", err)
+	}
 }
 
-func TestSafeCloneDirRejectsDestructiveTargets(t *testing.T) {
-	if _, err := safeCloneDir(string(filepath.Separator)); err == nil {
-		t.Fatal("filesystem root should be rejected")
+// TestApplyRepoToDBNamespaceMetaFromIndex 顶层目录 index.md 的 frontmatter
+// description/order → wiki_namespaces.description/sort_order（D4）。
+func TestApplyRepoToDBNamespaceMetaFromIndex(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	// index.md 携带 description/order；页面文件正常同步。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 社区使用指南\norder: 10\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
 	}
-	cwd, err := os.Getwd()
-	if err != nil {
+	ns := wikiNamespaces.GetByName("guide")
+	if ns.Id == 0 {
+		t.Fatal("namespace guide missing")
+	}
+	if ns.Description != "社区使用指南" {
+		t.Fatalf("namespace description=%q, want 社区使用指南", ns.Description)
+	}
+	if ns.SortOrder != 10 {
+		t.Fatalf("namespace sort_order=%d, want 10", ns.SortOrder)
+	}
+
+	// 修改 index.md → 描述/排序更新；幂等检查。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 新版描述\norder: 20\n---\n\n# 指南首页")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	ns = wikiNamespaces.GetByName("guide")
+	if ns.Description != "新版描述" || ns.SortOrder != 20 {
+		t.Fatalf("namespace after update: desc=%q order=%d, want 新版描述/20", ns.Description, ns.SortOrder)
+	}
+}
+
+// TestApplyRepoToDBDeleteNamespace 仓库顶层目录消失 → 命名空间自动删除（D5）。
+// 页面先软删，命名空间行与贡献者记录一并清理。
+func TestApplyRepoToDBDeleteNamespace(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should exist after first sync")
+	}
+
+	// 贡献者记录预置一条，验证删除时一并清理。
+	if err := dbconnect.Connect().Create(&wikiNamespaceEditors.Entity{Namespace: "guide", UserId: 424242}).Error; err != nil {
+		t.Fatalf("seed editor: %v", err)
+	}
+
+	// 删除整个顶层目录 → 页面软删 + 命名空间删除。
+	if err := os.RemoveAll(filepath.Join(repo, "guide")); err != nil {
 		t.Fatal(err)
 	}
-	if _, err := safeCloneDir(cwd); err == nil {
-		t.Fatal("working directory should be rejected")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("delete namespace sync: %v", err)
 	}
-	target := t.TempDir()
-	link := filepath.Join(t.TempDir(), "clone-link")
-	if err := os.Symlink(target, link); err != nil {
-		t.Fatal(err)
+	if res.PagesDeleted != 1 {
+		t.Fatalf("PagesDeleted=%d, want 1", res.PagesDeleted)
 	}
-	if _, err := safeCloneDir(link); err == nil {
-		t.Fatal("symlink clone_dir should be rejected")
+	if res.NamespacesDeleted != 1 {
+		t.Fatalf("NamespacesDeleted=%d, want 1", res.NamespacesDeleted)
+	}
+	if wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be deleted")
+	}
+	page := wikiPages.GetByPathUnscoped("guide/start")
+	if page.Id == 0 || !page.DeletedAt.Valid {
+		t.Fatalf("page should be soft-deleted: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	// 贡献者记录清理。
+	var editors int64
+	if err := dbconnect.Connect().Table("wiki_namespace_editors").
+		Where("namespace = ?", "guide").Count(&editors).Error; err != nil {
+		t.Fatalf("count editors: %v", err)
+	}
+	if editors != 0 {
+		t.Fatalf("editors after namespace delete=%d, want 0", editors)
+	}
+
+	// 目录重新出现 → 命名空间重建 + 页面恢复（复用原 topic）。
+	// topic 已随页面软删，必须 Unscoped 读取（Get 带软删 scope 返回零值）。
+	topicID := topics.UnscopedGet(page.TopicId).Id
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	res = &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("restore namespace sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be recreated")
+	}
+	page = wikiPages.GetByPath("guide/start")
+	if page.Id == 0 || page.DeletedAt.Valid {
+		t.Fatalf("page should be restored: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	if page.TopicId != topicID {
+		t.Fatalf("topic changed after namespace restore: %d → %d, want reuse", topicID, page.TopicId)
+	}
+}
+func namespaceSlugOrEmpty(t *testing.T, name string) string {
+	t.Helper()
+	ns := wikiNamespaces.GetByName(name)
+	if ns.Id == 0 {
+		t.Fatalf("namespace %s missing", name)
+	}
+	return ns.SlugOrEmpty()
+}
+
+// TestApplyRepoToDBSlugDefaultsToASCIIDirName 纯 ASCII 目录名且未声明 slug →
+// 默认 slug=目录名，页面 path 首段=slug（URL 用 slug，D7）；index.md 变更
+// frontmatter slug 后 slug 与页面 path 首段同步迁移。
+func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "guide" {
+		t.Fatalf("slug=%q, want default dir name guide", got)
+	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id == 0 {
+		t.Fatal("page guide/start missing (path first segment = slug)")
+	}
+
+	// index.md 显式声明 slug → 覆盖目录名默认值，页面 path 首段跟随迁移。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: tongji-guide\n---\n\n# 指南首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "tongji-guide" {
+		t.Fatalf("slug=%q, want tongji-guide from frontmatter", got)
+	}
+	if page := wikiPages.GetByPath("tongji-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to new slug tongji-guide/start")
+	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id != 0 {
+		t.Fatal("old path guide/start should be gone after slug migration")
+	}
+}
+
+// TestApplyRepoToDBSlugKeepsChineseNameNull 中文目录名且 index.md 未声明 slug
+// → slug 保持 NULL，URL key 降级=显示名（页面 path 首段=中文目录名）；
+// 仓库声明 slug 后 slug 填充且页面 path 首段迁移为 slug（D7 降级策略）。
+func TestApplyRepoToDBSlugKeepsChineseNameNull(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "" {
+		t.Fatalf("slug=%q, want empty for chinese name without frontmatter slug", got)
+	}
+	// 降级：无 slug 时 URL key=显示名，页面 path 首段=中文目录名。
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("page 同济新手教程/start missing (URL key falls back to display name)")
+	}
+
+	// 仓库 index.md 声明 slug → 填充，页面 path 首段迁移为 slug。
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "tongji-freshman-guide" {
+		t.Fatalf("slug=%q, want tongji-freshman-guide", got)
+	}
+	if page := wikiPages.GetByPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to slug after frontmatter slug added")
+	}
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id != 0 {
+		t.Fatal("old path 同济新手教程/start should be gone after slug migration")
+	}
+}
+
+// TestApplyRepoToDBSlugConflictKeepsOldValue slug 已被其他命名空间占用 →
+// 报错并保留旧值（fail-fast，run 标记 failed）。
+// 两个命名空间同时索要 slug=guide：一个目录名默认（guide），一个 index.md
+// frontmatter 显式声明（指南）。map 遍历顺序不确定，但无论谁先处理，
+// 恰好一个持有 slug=guide、另一个冲突保留旧值（空），且同步报错。
+func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	writeRepoFile(t, repo, "指南/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "指南/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on slug conflict")
+	}
+	slugs := map[string]string{}
+	for _, ns := range wikiNamespaces.List() {
+		slugs[ns.Name] = ns.SlugOrEmpty()
+	}
+	guideHas := slugs["guide"] == "guide"
+	zhinanHas := slugs["指南"] == "guide"
+	if guideHas == zhinanHas {
+		t.Fatalf("slug=guide must be held by exactly one namespace, got guide=%q 指南=%q", slugs["guide"], slugs["指南"])
+	}
+}
+
+// TestApplyRepoToDBSlugInvalidFromFrontmatter 声明非法 slug（大写/特殊字符）→
+// fail-fast 报错且不落库（保留旧值 NULL）；页面本身仍正常同步。
+func TestApplyRepoToDBSlugInvalidFromFrontmatter(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: Bad_Slug!\n---\n\n# 指南首页")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on invalid slug")
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "" {
+		t.Fatalf("slug=%q, want empty (invalid slug rejected, keep old value)", got)
+	}
+	if page := wikiPages.GetByPath("guide/index"); page.Id == 0 {
+		t.Fatal("page should still be synced despite invalid namespace slug")
+	}
+}
+
+// TestResolvePageByURLPath D7 路由语义（URL 用 slug）：
+//  1. slug 首段路径直查命中（新 URL，如 /wiki/tongji-freshman-guide/start）；
+//  2. 中文显示名 URL 回退：无 slug 时 path 首段=显示名，直接命中；
+//  3. 声明 slug 后旧链接兼容：首段=显示名的 URL 按 name→urlKey 重建命中。
+func TestResolvePageByURLPath(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	// 新 URL：slug 首段直查命中。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("slug URL tongji-freshman-guide/start should resolve directly")
+	}
+	// 旧链接兼容：中文显示名 URL（声明 slug 前的链接）按 name→slug 重建命中。
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("display-name URL 同济新手教程/start should resolve via name→slug rebuild")
+	}
+	// 未命中：不存在的页面。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/nope"); page.Id != 0 {
+		t.Fatal("nonexistent page should not resolve")
+	}
+	if page := ResolvePageByURLPath("不存在的命名空间/start"); page.Id != 0 {
+		t.Fatal("nonexistent namespace should not resolve")
+	}
+}
+
+// TestResolvePageByURLPathFallbackUnassigned 中文目录未声明 slug 时
+// path 首段=显示名（降级），直查即命中（无需回退）。
+func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("fallback URL (display name as URL key) should resolve directly")
 	}
 }

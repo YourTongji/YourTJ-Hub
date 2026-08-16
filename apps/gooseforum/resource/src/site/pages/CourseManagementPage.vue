@@ -17,6 +17,7 @@ import {
   type AdminReviewItem,
 } from '@/runtime/api'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import PageHeader from '@/site/components/PageHeader.vue'
 import type { CourseManagementPageProps, LayoutPayload } from '@gooseforum/client'
 
@@ -37,19 +38,26 @@ const courseHasNext = ref(true)
 const courseLoading = ref(false)
 const courseLoaded = ref(false)
 const courseBusyIds = ref<number[]>([])
+// 加载更多失败状态（区别于共享的 pageError：后者还被删除/新建等操作写入，
+// 直接传入会展示无关错误）。错误态交给 InfiniteScrollFooter 就地展示 + 停止自动触发。
+const courseLoadMoreError = ref('')
 
 async function loadCourses(reset = false) {
   if (courseLoading.value) return
   courseLoading.value = true
-  pageError.value = ''
+  if (reset) pageError.value = ''
+  else courseLoadMoreError.value = ''
   try {
     const payload = await fetchAdminCourses(courseKeyword.value.trim(), '', reset ? 1 : coursePage.value, 20)
     courseItems.value = reset ? payload.list : [...courseItems.value, ...payload.list]
     coursePage.value = payload.page + 1
     courseHasNext.value = payload.hasNext
     courseLoaded.value = true
+    courseLoadMoreError.value = ''
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : t('api.adminCourseListFailed')
+    const message = error instanceof Error ? error.message : t('api.adminCourseListFailed')
+    if (reset) pageError.value = message
+    else courseLoadMoreError.value = message
   } finally {
     courseLoading.value = false
   }
@@ -210,19 +218,24 @@ const reviewHasNext = ref(true)
 const reviewLoading = ref(false)
 const reviewLoaded = ref(false)
 const reviewBusyIds = ref<number[]>([])
+const reviewLoadMoreError = ref('')
 
 async function loadReviews(reset = false) {
   if (reviewLoading.value) return
   reviewLoading.value = true
-  pageError.value = ''
+  if (reset) pageError.value = ''
+  else reviewLoadMoreError.value = ''
   try {
     const payload = await fetchAdminReviews(reviewKeyword.value.trim(), reviewStatus.value, reset ? 0 : reviewCursor.value, 20)
     reviewItems.value = reset ? payload.items : [...reviewItems.value, ...payload.items]
     reviewCursor.value = payload.nextCursor
     reviewHasNext.value = payload.hasNext
     reviewLoaded.value = true
+    reviewLoadMoreError.value = ''
   } catch (error) {
-    pageError.value = error instanceof Error ? error.message : t('api.adminReviewListFailed')
+    const message = error instanceof Error ? error.message : t('api.adminReviewListFailed')
+    if (reset) pageError.value = message
+    else reviewLoadMoreError.value = message
   } finally {
     reviewLoading.value = false
   }
@@ -496,18 +509,14 @@ watch(activeTab, (tab) => {
           :description="t('courseManagement.coursesEmptyDesc')"
         />
 
-        <footer v-if="courseLoaded && (courseItems.length || courseHasNext)" class="border-t border-line px-4 py-3 text-center">
-          <button
-            v-if="courseHasNext"
-            type="button"
-            class="gf-button gf-button-sm gf-button-ghost"
-            :disabled="courseLoading"
-            @click="loadCourses(false)"
-          >
-            {{ courseLoading ? t('courseManagement.loading') : t('courseManagement.loadMore') }}
-          </button>
-          <span v-else-if="courseItems.length" class="text-xs text-base-content/45">{{ t('courseManagement.noMore') }}</span>
-        </footer>
+        <InfiniteScrollFooter
+          v-if="courseLoaded && (courseItems.length || courseHasNext)"
+          :has-next="courseHasNext"
+          :loading="courseLoading"
+          :error="courseLoadMoreError"
+          :has-items="courseItems.length > 0"
+          @load-more="loadCourses(false)"
+        />
       </div>
     </section>
 
@@ -608,18 +617,14 @@ watch(activeTab, (tab) => {
           :description="t('courseManagement.reviewsEmptyDesc')"
         />
 
-        <footer v-if="reviewLoaded && (reviewItems.length || reviewHasNext)" class="border-t border-line px-4 py-3 text-center">
-          <button
-            v-if="reviewHasNext"
-            type="button"
-            class="gf-button gf-button-sm gf-button-ghost"
-            :disabled="reviewLoading"
-            @click="loadReviews(false)"
-          >
-            {{ reviewLoading ? t('courseManagement.loading') : t('courseManagement.loadMore') }}
-          </button>
-          <span v-else-if="reviewItems.length" class="text-xs text-base-content/45">{{ t('courseManagement.noMore') }}</span>
-        </footer>
+        <InfiniteScrollFooter
+          v-if="reviewLoaded && (reviewItems.length || reviewHasNext)"
+          :has-next="reviewHasNext"
+          :loading="reviewLoading"
+          :error="reviewLoadMoreError"
+          :has-items="reviewItems.length > 0"
+          @load-more="loadReviews(false)"
+        />
       </div>
     </section>
 

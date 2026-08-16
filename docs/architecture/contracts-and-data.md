@@ -40,12 +40,23 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   `POST /api/forum/moderation/course-review-reports`, and
   `POST /api/forum/moderation/course-review-reveal`.
 - Wiki 域（`paths/wiki.yaml`，GitHub 唯一真实源模型）：公开读
-  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者等站内写
-  端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR）；保留管理端
-  `/api/admin/wiki/*`（PageManager：命名空间 CRUD + 只读树 + `sync/status` /
-  `sync` / `sync/runs`）与公开 `POST /api/wiki/webhook`（GitHub push 事件，HMAC-SHA256
-  验签，触发即时同步）；生成 TS 类型 + 手写 Dart mirror
+  `GET /api/wiki/{tree,namespaces,home}` + 写即发布/CAS/版本历史/回滚/diff/编辑者/命名空间
+  CRUD 等站内写端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR，命名空间由仓库顶层目录
+  同步驱动）；保留管理端 `/api/admin/wiki/*`（PageManager：只读树 + `sync/status` /
+  `sync` / `sync/runs` / `sync/webhook-secret` 读写）与公开 `POST /api/wiki/webhook`
+  （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；**URL 语义 = slug**：页面
+  `path` 首段与 `namespace` 列存 URL key（frontmatter `slug` 优先，目录名纯 ASCII 时
+  默认 slug=目录名，中文目录无 slug 时降级=显示名），显示名从 `wiki_namespaces.name`
+  取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；公开与管理端树均返回递归
+  `nodes`：`page` 节点对应 Markdown，`directory` 节点由路径投影且 `pageId=0`，完整路径在每层
+  保持稳定；管理端页面节点带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+- Wiki 首页/详情兼容性（issue #291）：GitHub SSOT 下站内无「编辑者」概念，
+  `GET /api/wiki/home` 的 `recent[]` 与 wiki 详情负载的 `editorId`/`editorName`
+  字段已**移除**（此前恒为零值且违反 OpenAPI `editorId minimum: 1`）。消费方需删除
+  对这两个字段的依赖；Git 作者信息改由详情页 `contributors[]`（用户名/头像可为空，
+  无论坛数字用户 ID）提供。OpenAPI `WikiRecentPage`/`WikiTreePage`/`WikiNamespaceSummary`
+  的旧「approved revision」措辞已同步改为 GitHub SSOT 投影语义。
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of

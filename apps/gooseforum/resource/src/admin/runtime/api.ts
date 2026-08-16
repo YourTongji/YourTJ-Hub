@@ -486,18 +486,6 @@ export function getWikiNamespaces() {
   return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
 }
 
-export function createWikiNamespace(data: { name: string, description: string }) {
-  return postJson<unknown>('/api/admin/wiki/namespaces', data, adminText('k00n0'))
-}
-
-export function updateWikiNamespace(name: string, description: string) {
-  return putJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, { description }, adminText('k00n0'))
-}
-
-export function deleteWikiNamespace(name: string) {
-  return deleteJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, adminText('k00n0'))
-}
-
 export function getWikiTree() {
   return getJson<WikiNamespaceTree[]>('/api/admin/wiki/tree', adminText('k00n2'))
 }
@@ -541,4 +529,16 @@ export function triggerWikiSync() {
 
 export function getWikiSyncRuns() {
   return getJson<WikiSyncRunView[]>('/api/admin/wiki/sync/runs', adminText('k00n0'))
+}
+
+export interface WikiWebhookSecretStatus {
+  configured: boolean
+}
+
+export function getWikiWebhookSecret() {
+  return getJson<WikiWebhookSecretStatus>('/api/admin/wiki/sync/webhook-secret', adminText('k00n0'))
+}
+
+export function saveWikiWebhookSecret(secret: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/webhook-secret', { secret }, adminText('k00n0'))
 }

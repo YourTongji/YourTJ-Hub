@@ -2578,37 +2578,50 @@ ResetPasswordResponse:
   oneOf:
     - $ref: '#/ResetPasswordSuccess'
     - $ref: '#/ApiFailure'
-WikiTreePage:
+WikiTreeNode:
   type: object
-  required: [pageId, path, title, active]
+  required: [kind, pageId, path, title, active, children]
   properties:
+    kind:
+      type: string
+      enum: [page, directory]
+      description: page is a Markdown file; directory is a non-clickable repository directory container.
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
-      description: Canonical page path within the namespace (slash-separated).
+      description: Stable repository-relative page or directory path within the namespace (slash-separated).
     title:
       type: string
     active:
       type: boolean
-      description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+      description: True when this page is the active SSR route; always false for directory nodes.
+    children:
+      type: array
+      items:
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, slug, nodes]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name; may contain Unicode such as Chinese).
     label:
       type: string
       description: Display label of the namespace.
-    pages:
+    slug:
+      type: string
+      description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
+    nodes:
       type: array
       items:
-        $ref: '#/WikiTreePage'
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeResult:
@@ -2634,10 +2647,14 @@ WikiTreeResponse:
 
 WikiNamespaceSummary:
   type: object
-  required: [name, description, sortOrder, pageCount, updatedAt]
+  required: [name, slug, description, sortOrder, pageCount, updatedAt]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese).
+    slug:
+      type: string
+      description: URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned.
     description:
       type: string
     sortOrder:
@@ -2646,13 +2663,13 @@ WikiNamespaceSummary:
     pageCount:
       type: integer
       format: int64
-      description: Number of pages with at least one approved revision.
+      description: Number of public pages in this namespace (projected from the GitHub wiki repo).
     updatedAt:
       type: string
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
+      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -2674,7 +2691,8 @@ WikiNamespaceListResponse:
 
 WikiRecentPage:
   type: object
-  required: [pageId, path, title, updatedAt, editorId, editorName]
+  description: "Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead."
+  required: [pageId, path, title, updatedAt]
   properties:
     pageId:
       type: integer
@@ -2688,13 +2706,6 @@ WikiRecentPage:
     updatedAt:
       type: string
       format: date-time
-    editorId:
-      type: integer
-      format: uint64
-      minimum: 1
-    editorName:
-      type: string
-      description: Display name of the last approved-revision editor.
   additionalProperties: false
 
 WikiHomeResult:
@@ -2727,77 +2738,46 @@ WikiHomeResponse:
 
 
 
-WikiCreateNamespaceRequest:
+WikiAdminTreeNode:
   type: object
-  required: [name, description]
+  required: [kind, pageId, path, sourcePath, title, sortOrder, children]
   properties:
-    name:
+    kind:
       type: string
-      minLength: 1
-      maxLength: 64
-      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
-      description: Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars).
-    description:
-      type: string
-  additionalProperties: false
-
-WikiUpdateNamespaceRequest:
-  type: object
-  required: [description]
-  properties:
-    description:
-      type: string
-  additionalProperties: false
-
-WikiNamespaceActionResult:
-  type: object
-  required: [ok]
-  properties:
-    ok:
-      type: boolean
-      const: true
-  additionalProperties: false
-
-WikiNamespaceActionResponse:
-  oneOf:
-    - allOf:
-        - $ref: '#/ApiSuccess'
-        - type: object
-          required: [result]
-          properties:
-            result:
-              $ref: '#/WikiNamespaceActionResult'
-    - $ref: '#/ApiFailure'
-
-
-WikiAdminTreePage:
-  type: object
-  required: [pageId, path, title, sortOrder]
-  properties:
+      enum: [page, directory]
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
+      description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
+    sourcePath:
+      type: string
+      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
     title:
       type: string
     sortOrder:
       type: integer
+    children:
+      type: array
+      items:
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, nodes]
   properties:
     name:
       type: string
     label:
       type: string
-    pages:
+    nodes:
       type: array
       items:
-        $ref: '#/WikiAdminTreePage'
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeResult:
@@ -2845,7 +2825,7 @@ WikiSyncRunView:
       description: Git commit SHA of the synced head.
     trigger:
       type: string
-      enum: [manual, schedule, webhook]
+      enum: [manual, schedule, webhook, startup]
       description: What started the sync run.
     status:
       type: string
@@ -2961,3 +2941,53 @@ WikiWebhookFailure:
     error:
       type: string
   additionalProperties: false
+
+WikiWebhookSecretStatus:
+  type: object
+  required: [configured]
+  properties:
+    configured:
+      type: boolean
+      description: Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config).
+  additionalProperties: false
+
+WikiWebhookSecretStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretStatus'
+    - $ref: '#/ApiFailure'
+
+WikiWebhookSecretSaveRequest:
+  type: object
+  required: [secret]
+  properties:
+    secret:
+      type: string
+      maxLength: 1024
+      description: Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret.
+  additionalProperties: false
+
+WikiWebhookSecretSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiWebhookSecretSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretSaveResult'
+    - $ref: '#/ApiFailure'

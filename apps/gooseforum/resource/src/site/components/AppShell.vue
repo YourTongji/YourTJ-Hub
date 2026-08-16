@@ -714,6 +714,8 @@ async function loadUserCard() {
       :resource-items="resourceItems"
       :sidebar-groups="sidebarGroups"
       :category-items="categoryItems"
+      :wiki-mode="isWikiMode"
+      :wiki-tree="wikiTree"
       :footer="layout.footer"
       :has-unread-messages="hasUnreadMessage"
       :has-unread-notifications="hasUnreadNotification"

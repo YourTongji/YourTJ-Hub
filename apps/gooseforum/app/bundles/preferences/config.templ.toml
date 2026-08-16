@@ -61,10 +61,13 @@ allow_empty = false
 repo = ""
 branch = "main"
 clone_dir = "./storage/wiki-repo"
-# 每日定时同步 cron spec（避开 03:00 数据库备份）
+# 每日定时同步 cron spec（默认每日 03:30，避开数据库备份；另含进程启动时异步同步一次）
 schedule = "30 3 * * *"
-# GitHub webhook 验签密钥（GitHub 仓库 Settings → Webhooks 配置；
+# GitHub webhook 验签密钥（兼容旧配置的明文写法；推荐改用管理端
+# 「wiki 同步面板 → Webhook 验签密钥」保存，securestore 加密落库；GitHub 仓库
+# Settings → Webhooks 配置的 Secret 应与此值一致，留空 = webhook 端点 403 拒绝）
 # 留空 = webhook 端点 403 拒绝）
+# 管理端清除密钥后本配置失效（fail-closed）
 webhook_secret = ""
 
 [log]

@@ -98,14 +98,6 @@ function sameUrl(left: string, right: string) {
                   <Clock class="h-3.5 w-3.5" />
                   {{ formatDateTime(page.props.page.updatedAt) }}
                 </span>
-                <a
-                  v-if="page.props.page.editorId"
-                  :href="`/u/${page.props.page.editorId}`"
-                  class="inline-flex items-center gap-1.5 font-medium text-base-content/75 hover:text-primary"
-                  @click="showUserCard({ id: page.props.page.editorId, username: page.props.page.editorName, avatarUrl: '' }, $event)"
-                >
-                  {{ page.props.page.editorName }}
-                </a>
                 <span class="inline-flex items-center gap-1.5">
                   <Eye class="h-3.5 w-3.5" />
                   {{ formatNumber(page.props.page.viewCount) }}

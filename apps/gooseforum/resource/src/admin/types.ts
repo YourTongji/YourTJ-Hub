@@ -436,21 +436,25 @@ export interface AdminAgentRotateResult {
 
 export interface WikiNamespace {
   name: string
+  slug: string
   description: string
   sortOrder: number
   pageCount: number
   updatedAt: string
 }
 
-export interface WikiPageNode {
+export interface WikiTreeNode {
+  kind: 'page' | 'directory'
   pageId: number
   path: string
+  sourcePath: string
   title: string
   sortOrder: number
+  children: WikiTreeNode[]
 }
 
 export interface WikiNamespaceTree {
   name: string
   label: string
-  pages: WikiPageNode[]
+  nodes: WikiTreeNode[]
 }
