@@ -1482,7 +1482,7 @@ func TestApplyRepoToDBInvalidNestedPathFailsFast(t *testing.T) {
 	// 非法路径存在时不得投影任何页面（fail-fast 在任何写入之前）。
 	pages, err := wikiPages.ListAll()
 	if err != nil {
-		t.Fatalf("list all pages: %v", err)
+		t.Fatalf("list pages: %v", err)
 	}
 	if len(pages) != 0 {
 		t.Fatalf("pages projected despite invalid path: %d, want 0 (fail-fast before any write)", len(pages))

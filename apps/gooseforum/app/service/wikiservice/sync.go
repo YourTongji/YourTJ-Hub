@@ -1026,7 +1026,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	// 后重建的两步 rename 需要软删候选）。按 content_hash 分组；同 hash 多
 	// 候选时由收养逻辑判定歧义（fail-safe，不猜测合并）。
 	disappearedByHash := make(map[string][]*wikiPages.Entity)
-	for _, p := range listAllUnscoped() {
+	unscopedPages, err := listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages for adoption: %w", err)
+	}
+	for _, p := range unscopedPages {
 		if _, ok := wantedByPath[p.Path]; ok {
 			continue
 		}
@@ -1125,7 +1129,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 
 	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
 	//    重新扫描最新 path（2.7 可能迁移过 URL key），按 URL key 匹配 wanted。
-	unscopedPages, err := listAllUnscoped()
+	unscopedPages, err = listAllUnscoped()
 	if err != nil {
 		return fmt.Errorf("list unscoped wiki pages for deletion pass: %w", err)
 	}
