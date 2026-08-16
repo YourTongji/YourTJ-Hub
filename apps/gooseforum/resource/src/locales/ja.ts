@@ -1927,6 +1927,7 @@ export default {
     'wiki.revision.notFound': '改訂が見つかりません。',
     'wiki.revision.conflict': 'ページが他のユーザーによって更新されました。最新版に基づいて再編集してください。',
     'wiki.saveFailed': 'Wiki の保存に失敗しました。後でもう一度お試しください。',
+    'wiki.readFailed': 'Wiki データの読み込みに失敗しました。後でもう一度お試しください。',
   },
   serverActions: {
     uploadAttachment: '添付ファイルをアップロード',

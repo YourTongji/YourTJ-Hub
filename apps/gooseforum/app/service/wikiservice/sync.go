@@ -183,10 +183,11 @@ func statusString(s int8) string {
 }
 
 // BuildSyncStatus 构建同步面板状态。
-func BuildSyncStatus() SyncStatus {
-	// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
-	// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
-	// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
+// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
+// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+// 页面/命名空间计数失败必须上抛：面板必须区分 DB 故障与真实零页面（issue #287）。
+func BuildSyncStatus() (SyncStatus, error) {
 	ReconcileStaleRuns()
 	cfg := LoadGitConfig()
 	status := SyncStatus{
@@ -194,17 +195,29 @@ func BuildSyncStatus() SyncStatus {
 		Repo:    cfg.Repo,
 		Branch:  cfg.Branch,
 	}
-	if latest := wikiSyncRuns.Latest(); latest.Id != 0 {
+	if latest, err := wikiSyncRuns.Latest(); err != nil {
+		if !errors.Is(err, gorm.ErrRecordNotFound) {
+			return SyncStatus{}, fmt.Errorf("load latest wiki sync run: %w", err)
+		}
+	} else if latest.Id != 0 {
 		status.HeadSha = latest.HeadSha
 		last := ToRunView(latest)
 		status.LastRun = &last
 	}
-	for _, r := range wikiSyncRuns.ListRecent(10) {
+	recentRuns, err := wikiSyncRuns.ListRecent(10)
+	if err != nil {
+		return SyncStatus{}, fmt.Errorf("list recent wiki sync runs: %w", err)
+	}
+	for _, r := range recentRuns {
 		status.RecentRuns = append(status.RecentRuns, ToRunView(r))
 	}
-	dbconnect.Connect().Table("wiki_pages").Count(&status.Pages.Total)
-	dbconnect.Connect().Table("wiki_namespaces").Count(&status.Pages.Namespaces)
-	return status
+	if err := dbconnect.Connect().Table("wiki_pages").Count(&status.Pages.Total).Error; err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki pages: %w", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_namespaces").Count(&status.Pages.Namespaces).Error; err != nil {
+		return SyncStatus{}, fmt.Errorf("count wiki namespaces: %w", err)
+	}
+	return status, nil
 }
 
 // ToRunView 把同步运行实体映射为视图（控制器层导出用）。
@@ -648,12 +661,19 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 1. 收集现有页面（含软删，用于恢复）。
-	existing := wikiPages.ListAll()
+	existing, err := wikiPages.ListAll()
+	if err != nil {
+		return fmt.Errorf("list existing wiki pages: %w", err)
+	}
 	byPath := make(map[string]*wikiPages.Entity, len(existing))
 	for _, p := range existing {
 		byPath[p.Path] = p
 	}
-	for _, p := range listAllUnscoped() {
+	unscoped, err := listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages: %w", err)
+	}
+	for _, p := range unscoped {
 		if _, ok := byPath[p.Path]; !ok {
 			byPath[p.Path] = p
 		}
@@ -827,7 +847,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if curKey == plan.urlKey {
 			continue
 		}
-		for _, p := range listAllUnscoped() {
+		unscoped, err := listAllUnscoped()
+		if err != nil {
+			return fmt.Errorf("list unscoped wiki pages for path migration: %w", err)
+		}
+		for _, p := range unscoped {
 			if NamespaceOf(p.Path) != curKey {
 				continue
 			}
@@ -937,7 +961,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 
 	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
 	//    重新扫描最新 path（2.7 可能迁移过 URL key），按 URL key 匹配 wanted。
-	for _, p := range listAllUnscoped() {
+	unscopedPages, err := listAllUnscoped()
+	if err != nil {
+		return fmt.Errorf("list unscoped wiki pages for deletion pass: %w", err)
+	}
+	for _, p := range unscopedPages {
 		if _, ok := wantedByPath[p.Path]; ok {
 			continue
 		}
@@ -998,7 +1026,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	for _, wp := range wanted {
 		repoNamespaces[wp.displayName] = struct{}{}
 	}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		return fmt.Errorf("list wiki namespaces for deletion pass: %w", err)
+	}
+	for _, ns := range namespaces {
 		if _, ok := repoNamespaces[ns.Name]; ok {
 			continue
 		}
@@ -1034,7 +1066,10 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 // the namespace root (0). Derived parent paths are always shorter, so a
 // successful reconciliation removes stale links and cannot create a cycle.
 func reconcileWikiPageParents() error {
-	pages := wikiPages.ListAll()
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		return err
+	}
 	byPath := make(map[string]*wikiPages.Entity, len(pages))
 	for _, page := range pages {
 		byPath[page.Path] = page
@@ -1068,10 +1103,11 @@ func parentIndexID(page *wikiPages.Entity, byPath map[string]*wikiPages.Entity) 
 }
 
 // listAllUnscoped 返回全部页面（含软删，供恢复检测）。
-func listAllUnscoped() []*wikiPages.Entity {
+// 查询失败必须上抛：删除 pass 依赖全量页面清单，吞错会漏删并谎报同步成功（issue #287）。
+func listAllUnscoped() ([]*wikiPages.Entity, error) {
 	var entities []*wikiPages.Entity
-	dbconnect.Connect().Table("wiki_pages").Unscoped().Find(&entities)
-	return entities
+	err := dbconnect.Connect().Table("wiki_pages").Unscoped().Find(&entities).Error
+	return entities, err
 }
 
 func sha256Hex(s string) string {

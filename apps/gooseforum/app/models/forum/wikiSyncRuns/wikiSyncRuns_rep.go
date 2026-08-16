@@ -36,8 +36,9 @@ func GetById(id uint64) (entity Entity) {
 }
 
 // Latest 返回最近一次同步运行（同步面板状态展示）。
-func Latest() (entity Entity) {
-	builder().Order(queryopt.Desc("id")).First(&entity)
+// 显式返回查询错误：状态面板必须区分 DB 故障与从未同步过（issue #287）。
+func Latest() (entity Entity, err error) {
+	err = builder().Order(queryopt.Desc("id")).First(&entity).Error
 	return
 }
 
@@ -54,8 +55,9 @@ func MarkAllRunningAbandoned(errMsg string) (int64, error) {
 }
 
 // ListRecent 返回最近 N 次同步运行（倒序）。
-func ListRecent(limit int) (entities []Entity) {
-	builder().Order(queryopt.Desc("id")).Limit(limit).Find(&entities)
+// 显式返回查询错误：状态面板/运行日志必须区分 DB 故障与空列表（issue #287）。
+func ListRecent(limit int) (entities []Entity, err error) {
+	err = builder().Order(queryopt.Desc("id")).Limit(limit).Find(&entities).Error
 	return
 }
 

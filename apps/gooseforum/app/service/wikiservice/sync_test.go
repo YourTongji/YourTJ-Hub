@@ -260,7 +260,10 @@ func TestSyncOnceReconcilesStaleRunningRuns(t *testing.T) {
 	if got.Status != wikiSyncRuns.StatusFailed {
 		t.Fatalf("stale run status = %d, want failed (reconciled)", got.Status)
 	}
-	latest := wikiSyncRuns.Latest()
+	latest, err := wikiSyncRuns.Latest()
+	if err != nil {
+		t.Fatalf("load latest run: %v", err)
+	}
 	if latest.Id == stale.Id || latest.Status != wikiSyncRuns.StatusSuccess {
 		t.Fatalf("latest run = id %d status %d, want new success run", latest.Id, latest.Status)
 	}
@@ -276,7 +279,10 @@ func TestBuildSyncStatusReconcilesStaleRunning(t *testing.T) {
 		t.Fatalf("create stale running run: %v", err)
 	}
 
-	status := BuildSyncStatus()
+	status, err := BuildSyncStatus()
+	if err != nil {
+		t.Fatalf("build sync status: %v", err)
+	}
 	if status.LastRun == nil || status.LastRun.Status != "failed" {
 		t.Fatalf("lastRun after status read = %+v, want failed", status.LastRun)
 	}
@@ -295,7 +301,10 @@ func TestBuildSyncStatusKeepsLiveRunningWhileLockHeld(t *testing.T) {
 	}
 	defer ReleaseSyncLock()
 
-	status := BuildSyncStatus()
+	status, err := BuildSyncStatus()
+	if err != nil {
+		t.Fatalf("build sync status: %v", err)
+	}
 	if status.LastRun == nil || status.LastRun.Status != "running" {
 		t.Fatalf("live run must stay running while lock held, got %+v", status.LastRun)
 	}
@@ -412,7 +421,10 @@ func TestApplyRepoToDBIdempotent(t *testing.T) {
 	if res.PagesAdded != 0 || res.PagesUpdated != 0 || res.PagesDeleted != 0 {
 		t.Fatalf("second sync added/updated/deleted=%d/%d/%d, want 0/0/0", res.PagesAdded, res.PagesUpdated, res.PagesDeleted)
 	}
-	pages := wikiPages.ListAll()
+	pages, err := wikiPages.ListAll()
+	if err != nil {
+		t.Fatalf("list pages after second sync: %v", err)
+	}
 	if len(pages) != 1 {
 		t.Fatalf("page count after second sync=%d, want 1", len(pages))
 	}
@@ -959,7 +971,11 @@ func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
 		t.Fatal("want error on slug conflict")
 	}
 	slugs := map[string]string{}
-	for _, ns := range wikiNamespaces.List() {
+	namespaces, err := wikiNamespaces.List()
+	if err != nil {
+		t.Fatalf("list namespaces: %v", err)
+	}
+	for _, ns := range namespaces {
 		slugs[ns.Name] = ns.SlugOrEmpty()
 	}
 	guideHas := slugs["guide"] == "guide"
