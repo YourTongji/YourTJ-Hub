@@ -3,6 +3,7 @@ package wikiservice
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -12,6 +13,104 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
+
+func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济指南/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 指南")
+	writeRepoFile(t, repo, "同济指南/other.md", "# 下一页")
+	writeRepoFile(t, repo, "同济指南/nested/start.md", `# 开始
+
+[下一页](../other.md?tab=2#section)
+![图片](../../assets/a%20b.png?raw=1#preview)
+[附件](../../assets/handout.pdf)
+[外部](https://example.com/guide)
+[根路径](/static/logo.svg)`)
+	writeRepoFile(t, repo, "assets/a b.png", "png")
+	writeRepoFile(t, repo, "assets/handout.pdf", "pdf")
+
+	if err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{}); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	page := wikiPages.GetByPath("guide/nested/start")
+	if page.Id == 0 {
+		t.Fatal("nested page missing after sync")
+	}
+	for _, want := range []string{
+		`href="/wiki/guide/other?tab=2#section"`,
+		`src="/wiki/_assets/assets/a%20b.png?raw=1#preview"`,
+		`href="/wiki/_assets/assets/handout.pdf"`,
+		`href="https://example.com/guide"`,
+		`href="/static/logo.svg"`,
+	} {
+		if !strings.Contains(page.RenderedHTML, want) {
+			t.Fatalf("rendered HTML missing %s: %s", want, page.RenderedHTML)
+		}
+	}
+}
+
+func TestApplyRepoToDBRejectsBrokenRelativeReferences(t *testing.T) {
+	cases := []struct {
+		name    string
+		content string
+		want    string
+	}{
+		{
+			name:    "escapes repository",
+			content: "# 开始\n\n![图片](../../outside.png)",
+			want:    "escapes repository root",
+		},
+		{
+			name:    "missing page",
+			content: "# 开始\n\n[下一页](missing.md)",
+			want:    `linked page "guide/missing.md" does not exist`,
+		},
+		{
+			name:    "missing asset",
+			content: "# 开始\n\n![图片](missing.png)",
+			want:    `asset "guide/missing.png": asset not found`,
+		},
+	}
+	for _, tc := range cases {
+		t.Run(tc.name, func(t *testing.T) {
+			setupWikiTestDB(t)
+			repo := t.TempDir()
+			writeRepoFile(t, repo, "guide/start.md", tc.content)
+
+			err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{})
+			if err == nil || !strings.Contains(err.Error(), "wiki source guide/start.md") || !strings.Contains(err.Error(), tc.want) {
+				t.Fatalf("sync error = %v, want actionable error containing %q", err, tc.want)
+			}
+		})
+	}
+}
+
+func TestApplyRepoToDBRefreshesRelativeLinksAfterSlugChange(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "指南/index.md", "---\nslug: guide\n---\n\n# 指南")
+	writeRepoFile(t, repo, "指南/start.md", "# 开始\n\n[下一页](../文档/other.md)")
+	writeRepoFile(t, repo, "文档/index.md", "---\nslug: docs\n---\n\n# 文档")
+	writeRepoFile(t, repo, "文档/other.md", "# 下一页")
+	cfg := GitConfig{CloneDir: repo}
+
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	start := wikiPages.GetByPath("guide/start")
+	if !strings.Contains(start.RenderedHTML, `href="/wiki/docs/other"`) {
+		t.Fatalf("first rendered link = %s, want /wiki/docs/other", start.RenderedHTML)
+	}
+
+	writeRepoFile(t, repo, "文档/index.md", "---\nslug: handbook\n---\n\n# 文档")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("sync after slug change: %v", err)
+	}
+	start = wikiPages.GetByPath("guide/start")
+	if !strings.Contains(start.RenderedHTML, `href="/wiki/handbook/other"`) {
+		t.Fatalf("refreshed rendered link = %s, want /wiki/handbook/other", start.RenderedHTML)
+	}
+}
 
 // writeRepoFile 在临时仓库目录下写一个 md 文件（自动建父目录）。
 func writeRepoFile(t *testing.T, root, rel string, content string) {

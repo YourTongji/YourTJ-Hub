@@ -2,6 +2,7 @@ package forum
 
 import (
 	"log/slog"
+	"net/http"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
@@ -60,6 +61,10 @@ func WikiDetail(c *gin.Context) {
 	}
 	path = strings.TrimPrefix(path, "/")
 	path = strings.TrimSuffix(path, "/")
+	if assetPath, ok := strings.CutPrefix(path, "_assets/"); ok {
+		wikiAsset(c, assetPath)
+		return
+	}
 	// D7 URL 语义（URL 用 slug）：path 首段 = URL key（slug，降级=显示名）。
 	// ResolvePageByURLPath 先直查 slug 路径，未命中时回退按显示名解析重建
 	// （兼容中文目录声明 slug 前的旧链接 / 直接访问中文显示名 URL）。
@@ -139,6 +144,26 @@ func WikiDetail(c *gin.Context) {
 	if shouldCountTopicView(&topic) {
 		topicviewservice.RecordView(topic.Id)
 	}
+}
+
+// wikiAsset serves a validated repository asset through the existing Wiki
+// catch-all route, which avoids introducing a conflicting Gin wildcard route.
+func wikiAsset(c *gin.Context, assetPath string) {
+	cfg := wikiservice.LoadGitConfig()
+	if !cfg.Enabled() {
+		renderNotFound(c)
+		return
+	}
+	file, info, err := wikiservice.OpenWikiAsset(cfg.CloneDir, assetPath)
+	if err != nil {
+		slog.Warn("wiki asset unavailable", "path", assetPath, "error", err)
+		renderNotFound(c)
+		return
+	}
+	defer file.Close()
+	c.Header("Cache-Control", "no-cache")
+	c.Header("X-Content-Type-Options", "nosniff")
+	http.ServeContent(c.Writer, c.Request, info.Name(), info.ModTime(), file)
 }
 
 func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {

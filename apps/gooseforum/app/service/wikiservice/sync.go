@@ -516,13 +516,14 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 // 可中文）；namespace = URL key（wiki_pages.namespace 列）；sourcePath = 仓库
 // 真实相对路径（GitHub 外链拼接用，与 URL 解耦）。
 type wantedPage struct {
-	path        string
-	sourcePath  string
-	namespace   string
-	displayName string
-	title       string
-	order       int
-	body        string
+	path         string
+	sourcePath   string
+	namespace    string
+	displayName  string
+	title        string
+	order        int
+	body         string
+	renderedHTML string
 }
 
 // nsSlugPlan slug 定稿结果（D7：URL 用 slug，显示名与 URL key 分离）。
@@ -689,6 +690,9 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			continue
 		}
 		dir := NamespaceOf(norm)
+		if dir == "_assets" {
+			return fmt.Errorf("wiki namespace %q is reserved for repository assets", dir)
+		}
 		urlKey := plans[dir].urlKey
 		title, order, _, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
@@ -702,6 +706,18 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
+	}
+	resolver := newWikiReferenceResolver(cfg.CloneDir, wanted)
+	for i := range wanted {
+		wp := &wanted[i]
+		if err := resolver.Validate(*wp); err != nil {
+			return err
+		}
+		rendered, err := resolver.Render(*wp)
+		if err != nil {
+			return err
+		}
+		wp.renderedHTML = rendered
 	}
 
 	// 2.7 既有页面 path 迁移：URL key 变化（slug 变更/首回填）时，把该命名空间
@@ -804,6 +820,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			existingPage.Title == wp.title &&
 			existingPage.SortOrder == wp.order &&
 			existingPage.SourcePath == wp.sourcePath &&
+			existingPage.RenderedHTML == wp.renderedHTML &&
 			!restored {
 			continue
 		}
@@ -933,7 +950,7 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 		}
 	}
 
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
+	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.Entity{
@@ -1004,7 +1021,7 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
 func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash string) error {
-	rendered := markdown2html.PostMarkdownToHTML(wp.body)
+	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
 	topic := topics.UnscopedGet(page.TopicId)
