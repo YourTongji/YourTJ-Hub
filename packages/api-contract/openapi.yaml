@@ -13,7 +13,10 @@ info:
     changes, OAuth bindings), notification reads and read-marking, direct chat
     (send/messages/mark-read), admin topic/post moderation, Admin-gated operations
     (Agent account management, operation audit log paging, traffic overview),
-    and the Agent (bot persona) public API.
+    admin user management (user list/edit, user badge grants, role options),
+    admin role management (permission options, role list/save/delete), admin
+    category and moderator management (category CRUD, global and per-category
+    moderators), and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -241,6 +244,40 @@ paths:
     $ref: ./paths/admin-operations.yaml#/adminOptRecordPage
   /api/admin/traffic-overview:
     $ref: ./paths/admin-operations.yaml#/adminTrafficOverview
+  /api/admin/user-list:
+    $ref: ./paths/admin-users.yaml#/adminUserList
+  /api/admin/user-edit:
+    $ref: ./paths/admin-users.yaml#/adminEditUser
+  /api/admin/user-badge-options:
+    $ref: ./paths/admin-users.yaml#/adminUserBadgeOptions
+  /api/admin/save-user-badges:
+    $ref: ./paths/admin-users.yaml#/adminSaveUserBadges
+  /api/admin/get-all-role-item:
+    $ref: ./paths/admin-users.yaml#/adminGetAllRoleItem
+  /api/admin/get-permission-list:
+    $ref: ./paths/admin-roles.yaml#/adminGetPermissionList
+  /api/admin/role-list:
+    $ref: ./paths/admin-roles.yaml#/adminRoleList
+  /api/admin/role-save:
+    $ref: ./paths/admin-roles.yaml#/adminRoleSave
+  /api/admin/role-delete:
+    $ref: ./paths/admin-roles.yaml#/adminRoleDelete
+  /api/admin/category-list:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryList
+  /api/admin/category-save:
+    $ref: ./paths/admin-categories.yaml#/adminCategorySave
+  /api/admin/category-delete:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryDelete
+  /api/admin/global-moderator-list:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorList
+  /api/admin/global-moderator-add:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorAdd
+  /api/admin/global-moderator-delete:
+    $ref: ./paths/admin-categories.yaml#/adminGlobalModeratorDelete
+  /api/admin/category-moderator-add:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorAdd
+  /api/admin/category-moderator-delete:
+    $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorDelete
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -801,6 +838,84 @@ components:
       $ref: ./components/schemas.yaml#/AdminOperationSuccess
     AdminOperationResponse:
       $ref: ./components/schemas.yaml#/AdminOperationResponse
+    AdminUserListRequest:
+      $ref: ./components/schemas.yaml#/AdminUserListRequest
+    AdminUserRoleOption:
+      $ref: ./components/schemas.yaml#/AdminUserRoleOption
+    AdminBadge:
+      $ref: ./components/schemas.yaml#/AdminBadge
+    AdminUserBadge:
+      $ref: ./components/schemas.yaml#/AdminUserBadge
+    AdminUserItem:
+      $ref: ./components/schemas.yaml#/AdminUserItem
+    AdminUserListResult:
+      $ref: ./components/schemas.yaml#/AdminUserListResult
+    AdminUserListSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserListSuccess
+    AdminUserListResponse:
+      $ref: ./components/schemas.yaml#/AdminUserListResponse
+    AdminEditUserRequest:
+      $ref: ./components/schemas.yaml#/AdminEditUserRequest
+    AdminUserActionSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserActionSuccess
+    AdminUserActionResponse:
+      $ref: ./components/schemas.yaml#/AdminUserActionResponse
+    AdminUserBadgeOptionsRequest:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsRequest
+    AdminUserBadgeOptionsResult:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsResult
+    AdminUserBadgeOptionsSuccess:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsSuccess
+    AdminUserBadgeOptionsResponse:
+      $ref: ./components/schemas.yaml#/AdminUserBadgeOptionsResponse
+    AdminSaveUserBadgesRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveUserBadgesRequest
+    AdminRoleOption:
+      $ref: ./components/schemas.yaml#/AdminRoleOption
+    AdminRoleOptionsResponse:
+      $ref: ./components/schemas.yaml#/AdminRoleOptionsResponse
+    AdminPermissionOption:
+      $ref: ./components/schemas.yaml#/AdminPermissionOption
+    AdminPermissionListResponse:
+      $ref: ./components/schemas.yaml#/AdminPermissionListResponse
+    AdminRolePermissionItem:
+      $ref: ./components/schemas.yaml#/AdminRolePermissionItem
+    AdminRoleItem:
+      $ref: ./components/schemas.yaml#/AdminRoleItem
+    AdminRoleListResult:
+      $ref: ./components/schemas.yaml#/AdminRoleListResult
+    AdminRoleListSuccess:
+      $ref: ./components/schemas.yaml#/AdminRoleListSuccess
+    AdminRoleListResponse:
+      $ref: ./components/schemas.yaml#/AdminRoleListResponse
+    AdminRoleSaveRequest:
+      $ref: ./components/schemas.yaml#/AdminRoleSaveRequest
+    AdminRoleDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminRoleDeleteRequest
+    AdminBoolSuccess:
+      $ref: ./components/schemas.yaml#/AdminBoolSuccess
+    AdminBoolResponse:
+      $ref: ./components/schemas.yaml#/AdminBoolResponse
+    AdminCategoryListRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryListRequest
+    AdminCategoryModeratorItem:
+      $ref: ./components/schemas.yaml#/AdminCategoryModeratorItem
+    AdminCategoryItem:
+      $ref: ./components/schemas.yaml#/AdminCategoryItem
+    AdminCategoryListResponse:
+      $ref: ./components/schemas.yaml#/AdminCategoryListResponse
+    AdminCategorySaveRequest:
+      $ref: ./components/schemas.yaml#/AdminCategorySaveRequest
+    AdminCategoryDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryDeleteRequest
+    AdminModeratorUserRequest:
+      $ref: ./components/schemas.yaml#/AdminModeratorUserRequest
+    AdminModeratorDeleteRequest:
+      $ref: ./components/schemas.yaml#/AdminModeratorDeleteRequest
+    AdminCategoryModeratorAddRequest:
+      $ref: ./components/schemas.yaml#/AdminCategoryModeratorAddRequest
+    AdminModeratorListResponse:
+      $ref: ./components/schemas.yaml#/AdminModeratorListResponse
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     PostPayload:

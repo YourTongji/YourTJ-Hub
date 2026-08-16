@@ -5,16 +5,17 @@
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
 - 快照路由总数：260
-- /api JSON 路由：204，已入契约：124（61%），已知未覆盖：80
+- /api JSON 路由：204，已入契约：141（69%），已知未覆盖：63
 - 非 API 排除路由：56
 
-## 已覆盖（124）
+## 已覆盖（141）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/admin/wiki/namespaces/:name` | `deleteWikiNamespace` |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
 | GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
 | GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
@@ -51,8 +52,21 @@
 | POST | `/api/admin/agent-list` | `adminAgentList` |
 | POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
 | POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/category-delete` | `adminCategoryDelete` |
+| POST | `/api/admin/category-list` | `adminCategoryList` |
+| POST | `/api/admin/category-moderator-add` | `adminCategoryModeratorAdd` |
+| POST | `/api/admin/category-moderator-delete` | `adminCategoryModeratorDelete` |
+| POST | `/api/admin/category-save` | `adminCategorySave` |
+| POST | `/api/admin/get-permission-list` | `adminGetPermissionList` |
+| POST | `/api/admin/global-moderator-add` | `adminGlobalModeratorAdd` |
+| POST | `/api/admin/global-moderator-delete` | `adminGlobalModeratorDelete` |
+| POST | `/api/admin/global-moderator-list` | `adminGlobalModeratorList` |
 | POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
+| POST | `/api/admin/role-delete` | `adminRoleDelete` |
+| POST | `/api/admin/role-list` | `adminRoleList` |
+| POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
 | POST | `/api/admin/topics/delete` | `adminDeleteTopic` |
 | POST | `/api/admin/topics/edit` | `adminEditTopic` |
@@ -61,6 +75,9 @@
 | POST | `/api/admin/topics/restore` | `adminRestoreTopic` |
 | POST | `/api/admin/topics/source` | `adminGetTopicSource` |
 | POST | `/api/admin/traffic-overview` | `adminTrafficOverview` |
+| POST | `/api/admin/user-badge-options` | `adminUserBadgeOptions` |
+| POST | `/api/admin/user-edit` | `adminEditUser` |
+| POST | `/api/admin/user-list` | `adminUserList` |
 | POST | `/api/admin/wiki/namespaces` | `createWikiNamespace` |
 | POST | `/api/admin/wiki/sync` | `runWikiSync` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
@@ -137,7 +154,7 @@
 | PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
-## 已知未覆盖（80）
+## 已知未覆盖（63）
 
 | Method | Path | 归属切片 |
 | --- | --- | --- |
@@ -147,7 +164,6 @@
 | GET | `/api/admin/data/export/download/:taskId` | pending #277 后续切片：data-portability（数据导入导出） |
 | GET | `/api/admin/data/export/tasks` | pending #277 后续切片：data-portability（数据导入导出） |
 | GET | `/api/admin/friend-links` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
-| GET | `/api/admin/get-all-role-item` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | GET | `/api/admin/http-notify-settings` | pending #277 后续切片：site-settings（站点配置族） |
 | GET | `/api/admin/mail-settings` | pending #277 后续切片：mail（邮件配置） |
 | GET | `/api/admin/mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
@@ -172,25 +188,13 @@
 | GET | `/api/forum/user/my-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | POST | `/api/admin/badge-delete` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/badge-save` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| POST | `/api/admin/category-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/category-list` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/category-moderator-add` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/category-moderator-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/category-save` | pending #277 后续切片：category/moderator（版块与版主管理） |
 | POST | `/api/admin/data/export` | pending #277 后续切片：data-portability（数据导入导出） |
 | POST | `/api/admin/data/import` | pending #277 后续切片：data-portability（数据导入导出） |
 | POST | `/api/admin/file-resources` | pending #277 后续切片：admin-media（后台文件资源） |
-| POST | `/api/admin/get-permission-list` | pending #277 后续切片：role（角色与权限管理） |
-| POST | `/api/admin/global-moderator-add` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/global-moderator-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
-| POST | `/api/admin/global-moderator-list` | pending #277 后续切片：category/moderator（版块与版主管理） |
 | POST | `/api/admin/img-upload` | pending #277 后续切片：admin-media（后台文件资源） |
 | POST | `/api/admin/publish-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/review-action` | pending #277 后续切片：review-queue（审核队列） |
 | POST | `/api/admin/review-queue` | pending #277 后续切片：review-queue（审核队列） |
-| POST | `/api/admin/role-delete` | pending #277 后续切片：role（角色与权限管理） |
-| POST | `/api/admin/role-list` | pending #277 后续切片：role（角色与权限管理） |
-| POST | `/api/admin/role-save` | pending #277 后续切片：role（角色与权限管理） |
 | POST | `/api/admin/save-ai-summary-settings` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/save-announcement` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
 | POST | `/api/admin/save-friend-links` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
@@ -208,13 +212,9 @@
 | POST | `/api/admin/save-sponsors` | pending #277 后续切片：page-settings（友情链接/赞助/公告） |
 | POST | `/api/admin/save-storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
 | POST | `/api/admin/save-terms-of-service` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-user-badges` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/storage-migrate-task` | pending #277 后续切片：storage（存储配置与迁移） |
 | POST | `/api/admin/test-mail-connection` | pending #277 后续切片：mail（邮件配置） |
 | POST | `/api/admin/test-storage-connection` | pending #277 后续切片：storage（存储配置与迁移） |
-| POST | `/api/admin/user-badge-options` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| POST | `/api/admin/user-edit` | pending #277 后续切片：user-manager（用户/徽章管理） |
-| POST | `/api/admin/user-list` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/forum/user/account-close` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | POST | `/api/forum/user/content-batch-delete` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | POST | `/api/forum/user/content-event` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |

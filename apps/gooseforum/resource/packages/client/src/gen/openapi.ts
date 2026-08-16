@@ -2298,6 +2298,484 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/user-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through users for the admin console
+         * @description Admin console operation gated by the `UserManager` role permission (Admin
+         *     role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Results sort by user id descending and support exact user-id plus
+         *     substring username/email filters. The response includes the account email
+         *     (PII — admin-only surface). The request page is 1-based but the echoed
+         *     `page` is 0-based (requested page minus one, floored at 0); pageSize is
+         *     bounded into 10-30. `roleList` is null when the user holds no role, and
+         *     `roleId` is omitted from the wire payload when 0. JSON binding is
+         *     lenient: a malformed body binds to zero values and returns the first
+         *     unfiltered page.
+         */
+        post: operations["adminUserList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Edit a user's frozen/activation state and role
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Editable
+         *     fields are exactly `status` (frozen flag), `validate` (activation flag),
+         *     and `roleId`; email and other profile fields are not editable here. The
+         *     request has no field-level validation tags, so omitted fields bind to
+         *     zero values and **overwrite** the stored state (0 unfrozen / 0 pending
+         *     activation / 0 no role) — callers must always send the full triple.
+         *     Unknown users fail with `admin.user.targetFetchFailed` (HTTP 200);
+         *     granting any role (`roleId` != 0) to a bot (Agent) account fails with
+         *     `admin.agent.roleNotAllowed` (HTTP 200); persistence failures surface as
+         *     `user.updateFailed` (HTTP 200). Every changed field is written to the
+         *     operation audit log. JSON binding is lenient: a malformed body binds to
+         *     zero values and fails as `admin.user.targetFetchFailed` (HTTP 200)
+         *     because userId 0 resolves to no user.
+         */
+        post: operations["adminEditUser"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/user-badge-options": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List grantable badges and a user's active badges
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `options`
+         *     lists every enabled manual-grant badge (built-in system definitions plus
+         *     enabled custom overrides); `active` lists the target user's currently
+         *     active badges (empty array when none, also for userId 0 or unknown
+         *     users). JSON binding is lenient: a malformed body binds to zero values.
+         */
+        post: operations["adminUserBadgeOptions"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-user-badges": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a user's manually-granted badge set
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Grants
+         *     every submitted code that resolves to an enabled manual-grant badge
+         *     (codes outside that set are silently ignored, duplicates are
+         *     deduplicated) and revokes the user's previously manually-granted badges
+         *     missing from the submission; auto-granted badges are never touched. The
+         *     target user's existence is not verified beyond a zero id: `userId` 0
+         *     fails with `user.notFound` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails as `user.notFound`.
+         */
+        post: operations["adminSaveUserBadges"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/get-all-role-item": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * List all roles as label/value options
+         * @description Admin console operation gated by the `UserManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Returns
+         *     every non-deleted role as a name/label/value option (name and label are
+         *     both the role name), unlike adminRoleList which pages roles with their
+         *     localized permission sets. Binding is lenient: query parameters bind to
+         *     an empty request struct and are ignored.
+         */
+        get: operations["adminGetAllRoleItem"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/get-permission-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all assignable permissions as options
+         * @description Admin console operation gated by the `RoleManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every permission enum (ids 0-6) as name/label/value options with
+         *     names localized to the request locale. JSON binding is lenient: the
+         *     request body is ignored.
+         */
+        post: operations["adminGetPermissionList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through roles with their permissions
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Results
+         *     sort by role id descending; each role carries its permission ids with
+         *     request-locale localized names. The request body binds to an empty
+         *     struct (no filters): the echoed `page` is always 0 and `size` defaults
+         *     to 10. JSON binding is lenient: the request body is ignored.
+         */
+        post: operations["adminRoleList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create a role or replace a role's name and permission set
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+         *     creates a new role (effective=1); a positive `id` renames the role and
+         *     replaces its permission set with exactly the submitted ids — permissions
+         *     missing from the submission are marked ineffective, unknown permission
+         *     ids are stored as-is. A positive `id` matching no role silently creates
+         *     a new role instead of failing. A blank `roleName` or a permission list
+         *     that is empty or longer than 100 fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface
+         *     as `common.operation.failed` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because roleName is required.
+         */
+        post: operations["adminRoleSave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/role-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a role and its permission grants
+         * @description Admin console operation gated by the `RoleManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Deletes
+         *     the role's permission-grant rows and then the role itself (both
+         *     soft-deleted). There is no built-in-role or in-use protection: a role
+         *     still assigned to users can be deleted, leaving those users with a
+         *     dangling roleId. Unknown ids (including a missing/zero id) fail with
+         *     `admin.role.notFound` (HTTP 200). JSON binding is lenient: a malformed
+         *     body binds to zero values and fails as `admin.role.notFound`.
+         */
+        post: operations["adminRoleDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all categories with their moderators
+         * @description Admin console operation gated by the `TopicsManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every category ordered by sort ascending then id ascending, each
+         *     with its enabled moderators (moderator row id ascending). Despite the
+         *     request struct carrying page/pageSize fields, the result is **not**
+         *     paged — both fields are ignored. JSON binding is lenient: a malformed
+         *     body binds to zero values and is ignored.
+         */
+        post: operations["adminCategoryList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-save": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create or update a category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+         *     creates a new category; a positive `id` overwrites every field of the
+         *     existing category with the submitted values (omitted optional fields
+         *     bind to zero values and clear the stored ones). A positive `id`
+         *     matching no category fails with `admin.category.dataNotFound`
+         *     (HTTP 200). A missing/empty `category` fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); a whitespace-only `category`
+         *     passes validation but fails the handler's trim check with
+         *     `admin.category.nameRequired` (HTTP 200). Saving clears the category
+         *     cache and schedules a search-index refresh. JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because category is required.
+         */
+        post: operations["adminCategorySave"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Delete a category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     category row is hard-deleted. Unknown ids (including a missing/zero id)
+         *     fail with `admin.category.notFound` (HTTP 200); deleting the last
+         *     remaining category fails with `admin.category.keepOne` (HTTP 200); a
+         *     category that still has effective topic bindings fails with
+         *     `admin.category.hasTopics` (HTTP 200). Deletion clears the category
+         *     cache and schedules a search-index cleanup. JSON binding is lenient: a
+         *     malformed body binds to zero values and fails as
+         *     `admin.category.notFound`.
+         */
+        post: operations["adminCategoryDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all global moderators
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Returns
+         *     every enabled global-scope moderator (moderator row id ascending) with
+         *     the user's username and avatar; both are empty strings when the user
+         *     account is gone. JSON binding is lenient: the request body is ignored.
+         */
+        post: operations["adminGlobalModeratorList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a user the global moderator scope
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Resolves
+         *     the target by `userId` first, falling back to an exact `username` match;
+         *     granting is idempotent and re-enables an existing disabled moderator
+         *     row. A missing/blank user reference fails with
+         *     `admin.moderator.userRequired` (HTTP 200); an unresolvable one fails
+         *     with `admin.moderator.userNotFound` (HTTP 200); bot (Agent) accounts
+         *     fail with `admin.agent.roleNotAllowed` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails as
+         *     `admin.moderator.userRequired`.
+         */
+        post: operations["adminGlobalModeratorAdd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/global-moderator-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a global moderator
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     moderator row is hard-deleted. Unknown ids, and ids of category-scope
+         *     moderator rows, fail with `admin.moderator.notFound` (HTTP 200); a
+         *     missing/zero id fails request validation with
+         *     `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because id is required.
+         */
+        post: operations["adminGlobalModeratorDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-moderator-add": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Grant a user the moderator scope of one category
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Resolves
+         *     the target user by `userId` first, falling back to an exact `username`
+         *     match; granting is idempotent and re-enables an existing disabled
+         *     moderator row. A missing/zero `categoryId` fails request validation with
+         *     `common.request.invalidParams` (HTTP 200); an unknown category fails
+         *     with `admin.category.notFound` (HTTP 200); a missing/blank user
+         *     reference fails with `admin.moderator.userRequired` (HTTP 200); an
+         *     unresolvable one fails with `admin.moderator.userNotFound` (HTTP 200);
+         *     bot (Agent) accounts fail with `admin.agent.roleNotAllowed` (HTTP 200).
+         *     The grant is written to the operation audit log. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because categoryId is
+         *     required.
+         */
+        post: operations["adminCategoryModeratorAdd"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/category-moderator-delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Revoke a category moderator
+         * @description Admin console operation gated by the `TopicsManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     moderator row is hard-deleted and the revocation is written to the
+         *     operation audit log. Unknown ids, and ids of global-scope moderator
+         *     rows, fail with `admin.moderator.notFound` (HTTP 200); a missing/zero id
+         *     fails request validation with `common.request.invalidParams` (HTTP 200).
+         *     JSON binding is lenient: a malformed body binds to zero values and fails
+         *     validation as `common.request.invalidParams` (HTTP 200) because id is
+         *     required.
+         */
+        post: operations["adminCategoryModeratorDelete"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -4632,6 +5110,335 @@ export interface components {
             messageCode: "common.operation.success" | "content.restore.success";
         };
         AdminOperationResponse: components["schemas"]["AdminOperationSuccess"] | components["schemas"]["ApiFailure"];
+        AdminUserListRequest: {
+            /** @description Substring filter on the username. */
+            username?: string;
+            /**
+             * Format: uint64
+             * @description Exact user-id filter; 0 or omitted lists all users.
+             */
+            userId?: number;
+            /** @description Substring filter on the account email. */
+            email?: string;
+            /** @description 1-based page; values below 1 are treated as page 1. The echoed `page` in the response is 0-based. */
+            page?: number;
+            /** @description Bounded server-side into 10-30. */
+            pageSize?: number;
+        };
+        /** @description The wire object may also carry a `label` string mirroring `name`; adminUserList never emits it. */
+        AdminUserRoleOption: {
+            /** @description Role name. */
+            name: string;
+            /**
+             * Format: uint64
+             * @description Role id.
+             */
+            value: number;
+        };
+        AdminBadge: {
+            /** @description Stable badge code (system codes like `early_member`, custom codes carry a `custom_` prefix). */
+            code: string;
+            /** @enum {string} */
+            type: "system" | "custom";
+            /**
+             * @description Only `manual` badges appear in adminUserBadgeOptions options and are grantable via adminSaveUserBadges.
+             * @enum {string}
+             */
+            grantMode: "auto" | "manual";
+            name: string;
+            description: string;
+            /** @enum {string} */
+            iconType: "asset" | "key";
+            /** @description Icon key when iconType is `key`; empty otherwise. */
+            iconKey: string;
+            /** @description Icon asset path when iconType is `asset`; empty otherwise. */
+            iconUrl: string;
+            color: string;
+            /** @enum {string} */
+            level: "bronze" | "silver" | "gold" | "special";
+            isEnabled: boolean;
+            isWearable: boolean;
+            sortOrder: number;
+        };
+        AdminUserBadge: components["schemas"]["AdminBadge"] & {
+            /** @description Grant source (`manual`, `auto`, `migration`). */
+            source: string;
+            /** @description Grant reason recorded at grant time. */
+            reason: string;
+            /** @description RFC 3339 timestamp of the (re)grant. */
+            grantedAt: string;
+        };
+        AdminUserItem: {
+            /** Format: uint64 */
+            userId: number;
+            username: string;
+            /** @description Web avatar URL; the banned avatar when the account is frozen, the default avatar when none is set. */
+            avatarUrl: string;
+            /** @description Account email (PII — admin-only surface). */
+            email: string;
+            /** @description Frozen flag (0 normal, 1 frozen). */
+            status: number;
+            /** @description 0 human, 1 bot (Agent). */
+            actorType: number;
+            /** @description Activation flag (0 pending, 1 activated). */
+            validate: number;
+            /** Format: int64 */
+            prestige: number;
+            /** @description Single-entry array with the user's role; null when the user holds no role. */
+            roleList: components["schemas"]["AdminUserRoleOption"][] | null;
+            /**
+             * Format: uint64
+             * @description The user's role id; omitted from the wire payload when 0.
+             */
+            roleId?: number;
+            /** @description RFC 3339 timestamp. */
+            createTime: string;
+            /** @description RFC 3339 timestamp; falls back to the account creation time when no statistics row exists. */
+            lastActiveTime: string;
+            /** @description The user's active badges (empty array when none). */
+            badges: components["schemas"]["AdminUserBadge"][];
+        };
+        AdminUserListResult: {
+            list: components["schemas"]["AdminUserItem"][];
+            /** @description 0-based echo of the requested 1-based page (requested page minus one, floored at 0). */
+            page: number;
+            /** @description Effective page size after server-side bounding. */
+            size: number;
+            /**
+             * Format: int64
+             * @description Total number of users matching the filters.
+             */
+            total: number;
+        };
+        AdminUserListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminUserListResult"];
+        };
+        AdminUserListResponse: components["schemas"]["AdminUserListSuccess"] | components["schemas"]["ApiFailure"];
+        /** @description No field is required and no field-level validation runs — omitted fields bind to zero values and overwrite the stored state. */
+        AdminEditUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user; 0 or unknown ids fail with `admin.user.targetFetchFailed` (HTTP 200).
+             */
+            userId?: number;
+            /** @description Frozen flag to apply (0 normal, 1 frozen). Omitted binds to 0 and unfreezes. */
+            status?: number;
+            /** @description Activation flag to apply (0 pending, 1 activated). Omitted binds to 0 and deactivates. */
+            validate?: number;
+            /**
+             * Format: uint64
+             * @description Role to assign; 0 clears the role. Non-zero on a bot (Agent) account fails with `admin.agent.roleNotAllowed` (HTTP 200).
+             */
+            roleId?: number;
+        };
+        AdminUserActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminUserActionResponse: components["schemas"]["AdminUserActionSuccess"] | components["schemas"]["ApiFailure"];
+        AdminUserBadgeOptionsRequest: {
+            /**
+             * Format: uint64
+             * @description Target user whose active badges are listed; 0 or unknown ids yield an empty `active` array.
+             */
+            userId?: number;
+        };
+        AdminUserBadgeOptionsResult: {
+            /** @description Every enabled manual-grant badge (built-in system definitions plus enabled custom overrides). */
+            options: components["schemas"]["AdminBadge"][];
+            /** @description The target user's currently active badges. */
+            active: components["schemas"]["AdminUserBadge"][];
+        };
+        AdminUserBadgeOptionsSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminUserBadgeOptionsResult"];
+        };
+        AdminUserBadgeOptionsResponse: components["schemas"]["AdminUserBadgeOptionsSuccess"] | components["schemas"]["ApiFailure"];
+        AdminSaveUserBadgesRequest: {
+            /**
+             * Format: uint64
+             * @description Target user; 0 fails with `user.notFound` (HTTP 200). No further existence check runs.
+             */
+            userId?: number;
+            /** @description Replacement set of manually-granted badge codes (deduplicated server-side); codes that do not resolve to an enabled manual-grant badge are silently ignored. */
+            badgeCodes?: string[];
+        };
+        AdminRoleOption: {
+            /** @description Role name. */
+            name: string;
+            /** @description Same as name. */
+            label: string;
+            /**
+             * Format: uint64
+             * @description Role id.
+             */
+            value: number;
+        };
+        AdminRoleOptionsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All non-deleted roles as options (empty array when none exist). */
+            result: components["schemas"]["AdminRoleOption"][];
+        };
+        AdminPermissionOption: {
+            /** @description Permission name localized to the request locale. */
+            name: string;
+            /** @description Same as name. */
+            label: string;
+            /** @description Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager). */
+            value: number;
+        };
+        AdminPermissionListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All 7 assignable permissions, enum id ascending. */
+            result: components["schemas"]["AdminPermissionOption"][];
+        };
+        AdminRolePermissionItem: {
+            /** @description Permission enum id. */
+            id: number;
+            /** @description Permission name localized to the request locale; empty for unknown permission ids. */
+            name: string;
+        };
+        AdminRoleItem: {
+            /** Format: uint64 */
+            roleId: number;
+            roleName: string;
+            /** @description 1 effective, 0 disabled. */
+            effective: number;
+            /** @description Every stored permission grant of the role (including ineffective ones). */
+            permissions: components["schemas"]["AdminRolePermissionItem"][];
+            /** @description RFC 3339 timestamp. */
+            createTime: string;
+        };
+        AdminRoleListResult: {
+            list: components["schemas"]["AdminRoleItem"][];
+            /** @description Always 0 — the request binds no page field. */
+            page: number;
+            /** @description Always 10 — the request binds no pageSize field and the server default applies. */
+            size: number;
+            /** Format: int64 */
+            total: number;
+        };
+        AdminRoleListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminRoleListResult"];
+        };
+        AdminRoleListResponse: components["schemas"]["AdminRoleListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminRoleSaveRequest: {
+            /**
+             * Format: uint64
+             * @description 0 creates a new role; a positive id updates that role (an unknown positive id silently creates a new role).
+             */
+            id?: number;
+            /** @description Blank fails request validation with `common.request.invalidParams` (HTTP 200). */
+            roleName: string;
+            /** @description Replacement permission-id set. Empty or over-long lists fail request validation with `common.request.invalidParams` (HTTP 200); unknown ids are stored as-is. */
+            permissions: number[];
+        };
+        AdminRoleDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Role to delete; 0 or unknown ids fail with `admin.role.notFound` (HTTP 200).
+             */
+            id?: number;
+        };
+        AdminBoolSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: true;
+        };
+        AdminBoolResponse: components["schemas"]["AdminBoolSuccess"] | components["schemas"]["ApiFailure"];
+        AdminCategoryListRequest: {
+            /** @description Accepted but ignored — the category list is never paged. */
+            page?: number;
+            /** @description Accepted but ignored — the category list is never paged. */
+            pageSize?: number;
+        };
+        AdminCategoryModeratorItem: {
+            /**
+             * Format: uint64
+             * @description Moderator row id (the handle used by the delete operations).
+             */
+            id: number;
+            /** Format: uint64 */
+            userId: number;
+            /** @description Empty when the user account is gone. */
+            username: string;
+            /** @description Empty when the user account is gone. */
+            avatarUrl: string;
+            /** @description 1 enabled, 0 disabled. */
+            status: number;
+        };
+        AdminCategoryItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Category display name. */
+            category: string;
+            desc: string;
+            icon: string;
+            /** @description Hex color; a default is filled in when stored empty. */
+            color: string;
+            slug: string;
+            /** @description Ascending sort weight (ties break by id ascending). */
+            sort: number;
+            /** @description Enabled category-scope moderators, moderator row id ascending (empty array when none). */
+            moderators: components["schemas"]["AdminCategoryModeratorItem"][];
+        };
+        AdminCategoryListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All categories (empty array when none exist). */
+            result: components["schemas"]["AdminCategoryItem"][];
+        };
+        AdminCategorySaveRequest: {
+            /**
+             * Format: uint64
+             * @description 0 creates a new category; a positive id overwrites that category (unknown positive ids fail with `admin.category.dataNotFound`, HTTP 200).
+             */
+            id?: number;
+            /** @description Display name. Missing/empty fails validation with `common.request.invalidParams`; whitespace-only fails the handler trim check with `admin.category.nameRequired` (both HTTP 200). */
+            category: string;
+            desc?: string;
+            icon?: string;
+            color?: string;
+            slug?: string;
+            sort?: number;
+        };
+        AdminCategoryDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Category to delete; 0 or unknown ids fail with `admin.category.notFound` (HTTP 200).
+             */
+            id?: number;
+        };
+        AdminModeratorUserRequest: {
+            /**
+             * Format: uint64
+             * @description Target user id; takes precedence over username. 0 falls back to the username lookup.
+             */
+            userId?: number;
+            /** @description Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound` (both HTTP 200). */
+            username?: string;
+        };
+        AdminModeratorDeleteRequest: {
+            /**
+             * Format: uint64
+             * @description Moderator row id (from adminCategoryList / adminGlobalModeratorList). Missing/zero fails validation with `common.request.invalidParams`; unknown ids or rows of the other scope fail with `admin.moderator.notFound` (both HTTP 200).
+             */
+            id: number;
+        };
+        AdminCategoryModeratorAddRequest: {
+            /**
+             * Format: uint64
+             * @description Missing/zero fails validation with `common.request.invalidParams`; unknown ids fail with `admin.category.notFound` (both HTTP 200).
+             */
+            categoryId: number;
+            /**
+             * Format: uint64
+             * @description Target user id; takes precedence over username. 0 falls back to the username lookup.
+             */
+            userId?: number;
+            /** @description Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound`; bot accounts fail with `admin.agent.roleNotAllowed` (all HTTP 200). */
+            username?: string;
+        };
+        AdminModeratorListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All enabled global moderators, moderator row id ascending (empty array when none exist). */
+            result: components["schemas"]["AdminCategoryModeratorItem"][];
+        };
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -9503,6 +10310,704 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUserList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserListRequest"];
+            };
+        };
+        responses: {
+            /** @description User page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditUser: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditUserRequest"];
+            };
+        };
+        responses: {
+            /** @description User updated, or a legacy business failure envelope (`admin.user.targetFetchFailed` / `admin.agent.roleNotAllowed` / `user.updateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminUserBadgeOptions: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminUserBadgeOptionsRequest"];
+            };
+        };
+        responses: {
+            /** @description Grantable badge options and the user's active badges. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserBadgeOptionsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveUserBadges: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveUserBadgesRequest"];
+            };
+        };
+        responses: {
+            /** @description Badges saved, or a legacy business failure envelope (`user.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminUserActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAllRoleItem: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All roles as options (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleOptionsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the UserManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPermissionList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All permissions as localized options. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPermissionListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Role page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRoleListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleSave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleSaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Role saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `common.operation.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRoleDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRoleDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Role deleted (result true), or a legacy business failure envelope (`admin.role.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the RoleManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryListRequest"];
+            };
+        };
+        responses: {
+            /** @description All categories with moderators. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminCategoryListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategorySave: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategorySaveRequest"];
+            };
+        };
+        responses: {
+            /** @description Category saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.nameRequired` / `admin.category.dataNotFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Category deleted (result true), or a legacy business failure envelope (`admin.category.notFound` / `admin.category.keepOne` / `admin.category.hasTopics`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All global moderators (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminModeratorListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorAdd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorUserRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator granted (result true), or a legacy business failure envelope (`admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGlobalModeratorDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryModeratorAdd: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminCategoryModeratorAddRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator granted (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.notFound` / `admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminCategoryModeratorDelete: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminModeratorDeleteRequest"];
+            };
+        };
+        responses: {
+            /** @description Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminBoolResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
             403: {
                 headers: {
                     [name: string]: unknown;

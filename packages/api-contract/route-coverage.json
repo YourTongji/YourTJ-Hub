@@ -265,11 +265,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/get-all-role-item",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/http-notify-settings",
       "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
@@ -390,31 +385,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/category-delete",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/category-list",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/category-moderator-add",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/category-moderator-delete",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/category-save",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/data/export",
       "reason": "pending #277 后续切片：data-portability（数据导入导出）"
     },
@@ -427,26 +397,6 @@
       "method": "POST",
       "path": "/api/admin/file-resources",
       "reason": "pending #277 后续切片：admin-media（后台文件资源）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/get-permission-list",
-      "reason": "pending #277 后续切片：role（角色与权限管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/global-moderator-add",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/global-moderator-delete",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/global-moderator-list",
-      "reason": "pending #277 后续切片：category/moderator（版块与版主管理）"
     },
     {
       "method": "POST",
@@ -467,21 +417,6 @@
       "method": "POST",
       "path": "/api/admin/review-queue",
       "reason": "pending #277 后续切片：review-queue（审核队列）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/role-delete",
-      "reason": "pending #277 后续切片：role（角色与权限管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/role-list",
-      "reason": "pending #277 后续切片：role（角色与权限管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/role-save",
-      "reason": "pending #277 后续切片：role（角色与权限管理）"
     },
     {
       "method": "POST",
@@ -570,11 +505,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/save-user-badges",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/storage-migrate-task",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
     },
@@ -587,21 +517,6 @@
       "method": "POST",
       "path": "/api/admin/test-storage-connection",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/user-badge-options",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/user-edit",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/user-list",
-      "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
     },
     {
       "method": "POST",

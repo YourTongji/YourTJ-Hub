@@ -1,0 +1,468 @@
+adminCategoryList:
+  post:
+    tags: [Admin]
+    summary: List all categories with their moderators
+    operationId: adminCategoryList
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>).
+      Returns every category ordered by sort ascending then id ascending, each
+      with its enabled moderators (moderator row id ascending). Despite the
+      request struct carrying page/pageSize fields, the result is **not**
+      paged — both fields are ignored. JSON binding is lenient: a malformed
+      body binds to zero values and is ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCategoryListRequest
+    responses:
+      '200':
+        description: All categories with moderators.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminCategoryListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-category-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-category-list-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-category-list-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-category-list-permission-denied.json
+
+adminCategorySave:
+  post:
+    tags: [Admin]
+    summary: Create or update a category
+    operationId: adminCategorySave
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+      creates a new category; a positive `id` overwrites every field of the
+      existing category with the submitted values (omitted optional fields
+      bind to zero values and clear the stored ones). A positive `id`
+      matching no category fails with `admin.category.dataNotFound`
+      (HTTP 200). A missing/empty `category` fails request validation with
+      `common.request.invalidParams` (HTTP 200); a whitespace-only `category`
+      passes validation but fails the handler's trim check with
+      `admin.category.nameRequired` (HTTP 200). Saving clears the category
+      cache and schedules a search-index refresh. JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because category is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCategorySaveRequest
+    responses:
+      '200':
+        description: Category saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.nameRequired` / `admin.category.dataNotFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-category-save-success.json
+              nameRequired:
+                externalValue: ../fixtures/admin-category-save-name-required.json
+              dataNotFound:
+                externalValue: ../fixtures/admin-category-save-data-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-category-save-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-category-save-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-category-save-permission-denied.json
+
+adminCategoryDelete:
+  post:
+    tags: [Admin]
+    summary: Delete a category
+    operationId: adminCategoryDelete
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. The
+      category row is hard-deleted. Unknown ids (including a missing/zero id)
+      fail with `admin.category.notFound` (HTTP 200); deleting the last
+      remaining category fails with `admin.category.keepOne` (HTTP 200); a
+      category that still has effective topic bindings fails with
+      `admin.category.hasTopics` (HTTP 200). Deletion clears the category
+      cache and schedules a search-index cleanup. JSON binding is lenient: a
+      malformed body binds to zero values and fails as
+      `admin.category.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCategoryDeleteRequest
+    responses:
+      '200':
+        description: Category deleted (result true), or a legacy business failure envelope (`admin.category.notFound` / `admin.category.keepOne` / `admin.category.hasTopics`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-category-delete-success.json
+              categoryNotFound:
+                externalValue: ../fixtures/admin-category-delete-not-found.json
+              keepOne:
+                externalValue: ../fixtures/admin-category-delete-keep-one.json
+              hasTopics:
+                externalValue: ../fixtures/admin-category-delete-has-topics.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-category-delete-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-category-delete-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
+
+adminGlobalModeratorList:
+  post:
+    tags: [Admin]
+    summary: List all global moderators
+    operationId: adminGlobalModeratorList
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Returns
+      every enabled global-scope moderator (moderator row id ascending) with
+      the user's username and avatar; both are empty strings when the user
+      account is gone. JSON binding is lenient: the request body is ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All global moderators (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminModeratorListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-global-moderator-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-global-moderator-list-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-global-moderator-list-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-global-moderator-list-permission-denied.json
+
+adminGlobalModeratorAdd:
+  post:
+    tags: [Admin]
+    summary: Grant a user the global moderator scope
+    operationId: adminGlobalModeratorAdd
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Resolves
+      the target by `userId` first, falling back to an exact `username` match;
+      granting is idempotent and re-enables an existing disabled moderator
+      row. A missing/blank user reference fails with
+      `admin.moderator.userRequired` (HTTP 200); an unresolvable one fails
+      with `admin.moderator.userNotFound` (HTTP 200); bot (Agent) accounts
+      fail with `admin.agent.roleNotAllowed` (HTTP 200). JSON binding is
+      lenient: a malformed body binds to zero values and fails as
+      `admin.moderator.userRequired`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminModeratorUserRequest
+    responses:
+      '200':
+        description: Moderator granted (result true), or a legacy business failure envelope (`admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-global-moderator-add-success.json
+              userRequired:
+                externalValue: ../fixtures/admin-global-moderator-add-user-required.json
+              userNotFound:
+                externalValue: ../fixtures/admin-global-moderator-add-user-not-found.json
+              agentRoleNotAllowed:
+                externalValue: ../fixtures/admin-global-moderator-add-agent-role-not-allowed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-global-moderator-add-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-global-moderator-add-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-global-moderator-add-permission-denied.json
+
+adminGlobalModeratorDelete:
+  post:
+    tags: [Admin]
+    summary: Revoke a global moderator
+    operationId: adminGlobalModeratorDelete
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. The
+      moderator row is hard-deleted. Unknown ids, and ids of category-scope
+      moderator rows, fail with `admin.moderator.notFound` (HTTP 200); a
+      missing/zero id fails request validation with
+      `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because id is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminModeratorDeleteRequest
+    responses:
+      '200':
+        description: Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-global-moderator-delete-success.json
+              moderatorNotFound:
+                externalValue: ../fixtures/admin-global-moderator-delete-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/admin-global-moderator-delete-invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-global-moderator-delete-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-global-moderator-delete-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-global-moderator-delete-permission-denied.json
+
+adminCategoryModeratorAdd:
+  post:
+    tags: [Admin]
+    summary: Grant a user the moderator scope of one category
+    operationId: adminCategoryModeratorAdd
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Resolves
+      the target user by `userId` first, falling back to an exact `username`
+      match; granting is idempotent and re-enables an existing disabled
+      moderator row. A missing/zero `categoryId` fails request validation with
+      `common.request.invalidParams` (HTTP 200); an unknown category fails
+      with `admin.category.notFound` (HTTP 200); a missing/blank user
+      reference fails with `admin.moderator.userRequired` (HTTP 200); an
+      unresolvable one fails with `admin.moderator.userNotFound` (HTTP 200);
+      bot (Agent) accounts fail with `admin.agent.roleNotAllowed` (HTTP 200).
+      The grant is written to the operation audit log. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because categoryId is
+      required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminCategoryModeratorAddRequest
+    responses:
+      '200':
+        description: Moderator granted (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.notFound` / `admin.moderator.userRequired` / `admin.moderator.userNotFound` / `admin.agent.roleNotAllowed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-category-moderator-add-success.json
+              categoryNotFound:
+                externalValue: ../fixtures/admin-category-moderator-add-category-not-found.json
+              userRequired:
+                externalValue: ../fixtures/admin-category-moderator-add-user-required.json
+              userNotFound:
+                externalValue: ../fixtures/admin-category-moderator-add-user-not-found.json
+              agentRoleNotAllowed:
+                externalValue: ../fixtures/admin-category-moderator-add-agent-role-not-allowed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-category-moderator-add-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-category-moderator-add-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-category-moderator-add-permission-denied.json
+
+adminCategoryModeratorDelete:
+  post:
+    tags: [Admin]
+    summary: Revoke a category moderator
+    operationId: adminCategoryModeratorDelete
+    description: |
+      Admin console operation gated by the `TopicsManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. The
+      moderator row is hard-deleted and the revocation is written to the
+      operation audit log. Unknown ids, and ids of global-scope moderator
+      rows, fail with `admin.moderator.notFound` (HTTP 200); a missing/zero id
+      fails request validation with `common.request.invalidParams` (HTTP 200).
+      JSON binding is lenient: a malformed body binds to zero values and fails
+      validation as `common.request.invalidParams` (HTTP 200) because id is
+      required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminModeratorDeleteRequest
+    responses:
+      '200':
+        description: Moderator revoked (result true), or a legacy business failure envelope (`common.request.invalidParams` / `admin.moderator.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-category-moderator-delete-success.json
+              moderatorNotFound:
+                externalValue: ../fixtures/admin-category-moderator-delete-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/admin-category-moderator-delete-unauthenticated.json
+      '403':
+        description: Frozen account, or caller lacks the TopicsManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/admin-category-moderator-delete-forbidden.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-category-moderator-delete-permission-denied.json

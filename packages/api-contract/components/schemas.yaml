@@ -5159,3 +5159,633 @@ AdminTrafficOverviewResponse:
                 $ref: '#/AdminDailyTraffic'
               description: One entry per day in the range, ascending; every in-range day is present even without stat rows.
     - $ref: '#/ApiFailure'
+
+# ================= Admin user manager: users, badges, role options（Issue #277 P3 切片三）=================
+
+AdminUserListRequest:
+  type: object
+  properties:
+    username:
+      type: string
+      description: Substring filter on the username.
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Exact user-id filter; 0 or omitted lists all users.
+    email:
+      type: string
+      description: Substring filter on the account email.
+    page:
+      type: integer
+      minimum: 0
+      description: 1-based page; values below 1 are treated as page 1. The echoed `page` in the response is 0-based.
+    pageSize:
+      type: integer
+      description: Bounded server-side into 10-30.
+  additionalProperties: false
+
+AdminUserRoleOption:
+  type: object
+  required: [name, value]
+  properties:
+    name:
+      type: string
+      description: Role name.
+    value:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Role id.
+  additionalProperties: false
+  description: The wire object may also carry a `label` string mirroring `name`; adminUserList never emits it.
+
+AdminBadge:
+  type: object
+  required: [code, type, grantMode, name, description, iconType, iconKey, iconUrl, color, level, isEnabled, isWearable, sortOrder]
+  properties:
+    code:
+      type: string
+      description: Stable badge code (system codes like `early_member`, custom codes carry a `custom_` prefix).
+    type:
+      type: string
+      enum: [system, custom]
+    grantMode:
+      type: string
+      enum: [auto, manual]
+      description: Only `manual` badges appear in adminUserBadgeOptions options and are grantable via adminSaveUserBadges.
+    name:
+      type: string
+    description:
+      type: string
+    iconType:
+      type: string
+      enum: [asset, key]
+    iconKey:
+      type: string
+      description: Icon key when iconType is `key`; empty otherwise.
+    iconUrl:
+      type: string
+      description: Icon asset path when iconType is `asset`; empty otherwise.
+    color:
+      type: string
+    level:
+      type: string
+      enum: [bronze, silver, gold, special]
+    isEnabled:
+      type: boolean
+    isWearable:
+      type: boolean
+    sortOrder:
+      type: integer
+  additionalProperties: false
+
+AdminUserBadge:
+  allOf:
+    - $ref: '#/AdminBadge'
+    - type: object
+      required: [source, reason, grantedAt]
+      properties:
+        source:
+          type: string
+          description: Grant source (`manual`, `auto`, `migration`).
+        reason:
+          type: string
+          description: Grant reason recorded at grant time.
+        grantedAt:
+          type: string
+          description: RFC 3339 timestamp of the (re)grant.
+
+AdminUserItem:
+  type: object
+  required: [userId, username, avatarUrl, email, status, actorType, validate, prestige, roleList, createTime, lastActiveTime, badges]
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+    avatarUrl:
+      type: string
+      description: Web avatar URL; the banned avatar when the account is frozen, the default avatar when none is set.
+    email:
+      type: string
+      description: Account email (PII — admin-only surface).
+    status:
+      type: integer
+      description: Frozen flag (0 normal, 1 frozen).
+    actorType:
+      type: integer
+      description: 0 human, 1 bot (Agent).
+    validate:
+      type: integer
+      description: Activation flag (0 pending, 1 activated).
+    prestige:
+      type: integer
+      format: int64
+    roleList:
+      type: [array, 'null']
+      items:
+        $ref: '#/AdminUserRoleOption'
+      description: Single-entry array with the user's role; null when the user holds no role.
+    roleId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: The user's role id; omitted from the wire payload when 0.
+    createTime:
+      type: string
+      description: RFC 3339 timestamp.
+    lastActiveTime:
+      type: string
+      description: RFC 3339 timestamp; falls back to the account creation time when no statistics row exists.
+    badges:
+      type: array
+      items:
+        $ref: '#/AdminUserBadge'
+      description: The user's active badges (empty array when none).
+  additionalProperties: false
+
+AdminUserListResult:
+  type: object
+  required: [list, page, size, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminUserItem'
+    page:
+      type: integer
+      minimum: 0
+      description: 0-based echo of the requested 1-based page (requested page minus one, floored at 0).
+    size:
+      type: integer
+      minimum: 10
+      maximum: 30
+      description: Effective page size after server-side bounding.
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Total number of users matching the filters.
+  additionalProperties: false
+
+AdminUserListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminUserListResult'
+
+AdminUserListResponse:
+  oneOf:
+    - $ref: '#/AdminUserListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminEditUserRequest:
+  type: object
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Target user; 0 or unknown ids fail with `admin.user.targetFetchFailed` (HTTP 200).
+    status:
+      type: integer
+      description: Frozen flag to apply (0 normal, 1 frozen). Omitted binds to 0 and unfreezes.
+    validate:
+      type: integer
+      description: Activation flag to apply (0 pending, 1 activated). Omitted binds to 0 and deactivates.
+    roleId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Role to assign; 0 clears the role. Non-zero on a bot (Agent) account fails with `admin.agent.roleNotAllowed` (HTTP 200).
+  additionalProperties: false
+  description: No field is required and no field-level validation runs — omitted fields bind to zero values and overwrite the stored state.
+
+AdminUserActionSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: success
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminUserActionResponse:
+  oneOf:
+    - $ref: '#/AdminUserActionSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminUserBadgeOptionsRequest:
+  type: object
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Target user whose active badges are listed; 0 or unknown ids yield an empty `active` array.
+  additionalProperties: false
+
+AdminUserBadgeOptionsResult:
+  type: object
+  required: [options, active]
+  properties:
+    options:
+      type: array
+      items:
+        $ref: '#/AdminBadge'
+      description: Every enabled manual-grant badge (built-in system definitions plus enabled custom overrides).
+    active:
+      type: array
+      items:
+        $ref: '#/AdminUserBadge'
+      description: The target user's currently active badges.
+  additionalProperties: false
+
+AdminUserBadgeOptionsSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminUserBadgeOptionsResult'
+
+AdminUserBadgeOptionsResponse:
+  oneOf:
+    - $ref: '#/AdminUserBadgeOptionsSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminSaveUserBadgesRequest:
+  type: object
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Target user; 0 fails with `user.notFound` (HTTP 200). No further existence check runs.
+    badgeCodes:
+      type: array
+      items:
+        type: string
+      description: Replacement set of manually-granted badge codes (deduplicated server-side); codes that do not resolve to an enabled manual-grant badge are silently ignored.
+  additionalProperties: false
+
+AdminRoleOption:
+  type: object
+  required: [name, label, value]
+  properties:
+    name:
+      type: string
+      description: Role name.
+    label:
+      type: string
+      description: Same as name.
+    value:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Role id.
+  additionalProperties: false
+
+AdminRoleOptionsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminRoleOption'
+          description: All non-deleted roles as options (empty array when none exist).
+
+# ================= Admin role manager: permissions and roles（Issue #277 P3 切片三）=================
+
+AdminPermissionOption:
+  type: object
+  required: [name, label, value]
+  properties:
+    name:
+      type: string
+      description: Permission name localized to the request locale.
+    label:
+      type: string
+      description: Same as name.
+    value:
+      type: integer
+      minimum: 0
+      maximum: 6
+      description: Permission enum id (0 Admin, 1 UserManager, 2 TopicsManager, 3 PageManager, 4 RoleManager, 5 SiteManager, 6 CourseManager).
+  additionalProperties: false
+
+AdminPermissionListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminPermissionOption'
+          description: All 7 assignable permissions, enum id ascending.
+
+AdminRolePermissionItem:
+  type: object
+  required: [id, name]
+  properties:
+    id:
+      type: integer
+      minimum: 0
+      description: Permission enum id.
+    name:
+      type: string
+      description: Permission name localized to the request locale; empty for unknown permission ids.
+  additionalProperties: false
+
+AdminRoleItem:
+  type: object
+  required: [roleId, roleName, effective, permissions, createTime]
+  properties:
+    roleId:
+      type: integer
+      format: uint64
+      minimum: 1
+    roleName:
+      type: string
+    effective:
+      type: integer
+      description: 1 effective, 0 disabled.
+    permissions:
+      type: array
+      items:
+        $ref: '#/AdminRolePermissionItem'
+      description: Every stored permission grant of the role (including ineffective ones).
+    createTime:
+      type: string
+      description: RFC 3339 timestamp.
+  additionalProperties: false
+
+AdminRoleListResult:
+  type: object
+  required: [list, page, size, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminRoleItem'
+    page:
+      type: integer
+      minimum: 0
+      description: Always 0 — the request binds no page field.
+    size:
+      type: integer
+      minimum: 10
+      description: Always 10 — the request binds no pageSize field and the server default applies.
+    total:
+      type: integer
+      format: int64
+      minimum: 0
+  additionalProperties: false
+
+AdminRoleListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminRoleListResult'
+
+AdminRoleListResponse:
+  oneOf:
+    - $ref: '#/AdminRoleListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminRoleSaveRequest:
+  type: object
+  required: [roleName, permissions]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 creates a new role; a positive id updates that role (an unknown positive id silently creates a new role).
+    roleName:
+      type: string
+      minLength: 1
+      description: Blank fails request validation with `common.request.invalidParams` (HTTP 200).
+    permissions:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 0
+      minItems: 1
+      maxItems: 100
+      description: Replacement permission-id set. Empty or over-long lists fail request validation with `common.request.invalidParams` (HTTP 200); unknown ids are stored as-is.
+  additionalProperties: false
+
+AdminRoleDeleteRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Role to delete; 0 or unknown ids fail with `admin.role.notFound` (HTTP 200).
+  additionalProperties: false
+
+AdminBoolSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+
+AdminBoolResponse:
+  oneOf:
+    - $ref: '#/AdminBoolSuccess'
+    - $ref: '#/ApiFailure'
+
+# ================= Admin category/moderator manager（Issue #277 P3 切片三）=================
+
+AdminCategoryListRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+      description: Accepted but ignored — the category list is never paged.
+    pageSize:
+      type: integer
+      description: Accepted but ignored — the category list is never paged.
+  additionalProperties: false
+
+AdminCategoryModeratorItem:
+  type: object
+  required: [id, userId, username, avatarUrl, status]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Moderator row id (the handle used by the delete operations).
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+    username:
+      type: string
+      description: Empty when the user account is gone.
+    avatarUrl:
+      type: string
+      description: Empty when the user account is gone.
+    status:
+      type: integer
+      description: 1 enabled, 0 disabled.
+  additionalProperties: false
+
+AdminCategoryItem:
+  type: object
+  required: [id, category, desc, icon, color, slug, sort, moderators]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    category:
+      type: string
+      description: Category display name.
+    desc:
+      type: string
+    icon:
+      type: string
+    color:
+      type: string
+      description: Hex color; a default is filled in when stored empty.
+    slug:
+      type: string
+    sort:
+      type: integer
+      description: Ascending sort weight (ties break by id ascending).
+    moderators:
+      type: array
+      items:
+        $ref: '#/AdminCategoryModeratorItem'
+      description: Enabled category-scope moderators, moderator row id ascending (empty array when none).
+  additionalProperties: false
+
+AdminCategoryListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminCategoryItem'
+          description: All categories (empty array when none exist).
+
+AdminCategorySaveRequest:
+  type: object
+  required: [category]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: 0 creates a new category; a positive id overwrites that category (unknown positive ids fail with `admin.category.dataNotFound`, HTTP 200).
+    category:
+      type: string
+      minLength: 1
+      description: Display name. Missing/empty fails validation with `common.request.invalidParams`; whitespace-only fails the handler trim check with `admin.category.nameRequired` (both HTTP 200).
+    desc:
+      type: string
+    icon:
+      type: string
+    color:
+      type: string
+    slug:
+      type: string
+    sort:
+      type: integer
+  additionalProperties: false
+
+AdminCategoryDeleteRequest:
+  type: object
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Category to delete; 0 or unknown ids fail with `admin.category.notFound` (HTTP 200).
+  additionalProperties: false
+
+AdminModeratorUserRequest:
+  type: object
+  properties:
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Target user id; takes precedence over username. 0 falls back to the username lookup.
+    username:
+      type: string
+      description: Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound` (both HTTP 200).
+  additionalProperties: false
+
+AdminModeratorDeleteRequest:
+  type: object
+  required: [id]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Moderator row id (from adminCategoryList / adminGlobalModeratorList). Missing/zero fails validation with `common.request.invalidParams`; unknown ids or rows of the other scope fail with `admin.moderator.notFound` (both HTTP 200).
+  additionalProperties: false
+
+AdminCategoryModeratorAddRequest:
+  type: object
+  required: [categoryId]
+  properties:
+    categoryId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Missing/zero fails validation with `common.request.invalidParams`; unknown ids fail with `admin.category.notFound` (both HTTP 200).
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Target user id; takes precedence over username. 0 falls back to the username lookup.
+    username:
+      type: string
+      description: Exact username lookup fallback. Both empty fails with `admin.moderator.userRequired`; an unresolvable reference fails with `admin.moderator.userNotFound`; bot accounts fail with `admin.agent.roleNotAllowed` (all HTTP 200).
+  additionalProperties: false
+
+AdminModeratorListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminCategoryModeratorItem'
+          description: All enabled global moderators, moderator row id ascending (empty array when none exist).
