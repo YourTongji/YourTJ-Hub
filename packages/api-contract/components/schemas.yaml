@@ -2593,7 +2593,7 @@ WikiTreePage:
       type: string
     active:
       type: boolean
-      description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+      description: True when this page is the currently active (viewed) page in the navigation tree.
   additionalProperties: false
 
 WikiTreeNamespace:
@@ -2654,13 +2654,13 @@ WikiNamespaceSummary:
     pageCount:
       type: integer
       format: int64
-      description: Number of pages with at least one approved revision.
+      description: Number of public pages in this namespace (projected from the GitHub wiki repo).
     updatedAt:
       type: string
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
+      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -2682,7 +2682,8 @@ WikiNamespaceListResponse:
 
 WikiRecentPage:
   type: object
-  required: [pageId, path, title, updatedAt, editorId, editorName]
+  description: "Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead."
+  required: [pageId, path, title, updatedAt]
   properties:
     pageId:
       type: integer
@@ -2696,13 +2697,6 @@ WikiRecentPage:
     updatedAt:
       type: string
       format: date-time
-    editorId:
-      type: integer
-      format: uint64
-      minimum: 1
-    editorName:
-      type: string
-      description: Display name of the last approved-revision editor.
   additionalProperties: false
 
 WikiHomeResult:

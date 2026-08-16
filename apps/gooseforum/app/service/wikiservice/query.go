@@ -267,13 +267,13 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 }
 
 // RecentPage 首页最近更新条目。
+// GitHub SSOT：无论坛编辑者概念（git 作者信息走 contributors），
+// 不再输出 editorId/editorName（历史遗留字段，恒为零值，issue #291）。
 type RecentPage struct {
-	PageId     uint64 `json:"pageId"`
-	Path       string `json:"path"`
-	Title      string `json:"title"`
-	UpdatedAt  string `json:"updatedAt"`
-	EditorId   uint64 `json:"editorId"`
-	EditorName string `json:"editorName"`
+	PageId    uint64 `json:"pageId"`
+	Path      string `json:"path"`
+	Title     string `json:"title"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // HomeData 首页数据。
@@ -356,8 +356,6 @@ type PageDetail struct {
 	Content             string    `json:"content"`
 	Toc                 []TocItem `json:"toc"`
 	UpdatedAt           string    `json:"updatedAt"`
-	EditorId            uint64    `json:"editorId"`
-	EditorName          string    `json:"editorName"`
 	LikeCount           uint64    `json:"likeCount"`
 	ViewCount           uint64    `json:"viewCount"`
 	PostCount           uint64    `json:"postCount"`

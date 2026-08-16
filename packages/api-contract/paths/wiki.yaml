@@ -29,7 +29,7 @@ listWikiNamespaces:
     operationId: listWikiNamespaces
     responses:
       '200':
-        description: Namespaces ordered by sort order then name, each with its approved-page count.
+        description: Namespaces ordered by sort order then name, each with its public page count.
         content:
           application/json:
             schema:
@@ -47,7 +47,7 @@ listWikiNamespaces:
 getWikiHome:
   get:
     tags: [Wiki]
-    summary: Public wiki home feed with namespaces and recent approved revisions
+    summary: Public wiki home feed with namespaces and recently updated pages
     security: []
     operationId: getWikiHome
     responses:

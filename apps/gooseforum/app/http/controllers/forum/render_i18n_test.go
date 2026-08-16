@@ -270,9 +270,9 @@ func TestNoscriptTemplatesRenderRepresentativePayloads(t *testing.T) {
 			payload: PagePayload{
 				Component: PageComponentWikiHome,
 				Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
-					Path:       "dev/hello",
-					Title:      "Hello",
-					EditorName: "Alice",
+					Path:      "dev/hello",
+					Title:     "Hello",
+					UpdatedAt: "2026-08-10T15:00:00+08:00",
 				}}},
 			},
 			want: "Hello",
@@ -319,9 +319,9 @@ func TestWikiTemplateSSRRendersHomeAndDetail(t *testing.T) {
 		payload := PagePayload{
 			Component: PageComponentWikiHome,
 			Props: WikiHomeProps{Recent: []wikiservice.RecentPage{{
-				Path:       "dev/hello",
-				Title:      "Hello",
-				EditorName: "Alice",
+				Path:      "dev/hello",
+				Title:     "Hello",
+				UpdatedAt: "2026-08-10T15:00:00+08:00",
 			}}},
 		}
 		var buf bytes.Buffer
@@ -329,7 +329,7 @@ func TestWikiTemplateSSRRendersHomeAndDetail(t *testing.T) {
 			t.Fatalf("render wiki home template: %v", err)
 		}
 		out := buf.String()
-		if !strings.Contains(out, `href="/wiki/dev/hello"`) || !strings.Contains(out, "Hello") || !strings.Contains(out, "Alice") {
+		if !strings.Contains(out, `href="/wiki/dev/hello"`) || !strings.Contains(out, "Hello") {
 			t.Fatalf("wiki home noscript missing recent page link: %s", out)
 		}
 	})

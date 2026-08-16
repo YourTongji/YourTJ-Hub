@@ -818,7 +818,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public wiki home feed with namespaces and recent approved revisions */
+        /** Public wiki home feed with namespaces and recently updated pages */
         get: operations["getWikiHome"];
         put?: never;
         post?: never;
@@ -2195,7 +2195,7 @@ export interface components {
             /** @description Canonical page path within the namespace (slash-separated). */
             path: string;
             title: string;
-            /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
+            /** @description True when this page is the currently active (viewed) page in the navigation tree. */
             active: boolean;
         };
         WikiTreeNamespace: {
@@ -2223,12 +2223,12 @@ export interface components {
             sortOrder: number;
             /**
              * Format: int64
-             * @description Number of pages with at least one approved revision.
+             * @description Number of public pages in this namespace (projected from the GitHub wiki repo).
              */
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
-            /** @description Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages. */
+            /** @description Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages. */
             firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
@@ -2236,6 +2236,7 @@ export interface components {
         WikiNamespaceListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiNamespaceListResult"];
         }) | components["schemas"]["ApiFailure"];
+        /** @description Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead. */
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
@@ -2244,10 +2245,6 @@ export interface components {
             title: string;
             /** Format: date-time */
             updatedAt: string;
-            /** Format: uint64 */
-            editorId: number;
-            /** @description Display name of the last approved-revision editor. */
-            editorName: string;
         };
         WikiHomeResult: {
             namespaces: components["schemas"]["WikiNamespaceSummary"][];
@@ -4438,7 +4435,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespaces ordered by sort order then name, each with its approved-page count. */
+            /** @description Namespaces ordered by sort order then name, each with its public page count. */
             200: {
                 headers: {
                     [name: string]: unknown;
