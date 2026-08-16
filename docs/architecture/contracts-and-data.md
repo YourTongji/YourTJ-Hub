@@ -47,9 +47,11 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；**URL 语义 = slug**：页面
   `path` 首段与 `namespace` 列存 URL key（frontmatter `slug` 优先，目录名纯 ASCII 时
   默认 slug=目录名，中文目录无 slug 时降级=显示名），显示名从 `wiki_namespaces.name`
-  取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；管理端树
-  `WikiAdminTreePage` 带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
-  （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+  取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；导航树按仓库
+  **目录层级嵌套**（issue #289：`WikiTreePage`/`WikiAdminTreePage` 带递归 `children`，
+  纯目录节点 `pageId=0`，`<dir>/index` 提升为目录代表页，`/wiki/ns/dir` 路由解析到
+  index 页）；管理端树 `WikiAdminTreePage` 带 `sourcePath` 字段；生成 TS 类型 +
+  手写 Dart mirror（`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of

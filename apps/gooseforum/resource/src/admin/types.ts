@@ -449,6 +449,8 @@ export interface WikiPageNode {
   sourcePath: string
   title: string
   sortOrder: number
+  /** 子目录/子页面节点（镜像仓库目录层级）；叶子页面缺省。 */
+  children?: WikiPageNode[]
 }
 
 export interface WikiNamespaceTree {

@@ -18,10 +18,18 @@
             "active": false
           },
           {
-            "pageId": 1003,
-            "path": "draft/ideas",
-            "title": "草稿想法",
-            "active": false
+            "pageId": 0,
+            "path": "draft",
+            "title": "draft",
+            "active": false,
+            "children": [
+              {
+                "pageId": 1003,
+                "path": "draft/ideas",
+                "title": "草稿想法",
+                "active": false
+              }
+            ]
           }
         ],
         "slug": "guide"

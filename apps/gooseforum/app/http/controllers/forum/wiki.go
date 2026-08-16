@@ -146,13 +146,8 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 	result := make([]WikiTreeNamespacePayload, 0, len(tree))
 	for _, ns := range tree {
 		pages := make([]WikiTreePagePayload, 0, len(ns.Pages))
-		for _, p := range ns.Pages {
-			pages = append(pages, WikiTreePagePayload{
-				PageId: p.PageId,
-				Path:   p.Path,
-				Title:  p.Title,
-				Active: p.Active,
-			})
+		for i := range ns.Pages {
+			pages = append(pages, *wikiTreePagePayload(&ns.Pages[i]))
 		}
 		result = append(result, WikiTreeNamespacePayload{
 			Name:  ns.Name,
@@ -162,4 +157,21 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 		})
 	}
 	return result
+}
+
+// wikiTreePagePayload 递归转换导航树节点（目录层级，issue #289）。
+func wikiTreePagePayload(page *wikiservice.TreePage) *WikiTreePagePayload {
+	p := &WikiTreePagePayload{
+		PageId: page.PageId,
+		Path:   page.Path,
+		Title:  page.Title,
+		Active: page.Active,
+	}
+	for _, child := range page.Children {
+		p.Children = append(p.Children, wikiTreePagePayload(child))
+	}
+	if len(p.Children) == 0 {
+		p.Children = nil
+	}
+	return p
 }

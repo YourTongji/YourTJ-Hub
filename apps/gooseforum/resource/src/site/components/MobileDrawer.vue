@@ -1,9 +1,10 @@
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { AnimatePresence, Motion } from 'motion-v'
 import { X } from '@lucide/vue'
 import { mobileDrawerMotion, motionTransitions, overlayMotion } from '@/runtime/motion'
-import type { FooterPayload } from '@gooseforum/client'
+import type { FooterPayload, WikiTreeNamespace, WikiTreePage } from '@gooseforum/client'
+import WikiSidebarNode from './WikiSidebarNode.vue'
 
 interface SidebarNavItem {
   key: string
@@ -40,6 +41,11 @@ const props = defineProps<{
   resourcesLabel: string
   categoriesLabel: string
   sidebarIcon: (item: SidebarNavItem) => unknown
+  /** wiki 模式：移动端抽屉渲染 wiki 导航树（issue #289）。 */
+  wikiMode?: boolean
+  wikiTree?: WikiTreeNamespace[]
+  wikiHomeLabel?: string
+  wikiEmptyLabel?: string
 }>()
 
 const emit = defineEmits<{
@@ -47,6 +53,18 @@ const emit = defineEmits<{
 }>()
 
 const hasFooter = computed(() => props.footer.links.length > 0 || props.footer.primary.length > 0)
+const drawerCollapsed = ref<Set<string>>(new Set())
+
+// namespace 分组 → 目录节点（pageId=0 纯分组；复用 WikiSidebarNode 渲染嵌套）。
+function groupNode(group: WikiTreeNamespace): WikiTreePage {
+  return {
+    pageId: 0,
+    path: group.slug,
+    title: group.label || group.name,
+    active: false,
+    children: group.pages,
+  }
+}
 
 function close() {
   emit('close')
@@ -97,6 +115,26 @@ function close() {
               aria-hidden="true"
             />
           </a>
+        </div>
+
+        <!-- wiki 模式：移动端渲染嵌套 wiki 导航树（issue #289）。 -->
+        <div v-if="wikiMode" class="mt-2">
+          <a
+            href="/wiki"
+            class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium text-base-content/75 hover:bg-base-300 hover:text-base-content"
+          >
+            <span class="min-w-0 flex-1 truncate">{{ wikiHomeLabel }}</span>
+          </a>
+          <div v-if="!wikiTree?.length" class="px-2 py-3 text-xs text-base-content/55">
+            {{ wikiEmptyLabel }}
+          </div>
+          <WikiSidebarNode
+            v-for="group in wikiTree ?? []"
+            :key="group.name"
+            v-model:collapsed="drawerCollapsed"
+            :node="groupNode(group)"
+            :depth="0"
+          />
         </div>
         <div v-if="resourceItems.length" class="mt-4 space-y-0.5">
           <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ resourcesLabel }}</div>

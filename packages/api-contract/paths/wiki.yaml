@@ -6,7 +6,7 @@ getWikiTree:
     operationId: getWikiTree
     responses:
       '200':
-        description: Namespace-labeled page tree with an active-page flag for each page.
+        description: "Namespace-labeled page tree with an active-page flag for each page; pages nest under directory nodes mirroring the repository directory hierarchy (issue #289)."
         content:
           application/json:
             schema:

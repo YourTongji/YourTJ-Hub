@@ -830,6 +830,14 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		result.PagesDeleted++
 	}
 
+	// 4.5 parent_id 对账（issue #289）：目录层级 = 页面层级，父关系必须以
+	// 最终页面集合为准重算——父页面晚于子页面创建、文件移动/重命名、URL key
+	// 迁移、删除后恢复等场景下，创建期写入的 parent_id 会陈旧。这里统一按
+	// path 父目录解析；父页面缺失（目录无页面）时置 0。
+	if err := reconcileParentIDs(wanted); err != nil {
+		errs = append(errs, fmt.Sprintf("reconcile parent ids: %v", err))
+	}
+
 	// 5. 命名空间元数据同步（D4/D7）：按 2.6 定稿的 plans 应用
 	//    description/order（仅 index.md 携带时）+ slug 列。
 	//    幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
@@ -908,6 +916,48 @@ func listAllUnscoped() []*wikiPages.Entity {
 	return entities
 }
 
+// reconcileParentIDs 按最终页面集合重算 parent_id（issue #289）。
+// 父 = path 父目录的代表页：优先 `<parent>.md`，其次 `<parent>/index.md`
+// （index 提升为目录代表页）。父目录无页面（缺父）时置 0；路径前缀天然
+// 无环（树结构），path 唯一索引天然防路径碰撞，无需额外检测。
+func reconcileParentIDs(wanted []wantedPage) error {
+	byPath := make(map[string]uint64, len(wanted))
+	for _, p := range wikiPages.ListAll() {
+		byPath[p.Path] = p.Id
+	}
+	var errs []string
+	for _, wp := range wanted {
+		segments := strings.Split(wp.path, "/")
+		if len(segments) <= 2 {
+			continue // 命名空间根级页面无父
+		}
+		parentPath := strings.Join(segments[:len(segments)-1], "/")
+		parentID := byPath[parentPath]
+		if parentID == 0 {
+			parentID = byPath[parentPath+"/index"]
+		}
+		page := wikiPages.GetByPath(wp.path)
+		if page.Id == 0 {
+			continue
+		}
+		// 防御：index 页面自身的 parentPath+"/index" 解析到自身 → 不得自引用。
+		if parentID == page.Id {
+			parentID = 0
+		}
+		if page.ParentId == parentID {
+			continue
+		}
+		if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+			Update("parent_id", parentID).Error; err != nil {
+			errs = append(errs, fmt.Sprintf("%s: %v", wp.path, err))
+		}
+	}
+	if len(errs) > 0 {
+		return fmt.Errorf("%s", strings.Join(errs, "; "))
+	}
+	return nil
+}
+
 func sha256Hex(s string) string {
 	sum := sha256.Sum256([]byte(s))
 	return hex.EncodeToString(sum[:])
@@ -924,11 +974,16 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if wp.displayName == "" {
 		return fmt.Errorf("empty display name for path %s", wp.path)
 	}
-	// 嵌套路径：parent_id 关联父页面。
+	// 嵌套路径：parent_id 关联父页面（`<parent>.md` 优先，其次 `<parent>/index.md`
+	// 提升为目录代表页；最终仍由 reconcileParentIDs 对账兜底，issue #289）。
 	parentID := uint64(0)
 	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
 		parentPath := strings.Join(segments[:len(segments)-1], "/")
-		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
+		parent := wikiPages.GetByPath(parentPath)
+		if parent.Id == 0 {
+			parent = wikiPages.GetByPath(parentPath + "/index")
+		}
+		if parent.Id != 0 {
 			parentID = parent.Id
 		}
 	}

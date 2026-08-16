@@ -289,6 +289,83 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 	})
 }
 
+// TestApplyRepoToDBParentReconcile parent_id 对账（issue #289）：
+// 父页面晚于子页面出现、子页面移动目录、`<dir>/index` 目录代表页三种场景，
+// 同步后 parent_id 均按最终路径重算，而不是停留在创建期的陈旧值。
+func TestApplyRepoToDBParentReconcile(t *testing.T) {
+	t.Run("parent added after child", func(t *testing.T) {
+		setupWikiTestDB(t)
+		repo := t.TempDir()
+		writeRepoFile(t, repo, "docs/sub/page.md", "---\ntitle: 子页\n---\n\n# 子页")
+		cfg := GitConfig{CloneDir: repo}
+		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+			t.Fatalf("first sync: %v", err)
+		}
+		child := wikiPages.GetByPath("docs/sub/page")
+		if child.Id == 0 || child.ParentId != 0 {
+			t.Fatalf("child after first sync: id=%d parentId=%d, want parent 0 (parent page missing)", child.Id, child.ParentId)
+		}
+		writeRepoFile(t, repo, "docs/sub.md", "---\ntitle: 子目录\n---\n\n# 子目录")
+		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+			t.Fatalf("second sync: %v", err)
+		}
+		parent := wikiPages.GetByPath("docs/sub")
+		child = wikiPages.GetByPath("docs/sub/page")
+		if parent.Id == 0 || child.ParentId != parent.Id {
+			t.Fatalf("child parentId=%d, want %d (parent docs/sub)", child.ParentId, parent.Id)
+		}
+	})
+
+	t.Run("child moved to another directory", func(t *testing.T) {
+		setupWikiTestDB(t)
+		repo := t.TempDir()
+		writeRepoFile(t, repo, "docs/a/page.md", "---\ntitle: 页\n---\n\n# 页")
+		writeRepoFile(t, repo, "docs/b.md", "---\ntitle: B\n---\n\n# B")
+		cfg := GitConfig{CloneDir: repo}
+		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+			t.Fatalf("first sync: %v", err)
+		}
+		if err := os.Remove(filepath.Join(repo, "docs/a/page.md")); err != nil {
+			t.Fatal(err)
+		}
+		writeRepoFile(t, repo, "docs/b/page.md", "---\ntitle: 页\n---\n\n# 页")
+		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+			t.Fatalf("move sync: %v", err)
+		}
+		b := wikiPages.GetByPath("docs/b")
+		moved := wikiPages.GetByPath("docs/b/page")
+		if b.Id == 0 || moved.Id == 0 {
+			t.Fatalf("b/moved missing after move: b=%d moved=%d", b.Id, moved.Id)
+		}
+		if moved.ParentId != b.Id {
+			t.Fatalf("moved page parentId=%d, want %d (docs/b)", moved.ParentId, b.Id)
+		}
+		old := wikiPages.GetByPathUnscoped("docs/a/page")
+		if old.Id == 0 || !old.DeletedAt.Valid {
+			t.Fatalf("old path should be soft-deleted: id=%d deleted=%v", old.Id, old.DeletedAt.Valid)
+		}
+	})
+
+	t.Run("index page as directory representative", func(t *testing.T) {
+		setupWikiTestDB(t)
+		repo := t.TempDir()
+		writeRepoFile(t, repo, "docs/sub/index.md", "---\ntitle: 目录首页\n---\n\n# 首页")
+		writeRepoFile(t, repo, "docs/sub/page.md", "---\ntitle: 子页\n---\n\n# 子页")
+		cfg := GitConfig{CloneDir: repo}
+		if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+			t.Fatalf("sync: %v", err)
+		}
+		idx := wikiPages.GetByPath("docs/sub/index")
+		page := wikiPages.GetByPath("docs/sub/page")
+		if idx.Id == 0 || page.Id == 0 {
+			t.Fatalf("pages missing: idx=%d page=%d", idx.Id, page.Id)
+		}
+		if page.ParentId != idx.Id {
+			t.Fatalf("page parentId=%d, want %d (docs/sub/index representative)", page.ParentId, idx.Id)
+		}
+	})
+}
+
 // TestParseMarkdownFileFrontmatter frontmatter 解析边界：
 // 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文、slug 解析。
 func TestParseMarkdownFileFrontmatter(t *testing.T) {

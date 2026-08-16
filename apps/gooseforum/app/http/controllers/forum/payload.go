@@ -214,12 +214,13 @@ type WikiTreeNamespacePayload struct {
 	Pages []WikiTreePagePayload `json:"pages"`
 }
 
-// WikiTreePagePayload wiki 导航树的一页。
+// WikiTreePagePayload wiki 导航树的一页（或目录节点；pageId=0 为纯目录分组）。
 type WikiTreePagePayload struct {
-	PageId uint64 `json:"pageId"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
+	PageId   uint64                 `json:"pageId"`
+	Path     string                 `json:"path"`
+	Title    string                 `json:"title"`
+	Active   bool                   `json:"active"`
+	Children []*WikiTreePagePayload `json:"children,omitempty"`
 }
 
 type FooterPayload struct {

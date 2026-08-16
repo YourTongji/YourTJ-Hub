@@ -268,6 +268,8 @@ export interface WikiTreePage {
   path: string
   title: string
   active: boolean
+  /** 子目录/子页面节点（镜像仓库目录层级）；叶子页面缺省。 */
+  children?: WikiTreePage[]
 }
 
 export interface WikiTreeNamespace {

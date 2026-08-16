@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"encoding/json"
+	"sort"
 	"strings"
 	"time"
 
@@ -11,12 +12,20 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
-// TreePage 导航树中的一页。
+// TreePage 导航树中的一个节点（页面或目录）。
+// 目录节点：PageId=0（无对应页面行），Path=目录路径，Title=目录名，Active=false，
+// 仅作分组（可折叠）；页面节点：PageId>0，Active 仅精确匹配当前页。
+// `<目录>/index` 页面（叶子，且无 `<目录>.md` 页面时）提升为目录节点本身：
+// PageId/Title/排序/active 取自该页（URL 为目录路径，路由解析到 index 页）；
+// `<目录>.md` 页面同时存在时优先作为目录代表页（可点击，带子级）。
+// Children 缺省表示叶子节点。层级语义与仓库目录层级一致（issue #289），
+// 同级按 frontmatter order 排序（目录节点取子级最小 order，目录名决胜）。
 type TreePage struct {
-	PageId uint64 `json:"pageId"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
+	PageId   uint64      `json:"pageId"`
+	Path     string      `json:"path"`
+	Title    string      `json:"title"`
+	Active   bool        `json:"active"`
+	Children []*TreePage `json:"children,omitempty"`
 }
 
 // TreeNamespace 导航树中的一个 namespace 分组。
@@ -37,7 +46,8 @@ type WikiTreeResult struct {
 // ResolvePageByURLPath 按外部 URL path 解析页面（D7 路由语义：URL 用 slug）。
 // 解析顺序：
 //  1. 直查 path（slug 首段，新 URL）；
-//  2. 首段 = 显示名时按 name→urlKey 重建（存量/降级 URL，如中文目录声明
+//  2. 目录路径 → `<目录>/index` 页面（导航树目录节点提升语义，issue #289）；
+//  3. 首段 = 显示名时按 name→urlKey 重建（存量/降级 URL，如中文目录声明
 //     slug 前发布的旧链接、或直接访问中文显示名 URL）。
 //
 // 返回零值实体表示未命中（404）。
@@ -47,6 +57,11 @@ func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 	}
 	entity = wikiPages.GetByPath(urlPath)
 	if entity.Id != 0 {
+		return entity
+	}
+	// 目录路径 → index 页：导航树把 `<目录>/index` 提升为目录节点（URL 为目录
+	// 路径），路由解析回 index 页（issue #289）。
+	if entity = wikiPages.GetByPath(urlPath + "/index"); entity.Id != 0 {
 		return entity
 	}
 	// 回退：首段按显示名解析 → 重建为 URL key 路径再直查。
@@ -62,41 +77,14 @@ func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 	return wikiPages.GetByPath(rebuilt)
 }
 
-// BuildTree 构建 wiki 导航树（按 namespace 分组，当前页 active）。
+// BuildTree 构建 wiki 导航树（按 namespace 分组，当前页 active，完整路径）。
 // GitHub SSOT 后内容/标题直接来自 wiki_pages 投影列（不再查修订表）。
 // D7 URL key 语义：page.Namespace 列 = URL key（slug，降级=显示名），
 // 分组按 URL key；输出 Name/Label 用显示名（中文目录名）。
+// 目录层级 = 仓库目录层级（issue #289）：子目录为嵌套节点，`<目录>/index`
+// 页面提升为目录节点本身（可点击），同级按 order 排序。
 func BuildTree(activePath string) []TreeNamespace {
-	namespaces := wikiNamespaces.List()
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}
-	}
-	allPages := filterPublicPages(wikiPages.ListAll())
-	byURLKey := make(map[string][]*wikiPages.Entity)
-	for _, page := range allPages {
-		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
-	}
-
-	result := make([]TreeNamespace, 0, len(namespaces))
-	for _, ns := range namespaces {
-		pages := byURLKey[namespaceURLKey(ns)]
-		items := make([]TreePage, 0, len(pages))
-		for _, page := range pages {
-			items = append(items, TreePage{
-				PageId: page.Id,
-				Path:   page.Path,
-				Title:  page.Title,
-				Active: page.Path == activePath,
-			})
-		}
-		result = append(result, TreeNamespace{
-			Name:  ns.Name,
-			Label: ns.Name,
-			Slug:  namespaceURLKey(ns),
-			Pages: items,
-		})
-	}
-	return result
+	return assembleTree(activePath, false)
 }
 
 // filterPublicPages 过滤出 topic 仍公开的页面：删除/隐藏的 wiki 页面不得
@@ -127,11 +115,12 @@ func filterPublicPages(pages []*wikiPages.Entity) []*wikiPages.Entity {
 
 // BuildTreeAPI 构建公开导航树（契约形状）：path 为 namespace 内相对路径。
 func BuildTreeAPI() WikiTreeResult {
-	return WikiTreeResult{Namespaces: buildTree("", true)}
+	return WikiTreeResult{Namespaces: assembleTree("", true)}
 }
 
-// buildTree 构建导航树；relative=true 时 path 相对 namespace（URL key 前缀）。
-func buildTree(activePath string, contractShape bool) []TreeNamespace {
+// assembleTree 组装导航树；contractShape=true 时 path 为 namespace 内相对路径
+// （公开 API 契约形状），false 时 path 为完整路径（SSR 左栏）。
+func assembleTree(activePath string, contractShape bool) []TreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
 		return []TreeNamespace{}
@@ -145,39 +134,205 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
 		urlKey := namespaceURLKey(ns)
-		pages := byURLKey[urlKey]
-		items := make([]TreePage, 0, len(pages))
-		for _, page := range pages {
-			path := page.Path
-			if contractShape {
-				path = strings.TrimPrefix(path, urlKey+"/")
-			}
-			items = append(items, TreePage{
-				PageId: page.Id,
-				Path:   path,
-				Title:  page.Title,
-				Active: page.Path == activePath,
-			})
+		raw := buildRawTree(byURLKey[urlKey], urlKey)
+		items := make([]*TreePage, 0, len(raw))
+		for _, rt := range raw {
+			items = append(items, rawToTreePage(rt, activePath))
+		}
+		if !contractShape {
+			prefixTreePaths(items, urlKey)
+		}
+		pages := make([]TreePage, 0, len(items))
+		for _, item := range items {
+			pages = append(pages, *item)
 		}
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
 			Slug:  urlKey,
-			Pages: items,
+			Pages: pages,
 		})
 	}
 	return result
 }
 
-// AdminTreePage 管理端导航树中的一页。
+// ---------- 层级构建（issue #289：目录层级 = 仓库路径层级） ----------
+
+// treeTrie 页面路径 trie：按相对路径段（去 namespace 前缀）组织页面。
+type treeTrie struct {
+	children map[string]*treeTrie
+	page     *wikiPages.Entity // 完整路径恰好等于本节点路径的页面（如 <dir>.md）
+}
+
+func newTreeTrie() *treeTrie {
+	return &treeTrie{children: map[string]*treeTrie{}}
+}
+
+func (t *treeTrie) insert(relPath string, page *wikiPages.Entity) {
+	node := t
+	for _, seg := range strings.Split(relPath, "/") {
+		next, ok := node.children[seg]
+		if !ok {
+			next = newTreeTrie()
+			node.children[seg] = next
+		}
+		node = next
+	}
+	node.page = page
+}
+
+// rawTreeNode 层级构建的中间表示。
+// page：目录代表页（`<dir>.md` 页面优先，否则 `<dir>/index` 页面提升）；nil = 纯目录节点。
+// dirPath：相对路径；sortKey：排序键（代表页 order，纯目录取子级最小 order）。
+type rawTreeNode struct {
+	page     *wikiPages.Entity
+	dirPath  string
+	children []*rawTreeNode
+	sortKey  int
+}
+
+// buildRawTree 把某 namespace 的页面列表构建为嵌套层级（相对路径）。
+func buildRawTree(pages []*wikiPages.Entity, urlKey string) []*rawTreeNode {
+	trie := newTreeTrie()
+	for _, p := range pages {
+		trie.insert(strings.TrimPrefix(p.Path, urlKey+"/"), p)
+	}
+	var out []*rawTreeNode
+	for name, child := range trie.children {
+		if rt := rawNodeOf(child, name, urlKey, true); rt != nil {
+			out = append(out, rt)
+		}
+	}
+	sortRawNodes(out)
+	return out
+}
+
+// rawNodeOf 把一个 trie 节点转为 rawTreeNode（递归子节点 + index 提升）。
+// promoteIndex=true 时，若本目录存在叶子 `index` 页面且无 `dir.md` 页面，
+// 该 index 页面提升为本目录代表页，不再单列子项。
+func rawNodeOf(node *treeTrie, dirPath, urlKey string, promoteIndex bool) *rawTreeNode {
+	rep := node.page
+	absorbedIndex := false
+	if rep == nil && promoteIndex {
+		if idx, ok := node.children["index"]; ok && idx.page != nil && len(idx.children) == 0 {
+			rep = idx.page
+			absorbedIndex = true
+		}
+	}
+	var kids []*rawTreeNode
+	for name, child := range node.children {
+		if absorbedIndex && name == "index" {
+			continue
+		}
+		childPath := name
+		if dirPath != "" {
+			childPath = dirPath + "/" + name
+		}
+		if rt := rawNodeOf(child, childPath, urlKey, true); rt != nil {
+			kids = append(kids, rt)
+		}
+	}
+	if rep == nil && len(kids) == 0 {
+		return nil
+	}
+	sortRawNodes(kids)
+	rt := &rawTreeNode{children: kids}
+	if rep != nil {
+		rt.page = rep
+		if absorbedIndex {
+			// index 页面提升为目录节点：路径用目录路径，标题/排序/可点击性取自页面。
+			rt.dirPath = dirPath
+		} else {
+			rt.dirPath = strings.TrimPrefix(rep.Path, urlKey+"/")
+		}
+		rt.sortKey = rep.SortOrder
+	} else {
+		rt.dirPath = dirPath
+		rt.sortKey = minRawSortKey(kids)
+	}
+	return rt
+}
+
+func sortRawNodes(nodes []*rawTreeNode) {
+	sort.Slice(nodes, func(i, j int) bool {
+		if nodes[i].sortKey != nodes[j].sortKey {
+			return nodes[i].sortKey < nodes[j].sortKey
+		}
+		return nodes[i].dirPath < nodes[j].dirPath
+	})
+}
+
+func minRawSortKey(nodes []*rawTreeNode) int {
+	if len(nodes) == 0 {
+		return 0
+	}
+	min := nodes[0].sortKey
+	for _, n := range nodes[1:] {
+		if n.sortKey < min {
+			min = n.sortKey
+		}
+	}
+	return min
+}
+
+func lastSegment(path string) string {
+	if i := strings.LastIndexByte(path, '/'); i >= 0 {
+		return path[i+1:]
+	}
+	return path
+}
+
+// rawToTreePage 公开导航树节点转换（相对路径；Active 仅精确匹配当前页）。
+func rawToTreePage(rt *rawTreeNode, activePath string) *TreePage {
+	tp := &TreePage{
+		PageId: pageIDOf(rt),
+		Path:   rt.dirPath,
+		Title:  titleOf(rt),
+		Active: rt.page != nil && rt.page.Path == activePath,
+	}
+	for _, c := range rt.children {
+		tp.Children = append(tp.Children, rawToTreePage(c, activePath))
+	}
+	if len(tp.Children) == 0 {
+		tp.Children = nil
+	}
+	return tp
+}
+
+func pageIDOf(rt *rawTreeNode) uint64 {
+	if rt.page != nil {
+		return rt.page.Id
+	}
+	return 0
+}
+
+func titleOf(rt *rawTreeNode) string {
+	if rt.page != nil {
+		return rt.page.Title
+	}
+	return lastSegment(rt.dirPath)
+}
+
+// prefixTreePaths 给相对路径补上 namespace URL key 前缀（SSR/管理端完整路径）。
+func prefixTreePaths(items []*TreePage, prefix string) {
+	for _, item := range items {
+		item.Path = prefix + "/" + item.Path
+		prefixTreePaths(item.Children, prefix)
+	}
+}
+
+// AdminTreePage 管理端导航树中的一个节点（页面或目录）。
 // Path 首段 = URL key（slug，降级=显示名）；SourcePath = 仓库真实路径
 // （GitHub 编辑/历史外链拼接用，与 URL 解耦，D7）。
+// 目录节点：PageId=0，Title=目录名，SortOrder=子级最小 order；`<目录>/index`
+// 页面提升为目录节点（与公开树一致的层级语义，issue #289）。
 type AdminTreePage struct {
-	PageId     uint64 `json:"pageId"`
-	Path       string `json:"path"`
-	SourcePath string `json:"sourcePath"`
-	Title      string `json:"title"`
-	SortOrder  int    `json:"sortOrder"`
+	PageId     uint64           `json:"pageId"`
+	Path       string           `json:"path"`
+	SourcePath string           `json:"sourcePath"`
+	Title      string           `json:"title"`
+	SortOrder  int              `json:"sortOrder"`
+	Children   []*AdminTreePage `json:"children,omitempty"`
 }
 
 // AdminTreeNamespace 管理端导航树中的一个 namespace 分组。
@@ -188,6 +343,7 @@ type AdminTreeNamespace struct {
 }
 
 // BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，含 URL key 段）。
+// 目录层级 = 仓库目录层级（issue #289）。
 func BuildAdminTree() []AdminTreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
@@ -200,24 +356,52 @@ func BuildAdminTree() []AdminTreeNamespace {
 	}
 	result := make([]AdminTreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		pages := byURLKey[namespaceURLKey(ns)]
-		items := make([]AdminTreePage, 0, len(pages))
-		for _, page := range pages {
-			items = append(items, AdminTreePage{
-				PageId:     page.Id,
-				Path:       page.Path,
-				SourcePath: page.SourcePath,
-				Title:      page.Title,
-				SortOrder:  page.SortOrder,
-			})
+		urlKey := namespaceURLKey(ns)
+		raw := buildRawTree(byURLKey[urlKey], urlKey)
+		items := make([]*AdminTreePage, 0, len(raw))
+		for _, rt := range raw {
+			items = append(items, rawToAdminTreePage(rt))
+		}
+		prefixAdminTreePaths(items, urlKey)
+		pages := make([]AdminTreePage, 0, len(items))
+		for _, item := range items {
+			pages = append(pages, *item)
 		}
 		result = append(result, AdminTreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
-			Pages: items,
+			Pages: pages,
 		})
 	}
 	return result
+}
+
+// rawToAdminTreePage 管理端树节点转换（相对路径；PageId=0 表示纯目录节点）。
+func rawToAdminTreePage(rt *rawTreeNode) *AdminTreePage {
+	atp := &AdminTreePage{
+		PageId:    pageIDOf(rt),
+		Path:      rt.dirPath,
+		Title:     titleOf(rt),
+		SortOrder: rt.sortKey,
+	}
+	if rt.page != nil {
+		atp.SourcePath = rt.page.SourcePath
+	}
+	for _, c := range rt.children {
+		atp.Children = append(atp.Children, rawToAdminTreePage(c))
+	}
+	if len(atp.Children) == 0 {
+		atp.Children = nil
+	}
+	return atp
+}
+
+// prefixAdminTreePaths 给管理端树相对路径补上 namespace URL key 前缀。
+func prefixAdminTreePaths(items []*AdminTreePage, prefix string) {
+	for _, item := range items {
+		item.Path = prefix + "/" + item.Path
+		prefixAdminTreePaths(item.Children, prefix)
+	}
 }
 
 // NamespaceSummary 首页 namespace 卡。

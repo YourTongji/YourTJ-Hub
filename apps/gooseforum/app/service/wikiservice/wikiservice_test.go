@@ -119,6 +119,7 @@ func seedProjectedWikiPage(t *testing.T, ns, path, title string, updatedAt time.
 		TopicId:      topic.Id,
 		Namespace:    ns,
 		Path:         path,
+		SourcePath:   path,
 		Title:        title,
 		Content:      "# " + title,
 		RenderedHTML: "<p>" + title + "</p>",
@@ -203,6 +204,26 @@ func TestValidateNamespaceLengthByRunes(t *testing.T) {
 	}
 }
 
+// TestResolvePageByURLPathIndexFallback 目录 URL → `<目录>/index` 页
+// （导航树目录节点提升语义，issue #289）；普通页面仍直查优先。
+func TestResolvePageByURLPathIndexFallback(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	seedProjectedWikiPage(t, "docs", "docs/sub/index", "目录首页", base)
+	seedProjectedWikiPage(t, "docs", "docs/plain", "Plain", base.Add(time.Hour))
+
+	page := ResolvePageByURLPath("docs/sub")
+	if page.Id == 0 || page.Path != "docs/sub/index" {
+		t.Fatalf("resolve docs/sub = %+v, want docs/sub/index", page)
+	}
+	if page = ResolvePageByURLPath("docs/plain"); page.Id == 0 || page.Path != "docs/plain" {
+		t.Fatalf("resolve docs/plain = %+v, want docs/plain", page)
+	}
+	if page = ResolvePageByURLPath("docs/missing"); page.Id != 0 {
+		t.Fatalf("resolve docs/missing = %+v, want zero (404)", page)
+	}
+}
+
 // TestBuildTreeGroupsNamespacesAndActive 公开导航树：按 namespace 分组，
 // path 为完整路径，active 标记当前页（投影表驱动，不再查修订表）。
 func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
@@ -248,7 +269,9 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	}
 }
 
-// TestBuildTreeAPIRelativePaths 契约形状导航树：path 为 namespace 内相对路径。
+// TestBuildTreeAPIRelativePaths 契约形状导航树：path 为 namespace 内相对路径，
+// 目录层级 = 仓库目录层级（issue #289）——docs/guide/tips 嵌套为 guide 目录
+// 节点下的子页，而非扁平列表。
 func TestBuildTreeAPIRelativePaths(t *testing.T) {
 	setupWikiTestDB(t)
 	base := time.Now().Add(-24 * time.Hour)
@@ -269,11 +292,157 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 	if docs == nil || len(docs.Pages) != 1 {
 		t.Fatalf("docs tree: %+v", res.Namespaces)
 	}
-	if docs.Pages[0].Path != "guide/tips" {
-		t.Fatalf("API tree path=%q, want relative guide/tips", docs.Pages[0].Path)
+	dir := docs.Pages[0]
+	if dir.PageId != 0 {
+		t.Fatalf("directory node pageId=%d, want 0 (grouping node)", dir.PageId)
 	}
-	if docs.Pages[0].Active {
+	if dir.Path != "guide" {
+		t.Fatalf("directory node path=%q, want guide", dir.Path)
+	}
+	if dir.Title != "guide" {
+		t.Fatalf("directory node title=%q, want guide", dir.Title)
+	}
+	if len(dir.Children) != 1 || dir.Children[0].Path != "guide/tips" {
+		t.Fatalf("directory children=%+v, want [guide/tips]", dir.Children)
+	}
+	if dir.Children[0].PageId == 0 {
+		t.Fatal("leaf page should carry its pageId")
+	}
+	if dir.Active || dir.Children[0].Active {
 		t.Fatal("API tree page should not be active (no active path)")
+	}
+}
+
+// TestBuildTreeNestedHierarchy 目录层级 = 页面层级（issue #289）：
+//   - guide/admission/process → guide > admission > process 嵌套；
+//   - guide/admission/index 提升为 admission 目录节点（可点击，active 命中）；
+//   - guide/campus（<dir>.md）带子页 guide/campus/facilities → 可点击目录节点；
+//   - 同级按 frontmatter order 排序，目录节点取子级最小 order 参与同级排序。
+func TestBuildTreeNestedHierarchy(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-48 * time.Hour)
+	seedProjectedWikiPage(t, "guide", "guide/getting-started", "快速开始", base)
+	seedProjectedWikiPage(t, "guide", "guide/campus", "校园生活", base.Add(time.Hour))
+	seedProjectedWikiPage(t, "guide", "guide/campus/facilities", "设施", base.Add(2*time.Hour))
+	seedProjectedWikiPage(t, "guide", "guide/admission/index", "入学指南", base.Add(3*time.Hour))
+	seedProjectedWikiPage(t, "guide", "guide/admission/process", "办理流程", base.Add(4*time.Hour))
+	// 排序：getting-started order=1，其余默认 0（campus/admission 按目录名决胜）。
+	if err := dbconnect.Connect().Table("wiki_pages").
+		Where("path = ?", "guide/getting-started").Update("sort_order", 1).Error; err != nil {
+		t.Fatalf("set sort order: %v", err)
+	}
+
+	tree := BuildTree("guide/admission/index")
+	if len(tree) != 1 {
+		t.Fatalf("tree namespaces=%d, want 1: %+v", len(tree), tree)
+	}
+	pages := tree[0].Pages
+	if len(pages) != 3 {
+		t.Fatalf("root pages=%d, want 3 (admission, campus, getting-started): %+v", len(pages), pages)
+	}
+	// 同级排序：admission(0) < campus(0) 按目录名，getting-started(1) 最后。
+	if pages[0].Path != "guide/admission" || pages[1].Path != "guide/campus" || pages[2].Path != "guide/getting-started" {
+		t.Fatalf("root order=%v, want admission, campus, getting-started", []string{pages[0].Path, pages[1].Path, pages[2].Path})
+	}
+
+	// campus：<dir>.md 代表页 + 子页。
+	campus := &pages[1]
+	if campus.PageId == 0 {
+		t.Fatal("campus node should carry its page id (guide/campus.md)")
+	}
+	if len(campus.Children) != 1 || campus.Children[0].Path != "guide/campus/facilities" {
+		t.Fatalf("campus children=%+v, want [guide/campus/facilities]", campus.Children)
+	}
+
+	// admission：index 提升为目录节点，active 命中（当前页为 index 页）。
+	admission := &pages[0]
+	if admission.PageId == 0 {
+		t.Fatal("admission node should carry the promoted index page id")
+	}
+	if admission.Path != "guide/admission" {
+		t.Fatalf("admission path=%q, want guide/admission", admission.Path)
+	}
+	if admission.Title != "入学指南" {
+		t.Fatalf("admission title=%q, want index page title 入学指南", admission.Title)
+	}
+	if !admission.Active {
+		t.Fatal("admission node should be active (viewing guide/admission/index)")
+	}
+	if len(admission.Children) != 1 || admission.Children[0].Path != "guide/admission/process" {
+		t.Fatalf("admission children=%+v, want [guide/admission/process]", admission.Children)
+	}
+	if admission.Children[0].Title != "办理流程" {
+		t.Fatalf("process title=%q, want 办理流程", admission.Children[0].Title)
+	}
+}
+
+// TestBuildTreePureDirectoryNode 纯目录节点（无代表页）：pageId=0、不可点击、
+// 标题=目录名、子页归入 children。
+func TestBuildTreePureDirectoryNode(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	seedProjectedWikiPage(t, "docs", "docs/a/b/c", "Deep", base)
+
+	tree := BuildTree("")
+	var docs *TreeNamespace
+	for i := range tree {
+		if tree[i].Name == "docs" {
+			docs = &tree[i]
+			break
+		}
+	}
+	if docs == nil || len(docs.Pages) != 1 {
+		t.Fatalf("docs tree: %+v", tree)
+	}
+	a := docs.Pages[0]
+	if a.PageId != 0 || a.Path != "docs/a" || a.Title != "a" || len(a.Children) != 1 {
+		t.Fatalf("node a=%+v, want pure directory docs/a with one child", a)
+	}
+	b := a.Children[0]
+	if b.PageId != 0 || b.Path != "docs/a/b" || len(b.Children) != 1 {
+		t.Fatalf("node b=%+v, want pure directory docs/a/b with one child", b)
+	}
+	if c := b.Children[0]; c.PageId == 0 || c.Path != "docs/a/b/c" {
+		t.Fatalf("node c=%+v, want leaf page docs/a/b/c", c)
+	}
+}
+
+// TestBuildAdminTreeNested 管理端树同样按目录层级嵌套（issue #289），
+// 目录节点 pageId=0、sourcePath 空、sortOrder=子级最小 order。
+func TestBuildAdminTreeNested(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	seedProjectedWikiPage(t, "docs", "docs/top", "Top", base)
+	seedProjectedWikiPage(t, "docs", "docs/sub/page", "Sub", base.Add(time.Hour))
+	seedProjectedWikiPage(t, "docs", "docs/sub/index", "SubIndex", base.Add(2*time.Hour))
+
+	tree := BuildAdminTree()
+	var docs *AdminTreeNamespace
+	for i := range tree {
+		if tree[i].Name == "docs" {
+			docs = &tree[i]
+			break
+		}
+	}
+	if docs == nil || len(docs.Pages) != 2 {
+		t.Fatalf("docs admin tree: %+v", tree)
+	}
+	// 同级排序：top(0) < sub(0) 按目录名。
+	if docs.Pages[0].Path != "docs/sub" || docs.Pages[1].Path != "docs/top" {
+		t.Fatalf("admin root order=%v, want sub, top", []string{docs.Pages[0].Path, docs.Pages[1].Path})
+	}
+	sub := docs.Pages[0]
+	if sub.PageId == 0 {
+		t.Fatal("sub directory should carry the promoted index page id")
+	}
+	if sub.SourcePath != "docs/sub/index" {
+		t.Fatalf("sub sourcePath=%q, want docs/sub/index", sub.SourcePath)
+	}
+	if sub.Title != "SubIndex" {
+		t.Fatalf("sub title=%q, want promoted index title SubIndex", sub.Title)
+	}
+	if len(sub.Children) != 1 || sub.Children[0].Path != "docs/sub/page" {
+		t.Fatalf("sub children=%+v, want [docs/sub/page]", sub.Children)
 	}
 }
 

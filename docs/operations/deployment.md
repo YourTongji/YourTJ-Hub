@@ -84,7 +84,10 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 - **命名空间/页面来源**：命名空间 = 仓库顶层目录名（支持中文等 Unicode 字符，目录
   消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
   `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
-  description/order 写入命名空间元数据）。
+  description/order 写入命名空间元数据）；**目录层级 = 页面层级**（issue #289）：
+  子目录在导航树中嵌套展示（`<dir>/index` 提升为目录代表页，`/wiki/ns/dir` 可直达
+  index 页），同级按 frontmatter `order` 排序，同步每次对账 `parent_id`（父页
+  晚建/移动/重命名/恢复后重算，缺父置 0）。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致

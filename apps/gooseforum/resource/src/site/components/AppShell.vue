@@ -723,6 +723,10 @@ async function loadUserCard() {
       :resources-label="t('shell.resources')"
       :categories-label="t('shell.categories')"
       :sidebar-icon="navIcon"
+      :wiki-mode="isWikiMode"
+      :wiki-tree="wikiTree"
+      :wiki-home-label="t('wiki.home')"
+      :wiki-empty-label="t('wiki.sidebarEmpty')"
       @close="closeDrawer"
     />
 

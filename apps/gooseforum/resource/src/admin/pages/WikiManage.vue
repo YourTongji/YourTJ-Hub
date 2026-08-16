@@ -7,6 +7,7 @@ import {
   Clock,
   ExternalLink,
   FileText,
+  Folder,
   History,
   KeyRound,
   RefreshCw,
@@ -50,6 +51,7 @@ import type {
   WikiNamespaceTree,
   WikiPageNode,
 } from '@/admin/types'
+import { flattenAdminTree } from '@/admin/utils/wiki-tree'
 
 defineProps<{
   payload: AdminPayload<ManageHomeProps>
@@ -155,9 +157,7 @@ async function loadNamespaces() {
 }
 
 // ---------- Page tree（只读：GitHub SSOT，结构由仓库决定） ----------
-function sortedPages(group: WikiNamespaceTree) {
-  return [...(group.pages || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-}
+// 嵌套树扁平化见 @/admin/utils/wiki-tree（层级以缩进呈现，issue #289）。
 
 async function loadTree() {
   treeLoading.value = true
@@ -340,15 +340,21 @@ onMounted(() => {
                 </div>
                 <div v-if="!group.pages.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ adminText('k00ny') }}</div>
                 <div v-else class="divide-y">
-                  <div v-for="page in sortedPages(group)" :key="page.pageId" class="flex items-center gap-2 px-3 py-2 pl-6">
-                    <FileText class="size-4 shrink-0 text-muted-foreground" />
+                  <div
+                    v-for="page in flattenAdminTree(group.pages)"
+                    :key="page.path"
+                    class="flex items-center gap-2 px-3 py-2"
+                    :style="{ paddingLeft: `${16 + page.depth * 18}px` }"
+                  >
+                    <Folder v-if="page.pageId === 0" class="size-4 shrink-0 text-muted-foreground" />
+                    <FileText v-else class="size-4 shrink-0 text-muted-foreground" />
                     <div class="min-w-0 flex-1">
                       <div class="truncate text-sm font-medium">{{ page.title || page.path }}</div>
                       <div class="truncate font-mono text-xs text-muted-foreground">{{ page.path }}</div>
                     </div>
                     <div class="flex shrink-0 items-center gap-1">
                       <a
-                        v-if="editUrlFor(page)"
+                        v-if="editUrlFor(page) && page.pageId !== 0"
                         :href="editUrlFor(page)"
                         target="_blank"
                         rel="noopener noreferrer"
@@ -358,6 +364,7 @@ onMounted(() => {
                         <ExternalLink class="size-3.5" />
                       </a>
                       <a
+                        v-if="page.pageId !== 0"
                         :href="`/wiki/${page.path.split('/').map((seg) => encodeURIComponent(seg)).join('/')}`"
                         target="_blank"
                         rel="noopener noreferrer"

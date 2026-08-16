@@ -57,18 +57,24 @@ class WikiNamespace {
 }
 
 /// 导航树中的一页（公开 `GET /api/wiki/tree`）。
+/// 目录节点：pageId=0（无对应页面行），仅作分组；children 镜像仓库目录层级。
 class WikiTreePage {
   const WikiTreePage({
     required this.pageId,
     required this.path,
     required this.title,
     required this.active,
+    this.children = const [],
   });
 
+  /// 页面 id；0 = 纯目录节点（仅分组，无可点击页面）。
   final int pageId;
   final String path;
   final String title;
   final bool active;
+
+  /// 子目录/子页面节点（镜像仓库目录层级）；叶子页面为空列表。
+  final List<WikiTreePage> children;
 
   factory WikiTreePage.fromJson(Map<String, dynamic> json) {
     return WikiTreePage(
@@ -76,11 +82,20 @@ class WikiTreePage {
       path: json['path'] as String? ?? '',
       title: json['title'] as String? ?? '',
       active: json['active'] as bool? ?? false,
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((item) => WikiTreePage.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'pageId': pageId, 'path': path, 'title': title, 'active': active};
+    return {
+      'pageId': pageId,
+      'path': path,
+      'title': title,
+      'active': active,
+      'children': children.map((child) => child.toJson()).toList(),
+    };
   }
 }
 
@@ -320,6 +335,7 @@ class WikiTocItem {
 }
 
 /// 管理端树中的一页（`GET /api/admin/wiki/tree`）。
+/// 目录节点：pageId=0（无对应页面行），仅作分组；children 镜像仓库目录层级。
 class WikiAdminTreePage {
   const WikiAdminTreePage({
     required this.pageId,
@@ -327,17 +343,22 @@ class WikiAdminTreePage {
     required this.sourcePath,
     required this.title,
     required this.sortOrder,
+    this.children = const [],
   });
 
+  /// 页面 id；0 = 纯目录节点（仅分组，无可点击页面）。
   final int pageId;
 
   /// URL 友好路径（首段 = slug，降级 = 显示名）。
   final String path;
 
-  /// 仓库真实相对路径（GitHub 编辑/历史外链用）。
+  /// 仓库真实相对路径（GitHub 编辑/历史外链用）；纯目录节点为空。
   final String sourcePath;
   final String title;
   final int sortOrder;
+
+  /// 子目录/子页面节点（镜像仓库目录层级）；叶子页面为空列表。
+  final List<WikiAdminTreePage> children;
 
   factory WikiAdminTreePage.fromJson(Map<String, dynamic> json) {
     return WikiAdminTreePage(
@@ -346,6 +367,9 @@ class WikiAdminTreePage {
       sourcePath: json['sourcePath'] as String? ?? '',
       title: json['title'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((item) => WikiAdminTreePage.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
@@ -356,6 +380,7 @@ class WikiAdminTreePage {
       'sourcePath': sourcePath,
       'title': title,
       'sortOrder': sortOrder,
+      'children': children.map((child) => child.toJson()).toList(),
     };
   }
 }

@@ -2585,15 +2585,21 @@ WikiTreePage:
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Page id; 0 for a pure directory node (grouping only, no page row).
     path:
       type: string
-      description: Canonical page path within the namespace (slash-separated).
+      description: Canonical page path within the namespace (slash-separated); directory nodes carry the directory path.
     title:
       type: string
     active:
       type: boolean
       description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+    children:
+      type: array
+      items:
+        $ref: '#/WikiTreePage'
+      description: Nested directory/page nodes mirroring the repository directory hierarchy; absent for leaf pages.
   additionalProperties: false
 
 WikiTreeNamespace:
@@ -2742,17 +2748,23 @@ WikiAdminTreePage:
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Page id; 0 for a pure directory node (grouping only, no page row).
     path:
       type: string
       description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
     sourcePath:
       type: string
-      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
+      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. Empty for pure directory nodes.
     title:
       type: string
     sortOrder:
       type: integer
+    children:
+      type: array
+      items:
+        $ref: '#/WikiAdminTreePage'
+      description: Nested directory/page nodes mirroring the repository directory hierarchy; absent for leaf pages.
   additionalProperties: false
 
 WikiAdminTreeNamespace:

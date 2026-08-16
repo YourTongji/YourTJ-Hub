@@ -2190,13 +2190,18 @@ export interface components {
             isCurrent: boolean;
         };
         WikiTreePage: {
-            /** Format: uint64 */
+            /**
+             * Format: uint64
+             * @description Page id; 0 for a pure directory node (grouping only, no page row).
+             */
             pageId: number;
-            /** @description Canonical page path within the namespace (slash-separated). */
+            /** @description Canonical page path within the namespace (slash-separated); directory nodes carry the directory path. */
             path: string;
             title: string;
             /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
             active: boolean;
+            /** @description Nested directory/page nodes mirroring the repository directory hierarchy; absent for leaf pages. */
+            children?: components["schemas"]["WikiTreePage"][];
         };
         WikiTreeNamespace: {
             /** @description Display name (top-level directory name; may contain Unicode such as Chinese). */
@@ -2257,14 +2262,19 @@ export interface components {
             result: components["schemas"]["WikiHomeResult"];
         }) | components["schemas"]["ApiFailure"];
         WikiAdminTreePage: {
-            /** Format: uint64 */
+            /**
+             * Format: uint64
+             * @description Page id; 0 for a pure directory node (grouping only, no page row).
+             */
             pageId: number;
             /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
             path: string;
-            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. */
+            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. Empty for pure directory nodes. */
             sourcePath: string;
             title: string;
             sortOrder: number;
+            /** @description Nested directory/page nodes mirroring the repository directory hierarchy; absent for leaf pages. */
+            children?: components["schemas"]["WikiAdminTreePage"][];
         };
         WikiAdminTreeNamespace: {
             name: string;
@@ -4409,7 +4419,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace-labeled page tree with an active-page flag for each page. */
+            /** @description Namespace-labeled page tree with an active-page flag for each page; pages nest under directory nodes mirroring the repository directory hierarchy (issue #289). */
             200: {
                 headers: {
                     [name: string]: unknown;
