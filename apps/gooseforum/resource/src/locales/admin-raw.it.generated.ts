@@ -770,7 +770,6 @@ export default {
   "k00qh": "Fallita",
   "k00qi": "In esecuzione",
   "k00qj": "Sincronizzazione completata",
-  "k00qk": "Una sincronizzazione è già in esecuzione",
   "k00ql": "Sincronizzazione fallita",
   "k00qm": "Nessuna sincronizzazione registrata",
   "k00qn": "Registri di sincronizzazione",
@@ -793,4 +792,5 @@ export default {
   "k00r5": "Nuovo segreto (lasciare vuoto e salvare per cancellare)",
   "k00r6": "Inserisci il segreto del webhook GitHub",
   "k00r7": "Slug",
+  "k00r8": "Polling di sincronizzazione scaduto; aggiorna la pagina per vedere il risultato",
 } as const

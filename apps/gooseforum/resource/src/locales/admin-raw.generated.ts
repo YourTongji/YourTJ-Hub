@@ -770,7 +770,6 @@ export default {
   "k00qh": "失败",
   "k00qi": "运行中",
   "k00qj": "同步完成",
-  "k00qk": "同步已在运行中",
   "k00ql": "同步失败",
   "k00qm": "暂无同步记录",
   "k00qn": "运行记录",
@@ -793,4 +792,5 @@ export default {
   "k00r5": "新密钥（留空并保存可清除）",
   "k00r6": "输入 GitHub webhook secret",
   "k00r7": "Slug",
+  "k00r8": "同步轮询超时，请手动刷新页面查看结果",
 } as const
