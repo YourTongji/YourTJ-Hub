@@ -11,10 +11,12 @@ const templateSelectorSource = readFileSync(
 )
 
 describe('课程详情页 UI 结构', () => {
-  test('评分摘要与开课记录在 sm+ 使用 3:2 两栏布局', () => {
+  test('桌面端（xl+）评价列表为主列，评分分布/开课记录/相关课程收纳右栏', () => {
     expect(detailSource).toContain(
-      'grid gap-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] sm:items-start',
+      'xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)]',
     )
+    expect(detailSource).toContain('xl:order-1')
+    expect(detailSource).toContain('xl:order-2')
   })
 
   test('写评价入口只保留在评价列表标题处', () => {

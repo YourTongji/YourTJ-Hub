@@ -414,11 +414,13 @@ onMounted(() => {
       </span>
     </div>
 
-    <!-- 顶部统计区：桌面端评分摘要与开课记录并排，移动端保持纵向排列。 -->
-    <div class="mb-6 grid gap-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] sm:items-start">
-    <section class="gf-panel p-5">
-      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-6">
-        <div class="flex flex-col items-center lg:min-w-24">
+    <!-- 内容区：桌面端（xl+）评价列表为主列，评分分布/开课记录/相关课程/AI 总结收纳右栏；移动端按 DOM 顺序纵向堆叠。 -->
+    <div class="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)] xl:items-start">
+      <!-- 右栏（xl+ 排右侧；移动端先于评价列表显示，保持原顺序） -->
+      <div class="min-w-0 space-y-4 xl:order-2 xl:sticky xl:top-6">
+        <section class="gf-panel p-5">
+          <div class="flex flex-col gap-5">
+            <div class="flex flex-col items-center">
           <div class="text-4xl font-bold tracking-tight tabular-nums text-warning">
             {{ ratingAvg != null ? ratingAvg.toFixed(1) : '—' }}
           </div>
@@ -473,10 +475,11 @@ onMounted(() => {
         </li>
       </ul>
     </section>
-    </div>
 
-    <!-- 相关课程：桌面（sm+）常显；移动端折叠展开 -->
-    <section class="mt-6">
+      <AISummaryCard :course-id="page.props.course.id" />
+
+      <!-- 相关课程：桌面常显；移动端折叠展开 -->
+      <section>
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.relatedTitle') }}
@@ -504,7 +507,7 @@ onMounted(() => {
       <div
         v-else-if="!relatedError"
         id="course-related-panel"
-        :class="['sm:grid sm:grid-cols-2 sm:gap-4', relatedMobileExpanded ? 'block' : 'hidden']"
+        :class="['space-y-4 sm:block', relatedMobileExpanded ? 'block' : 'hidden']"
       >
         <div class="gf-panel p-4">
           <h3 class="mb-3 text-sm font-semibold text-base-content">
@@ -571,11 +574,11 @@ onMounted(() => {
           </ul>
         </div>
       </div>
-    </section>
+      </section>
 
-    <AISummaryCard :course-id="page.props.course.id" class="mt-6" />
+      </div>
 
-    <section class="mt-6">
+    <section class="min-w-0 xl:order-1">
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
@@ -807,6 +810,7 @@ onMounted(() => {
         </button>
       </div>
     </section>
+    </div>
 
     <!-- 举报弹窗 -->
     <Teleport to="body">
