@@ -50,6 +50,12 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；管理端树
   `WikiAdminTreePage` 带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。
+- Wiki 首页/详情兼容性（issue #291）：GitHub SSOT 下站内无「编辑者」概念，
+  `GET /api/wiki/home` 的 `recent[]` 与 wiki 详情负载的 `editorId`/`editorName`
+  字段已**移除**（此前恒为零值且违反 OpenAPI `editorId minimum: 1`）。消费方需删除
+  对这两个字段的依赖；Git 作者信息改由详情页 `contributors[]`（用户名/头像可为空，
+  无论坛数字用户 ID）提供。OpenAPI `WikiRecentPage`/`WikiTreePage`/`WikiNamespaceSummary`
+  的旧「approved revision」措辞已同步改为 GitHub SSOT 投影语义。
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,
 `auth-sessions.yaml`, `forum-topics.yaml`); new coverage adds a new per-domain file instead of
