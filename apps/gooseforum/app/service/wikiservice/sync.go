@@ -16,7 +16,6 @@ import (
 	"sort"
 	"strings"
 	"sync"
-	"sync/atomic"
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -236,19 +235,59 @@ var syncMu sync.Mutex
 
 // syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
 // 避免投影停留在旧 head（并发丢弃 push 会 stale 到下次定时同步）。
-var syncPending atomic.Bool
+// syncRunning stays true across the initial sync and every pending rerun.
+// It must only be read or written while syncMu is held.
+var syncRunning bool
+
+// syncReconciling prevents a status read from being treated as a live sync.
+var syncReconciling bool
+
+// syncPending is coalesced under syncMu to prevent a trigger from being lost
+// between the final rerun and lifecycle release.
+var syncPending bool
+
+// syncOnceFn keeps contention tests independent from Git and database I/O.
+// Production always uses syncOnce.
+var syncOnceFn = syncOnce
 
 // ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
 var ErrSyncAlreadyRunning = errors.New("wiki sync already running")
 
-// TryAcquireSyncLock 尝试获取同步锁（防重入；webhook/定时/手动并发时只跑一个）。
+// TryAcquireSyncLock 尝试开始一个同步生命周期。若已有同步在运行，当前
+// 触发会被合并为一次 pending rerun。
 func TryAcquireSyncLock() bool {
-	return syncMu.TryLock()
+	syncMu.Lock()
+	defer syncMu.Unlock()
+	if syncRunning {
+		syncPending = true
+		return false
+	}
+	if syncReconciling {
+		return false
+	}
+	syncRunning = true
+	return true
 }
 
-// ReleaseSyncLock 释放同步锁。
+// ReleaseSyncLock 结束同步生命周期。它主要是 panic 清理路径；正常路径在
+// 确认没有 pending 触发时会在同一临界区内结束生命周期。
 func ReleaseSyncLock() {
+	syncMu.Lock()
+	syncRunning = false
 	syncMu.Unlock()
+}
+
+// consumePendingOrRelease atomically either consumes one coalesced trigger or
+// ends the lifecycle.
+func consumePendingOrRelease() bool {
+	syncMu.Lock()
+	defer syncMu.Unlock()
+	if syncPending {
+		syncPending = false
+		return true
+	}
+	syncRunning = false
+	return false
 }
 
 // abandonedRunErrMsg 崩溃/重启遗留 running 行的回收标记文案（issue #290）。
@@ -275,10 +314,18 @@ func markAbandonedRuns() int64 {
 // 让管理端 lastRun 呈现可恢复状态（手动同步按钮不再被永久禁用）。锁被占用
 // （同步真在运行）时跳过，避免误杀在途同步。供状态读取与进程启动时调用。
 func ReconcileStaleRuns() {
-	if !TryAcquireSyncLock() {
-		return // 锁被占用 = 同步真在运行，running 行是活的，不得回收
+	syncMu.Lock()
+	if syncRunning || syncReconciling {
+		syncMu.Unlock()
+		return
 	}
-	defer ReleaseSyncLock()
+	syncReconciling = true
+	syncMu.Unlock()
+	defer func() {
+		syncMu.Lock()
+		syncReconciling = false
+		syncMu.Unlock()
+	}()
 	markAbandonedRuns()
 }
 
@@ -526,7 +573,6 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
 	}
 	if !TryAcquireSyncLock() {
-		syncPending.Store(true)
 		return nil, ErrSyncAlreadyRunning
 	}
 	// 崩溃恢复（issue #290）：此刻锁空闲刚被本调用持有 = 本进程无其他在途
@@ -534,26 +580,21 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
 	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
 	markAbandonedRuns()
-	defer func() {
-		ReleaseSyncLock()
-		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
-		if syncPending.CompareAndSwap(true, false) {
-			// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止
-			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
-			// startup/cron 之外的直接调用方）。
-			defer recovery.Recover("wiki_sync_pending_rerun")
-			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
-			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
-			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
-			if TryAcquireSyncLock() {
-				defer ReleaseSyncLock()
-				if _, err := syncOnce(cfg, "webhook"); err != nil {
-					slog.Warn("wiki sync: pending rerun failed", "error", err)
-				}
-			}
-		}
-	}()
-	return syncOnce(cfg, trigger)
+	// Preserve cleanup if the initial sync panics. The normal path releases in
+	// consumePendingOrRelease so the final pending check and release are atomic.
+	defer ReleaseSyncLock()
+	result, err := syncOnceFn(cfg, trigger)
+	for consumePendingOrRelease() {
+		runPendingSync(cfg)
+	}
+	return result, err
+}
+
+func runPendingSync(cfg GitConfig) {
+	defer recovery.Recover("wiki_sync_pending_rerun")
+	if _, err := syncOnceFn(cfg, "webhook"); err != nil {
+		slog.Warn("wiki sync: pending rerun failed", "error", err)
+	}
 }
 
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。

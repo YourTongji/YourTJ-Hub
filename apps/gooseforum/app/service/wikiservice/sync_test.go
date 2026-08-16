@@ -5,6 +5,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"sync/atomic"
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
@@ -157,6 +158,121 @@ func TestApplyRepoToDBRefreshesRelativeLinksAfterSlugChange(t *testing.T) {
 	start = wikiPages.GetByPath("guide/start")
 	if !strings.Contains(start.RenderedHTML, `href="/wiki/handbook/other"`) {
 		t.Fatalf("refreshed rendered link = %s, want /wiki/handbook/other", start.RenderedHTML)
+	}
+}
+
+// TestSyncWithConfigSerializesPendingReruns reproduces three overlapping
+// triggers: A runs, B is coalesced into a pending rerun, and C arrives while
+// that rerun is active. Every invocation of the sync body must remain serial
+// and C must cause a third run rather than being lost.
+func TestSyncWithConfigSerializesPendingReruns(t *testing.T) {
+	syncMu.Lock()
+	syncRunning = false
+	syncPending = false
+	syncMu.Unlock()
+
+	originalSyncOnce := syncOnceFn
+	t.Cleanup(func() {
+		syncOnceFn = originalSyncOnce
+		syncMu.Lock()
+		syncRunning = false
+		syncPending = false
+		syncMu.Unlock()
+	})
+
+	firstStarted := make(chan struct{})
+	allowFirst := make(chan struct{})
+	pendingStarted := make(chan struct{})
+	allowPending := make(chan struct{})
+	finalStarted := make(chan struct{})
+	allowFinal := make(chan struct{})
+	var calls atomic.Int32
+	var active atomic.Int32
+	var maxActive atomic.Int32
+	syncOnceFn = func(_ GitConfig, _ string) (*SyncResult, error) {
+		current := active.Add(1)
+		for previous := maxActive.Load(); current > previous && !maxActive.CompareAndSwap(previous, current); previous = maxActive.Load() {
+		}
+		defer active.Add(-1)
+
+		switch calls.Add(1) {
+		case 1:
+			close(firstStarted)
+			<-allowFirst
+		case 2:
+			close(pendingStarted)
+			<-allowPending
+		case 3:
+			close(finalStarted)
+			<-allowFinal
+		default:
+			t.Fatalf("unexpected sync invocation")
+		}
+		return &SyncResult{}, nil
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := SyncWithConfig(GitConfig{Repo: "test"}, "manual")
+		firstDone <- err
+	}()
+	<-firstStarted
+
+	if _, err := SyncWithConfig(GitConfig{Repo: "test"}, "webhook"); !errors.Is(err, ErrSyncAlreadyRunning) {
+		t.Fatalf("second trigger error=%v, want ErrSyncAlreadyRunning", err)
+	}
+	close(allowFirst)
+	<-pendingStarted
+
+	thirdDone := make(chan error, 1)
+	go func() {
+		_, err := SyncWithConfig(GitConfig{Repo: "test"}, "cron")
+		thirdDone <- err
+	}()
+	thirdReturned := false
+	finalAlreadyStarted := false
+	select {
+	case err := <-thirdDone:
+		thirdReturned = true
+		if !errors.Is(err, ErrSyncAlreadyRunning) {
+			t.Fatalf("third trigger error=%v, want ErrSyncAlreadyRunning", err)
+		}
+	case <-finalStarted:
+		// The old implementation releases before the pending rerun, allowing
+		// the third trigger to enter the sync body concurrently.
+		finalAlreadyStarted = true
+	case <-time.After(time.Second):
+		t.Fatal("third trigger neither returned nor started a sync body")
+	}
+	close(allowPending)
+	if !finalAlreadyStarted {
+		<-finalStarted
+	}
+	close(allowFinal)
+
+	select {
+	case err := <-firstDone:
+		if err != nil {
+			t.Fatalf("first trigger error=%v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first trigger did not finish")
+	}
+	if !thirdReturned {
+		select {
+		case err := <-thirdDone:
+			if !errors.Is(err, ErrSyncAlreadyRunning) {
+				t.Fatalf("third trigger error=%v, want ErrSyncAlreadyRunning", err)
+			}
+		case <-time.After(time.Second):
+			t.Fatal("third trigger did not finish")
+		}
+	}
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("sync body calls=%d, want 3", got)
+	}
+	if got := maxActive.Load(); got != 1 {
+		t.Fatalf("max concurrent sync bodies=%d, want 1", got)
 	}
 }
 
