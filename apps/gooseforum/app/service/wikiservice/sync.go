@@ -247,8 +247,19 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 // 其他进程正在执行的同步。
 var syncMu sync.Mutex
 
-// syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
-// 避免投影停留在旧 head（并发丢弃 push 会 stale 到下次定时同步）。
+// syncHandoffMu 关闭「最终排空检查与解锁之间」的丢触发窗口（review P1）：
+// 到达方在 handoffMu 临界区内执行「TryLock 失败 → 置 pending」，持锁方在
+// handoffMu 临界区内执行「排空循环 + 释放锁」。二者互斥后，pending 的置位
+// 要么发生在持锁方最终检查之前（随后被排空循环消费），要么发生在锁释放
+// 之后（此时 TryLock 必然成功，触发直接进入正常同步）——不存在「已置位
+// 却无人消费」的窗口。锁序：到达方 handoffMu → syncMu.TryLock（非阻塞）；
+// 持锁方 syncMu（已持有）→ handoffMu。到达方临界区极短，补跑期间到达方
+// 短暂阻塞在 handoffMu 上等待补跑完成，不丢触发。
+var syncHandoffMu sync.Mutex
+
+// syncPending 运行期间到达的 webhook push 合并标记：当前同步持锁排空补跑
+// （SyncWithConfig defer 内循环 CAS 消费），避免投影停留在旧 head（并发
+// 丢弃 push 会 stale 到下次定时同步）。
 var syncPending atomic.Bool
 
 // ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
@@ -539,38 +550,80 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		return nil, fmt.Errorf("wiki git sync not configured ([wiki.git].repo empty)")
 	}
 	if !TryAcquireSyncLock() {
-		syncPending.Store(true)
-		return nil, ErrSyncAlreadyRunning
+		// review P1（状态交接竞态）：TryLock 失败不能直接置 pending 返回——
+		// 持锁方可能正处于「最终检查与解锁之间」。在 handoffMu 临界区内
+		// 重试：若持锁方已完成交接（锁已释放）则 TryLock 成功，直接进入
+		// 正常同步（不丢触发）；若仍持锁则置 pending，持锁方的下一次临界区
+		// 检查必然消费它。任何情况下都不存在「已置位却无人消费」的窗口。
+		syncHandoffMu.Lock()
+		if !TryAcquireSyncLock() {
+			syncPending.Store(true)
+			syncHandoffMu.Unlock()
+			return nil, ErrSyncAlreadyRunning
+		}
+		syncHandoffMu.Unlock()
 	}
 	// 崩溃恢复（issue #290）：此刻锁空闲刚被本调用持有 = 本进程无其他在途
 	// 同步，库中 running 行必为崩溃/重启/MarkFinished 失败残留 → 回收，
 	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
 	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
 	markAbandonedRuns()
+	// 补跑必须持有同步锁执行（syncOnce 假定调用方持锁）。修复前 defer 先
+	// ReleaseSyncLock 再补跑：补跑期间到达的第三个触发会成功获取锁并并发
+	// 进入 syncOnce，对同一 clone fetch/reset、对同一投影并发 upsert（#285）。
+	// 循环排空 pending：补跑期间新到达的触发合并为下一次补跑——不丢失、不
+	// 并发；每次补跑都由一次新的到达触发（非自触发），到达停止即终止。
+	// 最终交接（review P1）：每次 pending 检查都在 handoffMu 临界区内，
+	// 与到达方的「TryLock 失败 → 置 pending」互斥——pending 置位要么被
+	// 本次/下一次检查消费，要么发生在锁释放之后（到达方随后 TryLock
+	// 成功直接同步），不存在无人消费的窗口。
 	defer func() {
-		ReleaseSyncLock()
-		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
-		if syncPending.CompareAndSwap(true, false) {
-			// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止
-			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
-			// startup/cron 之外的直接调用方）。
-			defer recovery.Recover("wiki_sync_pending_rerun")
-			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
-			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
-			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
-			if TryAcquireSyncLock() {
-				defer ReleaseSyncLock()
-				if _, err := syncOnce(cfg, "webhook"); err != nil {
-					slog.Warn("wiki sync: pending rerun failed", "error", err)
+		for {
+			syncHandoffMu.Lock()
+			if !syncPending.CompareAndSwap(true, false) {
+				if h := syncReleaseHook.Load(); h != nil {
+					(*h)() // 测试钩子：仍持 handoffMu+syncMu，即将释放
 				}
+				ReleaseSyncLock()
+				syncHandoffMu.Unlock()
+				return
 			}
+			syncHandoffMu.Unlock()
+			runPendingSync(cfg)
 		}
 	}()
 	return syncOnce(cfg, trigger)
 }
 
+// runPendingSync 持锁补跑一次合并的同步触发（调用方持有同步锁）。
+// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止进程
+// （webhook/manual 外层已有 Recover，此处再兜底，覆盖 startup/cron 之外
+// 的直接调用方）。
+func runPendingSync(cfg GitConfig) {
+	defer recovery.Recover("wiki_sync_pending_rerun")
+	if _, err := syncOnce(cfg, "webhook"); err != nil {
+		slog.Warn("wiki sync: pending rerun failed", "error", err)
+	}
+}
+
+// syncOnceEnterHook 测试专用钩子：每次 syncOnce 进入主体时调用（生产为 nil）。
+// 并发测试用它确定性阻塞 syncOnce，构造「主运行/补跑」重叠窗口验证锁串行化。
+// 原子装载：测试安装/清理与 syncOnce 并发读取之间无数据竞争（ci-backend-race
+// 在 -race 下运行该包）。
+var syncOnceEnterHook atomic.Pointer[func()]
+
+// syncReleaseHook 测试专用钩子：持锁方完成最终 pending 检查（确认无遗留）、
+// 即将 ReleaseSyncLock 时调用（此时仍持有 syncMu + syncHandoffMu）。并发
+// 测试用它确定性阻塞「最终交接」窗口，构造「检查已过、锁未放」的状态，
+// 验证该窗口内到达的触发被接管为正常同步而非丢弃（review P1 回归测试）。
+// 原子装载：与并发读取之间无数据竞争（ci-backend-race 在 -race 下运行）。
+var syncReleaseHook atomic.Pointer[func()]
+
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
 func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
+	if h := syncOnceEnterHook.Load(); h != nil {
+		(*h)()
+	}
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {
 		return nil, fmt.Errorf("create sync run: %w", err)
