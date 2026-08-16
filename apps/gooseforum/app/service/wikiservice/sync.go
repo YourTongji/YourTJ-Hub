@@ -341,10 +341,10 @@ func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
 			unshallowed = true
 		}
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
-			return "", unshallowed, fmt.Errorf("git fetch: %v: %s", err, out)
+			return "", unshallowed, fmt.Errorf("git fetch: %w: %s", err, out)
 		}
 		if out, err := runGit(cfg.CloneDir, "reset", "--hard", "origin/"+cfg.Branch); err != nil {
-			return "", unshallowed, fmt.Errorf("git reset: %v: %s", err, out)
+			return "", unshallowed, fmt.Errorf("git reset: %w: %s", err, out)
 		}
 	} else {
 		if err := os.MkdirAll(cfg.CloneDir, 0o755); err != nil {
@@ -353,12 +353,12 @@ func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
 		// 全量 clone（不用 --depth=1，贡献者统计依赖完整 git log 历史）+
 		// --single-branch（只取配置分支，避免拉取无关长驻分支的冗余对象）。
 		if out, err := runGit("", "clone", "--single-branch", "--branch", cfg.Branch, cfg.Repo, cfg.CloneDir); err != nil {
-			return "", false, fmt.Errorf("git clone: %v: %s", err, out)
+			return "", false, fmt.Errorf("git clone: %w: %s", err, out)
 		}
 	}
 	out, err := runGit(cfg.CloneDir, "rev-parse", "HEAD")
 	if err != nil {
-		return "", unshallowed, fmt.Errorf("git rev-parse: %v: %s", err, out)
+		return "", unshallowed, fmt.Errorf("git rev-parse: %w: %s", err, out)
 	}
 	return strings.TrimSpace(out), unshallowed, nil
 }
