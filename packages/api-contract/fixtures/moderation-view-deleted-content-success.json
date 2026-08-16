@@ -1,0 +1,25 @@
+{
+  "result": {
+    "contentType": "topic",
+    "contentId": 1201,
+    "topicId": 1201,
+    "title": "期中复习资料汇总",
+    "content": "整理了本学期各科目的复习资料，**需要的同学自取**。",
+    "authorId": 1024,
+    "authorName": "tongji_user",
+    "categories": [
+      {
+        "id": 3,
+        "name": "学习交流",
+        "url": "/c/study/3",
+        "color": "#3b82f6"
+      }
+    ],
+    "deletedBy": 7,
+    "deletedByWho": "mod_user",
+    "deletedAt": "2026-08-14T12:00:00Z",
+    "deleteReason": "违反社区规范",
+    "targetUrl": "/p/post/1201"
+  },
+  "code": 0
+}

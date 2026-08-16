@@ -1975,6 +1975,9 @@ ReportHandlerPayload:
       description: Present only when the user has a nickname.
     avatarUrl:
       type: string
+    wornBadge:
+      type: [object, 'null']
+      description: Present only when the handler wears a badge.
   additionalProperties: false
   description: Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports.
 
@@ -4202,4 +4205,630 @@ ChatMarkReadSuccess:
 ChatMarkReadResponse:
   oneOf:
     - $ref: '#/ChatMarkReadSuccess'
+    - $ref: '#/ApiFailure'
+
+
+# ================= Forum moderation workbench（Issue #277 P3）=================
+
+ModerationTopicStatusRequest:
+  type: object
+  required: [topicId, action]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target topic; unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+    action:
+      type: string
+      enum: [ban, unban]
+      description: ban sets processStatus 1 (hidden from public views), unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+ModerationPostStatusRequest:
+  type: object
+  required: [postId, action]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Target post; unknown ids fail with `post.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+    action:
+      type: string
+      enum: [ban, unban]
+      description: ban sets processStatus 1, unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+ModerationActionSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: boolean
+          const: true
+          description: Idempotent — repeating an already-applied status also returns true.
+
+ModerationActionResponse:
+  oneOf:
+    - $ref: '#/ModerationActionSuccess'
+    - $ref: '#/ApiFailure'
+
+ModerationReportListRequest:
+  type: object
+  properties:
+    status:
+      type: string
+      enum: [open, closed, resolved, rejected]
+      description: Optional filter; omitted means `open`. `closed` expands to resolved+rejected server-side. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+    pageSize:
+      type: integer
+      description: Clamped server-side into the 10-50 range (values below 10 become 10, above 50 become 50).
+    category:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Optional category filter, intersected with the caller's moderation scope; a category outside the scope yields an empty page.
+  additionalProperties: false
+
+ModerationReportItem:
+  type: object
+  required: [id, targetType, targetId, targetUrl, title, excerpt, reason, note, status, resolution, reporter, handler, categories, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    targetType:
+      type: string
+      enum: [topic, post]
+    targetId:
+      type: integer
+      format: uint64
+      minimum: 1
+    targetUrl:
+      type: string
+      description: Deep link to the reported content; empty when it cannot be resolved.
+    title:
+      type: string
+    excerpt:
+      type: string
+      description: Content snapshot taken at report time (max 120 runes).
+    reason:
+      type: string
+      enum: [spam, abuse, illegal, irrelevant, other]
+    note:
+      type: string
+      description: Reporter note (max 300 runes); may be empty.
+    status:
+      type: string
+      enum: [open, resolved, rejected]
+    resolution:
+      type: string
+      enum: [banned, ignored, '']
+      description: Set when handled; empty for open reports and for resolve actions.
+    reporter:
+      $ref: '#/TopicAuthorPayload'
+    handler:
+      $ref: '#/ReportHandlerPayload'
+    categories:
+      type: array
+      items:
+        $ref: '#/TopicCategoryPayload'
+    createdAt:
+      type: string
+      description: RFC 3339 timestamp.
+    handledAt:
+      type: string
+      description: RFC 3339 timestamp; omitted while the report is open.
+    targetDeleted:
+      type: boolean
+      description: Present and true when the reported content has since been deleted; review still relies on the report-time snapshot.
+  additionalProperties: false
+
+ModerationReportListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationReportItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Pass as cursor for the next page; 0 when hasNext is false.
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+ModerationReportListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ModerationReportListResult'
+
+ModerationReportListResponse:
+  oneOf:
+    - $ref: '#/ModerationReportListSuccess'
+    - $ref: '#/ApiFailure'
+
+ModerationReportStatusRequest:
+  type: object
+  required: [id, action]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+    action:
+      type: string
+      enum: [ban, resolve, reject]
+      description: ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+ModerationLogListRequest:
+  type: object
+  properties:
+    cursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+    pageSize:
+      type: integer
+      description: Clamped server-side into the 10-50 range.
+  additionalProperties: false
+
+ModerationLogSubject:
+  type: object
+  required: [type, id, title]
+  properties:
+    type:
+      type: string
+      enum: [topic, post, report, category, user, system]
+    id:
+      type: integer
+      format: uint64
+      minimum: 0
+    title:
+      type: string
+    url:
+      type: string
+      description: Deep link to the subject; omitted when it cannot be resolved.
+    excerpt:
+      type: string
+      description: Omitted when no excerpt is available.
+  additionalProperties: false
+
+ModerationLogItem:
+  type: object
+  required: [id, action, actor, subject, categories, messageCode, params, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    action:
+      type: string
+      description: Stable action identifier recorded in the moderation log (e.g. topic status change, report handling, deleted-content view).
+    actor:
+      $ref: '#/TopicAuthorPayload'
+    subject:
+      $ref: '#/ModerationLogSubject'
+    categories:
+      type: array
+      items:
+        $ref: '#/TopicCategoryPayload'
+    messageCode:
+      type: string
+      description: Stable message identifier for rendering the log entry.
+    params:
+      type: object
+      additionalProperties: true
+      description: Localization params for messageCode; shape depends on the action.
+    createdAt:
+      type: string
+      description: RFC 3339 timestamp.
+  additionalProperties: false
+
+ModerationLogListResult:
+  type: object
+  required: [items, nextCursor, hasNext]
+  properties:
+    items:
+      type: array
+      items:
+        $ref: '#/ModerationLogItem'
+    nextCursor:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Pass as cursor for the next page; 0 when hasNext is false.
+    hasNext:
+      type: boolean
+  additionalProperties: false
+
+ModerationLogListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ModerationLogListResult'
+
+ModerationLogListResponse:
+  oneOf:
+    - $ref: '#/ModerationLogListSuccess'
+    - $ref: '#/ApiFailure'
+
+ViewDeletedContentRequest:
+  type: object
+  required: [contentType, contentId, reason]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+      description: Any other value fails with `common.request.invalidParams` (HTTP 200).
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Deleted topic or post id. Unknown, still-visible, or permanently purged content fails with `topic.notFound` / `post.notFound` (HTTP 200).
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 300
+      description: Mandatory audit reason; every view is written to the moderation log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+ModerationDeletedContentView:
+  type: object
+  required: [contentType, contentId, title, content, authorId, authorName, categories, deletedBy, deletedByWho, deletedAt, deleteReason, targetUrl]
+  properties:
+    contentType:
+      type: string
+      enum: [topic, post]
+    contentId:
+      type: integer
+      format: uint64
+      minimum: 1
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Owning topic id; omitted when it cannot be resolved.
+    title:
+      type: string
+      description: Topic title, or `回复 #<postNo>` for a deleted reply.
+    content:
+      type: string
+      description: Raw markdown source of the deleted content.
+    authorId:
+      type: integer
+      format: uint64
+      minimum: 0
+    authorName:
+      type: string
+      description: Resolved at view time; empty when the author account is gone.
+    categories:
+      type: array
+      items:
+        $ref: '#/TopicCategoryPayload'
+    deletedBy:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: User id of the deleting actor; 0 when not recorded.
+    deletedByWho:
+      type: string
+      description: Username of the deleting actor; empty when not resolvable.
+    deletedAt:
+      type: string
+      description: RFC 3339 deletion timestamp; empty when not recorded.
+    deleteReason:
+      type: string
+    targetUrl:
+      type: string
+  additionalProperties: false
+
+ViewDeletedContentSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/ModerationDeletedContentView'
+
+ViewDeletedContentResponse:
+  oneOf:
+    - $ref: '#/ViewDeletedContentSuccess'
+    - $ref: '#/ApiFailure'
+
+# ================= Admin topic/post management（Issue #277 P3）=================
+
+AdminTopicsListRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+      minimum: 0
+      description: 1-based page; values below 1 are treated as page 1.
+    pageSize:
+      type: integer
+      description: Bounded server-side to the shared page-size limits.
+    search:
+      type: string
+      description: Case-insensitive title substring filter.
+    userId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Optional author filter; 0 or omitted lists all authors.
+  additionalProperties: false
+
+AdminTopicBase:
+  type: object
+  required: [id, title, description, categoryId, userId, topicStatus, processStatus, createdAt, updatedAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    title:
+      type: string
+    description:
+      type: string
+      description: Topic excerpt.
+    categoryId:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+    userId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Author user id.
+    topicStatus:
+      type: integer
+      description: Lifecycle status of the topic (0 unlisted, 1 published).
+    processStatus:
+      type: integer
+      description: Moderation status (0 normal, 1 banned).
+    createdAt:
+      type: string
+      description: RFC 3339 timestamp.
+    updatedAt:
+      type: string
+      description: RFC 3339 timestamp.
+  additionalProperties: false
+
+AdminTopicListItem:
+  allOf:
+    - $ref: '#/AdminTopicBase'
+    - type: object
+      required: [username, userAvatarUrl, viewCount, replyCount, likeCount, pinWeight]
+      properties:
+        username:
+          type: string
+          description: Author username; empty when the author account is gone.
+        userAvatarUrl:
+          type: string
+        viewCount:
+          type: integer
+          format: uint64
+          minimum: 0
+        replyCount:
+          type: integer
+          format: uint64
+          minimum: 0
+        likeCount:
+          type: integer
+          format: uint64
+          minimum: 0
+        pinWeight:
+          type: integer
+          minimum: 0
+          description: Pin weight; larger values sort first.
+
+AdminTopicsListResult:
+  type: object
+  required: [list, page, size, total]
+  properties:
+    list:
+      type: array
+      items:
+        $ref: '#/AdminTopicListItem'
+    page:
+      type: integer
+      minimum: 1
+    size:
+      type: integer
+      minimum: 1
+      description: Effective page size after server-side bounding.
+    total:
+      type: integer
+      format: int64
+      description: Always 0 — the admin list query does not compute a total count.
+    hasNext:
+      type: boolean
+      description: Omitted from the wire payload when false.
+  additionalProperties: false
+
+AdminTopicsListSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminTopicsListResult'
+
+AdminTopicsListResponse:
+  oneOf:
+    - $ref: '#/AdminTopicsListSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminTopicSourceRequest:
+  type: object
+  required: [topicId]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminTopicSource:
+  allOf:
+    - $ref: '#/AdminTopicBase'
+    - type: object
+      required: [content]
+      properties:
+        content:
+          type: string
+          description: Raw markdown source of the topic's first post.
+
+AdminTopicSourceSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminTopicSource'
+
+AdminTopicSourceResponse:
+  oneOf:
+    - $ref: '#/AdminTopicSourceSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminEditTopicRequest:
+  type: object
+  required: [topicId, processStatus]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200).
+    processStatus:
+      type: integer
+      enum: [0, 1]
+      description: 0 normal, 1 banned. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminDeleteTopicRequest:
+  type: object
+  required: [topicId, reason]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200). Wiki subsite topics fail with `topic.operationDenied` (HTTP 200).
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminRestoreTopicRequest:
+  type: object
+  required: [topicId]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200); topics not in the moderator-removed state fail with `content.notRecoverable` (HTTP 200).
+  additionalProperties: false
+
+AdminDeletePostRequest:
+  type: object
+  required: [postId, reason]
+  properties:
+    postId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Reply posts only. Unknown ids fail with `post.notFound` (HTTP 200); the topic first post fails with `common.request.invalidParams` (HTTP 200) — delete the topic instead.
+    reason:
+      type: string
+      minLength: 1
+      maxLength: 500
+      description: Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminEditTopicPinRequest:
+  type: object
+  required: [topicId, pinWeight]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200).
+    pinWeight:
+      type: integer
+      minimum: 0
+      maximum: 1000000
+      description: 0 unpins; larger weights sort first. Values outside 0-1000000 fail validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminEditTopicCategoriesRequest:
+  type: object
+  required: [topicId, categoryId]
+  properties:
+    topicId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `topic.notFound` (HTTP 200).
+    categoryId:
+      type: array
+      items:
+        type: integer
+        format: uint64
+        minimum: 1
+      minItems: 1
+      maxItems: 3
+      description: Replacement category set (deduplicated server-side). An empty/omitted set or more than three raw entries fail request validation with `common.request.invalidParams`; zero or unknown ids fail with `admin.category.notFound` (all HTTP 200). The handler's `admin.topic.categoryRequired` / `admin.topic.categoryTooMany` branches are unreachable because validation runs first.
+  additionalProperties: false
+
+AdminOperationSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: 操作成功
+        messageCode:
+          type: string
+          enum: [common.operation.success, content.restore.success]
+          description: "`common.operation.success` for most operations; `content.restore.success` for adminRestoreTopic."
+
+AdminOperationResponse:
+  oneOf:
+    - $ref: '#/AdminOperationSuccess'
     - $ref: '#/ApiFailure'

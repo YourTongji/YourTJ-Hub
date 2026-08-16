@@ -797,6 +797,173 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/forum/moderation/topic-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a topic from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     (`CanModerateAnyCategory`: Admin, global moderator, or a moderator of one of the
+         *     topic's categories) — it does NOT use the role-permission middleware, so a
+         *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
+         *     not 403. Unknown topics fail with `topic.notFound` (HTTP 200) before the
+         *     permission check. The operation is idempotent: re-applying the current status
+         *     returns true. JSON binding is lenient: a malformed body binds to zero values
+         *     and fails validation as `common.request.invalidParams` (HTTP 200). Other
+         *     business failures: `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdateTopicStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/post-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a reply post from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     against the categories of the post's topic (`CanModerateAnyCategory`) — it does
+         *     NOT use the role-permission middleware, so a caller without moderation scope
+         *     fails with HTTP 200 and `permission.denied`, not 403. Unknown posts fail with
+         *     `post.notFound` (HTTP 200) before the permission check. The operation is
+         *     idempotent: re-applying the current status returns true. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200). Other business failures:
+         *     `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdatePostStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/reports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the moderation report queue
+         * @description Read endpoint of the moderation workbench. Authorization is decided inside the
+         *     controller (`CanAccessModeration`: Admin or any moderator grant) — a caller
+         *     without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+         *     Results are restricted to the caller's category scope; the optional category
+         *     filter is intersected with that scope. This route is mounted without the
+         *     writable-account middleware, so frozen accounts can still read the queue.
+         *     JSON binding is lenient: a malformed body binds to zero values and returns the
+         *     first page of open reports; an invalid status filter fails validation as
+         *     `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["listModerationReports"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/report-status": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Resolve or reject a report from the moderation workbench
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     against the categories of the report target (course-review reports instead
+         *     require the course-review moderation capability) — it does NOT use the
+         *     role-permission middleware, so a caller without scope over the target fails
+         *     with HTTP 200 and `permission.denied`, not 403. Unknown reports fail with
+         *     `report.notFound` (HTTP 200) before the permission check. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200). Other business failures:
+         *     `common.operation.failed` (HTTP 200).
+         */
+        post: operations["moderationUpdateReportStatus"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/logs": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the moderation audit log
+         * @description Read endpoint of the moderation workbench. Authorization is decided inside the
+         *     controller (`CanAccessModeration` plus a non-empty moderation scope) — a caller
+         *     without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+         *     Entries are restricted to the caller's category scope; Admins and global
+         *     moderators see all entries. This route is mounted without the writable-account
+         *     middleware, so frozen accounts can still read the log. JSON binding is lenient:
+         *     a malformed body binds to zero values and returns the first page.
+         */
+        post: operations["listModerationLogs"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/forum/moderation/view-deleted-content": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * View the raw content of a deleted topic or post (audited)
+         * @description Moderator workbench operation. Authorization is decided inside the controller
+         *     in two steps (`CanAccessModeration`, then `CanModerateAnyCategory` against the
+         *     content's categories) — it does NOT use the role-permission middleware, so a
+         *     caller without moderation scope fails with HTTP 200 and `permission.denied`,
+         *     not 403. The audit reason is mandatory and every view is written to the
+         *     moderation log. Unknown, still-visible, or permanently purged content fails
+         *     with `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
+         *     a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200), which is also returned for a blank
+         *     reason or an unknown contentType.
+         */
+        post: operations["viewDeletedContent"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/get-captcha": {
         parameters: {
             query?: never;
@@ -1708,6 +1875,225 @@ export interface paths {
         get: operations["getWikiHome"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through topics for the admin console
+         * @description Admin console topic list, gated by the `TopicsManager` role permission
+         *     (Admin role is a superset). Callers without the permission fail with HTTP 403
+         *     and `permission.denied` (params permission=<localized permission name>).
+         *     Results sort by pin weight, then update time, both descending. The page payload
+         *     never computes a total count (`total` is always 0). JSON binding is lenient:
+         *     a malformed body binds to zero values and returns the first page.
+         */
+        post: operations["adminListTopics"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/source": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Read a topic with its raw markdown source
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied` (params
+         *     permission=<localized permission name>). Unknown topics fail with
+         *     `topic.notFound` (HTTP 200). JSON binding is lenient: a malformed body binds
+         *     to zero values and fails validation as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminGetTopicSource"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Ban or unban a topic from the admin console
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Sets the topic
+         *     processStatus (0 normal, 1 banned); re-applying the current status is a
+         *     no-op success. Unknown topics fail with `topic.notFound` (HTTP 200); a status
+         *     outside 0-1 fails validation as `common.request.invalidParams` (HTTP 200);
+         *     persistence failures surface as `common.operation.failed` (HTTP 200). JSON
+         *     binding is lenient: a malformed body binds to zero values and fails validation
+         *     as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminEditTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderation-delete a topic (soft, restorable via adminRestoreTopic)
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Performs a moderation
+         *     (governance) deletion: the topic is soft-deleted into the moderator-removed
+         *     state — never hard-deleted — and only the admin console can restore it; the
+         *     author cannot. Re-deleting an already moderator-removed topic is an idempotent
+         *     success that keeps the original deletion metadata. Wiki subsite topics are
+         *     rejected with `topic.operationDenied` (HTTP 200). Unknown topics fail with
+         *     `topic.notFound` (HTTP 200); a blank reason fails with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface as
+         *     `content.delete.failed` (HTTP 200).
+         */
+        post: operations["adminDeleteTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/restore": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Restore a moderation-deleted topic
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. The admin console is
+         *     the only restore channel for moderation-deleted topics. Unknown topics fail
+         *     with `topic.notFound` (HTTP 200); topics not in the moderator-removed state
+         *     fail with `content.notRecoverable` (HTTP 200); persistence failures surface
+         *     as `content.restore.failed` (HTTP 200). A successful restore returns
+         *     messageCode `content.restore.success`.
+         */
+        post: operations["adminRestoreTopic"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/pin-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Set a topic's pin weight
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Larger pin weights sort
+         *     first in topic lists; 0 unpins. Re-applying the current weight is a no-op
+         *     success. Unknown topics fail with `topic.notFound` (HTTP 200); a weight
+         *     outside 0-1000000 fails validation as `common.request.invalidParams`
+         *     (HTTP 200); persistence failures surface as `common.operation.failed`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values and
+         *     fails validation as `common.request.invalidParams` (HTTP 200) because topicId
+         *     is required.
+         */
+        post: operations["adminEditTopicPin"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/topics/categories-edit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace a topic's category set
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the topic's
+         *     categories with the given set (deduplicated server-side). The request struct
+         *     validates `categoryId` with `min=1,max=3` before the handler runs, so an
+         *     empty/omitted set or more than three raw entries fail validation with
+         *     `common.request.invalidParams` (HTTP 200) — the handler's
+         *     `admin.topic.categoryRequired` / `admin.topic.categoryTooMany` branches are
+         *     unreachable through this endpoint. A zero or unknown category id fails with
+         *     `admin.category.notFound` (HTTP 200), unknown topics with `topic.notFound`
+         *     (HTTP 200); persistence failures surface as `common.operation.failed`
+         *     (HTTP 200). JSON binding is lenient: a malformed body binds to zero values
+         *     and fails validation as `common.request.invalidParams` (HTTP 200).
+         */
+        post: operations["adminEditTopicCategories"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/posts/delete": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Moderation-delete a reply post
+         * @description Admin console operation gated by the `TopicsManager` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Unlike author
+         *     self-deletion, a moderation deletion cannot be restored by the author, records
+         *     the mandatory reason in the audit log, and also upgrades author-deleted posts
+         *     to the moderator-removed state. Re-deleting an already moderator-removed or
+         *     purged post is an idempotent success. The topic first post is rejected with
+         *     `common.request.invalidParams` (HTTP 200) — use adminDeleteTopic instead.
+         *     Unknown posts fail with `post.notFound` (HTTP 200); a blank reason fails with
+         *     `common.request.invalidParams` (HTTP 200); persistence failures surface as
+         *     `content.delete.failed` (HTTP 200).
+         */
+        post: operations["adminDeletePost"];
         delete?: never;
         options?: never;
         head?: never;
@@ -3583,6 +3969,214 @@ export interface components {
         ModerationCourseReviewRevealResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseReviewAuthorRevealPayload"];
         }) | components["schemas"]["ApiFailure"];
+        ModerationTopicStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Target topic; unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description ban sets processStatus 1 (hidden from public views), unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "unban";
+        };
+        ModerationPostStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Target post; unknown ids fail with `post.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            postId: number;
+            /**
+             * @description ban sets processStatus 1, unban restores 0. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "unban";
+        };
+        ModerationActionSuccess: components["schemas"]["ApiSuccess"] & {
+            /**
+             * @description Idempotent — repeating an already-applied status also returns true.
+             * @constant
+             */
+            result: true;
+        };
+        ModerationActionResponse: components["schemas"]["ModerationActionSuccess"] | components["schemas"]["ApiFailure"];
+        ModerationReportListRequest: {
+            /**
+             * @description Optional filter; omitted means `open`. `closed` expands to resolved+rejected server-side. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            status?: "open" | "closed" | "resolved" | "rejected";
+            /**
+             * Format: uint64
+             * @description Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+             */
+            cursor?: number;
+            /** @description Clamped server-side into the 10-50 range (values below 10 become 10, above 50 become 50). */
+            pageSize?: number;
+            /**
+             * Format: uint64
+             * @description Optional category filter, intersected with the caller's moderation scope; a category outside the scope yields an empty page.
+             */
+            category?: number;
+        };
+        ModerationReportItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @enum {string} */
+            targetType: "topic" | "post";
+            /** Format: uint64 */
+            targetId: number;
+            /** @description Deep link to the reported content; empty when it cannot be resolved. */
+            targetUrl: string;
+            title: string;
+            /** @description Content snapshot taken at report time (max 120 runes). */
+            excerpt: string;
+            /** @enum {string} */
+            reason: "spam" | "abuse" | "illegal" | "irrelevant" | "other";
+            /** @description Reporter note (max 300 runes); may be empty. */
+            note: string;
+            /** @enum {string} */
+            status: "open" | "resolved" | "rejected";
+            /**
+             * @description Set when handled; empty for open reports and for resolve actions.
+             * @enum {string}
+             */
+            resolution: "banned" | "ignored" | "";
+            reporter: components["schemas"]["TopicAuthorPayload"];
+            handler: components["schemas"]["ReportHandlerPayload"];
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+            /** @description RFC 3339 timestamp; omitted while the report is open. */
+            handledAt?: string;
+            /** @description Present and true when the reported content has since been deleted; review still relies on the report-time snapshot. */
+            targetDeleted?: boolean;
+        };
+        ModerationReportListResult: {
+            items: components["schemas"]["ModerationReportItem"][];
+            /**
+             * Format: uint64
+             * @description Pass as cursor for the next page; 0 when hasNext is false.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        ModerationReportListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationReportListResult"];
+        };
+        ModerationReportListResponse: components["schemas"]["ModerationReportListSuccess"] | components["schemas"]["ApiFailure"];
+        ModerationReportStatusRequest: {
+            /**
+             * Format: uint64
+             * @description Report id; unknown ids fail with `report.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            id: number;
+            /**
+             * @description ban resolves with resolution `banned`, resolve resolves with empty resolution, reject rejects with resolution `ignored`. Any other value (including empty) fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            action: "ban" | "resolve" | "reject";
+        };
+        ModerationLogListRequest: {
+            /**
+             * Format: uint64
+             * @description Pass the previous page's nextCursor for the next page; omit or send 0 for the first page.
+             */
+            cursor?: number;
+            /** @description Clamped server-side into the 10-50 range. */
+            pageSize?: number;
+        };
+        ModerationLogSubject: {
+            /** @enum {string} */
+            type: "topic" | "post" | "report" | "category" | "user" | "system";
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            /** @description Deep link to the subject; omitted when it cannot be resolved. */
+            url?: string;
+            /** @description Omitted when no excerpt is available. */
+            excerpt?: string;
+        };
+        ModerationLogItem: {
+            /** Format: uint64 */
+            id: number;
+            /** @description Stable action identifier recorded in the moderation log (e.g. topic status change, report handling, deleted-content view). */
+            action: string;
+            actor: components["schemas"]["TopicAuthorPayload"];
+            subject: components["schemas"]["ModerationLogSubject"];
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /** @description Stable message identifier for rendering the log entry. */
+            messageCode: string;
+            /** @description Localization params for messageCode; shape depends on the action. */
+            params: {
+                [key: string]: unknown;
+            };
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+        };
+        ModerationLogListResult: {
+            items: components["schemas"]["ModerationLogItem"][];
+            /**
+             * Format: uint64
+             * @description Pass as cursor for the next page; 0 when hasNext is false.
+             */
+            nextCursor: number;
+            hasNext: boolean;
+        };
+        ModerationLogListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationLogListResult"];
+        };
+        ModerationLogListResponse: components["schemas"]["ModerationLogListSuccess"] | components["schemas"]["ApiFailure"];
+        ViewDeletedContentRequest: {
+            /**
+             * @description Any other value fails with `common.request.invalidParams` (HTTP 200).
+             * @enum {string}
+             */
+            contentType: "topic" | "post";
+            /**
+             * Format: uint64
+             * @description Deleted topic or post id. Unknown, still-visible, or permanently purged content fails with `topic.notFound` / `post.notFound` (HTTP 200).
+             */
+            contentId: number;
+            /** @description Mandatory audit reason; every view is written to the moderation log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        ModerationDeletedContentView: {
+            /** @enum {string} */
+            contentType: "topic" | "post";
+            /** Format: uint64 */
+            contentId: number;
+            /**
+             * Format: uint64
+             * @description Owning topic id; omitted when it cannot be resolved.
+             */
+            topicId?: number;
+            /** @description Topic title, or `回复 */
+            title: string;
+            /** @description Raw markdown source of the deleted content. */
+            content: string;
+            /** Format: uint64 */
+            authorId: number;
+            /** @description Resolved at view time; empty when the author account is gone. */
+            authorName: string;
+            categories: components["schemas"]["TopicCategoryPayload"][];
+            /**
+             * Format: uint64
+             * @description User id of the deleting actor; 0 when not recorded.
+             */
+            deletedBy: number;
+            /** @description Username of the deleting actor; empty when not resolvable. */
+            deletedByWho: string;
+            /** @description RFC 3339 deletion timestamp; empty when not recorded. */
+            deletedAt: string;
+            deleteReason: string;
+            targetUrl: string;
+        };
+        ViewDeletedContentSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["ModerationDeletedContentView"];
+        };
+        ViewDeletedContentResponse: components["schemas"]["ViewDeletedContentSuccess"] | components["schemas"]["ApiFailure"];
         AdminCourseListRequest: {
             /** @description Matches normalized name, primary code, aliases, pinyin, initials, or instructor names. */
             keyword?: string;
@@ -3696,6 +4290,150 @@ export interface components {
             /** Format: uint64 */
             reviewId: number;
         };
+        AdminTopicsListRequest: {
+            /** @description 1-based page; values below 1 are treated as page 1. */
+            page?: number;
+            /** @description Bounded server-side to the shared page-size limits. */
+            pageSize?: number;
+            /** @description Case-insensitive title substring filter. */
+            search?: string;
+            /**
+             * Format: uint64
+             * @description Optional author filter; 0 or omitted lists all authors.
+             */
+            userId?: number;
+        };
+        AdminTopicBase: {
+            /** Format: uint64 */
+            id: number;
+            title: string;
+            /** @description Topic excerpt. */
+            description: string;
+            categoryId: number[];
+            /**
+             * Format: uint64
+             * @description Author user id.
+             */
+            userId: number;
+            /** @description Lifecycle status of the topic (0 unlisted, 1 published). */
+            topicStatus: number;
+            /** @description Moderation status (0 normal, 1 banned). */
+            processStatus: number;
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+            /** @description RFC 3339 timestamp. */
+            updatedAt: string;
+        };
+        AdminTopicListItem: components["schemas"]["AdminTopicBase"] & {
+            /** @description Author username; empty when the author account is gone. */
+            username: string;
+            userAvatarUrl: string;
+            /** Format: uint64 */
+            viewCount: number;
+            /** Format: uint64 */
+            replyCount: number;
+            /** Format: uint64 */
+            likeCount: number;
+            /** @description Pin weight; larger values sort first. */
+            pinWeight: number;
+        };
+        AdminTopicsListResult: {
+            list: components["schemas"]["AdminTopicListItem"][];
+            page: number;
+            /** @description Effective page size after server-side bounding. */
+            size: number;
+            /**
+             * Format: int64
+             * @description Always 0 — the admin list query does not compute a total count.
+             */
+            total: number;
+            /** @description Omitted from the wire payload when false. */
+            hasNext?: boolean;
+        };
+        AdminTopicsListSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTopicsListResult"];
+        };
+        AdminTopicsListResponse: components["schemas"]["AdminTopicsListSuccess"] | components["schemas"]["ApiFailure"];
+        AdminTopicSourceRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200). Missing or zero fails validation with `common.request.invalidParams` (HTTP 200).
+             */
+            topicId: number;
+        };
+        AdminTopicSource: components["schemas"]["AdminTopicBase"] & {
+            /** @description Raw markdown source of the topic's first post. */
+            content: string;
+        };
+        AdminTopicSourceSuccess: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminTopicSource"];
+        };
+        AdminTopicSourceResponse: components["schemas"]["AdminTopicSourceSuccess"] | components["schemas"]["ApiFailure"];
+        AdminEditTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /**
+             * @description 0 normal, 1 banned. Any other value fails validation with `common.request.invalidParams` (HTTP 200).
+             * @enum {integer}
+             */
+            processStatus: 0 | 1;
+        };
+        AdminDeleteTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200). Wiki subsite topics fail with `topic.operationDenied` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        AdminRestoreTopicRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200); topics not in the moderator-removed state fail with `content.notRecoverable` (HTTP 200).
+             */
+            topicId: number;
+        };
+        AdminDeletePostRequest: {
+            /**
+             * Format: uint64
+             * @description Reply posts only. Unknown ids fail with `post.notFound` (HTTP 200); the topic first post fails with `common.request.invalidParams` (HTTP 200) — delete the topic instead.
+             */
+            postId: number;
+            /** @description Mandatory moderation reason, stored in the audit log. Blank after trimming fails with `common.request.invalidParams` (HTTP 200). */
+            reason: string;
+        };
+        AdminEditTopicPinRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description 0 unpins; larger weights sort first. Values outside 0-1000000 fail validation with `common.request.invalidParams` (HTTP 200). */
+            pinWeight: number;
+        };
+        AdminEditTopicCategoriesRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `topic.notFound` (HTTP 200).
+             */
+            topicId: number;
+            /** @description Replacement category set (deduplicated server-side). An empty/omitted set or more than three raw entries fail request validation with `common.request.invalidParams`; zero or unknown ids fail with `admin.category.notFound` (all HTTP 200). The handler's `admin.topic.categoryRequired` / `admin.topic.categoryTooMany` branches are unreachable because validation runs first. */
+            categoryId: number[];
+        };
+        AdminOperationSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "操作成功";
+            /**
+             * @description `common.operation.success` for most operations; `content.restore.success` for adminRestoreTopic.
+             * @enum {string}
+             */
+            messageCode: "common.operation.success" | "content.restore.success";
+        };
+        AdminOperationResponse: components["schemas"]["AdminOperationSuccess"] | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -4158,6 +4896,20 @@ export interface components {
         PkReviewBriefResponse: components["schemas"]["PkSuccess"] & {
             data: components["schemas"]["PkReviewBrief"];
         };
+        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
+        ReportHandlerPayload: {
+            /**
+             * Format: uint64
+             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
+             */
+            id: number;
+            username: string;
+            /** @description Present only when the user has a nickname. */
+            nickname?: string;
+            avatarUrl: string;
+            /** @description Present only when the handler wears a badge. */
+            wornBadge?: Record<string, never> | null;
+        };
         TopicCategoryPayload: {
             /** Format: uint64 */
             id: number;
@@ -4271,18 +5023,6 @@ export interface components {
         };
         CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseRelatedResult"];
-        };
-        /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
-        ReportHandlerPayload: {
-            /**
-             * Format: uint64
-             * @description 0 while the report is still open (no handler assigned yet); a real user id once handled.
-             */
-            id: number;
-            username: string;
-            /** @description Present only when the user has a nickname. */
-            nickname?: string;
-            avatarUrl: string;
         };
     };
     responses: never;
@@ -5589,6 +6329,240 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["RateLimitedFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdateTopicStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationTopicStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied, or a legacy business failure envelope (`topic.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdatePostStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationPostStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Status applied, or a legacy business failure envelope (`post.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationReports: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReportListRequest"];
+            };
+        };
+        responses: {
+            /** @description Report page, or a legacy business failure envelope (`permission.denied` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationReportListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    moderationUpdateReportStatus: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationReportStatusRequest"];
+            };
+        };
+        responses: {
+            /** @description Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationActionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    listModerationLogs: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ModerationLogListRequest"];
+            };
+        };
+        responses: {
+            /** @description Log page, or a legacy business failure envelope (`permission.denied`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ModerationLogListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    viewDeletedContent: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ViewDeletedContentRequest"];
+            };
+        };
+        responses: {
+            /** @description Deleted content view, or a legacy business failure envelope (`topic.notFound` / `post.notFound` / `permission.denied` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ViewDeletedContentResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Authenticated account is frozen or its account information cannot be resolved. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
         };
@@ -7526,6 +8500,342 @@ export interface operations {
             };
             /** @description Wiki home query failed. */
             500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminListTopics: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTopicsListRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTopicsListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetTopicSource: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTopicSourceRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic with first-post source, or a legacy business failure envelope (`topic.notFound` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTopicSourceResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Operation applied, or a legacy business failure envelope (`topic.notFound` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeleteTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeleteTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic deleted, or a legacy business failure envelope (`topic.notFound` / `topic.operationDenied` / `common.request.invalidParams` / `content.delete.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminRestoreTopic: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminRestoreTopicRequest"];
+            };
+        };
+        responses: {
+            /** @description Topic restored, or a legacy business failure envelope (`topic.notFound` / `content.notRecoverable` / `content.restore.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopicPin: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicPinRequest"];
+            };
+        };
+        responses: {
+            /** @description Pin weight applied, or a legacy business failure envelope (`topic.notFound` / `common.operation.failed` / `common.request.invalidParams`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminEditTopicCategories: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminEditTopicCategoriesRequest"];
+            };
+        };
+        responses: {
+            /** @description Categories replaced, or a legacy business failure envelope (`common.request.invalidParams` / `admin.category.notFound` / `topic.notFound` / `common.operation.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminDeletePost: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminDeletePostRequest"];
+            };
+        };
+        responses: {
+            /** @description Post deleted, or a legacy business failure envelope (`post.notFound` / `common.request.invalidParams` / `content.delete.failed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOperationResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };

@@ -26,6 +26,8 @@ tags:
     description: User account and profile operations.
   - name: Agent
     description: Bot persona (Agent) public operations authenticated by an opaque bearer token.
+  - name: Admin
+    description: Admin console operations restricted to role-permission holders (Admin role is a superset).
   - name: Wiki
     description: Wiki public reading operations; content is a read-only projection synced from the GitHub wiki repository (single source of truth).
   - name: Wiki Admin
@@ -93,6 +95,18 @@ paths:
     $ref: ./paths/forum-interactions.yaml#/followUser
   /api/forum/report:
     $ref: ./paths/forum-interactions.yaml#/createReport
+  /api/forum/moderation/topic-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdateTopicStatus
+  /api/forum/moderation/post-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdatePostStatus
+  /api/forum/moderation/reports:
+    $ref: ./paths/forum-moderation.yaml#/listModerationReports
+  /api/forum/moderation/report-status:
+    $ref: ./paths/forum-moderation.yaml#/moderationUpdateReportStatus
+  /api/forum/moderation/logs:
+    $ref: ./paths/forum-moderation.yaml#/listModerationLogs
+  /api/forum/moderation/view-deleted-content:
+    $ref: ./paths/forum-moderation.yaml#/viewDeletedContent
   /api/get-captcha:
     $ref: ./paths/user-account.yaml#/getCaptcha
   /api/user-card:
@@ -196,6 +210,22 @@ paths:
   /api/wiki/home:
     get:
       $ref: ./paths/wiki.yaml#/getWikiHome/get
+  /api/admin/topics/list:
+    $ref: ./paths/admin-topics.yaml#/adminListTopics
+  /api/admin/topics/source:
+    $ref: ./paths/admin-topics.yaml#/adminGetTopicSource
+  /api/admin/topics/edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopic
+  /api/admin/topics/delete:
+    $ref: ./paths/admin-topics.yaml#/adminDeleteTopic
+  /api/admin/topics/restore:
+    $ref: ./paths/admin-topics.yaml#/adminRestoreTopic
+  /api/admin/topics/pin-edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopicPin
+  /api/admin/topics/categories-edit:
+    $ref: ./paths/admin-topics.yaml#/adminEditTopicCategories
+  /api/admin/posts/delete:
+    $ref: ./paths/admin-topics.yaml#/adminDeletePost
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -652,6 +682,46 @@ components:
       $ref: ./components/schemas.yaml#/CourseReviewAuthorRevealPayload
     ModerationCourseReviewRevealResponse:
       $ref: ./components/schemas.yaml#/ModerationCourseReviewRevealResponse
+    ModerationTopicStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationTopicStatusRequest
+    ModerationPostStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationPostStatusRequest
+    ModerationActionSuccess:
+      $ref: ./components/schemas.yaml#/ModerationActionSuccess
+    ModerationActionResponse:
+      $ref: ./components/schemas.yaml#/ModerationActionResponse
+    ModerationReportListRequest:
+      $ref: ./components/schemas.yaml#/ModerationReportListRequest
+    ModerationReportItem:
+      $ref: ./components/schemas.yaml#/ModerationReportItem
+    ModerationReportListResult:
+      $ref: ./components/schemas.yaml#/ModerationReportListResult
+    ModerationReportListSuccess:
+      $ref: ./components/schemas.yaml#/ModerationReportListSuccess
+    ModerationReportListResponse:
+      $ref: ./components/schemas.yaml#/ModerationReportListResponse
+    ModerationReportStatusRequest:
+      $ref: ./components/schemas.yaml#/ModerationReportStatusRequest
+    ModerationLogListRequest:
+      $ref: ./components/schemas.yaml#/ModerationLogListRequest
+    ModerationLogSubject:
+      $ref: ./components/schemas.yaml#/ModerationLogSubject
+    ModerationLogItem:
+      $ref: ./components/schemas.yaml#/ModerationLogItem
+    ModerationLogListResult:
+      $ref: ./components/schemas.yaml#/ModerationLogListResult
+    ModerationLogListSuccess:
+      $ref: ./components/schemas.yaml#/ModerationLogListSuccess
+    ModerationLogListResponse:
+      $ref: ./components/schemas.yaml#/ModerationLogListResponse
+    ViewDeletedContentRequest:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentRequest
+    ModerationDeletedContentView:
+      $ref: ./components/schemas.yaml#/ModerationDeletedContentView
+    ViewDeletedContentSuccess:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentSuccess
+    ViewDeletedContentResponse:
+      $ref: ./components/schemas.yaml#/ViewDeletedContentResponse
     AdminCourseListRequest:
       $ref: ./components/schemas.yaml#/AdminCourseListRequest
     AdminCourseItem:
@@ -680,6 +750,42 @@ components:
       $ref: ./components/schemas.yaml#/AdminReviewUpdateRequest
     AdminReviewDeleteRequest:
       $ref: ./components/schemas.yaml#/AdminReviewDeleteRequest
+    AdminTopicsListRequest:
+      $ref: ./components/schemas.yaml#/AdminTopicsListRequest
+    AdminTopicBase:
+      $ref: ./components/schemas.yaml#/AdminTopicBase
+    AdminTopicListItem:
+      $ref: ./components/schemas.yaml#/AdminTopicListItem
+    AdminTopicsListResult:
+      $ref: ./components/schemas.yaml#/AdminTopicsListResult
+    AdminTopicsListSuccess:
+      $ref: ./components/schemas.yaml#/AdminTopicsListSuccess
+    AdminTopicsListResponse:
+      $ref: ./components/schemas.yaml#/AdminTopicsListResponse
+    AdminTopicSourceRequest:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceRequest
+    AdminTopicSource:
+      $ref: ./components/schemas.yaml#/AdminTopicSource
+    AdminTopicSourceSuccess:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceSuccess
+    AdminTopicSourceResponse:
+      $ref: ./components/schemas.yaml#/AdminTopicSourceResponse
+    AdminEditTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicRequest
+    AdminDeleteTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminDeleteTopicRequest
+    AdminRestoreTopicRequest:
+      $ref: ./components/schemas.yaml#/AdminRestoreTopicRequest
+    AdminDeletePostRequest:
+      $ref: ./components/schemas.yaml#/AdminDeletePostRequest
+    AdminEditTopicPinRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicPinRequest
+    AdminEditTopicCategoriesRequest:
+      $ref: ./components/schemas.yaml#/AdminEditTopicCategoriesRequest
+    AdminOperationSuccess:
+      $ref: ./components/schemas.yaml#/AdminOperationSuccess
+    AdminOperationResponse:
+      $ref: ./components/schemas.yaml#/AdminOperationResponse
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     PostPayload:

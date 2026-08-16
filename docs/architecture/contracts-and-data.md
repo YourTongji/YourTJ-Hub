@@ -44,6 +44,13 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   `POST /api/forum/notification/mark-all-read`,
   `POST /api/forum/chat/send`, `POST /api/forum/chat/messages`, and
   `POST /api/forum/chat/mark-read`;
+- moderation (issue #277 P3, first slice): the moderator workbench
+  `POST /api/forum/moderation/{topic-status,post-status,reports,report-status,logs,view-deleted-content}`
+  (in-controller moderator-scope checks, permission failures are HTTP 200
+  `permission.denied`), and the TopicsManager admin console endpoints
+  `POST /api/admin/topics/{list,source,edit,delete,restore,pin-edit,categories-edit}`
+  plus `POST /api/admin/posts/delete` (middleware `CheckPermission`,
+  permission failures are HTTP 403 with `params.permission`);
 - `GET /api/user/sessions`;
 - `POST /api/user/sessions/revoke`;
 - `POST /api/user/sessions/revoke-all`;

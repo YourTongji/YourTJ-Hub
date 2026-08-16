@@ -39,7 +39,8 @@ be changed, but the "Go + Vue in one binary, frontend go:embed into the binary" 
   interactions (post create/update/delete/window/revisions, topic status/delete/like/bookmark/watch,
   post like/bookmark, follow-user, report), user account and identity (captcha, user-card,
   profile/email/username/avatar/badge settings, upload-avatar, change-password, OAuth
-  bindings/unbind), notifications/unread/chat, account
+  bindings/unbind), notifications/unread/chat, forum moderation workbench + TopicsManager admin
+  topic/post moderation, account
   registration/password recovery (`/api/register`, `/api/forgot-password`, `/api/reset-password`),
   the six-operation Agent forum API, course catalog reads + review write/moderation, the Wiki domain
   (public tree/namespaces/home + admin sync/status|sync|sync/runs + webhook; the legacy in-forum
