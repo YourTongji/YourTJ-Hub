@@ -247,8 +247,9 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 // 其他进程正在执行的同步。
 var syncMu sync.Mutex
 
-// syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
-// 避免投影停留在旧 head（并发丢弃 push 会 stale 到下次定时同步）。
+// syncPending 运行期间到达的 webhook push 合并标记：当前同步持锁排空补跑
+// （SyncWithConfig defer 内循环 CAS 消费），避免投影停留在旧 head（并发
+// 丢弃 push 会 stale 到下次定时同步）。
 var syncPending atomic.Bool
 
 // ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
@@ -547,30 +548,40 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
 	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
 	markAbandonedRuns()
+	// 补跑必须持有同步锁执行（syncOnce 假定调用方持锁）。修复前 defer 先
+	// ReleaseSyncLock 再补跑：补跑期间到达的第三个触发会成功获取锁并并发
+	// 进入 syncOnce，对同一 clone fetch/reset、对同一投影并发 upsert（#285）。
+	// 循环排空 pending：补跑期间新到达的触发合并为下一次补跑——不丢失、不
+	// 并发；每次补跑都由一次新的到达触发（非自触发），到达停止即终止。
 	defer func() {
-		ReleaseSyncLock()
-		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
-		if syncPending.CompareAndSwap(true, false) {
-			// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止
-			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
-			// startup/cron 之外的直接调用方）。
-			defer recovery.Recover("wiki_sync_pending_rerun")
-			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
-			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
-			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
-			if TryAcquireSyncLock() {
-				defer ReleaseSyncLock()
-				if _, err := syncOnce(cfg, "webhook"); err != nil {
-					slog.Warn("wiki sync: pending rerun failed", "error", err)
-				}
-			}
+		for syncPending.CompareAndSwap(true, false) {
+			runPendingSync(cfg)
 		}
+		ReleaseSyncLock()
 	}()
 	return syncOnce(cfg, trigger)
 }
 
+// runPendingSync 持锁补跑一次合并的同步触发（调用方持有同步锁）。
+// review MEDIUM：补跑在调用方 goroutine 内执行，panic 同样会终止进程
+// （webhook/manual 外层已有 Recover，此处再兜底，覆盖 startup/cron 之外
+// 的直接调用方）。
+func runPendingSync(cfg GitConfig) {
+	defer recovery.Recover("wiki_sync_pending_rerun")
+	if _, err := syncOnce(cfg, "webhook"); err != nil {
+		slog.Warn("wiki sync: pending rerun failed", "error", err)
+	}
+}
+
+// syncOnceEnterHook 测试专用钩子：每次 syncOnce 进入主体时调用（生产为 nil）。
+// 并发测试用它确定性阻塞 syncOnce，构造「主运行/补跑」重叠窗口验证锁串行化。
+var syncOnceEnterHook func()
+
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
 func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
+	if syncOnceEnterHook != nil {
+		syncOnceEnterHook()
+	}
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {
 		return nil, fmt.Errorf("create sync run: %w", err)
