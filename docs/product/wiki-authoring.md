@@ -78,3 +78,12 @@ Repository hygiene requirements:
   syntax cannot represent them reliably.
 
 The top-level namespace `_assets` is reserved for the controlled asset route.
+
+## Contributors (Current)
+
+Wiki 详情页右侧「贡献者」区块显示页面的 Git 作者（`Current` 行为）：每次同步
+（webhook/手动/定时）从仓库 `git log` 重新聚合**每个页面**的编辑者与提交数，
+并缓存于 `wiki_pages.contributors_json`。展示按 GitHub noreply 隐私邮箱解析出的
+username 聚合（合并新旧邮箱格式同人），同时提供 GitHub 头像直链与主页外链；
+自定义邮箱贡献者无头像/外链，降级为首字母占位。贡献者无需论坛账号（无数字
+用户 ID）。GitHub 作者（非 PR 审核者）即该页面的贡献者名单。
