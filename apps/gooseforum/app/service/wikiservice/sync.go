@@ -1582,7 +1582,7 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 
 // softDeleteWikiPage 仓库中已移除的页面 → 论坛软删（保留互动，走删除生命周期）。
 func softDeleteWikiPage(page *wikiPages.Entity) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
 			"deleted_at":        time.Now(),
 			"visibility_status": topics.VisibilityUserDeleted,
@@ -1594,7 +1594,14 @@ func softDeleteWikiPage(page *wikiPages.Entity) error {
 			return err
 		}
 		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
-	})
+	}); err != nil {
+		return err
+	}
+	// 数据库软删提交后立即清理段落索引，避免已移除页面继续出现在搜索结果中。
+	if err := searchservice.DeleteWikiPageDocuments(page.Id); err != nil {
+		return fmt.Errorf("清理 wiki 页面 %d 搜索索引: %w", page.Id, err)
+	}
+	return nil
 }
 
 // updateGitTrace 同步后更新页面的 git 溯源列（贡献者快照 + 最后提交 SHA/时间）。

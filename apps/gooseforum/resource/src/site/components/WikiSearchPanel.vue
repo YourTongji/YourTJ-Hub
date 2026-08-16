@@ -8,6 +8,7 @@ import {
   highlightQuery,
   openPanel,
   panelOpen,
+  sanitizeHighlightMarkup,
   saveWikiJumpState,
   searchWikiPages,
   type WikiSearchItem,
@@ -197,6 +198,7 @@ const copy = {
   close: t('wikiSearch.close'),
 }
 const highlight = highlightQuery
+const sanitizeMarkup = sanitizeHighlightMarkup
 </script>
 
 <template>
@@ -299,7 +301,7 @@ const highlight = highlightQuery
                 </span>
                 <span class="mt-0.5 block truncate text-xs text-base-content/45">{{ item.namespace }} › {{ item.path }}</span>
                 <span v-if="item.heading" class="mt-0.5 block truncate text-xs text-base-content/60">§ {{ item.heading }}</span>
-                <span class="mt-1 block text-[13px] leading-5 text-base-content/70" v-html="item.snippet" />
+                <span class="mt-1 block text-[13px] leading-5 text-base-content/70" v-html="sanitizeMarkup(item.snippet)" />
               </button>
             </div>
           </div>

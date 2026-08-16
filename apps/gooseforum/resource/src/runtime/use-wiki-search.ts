@@ -68,15 +68,64 @@ export function stripHighlightMarkup(text: string): string {
   return text.replace(/<\/?mark>/g, '').trim()
 }
 
+const htmlEntityPattern = /^&(?:#\d+|#x[\da-f]+|[a-z][\da-z]+);$/i
+
+/**
+ * Escapes untrusted search text while preserving entities already encoded by
+ * the renderer and the highlight tags emitted by Meilisearch.
+ */
+function escapeSearchText(text: string): string {
+  return text.replace(/[&<>"']/g, (character) => {
+    if (character === '&') return '&amp;'
+    if (character === '<') return '&lt;'
+    if (character === '>') return '&gt;'
+    if (character === '"') return '&quot;'
+    return '&#39;'
+  })
+}
+
+function escapeSearchTextPreservingEntities(text: string): string {
+  return text.replace(/&(?:#\d+|#x[\da-f]+|[a-z][\da-z]+);|[<>"'&]/gi, (token) => {
+    if (htmlEntityPattern.test(token)) return token
+    return escapeSearchText(token)
+  })
+}
+
+/**
+ * Allows only bare <mark> tags in server-provided snippets. All other markup
+ * is escaped, including tag-shaped text authored in Wiki Markdown.
+ */
+export function sanitizeHighlightMarkup(markup: string): string {
+  const markTagPattern = /<\/?mark>/gi
+  let safeMarkup = ''
+  let lastIndex = 0
+  for (const match of markup.matchAll(markTagPattern)) {
+    const tagIndex = match.index ?? 0
+    safeMarkup += escapeSearchTextPreservingEntities(markup.slice(lastIndex, tagIndex))
+    safeMarkup += match[0].toLowerCase()
+    lastIndex = tagIndex + match[0].length
+  }
+  return safeMarkup + escapeSearchTextPreservingEntities(markup.slice(lastIndex))
+}
+
 /**
  * 复制命中高亮的 <mark> 语义到纯文本：把 query 词在文本中出现的位置包裹 <mark>，
- * 供标题/面包屑等非 _formatted 字段的展示高亮（安全：只对已知纯文本操作）。
+ * 供标题/面包屑等非 _formatted 字段的展示高亮，同时先转义不可信文本。
  */
 export function highlightQuery(text: string, query: string): string {
   const needle = query.trim()
-  if (!needle || !text) return text
+  if (!needle || !text) return escapeSearchTextPreservingEntities(text)
   const escaped = needle.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')
-  return text.replace(new RegExp(`(${escaped})`, 'gi'), '<mark>$1</mark>')
+  const matcher = new RegExp(escaped, 'gi')
+  let highlighted = ''
+  let lastIndex = 0
+  for (const match of text.matchAll(matcher)) {
+    const matchIndex = match.index ?? 0
+    highlighted += escapeSearchTextPreservingEntities(text.slice(lastIndex, matchIndex))
+    highlighted += `<mark>${escapeSearchText(match[0])}</mark>`
+    lastIndex = matchIndex + match[0].length
+  }
+  return highlighted + escapeSearchTextPreservingEntities(text.slice(lastIndex))
 }
 
 /** 面板跳转前缓存当前搜索上下文，供目标页连续定位（Enter/⌘G）与首个命中高亮。 */

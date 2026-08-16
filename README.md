@@ -44,7 +44,7 @@ YourTJ Hub 希望让校园经验、问题与观点不再消失在短暂的信息
 |---|---|---|
 | 论坛 | `Current` | 主题与回复、板块、通知、私信、草稿、Markdown、RBAC 管理与多语言界面 |
 | 身份与安全 | `Partial` | 密码、GitHub OAuth、论坛内建 OIDC Provider、TOTP 2FA、可撤销会话；移动端与外部服务可使用标准授权码 + PKCE 登录 |
-| 搜索 | `Partial` | Meilisearch 聚合搜索、拼音匹配与事件驱动索引；搜索服务为可选依赖 |
+| 搜索 | `Partial` | Meilisearch 聚合搜索、拼音匹配、事件驱动索引与 Wiki 段落级局内搜索；搜索服务为可选依赖，Wiki 搜索不可用时保留阅读能力 |
 | 数据与文件 | `Current` | 部署默认 PostgreSQL，本地开发 SQLite；文件可存于 SQLite BLOB 或 S3 兼容对象存储 |
 | 内容治理 | `Current` | 敏感词审核、限流与验证码、审计、服务条款、数据导入导出 |
 | 移动端 | `Partial` | Flutter 客户端、共享设计语言与 OIDC 登录已实现，尚未发布到应用商店 |

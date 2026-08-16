@@ -32,6 +32,7 @@ type wikiParaAnchorDB struct {
 type WikiPageDocument struct {
 	ID        string `json:"id"` // "<pageId>-<paraIndex>"
 	PageId    uint64 `json:"pageId"`
+	IsPublic  bool   `json:"isPublic"`
 	Path      string `json:"path"`
 	Title     string `json:"title"`
 	Namespace string `json:"namespace"`
@@ -41,7 +42,7 @@ type WikiPageDocument struct {
 	SortOrder int    `json:"sortOrder"`
 }
 
-// WikiPageHit 段落级原始命中（由 wikiservice 过滤可见性并聚合为页面级结果）。
+// WikiPageHit 段落级公开命中（由索引过滤公开页面，wikiservice 仍会再次校验可见性并聚合）。
 type WikiPageHit struct {
 	PageId    uint64  `json:"pageId"`
 	Path      string  `json:"path"`
@@ -65,12 +66,12 @@ func configureWikiPageIndex(index meilisearch.IndexManager) error {
 	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
 		return fmt.Errorf("设置可搜索字段失败: %w", err)
 	}
-	filterable := []any{"pageId", "namespace"}
+	filterable := []any{"pageId", "namespace", "isPublic"}
 	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
 		return fmt.Errorf("设置可过滤字段失败: %w", err)
 	}
 	displayed := []string{
-		"id", "pageId", "path", "title", "namespace", "heading", "anchor", "paragraph", "sortOrder",
+		"id", "pageId", "isPublic", "path", "title", "namespace", "heading", "anchor", "paragraph", "sortOrder",
 	}
 	if _, err := index.UpdateDisplayedAttributes(&displayed); err != nil {
 		return fmt.Errorf("设置显示字段失败: %w", err)
@@ -169,6 +170,7 @@ func wikiPageDocuments(page *wikiPages.Entity) []WikiPageDocument {
 		docs = append(docs, WikiPageDocument{
 			ID:        fmt.Sprintf("%d-%d", page.Id, a.Index),
 			PageId:    page.Id,
+			IsPublic:  true,
 			Path:      page.Path,
 			Title:     page.Title,
 			Namespace: page.Namespace,
@@ -182,6 +184,10 @@ func wikiPageDocuments(page *wikiPages.Entity) []WikiPageDocument {
 }
 
 // IndexWikiPageDocuments 增量索引单页的段落文档（wiki sync 后调用）。
+// 先按 pageId 删除该页现有文档并等待删除任务完成，再写入当前文档：
+// 页面段落数可能减少（如 3 段缩为 2 段），旧 <pageId>-3 文档若不清理，
+// 搜索会命中已删除文本并把用户带到不存在的 #s-3 锚点。无段落（纯标题页）
+// 同样清空该页索引，避免整页旧索引继续存在。
 func IndexWikiPageDocuments(pageID uint64) error {
 	if !meiliconnect.IsAvailable() {
 		return nil
@@ -193,6 +199,11 @@ func IndexWikiPageDocuments(pageID uint64) error {
 	}
 	client := meiliconnect.GetClient()
 	index := client.Index(WikiPageIndex)
+	// 先按 pageId 删除该页现有文档并等待完成，再写入当前段落文档：
+	// 删除与写入必须顺序执行（异步任务竞争会残留旧文档）。
+	if err := DeleteWikiPageDocuments(pageID); err != nil {
+		return err
+	}
 	docs := wikiPageDocuments(&page)
 	if len(docs) == 0 {
 		return nil
@@ -203,7 +214,8 @@ func IndexWikiPageDocuments(pageID uint64) error {
 	return nil
 }
 
-// DeleteWikiPageDocuments 删除单页全部段落文档（页面软删/不可见时）。
+// DeleteWikiPageDocuments 删除单页全部段落文档（页面软删/不可见/段落清空时）。
+// 删除是异步任务：等待完成，保证调用方随后写入或搜索不会读到旧文档。
 func DeleteWikiPageDocuments(pageID uint64) error {
 	if !meiliconnect.IsAvailable() {
 		return nil
@@ -211,13 +223,17 @@ func DeleteWikiPageDocuments(pageID uint64) error {
 	client := meiliconnect.GetClient()
 	index := client.Index(WikiPageIndex)
 	filter := "pageId = " + fmt.Sprintf("%d", pageID)
-	if _, err := index.DeleteDocumentsByFilter([]string{filter}, nil); err != nil {
+	task, err := index.DeleteDocumentsByFilter([]string{filter}, nil)
+	if err != nil {
 		return fmt.Errorf("删除 wiki 页面 %d 索引: %w", pageID, err)
+	}
+	if err := meiliconnect.WaitForTask(task); err != nil {
+		return fmt.Errorf("等待 wiki 页面 %d 索引删除: %w", pageID, err)
 	}
 	return nil
 }
 
-// SearchWikiPageHits 在 wiki_pages 索引执行段落级搜索，返回原始命中（未过滤可见性）。
+// SearchWikiPageHits 在 wiki_pages 索引执行段落级搜索，只返回标记为公开的文档。
 func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error) {
 	query = strings.TrimSpace(query)
 	if query == "" {
@@ -235,6 +251,7 @@ func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error
 	index := meiliconnect.GetClient().Index(WikiPageIndex)
 	searchResp, err := index.Search(query, &meilisearch.SearchRequest{
 		Limit:                 int64(limit),
+		Filter:                "isPublic = true",
 		AttributesToRetrieve:  []string{"id", "pageId", "path", "title", "namespace", "heading", "anchor", "paragraph"},
 		AttributesToHighlight: []string{"title", "heading", "paragraph"},
 		HighlightPreTag:       "<mark>",
@@ -294,6 +311,33 @@ func SearchWikiPageHits(query string, limit int) (*WikiPageSearchResponse, error
 		})
 	}
 	return &WikiPageSearchResponse{Hits: hits, Total: searchResp.EstimatedTotalHits}, nil
+}
+
+// CountWikiPages 统计页面级命中数（distinct on pageId）。
+// 段落索引按段建文档，段落级 EstimatedTotalHits 会把同一页的多段命中重复计数；
+// 页面级 total 应去重（review P2）。distinct 在 Meilisearch 中要求该属性可过滤；
+// isPublic 同时排除旧软删文档和尚未完成清理的非公开文档。
+func CountWikiPages(query string) (int64, error) {
+	query = strings.TrimSpace(query)
+	if query == "" {
+		return 0, nil
+	}
+	if len([]rune(query)) > 100 {
+		return 0, errors.New("query too long (max 100 characters)")
+	}
+	if !meiliconnect.IsAvailable() {
+		return 0, ErrSearchUnavailable
+	}
+	index := meiliconnect.GetClient().Index(WikiPageIndex)
+	searchResp, err := index.Search(query, &meilisearch.SearchRequest{
+		Limit:    1,
+		Distinct: "pageId",
+		Filter:   "isPublic = true",
+	})
+	if err != nil {
+		return 0, fmt.Errorf("wiki page count: %w", err)
+	}
+	return searchResp.EstimatedTotalHits, nil
 }
 
 func strPtr(s string) *string {

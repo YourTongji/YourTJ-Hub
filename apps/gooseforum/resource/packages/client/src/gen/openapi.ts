@@ -828,6 +828,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search wiki pages at paragraph granularity */
+        get: operations["searchWikiSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/tree": {
         parameters: {
             query?: never;
@@ -2762,6 +2779,47 @@ export interface components {
             nickname?: string;
             avatarUrl: string;
         };
+        /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
+        WikiSearchItem: {
+            /** @description Display name of the namespace (fallback: URL key). */
+            namespace: string;
+            /** @description Full page path (namespace/slug) for direct linking. */
+            path: string;
+            title: string;
+            /** @description True when the query matched the page title (vs only body text). */
+            titleHit: boolean;
+            /** @description Nearest section heading of the top hit paragraph; absent when the hit is in the title only. */
+            heading?: string;
+            /** @description Paragraph anchors (s-<n>) of every hit paragraph in this page, for in-page navigation. */
+            anchors: string[];
+            /** @description Highlighted paragraph excerpt (<mark> wraps matched terms). */
+            snippet: string;
+            /**
+             * Format: double
+             * @description Ranking score of the top paragraph hit (higher first).
+             */
+            score: number;
+            /**
+             * @description Whether the strongest hit is in the title or the body.
+             * @enum {string}
+             */
+            hitType: "title" | "body";
+        };
+        WikiSearchResult: {
+            /** @description Echoed (trimmed) search query. */
+            query: string;
+            /**
+             * Format: int64
+             * @description Page-level result count (distinct pages); never the paragraph hit count.
+             */
+            total: number;
+            items: components["schemas"]["WikiSearchItem"][];
+            /** @description True when the search backend is unavailable; items is then empty. */
+            searchUnavailable: boolean;
+        };
+        WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSearchResult"];
+        }) | components["schemas"]["ApiFailure"];
         WikiAssetCDNStatus: {
             /**
              * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
@@ -4537,6 +4595,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    searchWikiSearch: {
+        parameters: {
+            query: {
+                /** @description Search keywords (trimmed; empty query returns an empty result without hitting the search backend). */
+                q: string;
+                /** @description Maximum number of page-level results (clamped to 12 when omitted or out of range). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Page-level aggregated search results. Each item aggregates the paragraph hits of one
+             *     wiki page and carries its paragraph anchors for precise in-page navigation. When the
+             *     search backend is unavailable the response degrades to an empty items list with
+             *     `searchUnavailable: true` (still HTTP 200). `total` is the page-level result count
+             *     (distinct pages), not the paragraph hit count.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiSearchResponse"];
                 };
             };
         };

@@ -12,6 +12,11 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
+// wikiPruneTestPageID 回归测试专用高位 pageId：
+// 共享的 wiki_pages Meilisearch 索引在开发环境同时被服务使用，
+// 测试不能拿内存测试库的 1/2 号页去覆盖/误删真实 wiki 文档。
+const wikiPruneTestPageID = uint64(9_000_001)
+
 func setupWikiSearchTestDB(t *testing.T) {
 	t.Helper()
 	conn := dbconnect.Connect()
@@ -32,6 +37,13 @@ func setupWikiSearchTestDB(t *testing.T) {
 }
 
 func seedWikiSearchPage(t *testing.T, ns, path, title, paraAnchorsJSON string) wikiPages.Entity {
+	return seedWikiSearchPageWithID(t, ns, path, title, paraAnchorsJSON, 0)
+}
+
+// seedWikiSearchPageWithID 与 seedWikiSearchPage 相同，但允许指定页面 ID。
+// 回归测试直写共享的 wiki_pages Meilisearch 索引：必须用远离真实数据的高位
+// pageId（测试库内存库 ID 从 1 起），否则会覆盖/误删开发环境真实 wiki 的索引。
+func seedWikiSearchPageWithID(t *testing.T, ns, path, title, paraAnchorsJSON string, pageID uint64) wikiPages.Entity {
 	t.Helper()
 	if !wikiNamespaces.Exists(ns) {
 		if err := wikiNamespaces.Create(&wikiNamespaces.Entity{Name: ns}); err != nil {
@@ -68,6 +80,7 @@ func seedWikiSearchPage(t *testing.T, ns, path, title, paraAnchorsJSON string) w
 		t.Fatalf("save topic: %v", err)
 	}
 	page := wikiPages.Entity{
+		Id:           pageID,
 		TopicId:      topic.Id,
 		Namespace:    ns,
 		Path:         path,
@@ -125,5 +138,85 @@ func TestSearchWikiPageHitsUnavailable(t *testing.T) {
 	_, err := SearchWikiPageHits("选课", 10)
 	if err == nil || !errors.Is(err, ErrSearchUnavailable) {
 		t.Fatalf("SearchWikiPageHits err=%v, want ErrSearchUnavailable", err)
+	}
+}
+
+// TestIndexWikiPageDocumentsPrunesShrunkParagraphs 回归（review P1）：
+// 增量索引必须先删后写——页面段落数减少时（3 段缩为 2 段）旧 <pageId>-n 文档
+// 必须被清理，否则搜索仍命中已删除文本并把用户带到不存在的锚点；无段落页
+// 同样清空该页索引，整页软删也清理。
+// 依赖真实 Meilisearch（CI 无 Meilisearch 时跳过）。
+func TestIndexWikiPageDocumentsPrunesShrunkParagraphs(t *testing.T) {
+	setupWikiSearchTestDB(t)
+	if !meiliconnect.IsAvailable() {
+		t.Skip("Meilisearch not available; incremental pruning regression not testable")
+	}
+	ensureWikiPageIndexConfigured(t)
+	// 用远离真实数据的高位 pageId：共享的 wiki_pages 索引在开发环境同时被
+	// 服务使用，不能拿测试库的 1/2 号页去覆盖/误删真实 wiki 文档。
+	page := seedWikiSearchPageWithID(t, "guide", "guide/faq", "FAQ", `[
+		{"index":1,"anchor":"s-1","headingId":"faq","headingText":"FAQ","text":"成绩均分不低于 3.0"},
+		{"index":2,"anchor":"s-2","headingId":"apply","headingText":"申请条件","text":"申请材料需齐全"}
+	]`, wikiPruneTestPageID)
+	t.Cleanup(func() { _ = DeleteWikiPageDocuments(page.Id) })
+	if err := IndexWikiPageDocuments(page.Id); err != nil {
+		t.Fatalf("index page: %v", err)
+	}
+
+	// 段落减少为 1 段：重新索引后旧段落关键词与旧锚点不得再命中。
+	page.ParaAnchors = `[{"index":1,"anchor":"s-1","headingId":"faq","headingText":"FAQ","text":"成绩均分不低于 3.0"}]`
+	if err := wikiPages.Save(&page); err != nil {
+		t.Fatalf("save shrunk page: %v", err)
+	}
+	if err := IndexWikiPageDocuments(page.Id); err != nil {
+		t.Fatalf("reindex shrunk page: %v", err)
+	}
+	assertNoPageHits(t, page.Id, "申请材料")
+
+	// 无段落（纯标题页）：整页索引应清空，旧段落不再命中。
+	page.ParaAnchors = ""
+	if err := wikiPages.Save(&page); err != nil {
+		t.Fatalf("save empty-paragraph page: %v", err)
+	}
+	if err := IndexWikiPageDocuments(page.Id); err != nil {
+		t.Fatalf("reindex empty-paragraph page: %v", err)
+	}
+	assertNoPageHits(t, page.Id, "成绩")
+
+	// 整页软删：索引侧清理，旧关键词不再命中。
+	if err := DeleteWikiPageDocuments(page.Id); err != nil {
+		t.Fatalf("delete page index: %v", err)
+	}
+	assertNoPageHits(t, page.Id, "成绩")
+}
+
+// ensureWikiPageIndexConfigured 为 wiki_pages 索引补齐 searchable/filterable
+// 配置（回归测试直接用单页增量路径，不走全量重建，需自行配置索引字段）。
+func ensureWikiPageIndexConfigured(t *testing.T) {
+	t.Helper()
+	client := meiliconnect.GetClient()
+	index := client.Index(WikiPageIndex)
+	searchable := []string{"title", "heading", "paragraph"}
+	if _, err := index.UpdateSearchableAttributes(&searchable); err != nil {
+		t.Fatalf("configure wiki searchable: %v", err)
+	}
+	filterable := []any{"pageId", "namespace", "isPublic"}
+	if _, err := index.UpdateFilterableAttributes(&filterable); err != nil {
+		t.Fatalf("configure wiki filterable: %v", err)
+	}
+	waitIndexTask(t, client)
+}
+
+// assertNoPageHits 断言某页不再出现在搜索结果中（旧关键词被清理后不得命中）。
+func assertNoPageHits(t *testing.T, pageID uint64, keyword string) {
+	t.Helper()
+	resp, err := SearchWikiPageHits(keyword, 20)
+	if err != nil {
+		t.Fatalf("search %q: %v", keyword, err)
+	}
+	for _, hit := range resp.Hits {
+		if hit.PageId == pageID {
+			t.Fatalf("page %d still hit for %q after cleanup: %+v", pageID, keyword, hit)
+		}
 	}
 }

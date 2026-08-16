@@ -47,6 +47,8 @@ func isPagePublic(page *wikiPages.Entity) bool {
 
 // SearchPages wiki 站内全文搜索：Meilisearch 段落级命中 → 过滤可见性 →
 // 聚合为页面级结果（按 score 降序）。TitleHit=true 表示标题命中。
+// total 是页面级结果数（distinct pageId，review P2）：段落索引按段建文档，
+// 段落级 EstimatedTotalHits 会把同一页的多段命中重复计数，不能作为页面数。
 func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 	if limit <= 0 || limit > 20 {
 		limit = 12
@@ -55,7 +57,11 @@ func SearchPages(query string, limit int) (*PageSearchResponse, error) {
 	if err != nil {
 		return nil, err
 	}
-	result := &PageSearchResponse{Items: []PageSearchResult{}, Total: resp.Total}
+	pageTotal, err := searchservice.CountWikiPages(query)
+	if err != nil {
+		return nil, err
+	}
+	result := &PageSearchResponse{Items: []PageSearchResult{}, Total: pageTotal}
 	if len(resp.Hits) == 0 {
 		return result, nil
 	}

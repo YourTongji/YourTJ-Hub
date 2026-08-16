@@ -4,6 +4,7 @@ import (
 	"bytes"
 	"errors"
 	"fmt"
+	"html"
 	"net/url"
 	"os"
 	"path"
@@ -179,7 +180,9 @@ func (r *wikiReferenceResolver) Render(page wantedPage) (RenderResult, error) {
 				Anchor:      anchor,
 				HeadingId:   currentHeadingID,
 				HeadingText: currentHeadingText,
-				Text:        wikiNodeText(node),
+				// 段落文本会进入搜索索引并被前端以高亮 HTML 展示；
+				// 先编码实体，避免 Markdown 中的实体标签在搜索结果里重新变成 HTML。
+				Text: html.EscapeString(wikiNodeText(node)),
 			})
 		}
 		var key string

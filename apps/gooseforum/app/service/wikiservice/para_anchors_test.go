@@ -103,3 +103,29 @@ func TestRenderInjectsOnlyParagraphs(t *testing.T) {
 		t.Fatalf("para text=%q, want 一段总结。", result.ParaAnchors[0].Text)
 	}
 }
+
+// TestRenderEscapesEntityEncodedHTMLInParaAnchors 防止实体编码的标签在搜索结果
+// 中被还原成可执行 HTML。段落文本会进入 Meilisearch 并由前端以 v-html 展示，
+// 因此投影必须保留 HTML 实体编码。
+func TestRenderEscapesEntityEncodedHTMLInParaAnchors(t *testing.T) {
+	page := wantedPage{
+		sourcePath: "guide/security",
+		path:       "guide/security",
+		body:       "click &lt;img src=x onerror=alert(1)&gt; here",
+	}
+	resolver := newWikiReferenceResolver(GitConfig{CloneDir: t.TempDir()}, []wantedPage{page}, "")
+
+	result, err := resolver.Render(page)
+	if err != nil {
+		t.Fatalf("Render: %v", err)
+	}
+	if len(result.ParaAnchors) != 1 {
+		t.Fatalf("para anchors=%d, want 1: %+v", len(result.ParaAnchors), result.ParaAnchors)
+	}
+	if got := result.ParaAnchors[0].Text; got != "click &lt;img src=x onerror=alert(1)&gt; here" {
+		t.Fatalf("para text=%q, want HTML-escaped entity text", got)
+	}
+	if strings.Contains(result.ParaAnchors[0].Text, "<img") {
+		t.Fatalf("para text contains executable tag markup: %q", result.ParaAnchors[0].Text)
+	}
+}
