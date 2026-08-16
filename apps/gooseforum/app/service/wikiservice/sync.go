@@ -250,6 +250,10 @@ var syncPending bool
 // Production always uses syncOnce.
 var syncOnceFn = syncOnce
 
+// syncLifecycleReleasedHook is used only by tests to deterministically place a
+// successor lifecycle between normal completion and deferred panic cleanup.
+var syncLifecycleReleasedHook func()
+
 // ErrSyncAlreadyRunning 同步已在运行（webhook/定时/手动并发时）。
 var ErrSyncAlreadyRunning = errors.New("wiki sync already running")
 
@@ -281,12 +285,17 @@ func ReleaseSyncLock() {
 // ends the lifecycle.
 func consumePendingOrRelease() bool {
 	syncMu.Lock()
-	defer syncMu.Unlock()
 	if syncPending {
 		syncPending = false
+		syncMu.Unlock()
 		return true
 	}
 	syncRunning = false
+	hook := syncLifecycleReleasedHook
+	syncMu.Unlock()
+	if hook != nil {
+		hook()
+	}
 	return false
 }
 
@@ -582,11 +591,17 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 	markAbandonedRuns()
 	// Preserve cleanup if the initial sync panics. The normal path releases in
 	// consumePendingOrRelease so the final pending check and release are atomic.
-	defer ReleaseSyncLock()
+	completedNormally := false
+	defer func() {
+		if !completedNormally {
+			ReleaseSyncLock()
+		}
+	}()
 	result, err := syncOnceFn(cfg, trigger)
 	for consumePendingOrRelease() {
 		runPendingSync(cfg)
 	}
+	completedNormally = true
 	return result, err
 }
 

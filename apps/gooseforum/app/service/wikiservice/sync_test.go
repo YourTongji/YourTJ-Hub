@@ -1,12 +1,14 @@
 package wikiservice
 
 import (
+	"errors"
 	"os"
 	"os/exec"
 	"path/filepath"
 	"strings"
 	"sync/atomic"
 	"testing"
+	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
@@ -274,6 +276,129 @@ func TestSyncWithConfigSerializesPendingReruns(t *testing.T) {
 	if got := maxActive.Load(); got != 1 {
 		t.Fatalf("max concurrent sync bodies=%d, want 1", got)
 	}
+}
+
+// TestSyncWithConfigDoesNotReleaseSuccessorAfterNormalCompletion verifies that
+// the panic cleanup deferred by an earlier lifecycle cannot clear a successor
+// which acquires immediately after the normal completion release.
+func TestSyncWithConfigDoesNotReleaseSuccessorAfterNormalCompletion(t *testing.T) {
+	syncMu.Lock()
+	syncRunning = false
+	syncPending = false
+	syncMu.Unlock()
+
+	originalSyncOnce := syncOnceFn
+	originalHook := syncLifecycleReleasedHook
+	t.Cleanup(func() {
+		syncOnceFn = originalSyncOnce
+		syncLifecycleReleasedHook = originalHook
+		syncMu.Lock()
+		syncRunning = false
+		syncPending = false
+		syncMu.Unlock()
+	})
+
+	secondStarted := make(chan struct{})
+	allowSecond := make(chan struct{})
+	secondDone := make(chan error, 1)
+	var calls atomic.Int32
+	var hookCalls atomic.Int32
+	syncOnceFn = func(_ GitConfig, trigger string) (*SyncResult, error) {
+		switch calls.Add(1) {
+		case 1:
+			return &SyncResult{}, nil
+		case 2:
+			close(secondStarted)
+			<-allowSecond
+			return &SyncResult{}, nil
+		case 3:
+			if trigger != "webhook" {
+				t.Fatal("successor lifecycle was released by stale cleanup")
+			}
+			return &SyncResult{}, nil
+		default:
+			t.Fatalf("unexpected sync invocation %d", calls.Load())
+		}
+		return nil, nil
+	}
+	syncLifecycleReleasedHook = func() {
+		if hookCalls.Add(1) != 1 {
+			return
+		}
+		go func() {
+			_, err := SyncWithConfig(GitConfig{Repo: "test"}, "webhook")
+			secondDone <- err
+		}()
+		select {
+		case <-secondStarted:
+		case <-time.After(time.Second):
+			t.Fatal("successor sync did not start")
+		}
+	}
+
+	firstDone := make(chan error, 1)
+	go func() {
+		_, err := SyncWithConfig(GitConfig{Repo: "test"}, "manual")
+		firstDone <- err
+	}()
+
+	select {
+	case err := <-firstDone:
+		if err != nil {
+			t.Fatalf("first sync: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first sync did not finish")
+	}
+
+	if _, err := SyncWithConfig(GitConfig{Repo: "test"}, "cron"); !errors.Is(err, ErrSyncAlreadyRunning) {
+		t.Fatalf("third trigger error=%v, want ErrSyncAlreadyRunning", err)
+	}
+	close(allowSecond)
+	select {
+	case err := <-secondDone:
+		if err != nil {
+			t.Fatalf("successor sync: %v", err)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("successor sync did not finish")
+	}
+	if got := calls.Load(); got != 3 {
+		t.Fatalf("sync body calls=%d, want 3", got)
+	}
+}
+
+func TestSyncWithConfigReleasesLockAfterPanic(t *testing.T) {
+	syncMu.Lock()
+	syncRunning = false
+	syncPending = false
+	syncMu.Unlock()
+
+	originalSyncOnce := syncOnceFn
+	t.Cleanup(func() {
+		syncOnceFn = originalSyncOnce
+		syncMu.Lock()
+		syncRunning = false
+		syncPending = false
+		syncMu.Unlock()
+	})
+	syncOnceFn = func(_ GitConfig, _ string) (*SyncResult, error) {
+		panic("sync panic")
+	}
+
+	func() {
+		defer func() {
+			if recovered := recover(); recovered == nil {
+				t.Fatal("SyncWithConfig did not propagate panic")
+			}
+		}()
+		_, _ = SyncWithConfig(GitConfig{Repo: "test"}, "manual")
+	}()
+
+	if !TryAcquireSyncLock() {
+		t.Fatal("sync lock remained held after panic")
+	}
+	ReleaseSyncLock()
 }
 
 // writeRepoFile 在临时仓库目录下写一个 md 文件（自动建父目录）。
