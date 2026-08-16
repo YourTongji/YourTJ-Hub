@@ -10,7 +10,7 @@ const props = defineProps<{
 
 const shellState = useShellState()
 const standaloneComponents = new Set(['auth.login', 'auth.resetPassword'])
-const keepAliveComponents = new Set(['home.index', 'category.index', 'search.index'])
+const keepAliveComponents = new Set(['home.index', 'category.index', 'search.index', 'course.index'])
 const isStandalone = computed(() => standaloneComponents.has(props.page.payload.component))
 const hasRail = computed(() => ['topic.detail', 'wiki.detail'].includes(props.page.payload.component))
 const shouldKeepAlive = computed(() => keepAliveComponents.has(props.page.payload.component))

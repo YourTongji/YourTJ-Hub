@@ -72,6 +72,7 @@ export default {
     nextPage: '次へ',
     currentPage: '{page} ページ目',
     page: '{page} / {total} ページ',
+    allShown: 'すべて表示しました',
   },
   shell: {
     openMenu: 'メニューを開く',
@@ -647,8 +648,6 @@ export default {
       reviews: '評価管理',
     },
     loading: '読み込み中…',
-    loadMore: 'さらに読み込む',
-    noMore: 'これ以上ありません',
     coursesEmpty: 'コースはありません',
     coursesEmptyDesc: '新しいコースがここに表示されます。',
     reviewsEmpty: '評価はありません',

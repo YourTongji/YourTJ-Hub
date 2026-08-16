@@ -18,6 +18,7 @@ import { useFlashMessages } from '@/runtime/flash-message'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
 import {
   nextReviewTotalOnCreate,
@@ -99,6 +100,9 @@ const reviewTotal = ref(0)
 const reviewNextCursor = ref('')
 const reviewLoadingMore = ref(false)
 const reviewLoading = ref(false)
+// 加载更多失败状态：就地展示于 InfiniteScrollFooter（错误态停止自动触发 + 手动重试），
+// 区别于首屏 reviewError 的顶部 banner 展示。
+const reviewLoadMoreError = ref('')
 // reviewsLoadSeq 列表加载代际：写操作（创建/编辑/删除）成功后递增，使 in-flight 的
 // 旧列表响应失效——否则初次 loadReviews 的旧快照会在写成功后返回并覆盖刚发布的
 // 评价（unshift 内容消失、计数回退，直到刷新）。
@@ -157,6 +161,7 @@ async function loadMoreReviews() {
   if (!reviewNextCursor.value || reviewLoadingMore.value) return
   const seq = reviewsLoadSeq
   reviewLoadingMore.value = true
+  reviewLoadMoreError.value = ''
   try {
     const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
     if (reviewPage === null) return // 过期响应：丢弃
@@ -166,7 +171,7 @@ async function loadMoreReviews() {
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
     if (seq !== reviewsLoadSeq) return
-    reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
+    reviewLoadMoreError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
     reviewLoadingMore.value = false
   }
@@ -810,16 +815,15 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <div v-if="reviewNextCursor" class="mt-4 flex justify-center">
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
-          :disabled="reviewLoadingMore"
-          @click="loadMoreReviews"
-        >
-          {{ reviewLoadingMore ? t('courseDetailPage.reviewsLoading') : t('courseDetailPage.loadMoreReviews') }}
-        </button>
-      </div>
+      <InfiniteScrollFooter
+        v-if="reviewLoaded && (reviews.length || reviewNextCursor)"
+        :has-next="!!reviewNextCursor"
+        :loading="reviewLoadingMore"
+        :error="reviewLoadMoreError"
+        :has-items="reviews.length > 0"
+        :load-label="t('courseDetailPage.loadMoreReviews')"
+        @load-more="loadMoreReviews"
+      />
     </section>
 
     <!-- 举报弹窗 -->
