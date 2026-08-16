@@ -2578,27 +2578,36 @@ ResetPasswordResponse:
   oneOf:
     - $ref: '#/ResetPasswordSuccess'
     - $ref: '#/ApiFailure'
-WikiTreePage:
+WikiTreeNode:
   type: object
-  required: [pageId, path, title, active]
+  required: [kind, pageId, path, title, active, children]
   properties:
+    kind:
+      type: string
+      enum: [page, directory]
+      description: page is a Markdown file; directory is a non-clickable repository directory container.
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
-      description: Canonical page path within the namespace (slash-separated).
+      description: Stable repository-relative page or directory path within the namespace (slash-separated).
     title:
       type: string
     active:
       type: boolean
-      description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+      description: True when this page is the active SSR route; always false for directory nodes.
+    children:
+      type: array
+      items:
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, slug, pages]
+  required: [name, label, slug, nodes]
   properties:
     name:
       type: string
@@ -2609,10 +2618,10 @@ WikiTreeNamespace:
     slug:
       type: string
       description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
-    pages:
+    nodes:
       type: array
       items:
-        $ref: '#/WikiTreePage'
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeResult:
@@ -2654,13 +2663,13 @@ WikiNamespaceSummary:
     pageCount:
       type: integer
       format: int64
-      description: Number of pages with at least one approved revision.
+      description: Number of public pages in this namespace (projected from the GitHub wiki repo).
     updatedAt:
       type: string
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
+      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -2682,7 +2691,8 @@ WikiNamespaceListResponse:
 
 WikiRecentPage:
   type: object
-  required: [pageId, path, title, updatedAt, editorId, editorName]
+  description: "Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead."
+  required: [pageId, path, title, updatedAt]
   properties:
     pageId:
       type: integer
@@ -2696,13 +2706,6 @@ WikiRecentPage:
     updatedAt:
       type: string
       format: date-time
-    editorId:
-      type: integer
-      format: uint64
-      minimum: 1
-    editorName:
-      type: string
-      description: Display name of the last approved-revision editor.
   additionalProperties: false
 
 WikiHomeResult:
@@ -2735,14 +2738,18 @@ WikiHomeResponse:
 
 
 
-WikiAdminTreePage:
+WikiAdminTreeNode:
   type: object
-  required: [pageId, path, sourcePath, title, sortOrder]
+  required: [kind, pageId, path, sourcePath, title, sortOrder, children]
   properties:
+    kind:
+      type: string
+      enum: [page, directory]
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
       description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
@@ -2753,20 +2760,24 @@ WikiAdminTreePage:
       type: string
     sortOrder:
       type: integer
+    children:
+      type: array
+      items:
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, nodes]
   properties:
     name:
       type: string
     label:
       type: string
-    pages:
+    nodes:
       type: array
       items:
-        $ref: '#/WikiAdminTreePage'
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeResult:

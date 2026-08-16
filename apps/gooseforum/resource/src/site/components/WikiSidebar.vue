@@ -3,6 +3,7 @@ import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { WikiTreeNamespace } from '@gooseforum/client'
+import WikiSidebarNode from './WikiSidebarNode.vue'
 
 const props = defineProps<{
   tree: WikiTreeNamespace[]
@@ -33,10 +34,6 @@ function toggleCollapse(name: string) {
   collapsed.value = next
 }
 
-// GitHub SSOT：路径保留中文等 Unicode（不再小写归一），URL 按段编码。
-function wikiHref(path: string): string {
-  return '/wiki/' + path.split('/').map((seg) => encodeURIComponent(seg)).join('/')
-}
 </script>
 
 <template>
@@ -72,16 +69,13 @@ function wikiHref(path: string): string {
         <span class="truncate">{{ group.label }}</span>
       </button>
       <div v-if="!isCollapsed(group.name)" class="space-y-px">
-        <a
-          v-for="page in group.pages"
-          :key="page.pageId"
-          :href="wikiHref(page.path)"
-          class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-          :class="page.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-          @click="emit('navigate')"
-        >
-          <span class="truncate">{{ page.title }}</span>
-        </a>
+        <WikiSidebarNode
+          v-for="node in group.nodes"
+          :key="`${node.kind}:${node.path}`"
+          :node="node"
+          :depth="0"
+          @navigate="emit('navigate')"
+        />
       </div>
     </div>
   </nav>

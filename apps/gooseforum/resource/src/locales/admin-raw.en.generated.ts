@@ -770,7 +770,6 @@ export default {
   "k00qh": "Failed",
   "k00qi": "Running",
   "k00qj": "Sync completed",
-  "k00qk": "A sync is already running",
   "k00ql": "Sync failed",
   "k00qm": "No sync runs yet",
   "k00qn": "Sync runs",
@@ -793,6 +792,7 @@ export default {
   "k00r5": "New secret (leave empty and save to clear)",
   "k00r6": "Enter GitHub webhook secret",
   "k00r7": "Slug",
+  "k00r8": "Sync polling timed out; refresh the page to see the result",
   "k00s0": "Asset CDN",
   "k00s1": "Which CDN serves static assets (images/attachments) referenced in Wiki pages.",
   "k00s2": "This site (default)",
@@ -800,5 +800,5 @@ export default {
   "k00s4": "Select CDN",
   "k00s5": "Save CDN settings",
   "k00s6": "CDN settings saved",
-  "k00s7": "Failed to save CDN settings",
+  "k00s7": "Failed to save CDN settings"
 } as const

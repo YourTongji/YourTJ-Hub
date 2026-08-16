@@ -184,6 +184,10 @@ func statusString(s int8) string {
 
 // BuildSyncStatus 构建同步面板状态。
 func BuildSyncStatus() SyncStatus {
+	// 自愈（issue #290）：锁空闲 = 本进程无在途同步，running 行只可能来自
+	// 崩溃/写失败遗留 → 回收，避免管理端 lastRun.status=running 永久禁用
+	// 手动同步（页面刷新即恢复可用）。锁被占用时跳过（同步真在运行）。
+	ReconcileStaleRuns()
 	cfg := LoadGitConfig()
 	status := SyncStatus{
 		Enabled: cfg.Enabled(),
@@ -221,6 +225,13 @@ func ToRunView(r wikiSyncRuns.Entity) SyncRunView {
 
 // ---------- 并发防重入 ----------
 
+// syncMu 是进程内同步互斥锁。整个 wiki 同步（SyncWithConfig/syncOnce）全程
+// 持锁，ReconcileStaleRuns 在锁空闲时把库中遗留 running 行回收为 failed。
+// 该回收逻辑依赖「同一数据库上至多一个进程运行同步」的部署假设：当前部署
+// 每个环境只有一个应用容器（deploy/docker-compose.yaml，main/dev 各一实例），
+// 进程内锁即唯一仲裁者。若未来同一实例水平扩容（多副本共享同一数据库），
+// 进程内锁无法互斥跨进程同步，本回收逻辑必须换成 DB 级租约/锁，否则会误杀
+// 其他进程正在执行的同步。
 var syncMu sync.Mutex
 
 // syncPending 运行期间到达的 webhook push 合并标记：锁释放后补跑一次，
@@ -238,6 +249,37 @@ func TryAcquireSyncLock() bool {
 // ReleaseSyncLock 释放同步锁。
 func ReleaseSyncLock() {
 	syncMu.Unlock()
+}
+
+// abandonedRunErrMsg 崩溃/重启遗留 running 行的回收标记文案（issue #290）。
+const abandonedRunErrMsg = "abandoned: process restarted or run interrupted before completion"
+
+// markAbandonedRuns 把库中遗留的 running 运行行标记为 failed（issue #290
+// 崩溃恢复）。调用方必须持有同步锁（或已确认锁空闲）：同步全程持锁，锁
+// 空闲时 running 行只可能来自崩溃/重启/MarkFinished 失败 → 可安全回收。
+// 返回回收的行数。
+func markAbandonedRuns() int64 {
+	n, err := wikiSyncRuns.MarkAllRunningAbandoned(abandonedRunErrMsg)
+	if err != nil {
+		slog.Warn("wiki sync: reconcile stale running runs failed", "error", err)
+		return 0
+	}
+	if n > 0 {
+		slog.Warn("wiki sync: reconciled abandoned running runs", "count", n)
+	}
+	return n
+}
+
+// reconcileStaleRuns 回收遗留 running 运行行（issue #290 崩溃恢复）：锁空闲时
+// running 行只可能来自进程崩溃/重启或 MarkFinished 失败 → 统一标记 failed，
+// 让管理端 lastRun 呈现可恢复状态（手动同步按钮不再被永久禁用）。锁被占用
+// （同步真在运行）时跳过，避免误杀在途同步。供状态读取与进程启动时调用。
+func ReconcileStaleRuns() {
+	if !TryAcquireSyncLock() {
+		return // 锁被占用 = 同步真在运行，running 行是活的，不得回收
+	}
+	defer ReleaseSyncLock()
+	markAbandonedRuns()
 }
 
 // ---------- git 操作 ----------
@@ -487,6 +529,11 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 		syncPending.Store(true)
 		return nil, ErrSyncAlreadyRunning
 	}
+	// 崩溃恢复（issue #290）：此刻锁空闲刚被本调用持有 = 本进程无其他在途
+	// 同步，库中 running 行必为崩溃/重启/MarkFinished 失败残留 → 回收，
+	// 避免管理端 lastRun.status=running 永久禁用手动同步。锁已持有，
+	// markAbandonedRuns 不再重入锁（不调用 ReconcileStaleRuns）。
+	markAbandonedRuns()
 	defer func() {
 		ReleaseSyncLock()
 		// 运行期间到达的 webhook push 合并补跑一次（只补一次，避免链式同步）。
@@ -495,8 +542,14 @@ func SyncWithConfig(cfg GitConfig, trigger string) (*SyncResult, error) {
 			// 进程（webhook/manual 外层已有 Recover，此处再兜底，覆盖
 			// startup/cron 之外的直接调用方）。
 			defer recovery.Recover("wiki_sync_pending_rerun")
-			if _, err := syncOnce(cfg, "webhook"); err != nil {
-				slog.Warn("wiki sync: pending rerun failed", "error", err)
+			// 补跑同样持锁（issue #290）：保持「running 行存在 ⇒ 同步锁被持有」
+			// 不变量，状态读取时的遗留行回收才不会误杀在途同步。抢锁失败 =
+			// 另一同步已在进行，其完成后投影即最新 head，补跑可安全丢弃。
+			if TryAcquireSyncLock() {
+				defer ReleaseSyncLock()
+				if _, err := syncOnce(cfg, "webhook"); err != nil {
+					slog.Warn("wiki sync: pending rerun failed", "error", err)
+				}
 			}
 		}
 	}()
@@ -512,16 +565,22 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 
 	head, err := ensureClone(cfg)
 	if err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error())
+		if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, "", 0, 0, 0, err.Error()); merr != nil {
+			slog.Error("wiki sync: mark run failed (clone) failed", "runId", run.Id, "error", merr)
+		}
 		return nil, err
 	}
 
 	result := &SyncResult{HeadSha: head}
 	if err := applyRepoToDB(cfg, result); err != nil {
-		_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error())
+		if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusFailed, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, err.Error()); merr != nil {
+			slog.Error("wiki sync: mark run failed (projection) failed", "runId", run.Id, "error", merr)
+		}
 		return result, err
 	}
-	_ = wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, "")
+	if merr := wikiSyncRuns.MarkFinished(run.Id, wikiSyncRuns.StatusSuccess, head, result.PagesAdded, result.PagesUpdated, result.PagesDeleted, ""); merr != nil {
+		slog.Error("wiki sync: mark run success failed", "runId", run.Id, "error", merr)
+	}
 	if result.NamespacesDeleted > 0 {
 		slog.Info("wiki sync: namespaces deleted", "count", result.NamespacesDeleted, "headSha", head)
 	}
@@ -892,6 +951,13 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		result.PagesDeleted++
 	}
 
+	// 4.5 Rebuild page-to-index links after every create/update/delete pass.
+	// Navigation itself is path-derived so directories without index.md remain
+	// valid; parent_id is a reconciled cache for pages with an ancestor index.
+	if err := reconcileWikiPageParents(); err != nil {
+		errs = append(errs, fmt.Sprintf("reconcile wiki page parents: %v", err))
+	}
+
 	// 5. 命名空间元数据同步（D4/D7）：按 2.6 定稿的 plans 应用
 	//    description/order（仅 index.md 携带时）+ slug 列。
 	//    幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
@@ -963,6 +1029,44 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	return nil
 }
 
+// reconcileWikiPageParents rebuilds parent_id from the nearest ancestor index
+// page. Root index pages and pages below directories without index.md attach to
+// the namespace root (0). Derived parent paths are always shorter, so a
+// successful reconciliation removes stale links and cannot create a cycle.
+func reconcileWikiPageParents() error {
+	pages := wikiPages.ListAll()
+	byPath := make(map[string]*wikiPages.Entity, len(pages))
+	for _, page := range pages {
+		byPath[page.Path] = page
+	}
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		for _, page := range pages {
+			parentID := parentIndexID(page, byPath)
+			if page.ParentId == parentID {
+				continue
+			}
+			if err := tx.Table("wiki_pages").Where("id = ?", page.Id).Update("parent_id", parentID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func parentIndexID(page *wikiPages.Entity, byPath map[string]*wikiPages.Entity) uint64 {
+	parts := strings.Split(page.Path, "/")
+	for end := len(parts) - 1; end >= 1; end-- {
+		candidate := strings.Join(parts[:end], "/") + "/index"
+		if candidate == page.Path {
+			continue
+		}
+		if parent, ok := byPath[candidate]; ok {
+			return parent.Id
+		}
+	}
+	return 0
+}
+
 // listAllUnscoped 返回全部页面（含软删，供恢复检测）。
 func listAllUnscoped() []*wikiPages.Entity {
 	var entities []*wikiPages.Entity
@@ -986,15 +1090,8 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if wp.displayName == "" {
 		return fmt.Errorf("empty display name for path %s", wp.path)
 	}
-	// 嵌套路径：parent_id 关联父页面。
-	parentID := uint64(0)
-	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
-		parentPath := strings.Join(segments[:len(segments)-1], "/")
-		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
-			parentID = parent.Id
-		}
-	}
-
+	// parent_id 由同步结束后的 reconcileWikiPageParents 统一重算（PR #303），
+	// 不在单页 upsert 内推导；renderedHTML 由引用解析器预渲染（review M1）。
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1036,11 +1133,14 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			return err
 		}
 		page = wikiPages.Entity{
-			TopicId:             topic.Id,
-			Namespace:           ns,
-			Path:                wp.path,
-			SourcePath:          wp.sourcePath,
-			ParentId:            parentID,
+			TopicId:    topic.Id,
+			Namespace:  ns,
+			Path:       wp.path,
+			SourcePath: wp.sourcePath,
+			// parent_id is rebuilt after the complete repository projection. A
+			// single upsert cannot safely derive it when ancestors appear later,
+			// move, delete, or restore in the same sync.
+			ParentId:            0,
 			SortOrder:           wp.order,
 			Title:               wp.title,
 			Content:             wp.body,

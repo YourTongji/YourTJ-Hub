@@ -91,7 +91,6 @@ function wikiHref(path: string | undefined | null): string | undefined {
               <div class="truncate text-sm font-semibold text-base-content hover:text-primary">{{ item.title }}</div>
               <div class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-base-content/55">
                 <span class="truncate">{{ item.path }}</span>
-                <span v-if="item.editorName">@{{ item.editorName }}</span>
                 <span class="inline-flex items-center gap-1">
                   <Clock class="h-3 w-3" aria-hidden="true" />
                   {{ formatDateTime(item.updatedAt) }}

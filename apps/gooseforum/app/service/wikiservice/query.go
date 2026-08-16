@@ -11,12 +11,22 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
-// TreePage 导航树中的一页。
-type TreePage struct {
-	PageId uint64 `json:"pageId"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
+const (
+	// WikiTreeNodePage is a Markdown page from the content repository.
+	WikiTreeNodePage = "page"
+	// WikiTreeNodeDirectory is a non-clickable repository directory. Directories
+	// do not require an index.md page to retain their navigation hierarchy.
+	WikiTreeNodeDirectory = "directory"
+)
+
+// TreeNode is a recursive navigation node. Directory nodes have pageId 0.
+type TreeNode struct {
+	Kind     string     `json:"kind"`
+	PageId   uint64     `json:"pageId"`
+	Path     string     `json:"path"`
+	Title    string     `json:"title"`
+	Active   bool       `json:"active"`
+	Children []TreeNode `json:"children"`
 }
 
 // TreeNamespace 导航树中的一个 namespace 分组。
@@ -26,7 +36,7 @@ type TreeNamespace struct {
 	Name  string     `json:"name"`
 	Label string     `json:"label"`
 	Slug  string     `json:"slug"`
-	Pages []TreePage `json:"pages"`
+	Nodes []TreeNode `json:"nodes"`
 }
 
 // WikiTreeResult 公开导航树响应（契约包裹层）。
@@ -80,20 +90,11 @@ func BuildTree(activePath string) []TreeNamespace {
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
 		pages := byURLKey[namespaceURLKey(ns)]
-		items := make([]TreePage, 0, len(pages))
-		for _, page := range pages {
-			items = append(items, TreePage{
-				PageId: page.Id,
-				Path:   page.Path,
-				Title:  page.Title,
-				Active: page.Path == activePath,
-			})
-		}
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
 			Slug:  namespaceURLKey(ns),
-			Pages: items,
+			Nodes: buildTreeNodes(pages, namespaceURLKey(ns), activePath, false),
 		})
 	}
 	return result
@@ -146,45 +147,117 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 	for _, ns := range namespaces {
 		urlKey := namespaceURLKey(ns)
 		pages := byURLKey[urlKey]
-		items := make([]TreePage, 0, len(pages))
-		for _, page := range pages {
-			path := page.Path
-			if contractShape {
-				path = strings.TrimPrefix(path, urlKey+"/")
-			}
-			items = append(items, TreePage{
-				PageId: page.Id,
-				Path:   path,
-				Title:  page.Title,
-				Active: page.Path == activePath,
-			})
-		}
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
 			Slug:  urlKey,
-			Pages: items,
+			Nodes: buildTreeNodes(pages, urlKey, activePath, contractShape),
 		})
 	}
 	return result
 }
 
-// AdminTreePage 管理端导航树中的一页。
+type treeNodeBuilder struct {
+	node      TreeNode
+	sortOrder int
+	children  map[string]*treeNodeBuilder
+}
+
+func newDirectoryNode(path, title string, sortOrder int) *treeNodeBuilder {
+	return &treeNodeBuilder{
+		node:      TreeNode{Kind: WikiTreeNodeDirectory, Path: path, Title: title, Children: []TreeNode{}},
+		sortOrder: sortOrder,
+		children:  make(map[string]*treeNodeBuilder),
+	}
+}
+
+// buildTreeNodes projects directory segments from paths. It deliberately does
+// not depend on parent_id: a valid repository directory may have no index.md.
+func buildTreeNodes(pages []*wikiPages.Entity, urlKey, activePath string, relative bool) []TreeNode {
+	root := newDirectoryNode("", "", 0)
+	directoryOrder := make(map[string]int)
+	for _, page := range pages {
+		rel := strings.TrimPrefix(page.Path, urlKey+"/")
+		parts := strings.Split(rel, "/")
+		for i := 1; i < len(parts); i++ {
+			dirPath := strings.Join(parts[:i], "/")
+			if current, ok := directoryOrder[dirPath]; !ok || page.SortOrder < current {
+				directoryOrder[dirPath] = page.SortOrder
+			}
+		}
+		if len(parts) > 1 && parts[len(parts)-1] == "index" {
+			directoryOrder[strings.Join(parts[:len(parts)-1], "/")] = page.SortOrder
+		}
+	}
+	for _, page := range pages {
+		rel := strings.TrimPrefix(page.Path, urlKey+"/")
+		parts := strings.Split(rel, "/")
+		cursor := root
+		for i := 0; i < len(parts)-1; i++ {
+			dirPath := strings.Join(parts[:i+1], "/")
+			child, ok := cursor.children[dirPath]
+			if !ok {
+				outputPath := dirPath
+				if !relative {
+					outputPath = urlKey + "/" + dirPath
+				}
+				child = newDirectoryNode(outputPath, parts[i], directoryOrder[dirPath])
+				cursor.children[dirPath] = child
+			}
+			cursor = child
+		}
+		path := page.Path
+		if relative {
+			path = rel
+		}
+		cursor.children["page:"+rel] = &treeNodeBuilder{
+			node: TreeNode{Kind: WikiTreeNodePage, PageId: page.Id, Path: path, Title: page.Title,
+				Active: page.Path == activePath, Children: []TreeNode{}},
+			sortOrder: page.SortOrder,
+			children:  make(map[string]*treeNodeBuilder),
+		}
+	}
+	return flattenTreeChildren(root)
+}
+
+func flattenTreeChildren(parent *treeNodeBuilder) []TreeNode {
+	items := make([]*treeNodeBuilder, 0, len(parent.children))
+	for _, child := range parent.children {
+		items = append(items, child)
+	}
+	for i := 1; i < len(items); i++ {
+		for j := i; j > 0 && (items[j].sortOrder < items[j-1].sortOrder ||
+			(items[j].sortOrder == items[j-1].sortOrder && items[j].node.Path < items[j-1].node.Path)); j-- {
+			items[j], items[j-1] = items[j-1], items[j]
+		}
+	}
+	result := make([]TreeNode, 0, len(items))
+	for _, item := range items {
+		item.node.Children = flattenTreeChildren(item)
+		result = append(result, item.node)
+	}
+	return result
+}
+
+// AdminTreeNode 管理端导航树节点。directory 节点没有 GitHub 文件，pageId
+// 为零且 sourcePath 为空；page 节点保留 GitHub 外链所需的 sourcePath。
 // Path 首段 = URL key（slug，降级=显示名）；SourcePath = 仓库真实路径
 // （GitHub 编辑/历史外链拼接用，与 URL 解耦，D7）。
-type AdminTreePage struct {
-	PageId     uint64 `json:"pageId"`
-	Path       string `json:"path"`
-	SourcePath string `json:"sourcePath"`
-	Title      string `json:"title"`
-	SortOrder  int    `json:"sortOrder"`
+type AdminTreeNode struct {
+	Kind       string          `json:"kind"`
+	PageId     uint64          `json:"pageId"`
+	Path       string          `json:"path"`
+	SourcePath string          `json:"sourcePath"`
+	Title      string          `json:"title"`
+	SortOrder  int             `json:"sortOrder"`
+	Children   []AdminTreeNode `json:"children"`
 }
 
 // AdminTreeNamespace 管理端导航树中的一个 namespace 分组。
 type AdminTreeNamespace struct {
 	Name  string          `json:"name"`
 	Label string          `json:"label"`
-	Pages []AdminTreePage `json:"pages"`
+	Nodes []AdminTreeNode `json:"nodes"`
 }
 
 // BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，含 URL key 段）。
@@ -201,21 +274,76 @@ func BuildAdminTree() []AdminTreeNamespace {
 	result := make([]AdminTreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
 		pages := byURLKey[namespaceURLKey(ns)]
-		items := make([]AdminTreePage, 0, len(pages))
-		for _, page := range pages {
-			items = append(items, AdminTreePage{
-				PageId:     page.Id,
-				Path:       page.Path,
-				SourcePath: page.SourcePath,
-				Title:      page.Title,
-				SortOrder:  page.SortOrder,
-			})
-		}
 		result = append(result, AdminTreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
-			Pages: items,
+			Nodes: buildAdminTreeNodes(pages, namespaceURLKey(ns)),
 		})
+	}
+	return result
+}
+
+type adminTreeNodeBuilder struct {
+	node     AdminTreeNode
+	children map[string]*adminTreeNodeBuilder
+}
+
+func buildAdminTreeNodes(pages []*wikiPages.Entity, urlKey string) []AdminTreeNode {
+	root := &adminTreeNodeBuilder{children: make(map[string]*adminTreeNodeBuilder)}
+	directoryOrder := make(map[string]int)
+	for _, page := range pages {
+		rel := strings.TrimPrefix(page.Path, urlKey+"/")
+		parts := strings.Split(rel, "/")
+		for i := 1; i < len(parts); i++ {
+			dirPath := strings.Join(parts[:i], "/")
+			if current, ok := directoryOrder[dirPath]; !ok || page.SortOrder < current {
+				directoryOrder[dirPath] = page.SortOrder
+			}
+		}
+		if len(parts) > 1 && parts[len(parts)-1] == "index" {
+			directoryOrder[strings.Join(parts[:len(parts)-1], "/")] = page.SortOrder
+		}
+	}
+	for _, page := range pages {
+		rel := strings.TrimPrefix(page.Path, urlKey+"/")
+		parts := strings.Split(rel, "/")
+		cursor := root
+		for i := 0; i < len(parts)-1; i++ {
+			dirRel := strings.Join(parts[:i+1], "/")
+			key := "dir:" + dirRel
+			child, ok := cursor.children[key]
+			if !ok {
+				child = &adminTreeNodeBuilder{node: AdminTreeNode{
+					Kind: WikiTreeNodeDirectory, Path: urlKey + "/" + dirRel, Title: parts[i],
+					SortOrder: directoryOrder[dirRel], Children: []AdminTreeNode{},
+				}, children: make(map[string]*adminTreeNodeBuilder)}
+				cursor.children[key] = child
+			}
+			cursor = child
+		}
+		cursor.children["page:"+rel] = &adminTreeNodeBuilder{node: AdminTreeNode{
+			Kind: WikiTreeNodePage, PageId: page.Id, Path: page.Path, SourcePath: page.SourcePath,
+			Title: page.Title, SortOrder: page.SortOrder, Children: []AdminTreeNode{},
+		}, children: make(map[string]*adminTreeNodeBuilder)}
+	}
+	return flattenAdminTreeChildren(root)
+}
+
+func flattenAdminTreeChildren(parent *adminTreeNodeBuilder) []AdminTreeNode {
+	items := make([]*adminTreeNodeBuilder, 0, len(parent.children))
+	for _, child := range parent.children {
+		items = append(items, child)
+	}
+	for i := 1; i < len(items); i++ {
+		for j := i; j > 0 && (items[j].node.SortOrder < items[j-1].node.SortOrder ||
+			(items[j].node.SortOrder == items[j-1].node.SortOrder && items[j].node.Path < items[j-1].node.Path)); j-- {
+			items[j], items[j-1] = items[j-1], items[j]
+		}
+	}
+	result := make([]AdminTreeNode, 0, len(items))
+	for _, item := range items {
+		item.node.Children = flattenAdminTreeChildren(item)
+		result = append(result, item.node)
 	}
 	return result
 }
@@ -267,13 +395,13 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 }
 
 // RecentPage 首页最近更新条目。
+// GitHub SSOT：无论坛编辑者概念（git 作者信息走 contributors），
+// 不再输出 editorId/editorName（历史遗留字段，恒为零值，issue #291）。
 type RecentPage struct {
-	PageId     uint64 `json:"pageId"`
-	Path       string `json:"path"`
-	Title      string `json:"title"`
-	UpdatedAt  string `json:"updatedAt"`
-	EditorId   uint64 `json:"editorId"`
-	EditorName string `json:"editorName"`
+	PageId    uint64 `json:"pageId"`
+	Path      string `json:"path"`
+	Title     string `json:"title"`
+	UpdatedAt string `json:"updatedAt"`
 }
 
 // HomeData 首页数据。
@@ -356,8 +484,6 @@ type PageDetail struct {
 	Content             string    `json:"content"`
 	Toc                 []TocItem `json:"toc"`
 	UpdatedAt           string    `json:"updatedAt"`
-	EditorId            uint64    `json:"editorId"`
-	EditorName          string    `json:"editorName"`
 	LikeCount           uint64    `json:"likeCount"`
 	ViewCount           uint64    `json:"viewCount"`
 	PostCount           uint64    `json:"postCount"`

@@ -183,6 +183,9 @@ func ginServe() {
 	// 启动时异步执行一次 wiki GitHub 同步（D1）：进程启动后立即拉取仓库最新
 	// head 并投影到论坛。未配置 [wiki.git].repo 时幂等跳过（Sync 报错仅告警，
 	// 不阻塞服务启动）；失败不重试，由每日定时同步兜底。
+	// 崩溃恢复（issue #290）：上次进程被杀/重启遗留的 running 运行行在
+	// 启动时回收为 failed，管理端手动同步按钮不会被永久禁用。
+	wikiservice.ReconcileStaleRuns()
 	if wikiservice.LoadGitConfig().Enabled() {
 		go func() {
 			defer paniclog.Recover("wiki_startup_sync")
