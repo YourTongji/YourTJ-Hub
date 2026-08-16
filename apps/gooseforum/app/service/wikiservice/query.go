@@ -482,16 +482,19 @@ func BuildHome() (HomeData, error) {
 }
 
 // Contributor 贡献者条目（GitHub SSOT：来源为仓库 git log 贡献者快照）。
+// GitHub 贡献者无论坛账号：userId 恒 0；username 由 noreply 邮箱解析时
+// avatarUrl/githubUrl 可用，自定义邮箱贡献者三者皆空（前端降级占位）。
 type Contributor struct {
 	UserId       uint64    `json:"userId"`
 	Username     string    `json:"username"`
 	AvatarUrl    string    `json:"avatarUrl"`
+	GithubUrl    string    `json:"githubUrl,omitempty"`
 	Count        int       `json:"count"`
 	LastEditedAt time.Time `json:"lastEditedAt"`
 }
 
 // BuildContributors 返回页面贡献者（读 wiki_pages.contributors_json 缓存；
-// 由同步器从 git log 生成，GitHub 贡献者无论坛账号，userId/avatarUrl 为空）。
+// 由同步器从 git log 生成，GitHub 贡献者无论坛账号，userId 恒为空）。
 func BuildContributors(pageId uint64) []Contributor {
 	page := wikiPages.Get(pageId)
 	if page.Id == 0 || page.ContributorsJSON == "" {
@@ -507,11 +510,16 @@ func BuildContributors(pageId uint64) []Contributor {
 	}
 	result := make([]Contributor, 0, len(raw))
 	for _, c := range raw {
-		result = append(result, Contributor{
+		item := Contributor{
 			Username:     c.Name,
 			Count:        c.Count,
 			LastEditedAt: lastEdited,
-		})
+		}
+		if c.Username != "" {
+			item.AvatarUrl = githubAvatarURL(c.Username)
+			item.GithubUrl = githubProfileURL(c.Username)
+		}
+		result = append(result, item)
 	}
 	return result
 }

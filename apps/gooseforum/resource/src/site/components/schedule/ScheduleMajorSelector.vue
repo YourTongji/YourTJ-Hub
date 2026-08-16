@@ -146,6 +146,14 @@ onMounted(() => {
     <p v-if="error" class="mt-2 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">
       {{ error }}
     </p>
+    <!-- 学期下拉为空：区分「无数据」与「加载失败」，引导管理员同步（issue #248）。 -->
+    <p
+      v-else-if="!loading && calendars.length === 0"
+      class="mt-2 rounded border border-warning/25 bg-warning/10 px-3 py-2 text-sm text-warning"
+    >
+      {{ t('schedule.noCalendar') }}
+      <span class="mt-1 block text-[12px] text-warning/80">{{ t('schedule.noCalendarHint') }}</span>
+    </p>
     <p class="mt-2 text-[12px] text-base-content/55">{{ t('schedule.majorHint') }}</p>
     <p v-if="loading" class="mt-2 text-[12px] text-base-content/45">{{ t('schedule.loading') }}</p>
   </div>

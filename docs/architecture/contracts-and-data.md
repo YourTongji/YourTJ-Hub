@@ -57,8 +57,11 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
 - Wiki 首页/详情兼容性（issue #291）：GitHub SSOT 下站内无「编辑者」概念，
   `GET /api/wiki/home` 的 `recent[]` 与 wiki 详情负载的 `editorId`/`editorName`
   字段已**移除**（此前恒为零值且违反 OpenAPI `editorId minimum: 1`）。消费方需删除
-  对这两个字段的依赖；Git 作者信息改由详情页 `contributors[]`（用户名/头像可为空，
-  无论坛数字用户 ID）提供。OpenAPI `WikiRecentPage`/`WikiTreePage`/`WikiNamespaceSummary`
+  对这两个字段的依赖；Git 作者信息由详情页 `contributors[]` 提供（无论坛数字
+  用户 ID）：同步器从仓库 `git log` 按 email 聚合贡献者与提交数，GitHub
+  noreply 隐私邮箱可解析出 `username` → 前端拼 `avatarUrl`（`github.com/{user}.png`）
+  与 `githubUrl` 外链；自定义邮箱贡献者两者为空（前端降级首字母占位）。
+  OpenAPI `WikiRecentPage`/`WikiTreePage`/`WikiNamespaceSummary`
   的旧「approved revision」措辞已同步改为 GitHub SSOT 投影语义。
 
 Paths are split per domain under `packages/api-contract/paths/` (for example `auth.yaml`,

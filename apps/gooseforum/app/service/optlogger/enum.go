@@ -42,6 +42,8 @@ func (receiver OptEnum) Name() string {
 		return "编辑课评"
 	case DeleteReview:
 		return "删除课评"
+	case SyncPk:
+		return "同步排课数据"
 	}
 	return ""
 }
@@ -60,6 +62,9 @@ const (
 	DeleteCourse
 	UpdateReview
 	DeleteReview
+	// SyncPk 排课数据同步（issue #248）：归属 System，不新增 TargetTypeEnum 值，
+	// 避免改动枚举序列影响已持久化的审计记录。
+	SyncPk
 )
 
 type TargetTypeEnum int

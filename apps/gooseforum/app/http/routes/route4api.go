@@ -401,6 +401,9 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
 		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		// 排课数据同步（issue #248 自愈入口）：触发同步 + 查询各学期状态。
+		POST("pk/sync-calendar", UpButterReq(api.SyncPkCalendar)).
+		GET("pk/sync-status", UpButterReq(api.PkSyncStatus)).
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).

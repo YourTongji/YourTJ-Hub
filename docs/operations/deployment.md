@@ -103,7 +103,9 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
   原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响。中文目录在
   `index.md` 声明 `slug` 后，页面 URL 首段迁移为 slug，旧链接仍可经显示名回退解析）。
-  （同步用 `clone --depth=1` + `fetch` + `reset --hard`，**不使用 pull**）。
+  （同步用全量 `clone --single-branch` + `fetch` + `reset --hard`，**不使用 pull**；
+  全量历史用于页面贡献者统计。存量浅克隆（旧版 `--depth=1`）在下次同步自动
+  `fetch --unshallow` 补全历史并重建全部页面贡献者缓存，升级首轮耗时取决于仓库大小）。
 - **本地 clone**：默认 `./storage/wiki-repo`（`main`/`dev` 实例各自独立），可被 `[wiki.git].clone_dir` 覆盖。
 - **同步记录**：每次同步写入 `wiki_sync_runs`（trigger/status/变更计数/错误），管理端可查最近 20 条；
   同步幂等（正文 sha256 比对），重复同步零变更；软删页面在仓库重新出现时自动恢复（含 topic 生命周期）；
@@ -413,6 +415,19 @@ instance:
 ## 一系统排课同步（course-pk-sync，issue #186）
 
 将同济一系统（1.tongji.edu.cn）排课数据分页同步到 PK 域，并重建 `teacher_timeslots`。
+
+> **管理端入口（推荐，issue #248）**：部署实例的排课器学期下拉为空，通常是因为
+> `pk_calendar` 尚无数据且未同步。无需登录服务器，在**管理端 → 设置 → 一系统同步**
+> 页面即可：
+> 1. 配置一系统 Cookie（加密落库，不存明文）；
+> 2. 输入一系统数字学期 ID（如 `121`）或已同步过的学期名（如 `2025-2026-1`）点「立即同步」；
+> 3. 同步在后台执行（`POST /api/admin/pk/sync-calendar`），页面「同步状态」列表每 3s 轮询
+>    `GET /api/admin/pk/sync-status`（`pk_fetch_log` 游标）直至结束，可看到行数/进度/失败原因。
+>
+> 未配置任何 Cookie 来源（管理端设置/`ONESYSTEM_COOKIE` 环境变量）时入口会拒绝触发。
+> 同一学期同步中的并发仍受 fetchlog 1 小时 running 窗口保护（见下）。
+
+CLI 同步（运维 cron 等自动化场景）：
 
 ```bash
 # 首次同步请用数字 calendarId（或 --calendar-id）；学期名（2025-2026-1）需在 pk_calendar

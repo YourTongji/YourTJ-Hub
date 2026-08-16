@@ -472,6 +472,8 @@ export default {
     exportWeekRange: 'Wk {range}',
     exportWeekJoin: ', ',
     loadFailed: 'Failed to load schedule data. Please try again later.',
+    noCalendar: 'Schedule data has not been synced yet. No semester is available.',
+    noCalendarHint: 'Ask an administrator to sync schedule data under Admin → Settings → OneSystem Sync.',
   },
   courseDetailPage: {
     backToList: 'Back to course catalog',
