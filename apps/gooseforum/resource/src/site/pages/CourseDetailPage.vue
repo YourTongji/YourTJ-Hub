@@ -414,10 +414,11 @@ onMounted(() => {
       </span>
     </div>
 
-    <!-- 顶部统计区：平均分 + 评论数 + 评分分布条形 + 写评 CTA（B1 数据） -->
-    <section class="gf-panel mb-6 p-5">
-      <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
-        <div class="flex flex-col items-center sm:min-w-28">
+    <!-- 顶部统计区：桌面端评分摘要与开课记录并排，移动端保持纵向排列。 -->
+    <div class="mb-6 grid gap-4 sm:grid-cols-[minmax(0,3fr)_minmax(0,2fr)] sm:items-start">
+    <section class="gf-panel p-5">
+      <div class="flex flex-col gap-5 lg:flex-row lg:items-center lg:gap-6">
+        <div class="flex flex-col items-center lg:min-w-24">
           <div class="text-4xl font-bold tracking-tight tabular-nums text-warning">
             {{ ratingAvg != null ? ratingAvg.toFixed(1) : '—' }}
           </div>
@@ -442,24 +443,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-center">
-          <button
-            v-if="page.layout.viewer.isAuthenticated && props.course.offerings?.length"
-            type="button"
-            class="gf-button gf-button-md gf-button-primary"
-            @click="openCreateForm"
-          >
-            <MessageSquareText class="h-4 w-4" />
-            {{ t('courseDetailPage.writeReview') }}
-          </button>
-          <a
-            v-else-if="!page.layout.viewer.isAuthenticated"
-            :href="loginHref"
-            class="gf-button gf-button-md gf-button-outline"
-          >
-            {{ t('courseDetailPage.loginToReview') }}
-          </a>
-        </div>
       </div>
     </section>
 
@@ -490,6 +473,7 @@ onMounted(() => {
         </li>
       </ul>
     </section>
+    </div>
 
     <!-- 相关课程：桌面（sm+）常显；移动端折叠展开 -->
     <section class="mt-6">
@@ -620,6 +604,7 @@ onMounted(() => {
       </p>
 
       <!-- 写评 / 编辑表单 -->
+      <Transition name="gf-local-expand">
       <form
         v-if="formVisible"
         class="mb-4 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
@@ -727,6 +712,7 @@ onMounted(() => {
           </button>
         </div>
       </form>
+      </Transition>
 
       <!-- 评价列表 -->
       <div v-if="reviewLoading" class="gf-panel">
@@ -824,6 +810,7 @@ onMounted(() => {
 
     <!-- 举报弹窗 -->
     <Teleport to="body">
+      <Transition name="gf-modal">
       <div
         v-if="pendingReport"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
@@ -879,10 +866,12 @@ onMounted(() => {
           </div>
         </div>
       </div>
+      </Transition>
     </Teleport>
 
     <!-- 删除确认 Dialog（受控，替代 window.confirm） -->
     <Teleport to="body">
+      <Transition name="gf-modal">
       <div
         v-if="pendingDelete"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
@@ -915,6 +904,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
+      </Transition>
     </Teleport>
 
     <!-- 写评模板选择器 -->
