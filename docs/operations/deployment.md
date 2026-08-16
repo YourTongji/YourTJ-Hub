@@ -445,11 +445,21 @@ CLI 同步（运维 cron 等自动化场景）：
 
 凭证优先级：`--onesystem-cookie` 参数 > `ONESYSTEM_COOKIE` 环境变量 > 管理端设置
 （设置 → 一系统同步；`save-onesystem-settings` 仅落库 securestore 密文，不存明文）。
+未配置 Cookie 时，可改用一系统**学号/密码**自动登录换取会话 Cookie（对齐
+YourTJCourse-Serverless 的 Login 流程，RSA 加密 + SSO 链；触发「加强认证」需邮箱验证码时
+本实现不自动读取，仍请使用 Cookie 凭证）：
+- CLI：`--onesystem-sno` + `--onesystem-password`（或 `ONESYSTEM_SNO` / `ONESYSTEM_PASSWORD`
+  环境变量，对齐 serverless workflow 的 secret 注入命名）；
+- 管理端入口仅支持 Cookie（无账号密码输入框）。
+
 - 运维 cron（每日，选课季加频；应用内不自造调度器）：
 
   ```bash
-  # 每日 02:30 同步当前学期
+  # 每日 02:30 同步当前学期（Cookie 方式）
   30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_COOKIE='JWTUser=…; JSESSIONID=…' ./bin/yourtj-hub course-pk-sync 121
+
+  # 或账号密码方式（每次同步自动 SSO 登录，Cookie 无需手工维护）
+  30 2 * * * cd /srv/yourtj-hub && ONESYSTEM_SNO='…' ONESYSTEM_PASSWORD='…' ./bin/yourtj-hub course-pk-sync 121
   ```
 
 - 行为保证：同一学期重复执行先清空再全量重写（幂等，不翻倍）；同步中断后重跑从失败批次

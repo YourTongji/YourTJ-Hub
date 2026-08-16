@@ -21,12 +21,16 @@ func init() {
   - 一系统数字 calendarId（如 121）
   - 学期名（如 2025-2026-1），经 pk_calendar 反查 calendarId；首次同步请用 --calendar-id
 
-凭证按优先级取：--onesystem-cookie 参数 > ONESYSTEM_COOKIE 环境变量 > 管理端设置（加密落库）。`,
+凭证按优先级取：--onesystem-cookie 参数 > ONESYSTEM_COOKIE 环境变量 > 管理端设置（加密落库）；
+未配置 Cookie 时可用 --onesystem-sno+--onesystem-password（或 ONESYSTEM_SNO/ONESYSTEM_PASSWORD
+环境变量）自动 SSO 登录换取会话 Cookie（触发加强认证时仍需 Cookie 凭证）。`,
 		Args: cobra.ExactArgs(1),
 		RunE: runCoursePkSync,
 	}
 	cmd.Flags().Int("depth", 1, "以目标学期为终点向前同步的学期数（默认 1）")
 	cmd.Flags().String("onesystem-cookie", "", "一系统 Cookie header（覆盖环境变量/管理端设置；注意会出现在进程列表，敏感环境慎用）")
+	cmd.Flags().String("onesystem-sno", "", "一系统学号/工号（无 Cookie 时自动 SSO 登录换取会话 Cookie；与 --onesystem-password 成对）")
+	cmd.Flags().String("onesystem-password", "", "一系统密码（无 Cookie 时自动 SSO 登录换取会话 Cookie；与 --onesystem-sno 成对）")
 	cmd.Flags().Uint64("calendar-id", 0, "显式指定一系统 calendarId（绕过学期名解析）")
 	cmd.Flags().Bool("materialize", false, "同步完成后将 PK 课程物化到课程目录（默认关闭）")
 	appendCommand(cmd)
@@ -35,6 +39,8 @@ func init() {
 func runCoursePkSync(cmd *cobra.Command, args []string) error {
 	depth, _ := cmd.Flags().GetInt("depth")
 	cookieFlag, _ := cmd.Flags().GetString("onesystem-cookie")
+	snoFlag, _ := cmd.Flags().GetString("onesystem-sno")
+	passwordFlag, _ := cmd.Flags().GetString("onesystem-password")
 	explicitID, _ := cmd.Flags().GetUint64("calendar-id")
 	materialize, _ := cmd.Flags().GetBool("materialize")
 
@@ -42,7 +48,7 @@ func runCoursePkSync(cmd *cobra.Command, args []string) error {
 	if err != nil {
 		return err
 	}
-	cookie, err := pkservice.ResolveCookie(cookieFlag)
+	cookie, err := pkservice.ResolveCookie(cookieFlag, snoFlag, passwordFlag)
 	if err != nil {
 		return err
 	}
