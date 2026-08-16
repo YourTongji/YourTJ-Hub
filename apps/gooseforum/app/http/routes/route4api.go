@@ -225,6 +225,8 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
+	// wiki 站内局内搜索（前端搜索面板；段落级 Meilisearch 索引，公开只读）。
+	wikiApi.GET("search", UpQueryReq(forum.WikiSearchJSON))
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
 	// 公开端点加限流（review MEDIUM）：防未认证调用方以超大 body 刷 HMAC
 	// 计算（CPU DoS）与重放触发全量同步。

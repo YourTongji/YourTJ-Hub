@@ -8,6 +8,7 @@ import (
 	"os"
 	"path"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
@@ -17,6 +18,23 @@ import (
 )
 
 const wikiAssetRoutePrefix = "/wiki/_assets/"
+
+// ParaAnchor 段落级锚点（wiki 局内搜索：命中可精准定位到段落）。
+// Anchor 为渲染 HTML 中注入的段落 id（"s-<n>"）；HeadingId/HeadingText 记录
+// 该段所属的最近上级标题（与 TOC 的 heading id 一致），用于结果展示与聚合。
+type ParaAnchor struct {
+	Index       int    `json:"index"`
+	Anchor      string `json:"anchor"`
+	HeadingId   string `json:"headingId"`
+	HeadingText string `json:"headingText"`
+	Text        string `json:"text"`
+}
+
+// RenderResult 渲染输出：带段落锚点 id 的 HTML + 段落锚点索引。
+type RenderResult struct {
+	HTML        string
+	ParaAnchors []ParaAnchor
+}
 
 // errWikiRefEscapesRepo 标记引用解析中的安全类错误（路径逃逸/符号链接越界）：
 // 这类错误必须整体失败（sync 停止），不允许 per-page 降级——否则恶意仓库
@@ -124,18 +142,45 @@ func (r *wikiReferenceResolver) Validate(page wantedPage) error {
 	return nil
 }
 
-func (r *wikiReferenceResolver) Render(page wantedPage) (string, error) {
+func (r *wikiReferenceResolver) Render(page wantedPage) (RenderResult, error) {
 	raw := markdown2html.PostMarkdownToHTML(page.body)
 	root, err := nethtml.Parse(strings.NewReader("<div>" + raw + "</div>"))
 	if err != nil {
-		return "", fmt.Errorf("parse rendered HTML: %w", err)
+		return RenderResult{}, fmt.Errorf("parse rendered HTML: %w", err)
 	}
 
 	var rewriteErr error
+	paraIndex := 0
+	currentHeadingID := ""
+	currentHeadingText := ""
+	var paraAnchors []ParaAnchor
+
 	var walk func(*nethtml.Node)
 	walk = func(node *nethtml.Node) {
 		if rewriteErr != nil {
 			return
+		}
+		// wiki 局内搜索（B 方案）：跟踪最近标题，为段落注入稳定锚点 id 并收集索引。
+		// 标题 id 由 goldmark headingid 生成，与 TOC 严格一致；段落 id 用 "s-<n>"。
+		if node.Type == nethtml.ElementNode && isWikiHeadingTag(node.Data) {
+			if id := wikiHTMLAttr(node, "id"); id != "" {
+				currentHeadingID = id
+				currentHeadingText = wikiNodeText(node)
+			}
+		}
+		if node.Type == nethtml.ElementNode && node.Data == "p" {
+			paraIndex++
+			anchor := "s-" + strconv.Itoa(paraIndex)
+			if wikiHTMLAttr(node, "id") == "" {
+				node.Attr = append(node.Attr, nethtml.Attribute{Key: "id", Val: anchor})
+			}
+			paraAnchors = append(paraAnchors, ParaAnchor{
+				Index:       paraIndex,
+				Anchor:      anchor,
+				HeadingId:   currentHeadingID,
+				HeadingText: currentHeadingText,
+				Text:        wikiNodeText(node),
+			})
 		}
 		var key string
 		isImage := false
@@ -165,20 +210,51 @@ func (r *wikiReferenceResolver) Render(page wantedPage) (string, error) {
 	}
 	walk(root)
 	if rewriteErr != nil {
-		return "", rewriteErr
+		return RenderResult{}, rewriteErr
 	}
 
 	container := findWikiHTMLElement(root, "div")
 	if container == nil {
-		return "", fmt.Errorf("rendered HTML missing container")
+		return RenderResult{}, fmt.Errorf("rendered HTML missing container")
 	}
 	var output bytes.Buffer
 	for child := container.FirstChild; child != nil; child = child.NextSibling {
 		if err := nethtml.Render(&output, child); err != nil {
-			return "", fmt.Errorf("render rewritten HTML: %w", err)
+			return RenderResult{}, fmt.Errorf("render rewritten HTML: %w", err)
 		}
 	}
-	return output.String(), nil
+	return RenderResult{HTML: output.String(), ParaAnchors: paraAnchors}, nil
+}
+
+// isWikiHeadingTag 判断是否为 h1-h6 标题元素。
+func isWikiHeadingTag(tag string) bool {
+	return len(tag) == 2 && tag[0] == 'h' && tag[1] >= '1' && tag[1] <= '6'
+}
+
+// wikiHTMLAttr 读取节点属性值（nethtml 无内置 getter）。
+func wikiHTMLAttr(node *nethtml.Node, key string) string {
+	for _, attr := range node.Attr {
+		if attr.Key == key {
+			return attr.Val
+		}
+	}
+	return ""
+}
+
+// wikiNodeText 提取节点全部后代文本（标题/段落纯文本，供段落锚点索引）。
+func wikiNodeText(node *nethtml.Node) string {
+	var buf strings.Builder
+	var collect func(*nethtml.Node)
+	collect = func(n *nethtml.Node) {
+		if n.Type == nethtml.TextNode {
+			buf.WriteString(n.Data)
+		}
+		for child := n.FirstChild; child != nil; child = child.NextSibling {
+			collect(child)
+		}
+	}
+	collect(node)
+	return strings.TrimSpace(buf.String())
 }
 
 func (r *wikiReferenceResolver) resolve(sourceFile, destination string, isImage bool) (string, error) {
