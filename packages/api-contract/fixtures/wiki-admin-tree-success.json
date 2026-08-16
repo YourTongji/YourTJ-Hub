@@ -3,27 +3,43 @@
     {
       "name": "guide",
       "label": "guide",
-      "pages": [
+      "nodes": [
         {
+          "kind": "page",
           "pageId": 1001,
           "path": "guide/getting-started",
           "title": "快速开始",
           "sortOrder": 1,
-          "sourcePath": "guide/getting-started"
+          "sourcePath": "guide/getting-started",
+          "children": []
         },
         {
+          "kind": "page",
           "pageId": 1002,
           "path": "guide/content",
           "title": "内容规范",
           "sortOrder": 2,
-          "sourcePath": "guide/content"
+          "sourcePath": "guide/content",
+          "children": []
         },
         {
-          "pageId": 1003,
-          "path": "guide/draft/ideas",
-          "title": "草稿想法",
+          "kind": "directory",
+          "pageId": 0,
+          "path": "guide/draft",
+          "sourcePath": "",
+          "title": "draft",
           "sortOrder": 3,
-          "sourcePath": "guide/draft/ideas"
+          "children": [
+            {
+              "kind": "page",
+              "pageId": 1003,
+              "path": "guide/draft/ideas",
+              "title": "草稿想法",
+              "sortOrder": 3,
+              "sourcePath": "guide/draft/ideas",
+              "children": []
+            }
+          ]
         }
       ]
     }

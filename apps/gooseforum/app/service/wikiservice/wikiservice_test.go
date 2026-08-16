@@ -140,17 +140,17 @@ func TestValidatePath(t *testing.T) {
 		{"deployment/waline", true},
 		{"guide/sub/page-name", true},
 		{"同济新手教程/学校/简介", true},          // 中文命名空间与页面段（GitHub SSOT）
-		{"中文/目录/页面", true},               // 纯中文路径
-		{"Guide/Getting-Started", true},   // 保留大小写（不再小写归一）
-		{"guide/UPPER", true},             // 大写段合法
-		{"guide", false},                  // 至少 namespace + 一个 slug 段
-		{"guide/..", false},               // 禁止 ..
-		{"guide/.hidden", false},          // 禁止点开头段
-		{"guide/a b", false},              // 空格非法
-		{"guide/a\tb", false},             // 控制字符非法
-		{"guide/a:b", false},              // 保留字符非法
-		{"guide/a*b", false},              // 保留字符非法
-		{"guide/中文 空格", false},           // 中文路径含空格非法
+		{"中文/目录/页面", true},              // 纯中文路径
+		{"Guide/Getting-Started", true}, // 保留大小写（不再小写归一）
+		{"guide/UPPER", true},           // 大写段合法
+		{"guide", false},                // 至少 namespace + 一个 slug 段
+		{"guide/..", false},             // 禁止 ..
+		{"guide/.hidden", false},        // 禁止点开头段
+		{"guide/a b", false},            // 空格非法
+		{"guide/a\tb", false},           // 控制字符非法
+		{"guide/a:b", false},            // 保留字符非法
+		{"guide/a*b", false},            // 保留字符非法
+		{"guide/中文 空格", false},          // 中文路径含空格非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -173,15 +173,15 @@ func TestValidateNamespace(t *testing.T) {
 		{"deployment", true},
 		{"my-namespace", true},
 		{"同济新手教程", true}, // 中文命名空间（GitHub 顶层目录名）
-		{"使用指南", true},    // 中文命名空间
-		{"Guide", true},    // 保留大小写
-		{"UPPER", true},    // 保留大小写
+		{"使用指南", true},   // 中文命名空间
+		{"Guide", true},  // 保留大小写
+		{"UPPER", true},  // 保留大小写
 		{"has space", false},
-		{"中文 空格", false}, // 中间空格非法
-		{" 前导空格", true},  // 首尾空格被 trim 后为合法名称（trim 后再校验）
-		{".hidden", false},    // 点开头（隐藏目录）非法
-		{"a:b", false},        // 保留字符非法
-		{"a*b", false},        // 保留字符非法
+		{"中文 空格", false},   // 中间空格非法
+		{" 前导空格", true},    // 首尾空格被 trim 后为合法名称（trim 后再校验）
+		{".hidden", false}, // 点开头（隐藏目录）非法
+		{"a:b", false},     // 保留字符非法
+		{"a*b", false},     // 保留字符非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -226,12 +226,12 @@ func TestBuildTreeGroupsNamespacesAndActive(t *testing.T) {
 	if docs == nil {
 		t.Fatal("tree missing docs namespace")
 	}
-	if len(docs.Pages) != 2 {
-		t.Fatalf("docs pages=%d, want 2: %+v", len(docs.Pages), docs.Pages)
+	if len(docs.Nodes) != 2 {
+		t.Fatalf("docs nodes=%d, want 2: %+v", len(docs.Nodes), docs.Nodes)
 	}
 	paths := map[string]bool{}
 	activeCount := 0
-	for _, p := range docs.Pages {
+	for _, p := range docs.Nodes {
 		paths[p.Path] = true
 		if p.Active {
 			activeCount++
@@ -266,14 +266,62 @@ func TestBuildTreeAPIRelativePaths(t *testing.T) {
 			break
 		}
 	}
-	if docs == nil || len(docs.Pages) != 1 {
+	if docs == nil || len(docs.Nodes) != 1 {
 		t.Fatalf("docs tree: %+v", res.Namespaces)
 	}
-	if docs.Pages[0].Path != "guide/tips" {
-		t.Fatalf("API tree path=%q, want relative guide/tips", docs.Pages[0].Path)
+	if docs.Nodes[0].Kind != WikiTreeNodeDirectory || len(docs.Nodes[0].Children) != 1 || docs.Nodes[0].Children[0].Path != "guide/tips" {
+		t.Fatalf("API tree nodes=%+v, want guide directory with relative guide/tips", docs.Nodes)
 	}
-	if docs.Pages[0].Active {
+	if docs.Nodes[0].Children[0].Active {
 		t.Fatal("API tree page should not be active (no active path)")
+	}
+}
+
+// TestBuildTreePreservesRepositoryDirectories verifies that directory segments are
+// emitted as tree nodes even when the directory has no index.md page. The content
+// repository treats directories as hierarchy, not as a requirement for a parent
+// markdown file.
+func TestBuildTreePreservesRepositoryDirectories(t *testing.T) {
+	setupWikiTestDB(t)
+	base := time.Now().Add(-24 * time.Hour)
+	index := seedProjectedWikiPage(t, "guide", "guide/index", "指南首页", base)
+	admissionIndex := seedProjectedWikiPage(t, "guide", "guide/admission/index", "入学", base.Add(time.Minute))
+	process := seedProjectedWikiPage(t, "guide", "guide/admission/process", "流程", base.Add(2*time.Minute))
+	faq := seedProjectedWikiPage(t, "guide", "guide/faq/common", "常见问题", base.Add(3*time.Minute))
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", admissionIndex.Id).Update("sort_order", 2).Error; err != nil {
+		t.Fatalf("set admission order: %v", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", process.Id).Update("sort_order", 1).Error; err != nil {
+		t.Fatalf("set process order: %v", err)
+	}
+
+	tree := BuildTree("guide/admission/process")
+	if len(tree) != 1 {
+		t.Fatalf("namespaces=%d, want 1: %+v", len(tree), tree)
+	}
+	// Root index remains a page. admission has an index.md page and faq has no
+	// index.md, but both directories must retain their descendants.
+	nodes := tree[0].Nodes
+	if len(nodes) != 3 {
+		t.Fatalf("root nodes=%d, want index + admission + faq: %+v", len(nodes), nodes)
+	}
+	byPath := make(map[string]TreeNode, len(nodes))
+	for _, node := range nodes {
+		byPath[node.Path] = node
+	}
+	if node := byPath["guide/index"]; node.Kind != WikiTreeNodePage || node.PageId != index.Id {
+		t.Fatalf("root index node=%+v", node)
+	}
+	admissionNode := byPath["guide/admission"]
+	if admissionNode.Kind != WikiTreeNodeDirectory || len(admissionNode.Children) != 2 {
+		t.Fatalf("admission directory=%+v", admissionNode)
+	}
+	if admissionNode.Children[0].PageId != process.Id || !admissionNode.Children[0].Active || admissionNode.Children[1].PageId != admissionIndex.Id {
+		t.Fatalf("admission children=%+v, want process then index by sibling order", admissionNode.Children)
+	}
+	faqNode := byPath["guide/faq"]
+	if faqNode.Kind != WikiTreeNodeDirectory || len(faqNode.Children) != 1 || faqNode.Children[0].PageId != faq.Id {
+		t.Fatalf("faq directory=%+v", faqNode)
 	}
 }
 

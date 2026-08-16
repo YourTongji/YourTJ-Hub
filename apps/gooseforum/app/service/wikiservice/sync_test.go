@@ -69,6 +69,56 @@ func TestApplyRepoToDBFirstSync(t *testing.T) {
 	}
 }
 
+// TestApplyRepoToDBReconcilesParentsAfterTreeChanges verifies that parent_id is a
+// derived cache of the nearest ancestor index page. Reconciliation happens after
+// all files are upserted, so repository ordering, moves, deletes, and restores
+// cannot leave a stale relationship behind.
+func TestApplyRepoToDBReconcilesParentsAfterTreeChanges(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	cfg := GitConfig{CloneDir: repo}
+
+	// Deliberately create the leaf before either ancestor index. scanRepoFiles
+	// sorts paths, but the reconciliation pass must be correct independently of
+	// create order.
+	writeRepoFile(t, repo, "guide/admission/process.md", "---\ntitle: 流程\n---\n\n# 流程")
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南")
+	writeRepoFile(t, repo, "guide/admission/index.md", "---\ntitle: 入学\n---\n\n# 入学")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	root := wikiPages.GetByPath("guide/index")
+	admission := wikiPages.GetByPath("guide/admission/index")
+	process := wikiPages.GetByPath("guide/admission/process")
+	if root.ParentId != 0 || admission.ParentId != root.Id || process.ParentId != admission.Id {
+		t.Fatalf("initial parent chain root/admission/process=%d/%d/%d, want 0/%d/%d", root.ParentId, admission.ParentId, process.ParentId, root.Id, admission.Id)
+	}
+
+	// Removing the directory index leaves the page visible under a synthetic
+	// directory node and falls back to the next ancestor index rather than
+	// retaining the deleted page id.
+	if err := os.Remove(filepath.Join(repo, "guide/admission/index.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("delete index sync: %v", err)
+	}
+	if process = wikiPages.GetByPath("guide/admission/process"); process.ParentId != root.Id {
+		t.Fatalf("process parent after deleting index=%d, want root %d", process.ParentId, root.Id)
+	}
+
+	// Restoring the index must reconnect the unchanged child to its restored row.
+	writeRepoFile(t, repo, "guide/admission/index.md", "---\ntitle: 入学\n---\n\n# 入学")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("restore index sync: %v", err)
+	}
+	admission = wikiPages.GetByPath("guide/admission/index")
+	process = wikiPages.GetByPath("guide/admission/process")
+	if process.ParentId != admission.Id {
+		t.Fatalf("process parent after restoring index=%d, want %d", process.ParentId, admission.Id)
+	}
+}
+
 // TestApplyRepoToDBIdempotent 幂等：内容未变时重复同步零变更，不重复建行。
 func TestApplyRepoToDBIdempotent(t *testing.T) {
 	setupWikiTestDB(t)

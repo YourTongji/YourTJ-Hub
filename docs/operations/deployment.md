@@ -84,7 +84,9 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 - **命名空间/页面来源**：命名空间 = 仓库顶层目录名（支持中文等 Unicode 字符，目录
   消失自动删除命名空间）；页面 = 目录内 `.md` 文件（路径去 `.md` 后缀；frontmatter
   `title`/`order`/`description` 驱动页面标题/排序与命名空间描述，`index.md` 的
-  description/order 写入命名空间元数据）。
+  description/order 写入命名空间元数据）。任意子目录都会在导航树中保留为可折叠目录节点，
+  不要求 `index.md`；`index.md` 存在时仍是该目录下可直接访问的页面。同步完成后会重算页面
+  到最近祖先索引页的 `parent_id`，所以目录新增、移动、删除或恢复不会保留已删除的父引用。
 - **GitHub webhook 配置**（仓库 Settings → Webhooks → Add webhook）：
   - Payload URL：`https://forum.yourtj.de/api/wiki/webhook`（dev 实例用 `https://dev.yourtj.de/api/wiki/webhook`）
   - Content type：`application/json`；Secret：与 webhook 验签密钥一致

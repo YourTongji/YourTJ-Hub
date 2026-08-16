@@ -94,7 +94,8 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
 - **后端分层**: `app/models/forum/wikiNamespaces` / `wikiPages` / `wikiSyncRuns` →
   `app/service/wikiservice`（同步引擎 `sync.go`：`clone --depth=1` + `fetch` + `reset --hard`、
   frontmatter 解析、sha256 幂等 diff、upsert/软删/恢复、贡献者快照；查询 `query.go`：
-  BuildTree/BuildHome/贡献者；管理：命名空间 CRUD + 只读树）→ controllers：
+  BuildTree/BuildHome/贡献者；树以仓库路径递归投影目录节点（目录可无 `index.md`），同步结束后
+  将 `parent_id` 重算为最近祖先 `index.md` 页面；管理：命名空间 CRUD + 只读树）→ controllers：
   `app/http/controllers/forum/wiki.go`（SSR，PageComponent `wiki.home`/`wiki.detail`）+
   `app/http/controllers/api/wikiController.go`（公开读 + `/api/admin/wiki/*` 管理端）+
   `wikiSyncController.go`（`/api/wiki/webhook` + `/api/admin/wiki/sync*`）。
@@ -108,7 +109,7 @@ Wiki 内容由公开 GitHub 仓库 `YourTongji/YourTJ-Wiki` 维护（PR 协作�
   `sync` / `sync/runs`）。站内写/回滚/diff/编辑者/版本历史端点已退役。
 - **前端**: site 区 `WikiHome.vue` / `WikiPage.vue` + `WikiSidebar` / `WikiToc` /
   `WikiPageActions`（编辑/历史按钮外链 GitHub），AppShell 侧栏 wiki 模式；admin 区
-  `WikiManage.vue`（`/admin/wiki`，PageManager：命名空间 + 只读页面树 + 同步面板）。
+  `WikiManage.vue`（`/admin/wiki`，PageManager：命名空间 + 递归只读页面树 + 同步面板）。
 - **隔离与通知**: `topics.topic_type`（0=论坛 1=wiki）隔离 feed 与搜索——默认论坛搜索/feed/RSS/
   sitemap 排除 wiki 话题（TopicSearchDocument 带 topicType）；同步更新后向订阅者发
   `wiki_updated` 通知（`notifications.templates.wikiUpdated`，同页面 10 分钟节流）。

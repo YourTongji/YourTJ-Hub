@@ -145,20 +145,22 @@ func wikiTreePayload(activePath string) []WikiTreeNamespacePayload {
 	tree := wikiservice.BuildTree(activePath)
 	result := make([]WikiTreeNamespacePayload, 0, len(tree))
 	for _, ns := range tree {
-		pages := make([]WikiTreePagePayload, 0, len(ns.Pages))
-		for _, p := range ns.Pages {
-			pages = append(pages, WikiTreePagePayload{
-				PageId: p.PageId,
-				Path:   p.Path,
-				Title:  p.Title,
-				Active: p.Active,
-			})
-		}
 		result = append(result, WikiTreeNamespacePayload{
 			Name:  ns.Name,
 			Label: ns.Label,
 			Slug:  ns.Slug,
-			Pages: pages,
+			Nodes: wikiTreeNodesPayload(ns.Nodes),
+		})
+	}
+	return result
+}
+
+func wikiTreeNodesPayload(nodes []wikiservice.TreeNode) []WikiTreeNodePayload {
+	result := make([]WikiTreeNodePayload, 0, len(nodes))
+	for _, node := range nodes {
+		result = append(result, WikiTreeNodePayload{
+			Kind: node.Kind, PageId: node.PageId, Path: node.Path, Title: node.Title,
+			Active: node.Active, Children: wikiTreeNodesPayload(node.Children),
 		})
 	}
 	return result

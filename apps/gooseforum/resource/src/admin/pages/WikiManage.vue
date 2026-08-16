@@ -5,14 +5,13 @@ import { computed, onMounted, ref } from 'vue'
 import {
   BookOpen,
   Clock,
-  ExternalLink,
-  FileText,
   History,
   KeyRound,
   RefreshCw,
 } from '@lucide/vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
+import WikiTreeNode from '@/admin/components/WikiTreeNode.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Badge } from '@/admin/components/ui/badge'
 import { Button } from '@/admin/components/ui/button'
@@ -48,7 +47,7 @@ import type {
   ManageHomeProps,
   WikiNamespace,
   WikiNamespaceTree,
-  WikiPageNode,
+  WikiTreeNode as WikiTreeNodeData,
 } from '@/admin/types'
 
 defineProps<{
@@ -127,7 +126,7 @@ function repoEditBase() {
   return path.includes('/') ? path : ''
 }
 
-function editUrlFor(page: WikiPageNode) {
+function editUrlFor(page: WikiTreeNodeData) {
   const base = repoEditBase()
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
@@ -155,10 +154,6 @@ async function loadNamespaces() {
 }
 
 // ---------- Page tree（只读：GitHub SSOT，结构由仓库决定） ----------
-function sortedPages(group: WikiNamespaceTree) {
-  return [...(group.pages || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-}
-
 async function loadTree() {
   treeLoading.value = true
   treeError.value = ''
@@ -335,39 +330,20 @@ onMounted(() => {
                   <div class="flex min-w-0 items-center gap-2">
                     <BookOpen class="size-4 shrink-0 text-muted-foreground" />
                     <span class="truncate text-sm font-medium">{{ group.label || group.name }}</span>
-                    <span class="shrink-0 text-xs text-muted-foreground">{{ group.pages.length }}</span>
+                    <span class="shrink-0 text-xs text-muted-foreground">{{ group.nodes.length }}</span>
                   </div>
                 </div>
-                <div v-if="!group.pages.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ adminText('k00ny') }}</div>
+                <div v-if="!group.nodes.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ adminText('k00ny') }}</div>
                 <div v-else class="divide-y">
-                  <div v-for="page in sortedPages(group)" :key="page.pageId" class="flex items-center gap-2 px-3 py-2 pl-6">
-                    <FileText class="size-4 shrink-0 text-muted-foreground" />
-                    <div class="min-w-0 flex-1">
-                      <div class="truncate text-sm font-medium">{{ page.title || page.path }}</div>
-                      <div class="truncate font-mono text-xs text-muted-foreground">{{ page.path }}</div>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-1">
-                      <a
-                        v-if="editUrlFor(page)"
-                        :href="editUrlFor(page)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        :title="adminText('k00q3')"
-                      >
-                        <ExternalLink class="size-3.5" />
-                      </a>
-                      <a
-                        :href="`/wiki/${page.path.split('/').map((seg) => encodeURIComponent(seg)).join('/')}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        :title="adminText('k00nv')"
-                      >
-                        <ExternalLink class="size-3.5" />
-                      </a>
-                    </div>
-                  </div>
+                  <WikiTreeNode
+                    v-for="node in group.nodes"
+                    :key="`${node.kind}:${node.path}`"
+                    :node="node"
+                    :depth="0"
+                    :edit-url-for="editUrlFor"
+                    :edit-title="adminText('k00q3')"
+                    :view-title="adminText('k00nv')"
+                  />
                 </div>
               </div>
             </template>

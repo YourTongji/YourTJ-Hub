@@ -1,12 +1,12 @@
 getWikiTree:
   get:
     tags: [Wiki]
-    summary: Public wiki page tree across namespaces
+    summary: Public hierarchical wiki tree across namespaces
     security: []
     operationId: getWikiTree
     responses:
       '200':
-        description: Namespace-labeled page tree with an active-page flag for each page.
+        description: Namespace-labeled recursive directory/page tree with active-page flags.
         content:
           application/json:
             schema:
@@ -70,14 +70,14 @@ getWikiHome:
 getAdminWikiTree:
   get:
     tags: [Wiki Admin]
-    summary: Admin wiki page tree with sort order (PageManager or Admin only)
+    summary: Admin hierarchical wiki tree with sort order (PageManager or Admin only)
     operationId: getAdminWikiTree
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     responses:
       '200':
-        description: Namespace-labeled page tree including sort order for admin editing.
+        description: Namespace-labeled recursive directory/page tree including sort order for admin editing.
         content:
           application/json:
             schema:

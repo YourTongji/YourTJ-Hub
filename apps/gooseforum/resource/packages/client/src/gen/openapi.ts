@@ -784,7 +784,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public wiki page tree across namespaces */
+        /** Public hierarchical wiki tree across namespaces */
         get: operations["getWikiTree"];
         put?: never;
         post?: never;
@@ -835,7 +835,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin wiki page tree with sort order (PageManager or Admin only) */
+        /** Admin hierarchical wiki tree with sort order (PageManager or Admin only) */
         get: operations["getAdminWikiTree"];
         put?: never;
         post?: never;
@@ -2189,14 +2189,23 @@ export interface components {
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
         };
-        WikiTreePage: {
-            /** Format: uint64 */
+        WikiTreeNode: {
+            /**
+             * @description page is a Markdown file; directory is a non-clickable repository directory container.
+             * @enum {string}
+             */
+            kind: "page" | "directory";
+            /**
+             * Format: uint64
+             * @description Non-zero for page nodes and zero for directory nodes.
+             */
             pageId: number;
-            /** @description Canonical page path within the namespace (slash-separated). */
+            /** @description Stable repository-relative page or directory path within the namespace (slash-separated). */
             path: string;
             title: string;
-            /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
+            /** @description True when this page is the active SSR route; always false for directory nodes. */
             active: boolean;
+            children: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeNamespace: {
             /** @description Display name (top-level directory name; may contain Unicode such as Chinese). */
@@ -2205,7 +2214,7 @@ export interface components {
             label: string;
             /** @description Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}. */
             slug: string;
-            pages: components["schemas"]["WikiTreePage"][];
+            nodes: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeResult: {
             namespaces: components["schemas"]["WikiTreeNamespace"][];
@@ -2256,8 +2265,13 @@ export interface components {
         WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiHomeResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiAdminTreePage: {
-            /** Format: uint64 */
+        WikiAdminTreeNode: {
+            /** @enum {string} */
+            kind: "page" | "directory";
+            /**
+             * Format: uint64
+             * @description Non-zero for page nodes and zero for directory nodes.
+             */
             pageId: number;
             /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
             path: string;
@@ -2265,11 +2279,12 @@ export interface components {
             sourcePath: string;
             title: string;
             sortOrder: number;
+            children: components["schemas"]["WikiAdminTreeNode"][];
         };
         WikiAdminTreeNamespace: {
             name: string;
             label: string;
-            pages: components["schemas"]["WikiAdminTreePage"][];
+            nodes: components["schemas"]["WikiAdminTreeNode"][];
         };
         /** @description The raw namespace tree array; an empty listing is an empty array, never null. */
         WikiAdminTreeResult: components["schemas"]["WikiAdminTreeNamespace"][];
@@ -4409,7 +4424,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace-labeled page tree with an active-page flag for each page. */
+            /** @description Namespace-labeled recursive directory/page tree with active-page flags. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4496,7 +4511,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace-labeled page tree including sort order for admin editing. */
+            /** @description Namespace-labeled recursive directory/page tree including sort order for admin editing. */
             200: {
                 headers: {
                     [name: string]: unknown;
