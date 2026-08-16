@@ -2100,6 +2100,204 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/agent-list": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * List all managed Agents (bot personas)
+         * @description Admin console operation gated by the `Admin` role permission; only roles
+         *     holding the Admin permission pass, others fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>).
+         *     Returns every Agent with its bot user, newest first. The token hash never
+         *     leaves the server; only the non-secret token prefix is exposed. JSON
+         *     binding is lenient: the request body is ignored.
+         */
+        post: operations["adminAgentList"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-create": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Create an Agent and return its one-time token
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Creates the bot
+         *     user and Agent rows atomically; the bot user has no email, no usable
+         *     password, and no role. The plaintext token (`agt_` prefix) is returned
+         *     exactly once — only its hash and non-secret prefix are stored. A username
+         *     failing the `^[a-zA-Z0-9_-]{6,32}$` rule fails with
+         *     `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with
+         *     `admin.agent.usernameExists` (HTTP 200); an invalid webhook endpoint
+         *     fails with `admin.agent.webhookInvalid` (HTTP 200); an over-long nickname
+         *     fails with `common.request.invalidParams` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because username is required.
+         */
+        post: operations["adminAgentCreate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-update": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Update an Agent's nickname, webhook, or enabled state
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Only present
+         *     (non-null) fields are applied. Setting `enabled` to 0 disables the Agent
+         *     and revokes its stored credential (the token hash is cleared, so a leaked
+         *     token can never validate again); re-enabling such an Agent fails with
+         *     `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a
+         *     new token. Unknown agents fail with `admin.agent.notFound` (HTTP 200); an
+         *     over-long nickname or an `enabled` value outside 0-1 fails with
+         *     `common.request.invalidParams` (HTTP 200); an invalid webhook endpoint
+         *     fails with `admin.agent.webhookInvalid` (HTTP 200). JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentUpdate"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-rotate-token": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Rotate an Agent's bearer token
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Replaces the
+         *     stored token prefix and hash atomically (compare-and-swap), so the old
+         *     token stops resolving immediately and the new plaintext token (`agt_`
+         *     prefix) is returned exactly once. Rotation is also the recovery path
+         *     after a disable revoked the credential: it succeeds and the Agent can
+         *     then be re-enabled. A concurrent rotation loses the compare-and-swap and
+         *     fails with `admin.agent.rotateConflict` (HTTP 200); unknown agents fail
+         *     with `admin.agent.notFound` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentRotateToken"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/agent-disable": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Disable an Agent and revoke its credential
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Turns the Agent
+         *     off and clears the stored token hash, so bearer resolution with the old
+         *     token fails with HTTP 401 immediately and can never validate again, even
+         *     if the Agent is later re-enabled. Re-enabling requires an explicit
+         *     adminAgentRotateToken first (adminAgentUpdate fails with
+         *     `admin.agent.needsRotate` otherwise). Unknown agents fail with
+         *     `admin.agent.notFound` (HTTP 200). A successful disable returns result
+         *     `success` with messageCode `common.operation.success`. JSON binding is
+         *     lenient: a malformed body binds to zero values and fails validation as
+         *     `common.request.invalidParams` (HTTP 200) because agentId is required.
+         */
+        post: operations["adminAgentDisable"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/opt-record-page": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Page through the operation audit log
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Records sort by id
+         *     descending. The request page is 1-based but the echoed `page` in the
+         *     response is 0-based (requested page minus one, floored at 0); pageSize is
+         *     bounded into 10-50. JSON binding is lenient: a malformed body binds to
+         *     zero values and returns the first page unfiltered.
+         */
+        post: operations["adminOptRecordPage"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/traffic-overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Daily registration/topic/reply counts over a date range
+         * @description Admin console operation gated by the `Admin` role permission; callers
+         *     without it fail with HTTP 403 and `permission.denied`. Both dates are
+         *     inclusive; empty startDate defaults to 7 days ago and empty endDate to
+         *     today. The result has one entry per in-range day, ascending, with zero
+         *     counts for days without stat rows. Stat-storage failures surface as
+         *     `admin.stats.fetchFailed` (HTTP 200). JSON binding is lenient: a
+         *     malformed body binds to zero values and returns the default 7-day window.
+         */
+        post: operations["adminTrafficOverview"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -5024,6 +5222,186 @@ export interface components {
         CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["CourseRelatedResult"];
         };
+        AdminAgentItem: {
+            /**
+             * Format: uint64
+             * @description Bot user id backing the Agent.
+             */
+            agentId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            /** @description Always empty — bot users carry no email. */
+            email: string;
+            /** @description Non-secret token prefix (`agt_` + 8 chars); the token and its hash never leave the server. */
+            tokenPrefix: string;
+            /** @description Optional HTTP(S) webhook endpoint; empty when unset. */
+            webhookEndpoint: string;
+            /**
+             * @description 1 enabled, 0 disabled. Disabling also revokes the stored credential.
+             * @enum {integer}
+             */
+            enabled: 0 | 1;
+            /**
+             * Format: uint64
+             * @description Admin user id that created the Agent.
+             */
+            createdBy: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp of the last authenticated use; null when never used.
+             */
+            lastUsedAt: number | null;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            updatedAt: number;
+        };
+        AdminAgentListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All Agents, newest first. */
+            result: components["schemas"]["AdminAgentItem"][];
+        };
+        AdminAgentCreateRequest: {
+            /** @description Bot username. Missing/blank fails request validation with `common.request.invalidParams` (HTTP 200); a value failing the format rule fails with `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with `admin.agent.usernameExists` (HTTP 200). */
+            username: string;
+            /** @description Optional display name; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Optional HTTP(S) webhook endpoint; non-HTTP(S) schemes, credentials, fragments, and local/private targets fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+        };
+        AdminAgentCreateSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                agent: components["schemas"]["AdminAgentItem"];
+                /** @description Plaintext bearer token, returned exactly once at creation; only its hash is stored. */
+                token: string;
+            };
+        };
+        AdminAgentCreateResponse: components["schemas"]["AdminAgentCreateSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentUpdateRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+            /** @description Applied only when present; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Applied only when present; invalid endpoints fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+            /**
+             * @description Applied only when present; other values fail with `common.request.invalidParams` (HTTP 200). Setting 0 revokes the stored credential; re-enabling an Agent whose credential was revoked fails with `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a new token.
+             * @enum {integer}
+             */
+            enabled?: 0 | 1;
+        };
+        AdminAgentUpdateResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAgentItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminAgentIdRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+        };
+        AdminAgentRotateTokenSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** Format: uint64 */
+                agentId: number;
+                /** @description New plaintext bearer token, returned exactly once; the previous token stops resolving immediately. */
+                token: string;
+            };
+        };
+        AdminAgentRotateTokenResponse: components["schemas"]["AdminAgentRotateTokenSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentDisableSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminAgentDisableResponse: components["schemas"]["AdminAgentDisableSuccess"] | components["schemas"]["ApiFailure"];
+        AdminOptRecordPageRequest: {
+            /** @description 1-based page; values below 1 are treated as the first page. The echoed `page` in the response is 0-based (requested page minus one, floored at 0). */
+            page?: number;
+            /** @description Bounded server-side into 10-50. */
+            pageSize?: number;
+            /**
+             * Format: uint64
+             * @description Optional operator filter; 0 or omitted lists all operators.
+             */
+            optUserId?: number;
+            /** @description Optional operation-type filter; 0 or omitted disables the filter. */
+            optType?: number;
+            /** @description Optional target-type filter; 0 or omitted disables the filter. */
+            targetType?: number;
+            /** @description Optional target-id filter; 0 or omitted disables the filter. */
+            targetId?: number;
+        };
+        AdminOptRecordItem: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Operator user id.
+             */
+            optUserId: number;
+            optType: number;
+            targetType: number;
+            /** @description Target identifier stored as a string. */
+            targetId: string;
+            /** @description Operation detail payload (JSON-encoded message code and params). */
+            optInfo: string;
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+        };
+        AdminOptRecordPageResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Records sorted by id descending. */
+                list: components["schemas"]["AdminOptRecordItem"][];
+                /** @description Echoed 0-based page (requested page minus one, floored at 0). */
+                page: number;
+                /** @description Effective page size after server-side bounding into 10-50. */
+                size: number;
+                /** Format: int64 */
+                total: number;
+                /** @description Omitted from the wire payload when false. */
+                hasNext?: boolean;
+            };
+        };
+        AdminTrafficOverviewRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminDailyTraffic: {
+            /** @description YYYY-MM-DD. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Registered users that day; 0 when no stat row exists.
+             */
+            regCount: number;
+            /**
+             * Format: int64
+             * @description Published topics that day; 0 when no stat row exists.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Published replies that day; 0 when no stat row exists.
+             */
+            replyCount: number;
+        };
+        AdminTrafficOverviewResponse: (components["schemas"]["ApiSuccess"] & {
+            /** @description One entry per day in the range, ascending; every in-range day is present even without stat rows. */
+            result: components["schemas"]["AdminDailyTraffic"][];
+        }) | components["schemas"]["ApiFailure"];
     };
     responses: never;
     parameters: never;
@@ -8835,6 +9213,296 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentList: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description All Agents (empty array when none exist). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentListResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentCreate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentCreateRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent created with the one-time token, or a legacy business failure envelope (`common.request.invalidParams` / `admin.agent.usernameInvalid` / `admin.agent.usernameExists` / `admin.agent.webhookInvalid` / `admin.agent.createFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentCreateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentUpdate: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentUpdateRequest"];
+            };
+        };
+        responses: {
+            /** @description Updated Agent, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.needsRotate` / `admin.agent.webhookInvalid` / `common.request.invalidParams` / `admin.agent.updateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentUpdateResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentRotateToken: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentIdRequest"];
+            };
+        };
+        responses: {
+            /** @description New one-time token, or a legacy business failure envelope (`admin.agent.notFound` / `admin.agent.rotateConflict` / `common.request.invalidParams` / `admin.agent.rotateFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentRotateTokenResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminAgentDisable: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminAgentIdRequest"];
+            };
+        };
+        responses: {
+            /** @description Agent disabled, or a legacy business failure envelope (`admin.agent.notFound` / `common.request.invalidParams` / `admin.agent.disableFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAgentDisableResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminOptRecordPage: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminOptRecordPageRequest"];
+            };
+        };
+        responses: {
+            /** @description Audit record page. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOptRecordPageResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminTrafficOverview: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminTrafficOverviewRequest"];
+            };
+        };
+        responses: {
+            /** @description Daily traffic series, or a legacy business failure envelope (`admin.stats.fetchFailed`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTrafficOverviewResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the Admin permission. */
             403: {
                 headers: {
                     [name: string]: unknown;

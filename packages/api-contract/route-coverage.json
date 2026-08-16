@@ -380,31 +380,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/agent-create",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/agent-disable",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/agent-list",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/agent-rotate-token",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/agent-update",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/badge-delete",
       "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
     },
@@ -477,11 +452,6 @@
       "method": "POST",
       "path": "/api/admin/img-upload",
       "reason": "pending #277 后续切片：admin-media（后台文件资源）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/opt-record-page",
-      "reason": "pending #277 后续切片：agent-admin（Agent 账号管理）"
     },
     {
       "method": "POST",
@@ -617,11 +587,6 @@
       "method": "POST",
       "path": "/api/admin/test-storage-connection",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/traffic-overview",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
     {
       "method": "POST",

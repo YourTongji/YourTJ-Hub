@@ -11,7 +11,8 @@ info:
     (like/bookmark/watch on topics and posts, follow, report), user account and
     profile operations (captcha, user card, profile/email/username/avatar/password
     changes, OAuth bindings), notification reads and read-marking, direct chat
-    (send/messages/mark-read),
+    (send/messages/mark-read), admin topic/post moderation, Admin-gated operations
+    (Agent account management, operation audit log paging, traffic overview),
     and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
@@ -226,6 +227,20 @@ paths:
     $ref: ./paths/admin-topics.yaml#/adminEditTopicCategories
   /api/admin/posts/delete:
     $ref: ./paths/admin-topics.yaml#/adminDeletePost
+  /api/admin/agent-list:
+    $ref: ./paths/admin-operations.yaml#/adminAgentList
+  /api/admin/agent-create:
+    $ref: ./paths/admin-operations.yaml#/adminAgentCreate
+  /api/admin/agent-update:
+    $ref: ./paths/admin-operations.yaml#/adminAgentUpdate
+  /api/admin/agent-rotate-token:
+    $ref: ./paths/admin-operations.yaml#/adminAgentRotateToken
+  /api/admin/agent-disable:
+    $ref: ./paths/admin-operations.yaml#/adminAgentDisable
+  /api/admin/opt-record-page:
+    $ref: ./paths/admin-operations.yaml#/adminOptRecordPage
+  /api/admin/traffic-overview:
+    $ref: ./paths/admin-operations.yaml#/adminTrafficOverview
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post

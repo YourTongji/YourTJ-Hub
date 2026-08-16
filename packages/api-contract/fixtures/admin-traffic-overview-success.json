@@ -1,0 +1,23 @@
+{
+  "result": [
+    {
+      "date": "2020-01-01",
+      "regCount": 2,
+      "topicCount": 0,
+      "replyCount": 0
+    },
+    {
+      "date": "2020-01-02",
+      "regCount": 0,
+      "topicCount": 5,
+      "replyCount": 0
+    },
+    {
+      "date": "2020-01-03",
+      "regCount": 0,
+      "topicCount": 0,
+      "replyCount": 0
+    }
+  ],
+  "code": 0
+}

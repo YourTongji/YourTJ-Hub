@@ -4832,3 +4832,330 @@ AdminOperationResponse:
   oneOf:
     - $ref: '#/AdminOperationSuccess'
     - $ref: '#/ApiFailure'
+
+# ================= Admin operations: agent accounts, opt records, traffic（Issue #277 P3 切片二）=================
+
+AdminAgentItem:
+  type: object
+  required: [agentId, username, nickname, avatarUrl, email, tokenPrefix, webhookEndpoint, enabled, createdBy, lastUsedAt, createdAt, updatedAt]
+  properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Bot user id backing the Agent.
+    username:
+      type: string
+    nickname:
+      type: string
+    avatarUrl:
+      type: string
+    email:
+      type: string
+      description: Always empty — bot users carry no email.
+    tokenPrefix:
+      type: string
+      description: Non-secret token prefix (`agt_` + 8 chars); the token and its hash never leave the server.
+    webhookEndpoint:
+      type: string
+      description: Optional HTTP(S) webhook endpoint; empty when unset.
+    enabled:
+      type: integer
+      enum: [0, 1]
+      description: 1 enabled, 0 disabled. Disabling also revokes the stored credential.
+    createdBy:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Admin user id that created the Agent.
+    lastUsedAt:
+      type: [integer, 'null']
+      format: int64
+      description: Millisecond timestamp of the last authenticated use; null when never used.
+    createdAt:
+      type: integer
+      format: int64
+      description: Millisecond timestamp.
+    updatedAt:
+      type: integer
+      format: int64
+      description: Millisecond timestamp.
+  additionalProperties: false
+
+AdminAgentListResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminAgentItem'
+          description: All Agents, newest first.
+
+AdminAgentCreateRequest:
+  type: object
+  required: [username]
+  properties:
+    username:
+      type: string
+      pattern: '^[a-zA-Z0-9_-]{6,32}$'
+      description: Bot username. Missing/blank fails request validation with `common.request.invalidParams` (HTTP 200); a value failing the format rule fails with `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with `admin.agent.usernameExists` (HTTP 200).
+    nickname:
+      type: string
+      maxLength: 64
+      description: Optional display name; more than 64 runes fails with `common.request.invalidParams` (HTTP 200).
+    webhookEndpoint:
+      type: string
+      maxLength: 512
+      description: Optional HTTP(S) webhook endpoint; non-HTTP(S) schemes, credentials, fragments, and local/private targets fail with `admin.agent.webhookInvalid` (HTTP 200).
+  additionalProperties: false
+
+AdminAgentCreateSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [agent, token]
+          properties:
+            agent:
+              $ref: '#/AdminAgentItem'
+            token:
+              type: string
+              pattern: '^agt_'
+              description: Plaintext bearer token, returned exactly once at creation; only its hash is stored.
+          additionalProperties: false
+
+AdminAgentCreateResponse:
+  oneOf:
+    - $ref: '#/AdminAgentCreateSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminAgentUpdateRequest:
+  type: object
+  required: [agentId]
+  properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+    nickname:
+      type: string
+      maxLength: 64
+      description: Applied only when present; more than 64 runes fails with `common.request.invalidParams` (HTTP 200).
+    webhookEndpoint:
+      type: string
+      maxLength: 512
+      description: Applied only when present; invalid endpoints fail with `admin.agent.webhookInvalid` (HTTP 200).
+    enabled:
+      type: integer
+      enum: [0, 1]
+      description: Applied only when present; other values fail with `common.request.invalidParams` (HTTP 200). Setting 0 revokes the stored credential; re-enabling an Agent whose credential was revoked fails with `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a new token.
+  additionalProperties: false
+
+AdminAgentUpdateResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/AdminAgentItem'
+    - $ref: '#/ApiFailure'
+
+AdminAgentIdRequest:
+  type: object
+  required: [agentId]
+  properties:
+    agentId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+  additionalProperties: false
+
+AdminAgentRotateTokenSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [agentId, token]
+          properties:
+            agentId:
+              type: integer
+              format: uint64
+              minimum: 1
+            token:
+              type: string
+              pattern: '^agt_'
+              description: New plaintext bearer token, returned exactly once; the previous token stops resolving immediately.
+          additionalProperties: false
+
+AdminAgentRotateTokenResponse:
+  oneOf:
+    - $ref: '#/AdminAgentRotateTokenSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminAgentDisableSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: success
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminAgentDisableResponse:
+  oneOf:
+    - $ref: '#/AdminAgentDisableSuccess'
+    - $ref: '#/ApiFailure'
+
+AdminOptRecordPageRequest:
+  type: object
+  properties:
+    page:
+      type: integer
+      minimum: 0
+      description: 1-based page; values below 1 are treated as the first page. The echoed `page` in the response is 0-based (requested page minus one, floored at 0).
+    pageSize:
+      type: integer
+      description: Bounded server-side into 10-50.
+    optUserId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Optional operator filter; 0 or omitted lists all operators.
+    optType:
+      type: integer
+      description: Optional operation-type filter; 0 or omitted disables the filter.
+    targetType:
+      type: integer
+      description: Optional target-type filter; 0 or omitted disables the filter.
+    targetId:
+      type: integer
+      description: Optional target-id filter; 0 or omitted disables the filter.
+  additionalProperties: false
+
+AdminOptRecordItem:
+  type: object
+  required: [id, optUserId, optType, targetType, targetId, optInfo, createdAt]
+  properties:
+    id:
+      type: integer
+      format: uint64
+      minimum: 1
+    optUserId:
+      type: integer
+      format: uint64
+      minimum: 0
+      description: Operator user id.
+    optType:
+      type: integer
+    targetType:
+      type: integer
+    targetId:
+      type: string
+      description: Target identifier stored as a string.
+    optInfo:
+      type: string
+      description: Operation detail payload (JSON-encoded message code and params).
+    createdAt:
+      type: string
+      description: RFC 3339 timestamp.
+  additionalProperties: false
+
+AdminOptRecordPageResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [list, page, size, total]
+          properties:
+            list:
+              type: array
+              items:
+                $ref: '#/AdminOptRecordItem'
+              description: Records sorted by id descending.
+            page:
+              type: integer
+              minimum: 0
+              description: Echoed 0-based page (requested page minus one, floored at 0).
+            size:
+              type: integer
+              minimum: 1
+              description: Effective page size after server-side bounding into 10-50.
+            total:
+              type: integer
+              format: int64
+              minimum: 0
+            hasNext:
+              type: boolean
+              description: Omitted from the wire payload when false.
+          additionalProperties: false
+
+AdminTrafficOverviewRequest:
+  type: object
+  properties:
+    startDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago.
+    endDate:
+      type: string
+      pattern: '^\d{4}-\d{2}-\d{2}$'
+      description: Inclusive range end (YYYY-MM-DD); empty defaults to today.
+  additionalProperties: false
+
+AdminDailyTraffic:
+  type: object
+  required: [date, regCount, topicCount, replyCount]
+  properties:
+    date:
+      type: string
+      description: YYYY-MM-DD.
+    regCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Registered users that day; 0 when no stat row exists.
+    topicCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Published topics that day; 0 when no stat row exists.
+    replyCount:
+      type: integer
+      format: int64
+      minimum: 0
+      description: Published replies that day; 0 when no stat row exists.
+  additionalProperties: false
+
+AdminTrafficOverviewResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              type: array
+              items:
+                $ref: '#/AdminDailyTraffic'
+              description: One entry per day in the range, ascending; every in-range day is present even without stat rows.
+    - $ref: '#/ApiFailure'

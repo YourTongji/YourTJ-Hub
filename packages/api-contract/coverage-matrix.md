@@ -5,10 +5,10 @@
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
 - 快照路由总数：260
-- /api JSON 路由：204，已入契约：117（57%），已知未覆盖：87
+- /api JSON 路由：204，已入契约：124（61%），已知未覆盖：80
 - 非 API 排除路由：56
 
-## 已覆盖（117）
+## 已覆盖（124）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -46,6 +46,12 @@
 | GET | `/api/wiki/namespaces` | `listWikiNamespaces` |
 | GET | `/api/wiki/tree` | `getWikiTree` |
 | PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
+| POST | `/api/admin/agent-create` | `adminAgentCreate` |
+| POST | `/api/admin/agent-disable` | `adminAgentDisable` |
+| POST | `/api/admin/agent-list` | `adminAgentList` |
+| POST | `/api/admin/agent-rotate-token` | `adminAgentRotateToken` |
+| POST | `/api/admin/agent-update` | `adminAgentUpdate` |
+| POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
 | POST | `/api/admin/topics/delete` | `adminDeleteTopic` |
@@ -54,6 +60,7 @@
 | POST | `/api/admin/topics/pin-edit` | `adminEditTopicPin` |
 | POST | `/api/admin/topics/restore` | `adminRestoreTopic` |
 | POST | `/api/admin/topics/source` | `adminGetTopicSource` |
+| POST | `/api/admin/traffic-overview` | `adminTrafficOverview` |
 | POST | `/api/admin/wiki/namespaces` | `createWikiNamespace` |
 | POST | `/api/admin/wiki/sync` | `runWikiSync` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
@@ -130,7 +137,7 @@
 | PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
-## 已知未覆盖（87）
+## 已知未覆盖（80）
 
 | Method | Path | 归属切片 |
 | --- | --- | --- |
@@ -163,11 +170,6 @@
 | GET | `/api/forum/search` | pending #277 后续切片：search（Meilisearch 聚合搜索，issue #22 已落地未入契约） |
 | GET | `/api/forum/user/deleted-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
 | GET | `/api/forum/user/my-content` | pending #277 后续切片：user-content（用户内容/账号生命周期管理） |
-| POST | `/api/admin/agent-create` | pending #277 后续切片：agent-admin（Agent 账号管理） |
-| POST | `/api/admin/agent-disable` | pending #277 后续切片：agent-admin（Agent 账号管理） |
-| POST | `/api/admin/agent-list` | pending #277 后续切片：agent-admin（Agent 账号管理） |
-| POST | `/api/admin/agent-rotate-token` | pending #277 后续切片：agent-admin（Agent 账号管理） |
-| POST | `/api/admin/agent-update` | pending #277 后续切片：agent-admin（Agent 账号管理） |
 | POST | `/api/admin/badge-delete` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/badge-save` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/category-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
@@ -183,7 +185,6 @@
 | POST | `/api/admin/global-moderator-delete` | pending #277 后续切片：category/moderator（版块与版主管理） |
 | POST | `/api/admin/global-moderator-list` | pending #277 后续切片：category/moderator（版块与版主管理） |
 | POST | `/api/admin/img-upload` | pending #277 后续切片：admin-media（后台文件资源） |
-| POST | `/api/admin/opt-record-page` | pending #277 后续切片：agent-admin（Agent 账号管理） |
 | POST | `/api/admin/publish-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/review-action` | pending #277 后续切片：review-queue（审核队列） |
 | POST | `/api/admin/review-queue` | pending #277 后续切片：review-queue（审核队列） |
@@ -211,7 +212,6 @@
 | POST | `/api/admin/storage-migrate-task` | pending #277 后续切片：storage（存储配置与迁移） |
 | POST | `/api/admin/test-mail-connection` | pending #277 后续切片：mail（邮件配置） |
 | POST | `/api/admin/test-storage-connection` | pending #277 后续切片：storage（存储配置与迁移） |
-| POST | `/api/admin/traffic-overview` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/user-badge-options` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/user-edit` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | POST | `/api/admin/user-list` | pending #277 后续切片：user-manager（用户/徽章管理） |
