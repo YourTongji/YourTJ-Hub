@@ -333,7 +333,7 @@ func ensureClone(cfg GitConfig) (string, error) {
 		// 存量浅克隆（v1 用 --depth=1 建立）→ 补全历史：贡献者统计依赖完整 git log。
 		if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git", "shallow")); err == nil {
 			if out, err := runGit(cfg.CloneDir, "fetch", "--unshallow", "origin", cfg.Branch); err != nil {
-				return "", fmt.Errorf("git fetch --unshallow: %v: %s", err, out)
+				return "", fmt.Errorf("git fetch --unshallow: %w: %s", err, out)
 			}
 		}
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
