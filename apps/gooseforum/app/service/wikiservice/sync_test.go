@@ -1133,3 +1133,60 @@ func TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers(t *testing.T) {
 		t.Fatalf("wiki_updated notifications after content change = %d, want 1", got)
 	}
 }
+
+// TestApplyRepoToDBInvalidNestedPathFailsFast 非法嵌套页面路径 → 同步整体
+// 失败（fail-fast），绝不静默跳过并报告成功（issue #283）。
+// 根级 README/CONTRIBUTING 等元文件仍显式排除、不阻断同步。
+func TestApplyRepoToDBInvalidNestedPathFailsFast(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	// 合法中文路径页面（正常投影）。
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	// 非法嵌套路径：段含空格（保留字符，跨平台可创建；不用冒号——Windows
+	// 会把 "foo:bar" 解释为 NTFS Alternate Data Stream 语法，filepath.Walk
+	// 不会枚举到该文件，测试无法覆盖目标）。
+	writeRepoFile(t, repo, "guide/foo bar.md", "---\ntitle: 非法\n---\n\n# 非法")
+	// 根级元文件：显式排除，不阻断。
+	writeRepoFile(t, repo, "README.md", "# Wiki")
+	writeRepoFile(t, repo, "CONTRIBUTING.md", "# 贡献指南")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error for invalid nested page path, got nil")
+	}
+	if !strings.Contains(err.Error(), "guide/foo bar") {
+		t.Fatalf("error should name the invalid path, got: %v", err)
+	}
+	if !strings.Contains(err.Error(), "invalid segment") {
+		t.Fatalf("error should include the reason, got: %v", err)
+	}
+	// 非法路径存在时不得投影任何页面（fail-fast 在任何写入之前）。
+	if pages := wikiPages.ListAll(); len(pages) != 0 {
+		t.Fatalf("pages projected despite invalid path: %d, want 0 (fail-fast before any write)", len(pages))
+	}
+}
+
+// TestApplyRepoToDBValidChinesePathProjects 中文目录/文件名路径正常投影
+// （issue #283 根因回归：ASCII-only 校验已放宽为 Unicode 目录名兼容）。
+func TestApplyRepoToDBValidChinesePathProjects(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/学校/简介.md", "---\ntitle: 简介\n---\n\n# 简介")
+	writeRepoFile(t, repo, "同济新手教程/学校/社团活动.md", "---\ntitle: 社团活动\n---\n\n# 社团活动")
+
+	cfg := GitConfig{CloneDir: repo}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("sync: %v", err)
+	}
+	if res.PagesAdded != 2 {
+		t.Fatalf("PagesAdded=%d, want 2 (中文嵌套路径全部投影)", res.PagesAdded)
+	}
+	if page := wikiPages.GetByPath("同济新手教程/学校/简介"); page.Id == 0 {
+		t.Fatal("中文嵌套页面 同济新手教程/学校/简介 missing after sync")
+	}
+	if page := wikiPages.GetByPath("同济新手教程/学校/社团活动"); page.Id == 0 {
+		t.Fatal("中文嵌套页面 同济新手教程/学校/社团活动 missing after sync")
+	}
+}
