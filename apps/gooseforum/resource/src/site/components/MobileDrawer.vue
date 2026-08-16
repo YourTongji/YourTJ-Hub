@@ -1,8 +1,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
-import { AnimatePresence, Motion } from 'motion-v'
 import { X } from '@lucide/vue'
-import { mobileDrawerMotion, motionTransitions, overlayMotion } from '@/runtime/motion'
+import { DialogContent, DialogOverlay, DialogRoot, DialogTitle } from 'reka-ui'
 import type { FooterPayload, WikiTreeNamespace } from '@gooseforum/client'
 import WikiSidebar from './WikiSidebar.vue'
 
@@ -58,24 +57,16 @@ function close() {
 </script>
 
 <template>
-  <AnimatePresence>
-    <div v-if="open" class="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true">
-      <Motion
-        as="button"
-        class="absolute inset-0 bg-neutral/40"
-        :aria-label="closeLabel"
-        v-bind="overlayMotion"
-        :transition="motionTransitions.fast"
-        @click="close"
-      />
-      <Motion
-        as="nav"
-        class="gf-drawer-surface relative h-full w-80 max-w-[85vw] overflow-y-auto p-3"
-        v-bind="mobileDrawerMotion"
-        :transition="motionTransitions.comfortable"
-      >
+  <DialogRoot :open="props.open" @update:open="(open) => { if (!open) close() }">
+    <DialogOverlay
+      class="fixed inset-0 z-[60] bg-neutral/40 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 lg:hidden"
+    />
+    <DialogContent
+      class="gf-drawer-surface fixed inset-y-0 left-0 z-[60] h-full w-80 max-w-[85vw] overflow-y-auto p-3 outline-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden"
+      :aria-describedby="undefined"
+    >
         <div class="mb-3 flex h-10 items-center justify-between">
-          <div class="font-bold text-base-content">{{ menuLabel }}</div>
+          <DialogTitle class="text-base font-bold text-base-content">{{ menuLabel }}</DialogTitle>
           <button class="inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted hover:bg-base-300 hover:text-base-content" type="button" :aria-label="closeLabel" @click="close">
             <X class="h-5 w-5" />
           </button>
@@ -181,7 +172,6 @@ function close() {
             </div>
           </footer>
         </template>
-      </Motion>
-    </div>
-  </AnimatePresence>
+      </DialogContent>
+  </DialogRoot>
 </template>

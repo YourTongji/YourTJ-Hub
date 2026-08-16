@@ -7,9 +7,7 @@ import AppShell from '../src/site/components/AppShell.vue'
 import MobileDrawer from '../src/site/components/MobileDrawer.vue'
 import WikiSidebar from '../src/site/components/WikiSidebar.vue'
 
-// motion-v 的 Motion/AnimatePresence 依赖浏览器动画 API，测试环境用纯渲染 stub 替代。
-const MotionStub = { template: '<div><slot /></div>' }
-const AnimatePresenceStub = { template: '<div><slot /></div>' }
+// reka-ui Dialog 在测试环境（happy-dom）可直接渲染，无需 stub 动画原语。
 
 const wikiTree: WikiTreeNamespace[] = [
   {
@@ -68,7 +66,6 @@ function makeLayout(mode: 'forum' | 'wiki'): LayoutPayload {
   }
 }
 
-const stubs = { Motion: MotionStub, AnimatePresence: AnimatePresenceStub }
 
 describe('WikiSidebar 导航事件', () => {
   test('点击页面链接发出 navigate 事件，且中文路径按段编码', async () => {
@@ -100,7 +97,7 @@ describe('MobileDrawer wiki 模式', () => {
         sidebarIcon: () => null,
         ...overrides,
       },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
   }
 
@@ -145,7 +142,7 @@ describe('AppShell 抽屉接线', () => {
   test('wiki 布局下抽屉收到 wiki 树（移动端可浏览命名空间与页面）', async () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('wiki') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     await wrapper.get('button[aria-label="打开菜单"]').trigger('click')
     await flushPromises()
@@ -157,7 +154,7 @@ describe('AppShell 抽屉接线', () => {
   test('forum 布局下抽屉不渲染 wiki 树', async () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('forum') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     await wrapper.get('button[aria-label="打开菜单"]').trigger('click')
     await flushPromises()
@@ -168,7 +165,7 @@ describe('AppShell 抽屉接线', () => {
   test('桌面侧栏在 wiki 模式下渲染 wiki 树（桌面行为不变）', () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('wiki') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     const sidebar = wrapper.get('aside[aria-label="Sidebar"]')
     expect(sidebar.text()).toContain('同济新手教程')
@@ -178,7 +175,7 @@ describe('AppShell 抽屉接线', () => {
   test('桌面侧栏在 forum 模式下不渲染 wiki 树', () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('forum') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     const sidebar = wrapper.get('aside[aria-label="Sidebar"]')
     expect(sidebar.text()).not.toContain('同济新手教程')
