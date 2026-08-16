@@ -52,6 +52,20 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | mobile | widget/unit | flutter test (melos analyze + test; see local-development.md) |
 | mobile OIDC | controller chain unit + E2E script | `auth/test/oidc_controller_test.dart` (authorize→exchange 调用链) + `scripts/oidc_e2e.sh` (本地内建 Provider → AppAuth 模拟器回跳 → exchange 验证) |
 
+## Test layout
+
+测试与被测代码放在一起，按语言惯例分层；**不要为迁移而迁移**，新测试遵守以下归属：
+
+| 层 | 位置 | 约定 |
+|---|---|---|
+| Go 单元测试（bundles/models/service 内部逻辑） | 与被测文件同包同目录的 `*_test.go` | Go 工具链/覆盖率/重构联动依赖同包布局；白盒测试访问包内未导出符号 |
+| Go 黑盒测试（外部契约/集成行为） | 同目录 `*_test.go`，`package xxx_test` | 只通过导出 API 验证行为；需要外部文件（样例输入、golden 输出）时放同包 `testdata/` |
+| 前端组件/单元测试 | `apps/gooseforum/resource/test/*.test.ts` | Vitest 独立目录，避免混入 `src/`；fixtures 就近放 `test/fixtures/` |
+| Flutter 测试 | 各包 `apps/mobile/packages/<pkg>/test/` | `widget_test.dart` / `*_test.dart`，fixtures 放同目录 |
+| 契约测试与 fixtures | `packages/api-contract/fixtures/` | OpenAPI 生成的 TS 类型 + 路由级 HTTP fixture 断言；测试本身在 `go test ./...` 门禁内 |
+
+模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
+
 ## CI mapping
 
 All CI `push` triggers are limited to `dev` and `main`, so a push to an in-repository
