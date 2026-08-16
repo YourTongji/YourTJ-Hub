@@ -2991,3 +2991,54 @@ WikiWebhookSecretSaveResponse:
             result:
               $ref: '#/WikiWebhookSecretSaveResult'
     - $ref: '#/ApiFailure'
+
+WikiAssetCDNStatus:
+  type: object
+  required: [cdn]
+  properties:
+    cdn:
+      type: string
+      enum: [self, jsDelivr]
+      description: Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
+  additionalProperties: false
+
+WikiAssetCDNResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAssetCDNStatus'
+    - $ref: '#/ApiFailure'
+
+WikiAssetCDNSaveRequest:
+  type: object
+  required: [cdn]
+  properties:
+    cdn:
+      type: string
+      enum: [self, jsDelivr]
+      description: Wiki asset CDN mode to persist.
+  additionalProperties: false
+
+WikiAssetCDNSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiAssetCDNSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAssetCDNSaveResult'
+    - $ref: '#/ApiFailure'

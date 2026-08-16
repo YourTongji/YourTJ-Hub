@@ -8,12 +8,16 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 )
 
 func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
@@ -1030,5 +1034,86 @@ func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
 	}
 	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
 		t.Fatal("fallback URL (display name as URL key) should resolve directly")
+	}
+}
+
+// TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers review P2：切换 CDN 只改变
+// RenderedHTML（正文/标题/排序未变）时更新页面但不发送 wiki_updated 通知；
+// 正文真正变化时仍通知（避免 CDN 切换给所有订阅者发误导通知）。
+func TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers(t *testing.T) {
+	setupWikiTestDB(t)
+	conn := dbconnect.Connect()
+	if err := conn.AutoMigrate(&eventNotification.Entity{}, &pageConfig.Entity{}); err != nil {
+		t.Fatalf("migrate notification/page_config: %v", err)
+	}
+	conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	conn.Unscoped().Where("1 = 1").Delete(&eventNotification.Entity{})
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		conn.Unscoped().Where("1 = 1").Delete(&eventNotification.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+	})
+
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n![图](../assets/a.png)")
+	writeRepoFile(t, repo, "assets/a.png", "png")
+	cfg := GitConfig{
+		CloneDir: repo,
+		Repo:     "https://github.com/YourTongji/YourTJ-Wiki.git",
+		Branch:   "main",
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("docs/page")
+	if !strings.Contains(page.RenderedHTML, "/wiki/_assets/") {
+		t.Fatalf("first render should use self route: %s", page.RenderedHTML)
+	}
+	// 订阅者：任意用户 watch 该 topic。
+	watcher := seedWikiUser(t, false)
+	if !topicUserAction.SetWatched(watcher, page.TopicId, true) {
+		t.Fatal("set watcher failed")
+	}
+
+	countNotifications := func() int64 {
+		var n int64
+		conn.Table("event_notification").
+			Where("topic_id = ? AND event_type = ?", page.TopicId, eventNotification.EventTypeWikiUpdated).
+			Count(&n)
+		return n
+	}
+
+	// CDN 切换 → 仅渲染变化：页面更新但 watcher 不通知。
+	if err := conn.Create(&pageConfig.Entity{
+		PageType: pageConfig.WikiSyncSettings,
+		Config:   `{"assetCDN":"jsDelivr"}`,
+	}).Error; err != nil {
+		t.Fatalf("persist cdn setting: %v", err)
+	}
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("cdn-switch sync: %v", err)
+	}
+	if res.PagesUpdated != 1 {
+		t.Fatalf("PagesUpdated=%d, want 1", res.PagesUpdated)
+	}
+	page = wikiPages.GetByPath("docs/page")
+	if !strings.Contains(page.RenderedHTML, "cdn.jsdelivr.net") {
+		t.Fatalf("cdn render should use jsDelivr mirror: %s", page.RenderedHTML)
+	}
+	if got := countNotifications(); got != 0 {
+		t.Fatalf("wiki_updated notifications after CDN-only re-render = %d, want 0", got)
+	}
+
+	// 正文变化 → 通知照常发送。
+	writeRepoFile(t, repo, "docs/page.md", "---\ntitle: 页面\n---\n\n# 标题\n\n![图](../assets/a.png)\n\n新增段落")
+	res = &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("content-change sync: %v", err)
+	}
+	if got := countNotifications(); got != 1 {
+		t.Fatalf("wiki_updated notifications after content change = %d, want 1", got)
 	}
 }

@@ -793,4 +793,12 @@ export default {
   "k00r6": "Inserisci il segreto del webhook GitHub",
   "k00r7": "Slug",
   "k00r8": "Polling di sincronizzazione scaduto; aggiorna la pagina per vedere il risultato",
+  "k00s0": "CDN risorse",
+  "k00s1": "Quale CDN distribuisce le risorse statiche (immagini/allegati) referenziate nelle pagine Wiki.",
+  "k00s2": "Questo sito (predefinito)",
+  "k00s3": "jsDelivr",
+  "k00s4": "Seleziona CDN",
+  "k00s5": "Salva impostazioni CDN",
+  "k00s6": "Impostazioni CDN salvate",
+  "k00s7": "Salvataggio impostazioni CDN fallito"
 } as const

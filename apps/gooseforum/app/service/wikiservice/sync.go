@@ -886,7 +886,7 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
 	}
-	resolver := newWikiReferenceResolver(cfg.CloneDir, wanted)
+	resolver := newWikiReferenceResolver(cfg, wanted, hotdataserve.GetWikiSyncSettingsConfigCache().AssetCDN)
 	// review M1：单页引用校验/渲染失败 → 跳过该页并聚合告警（其余页面继续），
 	// 避免一个坏链接冻结整个 wiki 的更新与删除。但安全类错误（仓库根逃逸/
 	// 符号链接越界）必须整体失败：恶意链接不允许通过「坏页跳过」绕过校验。
@@ -1021,7 +1021,15 @@ func applyRepoToDBContext(ctx context.Context, cfg GitConfig, result *SyncResult
 			!restored {
 			continue
 		}
-		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, result.HeadSha); err != nil {
+		// 纯渲染变化（CDN 切换等）不打扰 watcher：正文/标题/排序/源路径
+		// 均未变时内容语义未变，仅资源 URL 形态变化，通知会误导订阅者
+		// （review P2）。
+		contentChanged := existingPage.ContentHash != curHash ||
+			existingPage.Title != wp.title ||
+			existingPage.SortOrder != wp.order ||
+			existingPage.SourcePath != wp.sourcePath ||
+			restored
+		if err := updatePageFromRepo(cfg, existingPage, wp, curHash, result.HeadSha, contentChanged); err != nil {
 			errs = append(errs, fmt.Sprintf("update %s: %v", wp.path, err))
 			continue
 		}
@@ -1257,7 +1265,9 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage, headSHA string) error {
 }
 
 // updatePageFromRepo 更新已存在页面的投影（内容/标题/渲染/哈希 + topic/post 物化）。
-func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash, headSHA string) error {
+// contentChanged 表示正文/元数据/恢复事件是否变化：仅 CDN 切换导致的纯渲染
+// 变化（false）不发送 watcher 通知。
+func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, curHash, headSHA string, contentChanged bool) error {
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1311,13 +1321,18 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 		if err := posts.UpdateWikiSyncedContentTx(tx, &firstPost); err != nil {
 			return err
 		}
-		return enqueueWikiProjectionTaskTx(tx, headSHA, page.Id, topic.Id, true)
+		// 文件引用和搜索索引通过 outbox 重试；订阅者通知在提交后立即发送，
+		// 因而不在 worker 中重复投递。
+		return enqueueWikiProjectionTaskTx(tx, headSHA, page.Id, topic.Id, false)
 	})
 	if err != nil {
 		return err
 	}
-	// Git 溯源快照不影响投影读路径，提交后尽力更新；其余副作用由 outbox 消费。
+	// Git 溯源快照不影响投影读路径，提交后尽力更新；文件和搜索副作用由 outbox 消费。
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
+	if contentChanged {
+		notifyWatchersThrottled(page.TopicId, page.Path, wp.title, wikiSystemUserID)
+	}
 	return nil
 }
 

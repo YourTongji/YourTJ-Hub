@@ -78,6 +78,8 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	adminWiki.GET("sync/runs", UpButterReq(api.WikiSyncRuns))
 	adminWiki.GET("sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret))
 	adminWiki.POST("sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
+	adminWiki.GET("sync/cdn", UpButterReq(api.GetWikiAssetCDN))
+	adminWiki.POST("sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 	// 视图路由（与 route4api.go viewRoute 注册一致；JWTAuth 可选登录）。
 	wikiView := router.Group("/wiki")
 	wikiView.Use(middleware.JWTAuth)
@@ -464,6 +466,86 @@ func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 		}
 		if result["configured"] != false {
 			t.Fatalf("webhook secret configured after clear = %v, want false", result["configured"])
+		}
+	})
+}
+
+func TestWikiAssetCDNHTTPContract(t *testing.T) {
+	conn, router := setupWikiContractTest(t)
+	bob := createHTTPContractUser(t, conn, contractTestID())
+	grantContractPermission(t, conn, bob.Id, permission.PageManager)
+	bobToken := contractSessionToken(t, bob)
+
+	// 该测试持久化 wikiSyncSettings page_config 行（AssetCDN 字段），
+	// 中断的子测试会留下该行；无论结果如何都删除，避免污染共享测试库。
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+	})
+
+	t.Run("unconfigured reports default self", func(t *testing.T) {
+		// 清空管理端设置，保证未配置态。
+		conn.Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+		hotdataserve.ClearWikiSyncSettingsConfigCache()
+
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn status code = %d, want 0", env.Code)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status result: %v", err)
+		}
+		if result["cdn"] != "self" {
+			t.Fatalf("asset cdn = %v, want self", result["cdn"])
+		}
+	})
+
+	t.Run("manager saves jsDelivr then status reports it", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/cdn",
+			`{"cdn":"jsDelivr"}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn save status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn save code = %d, want 0: %s", env.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-asset-cdn-save-success.json"))
+
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status after save: %v", err)
+		}
+		if result["cdn"] != "jsDelivr" {
+			t.Fatalf("asset cdn after save = %v, want jsDelivr", result["cdn"])
+		}
+	})
+
+	t.Run("manager restores self", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/cdn",
+			`{"cdn":"self"}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("asset cdn restore status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("asset cdn restore code = %d, want 0", env.Code)
+		}
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode asset cdn status after restore: %v", err)
+		}
+		if result["cdn"] != "self" {
+			t.Fatalf("asset cdn after restore = %v, want self", result["cdn"])
 		}
 	})
 }
