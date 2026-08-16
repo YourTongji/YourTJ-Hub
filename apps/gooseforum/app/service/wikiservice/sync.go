@@ -308,9 +308,17 @@ func ReconcileStaleRuns() {
 
 // ---------- git 操作 ----------
 
+// unshallowMarkerFile 浅克隆→全量升级的「待重建 git trace」持久化标记
+// （review P1）：unshallow 成功后写入 .git/ 内（fetch/reset/扫描均不触碰），
+// rebuildGitTraces 完成后删除。投影失败/进程崩溃后标记保留，下次同步的
+// ensureClone 仍会检测到并重建存量页面贡献者缓存——否则 .git/shallow 已被
+// git 删除，仅靠局部变量会永久丢失升级机会，depth-1 快照残留。
+const unshallowMarkerFile = "wiki-trace-rebuild"
+
 // ensureClone 确保本地 clone 存在且 remote 与配置一致（无则 clone，有则 fetch + reset --hard）。
-// 返回当前 head SHA，以及本次是否发生了浅克隆→全量升级（unshallowed：调用方需要
-// 据此重建全部页面的 git 溯源缓存——存量 depth-1 缓存只有最后一位作者）。
+// 返回当前 head SHA，以及本次是否需要重建全部页面的 git 溯源缓存（unshallowed）：
+// 触发条件 = 本次发生浅克隆→全量升级，或存在未消费的升级标记（上次升级后投影
+// 失败/崩溃，重建未完成）。存量 depth-1 缓存只有最后一位作者，必须全量重建。
 // 本地工作区永不手动修改，reset --hard 比 pull 更确定。
 // 配置变更（repo 换源）时丢弃缓存 clone 重建，避免投影到错误仓库。
 func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
@@ -332,6 +340,12 @@ func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
 		}
 	}
 	if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git")); err == nil {
+		markerPath := filepath.Join(cfg.CloneDir, ".git", unshallowMarkerFile)
+		// 未消费的升级标记：上次 unshallow 后投影失败/崩溃，全量重建未完成
+		// → 本次仍须重建（review P1：.git/shallow 已删除，无法再靠它检测）。
+		if _, err := os.Stat(markerPath); err == nil {
+			unshallowed = true
+		}
 		// 存量浅克隆（v1 用 --depth=1 建立）→ 补全历史：贡献者统计依赖完整 git log。
 		// 升级后必须重建全部页面的贡献者缓存（P1：幂等同步不会触碰未变化页面）。
 		if _, err := os.Stat(filepath.Join(cfg.CloneDir, ".git", "shallow")); err == nil {
@@ -339,6 +353,11 @@ func ensureClone(cfg GitConfig) (head string, unshallowed bool, err error) {
 				return "", false, fmt.Errorf("git fetch --unshallow: %w: %s", err, out)
 			}
 			unshallowed = true
+			// 持久化待重建标记：本次投影失败时，下次同步仍会重建
+			// （review P1：unshallow 后 shallow 文件已删除，状态必须落盘）。
+			if err := os.WriteFile(markerPath, []byte("1"), 0o644); err != nil {
+				return "", false, fmt.Errorf("write git trace rebuild marker: %w", err)
+			}
 		}
 		if out, err := runGit(cfg.CloneDir, "fetch", "origin", cfg.Branch); err != nil {
 			return "", unshallowed, fmt.Errorf("git fetch: %w: %s", err, out)
@@ -1600,7 +1619,10 @@ func updateGitTrace(cfg GitConfig, pageID uint64, relPath string) {
 // rebuildGitTraces 浅克隆→全量升级后重建全部页面的 git 溯源缓存
 // （review P1）：applyRepoToDB 幂等跳过未变化页面，若不在此全量重建，
 // 存量 depth-1 页面的 contributors_json 永远停留在最后一位作者。
-// 单页失败仅记日志，不阻断整体重建。
+// 重建完成后删除持久化升级标记（unshallowMarkerFile）——标记由 ensureClone
+// 在 unshallow 成功时写入，投影失败/崩溃时保留，本次成功消费后才清除：
+// 保证「unshallow 后首次投影失败、修复后重试」仍会刷新未变化页面（review P1）。
+// 单页失败仅记日志，不阻断整体重建；标记清除失败仅告警（下次同步仍会重建）。
 func rebuildGitTraces(cfg GitConfig) {
 	pages, err := wikiPages.ListAll()
 	if err != nil {
@@ -1612,6 +1634,10 @@ func rebuildGitTraces(cfg GitConfig) {
 			continue
 		}
 		updateGitTrace(cfg, p.Id, p.SourcePath)
+	}
+	markerPath := filepath.Join(cfg.CloneDir, ".git", unshallowMarkerFile)
+	if err := os.Remove(markerPath); err != nil && !os.IsNotExist(err) {
+		slog.Warn("wiki sync: remove git trace rebuild marker failed", "error", err)
 	}
 	slog.Info("wiki sync: rebuilt git traces after unshallow upgrade", "pages", len(pages))
 }
