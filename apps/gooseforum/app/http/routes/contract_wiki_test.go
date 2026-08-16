@@ -414,7 +414,7 @@ func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 		if env.Code != 0 {
 			t.Fatalf("webhook secret save code = %d, want 0: %s", env.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-webhook-secret-save-success.json"))
+		assertFixtureEnvelope(t, env, contractFixture(t, "result-ok.json"))
 
 		// 保存后 status 应报告 configured=true（密文经 securestore 落库）。
 		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
@@ -506,7 +506,7 @@ func TestWikiAssetCDNHTTPContract(t *testing.T) {
 		if env.Code != 0 {
 			t.Fatalf("asset cdn save code = %d, want 0: %s", env.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-asset-cdn-save-success.json"))
+		assertFixtureEnvelope(t, env, contractFixture(t, "result-ok.json"))
 
 		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
 		env = decodeContractEnvelope(t, rec)

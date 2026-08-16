@@ -175,7 +175,7 @@ func TestCourseDetailMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course detail malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 // seedCourseRelatedData 写入与 course-related-success fixture 一致的相关课程数据：
@@ -267,7 +267,7 @@ func TestCourseRelatedMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course related malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 func TestCourseRelatedEmptyHTTPContract(t *testing.T) {

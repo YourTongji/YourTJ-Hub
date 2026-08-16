@@ -58,7 +58,7 @@ listSessions:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/sessions-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 revokeSession:
   post:
@@ -98,7 +98,7 @@ revokeSession:
                 externalValue: ../fixtures/sessions-revoke-not-found.json
               invalidRequest:
                 summary: Malformed JSON or a missing/zero `id`.
-                externalValue: ../fixtures/sessions-revoke-invalid.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -107,7 +107,7 @@ revokeSession:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/sessions-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 revokeAllSessions:
   post:
@@ -142,4 +142,4 @@ revokeAllSessions:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/sessions-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
