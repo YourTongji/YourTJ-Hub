@@ -273,6 +273,23 @@ export interface AiSummarySettings {
   globalPerMinute: number
 }
 
+export interface OnesystemSettings {
+  cookieConfigured: boolean
+}
+
+/** 单个学期的排课数据同步状态（issue #248 管理端同步入口）。 */
+export interface PkSyncStatusItem {
+  calendarId: number
+  calendarName: string
+  status: string
+  rowsWritten: number
+  totalPages: number
+  lastCommittedPage: number
+  errorMsg: string
+  startedAt?: string | null
+  finishedAt?: string | null
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string

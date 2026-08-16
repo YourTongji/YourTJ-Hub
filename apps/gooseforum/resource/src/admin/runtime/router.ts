@@ -14,6 +14,7 @@ const settingsPages = {
   '/admin/settings/http-notify': 'http-notify',
   '/admin/settings/storage': 'storage',
   '/admin/settings/terms': 'terms',
+  '/admin/settings/onesystem': 'onesystem',
 } as const
 
 export const adminRouter = createRouter({

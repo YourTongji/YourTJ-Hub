@@ -472,6 +472,8 @@ export default {
     exportWeekRange: '{range}周',
     exportWeekJoin: '、',
     loadFailed: '加载排课数据失败，请稍后重试。',
+    noCalendar: '排课数据尚未同步，当前无法选择学期。',
+    noCalendarHint: '请管理员在「管理端 → 设置 → 一系统同步」中同步排课数据后再试。',
   },
   courseDetailPage: {
     backToList: '返回课程目录',
