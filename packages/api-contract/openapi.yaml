@@ -141,6 +141,11 @@ paths:
       $ref: ./paths/wiki-sync.yaml#/getWikiWebhookSecret/get
     post:
       $ref: ./paths/wiki-sync.yaml#/saveWikiWebhookSecret/post
+  /api/admin/wiki/sync/cdn:
+    get:
+      $ref: ./paths/wiki-sync.yaml#/getWikiAssetCDN/get
+    post:
+      $ref: ./paths/wiki-sync.yaml#/saveWikiAssetCDN/post
   # PK 排课器 13 端点（Issue #187）。
   /api/pk/calendars:
     get:

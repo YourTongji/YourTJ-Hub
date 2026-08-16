@@ -8,6 +8,7 @@ import {
   ExternalLink,
   FileText,
   History,
+  Globe,
   KeyRound,
   RefreshCw,
 } from '@lucide/vue'
@@ -17,6 +18,7 @@ import { BasicPage } from '@/admin/components/global-layout'
 import { Badge } from '@/admin/components/ui/badge'
 import { Button } from '@/admin/components/ui/button'
 import { Input } from '@/admin/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 import {
   Table,
   TableBody,
@@ -32,11 +34,13 @@ import {
   TabsTrigger,
 } from '@/admin/components/ui/tabs'
 import {
+  getWikiAssetCDN,
   getWikiNamespaces,
   getWikiSyncRuns,
   getWikiSyncStatus,
   getWikiTree,
   getWikiWebhookSecret,
+  saveWikiAssetCDN,
   saveWikiWebhookSecret,
   triggerWikiSync,
   type WikiSyncRunView,
@@ -78,7 +82,12 @@ const webhookSecretInput = ref('')
 const webhookSaving = ref(false)
 const webhookLoading = ref(false)
 
-const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value || webhookLoading.value)
+// 资源 CDN（wiki 页面内图片/附件等静态资源的分发方式）
+const assetCDN = ref('self')
+const cdnLoading = ref(false)
+const cdnSaving = ref(false)
+
+const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value || webhookLoading.value || cdnLoading.value)
 
 function formatTime(value: string | undefined | null) {
   if (!value) return '-'
@@ -244,9 +253,35 @@ async function saveWebhookSecret() {
   }
 }
 
-async function loadAll() {
-  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns(), loadWebhookSecret()])
+async function loadAssetCDN() {
+  cdnLoading.value = true
+  try {
+    const status = await getWikiAssetCDN()
+    assetCDN.value = status.cdn || 'self'
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    cdnLoading.value = false
+  }
 }
+
+async function saveAssetCDN() {
+  if (cdnSaving.value) return
+  cdnSaving.value = true
+  try {
+    await saveWikiAssetCDN(assetCDN.value)
+    adminToast.success(adminText('k00s6'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00s7'))
+  } finally {
+    cdnSaving.value = false
+  }
+}
+
+async function loadAll() {
+  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns(), loadWebhookSecret(), loadAssetCDN()])
+}
+
 
 onMounted(() => {
   void loadAll()
@@ -459,6 +494,39 @@ onMounted(() => {
                 </label>
                 <Button type="submit" size="sm" :disabled="webhookSaving || webhookLoading">
                   {{ webhookSaving ? adminText('k005f') : adminText('k005g') }}
+                </Button>
+              </form>
+            </div>
+          </AdminSection>
+
+          <AdminSection>
+            <template #header>
+              <AdminToolbar class="border-b-0">
+                <div class="flex items-center gap-2">
+                  <Globe class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="text-sm font-medium">{{ adminText('k00s0') }}</span>
+                </div>
+              </AdminToolbar>
+            </template>
+            <div class="grid gap-4 p-4 md:grid-cols-2">
+              <div class="space-y-2 text-sm">
+                <p class="text-xs text-muted-foreground">{{ adminText('k00s1') }}</p>
+              </div>
+              <form class="flex items-end gap-2" @submit.prevent="saveAssetCDN">
+                <label class="grid flex-1 gap-2 text-sm font-medium">
+                  {{ adminText('k00s4') }}
+                  <Select v-model="assetCDN" :disabled="cdnLoading">
+                    <SelectTrigger class="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="self">{{ adminText('k00s2') }}</SelectItem>
+                      <SelectItem value="jsDelivr">{{ adminText('k00s3') }}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+                <Button type="submit" size="sm" :disabled="cdnSaving || cdnLoading">
+                  {{ cdnSaving ? adminText('k005f') : adminText('k00s5') }}
                 </Button>
               </form>
             </div>

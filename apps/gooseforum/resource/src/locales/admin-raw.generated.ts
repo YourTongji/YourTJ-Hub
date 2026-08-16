@@ -793,4 +793,12 @@ export default {
   "k00r5": "新密钥（留空并保存可清除）",
   "k00r6": "输入 GitHub webhook secret",
   "k00r7": "Slug",
+  "k00s0": "资源 CDN",
+  "k00s1": "Wiki 页面中的图片/附件等静态资源通过哪个 CDN 分发。",
+  "k00s2": "本站（默认）",
+  "k00s3": "jsDelivr",
+  "k00s4": "选择 CDN",
+  "k00s5": "保存 CDN 设置",
+  "k00s6": "CDN 设置已保存",
+  "k00s7": "CDN 设置保存失败",
 } as const

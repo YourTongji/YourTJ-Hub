@@ -29,14 +29,47 @@ var errWikiRefEscapesRepo = errors.New("wiki reference escapes repository")
 type wikiReferenceResolver struct {
 	cloneDir          string
 	pagesBySourcePath map[string]string
+	// assetCDN 资源提供方式（self | jsDelivr）：决定渲染出的资源 URL 形态。
+	assetCDN string
+	// repoOwner / repoName / branch 供 jsDelivr gh 镜像 URL 拼接
+	// （https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}）。
+	repoOwner string
+	repoName  string
+	branch    string
 }
 
-func newWikiReferenceResolver(cloneDir string, pages []wantedPage) *wikiReferenceResolver {
+func newWikiReferenceResolver(cfg GitConfig, pages []wantedPage, assetCDN string) *wikiReferenceResolver {
 	pagesBySourcePath := make(map[string]string, len(pages))
 	for _, page := range pages {
 		pagesBySourcePath[page.sourcePath] = page.path
 	}
-	return &wikiReferenceResolver{cloneDir: cloneDir, pagesBySourcePath: pagesBySourcePath}
+	owner, name := splitRepoOwnerName(cfg.Repo)
+	return &wikiReferenceResolver{
+		cloneDir:          cfg.CloneDir,
+		pagesBySourcePath: pagesBySourcePath,
+		assetCDN:          assetCDN,
+		repoOwner:         owner,
+		repoName:          name,
+		branch:            cfg.Branch,
+	}
+}
+
+// splitRepoOwnerName 从仓库地址解析 owner/name（供 jsDelivr 拼接）。
+// 无法解析时返回空（jsDelivr 模式会退回 self 路由）。
+func splitRepoOwnerName(repo string) (owner, name string) {
+	repoPath := strings.TrimSuffix(repo, ".git")
+	repoPath = strings.TrimSuffix(repoPath, "/")
+	for _, prefix := range []string{"https://github.com/", "http://github.com/", "git@github.com:"} {
+		if strings.HasPrefix(repoPath, prefix) {
+			repoPath = strings.TrimPrefix(repoPath, prefix)
+			break
+		}
+	}
+	parts := strings.SplitN(repoPath, "/", 2)
+	if len(parts) != 2 || parts[0] == "" || parts[1] == "" {
+		return "", ""
+	}
+	return parts[0], parts[1]
 }
 
 // Validate checks every rendered Markdown link and image before the sync mutates page rows.
@@ -161,9 +194,32 @@ func (r *wikiReferenceResolver) resolve(sourceFile, destination string, isImage 
 	if _, _, err := resolveWikiAssetFile(r.cloneDir, repoPath); err != nil {
 		return "", fmt.Errorf("asset %q: %w", repoPath, err)
 	}
+	// jsDelivr 模式：资源走 CDN gh 镜像（https://cdn.jsdelivr.net/gh/{owner}/{repo}@{branch}/{path}），
+	// 卸载论坛自身带宽/磁盘 I/O；owner/repo/branch 无法解析时退回 self 路由。
+	if r.assetCDN == "jsDelivr" && r.repoOwner != "" && r.repoName != "" && r.branch != "" {
+		return r.jsDelivrAssetURL(repoPath, parsed), nil
+	}
 	parsed.Path = wikiAssetRoutePrefix + repoPath
 	parsed.RawPath = ""
 	return parsed.String(), nil
+}
+
+// jsDelivrAssetURL 拼接 jsDelivr gh 镜像 URL，保留原始 query/fragment。
+// 路径逐段转义（与 githubPathEscape 一致）：目录/文件名可含空格、中文与
+// 特殊字符，jsDelivr 按 URL 编码路径匹配 GitHub 文件。
+func (r *wikiReferenceResolver) jsDelivrAssetURL(repoPath string, parsed *url.URL) string {
+	base := "https://cdn.jsdelivr.net/gh/" +
+		url.PathEscape(r.repoOwner) + "/" +
+		url.PathEscape(r.repoName) + "@" +
+		url.PathEscape(r.branch) + "/" +
+		githubPathEscape(repoPath)
+	if parsed.RawQuery != "" {
+		base += "?" + parsed.RawQuery
+	}
+	if parsed.Fragment != "" {
+		base += "#" + parsed.Fragment
+	}
+	return base
 }
 
 // isMarkdownPath 判断仓库相对路径是否为 Markdown 源文件（.md 家族，大小写不敏感）。

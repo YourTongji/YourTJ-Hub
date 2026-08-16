@@ -43,6 +43,18 @@ JavaScript, and extension-less files — is forced to `application/octet-stream`
 content. All asset responses carry `Content-Security-Policy: sandbox` and `X-Content-Type-Options:
 nosniff` as defense in depth, and the endpoint is rate-limited per IP.
 
+### CDN selection
+
+Site administrators choose how asset URLs are rendered during sync from the Wiki admin panel
+(资源 CDN section): serve from this forum (`self`, the default) or through the jsDelivr GitHub
+mirror (`jsDelivr`). With `jsDelivr` selected, rendered asset URLs point at
+`https://cdn.jsdelivr.net/gh/<owner>/<repo>@<branch>/<repository-path>` instead of
+`/wiki/_assets/...`, offloading bandwidth and disk I/O from the forum binary. The setting is stored
+in `page_config` (`WikiSyncSettings.AssetCDN`) and takes effect on the next sync (webhook, manual, or
+scheduled); the repo owner/name/branch must be parseable from `[wiki.git].repo`, otherwise assets
+fall back to the self route. The `_assets` route, its allowlist, and CSP headers remain available
+regardless of the selection.
+
 ### Failure semantics
 
 Every relative target must remain inside the repository. A linked Markdown page must be projected by the

@@ -726,7 +726,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		wanted = append(wanted, wp)
 		wantedByPath[wp.path] = wp
 	}
-	resolver := newWikiReferenceResolver(cfg.CloneDir, wanted)
+	resolver := newWikiReferenceResolver(cfg, wanted, hotdataserve.GetWikiSyncSettingsConfigCache().AssetCDN)
 	// review M1：单页引用校验/渲染失败 → 跳过该页并聚合告警（其余页面继续），
 	// 避免一个坏链接冻结整个 wiki 的更新与删除。但安全类错误（仓库根逃逸/
 	// 符号链接越界）必须整体失败：恶意链接不允许通过「坏页跳过」绕过校验。
