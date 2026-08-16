@@ -575,12 +575,14 @@ func runPendingSync(cfg GitConfig) {
 
 // syncOnceEnterHook 测试专用钩子：每次 syncOnce 进入主体时调用（生产为 nil）。
 // 并发测试用它确定性阻塞 syncOnce，构造「主运行/补跑」重叠窗口验证锁串行化。
-var syncOnceEnterHook func()
+// 原子装载：测试安装/清理与 syncOnce 并发读取之间无数据竞争（ci-backend-race
+// 在 -race 下运行该包）。
+var syncOnceEnterHook atomic.Pointer[func()]
 
 // syncOnce 执行一次同步主体（调用方持有同步锁；不重入锁）。
 func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
-	if syncOnceEnterHook != nil {
-		syncOnceEnterHook()
+	if h := syncOnceEnterHook.Load(); h != nil {
+		(*h)()
 	}
 	run := wikiSyncRuns.Entity{Trigger: trigger, Status: wikiSyncRuns.StatusRunning}
 	if err := wikiSyncRuns.Create(&run); err != nil {

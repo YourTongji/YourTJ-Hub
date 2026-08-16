@@ -39,26 +39,32 @@ func initLocalWikiRepo(t *testing.T) GitConfig {
 
 // syncOnceEnterHook 的测试门控状态：每次 syncOnce 进入时计数 +1，然后阻塞
 // 在当前 gate 通道上（abort 通道在清理时关闭，防止测试失败时泄漏阻塞）。
-var (
-	syncTestHookMu   sync.Mutex
-	syncTestHookGate chan struct{}
-)
+var syncTestHookMu sync.Mutex
+var syncTestHookGate chan struct{}
+var syncTestHookAbort chan struct{}
 
 // installSyncTestHook 安装 syncOnce 入口钩子并返回执行计数。
 // 钩子先捕获当前 gate 再计数：调用方观察到计数后即可确定该次 syncOnce
 // 已被阻塞在（已捕获的）gate 上，随后切换 gate 不会影响它。
 // 默认 gate 为已关闭通道（不阻塞）——未调用 setSyncTestGate 的测试
 // （如顺序同步测试）不会被钩子卡住。
+// 清理时：先关闭 abort 放行任何被门控卡住的 syncOnce，再等待同步 goroutine
+// 完全退出（SyncWithConfig 的 defer 释放锁是最后一步）——失败测试泄漏的
+// 锁/运行不会串入下一个测试。
 func installSyncTestHook(t *testing.T) *atomic.Int64 {
 	t.Helper()
 	calls := &atomic.Int64{}
 	abort := make(chan struct{})
 	open := make(chan struct{})
 	close(open)
+	syncTestHookMu.Lock()
 	syncTestHookGate = open
-	syncOnceEnterHook = func() {
+	syncTestHookAbort = abort
+	syncTestHookMu.Unlock()
+	h := func() {
 		syncTestHookMu.Lock()
 		gate := syncTestHookGate
+		abort := syncTestHookAbort
 		syncTestHookMu.Unlock()
 		calls.Add(1)
 		select {
@@ -66,10 +72,28 @@ func installSyncTestHook(t *testing.T) *atomic.Int64 {
 		case <-abort:
 		}
 	}
+	syncOnceEnterHook.Store(&h)
 	t.Cleanup(func() {
 		close(abort)
-		syncOnceEnterHook = nil
+		// 不再接受新的门控，然后等待泄漏的同步 goroutine 完全退出并释放锁
+		// （SyncWithConfig 的 defer 以 ReleaseSyncLock 收尾）——失败测试泄漏的
+		// 锁/运行不会串入下一个测试。锁空闲即代表已释放。
+		syncOnceEnterHook.Store(nil)
+		deadline := time.Now().Add(30 * time.Second)
+		for {
+			if TryAcquireSyncLock() {
+				ReleaseSyncLock()
+				break
+			}
+			if time.Now().After(deadline) {
+				t.Fatalf("sync lock leaked across tests after hook abort")
+			}
+			time.Sleep(2 * time.Millisecond)
+		}
+		syncTestHookMu.Lock()
 		syncTestHookGate = nil
+		syncTestHookAbort = nil
+		syncTestHookMu.Unlock()
 		syncPending.Store(false)
 	})
 	return calls
