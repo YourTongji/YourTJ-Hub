@@ -14,7 +14,7 @@
   "devDependencies": {
     "@redocly/ajv": "8.11.2",
     "@redocly/cli": "2.45.0",
-    "js-yaml": "4.3.0",
+    "js-yaml": "4.3.1",
     "openapi-typescript": "7.13.0"
   }
 }
