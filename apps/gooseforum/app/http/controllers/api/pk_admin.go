@@ -7,6 +7,7 @@ import (
 	"strings"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/component"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pk"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/pkservice"
 )
@@ -88,4 +89,12 @@ func PkSyncStatus(req component.BetterRequest[component.Null]) component.Respons
 		return component.FailResponseError(err)
 	}
 	return component.SuccessResponse(items)
+}
+
+// SetRunPkSyncForTest 仅测试用：替换后台同步执行函数（与 pkservice 的 ForTest 钩子同一风格），
+// 供路由级契约测试注入 stub，避免测试触发真实抓取一系统。返回恢复函数。
+func SetRunPkSyncForTest(fn func(ctx context.Context, cookie string, calendarId uint64, depth int, useMaterialize bool, claim *pk.FetchLogEntity, resume bool) (*pkservice.SyncReport, error)) func() {
+	orig := runPkSync
+	runPkSync = fn
+	return func() { runPkSync = orig }
 }
