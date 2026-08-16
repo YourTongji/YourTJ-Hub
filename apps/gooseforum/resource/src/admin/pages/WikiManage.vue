@@ -132,8 +132,12 @@ function editUrlFor(page: WikiPageNode) {
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
   // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段已是 slug，
-  // 与仓库目录名解耦）。
-  const repoPath = page.sourcePath || page.path
+  // 与仓库目录名解耦）。逐段转义：目录名/文件名允许 #/% 等字符，但 URL
+  // 拼接时 # 会开启 fragment、% 会被当转义前缀 → GitHub 404。
+  const repoPath = (page.sourcePath || page.path)
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/')
   return `https://github.com/${base}/edit/${branch}/${repoPath}.md`
 }
 

@@ -77,9 +77,11 @@ func isPureASCIISlug(name string) bool {
 
 // ValidatePath 校验完整 wiki 路径："namespace/slug[/slug...]"。
 // 返回规范化后的 path（仅 TrimSpace，保留大小写与 Unicode）；非法返回 false。
+// 总长按码点（rune）计数 ≤255：与 DB varchar(255) 的字符语义及前端
+// 码点计数对齐（此前按字节 len() 计数，100 个中文字符 300 字节会被误拒）。
 func ValidatePath(path string) (string, bool) {
 	path = strings.TrimSpace(path)
-	if path == "" || len(path) > maxPathLen {
+	if path == "" || utf8.RuneCountInString(path) > maxPathLen {
 		return "", false
 	}
 	segments := strings.Split(path, "/")

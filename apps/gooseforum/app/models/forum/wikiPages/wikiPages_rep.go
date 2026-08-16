@@ -26,16 +26,6 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
-func ListByNamespace(namespace string) []*Entity {
-	var entities []*Entity
-	builder().
-		Where(queryopt.Eq("namespace", namespace)).
-		Order(queryopt.Asc("sort_order")).
-		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
-}
-
 func ListAll() []*Entity {
 	var entities []*Entity
 	builder().
