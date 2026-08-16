@@ -235,11 +235,6 @@
   "knownUncovered": [
     {
       "method": "GET",
-      "path": "/api/admin/ai-summary-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/badges",
       "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
     },
@@ -255,11 +250,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/http-notify-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/mail-settings",
       "reason": "pending #277 后续切片：mail（邮件配置）"
     },
@@ -270,51 +260,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/onesystem-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/posting-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/privacy-policy",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/rate-limit-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/security-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/server-version",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/site-chrome",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/site-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/site-theme",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/storage-migrate-tasks",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
     },
@@ -322,11 +267,6 @@
       "method": "GET",
       "path": "/api/admin/storage-settings",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/terms-of-service",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
     {
       "method": "GET",
@@ -390,11 +330,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/publish-site-theme",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/review-action",
       "reason": "pending #277 后续切片：review-queue（审核队列）"
     },
@@ -402,16 +337,6 @@
       "method": "POST",
       "path": "/api/admin/review-queue",
       "reason": "pending #277 后续切片：review-queue（审核队列）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-ai-summary-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-http-notify-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
     {
       "method": "POST",
@@ -425,53 +350,8 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/save-onesystem-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-posting-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-privacy-policy",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-rate-limit-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-security-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-site-chrome",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-site-settings",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-site-theme",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/save-storage-settings",
       "reason": "pending #277 后续切片：storage（存储配置与迁移）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-terms-of-service",
-      "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
     {
       "method": "POST",

@@ -291,6 +291,54 @@ paths:
     $ref: ./paths/admin-pages.yaml#/adminGetAnnouncement
   /api/admin/save-announcement:
     $ref: ./paths/admin-pages.yaml#/adminSaveAnnouncement
+  /api/admin/server-version:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetServerVersion
+  /api/admin/site-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteSettings
+  /api/admin/save-site-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteSettings
+  /api/admin/site-chrome:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteChrome
+  /api/admin/save-site-chrome:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteChrome
+  /api/admin/site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSiteTheme
+  /api/admin/save-site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSiteTheme
+  /api/admin/publish-site-theme:
+    $ref: ./paths/admin-site-settings.yaml#/adminPublishSiteTheme
+  /api/admin/security-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetSecuritySettings
+  /api/admin/save-security-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveSecuritySettings
+  /api/admin/posting-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetPostingSettings
+  /api/admin/save-posting-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSavePostingSettings
+  /api/admin/rate-limit-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetRateLimitSettings
+  /api/admin/save-rate-limit-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveRateLimitSettings
+  /api/admin/http-notify-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetHttpNotifySettings
+  /api/admin/save-http-notify-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveHttpNotifySettings
+  /api/admin/onesystem-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetOnesystemSettings
+  /api/admin/save-onesystem-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveOnesystemSettings
+  /api/admin/ai-summary-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetAiSummarySettings
+  /api/admin/save-ai-summary-settings:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveAiSummarySettings
+  /api/admin/terms-of-service:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetTermsOfService
+  /api/admin/save-terms-of-service:
+    $ref: ./paths/admin-site-settings.yaml#/adminSaveTermsOfService
+  /api/admin/privacy-policy:
+    $ref: ./paths/admin-site-settings.yaml#/adminGetPrivacyPolicy
+  /api/admin/save-privacy-policy:
+    $ref: ./paths/admin-site-settings.yaml#/adminSavePrivacyPolicy
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -965,6 +1013,102 @@ components:
       $ref: ./components/schemas.yaml#/AdminPageConfigSaveSuccess
     AdminPageConfigSaveResponse:
       $ref: ./components/schemas.yaml#/AdminPageConfigSaveResponse
+    AdminServerVersionInfo:
+      $ref: ./components/schemas.yaml#/AdminServerVersionInfo
+    AdminServerVersionResponse:
+      $ref: ./components/schemas.yaml#/AdminServerVersionResponse
+    AdminSiteSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteSettingsConfig
+    AdminSiteSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteSettingsResponse
+    AdminSaveSiteSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteSettingsRequest
+    AdminSiteChromeItem:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeItem
+    AdminSiteChromeGroup:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeGroup
+    AdminSiteChromeFooterPrimary:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooterPrimary
+    AdminSiteChromeFooterItem:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooterItem
+    AdminSiteChromeFooter:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeFooter
+    AdminSiteChromeConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeConfig
+    AdminSiteChromeResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteChromeResponse
+    AdminSaveSiteChromeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteChromeRequest
+    AdminSiteThemeTokens:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeTokens
+    AdminSiteThemeDefinition:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeDefinition
+    AdminSiteThemePrepublish:
+      $ref: ./components/schemas.yaml#/AdminSiteThemePrepublish
+    AdminSiteThemeConfig:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeConfig
+    AdminSiteThemeResponse:
+      $ref: ./components/schemas.yaml#/AdminSiteThemeResponse
+    AdminSaveSiteThemeSettings:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteThemeSettings
+    AdminSaveSiteThemeRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSiteThemeRequest
+    AdminSecuritySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminSecuritySettingsConfig
+    AdminSecuritySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminSecuritySettingsResponse
+    AdminSaveSecuritySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSecuritySettingsRequest
+    AdminPostingTextControl:
+      $ref: ./components/schemas.yaml#/AdminPostingTextControl
+    AdminPostingUploadControl:
+      $ref: ./components/schemas.yaml#/AdminPostingUploadControl
+    AdminPostingLLMS:
+      $ref: ./components/schemas.yaml#/AdminPostingLLMS
+    AdminPostingSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminPostingSettingsConfig
+    AdminPostingSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminPostingSettingsResponse
+    AdminSavePostingSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSavePostingSettingsRequest
+    AdminRateLimitRule:
+      $ref: ./components/schemas.yaml#/AdminRateLimitRule
+    AdminRateLimitSettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminRateLimitSettingsConfig
+    AdminRateLimitSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminRateLimitSettingsResponse
+    AdminSaveRateLimitSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveRateLimitSettingsRequest
+    AdminHttpNotifyEndpoint:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifyEndpoint
+    AdminHttpNotifySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifySettingsConfig
+    AdminHttpNotifySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminHttpNotifySettingsResponse
+    AdminSaveHttpNotifySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveHttpNotifySettingsRequest
+    AdminOnesystemSettingsResult:
+      $ref: ./components/schemas.yaml#/AdminOnesystemSettingsResult
+    AdminOnesystemSettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminOnesystemSettingsResponse
+    AdminSaveOnesystemSettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveOnesystemSettingsRequest
+    AdminAiSummarySettingsConfig:
+      $ref: ./components/schemas.yaml#/AdminAiSummarySettingsConfig
+    AdminAiSummarySettingsResponse:
+      $ref: ./components/schemas.yaml#/AdminAiSummarySettingsResponse
+    AdminSaveAiSummarySettingsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveAiSummarySettingsRequest
+    AdminLegalDocumentConfig:
+      $ref: ./components/schemas.yaml#/AdminLegalDocumentConfig
+    AdminTermsOfServiceResponse:
+      $ref: ./components/schemas.yaml#/AdminTermsOfServiceResponse
+    AdminSaveTermsOfServiceRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveTermsOfServiceRequest
+    AdminPrivacyPolicyResponse:
+      $ref: ./components/schemas.yaml#/AdminPrivacyPolicyResponse
+    AdminSavePrivacyPolicyRequest:
+      $ref: ./components/schemas.yaml#/AdminSavePrivacyPolicyRequest
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     PostPayload:

@@ -2937,6 +2937,651 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/server-version": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the build metadata of the running binary
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Read-only: returns the release metadata compiled
+         *     into the binary (build-time ldflags with a Go build-info fallback).
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetServerVersion"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored site settings, or the built-in
+         *     default configuration when nothing has been saved yet (the default is
+         *     not persisted by reads). JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetSiteSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the site settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole site-settings configuration with the submitted
+         *     value and clears the site-settings and llms.txt caches. There is no
+         *     request validation: JSON binding is lenient, so a malformed or empty
+         *     body binds to zero values and is saved as-is.
+         */
+        post: operations["adminSaveSiteSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-chrome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site chrome (header/menu/sidebar/footer/brand) configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored chrome configuration, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSiteChrome"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-chrome": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the site chrome configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole chrome configuration with the submitted value and
+         *     clears the chrome cache. There is no request validation: JSON binding
+         *     is lenient, so a malformed or empty body binds to zero values and is
+         *     saved as-is.
+         */
+        post: operations["adminSaveSiteChrome"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the site theme configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored theme configuration, or the
+         *     built-in default configuration when nothing has been saved yet. The
+         *     response is normalized on every read: blank/unsafe token values fall
+         *     back to the built-in defaults, unknown theme names are replaced by
+         *     the fallback theme name, a non-positive `version` is replaced by the
+         *     default version, and an empty `themes` list is replaced by the
+         *     default themes. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminGetSiteTheme"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Stage site theme changes as an unpublished draft
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Does
+         *     NOT touch the published themes: the submitted `enabled`/`themes`
+         *     become the `prepublish` draft on top of the currently stored
+         *     configuration, with a server-stamped RFC 3339 `updatedAt`. The whole
+         *     configuration is normalized (same rules as adminGetSiteTheme) before
+         *     persistence; a draft with an empty theme list is dropped by
+         *     normalization. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body stages an empty draft that normalization
+         *     then drops. The response is the full normalized configuration after
+         *     staging (including the new draft). Use adminPublishSiteTheme to
+         *     promote the draft.
+         */
+        post: operations["adminSaveSiteTheme"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/publish-site-theme": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Publish the staged site theme draft
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Promotes the staged `prepublish` draft written by adminSaveSiteTheme:
+         *     `enabled`/`themes` are copied to the published configuration,
+         *     `publishedAt` is stamped with the current RFC 3339 time, the draft is
+         *     cleared, and the normalized result is persisted. When no draft exists
+         *     the operation is a no-op: nothing is saved and the response is simply
+         *     the current normalized configuration. JSON binding is lenient: query
+         *     string and body are ignored.
+         */
+        post: operations["adminPublishSiteTheme"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the security & registration settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored security settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSecuritySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-security-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the security & registration settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole security configuration with the submitted value
+         *     and clears the security-settings cache. Side effect: usernames newly
+         *     added to `bannedUsernames` (compared case-insensitively against the
+         *     currently stored list, trimmed) trigger a freeze of matching existing
+         *     accounts; the freeze is idempotent, so re-saving the same list does
+         *     not reprocess accounts. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveSecuritySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/posting-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the posting/upload/llms.txt settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored posting settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetPostingSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-posting-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the posting/upload/llms.txt settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole posting configuration with the submitted value and
+         *     clears the posting-settings and llms.txt caches. The Go struct tags
+         *     `settings` with `validate:"required"`, but struct-level required
+         *     never fails, so a missing or malformed body saves a zero-value
+         *     configuration.
+         */
+        post: operations["adminSavePostingSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/rate-limit-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the abuse-protection (rate limit) settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored rate-limit settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetRateLimitSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-rate-limit-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the abuse-protection (rate limit) settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole rate-limit configuration with the submitted value,
+         *     clears the rate-limit config cache, and resets all in-memory
+         *     rate-limit counters so new windows/quotas apply to existing keys
+         *     immediately. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveRateLimitSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/http-notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the HTTP webhook notification settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored notify settings, or the
+         *     built-in default (disabled with an empty endpoint list) when nothing
+         *     has been saved yet. Exposure boundary: each endpoint's `secret`
+         *     (webhook signing secret) is returned in cleartext — there is no
+         *     masking on this admin surface. JSON binding is lenient: query string
+         *     and body are ignored.
+         */
+        get: operations["adminGetHttpNotifySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-http-notify-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the HTTP webhook notification settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole notify configuration with the submitted value and
+         *     clears the notify cache. There is no URL/secret validation: the Go
+         *     struct tags `settings` with `validate:"required"`, but struct-level
+         *     required never fails, so a missing or malformed body saves a
+         *     zero-value configuration.
+         */
+        post: operations["adminSaveHttpNotifySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/onesystem-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read whether the 一系统 sync credential is configured
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Exposure boundary: the response is exactly
+         *     `{cookieConfigured: boolean}` — the stored ciphertext and the
+         *     plaintext cookie are never returned (the domain struct tags the
+         *     ciphertext `json:"-"`, and the handler builds the response map by
+         *     hand). JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetOnesystemSettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-onesystem-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Store or clear the 一系统 sync credential
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. The
+         *     submitted plaintext cookie is trimmed, encrypted with a
+         *     purpose-scoped AES-256-GCM key derived from `app.signingKey`, and
+         *     only the ciphertext is persisted (the plaintext exists only for the
+         *     duration of the request). An empty/blank cookie clears the stored
+         *     credential. A cookie longer than 4096 characters fails request
+         *     validation with HTTP 200 and `common.request.invalidParams`. If
+         *     encryption itself fails (signingKey misconfigured) the response is a
+         *     generic HTTP 200 `code: 1` failure with no `messageCode` — the
+         *     internal error detail is not exposed.
+         */
+        post: operations["adminSaveOnesystemSettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/ai-summary-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the AI course-summary settings
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored AI summary settings, or the
+         *     built-in default configuration when nothing has been saved yet.
+         *     Exposure boundary: only the switch and the global quota are stored
+         *     and returned; the LLM provider credentials (`provider`, `base_url`,
+         *     `api_key`, `model`) live in config.toml `[ai_summary]` and never
+         *     enter the DB or this API. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetAiSummarySettings"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-ai-summary-settings": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the AI course-summary settings
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole AI summary configuration with the submitted value
+         *     and clears the settings cache. The Go struct tags `settings` with
+         *     `validate:"required"`, but struct-level required never fails, so a
+         *     missing or malformed body saves a zero-value configuration.
+         */
+        post: operations["adminSaveAiSummarySettings"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/terms-of-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the terms-of-service configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored terms-of-service
+         *     configuration, or the built-in default configuration when nothing
+         *     has been saved yet. The pre-rendered HTML is server-side only and
+         *     never appears on the wire. JSON binding is lenient: query string and
+         *     body are ignored.
+         */
+        get: operations["adminGetTermsOfService"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-terms-of-service": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the terms-of-service configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole terms-of-service configuration with the submitted
+         *     value and clears the cache; the server forces the server-side
+         *     pre-rendered HTML field empty on every save (it is re-rendered on
+         *     read). The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing or malformed body
+         *     saves a zero-value configuration.
+         */
+        post: operations["adminSaveTermsOfService"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the privacy-policy configuration
+         * @description Admin console operation gated by the `SiteManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `站点管理` in zh). Returns the stored privacy-policy configuration,
+         *     or the built-in default configuration when nothing has been saved
+         *     yet. The pre-rendered HTML is server-side only and never appears on
+         *     the wire. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetPrivacyPolicy"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-privacy-policy": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the privacy-policy configuration
+         * @description Admin console operation gated by the `SiteManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`.
+         *     Replaces the whole privacy-policy configuration with the submitted
+         *     value and clears the cache; the server forces the server-side
+         *     pre-rendered HTML field empty on every save (it is re-rendered on
+         *     read). The Go struct tags `settings` with `validate:"required"`, but
+         *     struct-level required never fails, so a missing or malformed body
+         *     saves a zero-value configuration.
+         */
+        post: operations["adminSavePrivacyPolicy"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -5704,6 +6349,315 @@ export interface components {
             messageCode: "common.operation.success";
         };
         AdminPageConfigSaveResponse: components["schemas"]["AdminPageConfigSaveSuccess"] | components["schemas"]["ApiFailure"];
+        AdminServerVersionInfo: {
+            /** @description Release version injected at build time; `dev` for untagged builds, `dev-dirty` when the VCS worktree was dirty. */
+            version: string;
+            /** @description VCS revision from the binary's build info; empty when unavailable. */
+            commit: string;
+            /** @description Build timestamp injected at build time; empty for plain dev/test builds. */
+            buildDate: string;
+            /**
+             * @description Derived from `version` (`development` for dev/dev-dirty, `snapshot` when the version contains `snapshot`, `release` for a `v` prefix, `custom` otherwise).
+             * @enum {string}
+             */
+            mode: "development" | "snapshot" | "release" | "custom";
+        };
+        AdminServerVersionResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminServerVersionInfo"];
+        };
+        AdminSiteSettingsConfig: {
+            siteName: string;
+            siteLogo: string;
+            siteDescription: string;
+            siteKeywords: string;
+            siteUrl: string;
+            siteEmail: string;
+            externalLinks: string;
+        };
+        AdminSiteSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored site settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSiteSettingsConfig"];
+        };
+        /** @description Replacement site settings. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        AdminSaveSiteSettingsRequest: {
+            settings?: components["schemas"]["AdminSiteSettingsConfig"];
+        };
+        AdminSiteChromeItem: {
+            id: string;
+            enabled: boolean;
+            /** @description Entry kind (e.g. `link`). */
+            type: string;
+            label: string;
+            /** @description Frontend i18n key for the label. */
+            i18nLabel: string;
+            url: string;
+        };
+        AdminSiteChromeGroup: {
+            id: string;
+            title: string;
+            i18nLabel: string;
+            items: components["schemas"]["AdminSiteChromeItem"][];
+        };
+        AdminSiteChromeFooterPrimary: {
+            content: string;
+        };
+        AdminSiteChromeFooterItem: {
+            name: string;
+            url: string;
+        };
+        AdminSiteChromeFooter: {
+            primary: components["schemas"]["AdminSiteChromeFooterPrimary"][];
+            list: components["schemas"]["AdminSiteChromeFooterItem"][];
+        };
+        AdminSiteChromeConfig: {
+            header: components["schemas"]["AdminSiteChromeItem"][];
+            mainMenu: components["schemas"]["AdminSiteChromeItem"][];
+            resources: components["schemas"]["AdminSiteChromeItem"][];
+            sidebarGroups: components["schemas"]["AdminSiteChromeGroup"][];
+            footerInfo: components["schemas"]["AdminSiteChromeFooter"];
+            /** @description Brand rendering mode (e.g. `default`, `text`, `image`). */
+            brandType: string;
+            brandText: string;
+            brandImage: string;
+        };
+        AdminSiteChromeResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored chrome configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSiteChromeConfig"];
+        };
+        /** @description Replacement chrome configuration. No validation — a missing/malformed body binds to a zero-value configuration and is saved as-is. */
+        AdminSaveSiteChromeRequest: {
+            settings?: components["schemas"]["AdminSiteChromeConfig"];
+        };
+        /** @description Design tokens for one theme. Blank values and values containing `{};<>` fall back to the matching built-in default token on read/save normalization. */
+        AdminSiteThemeTokens: {
+            "color-base-100": string;
+            "color-base-200": string;
+            "color-base-300": string;
+            "color-base-content": string;
+            "color-icon-muted": string;
+            "color-line": string;
+            "color-primary": string;
+            "color-primary-content": string;
+            "color-secondary": string;
+            "color-secondary-content": string;
+            "color-accent": string;
+            "color-accent-content": string;
+            "color-neutral": string;
+            "color-neutral-content": string;
+            "color-info": string;
+            "color-info-content": string;
+            "color-success": string;
+            "color-success-content": string;
+            "color-warning": string;
+            "color-warning-content": string;
+            "color-error": string;
+            "color-error-content": string;
+            "radius-selector": string;
+            /** @description The legacy values `0.375rem` and `6px` are normalized to `0.5rem`. */
+            "radius-field": string;
+            "radius-box": string;
+            "size-selector": string;
+            "size-field": string;
+            border: string;
+            depth: string;
+        };
+        AdminSiteThemeDefinition: {
+            /** @description Theme identifier; only the built-in names `gf-light`/`gf-dark` survive normalization (unknown names are replaced by the fallback theme name). */
+            name: string;
+            /** @description Blank values are filled from the built-in default theme. */
+            label: string;
+            /**
+             * @description Invalid values are replaced by the default theme's color scheme.
+             * @enum {string}
+             */
+            colorScheme: "light" | "dark";
+            tokens: components["schemas"]["AdminSiteThemeTokens"];
+        };
+        AdminSiteThemePrepublish: {
+            enabled: boolean;
+            themes: components["schemas"]["AdminSiteThemeDefinition"][];
+            /** @description RFC 3339 timestamp stamped by the server on every save; omitted when empty. */
+            updatedAt?: string;
+        };
+        AdminSiteThemeConfig: {
+            /** @description Schema version; values <= 0 are replaced by the built-in default version during normalization. */
+            version: number;
+            enabled: boolean;
+            /** @description Published themes; an empty list is replaced by the built-in default themes during normalization. */
+            themes: components["schemas"]["AdminSiteThemeDefinition"][];
+            /** @description Staged (unpublished) themes written by adminSaveSiteTheme; omitted when there is no staged draft or the draft has an empty theme list. */
+            prepublish?: components["schemas"]["AdminSiteThemePrepublish"];
+            /** @description RFC 3339 timestamp stamped by adminPublishSiteTheme; omitted when never published. */
+            publishedAt?: string;
+        };
+        AdminSiteThemeResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminSiteThemeConfig"];
+        };
+        /** @description Only `enabled` and `themes` are read — they become the staged prepublish draft; `version`, `prepublish`, and `publishedAt` in the payload are ignored (the server keeps the stored values). */
+        AdminSaveSiteThemeSettings: {
+            enabled?: boolean;
+            themes?: components["schemas"]["AdminSiteThemeDefinition"][];
+        };
+        /** @description The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body stages an empty draft (which normalization drops, leaving the stored themes untouched). */
+        AdminSaveSiteThemeRequest: {
+            settings?: components["schemas"]["AdminSaveSiteThemeSettings"];
+        };
+        AdminSecuritySettingsConfig: {
+            enableSignup: boolean;
+            enableEmailVerification: boolean;
+            /** @description Email domains allowed at registration; empty disables the restriction. */
+            allowedDomains: string[];
+            /** @description Usernames rejected at registration/rename. */
+            reservedUsernames: string[];
+            /** @description Usernames rejected at registration/rename; saving a newly added entry also freezes matching existing accounts (idempotent). */
+            bannedUsernames: string[];
+            sensitiveWords: string[];
+            /** @description `block` rejects matching content, `review` routes it to the moderation queue. */
+            sensitiveAction: string;
+            /** @description Whether registration/login/password-recovery require a captcha. */
+            captchaRequired: boolean;
+        };
+        AdminSecuritySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored security settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminSecuritySettingsConfig"];
+        };
+        /** @description Replacement security settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveSecuritySettingsRequest: {
+            settings?: components["schemas"]["AdminSecuritySettingsConfig"];
+        };
+        AdminPostingTextControl: {
+            minPostLength: number;
+            maxPostLength: number;
+            minTitleLength: number;
+            maxTitleLength: number;
+            newUserPostCooldownMinutes: number;
+        };
+        AdminPostingUploadControl: {
+            allowAttachments: boolean;
+            authorizedExtensions: string[];
+            maxAttachmentSizeKb: number;
+            maxDailyUploadsPerUser: number;
+            newUserUploadCooldownMinutes: number;
+        };
+        AdminPostingLLMS: {
+            enabled: boolean;
+            fullText: boolean;
+            files: boolean;
+        };
+        AdminPostingSettingsConfig: {
+            textControl: components["schemas"]["AdminPostingTextControl"];
+            uploadControl: components["schemas"]["AdminPostingUploadControl"];
+            llms: components["schemas"]["AdminPostingLLMS"];
+        };
+        AdminPostingSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored posting settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminPostingSettingsConfig"];
+        };
+        /** @description Replacement posting settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSavePostingSettingsRequest: {
+            settings?: components["schemas"]["AdminPostingSettingsConfig"];
+        };
+        AdminRateLimitRule: {
+            /** @description Rate-limited action key (e.g. `login`, `topic-write`). */
+            action: string;
+            windowSeconds: number;
+            limitPerIp: number;
+            limitPerUser: number;
+        };
+        AdminRateLimitSettingsConfig: {
+            /** @description Master switch. */
+            enabled: boolean;
+            /** @description Exempt admin-role users. */
+            skipAdmin: boolean;
+            actions: components["schemas"]["AdminRateLimitRule"][];
+            /** @description Require a captcha after N posts inside the new-user window; 0 disables. */
+            newUserCaptchaAfterPosts: number;
+            /** @description New-user window in days after registration; 0 applies to all users. */
+            newUserCaptchaDays: number;
+            /** @description Minimum captcha solve time; faster submissions are treated as bots. */
+            minSubmitSeconds: number;
+        };
+        AdminRateLimitSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored rate-limit settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminRateLimitSettingsConfig"];
+        };
+        /** @description Replacement rate-limit settings. Saving also resets all in-memory rate-limit counters so new windows/quotas apply immediately. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveRateLimitSettingsRequest: {
+            settings?: components["schemas"]["AdminRateLimitSettingsConfig"];
+        };
+        AdminHttpNotifyEndpoint: {
+            id: string;
+            name: string;
+            enabled: boolean;
+            url: string;
+            /** @description Webhook signing secret. Exposure boundary — returned in cleartext by adminGetHttpNotifySettings to any SiteManager caller; there is no masking. */
+            secret: string;
+            events: string[];
+            timeoutSeconds: number;
+            /** @description Consecutive delivery failures recorded by the dispatcher. */
+            failureCount: number;
+            lastError: string;
+            abnormalTerminated: boolean;
+        };
+        AdminHttpNotifySettingsConfig: {
+            enabled: boolean;
+            endpoints: components["schemas"]["AdminHttpNotifyEndpoint"][];
+        };
+        AdminHttpNotifySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored notify settings, or the built-in default (disabled, empty endpoint list) when nothing has been saved. */
+            result: components["schemas"]["AdminHttpNotifySettingsConfig"];
+        };
+        /** @description Replacement notify settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveHttpNotifySettingsRequest: {
+            settings?: components["schemas"]["AdminHttpNotifySettingsConfig"];
+        };
+        AdminOnesystemSettingsResult: {
+            /** @description Whether an encrypted 一系统 cookie is stored. Exposure boundary — this is the only field returned; the stored ciphertext and the plaintext cookie are never exposed (the domain struct tags the ciphertext `json:"-"`). */
+            cookieConfigured: boolean;
+        };
+        AdminOnesystemSettingsResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminOnesystemSettingsResult"];
+        };
+        AdminSaveOnesystemSettingsRequest: {
+            /** @description Plaintext 一系统 Cookie header; encrypted with a purpose-scoped key (AES-256-GCM) before persistence and never stored in plaintext. An empty/blank value clears the stored credential. Longer than 4096 characters fails request validation with `common.request.invalidParams` (HTTP 200). When encryption itself fails (signingKey misconfigured) the response is a generic HTTP 200 `code: 1` failure with no `messageCode`. */
+            cookie?: string;
+        };
+        /** @description Exposure boundary — only the switch and quota are stored/returned; provider, base_url, api_key, and model live in config.toml `[ai_summary]` and never enter the DB or this API. */
+        AdminAiSummarySettingsConfig: {
+            /** @description Master switch; when off the summary endpoint reports `status=disabled`. */
+            enabled: boolean;
+            /** @description Global per-minute LLM generation cap (cost guardrail); 0 uses the built-in default of 5. */
+            globalPerMinute: number;
+        };
+        AdminAiSummarySettingsResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored AI summary settings, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminAiSummarySettingsConfig"];
+        };
+        /** @description Replacement AI summary settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveAiSummarySettingsRequest: {
+            settings?: components["schemas"]["AdminAiSummarySettingsConfig"];
+        };
+        AdminLegalDocumentConfig: {
+            enabled: boolean;
+            /** @description Markdown body. The pre-rendered HTML field is server-side only (`json:"-"`) and never appears on the wire or in the stored JSON; the server also forces it empty on every save. */
+            content: string;
+        };
+        AdminTermsOfServiceResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored terms-of-service configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        /** @description Replacement terms-of-service configuration. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSaveTermsOfServiceRequest: {
+            settings?: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        AdminPrivacyPolicyResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored privacy-policy configuration, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminLegalDocumentConfig"];
+        };
+        /** @description Replacement privacy-policy configuration. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration. */
+        AdminSavePrivacyPolicyRequest: {
+            settings?: components["schemas"]["AdminLegalDocumentConfig"];
+        };
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -11513,6 +12467,962 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetServerVersion: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Build metadata (version/commit/buildDate/mode). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminServerVersionResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Site settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteChrome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Chrome configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteChromeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteChrome: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteChromeRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Normalized theme configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSiteThemeRequest"];
+            };
+        };
+        responses: {
+            /** @description Full normalized theme configuration after staging the draft. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminPublishSiteTheme: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Full normalized theme configuration after publishing (or the current configuration when no draft exists). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSiteThemeResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Security settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSecuritySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSecuritySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSecuritySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPostingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Posting settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPostingSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePostingSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSavePostingSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetRateLimitSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Rate-limit settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminRateLimitSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveRateLimitSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveRateLimitSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetHttpNotifySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Notify settings including cleartext endpoint secrets (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminHttpNotifySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveHttpNotifySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveHttpNotifySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetOnesystemSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Configuration state only (`cookieConfigured`), never the credential itself. */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminOnesystemSettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveOnesystemSettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveOnesystemSettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Credential stored/cleared (`result` is the string `success`), or a `code: 1` business failure (validation or encryption failure). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAiSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description AI summary settings (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAiSummarySettingsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAiSummarySettings: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveAiSummarySettingsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetTermsOfService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Terms-of-service configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminTermsOfServiceResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveTermsOfService: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveTermsOfServiceRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetPrivacyPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Privacy-policy configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPrivacyPolicyResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSavePrivacyPolicy: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSavePrivacyPolicyRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the SiteManager permission. */
             403: {
                 headers: {
                     [name: string]: unknown;

@@ -5,20 +5,32 @@
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
 - 快照路由总数：260
-- /api JSON 路由：204，已入契约：147（72%），已知未覆盖：57
+- /api JSON 路由：204，已入契约：171（84%），已知未覆盖：33
 - 非 API 排除路由：56
 
-## 已覆盖（147）
+## 已覆盖（171）
 
 | Method | Path | operationId |
 | --- | --- | --- |
 | DELETE | `/api/admin/wiki/namespaces/:name` | `deleteWikiNamespace` |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
+| GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
 | GET | `/api/admin/announcement` | `adminGetAnnouncement` |
 | GET | `/api/admin/friend-links` | `adminGetFriendLinks` |
 | GET | `/api/admin/get-all-role-item` | `adminGetAllRoleItem` |
+| GET | `/api/admin/http-notify-settings` | `adminGetHttpNotifySettings` |
+| GET | `/api/admin/onesystem-settings` | `adminGetOnesystemSettings` |
+| GET | `/api/admin/posting-settings` | `adminGetPostingSettings` |
+| GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
+| GET | `/api/admin/rate-limit-settings` | `adminGetRateLimitSettings` |
+| GET | `/api/admin/security-settings` | `adminGetSecuritySettings` |
+| GET | `/api/admin/server-version` | `adminGetServerVersion` |
+| GET | `/api/admin/site-chrome` | `adminGetSiteChrome` |
+| GET | `/api/admin/site-settings` | `adminGetSiteSettings` |
+| GET | `/api/admin/site-theme` | `adminGetSiteTheme` |
 | GET | `/api/admin/sponsors` | `adminGetSponsors` |
+| GET | `/api/admin/terms-of-service` | `adminGetTermsOfService` |
 | GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
 | GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
@@ -66,12 +78,24 @@
 | POST | `/api/admin/global-moderator-list` | `adminGlobalModeratorList` |
 | POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
+| POST | `/api/admin/publish-site-theme` | `adminPublishSiteTheme` |
 | POST | `/api/admin/role-delete` | `adminRoleDelete` |
 | POST | `/api/admin/role-list` | `adminRoleList` |
 | POST | `/api/admin/role-save` | `adminRoleSave` |
+| POST | `/api/admin/save-ai-summary-settings` | `adminSaveAiSummarySettings` |
 | POST | `/api/admin/save-announcement` | `adminSaveAnnouncement` |
 | POST | `/api/admin/save-friend-links` | `adminSaveFriendLinks` |
+| POST | `/api/admin/save-http-notify-settings` | `adminSaveHttpNotifySettings` |
+| POST | `/api/admin/save-onesystem-settings` | `adminSaveOnesystemSettings` |
+| POST | `/api/admin/save-posting-settings` | `adminSavePostingSettings` |
+| POST | `/api/admin/save-privacy-policy` | `adminSavePrivacyPolicy` |
+| POST | `/api/admin/save-rate-limit-settings` | `adminSaveRateLimitSettings` |
+| POST | `/api/admin/save-security-settings` | `adminSaveSecuritySettings` |
+| POST | `/api/admin/save-site-chrome` | `adminSaveSiteChrome` |
+| POST | `/api/admin/save-site-settings` | `adminSaveSiteSettings` |
+| POST | `/api/admin/save-site-theme` | `adminSaveSiteTheme` |
 | POST | `/api/admin/save-sponsors` | `adminSaveSponsors` |
+| POST | `/api/admin/save-terms-of-service` | `adminSaveTermsOfService` |
 | POST | `/api/admin/save-user-badges` | `adminSaveUserBadges` |
 | POST | `/api/admin/topics/categories-edit` | `adminEditTopicCategories` |
 | POST | `/api/admin/topics/delete` | `adminDeleteTopic` |
@@ -160,29 +184,17 @@
 | PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
-## 已知未覆盖（57）
+## 已知未覆盖（33）
 
 | Method | Path | 归属切片 |
 | --- | --- | --- |
-| GET | `/api/admin/ai-summary-settings` | pending #277 后续切片：site-settings（站点配置族） |
 | GET | `/api/admin/badges` | pending #277 后续切片：user-manager（用户/徽章管理） |
 | GET | `/api/admin/data/export/download/:taskId` | pending #277 后续切片：data-portability（数据导入导出） |
 | GET | `/api/admin/data/export/tasks` | pending #277 后续切片：data-portability（数据导入导出） |
-| GET | `/api/admin/http-notify-settings` | pending #277 后续切片：site-settings（站点配置族） |
 | GET | `/api/admin/mail-settings` | pending #277 后续切片：mail（邮件配置） |
 | GET | `/api/admin/mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
-| GET | `/api/admin/onesystem-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/posting-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/privacy-policy` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/rate-limit-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/security-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/server-version` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/site-chrome` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/site-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| GET | `/api/admin/site-theme` | pending #277 后续切片：site-settings（站点配置族） |
 | GET | `/api/admin/storage-migrate-tasks` | pending #277 后续切片：storage（存储配置与迁移） |
 | GET | `/api/admin/storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
-| GET | `/api/admin/terms-of-service` | pending #277 后续切片：site-settings（站点配置族） |
 | GET | `/api/auth/:provider` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
 | GET | `/api/auth/:provider/callback` | pending #277 后续切片：auth-oauth（GitHub OAuth goth 浏览器跳转流程） |
 | GET | `/api/forum/get-site-statistics` | pending #277 后续切片：site-statistics（站点统计） |
@@ -195,23 +207,11 @@
 | POST | `/api/admin/data/import` | pending #277 后续切片：data-portability（数据导入导出） |
 | POST | `/api/admin/file-resources` | pending #277 后续切片：admin-media（后台文件资源） |
 | POST | `/api/admin/img-upload` | pending #277 后续切片：admin-media（后台文件资源） |
-| POST | `/api/admin/publish-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/review-action` | pending #277 后续切片：review-queue（审核队列） |
 | POST | `/api/admin/review-queue` | pending #277 后续切片：review-queue（审核队列） |
-| POST | `/api/admin/save-ai-summary-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-http-notify-settings` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/save-mail-settings` | pending #277 后续切片：mail（邮件配置） |
 | POST | `/api/admin/save-mcp-settings` | pending #277 后续切片：mcp-settings（MCP 开关配置） |
-| POST | `/api/admin/save-onesystem-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-posting-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-privacy-policy` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-rate-limit-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-security-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-site-chrome` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-site-settings` | pending #277 后续切片：site-settings（站点配置族） |
-| POST | `/api/admin/save-site-theme` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/save-storage-settings` | pending #277 后续切片：storage（存储配置与迁移） |
-| POST | `/api/admin/save-terms-of-service` | pending #277 后续切片：site-settings（站点配置族） |
 | POST | `/api/admin/storage-migrate-task` | pending #277 后续切片：storage（存储配置与迁移） |
 | POST | `/api/admin/test-mail-connection` | pending #277 后续切片：mail（邮件配置） |
 | POST | `/api/admin/test-storage-connection` | pending #277 后续切片：storage（存储配置与迁移） |
