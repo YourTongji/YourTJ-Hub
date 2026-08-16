@@ -33,7 +33,7 @@ func insertSourcePathPage(t *testing.T, conn *gorm.DB, id uint64, path, sourcePa
 func scanSourcePath(t *testing.T, conn *gorm.DB, id uint64) string {
 	t.Helper()
 	var got string
-	if err := conn.Model(&wikiPages.Entity{}).Select("source_path").Where("id = ?", id).Scan(&got).Error; err != nil {
+	if err := conn.Unscoped().Model(&wikiPages.Entity{}).Select("source_path").Where("id = ?", id).Scan(&got).Error; err != nil {
 		t.Fatalf("scan source_path for id %d: %v", id, err)
 	}
 	return got
@@ -56,6 +56,24 @@ func TestBackfillWikiPageSourcePathsBackfillsEmptyRows(t *testing.T) {
 	}
 }
 
+func TestBackfillWikiPageSourcePathsIncludesSoftDeletedRows(t *testing.T) {
+	conn := openSourcePathBackfillDB(t)
+	insertSourcePathPage(t, conn, 1, "guide/archived", "")
+	if err := conn.Where("id = ?", 1).Delete(&wikiPages.Entity{}).Error; err != nil {
+		t.Fatalf("soft delete page: %v", err)
+	}
+
+	result := BackfillWikiPageSourcePathsWithDB(conn)
+	if result.Failed != 0 {
+		t.Fatalf("BackfillWikiPageSourcePathsWithDB() failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if result.Backfilled != 1 {
+		t.Fatalf("backfilled = %d, want 1", result.Backfilled)
+	}
+	if got := scanSourcePath(t, conn, 1); got != "guide/archived" {
+		t.Fatalf("source_path = %q, want guide/archived", got)
+	}
+}
 func TestBackfillWikiPageSourcePathsIdempotentSecondRun(t *testing.T) {
 	conn := openSourcePathBackfillDB(t)
 	insertSourcePathPage(t, conn, 1, "guide/start", "")

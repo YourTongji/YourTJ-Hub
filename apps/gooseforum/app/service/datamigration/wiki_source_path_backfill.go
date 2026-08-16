@@ -34,7 +34,7 @@ func BackfillWikiPageSourcePathsWithDB(conn *gorm.DB) WikiSourcePathBackfillResu
 	}
 
 	var entities []wikiPages.Entity
-	if err := conn.Model(&wikiPages.Entity{}).Find(&entities).Error; err != nil {
+	if err := conn.Unscoped().Model(&wikiPages.Entity{}).Find(&entities).Error; err != nil {
 		result.Failed++
 		result.LastFailed = "scan:" + err.Error()
 		slog.Error("wiki source_path backfill: scan pages failed", "err", err)
@@ -51,7 +51,7 @@ func BackfillWikiPageSourcePathsWithDB(conn *gorm.DB) WikiSourcePathBackfillResu
 			result.LastFailed = "empty path for page " + strconv.FormatUint(p.Id, 10)
 			continue
 		}
-		if err := conn.Model(&wikiPages.Entity{}).
+		if err := conn.Unscoped().Model(&wikiPages.Entity{}).
 			Where("id = ?", p.Id).
 			Update("source_path", p.Path).Error; err != nil {
 			result.Failed++
