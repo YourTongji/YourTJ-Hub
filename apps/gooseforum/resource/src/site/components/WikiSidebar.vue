@@ -3,17 +3,19 @@ import { computed, ref } from 'vue'
 import { ChevronDown, ChevronRight } from '@lucide/vue'
 import { useI18n } from 'vue-i18n'
 import type { WikiTreeNamespace } from '@gooseforum/client'
+import WikiSidebarNode from './WikiSidebarNode.vue'
 
 const props = defineProps<{
   tree: WikiTreeNamespace[]
 }>()
 
+// 移动端抽屉复用本组件时，点击导航项后由宿主关闭抽屉。
+const emit = defineEmits<{
+  navigate: []
+}>()
+
 const { t } = useI18n()
 const collapsed = ref<Set<string>>(new Set())
-const isHome = computed(() => {
-  if (typeof window === 'undefined') return false
-  return window.location.pathname === '/wiki' || window.location.pathname === '/wiki/'
-})
 
 const groups = computed(() => props.tree || [])
 
@@ -27,20 +29,11 @@ function toggleCollapse(name: string) {
   else next.add(name)
   collapsed.value = next
 }
+
 </script>
 
 <template>
   <nav class="py-3" aria-label="Wiki sidebar">
-    <div class="pb-2">
-      <a
-        href="/wiki"
-        class="flex h-8 items-center gap-2 rounded-md px-2 text-[13px] font-semibold transition-colors duration-150"
-        :class="isHome ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-      >
-        {{ t('wiki.home') }}
-      </a>
-    </div>
-
     <div v-if="!groups.length" class="px-2 py-3 text-xs text-base-content/55">
       {{ t('wiki.sidebarEmpty') }}
     </div>
@@ -61,15 +54,13 @@ function toggleCollapse(name: string) {
         <span class="truncate">{{ group.label }}</span>
       </button>
       <div v-if="!isCollapsed(group.name)" class="space-y-px">
-        <a
-          v-for="page in group.pages"
-          :key="page.pageId"
-          :href="`/wiki/${page.path}`"
-          class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
-          :class="page.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-        >
-          <span class="truncate">{{ page.title }}</span>
-        </a>
+        <WikiSidebarNode
+          v-for="node in group.nodes"
+          :key="`${node.kind}:${node.path}`"
+          :node="node"
+          :depth="0"
+          @navigate="emit('navigate')"
+        />
       </div>
     </div>
   </nav>

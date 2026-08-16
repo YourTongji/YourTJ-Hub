@@ -3002,37 +3002,50 @@ ResetPasswordResponse:
   oneOf:
     - $ref: '#/ResetPasswordSuccess'
     - $ref: '#/ApiFailure'
-WikiTreePage:
+WikiTreeNode:
   type: object
-  required: [pageId, path, title, active]
+  required: [kind, pageId, path, title, active, children]
   properties:
+    kind:
+      type: string
+      enum: [page, directory]
+      description: page is a Markdown file; directory is a non-clickable repository directory container.
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
-      description: Canonical page path within the namespace (slash-separated).
+      description: Stable repository-relative page or directory path within the namespace (slash-separated).
     title:
       type: string
     active:
       type: boolean
-      description: True when the page has at least one approved revision; pages with only pending revisions are drafts.
+      description: True when this page is the active SSR route; always false for directory nodes.
+    children:
+      type: array
+      items:
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, slug, nodes]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name; may contain Unicode such as Chinese).
     label:
       type: string
       description: Display label of the namespace.
-    pages:
+    slug:
+      type: string
+      description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
+    nodes:
       type: array
       items:
-        $ref: '#/WikiTreePage'
+        $ref: '#/WikiTreeNode'
   additionalProperties: false
 
 WikiTreeResult:
@@ -3058,10 +3071,14 @@ WikiTreeResponse:
 
 WikiNamespaceSummary:
   type: object
-  required: [name, description, sortOrder, pageCount, updatedAt]
+  required: [name, slug, description, sortOrder, pageCount, updatedAt]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese).
+    slug:
+      type: string
+      description: URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned.
     description:
       type: string
     sortOrder:
@@ -3070,13 +3087,13 @@ WikiNamespaceSummary:
     pageCount:
       type: integer
       format: int64
-      description: Number of pages with at least one approved revision.
+      description: Number of public pages in this namespace (projected from the GitHub wiki repo).
     updatedAt:
       type: string
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages.
+      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -3098,7 +3115,8 @@ WikiNamespaceListResponse:
 
 WikiRecentPage:
   type: object
-  required: [pageId, path, title, updatedAt, editorId, editorName]
+  description: "Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead."
+  required: [pageId, path, title, updatedAt]
   properties:
     pageId:
       type: integer
@@ -3112,13 +3130,6 @@ WikiRecentPage:
     updatedAt:
       type: string
       format: date-time
-    editorId:
-      type: integer
-      format: uint64
-      minimum: 1
-    editorName:
-      type: string
-      description: Display name of the last approved-revision editor.
   additionalProperties: false
 
 WikiHomeResult:
@@ -3151,77 +3162,46 @@ WikiHomeResponse:
 
 
 
-WikiCreateNamespaceRequest:
+WikiAdminTreeNode:
   type: object
-  required: [name, description]
+  required: [kind, pageId, path, sourcePath, title, sortOrder, children]
   properties:
-    name:
+    kind:
       type: string
-      minLength: 1
-      maxLength: 64
-      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
-      description: Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars).
-    description:
-      type: string
-  additionalProperties: false
-
-WikiUpdateNamespaceRequest:
-  type: object
-  required: [description]
-  properties:
-    description:
-      type: string
-  additionalProperties: false
-
-WikiNamespaceActionResult:
-  type: object
-  required: [ok]
-  properties:
-    ok:
-      type: boolean
-      const: true
-  additionalProperties: false
-
-WikiNamespaceActionResponse:
-  oneOf:
-    - allOf:
-        - $ref: '#/ApiSuccess'
-        - type: object
-          required: [result]
-          properties:
-            result:
-              $ref: '#/WikiNamespaceActionResult'
-    - $ref: '#/ApiFailure'
-
-
-WikiAdminTreePage:
-  type: object
-  required: [pageId, path, title, sortOrder]
-  properties:
+      enum: [page, directory]
     pageId:
       type: integer
       format: uint64
-      minimum: 1
+      minimum: 0
+      description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
+      description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
+    sourcePath:
+      type: string
+      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
     title:
       type: string
     sortOrder:
       type: integer
+    children:
+      type: array
+      items:
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, nodes]
   properties:
     name:
       type: string
     label:
       type: string
-    pages:
+    nodes:
       type: array
       items:
-        $ref: '#/WikiAdminTreePage'
+        $ref: '#/WikiAdminTreeNode'
   additionalProperties: false
 
 WikiAdminTreeResult:
@@ -3269,7 +3249,7 @@ WikiSyncRunView:
       description: Git commit SHA of the synced head.
     trigger:
       type: string
-      enum: [manual, schedule, webhook]
+      enum: [manual, schedule, webhook, startup]
       description: What started the sync run.
     status:
       type: string
@@ -4622,7 +4602,6 @@ AdminTopicBase:
     updatedAt:
       type: string
       description: RFC 3339 timestamp.
-  additionalProperties: false
 
 AdminTopicListItem:
   allOf:
@@ -4651,6 +4630,7 @@ AdminTopicListItem:
           type: integer
           minimum: 0
           description: Pin weight; larger values sort first.
+  unevaluatedProperties: false
 
 AdminTopicsListResult:
   type: object
@@ -4710,6 +4690,7 @@ AdminTopicSource:
         content:
           type: string
           description: Raw markdown source of the topic's first post.
+  unevaluatedProperties: false
 
 AdminTopicSourceSuccess:
   allOf:
@@ -5243,6 +5224,12 @@ AdminBadge:
       type: boolean
     sortOrder:
       type: integer
+    isSystem:
+      type: boolean
+      description: System badges are seeded by the server; system badges cannot be deleted.
+    canDelete:
+      type: boolean
+      description: Whether the current caller may delete this badge (false for system badges).
   additionalProperties: false
 
 AdminUserBadge:
@@ -7277,6 +7264,109 @@ AdminCreateExportTaskRequest:
 AdminExportTaskListResponse:
   allOf:
     - $ref: '#/ApiSuccess'
+# ================= PK admin sync（issue #248 自愈入口；Issue #277 合并 dev 后补覆盖）=================
+
+PkSyncStatusItem:
+  type: object
+  required: [calendarId, calendarName, status, rowsWritten, totalPages, lastCommittedPage, errorMsg, startedAt, finishedAt]
+  properties:
+    calendarId:
+      type: integer
+      format: uint64
+      minimum: 1
+      description: 一系统日历 ID（学期标识），即 pk_calendar.calendar_id。
+    calendarName:
+      type: string
+      description: 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。
+    status:
+      type: string
+      enum: [running, completed, failed]
+      description: 最近一次同步状态；超过断点续跑窗口（1 小时）的 running 会被判定为 failed。
+    rowsWritten:
+      type: integer
+      minimum: 0
+      description: 最近一次同步写入的行数。
+    totalPages:
+      type: integer
+      minimum: 0
+      description: 最近一次同步的抓取总页数。
+    lastCommittedPage:
+      type: integer
+      minimum: 0
+      description: 最近一次同步已提交的页数（断点续跑游标）。
+    errorMsg:
+      type: string
+      description: 最近一次同步的失败说明；无错误时为空字符串。
+    startedAt:
+      type: [string, 'null']
+      format: date-time
+      description: 最近一次同步开始时间；从未同步时为 null。
+    finishedAt:
+      type: [string, 'null']
+      format: date-time
+      description: 最近一次同步结束时间；同步未结束或从未同步时为 null。
+  additionalProperties: false
+
+PkSyncStatusSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/PkSyncStatusItem'
+          description: 各学期同步状态汇总，按 calendarId 倒序（最近学期在前）。
+
+PkSyncStatusResponse:
+  oneOf:
+    - $ref: '#/PkSyncStatusSuccess'
+    - $ref: '#/ApiFailure'
+
+PkSyncCalendarRequest:
+  type: object
+  required: [term]
+  properties:
+    term:
+      type: string
+      minLength: 1
+      description: 一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；首次同步尚未写入 pk_calendar 时只能传数字 calendarId。缺失/空白/无法解析失败于请求校验（HTTP 200）。
+    depth:
+      type: integer
+      minimum: 1
+      description: 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。
+  additionalProperties: false
+
+PkSyncCalendarSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: object
+          required: [started, calendarId, term]
+          additionalProperties: false
+          properties:
+            started:
+              type: boolean
+              const: true
+              description: 同步已作为后台异步任务启动（分页抓取可能持续数十秒到分钟级）。
+            calendarId:
+              type: integer
+              format: uint64
+              minimum: 1
+              description: 已解析出的一系统日历 ID。
+            term:
+              type: string
+              description: 归一化后的学期参数。
+
+PkSyncCalendarResponse:
+  oneOf:
+    - $ref: '#/PkSyncCalendarSuccess'
+    - $ref: '#/ApiFailure'
+
     - type: object
       required: [result]
       properties:
@@ -7698,4 +7788,115 @@ ForumSearchSuccess:
 ForumSearchResponse:
   oneOf:
     - $ref: '#/ForumSearchSuccess'
+    - $ref: '#/ApiFailure'
+
+# ================= Wiki webhook secret & asset CDN (merged from dev) =================
+WikiWebhookSecretStatus:
+  type: object
+  required: [configured]
+  properties:
+    configured:
+      type: boolean
+      description: Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config).
+  additionalProperties: false
+
+
+WikiWebhookSecretStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretStatus'
+    - $ref: '#/ApiFailure'
+
+
+WikiWebhookSecretSaveRequest:
+  type: object
+  required: [secret]
+  properties:
+    secret:
+      type: string
+      maxLength: 1024
+      description: Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret.
+  additionalProperties: false
+
+
+WikiWebhookSecretSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+
+WikiWebhookSecretSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretSaveResult'
+    - $ref: '#/ApiFailure'
+
+
+WikiAssetCDNStatus:
+  type: object
+  required: [cdn]
+  properties:
+    cdn:
+      type: string
+      enum: [self, jsDelivr]
+      description: Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
+  additionalProperties: false
+
+
+WikiAssetCDNResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAssetCDNStatus'
+    - $ref: '#/ApiFailure'
+
+
+WikiAssetCDNSaveRequest:
+  type: object
+  required: [cdn]
+  properties:
+    cdn:
+      type: string
+      enum: [self, jsDelivr]
+      description: Wiki asset CDN mode to persist.
+  additionalProperties: false
+
+
+WikiAssetCDNSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+
+WikiAssetCDNSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiAssetCDNSaveResult'
     - $ref: '#/ApiFailure'

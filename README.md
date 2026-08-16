@@ -21,7 +21,8 @@
   <a href="https://forum.yourtj.de">线上站点</a> ·
   <a href="./docs/README.md">项目文档</a> ·
   <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=bug-report.yml">报告问题</a> ·
-  <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml">功能建议</a>
+  <a href="https://github.com/YourTongji/YourTJ-Hub/issues/new?template=feature-request.yml">功能建议</a> ·
+  <a href="./CONTRIBUTING.md">贡献指南</a>
 </p>
 
 ## 关于项目

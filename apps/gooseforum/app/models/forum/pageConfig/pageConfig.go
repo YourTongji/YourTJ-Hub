@@ -51,6 +51,7 @@ const (
 	MCPSettings         = `mcpSettings`
 	AiSummarySettings   = `aiSummarySettings`
 	OneSystemSettings   = `onesystemSettings`
+	WikiSyncSettings    = `wikiSyncSettings`
 	Version             = `version`
 	Migration           = `migration`
 )
@@ -347,6 +348,49 @@ type OneSystemSettingsStorage struct {
 // ToConfig 将落库形状转为领域结构（二者当前字段一致，仅为序列化语义隔离）。
 func (s OneSystemSettingsStorage) ToConfig() OneSystemSettingsConfig {
 	return OneSystemSettingsConfig{CookieEncrypted: s.CookieEncrypted}
+}
+
+// WikiAssetCDNSelf 资源由论坛自身提供（/wiki/_assets/ 路由，默认）。
+const WikiAssetCDNSelf = "self"
+
+// WikiAssetCDNJsDelivr 资源由 jsDelivr CDN 提供（gh 镜像 GitHub 仓库文件）。
+const WikiAssetCDNJsDelivr = "jsDelivr"
+
+// WikiAssetCDNDefault 默认资源 CDN（self：论坛二进制内置服务，无外部依赖）。
+const WikiAssetCDNDefault = WikiAssetCDNSelf
+
+// WikiSyncSettingsConfig wiki 同步设置（webhook 验签密钥 + 资源 CDN）：
+// 密钥只落库密文（securestore AES-256-GCM），明文仅在保存时短暂出现；
+// 读取时由同步服务在内存中解密，管理端 GET 仅回显是否已配置。
+// WebhookSecretEncrypted / WebhookSecretCleared 标 json:"-"：
+// 密文与清除标记绝不随 JSON 序列化导出，持久化走 WikiSyncSettingsStorage。
+type WikiSyncSettingsConfig struct {
+	WebhookSecretEncrypted string `json:"-"`
+	// WebhookSecretCleared 管理端显式清除过密钥：为 true 时即使 config.toml
+	// 存在旧明文 [wiki.git].webhook_secret 也保持禁用（fail-closed），
+	// 避免管理员误以为已禁用而旧密钥仍生效。
+	WebhookSecretCleared bool `json:"-"`
+	// AssetCDN wiki 资源（图片/附件）的对外提供方式：self（默认，走
+	// /wiki/_assets/）或 jsDelivr（gh 镜像）。渲染期由同步器据此生成资源 URL。
+	AssetCDN string `json:"-"`
+}
+
+// WikiSyncSettingsStorage wiki 同步设置的落库 JSON 形状：与对外
+// WikiSyncSettingsConfig 分离，密文只在持久化序列化时出现。
+type WikiSyncSettingsStorage struct {
+	WebhookSecretEncrypted string `json:"webhookSecretEncrypted"`
+	WebhookSecretCleared   bool   `json:"webhookSecretCleared"`
+	// AssetCDN 空串 = 默认 self（存量配置无此字段）。
+	AssetCDN string `json:"assetCDN,omitempty"`
+}
+
+// ToConfig 将落库形状转为领域结构（AssetCDN 空串归一为默认 self）。
+func (s WikiSyncSettingsStorage) ToConfig() WikiSyncSettingsConfig {
+	cfg := WikiSyncSettingsConfig(s)
+	if cfg.AssetCDN == "" {
+		cfg.AssetCDN = WikiAssetCDNDefault
+	}
+	return cfg
 }
 
 type HttpNotifyEndpoint struct {

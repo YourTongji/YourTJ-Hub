@@ -4,15 +4,14 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：260
-- /api JSON 路由：204，已入契约：202（99%），已知未覆盖：0
+- 快照路由总数：263
+- /api JSON 路由：207，已入契约：205（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（202）
+## 已覆盖（205）
 
 | Method | Path | operationId |
 | --- | --- | --- |
-| DELETE | `/api/admin/wiki/namespaces/:name` | `deleteWikiNamespace` |
 | DELETE | `/api/forum/course-reviews/:reviewId` | `deleteCourseReview` |
 | DELETE | `/api/forum/course-reviews/:reviewId/helpful` | `unmarkReviewHelpful` |
 | GET | `/api/admin/ai-summary-settings` | `adminGetAiSummarySettings` |
@@ -26,6 +25,7 @@
 | GET | `/api/admin/mail-settings` | `adminGetMailSettings` |
 | GET | `/api/admin/mcp-settings` | `adminGetMcpSettings` |
 | GET | `/api/admin/onesystem-settings` | `adminGetOnesystemSettings` |
+| GET | `/api/admin/pk/sync-status` | `adminGetPkSyncStatus` |
 | GET | `/api/admin/posting-settings` | `adminGetPostingSettings` |
 | GET | `/api/admin/privacy-policy` | `adminGetPrivacyPolicy` |
 | GET | `/api/admin/rate-limit-settings` | `adminGetRateLimitSettings` |
@@ -38,8 +38,10 @@
 | GET | `/api/admin/storage-migrate-tasks` | `adminListStorageMigrateTasks` |
 | GET | `/api/admin/storage-settings` | `adminGetStorageSettings` |
 | GET | `/api/admin/terms-of-service` | `adminGetTermsOfService` |
+| GET | `/api/admin/wiki/sync/cdn` | `getWikiAssetCDN` |
 | GET | `/api/admin/wiki/sync/runs` | `listWikiSyncRuns` |
 | GET | `/api/admin/wiki/sync/status` | `getWikiSyncStatus` |
+| GET | `/api/admin/wiki/sync/webhook-secret` | `getWikiWebhookSecret` |
 | GET | `/api/admin/wiki/tree` | `getAdminWikiTree` |
 | GET | `/api/forum/courses` | `listCourses` |
 | GET | `/api/forum/courses/:courseId` | `getCourse` |
@@ -94,6 +96,7 @@
 | POST | `/api/admin/global-moderator-list` | `adminGlobalModeratorList` |
 | POST | `/api/admin/img-upload` | `adminUploadImage` |
 | POST | `/api/admin/opt-record-page` | `adminOptRecordPage` |
+| POST | `/api/admin/pk/sync-calendar` | `adminSyncPkCalendar` |
 | POST | `/api/admin/posts/delete` | `adminDeletePost` |
 | POST | `/api/admin/publish-site-theme` | `adminPublishSiteTheme` |
 | POST | `/api/admin/review-action` | `adminReviewAction` |
@@ -133,8 +136,9 @@
 | POST | `/api/admin/user-badge-options` | `adminUserBadgeOptions` |
 | POST | `/api/admin/user-edit` | `adminEditUser` |
 | POST | `/api/admin/user-list` | `adminUserList` |
-| POST | `/api/admin/wiki/namespaces` | `createWikiNamespace` |
 | POST | `/api/admin/wiki/sync` | `runWikiSync` |
+| POST | `/api/admin/wiki/sync/cdn` | `saveWikiAssetCDN` |
+| POST | `/api/admin/wiki/sync/webhook-secret` | `saveWikiWebhookSecret` |
 | POST | `/api/auth/:provider/unbind` | `unbindOAuth` |
 | POST | `/api/auth/oidc/exchange` | `exchangeMobileOidcCode` |
 | POST | `/api/auth/totp/verify` | `verifyTotpLogin` |
@@ -212,7 +216,6 @@
 | POST | `/api/v1/agent/topics/:topicId/posts` | `agentCreatePost` |
 | POST | `/api/wear-badge` | `wearBadge` |
 | POST | `/api/wiki/webhook` | `wikiWebhook` |
-| PUT | `/api/admin/wiki/namespaces/:name` | `updateWikiNamespace` |
 | PUT | `/api/forum/course-reviews/:reviewId/helpful` | `markReviewHelpful` |
 
 ## 已知未覆盖（0）

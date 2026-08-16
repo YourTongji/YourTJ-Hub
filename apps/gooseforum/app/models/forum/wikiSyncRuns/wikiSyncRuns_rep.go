@@ -29,15 +29,35 @@ func MarkFinishedTx(tx *gorm.DB, id uint64, status int8, headSha string, added, 
 	return tx.Table(tableName).Where("id = ?", id).Updates(updates).Error
 }
 
-// Latest 返回最近一次同步运行（同步面板状态展示）。
-func Latest() (entity Entity) {
-	builder().Order(queryopt.Desc("id")).First(&entity)
+// GetById 返回指定 id 的同步运行。
+func GetById(id uint64) (entity Entity) {
+	builder().Where("id = ?", id).First(&entity)
 	return
 }
 
+// Latest 返回最近一次同步运行（同步面板状态展示）。
+// 显式返回查询错误：状态面板必须区分 DB 故障与从未同步过（issue #287）。
+func Latest() (entity Entity, err error) {
+	err = builder().Order(queryopt.Desc("id")).First(&entity).Error
+	return
+}
+
+// MarkAllRunningAbandoned 把全部 status=running 的运行标记为 failed（issue #290
+// 崩溃恢复）：进程重启/被杀后旧 run 不可能继续执行，统一回收避免 UI 因
+// lastRun.status=running 永久禁用手动同步。返回受影响行数。
+func MarkAllRunningAbandoned(errMsg string) (int64, error) {
+	res := builder().Where("status = ?", StatusRunning).Updates(map[string]any{
+		"status":      StatusFailed,
+		"error":       errMsg,
+		"finished_at": gorm.Expr("CURRENT_TIMESTAMP"),
+	})
+	return res.RowsAffected, res.Error
+}
+
 // ListRecent 返回最近 N 次同步运行（倒序）。
-func ListRecent(limit int) (entities []Entity) {
-	builder().Order(queryopt.Desc("id")).Limit(limit).Find(&entities)
+// 显式返回查询错误：状态面板/运行日志必须区分 DB 故障与空列表（issue #287）。
+func ListRecent(limit int) (entities []Entity, err error) {
+	err = builder().Order(queryopt.Desc("id")).Limit(limit).Find(&entities).Error
 	return
 }
 

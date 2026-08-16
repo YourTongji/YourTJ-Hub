@@ -273,5 +273,40 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(21)
 		currentVersion = 21
 	}
+	if currentVersion < 22 {
+		// 命名空间 slug 列 v22：为存量 wiki_namespaces 行回填 slug。
+		// name 为纯 ASCII slug 形态（如 guide/deployment）直接用 name 回填；
+		// 中文等非 ASCII 名称保持 NULL（由 GitHub 同步在 index.md frontmatter
+		// 提供 slug 时填充）。幂等：slug 已非空的行走过。
+		slugResult := datamigration.BackfillWikiNamespaceSlugs()
+		slog.Info("app migration wiki namespace slug backfill done",
+			"backfilled", slugResult.Backfilled,
+			"skipped", slugResult.Skipped,
+			"failed", slugResult.Failed,
+			"lastFailed", slugResult.LastFailed)
+		if slugResult.Failed > 0 {
+			slog.Error("app migration wiki namespace slug backfill has failures", "failed", slugResult.Failed, "lastFailed", slugResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(22)
+		currentVersion = 22
+	}
+	if currentVersion < 23 {
+		// 页面仓库路径列 v23（review MEDIUM）：为存量 wiki_pages 行回填
+		// source_path（= path 首段即仓库目录名的存量语义）。D7 下外链必须用
+		// source_path，存量行为空会导致 SSR 编辑/历史链接畸形（管理端有回退、
+		// SSR 已补回退，但回填仍是根治）。幂等：source_path 非空的行跳过。
+		sourcePathResult := datamigration.BackfillWikiPageSourcePaths()
+		slog.Info("app migration wiki page source_path backfill done",
+			"backfilled", sourcePathResult.Backfilled,
+			"failed", sourcePathResult.Failed,
+			"lastFailed", sourcePathResult.LastFailed)
+		if sourcePathResult.Failed > 0 {
+			slog.Error("app migration wiki page source_path backfill has failures", "failed", sourcePathResult.Failed, "lastFailed", sourcePathResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(23)
+		currentVersion = 23
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

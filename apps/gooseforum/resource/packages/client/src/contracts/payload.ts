@@ -263,17 +263,22 @@ export interface SidebarPayload {
   wikiTree?: WikiTreeNamespace[]
 }
 
-export interface WikiTreePage {
+export interface WikiTreeNode {
+  /** A Markdown page or a non-clickable repository directory. */
+  kind: 'page' | 'directory'
   pageId: number
   path: string
   title: string
   active: boolean
+  children: WikiTreeNode[]
 }
 
 export interface WikiTreeNamespace {
   name: string
   label: string
-  pages: WikiTreePage[]
+  /** 有效 URL key（slug，未分配时降级=显示名）；拼 /wiki/{slug}/{page.path} 用。 */
+  slug: string
+  nodes: WikiTreeNode[]
 }
 
 export interface FooterPayload {
@@ -1028,6 +1033,8 @@ export interface WikiNamespacePayload {
   description: string
   pageCount: number
   updatedAt: string
+  /** 有效 URL key（slug，未分配时降级=显示名）。 */
+  slug: string
   /** 首个 approved 页面的完整路径（namespace/slug），供首页 namespace 卡跳转。 */
   firstPagePath?: string
 }
@@ -1037,8 +1044,6 @@ export interface WikiRecentPagePayload {
   path: string
   title: string
   updatedAt: string
-  editorId: number
-  editorName: string
 }
 
 export interface WikiHomeProps {
@@ -1072,8 +1077,6 @@ export interface WikiPageDetailPayload {
   content: string
   toc: WikiTocItem[]
   updatedAt: string
-  editorId: number
-  editorName: string
   likeCount: number
   viewCount: number
   postCount: number

@@ -92,6 +92,12 @@ getWikiSyncStatus:
             examples:
               forbidden:
                 externalValue: ../fixtures/wiki-namespace-forbidden.json
+      '500':
+        description: Wiki sync status query failed (page/namespace counts or run history).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 
 runWikiSync:
   post:
@@ -104,13 +110,14 @@ runWikiSync:
     responses:
       '200':
         description: |
-          The sync run was accepted and executes asynchronously (git clone/fetch +
+          The sync run is accepted and executes asynchronously (git clone/fetch +
           full projection can exceed the HTTP write timeout). Consumers poll
           `sync/status` and `sync/runs` for progress; a run row starts with
-          `status=running` and terminates with `success` or `failed`. Business
-          failures are returned as legacy HTTP 200 envelopes: a sync already in
-          progress (`wiki.sync.running`, merged into a pending rerun) and an
-          unconfigured repository (`wiki.sync.failed`).
+          `status=running` and terminates with `success` or `failed`. Requests
+          made while a sync is already in progress are also accepted and merged
+          into a pending rerun after the current run completes. The only business
+          failure is an unconfigured repository, returned as a legacy HTTP 200
+          envelope (`wiki.sync.failed`).
         content:
           application/json:
             schema:
@@ -157,6 +164,206 @@ listWikiSyncRuns:
             examples:
               success:
                 externalValue: ../fixtures/wiki-sync-runs-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+      '500':
+        description: Wiki sync runs query failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+
+getWikiWebhookSecret:
+  get:
+    tags: [Wiki Admin]
+    summary: Wiki webhook secret configuration status (PageManager or Admin only)
+    operationId: getWikiWebhookSecret
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          Whether a webhook secret is configured. The secret itself is stored
+          encrypted (securestore) and is never returned; only the boolean flag
+          is exposed. A legacy plaintext secret in config.toml
+          `[wiki.git].webhook_secret` also counts as configured.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookSecretStatusResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-webhook-secret-status-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+saveWikiWebhookSecret:
+  post:
+    tags: [Wiki Admin]
+    summary: Save or clear the wiki webhook secret (PageManager or Admin only)
+    operationId: saveWikiWebhookSecret
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/WikiWebhookSecretSaveRequest
+    responses:
+      '200':
+        description: |
+          Secret saved (encrypted at rest via securestore) or cleared when the
+          payload secret is empty. Business failures are returned as legacy
+          HTTP 200 envelopes (`common.request.invalidParams` for oversized
+          secrets).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiWebhookSecretSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-webhook-secret-save-success.json
+      '400':
+        description: Malformed JSON request body (strict binding failure).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/wiki-parse-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+getWikiAssetCDN:
+  get:
+    tags: [Wiki Admin]
+    summary: Get the wiki asset CDN mode (PageManager or Admin only)
+    operationId: getWikiAssetCDN
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: |
+          The configured wiki asset CDN mode: `self` (default; assets served by
+          the forum binary through /wiki/_assets/) or `jsDelivr` (assets served
+          through the jsDelivr gh mirror of the configured repository). Legacy
+          configs without the field report `self`.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiAssetCDNResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-asset-cdn-status-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/wiki-unauthenticated.json
+      '403':
+        description: The account is not a PageManager or Admin (or it is frozen).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              forbidden:
+                externalValue: ../fixtures/wiki-namespace-forbidden.json
+
+saveWikiAssetCDN:
+  post:
+    tags: [Wiki Admin]
+    summary: Save the wiki asset CDN mode (PageManager or Admin only)
+    operationId: saveWikiAssetCDN
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/WikiAssetCDNSaveRequest
+    responses:
+      '200':
+        description: |
+          Asset CDN mode saved. The next sync (webhook / manual / scheduled)
+          rewrites rendered asset URLs according to the new mode. Business
+          failures are returned as legacy HTTP 200 envelopes
+          (`common.request.invalidParams` for an unknown mode).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/WikiAssetCDNSaveResponse
+            examples:
+              success:
+                externalValue: ../fixtures/wiki-asset-cdn-save-success.json
+      '400':
+        description: Malformed JSON request body (strict binding failure).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/wiki-parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:

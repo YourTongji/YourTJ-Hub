@@ -5,10 +5,6 @@
   },
   {
     "method": "DELETE",
-    "path": "/api/admin/wiki/namespaces/:name"
-  },
-  {
-    "method": "DELETE",
     "path": "/api/forum/course-reviews/:reviewId"
   },
   {
@@ -81,6 +77,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/pk/sync-status"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/posting-settings"
   },
   {
@@ -129,11 +129,19 @@
   },
   {
     "method": "GET",
+    "path": "/api/admin/wiki/sync/cdn"
+  },
+  {
+    "method": "GET",
     "path": "/api/admin/wiki/sync/runs"
   },
   {
     "method": "GET",
     "path": "/api/admin/wiki/sync/status"
+  },
+  {
+    "method": "GET",
+    "path": "/api/admin/wiki/sync/webhook-secret"
   },
   {
     "method": "GET",
@@ -545,6 +553,10 @@
   },
   {
     "method": "POST",
+    "path": "/api/admin/pk/sync-calendar"
+  },
+  {
+    "method": "POST",
     "path": "/api/admin/posts/delete"
   },
   {
@@ -701,11 +713,15 @@
   },
   {
     "method": "POST",
-    "path": "/api/admin/wiki/namespaces"
+    "path": "/api/admin/wiki/sync"
   },
   {
     "method": "POST",
-    "path": "/api/admin/wiki/sync"
+    "path": "/api/admin/wiki/sync/cdn"
+  },
+  {
+    "method": "POST",
+    "path": "/api/admin/wiki/sync/webhook-secret"
   },
   {
     "method": "POST",
@@ -1022,10 +1038,6 @@
   {
     "method": "POST",
     "path": "/mcp"
-  },
-  {
-    "method": "PUT",
-    "path": "/api/admin/wiki/namespaces/:name"
   },
   {
     "method": "PUT",

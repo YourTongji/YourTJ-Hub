@@ -13,9 +13,8 @@
 The contract capability is **Partial** (all JSON routes are described; generated Dart and a few
 protocol surfaces remain open). The controlled OpenAPI 3.1 entry point is
 `packages/api-contract/openapi.yaml`. Every `/api` JSON route is covered by an OpenAPI operation —
-the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list
-(204 `/api` routes: 202 covered, 2 goth browser redirects excluded; CI rejects any route that is
-neither contracted nor listed). By domain:
+the generated `packages/api-contract/coverage-matrix.md` is the authoritative route-by-route list,
+and CI rejects any route that is neither contracted nor listed. By domain:
 
 - auth and account: password login, login public key, TOTP (verify + management), logout,
   registration/password recovery, mobile OIDC exchange, session management, captcha, user-card,
@@ -28,10 +27,19 @@ neither contracted nor listed). By domain:
 - admin console (`/api/admin/*`): user/role/category/moderator management, topic/post moderation,
   agent administration, operation records, traffic overview, page settings, site settings, and
   data import/export;
-- Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, the PK scheduler,
-  and the Wiki domain (GitHub SSoT: public tree/namespaces/home, admin namespace/sync endpoints,
-  webhook; the retired in-forum write/revision/rollback/diff/editor endpoints must not reappear —
-  the coverage gate flags any route that is not contracted or listed).
+- Agent public API (`/api/v1/agent/*`), course catalog + reviews + moderation, and the PK
+  scheduler;
+- Wiki 域（`paths/wiki.yaml` + `paths/wiki-sync.yaml`，GitHub 唯一真实源模型）：公开读
+  `GET /api/wiki/{tree,namespaces,home}`；管理端 `/api/admin/wiki/*`（PageManager：只读树 +
+  `sync/status` / `sync` / `sync/runs` / `sync/webhook-secret` 读写 + asset CDN 设置）与公开
+  `POST /api/wiki/webhook`（GitHub push 事件，HMAC-SHA256 验签）。写即发布/CAS/版本历史/回滚/
+  diff/编辑者/命名空间 CRUD 等站内写端点均已**退役**（编辑/审核/历史/贡献者走 GitHub PR，
+  命名空间由仓库顶层目录同步驱动），不得重新加入契约——覆盖门禁会拦下任何未申报的路由变化。
+  公开读与 `/api/admin/wiki/{tree,sync/status,sync/runs}` 在数据库查询失败时返回
+  **HTTP 500 + `wiki.readFailed`**（契约已声明 500 响应），与真实空 wiki（200 + 空结果）
+  严格区分（issue #287）；GitHub SSOT 下站内无「编辑者」概念，`wiki.home` 的 `recent[]` 与
+  详情负载的 `editorId`/`editorName` 字段已移除，Git 作者信息由详情页 `contributors[]`
+  提供（issue #291）。
 
 The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
 suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and

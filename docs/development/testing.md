@@ -15,6 +15,9 @@
 - A local subset is not CI passing; report the commands actually run and their results.
 - Upstream already has solid Go unit tests (controller layer, i18n rendering, SEO meta); keep them and
   add tests when modifying.
+- Bug fixes start red: write the smallest failing test that reproduces the bug, run it to confirm the
+  failure, then implement the fix and turn it green. Mechanical changes (rename, formatting, dependency
+  bump, docs-only) are exempt; the failing test stays as a regression test.
 
 ## Commands
 

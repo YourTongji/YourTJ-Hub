@@ -126,21 +126,25 @@ func QueryById(startId uint64, limit int) (entities []*Entity) {
 	return
 }
 
-func GetMapByIds(ids []uint64) map[uint64]Entity {
+// GetMapByIds 返回 id 集合对应的主题 map。
+// 显式返回查询错误：wiki 读路径（filterPublicPages）必须区分 DB 故障与空结果，
+// 不能把 topics 查询失败伪装成空 wiki（issue #287）。
+func GetMapByIds(ids []uint64) (map[uint64]Entity, error) {
 	var list []Entity
 	if len(ids) == 0 {
-		return map[uint64]Entity{}
+		return map[uint64]Entity{}, nil
 	}
-	builder().Where("id in ?", ids).Find(&list)
+	err := builder().Where("id in ?", ids).Find(&list).Error
 	result := make(map[uint64]Entity, len(list))
 	for _, item := range list {
 		result[item.Id] = item
 	}
-	return result
+	return result, err
 }
 
 func GetPointerMapByIds(ids []uint64) map[uint64]*Entity {
-	valueMap := GetMapByIds(ids)
+	// 展示层 hydration 保持 best-effort 语义：查询失败返回空 map（与历史行为一致）。
+	valueMap, _ := GetMapByIds(ids)
 	result := make(map[uint64]*Entity, len(valueMap))
 	for id, item := range valueMap {
 		entity := item

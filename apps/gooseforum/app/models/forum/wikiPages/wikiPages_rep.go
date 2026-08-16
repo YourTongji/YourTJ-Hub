@@ -26,24 +26,16 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
-func ListByNamespace(namespace string) []*Entity {
+// ListAll 返回全部页面（按 namespace/sort_order/id 升序）。
+// 显式返回查询错误：公开读必须区分 DB 故障与真实空数据，不能吞错（issue #287）。
+func ListAll() ([]*Entity, error) {
 	var entities []*Entity
-	builder().
-		Where(queryopt.Eq("namespace", namespace)).
-		Order(queryopt.Asc("sort_order")).
-		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
-}
-
-func ListAll() []*Entity {
-	var entities []*Entity
-	builder().
+	err := builder().
 		Order(queryopt.Asc("namespace")).
 		Order(queryopt.Asc("sort_order")).
 		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
+		Find(&entities).Error
+	return entities, err
 }
 
 // ListByIDs 按 id 集合批量返回页面（审核队列取 path 用，避免 ListAll 全表扫，
@@ -99,6 +91,14 @@ func CountChildren(parentID uint64) int64 {
 // 复用原 topic/评论/点赞/订阅，而不是新建空页面。
 func GetByPathUnscoped(path string) (entity Entity) {
 	builder().Unscoped().Where(queryopt.Eq("path", path)).First(&entity)
+	return
+}
+
+// GetBySourcePathUnscoped 按仓库真实路径取页面（含软删行）：命名空间删除后
+// 重建且 URL key 变化时，旧软删页面 path 首段已是旧 key，无法按 path 匹配，
+// 需按 source_path（仓库路径稳定）找回复用（review L5）。
+func GetBySourcePathUnscoped(sourcePath string) (entity Entity) {
+	builder().Unscoped().Where(queryopt.Eq("source_path", sourcePath)).First(&entity)
 	return
 }
 
