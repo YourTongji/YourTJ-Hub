@@ -464,13 +464,25 @@ type gitContributor struct {
 	Count    int    `json:"count"`
 }
 
+// gitLogPath 把页面 source_path（仓库相对路径，去 .md 后缀）规范化为 git pathspec
+// 可精确匹配的仓库文件路径（补 .md）：git log pathspec 是精确匹配，
+// `git log -- guide/start` 匹配不到仓库中的 guide/start.md。
+func gitLogPath(sourcePath string) string {
+	if strings.HasSuffix(sourcePath, ".md") {
+		return sourcePath
+	}
+	return sourcePath + ".md"
+}
+
 // buildContributorsSnapshot 从 git log 统计某文件贡献者（同步时写入页面缓存）。
 // 公开仓库无鉴权；失败返回空快照（不阻断同步）。
 // 聚合键优先级：username（GitHub noreply 可解析，合并新旧邮箱格式同人）→
 // email（自定义邮箱）→ name（匿名提交兜底）。email 仅内存聚合键，不序列化。
 // 展示名取该聚合键最近一次提交的 name。
 func buildContributorsSnapshot(cloneDir, relPath string) string {
-	out, err := runGit(cloneDir, "log", "--pretty=format:%an%x1f%ae", "--", relPath)
+	// --follow：贡献者统计跨 Git 重命名历史（issue #288 收养的页面在新路径下
+	// 仍能归因旧路径提交；无 --follow 时 git log -- new.md 只返回重命名后的提交）。
+	out, err := runGit(cloneDir, "log", "--follow", "--pretty=format:%an%x1f%ae", "--", gitLogPath(relPath))
 	if err != nil || strings.TrimSpace(out) == "" {
 		return ""
 	}
@@ -1562,7 +1574,7 @@ func updateGitTrace(cfg GitConfig, pageID uint64, relPath string) {
 	contributors := buildContributorsSnapshot(cfg.CloneDir, relPath)
 	commitSha := ""
 	var commitAt time.Time
-	if out, err := runGit(cfg.CloneDir, "log", "-1", "--format=%H%n%cI", "--", relPath); err == nil {
+	if out, err := runGit(cfg.CloneDir, "log", "--follow", "-1", "--format=%H%n%cI", "--", gitLogPath(relPath)); err == nil {
 		lines := strings.SplitN(strings.TrimSpace(out), "\n", 2)
 		if len(lines) > 0 {
 			commitSha = strings.TrimSpace(lines[0])
