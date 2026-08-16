@@ -64,5 +64,6 @@ description: Use when asked to find non-obvious simplification candidates in the
 ## Output
 
 - 每个候选给出：位置、证据（调用点/消费者 grep）、建议动作（删/折叠/降级/换依赖）、影响面（契约/迁移/文档）。
-- 按强弱排序；强候选写 Agent Note（Synergy 原生 note）或代码内 TODO/XXX 标记，弱候选列表给用户。
+- 按强弱排序，全部在响应中返回给用户；审计默认只读，不写任何持久状态。
+- 仅当用户明确授权时，才把强候选写入 Agent Note（Synergy 原生 note）或代码内 TODO/XXX 标记。
 - 不实现：发现与建议到此为止，实施交给 `$yourtj-development`。
