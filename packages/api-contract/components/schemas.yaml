@@ -5789,3 +5789,244 @@ AdminModeratorListResponse:
           items:
             $ref: '#/AdminCategoryModeratorItem'
           description: All enabled global moderators, moderator row id ascending (empty array when none exist).
+
+# ================= Admin page settings: friend links, sponsors, announcement（Issue #277 P3 切片四）=================
+
+AdminFriendLinkItem:
+  type: object
+  required: [name, desc, url, logoUrl, status]
+  properties:
+    name:
+      type: string
+    desc:
+      type: string
+    url:
+      type: string
+    logoUrl:
+      type: string
+    status:
+      type: integer
+      description: Display status flag (1 = shown).
+  additionalProperties: false
+
+AdminFriendLinksGroup:
+  type: object
+  required: [links]
+  properties:
+    name:
+      type: string
+      description: Omitted when empty (`omitempty`).
+    emoji:
+      type: string
+      description: Omitted when empty (`omitempty`).
+    color:
+      type: string
+      description: Omitted when empty (`omitempty`).
+    links:
+      type: array
+      items:
+        $ref: '#/AdminFriendLinkItem'
+      description: Never null in responses — null groups are normalized to an empty array.
+  additionalProperties: false
+
+AdminFriendLinksResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          type: array
+          items:
+            $ref: '#/AdminFriendLinksGroup'
+          description: Stored friend-link groups, or the built-in default when nothing has been saved.
+
+AdminSaveFriendLinksRequest:
+  type: object
+  properties:
+    linksInfo:
+      type: array
+      items:
+        $ref: '#/AdminFriendLinksGroup'
+      description: Replacement group list. No validation — a missing/null value is saved as null.
+  additionalProperties: false
+
+AdminSponsorItem:
+  type: object
+  required: [link, message, avatarUrl, name]
+  properties:
+    link:
+      type: string
+    message:
+      type: string
+    avatarUrl:
+      type: string
+    name:
+      type: string
+  additionalProperties: false
+
+AdminSponsorsTiers:
+  type: object
+  required: [level0, level1, level2, level3]
+  properties:
+    level0:
+      type: array
+      items:
+        $ref: '#/AdminSponsorItem'
+      description: Never null in responses — normalized to an empty array.
+    level1:
+      type: array
+      items:
+        $ref: '#/AdminSponsorItem'
+      description: Never null in responses — normalized to an empty array.
+    level2:
+      type: array
+      items:
+        $ref: '#/AdminSponsorItem'
+      description: Never null in responses — normalized to an empty array.
+    level3:
+      type: array
+      items:
+        $ref: '#/AdminSponsorItem'
+      description: Never null in responses — normalized to an empty array.
+  additionalProperties: false
+
+AdminSponsorsPageIntro:
+  type: object
+  required: [title, description]
+  properties:
+    title:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+    description:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+  additionalProperties: false
+
+AdminSponsorsContact:
+  type: object
+  required: [title, description, buttonText, buttonLink]
+  properties:
+    title:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+    description:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+    buttonText:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+    buttonLink:
+      type: string
+      description: Blank values are filled from the built-in default on read and on save.
+  additionalProperties: false
+
+AdminSponsorsRule:
+  type: object
+  required: [content]
+  properties:
+    content:
+      type: string
+  additionalProperties: false
+
+AdminSponsorsConfig:
+  type: object
+  required: [sponsors, content, contact, rules]
+  properties:
+    sponsors:
+      $ref: '#/AdminSponsorsTiers'
+    content:
+      $ref: '#/AdminSponsorsPageIntro'
+    contact:
+      $ref: '#/AdminSponsorsContact'
+    rules:
+      type: array
+      items:
+        $ref: '#/AdminSponsorsRule'
+  additionalProperties: false
+
+AdminSponsorsResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminSponsorsConfig'
+
+AdminSaveSponsorsRequest:
+  type: object
+  properties:
+    sponsorsInfo:
+      $ref: '#/AdminSponsorsConfig'
+  additionalProperties: false
+
+AdminAnnouncementItem:
+  type: object
+  required: [id, title, content, enabled]
+  properties:
+    id:
+      type: string
+      description: Stable identifier used as the frontend carousel key.
+    title:
+      type: string
+    content:
+      type: string
+      description: Markdown body.
+    enabled:
+      type: boolean
+  additionalProperties: false
+
+AdminAnnouncementConfig:
+  type: object
+  required: [enabled, content]
+  properties:
+    enabled:
+      type: boolean
+    content:
+      type: string
+      description: Single-announcement Markdown body; ignored on the public site when `items` is non-empty.
+    publishedAt:
+      type: string
+      description: RFC 3339 timestamp; omitted when empty. The server overwrites it with the current time on every save.
+    items:
+      type: array
+      items:
+        $ref: '#/AdminAnnouncementItem'
+      description: Multi-announcement list; omitted when empty, and takes precedence over `content` when non-empty.
+  additionalProperties: false
+
+AdminAnnouncementResponse:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result]
+      properties:
+        result:
+          $ref: '#/AdminAnnouncementConfig'
+
+AdminSaveAnnouncementRequest:
+  type: object
+  properties:
+    settings:
+      $ref: '#/AdminAnnouncementConfig'
+  additionalProperties: false
+  description: The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing settings object binds to a zero-value configuration and is saved.
+
+AdminPageConfigSaveSuccess:
+  allOf:
+    - $ref: '#/ApiSuccess'
+    - type: object
+      required: [result, messageCode]
+      properties:
+        result:
+          type: string
+          const: success
+        messageCode:
+          type: string
+          const: common.operation.success
+
+AdminPageConfigSaveResponse:
+  oneOf:
+    - $ref: '#/AdminPageConfigSaveSuccess'
+    - $ref: '#/ApiFailure'

@@ -2776,6 +2776,167 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/admin/friend-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the friend-links page configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied` (params permission=<localized permission name>,
+         *     `页面管理` in zh). Returns the stored friend-link groups, or the built-in
+         *     default configuration when nothing has been saved yet. Groups with a
+         *     null `links` array are normalized to an empty array. JSON binding is
+         *     lenient: query string and body are ignored.
+         */
+        get: operations["adminGetFriendLinks"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-friend-links": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the friend-links page configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole friend-links configuration with the submitted groups and
+         *     clears the friend-links cache. Groups with a null `links` array are
+         *     normalized to an empty array before persistence. There is no
+         *     count/URL validation, and no request validation tags: JSON binding is
+         *     lenient, so a malformed or empty body binds to zero values and is saved
+         *     as-is (a null group list).
+         */
+        post: operations["adminSaveFriendLinks"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the sponsors page configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Returns the stored sponsors configuration, or the
+         *     built-in default configuration when nothing has been saved yet. Null
+         *     sponsor tier arrays are normalized to empty arrays, and blank
+         *     content/contact titles or descriptions are filled from the built-in
+         *     defaults. JSON binding is lenient: query string and body are ignored.
+         */
+        get: operations["adminGetSponsors"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-sponsors": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the sponsors page configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole sponsors configuration with the submitted value and clears
+         *     the sponsors cache. Null sponsor tier arrays are normalized to empty
+         *     arrays, and blank content/contact titles or descriptions are filled
+         *     from the built-in defaults before persistence. There is no request
+         *     validation: JSON binding is lenient, so a malformed or empty body binds
+         *     to zero values and is saved (after default-filling) as-is.
+         */
+        post: operations["adminSaveSponsors"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /**
+         * Read the announcement configuration
+         * @description Admin console operation gated by the `PageManager` role permission
+         *     (Admin role is a superset); callers without it fail with HTTP 403 and
+         *     `permission.denied`. Returns the stored announcement configuration, or
+         *     the built-in default configuration when nothing has been saved yet.
+         *     `publishedAt` and `items` are omitted when empty; when `items` is
+         *     non-empty it takes precedence over the single-announcement `content`
+         *     on the public site. JSON binding is lenient: query string and body are
+         *     ignored.
+         */
+        get: operations["adminGetAnnouncement"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/save-announcement": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /**
+         * Replace the announcement configuration
+         * @description Admin console operation gated by the `PageManager` role permission;
+         *     callers without it fail with HTTP 403 and `permission.denied`. Replaces
+         *     the whole announcement configuration with the submitted value and
+         *     clears the announcement cache. The server overwrites `publishedAt`
+         *     with the current time on every save. Although `settings` carries a
+         *     `required` validation tag, struct-level `required` never fails, so a
+         *     missing or malformed body (lenient binding) is saved as a zero-value
+         *     configuration with a server-stamped `publishedAt`. There is no
+         *     reachable validation failure.
+         */
+        post: operations["adminSaveAnnouncement"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/namespaces": {
         parameters: {
             query?: never;
@@ -5439,6 +5600,110 @@ export interface components {
             /** @description All enabled global moderators, moderator row id ascending (empty array when none exist). */
             result: components["schemas"]["AdminCategoryModeratorItem"][];
         };
+        AdminFriendLinkItem: {
+            name: string;
+            desc: string;
+            url: string;
+            logoUrl: string;
+            /** @description Display status flag (1 = shown). */
+            status: number;
+        };
+        AdminFriendLinksGroup: {
+            /** @description Omitted when empty (`omitempty`). */
+            name?: string;
+            /** @description Omitted when empty (`omitempty`). */
+            emoji?: string;
+            /** @description Omitted when empty (`omitempty`). */
+            color?: string;
+            /** @description Never null in responses — null groups are normalized to an empty array. */
+            links: components["schemas"]["AdminFriendLinkItem"][];
+        };
+        AdminFriendLinksResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description Stored friend-link groups, or the built-in default when nothing has been saved. */
+            result: components["schemas"]["AdminFriendLinksGroup"][];
+        };
+        AdminSaveFriendLinksRequest: {
+            /** @description Replacement group list. No validation — a missing/null value is saved as null. */
+            linksInfo?: components["schemas"]["AdminFriendLinksGroup"][];
+        };
+        AdminSponsorItem: {
+            link: string;
+            message: string;
+            avatarUrl: string;
+            name: string;
+        };
+        AdminSponsorsTiers: {
+            /** @description Never null in responses — normalized to an empty array. */
+            level0: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level1: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level2: components["schemas"]["AdminSponsorItem"][];
+            /** @description Never null in responses — normalized to an empty array. */
+            level3: components["schemas"]["AdminSponsorItem"][];
+        };
+        AdminSponsorsPageIntro: {
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            title: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            description: string;
+        };
+        AdminSponsorsContact: {
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            title: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            description: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            buttonText: string;
+            /** @description Blank values are filled from the built-in default on read and on save. */
+            buttonLink: string;
+        };
+        AdminSponsorsRule: {
+            content: string;
+        };
+        AdminSponsorsConfig: {
+            sponsors: components["schemas"]["AdminSponsorsTiers"];
+            content: components["schemas"]["AdminSponsorsPageIntro"];
+            contact: components["schemas"]["AdminSponsorsContact"];
+            rules: components["schemas"]["AdminSponsorsRule"][];
+        };
+        AdminSponsorsResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminSponsorsConfig"];
+        };
+        AdminSaveSponsorsRequest: {
+            sponsorsInfo?: components["schemas"]["AdminSponsorsConfig"];
+        };
+        AdminAnnouncementItem: {
+            /** @description Stable identifier used as the frontend carousel key. */
+            id: string;
+            title: string;
+            /** @description Markdown body. */
+            content: string;
+            enabled: boolean;
+        };
+        AdminAnnouncementConfig: {
+            enabled: boolean;
+            /** @description Single-announcement Markdown body; ignored on the public site when `items` is non-empty. */
+            content: string;
+            /** @description RFC 3339 timestamp; omitted when empty. The server overwrites it with the current time on every save. */
+            publishedAt?: string;
+            /** @description Multi-announcement list; omitted when empty, and takes precedence over `content` when non-empty. */
+            items?: components["schemas"]["AdminAnnouncementItem"][];
+        };
+        AdminAnnouncementResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAnnouncementConfig"];
+        };
+        /** @description The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing settings object binds to a zero-value configuration and is saved. */
+        AdminSaveAnnouncementRequest: {
+            settings?: components["schemas"]["AdminAnnouncementConfig"];
+        };
+        AdminPageConfigSaveSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminPageConfigSaveResponse: components["schemas"]["AdminPageConfigSaveSuccess"] | components["schemas"]["ApiFailure"];
         TopicAuthorPayload: {
             /** Format: uint64 */
             id: number;
@@ -11008,6 +11273,246 @@ export interface operations {
                 };
             };
             /** @description Frozen account, or caller lacks the TopicsManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetFriendLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Friend-link groups (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminFriendLinksResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveFriendLinks: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveFriendLinksRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetSponsors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Sponsors configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminSponsorsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveSponsors: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveSponsorsRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminGetAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Announcement configuration (stored configuration or the built-in default). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminAnnouncementResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    adminSaveAnnouncement: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AdminSaveAnnouncementRequest"];
+            };
+        };
+        responses: {
+            /** @description Configuration saved (`result` is the string `success`). */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AdminPageConfigSaveResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Frozen account, or caller lacks the PageManager permission. */
             403: {
                 headers: {
                     [name: string]: unknown;

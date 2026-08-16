@@ -16,7 +16,8 @@ info:
     admin user management (user list/edit, user badge grants, role options),
     admin role management (permission options, role list/save/delete), admin
     category and moderator management (category CRUD, global and per-category
-    moderators), and the Agent (bot persona) public API.
+    moderators), admin page settings (friend links, sponsors, announcement),
+    and the Agent (bot persona) public API.
     Existing business failures commonly use HTTP 200 with `code: 1`; consumers must inspect the
     response envelope instead of treating every 2xx response as a successful operation.
 servers:
@@ -278,6 +279,18 @@ paths:
     $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorAdd
   /api/admin/category-moderator-delete:
     $ref: ./paths/admin-categories.yaml#/adminCategoryModeratorDelete
+  /api/admin/friend-links:
+    $ref: ./paths/admin-pages.yaml#/adminGetFriendLinks
+  /api/admin/save-friend-links:
+    $ref: ./paths/admin-pages.yaml#/adminSaveFriendLinks
+  /api/admin/sponsors:
+    $ref: ./paths/admin-pages.yaml#/adminGetSponsors
+  /api/admin/save-sponsors:
+    $ref: ./paths/admin-pages.yaml#/adminSaveSponsors
+  /api/admin/announcement:
+    $ref: ./paths/admin-pages.yaml#/adminGetAnnouncement
+  /api/admin/save-announcement:
+    $ref: ./paths/admin-pages.yaml#/adminSaveAnnouncement
   /api/admin/wiki/namespaces:
     post:
       $ref: ./paths/wiki.yaml#/createWikiNamespace/post
@@ -916,6 +929,42 @@ components:
       $ref: ./components/schemas.yaml#/AdminCategoryModeratorAddRequest
     AdminModeratorListResponse:
       $ref: ./components/schemas.yaml#/AdminModeratorListResponse
+    AdminFriendLinkItem:
+      $ref: ./components/schemas.yaml#/AdminFriendLinkItem
+    AdminFriendLinksGroup:
+      $ref: ./components/schemas.yaml#/AdminFriendLinksGroup
+    AdminFriendLinksResponse:
+      $ref: ./components/schemas.yaml#/AdminFriendLinksResponse
+    AdminSaveFriendLinksRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveFriendLinksRequest
+    AdminSponsorItem:
+      $ref: ./components/schemas.yaml#/AdminSponsorItem
+    AdminSponsorsTiers:
+      $ref: ./components/schemas.yaml#/AdminSponsorsTiers
+    AdminSponsorsPageIntro:
+      $ref: ./components/schemas.yaml#/AdminSponsorsPageIntro
+    AdminSponsorsContact:
+      $ref: ./components/schemas.yaml#/AdminSponsorsContact
+    AdminSponsorsRule:
+      $ref: ./components/schemas.yaml#/AdminSponsorsRule
+    AdminSponsorsConfig:
+      $ref: ./components/schemas.yaml#/AdminSponsorsConfig
+    AdminSponsorsResponse:
+      $ref: ./components/schemas.yaml#/AdminSponsorsResponse
+    AdminSaveSponsorsRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveSponsorsRequest
+    AdminAnnouncementItem:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementItem
+    AdminAnnouncementConfig:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementConfig
+    AdminAnnouncementResponse:
+      $ref: ./components/schemas.yaml#/AdminAnnouncementResponse
+    AdminSaveAnnouncementRequest:
+      $ref: ./components/schemas.yaml#/AdminSaveAnnouncementRequest
+    AdminPageConfigSaveSuccess:
+      $ref: ./components/schemas.yaml#/AdminPageConfigSaveSuccess
+    AdminPageConfigSaveResponse:
+      $ref: ./components/schemas.yaml#/AdminPageConfigSaveResponse
     TopicAuthorPayload:
       $ref: ./components/schemas.yaml#/TopicAuthorPayload
     PostPayload:

@@ -240,11 +240,6 @@
     },
     {
       "method": "GET",
-      "path": "/api/admin/announcement",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
-    },
-    {
-      "method": "GET",
       "path": "/api/admin/badges",
       "reason": "pending #277 后续切片：user-manager（用户/徽章管理）"
     },
@@ -257,11 +252,6 @@
       "method": "GET",
       "path": "/api/admin/data/export/tasks",
       "reason": "pending #277 后续切片：data-portability（数据导入导出）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/friend-links",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
     },
     {
       "method": "GET",
@@ -322,11 +312,6 @@
       "method": "GET",
       "path": "/api/admin/site-theme",
       "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "GET",
-      "path": "/api/admin/sponsors",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
     },
     {
       "method": "GET",
@@ -425,16 +410,6 @@
     },
     {
       "method": "POST",
-      "path": "/api/admin/save-announcement",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-friend-links",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
-    },
-    {
-      "method": "POST",
       "path": "/api/admin/save-http-notify-settings",
       "reason": "pending #277 后续切片：site-settings（站点配置族）"
     },
@@ -487,11 +462,6 @@
       "method": "POST",
       "path": "/api/admin/save-site-theme",
       "reason": "pending #277 后续切片：site-settings（站点配置族）"
-    },
-    {
-      "method": "POST",
-      "path": "/api/admin/save-sponsors",
-      "reason": "pending #277 后续切片：page-settings（友情链接/赞助/公告）"
     },
     {
       "method": "POST",
