@@ -34,8 +34,35 @@ Absolute URLs, protocol-relative URLs, site-root URLs such as `/static/logo.svg`
 query-only links are left unchanged. Do not use relative links without a file extension for pages: page
 targets must name their `.md` source file.
 
+### Asset serving policy
+
+`/wiki/_assets/` serves only a small allowlist of inert content types: images (PNG/JPEG/GIF/WebP/AVIF/
+BMP/ICO), PDF, Office documents, archives, and plain text. Everything else — including HTML, SVG, XML,
+JavaScript, and extension-less files — is forced to `application/octet-stream` with
+`Content-Disposition: attachment`, so a repository file can never be rendered as same-origin executable
+content. All asset responses carry `Content-Security-Policy: sandbox` and `X-Content-Type-Options:
+nosniff` as defense in depth, and the endpoint is rate-limited per IP.
+
+### Failure semantics
+
 Every relative target must remain inside the repository. A linked Markdown page must be projected by the
-same sync; an asset must exist as a regular, non-Markdown file. Hidden paths, path traversal, and assets
-whose symlinks resolve outside the repository are rejected. The sync run fails with the source Markdown
-path and invalid target so it can be corrected before retrying. The top-level namespace `_assets` is
-reserved for the controlled asset route.
+same sync; an asset must exist as a regular, non-Markdown file. Hidden paths and path traversal are
+rejected. Failures are split into two classes:
+
+- **Security-class errors** (target escapes the repository root, or an asset symlink resolves outside
+  the clone directory) abort the whole sync — they must never be bypassed by a per-page skip.
+- **Content-class errors** (linked page or asset missing, image pointing at a `.md` page, unlinkable
+  hidden page) skip only the offending page — it keeps its previous rendered version — while the rest
+  of the repository syncs normally. The sync run records the skipped page and target so it can be
+  corrected before the next run.
+
+Repository hygiene requirements:
+
+- Pages are regular files: symlinked `.md` files are rejected at scan time (a merged symlink would
+  otherwise be followed to arbitrary server paths).
+- Individual page sources are capped at 4 MiB.
+- Page and asset filenames must not contain `%`, `#`, `?`, or the filesystem-reserved characters
+  (`/ \ : * ? " < > |`): `%` is the URL-escape prefix and `#` opens a fragment, so Markdown link
+  syntax cannot represent them reliably.
+
+The top-level namespace `_assets` is reserved for the controlled asset route.

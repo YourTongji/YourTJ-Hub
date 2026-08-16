@@ -85,6 +85,52 @@ func TestApplyRepoToDBRejectsBrokenRelativeReferences(t *testing.T) {
 	}
 }
 
+// TestApplyRepoToDBDegradesPerPageOnBrokenReferences review M1：
+// 单个页面坏引用（missing 类）→ 该页跳过（保留 DB 旧版本）+ 聚合告警，
+// 其余页面正常 upsert；只有安全类错误（仓库根逃逸）才整体失败。
+func TestApplyRepoToDBDegradesPerPageOnBrokenReferences(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/broken.md", "# 坏页\n\n[下一页](missing.md)")
+	writeRepoFile(t, repo, "guide/good.md", "# 好页\n\n[下一页](broken.md)")
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 指南")
+
+	cfg := GitConfig{CloneDir: repo}
+	res := &SyncResult{}
+	err := applyRepoToDB(cfg, res)
+	if err == nil {
+		t.Fatal("sync error = nil, want aggregated per-page failure")
+	}
+	if !strings.Contains(err.Error(), "skip guide/broken") {
+		t.Fatalf("sync error = %v, want skip guide/broken", err)
+	}
+	// 好页仍被创建；被跳过页不存在（首次同步，无旧版本可保留）。
+	if page := wikiPages.GetByPath("guide/good"); page.Id == 0 {
+		t.Fatal("good page missing after degraded sync")
+	}
+	if page := wikiPages.GetByPath("guide/broken"); page.Id != 0 {
+		t.Fatalf("broken page should not be created, got id=%d", page.Id)
+	}
+}
+
+// TestApplyRepoToDBKeepsEscapeFatal review M1：仓库根逃逸是安全类错误，
+// 不允许 per-page 降级，必须整体失败（恶意链接不得通过「坏页跳过」绕过）。
+func TestApplyRepoToDBKeepsEscapeFatal(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "# 开始\n\n![图片](../../outside.png)")
+	writeRepoFile(t, repo, "guide/good.md", "# 好页")
+
+	err := applyRepoToDB(GitConfig{CloneDir: repo}, &SyncResult{})
+	if err == nil || !strings.Contains(err.Error(), "escapes repository root") {
+		t.Fatalf("sync error = %v, want fatal escape error", err)
+	}
+	// 逃逸致命：整体失败，好页也不创建。
+	if page := wikiPages.GetByPath("guide/good"); page.Id != 0 {
+		t.Fatal("good page should not be created when sync fails fatally")
+	}
+}
+
 func TestApplyRepoToDBRefreshesRelativeLinksAfterSlugChange(t *testing.T) {
 	setupWikiTestDB(t)
 	repo := t.TempDir()
@@ -490,6 +536,39 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
 		}
+	}
+}
+
+// TestScanRepoFilesRejectsSymlinks review F2：Git 克隆会把仓库符号链接物化为
+// symlink，若跟随读取可把服务器任意文件投影为公开 wiki 页（任意文件泄露）
+// 或读 /dev/zero 类目标永久阻塞同步。扫描必须 lstat 拒绝符号链接。
+func TestScanRepoFilesRejectsSymlinks(t *testing.T) {
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "docs/ok.md", "# OK")
+	writeRepoFile(t, repo, "docs/target.md", "# 目标")
+	if err := os.Symlink(filepath.Join(repo, "docs/target.md"), filepath.Join(repo, "docs/link.md")); err != nil {
+		t.Fatalf("create symlink: %v", err)
+	}
+
+	_, err := scanRepoFiles(repo)
+	if err == nil || !strings.Contains(err.Error(), "symlink") {
+		t.Fatalf("scan error = %v, want symlink rejection", err)
+	}
+}
+
+// TestScanRepoFilesRejectsOversize review F2：超大 .md（超 4MiB）拒绝，
+// 防止恶意仓库撑爆内存。
+func TestScanRepoFilesRejectsOversize(t *testing.T) {
+	repo := t.TempDir()
+	big := make([]byte, maxWikiPageBytes+1)
+	for i := range big {
+		big[i] = 'a'
+	}
+	writeRepoFile(t, repo, "docs/big.md", string(big))
+
+	_, err := scanRepoFiles(repo)
+	if err == nil || !strings.Contains(err.Error(), "exceeds") {
+		t.Fatalf("scan error = %v, want size rejection", err)
 	}
 }
 

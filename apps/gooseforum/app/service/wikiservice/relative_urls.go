@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"bytes"
+	"errors"
 	"fmt"
 	"net/url"
 	"os"
@@ -16,6 +17,12 @@ import (
 )
 
 const wikiAssetRoutePrefix = "/wiki/_assets/"
+
+// errWikiRefEscapesRepo 标记引用解析中的安全类错误（路径逃逸/符号链接越界）：
+// 这类错误必须整体失败（sync 停止），不允许 per-page 降级——否则恶意仓库
+// 可通过「坏链接页跳过」绕过安全校验。普通内容错误（链接的页面/资产不存在、
+// 图片引用 .md 等）降级为单页跳过并聚合告警。
+var errWikiRefEscapesRepo = errors.New("wiki reference escapes repository")
 
 // wikiReferenceResolver turns repository-relative Markdown destinations into
 // public Wiki page or asset URLs. Source Markdown remains unchanged in the DB.
@@ -46,9 +53,11 @@ func (r *wikiReferenceResolver) Validate(page wantedPage) error {
 		}
 		switch node := node.(type) {
 		case *ast.Link:
-			_, validationErr = r.resolve(page.sourcePath+".md", string(node.Destination))
+			_, validationErr = r.resolve(page.sourcePath+".md", string(node.Destination), false)
 		case *ast.Image:
-			_, validationErr = r.resolve(page.sourcePath+".md", string(node.Destination))
+			// review M3：图片指向 Markdown 页面会渲染成永久坏图（浏览器把
+			// HTML 当图片加载），直接拒绝并给出可操作错误。
+			_, validationErr = r.resolve(page.sourcePath+".md", string(node.Destination), true)
 		}
 		return ast.WalkContinue, nil
 	})
@@ -71,26 +80,26 @@ func (r *wikiReferenceResolver) Render(page wantedPage) (string, error) {
 		if rewriteErr != nil {
 			return
 		}
-		if node.Type == nethtml.ElementNode {
-			var key string
-			switch node.Data {
-			case "a":
-				key = "href"
-			case "img":
-				key = "src"
-			}
-			if key != "" {
-				for i := range node.Attr {
-					if node.Attr[i].Key != key {
-						continue
-					}
-					rewritten, err := r.resolve(page.sourcePath+".md", node.Attr[i].Val)
-					if err != nil {
-						rewriteErr = fmt.Errorf("wiki source %s.md: %w", page.sourcePath, err)
-						return
-					}
-					node.Attr[i].Val = rewritten
+		var key string
+		isImage := false
+		switch node.Data {
+		case "a":
+			key = "href"
+		case "img":
+			key = "src"
+			isImage = true
+		}
+		if key != "" {
+			for i := range node.Attr {
+				if node.Attr[i].Key != key {
+					continue
 				}
+				rewritten, err := r.resolve(page.sourcePath+".md", node.Attr[i].Val, isImage)
+				if err != nil {
+					rewriteErr = fmt.Errorf("wiki source %s.md: %w", page.sourcePath, err)
+					return
+				}
+				node.Attr[i].Val = rewritten
 			}
 		}
 		for child := node.FirstChild; child != nil; child = child.NextSibling {
@@ -115,7 +124,7 @@ func (r *wikiReferenceResolver) Render(page wantedPage) (string, error) {
 	return output.String(), nil
 }
 
-func (r *wikiReferenceResolver) resolve(sourceFile, destination string) (string, error) {
+func (r *wikiReferenceResolver) resolve(sourceFile, destination string, isImage bool) (string, error) {
 	trimmed := strings.TrimSpace(destination)
 	if trimmed == "" {
 		return destination, nil
@@ -134,8 +143,14 @@ func (r *wikiReferenceResolver) resolve(sourceFile, destination string) (string,
 	if err != nil {
 		return "", fmt.Errorf("relative URL %q: %w", destination, err)
 	}
-	if strings.EqualFold(path.Ext(repoPath), ".md") {
-		wikiPath, ok := r.pagesBySourcePath[strings.TrimSuffix(repoPath, ".md")]
+	if isMarkdownPath(repoPath) {
+		if isImage {
+			return "", fmt.Errorf("image cannot reference a Markdown page %q", repoPath)
+		}
+		// review M4：扩展名大小写不敏感（.MD/.md 同义），但 TrimSuffix 必须
+		// 用精确的 ext（path.Ext 保留大小写）切掉，map 查找才一致。
+		key := strings.TrimSuffix(repoPath, path.Ext(repoPath))
+		wikiPath, ok := r.pagesBySourcePath[key]
 		if !ok {
 			return "", fmt.Errorf("linked page %q does not exist", repoPath)
 		}
@@ -151,6 +166,19 @@ func (r *wikiReferenceResolver) resolve(sourceFile, destination string) (string,
 	return parsed.String(), nil
 }
 
+// isMarkdownPath 判断仓库相对路径是否为 Markdown 源文件（.md 家族，大小写不敏感）。
+// 与 scanRepoFiles 只投影 `.md` 一致：仅 `.md` 是页面；.markdown/.mdown/.mkd
+// 既不是页面也不得作为资产（F4：防止「不是页面的 Markdown」被原样吐给浏览器）。
+func isMarkdownPath(repoPath string) bool {
+	lower := strings.ToLower(repoPath)
+	for _, ext := range []string{".md", ".markdown", ".mdown", ".mkd"} {
+		if strings.HasSuffix(lower, ext) {
+			return true
+		}
+	}
+	return false
+}
+
 func resolveWikiRelativePath(sourceFile, encodedPath string) (string, error) {
 	decoded, err := url.PathUnescape(encodedPath)
 	if err != nil {
@@ -161,7 +189,8 @@ func resolveWikiRelativePath(sourceFile, encodedPath string) (string, error) {
 	}
 	resolved := path.Clean(path.Join(path.Dir(sourceFile), decoded))
 	if resolved == "." || resolved == ".." || strings.HasPrefix(resolved, "../") {
-		return "", fmt.Errorf("escapes repository root")
+		// 安全类错误：仓库根逃逸必须致命（恶意链接不得降级跳过）。
+		return "", fmt.Errorf("escapes repository root: %w", errWikiRefEscapesRepo)
 	}
 	if err := validateWikiAssetPath(resolved, false); err != nil {
 		return "", err
@@ -200,7 +229,8 @@ func resolveWikiAssetFile(cloneDir, repoPath string) (string, os.FileInfo, error
 		return "", nil, fmt.Errorf("asset not found")
 	}
 	if !isPathWithin(root, asset) {
-		return "", nil, fmt.Errorf("asset resolves outside repository")
+		// 安全类错误：符号链接越界必须致命。
+		return "", nil, fmt.Errorf("asset resolves outside repository: %w", errWikiRefEscapesRepo)
 	}
 	info, err := os.Stat(asset)
 	if err != nil {
@@ -221,7 +251,7 @@ func validateWikiAssetPath(repoPath string, rejectMarkdown bool) error {
 			return fmt.Errorf("invalid repository path")
 		}
 	}
-	if rejectMarkdown && strings.EqualFold(path.Ext(repoPath), ".md") {
+	if rejectMarkdown && isMarkdownPath(repoPath) {
 		return fmt.Errorf("Markdown source files are not assets")
 	}
 	return nil
