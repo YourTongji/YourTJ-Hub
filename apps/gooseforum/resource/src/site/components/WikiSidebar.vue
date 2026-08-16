@@ -17,13 +17,14 @@ const emit = defineEmits<{
 }>()
 
 const { t } = useI18n()
-const route = useRoute()
-const collapsed = ref<Set<string>>(new Set())
 // 用响应式 route.path 而非 window.location.pathname：
 // SPA 导航（vue-router pushState）下 AppShell/WikiSidebar 不会重新挂载，
 // 读 window.location 的 computed 会缓存旧值导致高亮态不随页面切换更新。
-const isSiteHome = computed(() => route.path === '/' || route.path === '')
-const isWikiHome = computed(() => route.path === '/wiki' || route.path === '/wiki/')
+// 测试环境可能不注入 router（useRoute 返回 undefined），用可选链兜底避免崩溃。
+const route = useRoute()
+const isSiteHome = computed(() => route?.path === '/' || route?.path === '')
+const isWikiHome = computed(() => route?.path === '/wiki' || route?.path === '/wiki/')
+const collapsed = ref<Set<string>>(new Set())
 
 const groups = computed(() => props.tree || [])
 
