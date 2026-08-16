@@ -47,10 +47,15 @@ var (
 // installSyncTestHook 安装 syncOnce 入口钩子并返回执行计数。
 // 钩子先捕获当前 gate 再计数：调用方观察到计数后即可确定该次 syncOnce
 // 已被阻塞在（已捕获的）gate 上，随后切换 gate 不会影响它。
+// 默认 gate 为已关闭通道（不阻塞）——未调用 setSyncTestGate 的测试
+// （如顺序同步测试）不会被钩子卡住。
 func installSyncTestHook(t *testing.T) *atomic.Int64 {
 	t.Helper()
 	calls := &atomic.Int64{}
 	abort := make(chan struct{})
+	open := make(chan struct{})
+	close(open)
+	syncTestHookGate = open
 	syncOnceEnterHook = func() {
 		syncTestHookMu.Lock()
 		gate := syncTestHookGate
