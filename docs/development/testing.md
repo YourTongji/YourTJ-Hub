@@ -63,7 +63,8 @@ make build && ./bin/yourtj-hub serve   # then curl http://localhost:5234
 | 前端组件/单元测试 | `apps/gooseforum/resource/test/*.test.ts` | Vitest 独立目录，避免混入 `src/`；fixtures 就近放 `test/fixtures/` |
 | Flutter 测试 | 各包 `apps/mobile/packages/<pkg>/test/` | `widget_test.dart` / `*_test.dart`，fixtures 放同目录 |
 | 契约测试（路由级 HTTP 断言） | `apps/gooseforum/app/http/routes/*_test.go` | 位于 Go module 内，随 `go test ./...` 运行 |
-| 契约 fixtures 与生成类型 | `packages/api-contract/fixtures/` | 只放 fixture 数据与 OpenAPI 生成的 TS 类型；该目录不在 Go module 内，测试代码不放这里 |
+| 契约 fixtures | `packages/api-contract/fixtures/` | 只放 JSON fixture 数据；该目录不在 Go module 内，测试代码不放这里 |
+| 生成 TS 类型 | `apps/gooseforum/resource/packages/client/src/gen/`（`index.ts` / `openapi.ts`） | OpenAPI 生成并提交的输出，契约变更时随 PR 同步 |
 
 模型/迁移测试必须同时满足 PG 门禁（见下方 CI mapping 的 `ci-backend-pg`）。
 
