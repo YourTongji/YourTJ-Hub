@@ -71,9 +71,6 @@ abstract class NotificationInnerPayload with _$NotificationInnerPayload {
 abstract class NotificationTemplateParams with _$NotificationTemplateParams {
   const factory NotificationTemplateParams({
     String? preview,
-    String? followerName,
-    String? badgeCode,
-    String? badgeName,
   }) = _NotificationTemplateParams;
 
   factory NotificationTemplateParams.fromJson(Map<String, dynamic> json) =>
