@@ -92,6 +92,12 @@ getWikiSyncStatus:
             examples:
               forbidden:
                 externalValue: ../fixtures/wiki-namespace-forbidden.json
+      '500':
+        description: Wiki sync status query failed (page/namespace counts or run history).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 
 runWikiSync:
   post:
@@ -176,6 +182,12 @@ listWikiSyncRuns:
             examples:
               forbidden:
                 externalValue: ../fixtures/wiki-namespace-forbidden.json
+      '500':
+        description: Wiki sync runs query failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
 
 getWikiWebhookSecret:
   get:

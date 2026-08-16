@@ -103,3 +103,9 @@ getAdminWikiTree:
             examples:
               forbidden:
                 externalValue: ../fixtures/wiki-namespace-forbidden.json
+      '500':
+        description: Wiki tree query failed.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure

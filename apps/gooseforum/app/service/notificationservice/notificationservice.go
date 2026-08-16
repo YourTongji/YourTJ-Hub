@@ -1,6 +1,8 @@
 package notificationservice
 
 import (
+	"fmt"
+
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
@@ -23,7 +25,9 @@ func GetNotificationCursorList(userId uint64, pageSize int, cursor uint64, unrea
 	if hasNext {
 		notifications = notifications[:pageSize]
 	}
-	hydrateNotifications(notifications)
+	if err := hydrateNotifications(notifications); err != nil {
+		return nil, 0, false, err
+	}
 
 	nextCursor := uint64(0)
 	if hasNext && len(notifications) > 0 {
@@ -42,7 +46,7 @@ func normalizePageSize(pageSize int) int {
 	return pageSize
 }
 
-func hydrateNotifications(notifications []*eventNotification.Entity) {
+func hydrateNotifications(notifications []*eventNotification.Entity) error {
 	userIds := lo.FilterMap(notifications, func(n *eventNotification.Entity, _ int) (uint64, bool) {
 		return n.Payload.ActorId, n.Payload.ActorId != 0
 	})
@@ -50,7 +54,10 @@ func hydrateNotifications(notifications []*eventNotification.Entity) {
 		return n.Payload.TopicId, n.Payload.TopicId != 0
 	})
 	userMap := users.GetMapByIds(userIds)
-	topicMap := topics.GetMapByIds(topicIds)
+	topicMap, err := topics.GetMapByIds(topicIds)
+	if err != nil {
+		return fmt.Errorf("load notification topic titles: %w", err)
+	}
 
 	// 转换数据
 	lo.ForEach(notifications, func(notification *eventNotification.Entity, _ int) {
@@ -61,4 +68,5 @@ func hydrateNotifications(notifications []*eventNotification.Entity) {
 			notification.Payload.TopicTitle = topicInfo.Title
 		}
 	})
+	return nil
 }

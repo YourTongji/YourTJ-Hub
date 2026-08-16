@@ -4577,6 +4577,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki tree query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     wikiWebhook: {
@@ -4680,6 +4689,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki sync status query failed (page/namespace counts or run history). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     runWikiSync: {
@@ -4761,6 +4779,15 @@ export interface operations {
             };
             /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Wiki sync runs query failed. */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
