@@ -138,22 +138,19 @@ class WikiTreeNamespace {
 }
 
 /// 首页最近更新条目（`GET /api/wiki/home`）。
+/// GitHub SSOT：无论坛编辑者概念，editorId/editorName 已移除（issue #291）。
 class WikiRecentPage {
   const WikiRecentPage({
     required this.pageId,
     required this.path,
     required this.title,
     required this.updatedAt,
-    required this.editorId,
-    required this.editorName,
   });
 
   final int pageId;
   final String path;
   final String title;
   final String updatedAt;
-  final int editorId;
-  final String editorName;
 
   factory WikiRecentPage.fromJson(Map<String, dynamic> json) {
     return WikiRecentPage(
@@ -161,8 +158,6 @@ class WikiRecentPage {
       path: json['path'] as String? ?? '',
       title: json['title'] as String? ?? '',
       updatedAt: json['updatedAt'] as String? ?? '',
-      editorId: (json['editorId'] as num?)?.toInt() ?? 0,
-      editorName: json['editorName'] as String? ?? '',
     );
   }
 
@@ -172,8 +167,6 @@ class WikiRecentPage {
       'path': path,
       'title': title,
       'updatedAt': updatedAt,
-      'editorId': editorId,
-      'editorName': editorName,
     };
   }
 }
@@ -205,6 +198,7 @@ class WikiHomeData {
 }
 
 /// 页面详情（wiki 页面渲染负载中的 `page`）。
+/// GitHub SSOT：无论坛编辑者概念，editorId/editorName 已移除（issue #291）。
 class WikiPageDetail {
   const WikiPageDetail({
     required this.id,
@@ -215,8 +209,6 @@ class WikiPageDetail {
     required this.content,
     required this.toc,
     required this.updatedAt,
-    required this.editorId,
-    required this.editorName,
     required this.likeCount,
     required this.viewCount,
     required this.postCount,
@@ -237,8 +229,6 @@ class WikiPageDetail {
   final String content;
   final List<WikiTocItem> toc;
   final String updatedAt;
-  final int editorId;
-  final String editorName;
   final int likeCount;
   final int viewCount;
   final int postCount;
@@ -268,8 +258,6 @@ class WikiPageDetail {
           .map((item) => WikiTocItem.fromJson(item as Map<String, dynamic>))
           .toList(),
       updatedAt: json['updatedAt'] as String? ?? '',
-      editorId: (json['editorId'] as num?)?.toInt() ?? 0,
-      editorName: json['editorName'] as String? ?? '',
       likeCount: (json['likeCount'] as num?)?.toInt() ?? 0,
       viewCount: (json['viewCount'] as num?)?.toInt() ?? 0,
       postCount: (json['postCount'] as num?)?.toInt() ?? 0,
@@ -293,8 +281,6 @@ class WikiPageDetail {
       'content': content,
       'toc': toc.map((item) => item.toJson()).toList(),
       'updatedAt': updatedAt,
-      'editorId': editorId,
-      'editorName': editorName,
       'likeCount': likeCount,
       'viewCount': viewCount,
       'postCount': postCount,

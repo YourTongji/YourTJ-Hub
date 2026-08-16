@@ -1044,8 +1044,6 @@ export interface WikiRecentPagePayload {
   path: string
   title: string
   updatedAt: string
-  editorId: number
-  editorName: string
 }
 
 export interface WikiHomeProps {
@@ -1079,8 +1077,6 @@ export interface WikiPageDetailPayload {
   content: string
   toc: WikiTocItem[]
   updatedAt: string
-  editorId: number
-  editorName: string
   likeCount: number
   viewCount: number
   postCount: number

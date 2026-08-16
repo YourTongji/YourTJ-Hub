@@ -349,6 +349,17 @@ func TestWikiHomeHTTPContract(t *testing.T) {
 	if third["pageId"] != float64(1001) || third["path"] != "guide/getting-started" {
 		t.Fatalf("wiki home recent[2] = %#v, want 1001/guide/getting-started", third)
 	}
+	// GitHub SSOT：无论坛编辑者概念，recent 条目不得再携带 editorId/editorName
+	// （历史遗留字段恒为零值且违反 OpenAPI minimum:1，issue #291）。
+	for i, raw := range recent {
+		item := raw.(map[string]any)
+		if _, ok := item["editorId"]; ok {
+			t.Fatalf("wiki home recent[%d].editorId present, want removed under GitHub SSOT", i)
+		}
+		if _, ok := item["editorName"]; ok {
+			t.Fatalf("wiki home recent[%d].editorName present, want removed under GitHub SSOT", i)
+		}
+	}
 	// 首页 namespace 卡携带 firstPagePath。
 	if ns0 := namespaces[0].(map[string]any); ns0["firstPagePath"] != "guide/getting-started" {
 		t.Fatalf("wiki home namespaces[0].firstPagePath = %#v, want guide/getting-started", ns0["firstPagePath"])
