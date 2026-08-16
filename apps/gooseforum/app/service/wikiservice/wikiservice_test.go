@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/eventNotification"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
@@ -30,6 +31,7 @@ func setupWikiTestDB(t *testing.T) {
 		&users.EntityComplete{},
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
+		&eventNotification.Entity{},
 		&wikiNamespaces.Entity{},
 		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},

@@ -693,6 +693,91 @@ func migratePagePath(page *wikiPages.Entity, newPath, newNamespace string) error
 	})
 }
 
+// adoptDisappearedPage 尝试把「仓库中消失的页面行」收养为 wanted 页面
+// （Git 重命名/移动/命名空间重建）：迁移 path/namespace + 恢复软删 + 清空
+// content_hash，返回被收养的页面（调用方随后走 updatePageFromRepo，恢复
+// topic 生命周期并刷新内容/source_path；清空 hash 强制跳过幂等判断）。
+// 返回 nil 表示没有唯一可收养候选（调用方走 createPageFromRepo 新建）。
+//
+// 匹配优先级（每行最多被收养一次，adoptedIDs 防止同次同步重复收养）：
+//  1. source_path 精确匹配（review L5：命名空间删除→重建且 URL key 变化时，
+//     旧软删页面 path 首段已是旧 key，但仓库相对路径稳定）；
+//  2. content_hash 唯一匹配（issue #288：内容未变的文件换了路径；同 hash
+//     多候选、或同 hash 多个 wanted（复制）均视为歧义，fail-safe 不猜测
+//     合并，保持新建+软删的旧行为）。
+func adoptDisappearedPage(wp wantedPage, curHash string, disappearedByHash map[string][]*wikiPages.Entity, wantedCountByHash map[string]int, adoptedIDs map[uint64]struct{}) (*wikiPages.Entity, error) {
+	if orphan := wikiPages.GetBySourcePathUnscoped(wp.sourcePath); orphan.Id != 0 {
+		if _, done := adoptedIDs[orphan.Id]; !done {
+			oldPath := orphan.Path
+			if err := adoptWikiPage(&orphan, wp); err != nil {
+				return nil, err
+			}
+			adoptedIDs[orphan.Id] = struct{}{}
+			slog.Info("wiki sync: adopted orphaned page after namespace recreate",
+				"sourcePath", wp.sourcePath, "oldPath", oldPath, "path", wp.path)
+			return &orphan, nil
+		}
+	}
+	// 内容哈希收养仅在无歧义时生效：同 hash 的 wanted 多于 1 个（复制/
+	// 合并场景）或消失候选多于 1 个（多页同内容）都不猜测。
+	if wantedCountByHash[curHash] > 1 {
+		return nil, nil
+	}
+	var candidates []*wikiPages.Entity
+	for _, c := range disappearedByHash[curHash] {
+		if _, done := adoptedIDs[c.Id]; done {
+			continue
+		}
+		candidates = append(candidates, c)
+	}
+	if len(candidates) == 1 {
+		adopted := candidates[0]
+		oldPath := adopted.Path
+		if err := adoptWikiPage(adopted, wp); err != nil {
+			return nil, err
+		}
+		adoptedIDs[adopted.Id] = struct{}{}
+		slog.Info("wiki sync: adopted renamed/moved page",
+			"oldPath", oldPath, "path", wp.path, "sourcePath", wp.sourcePath)
+		return adopted, nil
+	}
+	return nil, nil
+}
+
+// adoptWikiPage 执行收养落库：迁移 path/namespace、重算 parent_id、恢复软删、
+// 清空 content_hash，并同步更新内存实体（供调用方复用）。
+func adoptWikiPage(page *wikiPages.Entity, wp wantedPage) error {
+	if err := migratePagePath(page, wp.path, wp.namespace); err != nil {
+		return err
+	}
+	// 嵌套路径：parent_id 关联新路径的父页面（与 createPageFromRepo 同规则）。
+	parentID := uint64(0)
+	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
+		parentPath := strings.Join(segments[:len(segments)-1], "/")
+		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
+			parentID = parent.Id
+		}
+	}
+	if parentID != page.ParentId {
+		if err := dbconnect.Connect().Table("wiki_pages").Where("id = ?", page.Id).
+			Update("parent_id", parentID).Error; err != nil {
+			return err
+		}
+		page.ParentId = parentID
+	}
+	// 页面行恢复 + 清空 hash 强制走 updatePageFromRepo：收养页面对应的
+	// topic 在软删时被同步软删，内容未变时幂等判断会跳过更新，topic 生命
+	// 周期将永远留在 USER_DELETED（updatePageFromRepo 内负责恢复 topic）。
+	if err := wikiPages.RestoreSoftDeleted(page.Id); err != nil {
+		return err
+	}
+	page.Path = wp.path
+	page.Namespace = wp.namespace
+	page.DeletedAt = gorm.DeletedAt{}
+	page.ContentHash = ""
+	return nil
+}
+
 // namespaceURLKey 返回命名空间的当前 URL key（slug 已分配时用 slug，
 // 未分配时降级用显示名——与同步器 2.6 的降级策略一致，供 D5 删除计数等
 // 按 URL key 查询 wiki_pages.namespace 列的场景使用）。
@@ -936,6 +1021,29 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 	}
 
+	// 2.8 计算「仓库中消失的页面行」索引（issue #288：重命名/移动收养用）。
+	// 消失 = 当前 path（2.7 已迁移）不在 wanted 中的页面行（含软删——先删除
+	// 后重建的两步 rename 需要软删候选）。按 content_hash 分组；同 hash 多
+	// 候选时由收养逻辑判定歧义（fail-safe，不猜测合并）。
+	disappearedByHash := make(map[string][]*wikiPages.Entity)
+	for _, p := range listAllUnscoped() {
+		if _, ok := wantedByPath[p.Path]; ok {
+			continue
+		}
+		if p.ContentHash == "" {
+			continue
+		}
+		disappearedByHash[p.ContentHash] = append(disappearedByHash[p.ContentHash], p)
+	}
+	adoptedIDs := make(map[uint64]struct{})
+
+	// 2.85 每 content_hash 的 wanted 页面计数（内容哈希收养的歧义判定：
+	// 同 hash 多个 wanted（复制场景）时禁止收养，fail-safe 不猜测合并）。
+	wantedCountByHash := make(map[string]int, len(wanted))
+	for _, wp := range wanted {
+		wantedCountByHash[sha256Hex(wp.body)]++
+	}
+
 	// 3. 逐页 upsert（每页独立事务）。单页失败聚合为整体失败：DB 与仓库
 	//    部分偏离时 run 必须标记 failed，而不是向运维报告 success。
 	for _, wp := range wanted {
@@ -955,32 +1063,22 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			}
 		}
 		existingPage, ok := byPath[wp.path]
+		curHash := sha256Hex(wp.body)
 		if !ok {
-			// review L5：命名空间删除→重建且 URL key 变化时（如目录删除后
-			// index.md 新增 slug），旧软删页面按 path 无法命中，但 source_path
-			// （仓库相对路径）稳定 → 找回复用（迁移 path + 恢复），避免新建
-			// 重复 page/topic 并遗留孤儿软删页。
-			if orphan := wikiPages.GetBySourcePathUnscoped(wp.sourcePath); orphan.Id != 0 {
-				if err := migratePagePath(&orphan, wp.path, wp.namespace); err != nil {
-					errs = append(errs, fmt.Sprintf("adopt %s: %v", wp.path, err))
-					continue
-				}
-				// 页面行恢复 + 清空 hash 强制走 updatePageFromRepo：收养页面对应的
-				// topic 在命名空间删除时被同步软删，内容未变时幂等判断会跳过更新，
-				// topic 生命周期将永远留在 USER_DELETED（updatePageFromRepo 内
-				// 负责恢复 topic 生命周期）。
-				if err := wikiPages.RestoreSoftDeleted(orphan.Id); err != nil {
-					errs = append(errs, fmt.Sprintf("restore %s: %v", wp.path, err))
-					continue
-				}
-				orphan.Path = wp.path
-				orphan.Namespace = wp.namespace
-				orphan.DeletedAt = gorm.DeletedAt{}
-				orphan.ContentHash = ""
-				byPath[wp.path] = &orphan
-				existingPage = &orphan
-				slog.Info("wiki sync: adopted orphaned page after namespace recreate",
-					"sourcePath", wp.sourcePath, "path", wp.path)
+			// 收养「仓库中消失的页面行」：
+			//  - review L5：source_path 精确匹配（命名空间删除→重建且 URL key 变化）；
+			//  - issue #288：content_hash 唯一匹配（Git 重命名/移动——同内容不同路径）。
+			// 收养 = 迁移 path/namespace + 恢复软删 + 清空 hash 强制走
+			// updatePageFromRepo（topic 生命周期恢复 + source_path 刷新），
+			// 复用原 topic，回复/点赞/收藏/订阅全部保留。
+			adopted, adoptErr := adoptDisappearedPage(wp, curHash, disappearedByHash, wantedCountByHash, adoptedIDs)
+			if adoptErr != nil {
+				errs = append(errs, fmt.Sprintf("adopt %s: %v", wp.path, adoptErr))
+				continue
+			}
+			if adopted != nil {
+				byPath[wp.path] = adopted
+				existingPage = adopted
 			} else {
 				if err := createPageFromRepo(cfg, wp); err != nil {
 					errs = append(errs, fmt.Sprintf("create %s: %v", wp.path, err))
@@ -990,7 +1088,6 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 				continue
 			}
 		}
-		curHash := sha256Hex(wp.body)
 		restored := existingPage.DeletedAt.Valid
 		// 仓库重新出现已删页面 → 先恢复页面行（复用原 topic/评论/点赞/订阅），
 		// 恢复必须优先于幂等判断：否则内容未变的软删页面永远无法解除 deleted_at。

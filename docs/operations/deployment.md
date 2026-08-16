@@ -112,6 +112,10 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
   刷新 `/admin/wiki`）或下次同步开始时统一回收为 `failed`，不会永久禁用手动同步；管理端手动
   同步 accepted 后轮询 `sync/status` + `sync/runs` 直到新 run 行进入终态并刷新页面树（约 5 分钟
   上限，超时提示手动刷新）。
+- **重命名/移动（issue #288）**：Git 重命名/移动文件（内容不变）后，同步器按正文 `content_hash`
+  唯一匹配收养原页面行——迁移 `path`/`namespace`/`parent_id`、恢复软删并复用原 topic，回复/点赞/
+  收藏/订阅与 watcher 通知全部跟随新路径，旧 URL 不再解析（无重定向）。同 hash 多候选（复制）
+  或内容同时变化时不做猜测：保持「新建 + 软删旧页」的旧行为（互动保留在旧 topic 上）。
 
 ## Server layout (Docker Compose)
 
