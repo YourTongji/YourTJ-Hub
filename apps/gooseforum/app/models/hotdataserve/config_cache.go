@@ -201,6 +201,22 @@ func ClearOnesystemSettingsConfigCache() {
 	oneSystemSettingsConfigCache.Clear()
 }
 
+var wikiSyncSettingsConfigCache = &localcache.Cache[pageConfig.WikiSyncSettingsConfig]{MaxEntries: cacheconfig.Current().PageConfig}
+
+// GetWikiSyncSettingsConfigCache 读取 wiki GitHub webhook 验签密钥配置（密文）。
+// 落库形状为 WikiSyncSettingsStorage，读取后转领域结构，避免密文随领域结构
+// 被整包序列化导出。
+func GetWikiSyncSettingsConfigCache() pageConfig.WikiSyncSettingsConfig {
+	return wikiSyncSettingsConfigCache.GetOrLoad("", func() (pageConfig.WikiSyncSettingsConfig, error) {
+		storage := pageConfig.GetConfigByPageType(pageConfig.WikiSyncSettings, pageConfig.WikiSyncSettingsStorage{})
+		return storage.ToConfig(), nil
+	}, configFastCacheTTL)
+}
+
+func ClearWikiSyncSettingsConfigCache() {
+	wikiSyncSettingsConfigCache.Clear()
+}
+
 func ClearSecuritySettingsConfigCache() {
 	securitySettingsConfigCache.Clear()
 }

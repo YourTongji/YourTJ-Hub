@@ -26,16 +26,6 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
-func ListByNamespace(namespace string) []*Entity {
-	var entities []*Entity
-	builder().
-		Where(queryopt.Eq("namespace", namespace)).
-		Order(queryopt.Asc("sort_order")).
-		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return entities
-}
-
 func ListAll() []*Entity {
 	var entities []*Entity
 	builder().
@@ -99,6 +89,14 @@ func CountChildren(parentID uint64) int64 {
 // 复用原 topic/评论/点赞/订阅，而不是新建空页面。
 func GetByPathUnscoped(path string) (entity Entity) {
 	builder().Unscoped().Where(queryopt.Eq("path", path)).First(&entity)
+	return
+}
+
+// GetBySourcePathUnscoped 按仓库真实路径取页面（含软删行）：命名空间删除后
+// 重建且 URL key 变化时，旧软删页面 path 首段已是旧 key，无法按 path 匹配，
+// 需按 source_path（仓库路径稳定）找回复用（review L5）。
+func GetBySourcePathUnscoped(sourcePath string) (entity Entity) {
+	builder().Unscoped().Where(queryopt.Eq("source_path", sourcePath)).First(&entity)
 	return
 }
 

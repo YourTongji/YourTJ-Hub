@@ -1,36 +1,21 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
-import {
-  isValidNamespaceName,
-  MAX_NAMESPACE_NAME_LENGTH,
-} from '@/admin/utils/wiki'
 
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, ref } from 'vue'
 import {
   BookOpen,
   Clock,
   ExternalLink,
   FileText,
   History,
-  Pencil,
-  Plus,
+  KeyRound,
   RefreshCw,
-  Trash2,
 } from '@lucide/vue'
-import AdminActionButton from '@/admin/components/AdminActionButton.vue'
-import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Badge } from '@/admin/components/ui/badge'
 import { Button } from '@/admin/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
 import {
   Table,
@@ -46,16 +31,14 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/admin/components/ui/tabs'
-import { Textarea } from '@/admin/components/ui/textarea'
 import {
-  createWikiNamespace,
-  deleteWikiNamespace,
   getWikiNamespaces,
   getWikiSyncRuns,
   getWikiSyncStatus,
   getWikiTree,
+  getWikiWebhookSecret,
+  saveWikiWebhookSecret,
   triggerWikiSync,
-  updateWikiNamespace,
   type WikiSyncRunView,
   type WikiSyncStatus,
 } from '@/admin/runtime/api'
@@ -77,11 +60,6 @@ const activeTab = ref('namespaces')
 const namespaces = ref<WikiNamespace[]>([])
 const nsLoading = ref(false)
 const nsError = ref('')
-const nsDialog = ref<{ mode: 'create' | 'edit', row: WikiNamespace | null } | null>(null)
-const nsForm = reactive({ name: '', description: '' })
-const nsSaving = ref(false)
-const deletingNs = ref<WikiNamespace | null>(null)
-const nsDeleting = ref(false)
 
 const tree = ref<WikiNamespaceTree[]>([])
 const treeLoading = ref(false)
@@ -94,7 +72,13 @@ const syncRuns = ref<WikiSyncRunView[]>([])
 const runsLoading = ref(false)
 const syncTriggering = ref(false)
 
-const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value)
+// webhook 验签密钥（securestore 加密落库，仅回显是否已配置）
+const webhookConfigured = ref(false)
+const webhookSecretInput = ref('')
+const webhookSaving = ref(false)
+const webhookLoading = ref(false)
+
+const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value || webhookLoading.value)
 
 function formatTime(value: string | undefined | null) {
   if (!value) return '-'
@@ -112,6 +96,7 @@ function triggerLabel(trigger: string) {
   if (trigger === 'manual') return adminText('k00qc')
   if (trigger === 'webhook') return adminText('k00qu')
   if (trigger === 'schedule') return adminText('k00qd')
+  if (trigger === 'startup') return adminText('k00qy')
   return trigger
 }
 
@@ -146,10 +131,17 @@ function editUrlFor(page: WikiPageNode) {
   const base = repoEditBase()
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
-  return `https://github.com/${base}/edit/${branch}/${page.path}.md`
+  // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段已是 slug，
+  // 与仓库目录名解耦）。逐段转义：目录名/文件名允许 #/% 等字符，但 URL
+  // 拼接时 # 会开启 fragment、% 会被当转义前缀 → GitHub 404。
+  const repoPath = (page.sourcePath || page.path)
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/')
+  return `https://github.com/${base}/edit/${branch}/${repoPath}.md`
 }
 
-// ---------- Namespaces ----------
+// ---------- Namespaces（只读：GitHub SSOT，命名空间由仓库顶层目录驱动） ----------
 async function loadNamespaces() {
   nsLoading.value = true
   nsError.value = ''
@@ -159,71 +151,6 @@ async function loadNamespaces() {
     nsError.value = err instanceof Error ? err.message : adminText('k00n0')
   } finally {
     nsLoading.value = false
-  }
-}
-
-function openCreateNs() {
-  nsForm.name = ''
-  nsForm.description = ''
-  nsDialog.value = { mode: 'create', row: null }
-}
-
-function openEditNs(row: WikiNamespace) {
-  nsForm.name = row.name
-  nsForm.description = row.description
-  nsDialog.value = { mode: 'edit', row }
-}
-
-async function submitNamespace() {
-  if (!nsForm.name.trim()) {
-    adminToast.warning(adminText('k00ng'))
-    return
-  }
-  // 创建时名称需符合后端规则：小写字母、数字、连字符（与
-  // wikiservice.ValidateNamespace 对齐，见 app/service/wikiservice/path.go:47）。
-  if (nsDialog.value?.mode === 'create' && !isValidNamespaceName(nsForm.name)) {
-    adminToast.warning(adminText('k00o5'))
-    return
-  }
-  nsSaving.value = true
-  try {
-    if (nsDialog.value?.mode === 'create') {
-      await createWikiNamespace({ name: nsForm.name.trim(), description: nsForm.description.trim() })
-    } else if (nsDialog.value?.row) {
-      await updateWikiNamespace(nsDialog.value.row.name, nsForm.description.trim())
-    }
-    nsDialog.value = null
-    await loadNamespaces()
-    adminToast.success(adminText('k000e'))
-  } catch (err) {
-    adminToast.error(err, adminText('k00n0'))
-  } finally {
-    nsSaving.value = false
-  }
-}
-
-function requestDeleteNamespace(row: WikiNamespace) {
-  if (row.pageCount > 0) {
-    adminToast.warning(adminText('k00nk'))
-    return
-  }
-  deletingNs.value = row
-}
-
-async function confirmDeleteNamespace() {
-  if (!deletingNs.value) return
-  const name = deletingNs.value.name
-  nsDeleting.value = true
-  try {
-    await deleteWikiNamespace(name)
-    deletingNs.value = null
-    await Promise.all([loadNamespaces(), loadTree()])
-    adminToast.success(adminText('k002u'))
-  } catch (err) {
-    const messageCode = (err as { messageCode?: string } | null)?.messageCode
-    adminToast.error(err, messageCode === 'wiki.namespace.hasPages' ? adminText('k00nk') : adminText('k00n0'))
-  } finally {
-    nsDeleting.value = false
   }
 }
 
@@ -289,8 +216,36 @@ async function runSync() {
   }
 }
 
+// ---------- webhook 验签密钥（securestore 加密落库，仅回显是否已配置） ----------
+async function loadWebhookSecret() {
+  webhookLoading.value = true
+  try {
+    const status = await getWikiWebhookSecret()
+    webhookConfigured.value = status.configured
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    webhookLoading.value = false
+  }
+}
+
+async function saveWebhookSecret() {
+  if (webhookSaving.value) return
+  webhookSaving.value = true
+  try {
+    await saveWikiWebhookSecret(webhookSecretInput.value.trim())
+    webhookSecretInput.value = ''
+    await loadWebhookSecret()
+    adminToast.success(adminText('k000e'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    webhookSaving.value = false
+  }
+}
+
 async function loadAll() {
-  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns()])
+  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns(), loadWebhookSecret()])
 }
 
 onMounted(() => {
@@ -322,10 +277,7 @@ onMounted(() => {
                 <Badge variant="secondary" class="h-9 rounded-md px-3">
                   {{ namespaces.length }} {{ adminText('k00n6') }}
                 </Badge>
-                <Button type="button" @click="openCreateNs">
-                  <Plus class="size-4" />
-                  {{ adminText('k00nc') }}
-                </Button>
+                <span class="text-sm text-muted-foreground">{{ adminText('k00qz') }}</span>
               </div>
             </AdminToolbar>
           </template>
@@ -333,10 +285,10 @@ onMounted(() => {
             <TableHeader>
               <TableRow>
                 <TableHead>{{ adminText('k00af') }}</TableHead>
+                <TableHead>{{ adminText('k00r7') }}</TableHead>
                 <TableHead>{{ adminText('k00ag') }}</TableHead>
                 <TableHead class="w-24">{{ adminText('k00na') }}</TableHead>
                 <TableHead class="w-40">{{ adminText('k00nb') }}</TableHead>
-                <TableHead class="w-44 text-right">{{ adminText('k007m') }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -352,21 +304,10 @@ onMounted(() => {
               <template v-else>
                 <TableRow v-for="item in namespaces" :key="item.name">
                   <TableCell class="font-medium">{{ item.name }}</TableCell>
+                  <TableCell class="font-mono text-xs text-muted-foreground">{{ item.slug || '-' }}</TableCell>
                   <TableCell class="max-w-md truncate text-muted-foreground">{{ item.description || '-' }}</TableCell>
                   <TableCell>{{ item.pageCount ?? 0 }}</TableCell>
                   <TableCell class="text-xs text-muted-foreground">{{ formatTime(item.updatedAt) }}</TableCell>
-                  <TableCell>
-                    <div class="flex justify-end gap-2">
-                      <AdminActionButton @click="openEditNs(item)">
-                        <Pencil class="size-3.5" />
-                        {{ adminText('k00nd') }}
-                      </AdminActionButton>
-                      <AdminActionButton tone="danger" @click="requestDeleteNamespace(item)">
-                        <Trash2 class="size-3.5" />
-                        {{ adminText('k00ne') }}
-                      </AdminActionButton>
-                    </div>
-                  </TableCell>
                 </TableRow>
               </template>
             </TableBody>
@@ -417,7 +358,7 @@ onMounted(() => {
                         <ExternalLink class="size-3.5" />
                       </a>
                       <a
-                        :href="`/wiki/${page.path}`"
+                        :href="`/wiki/${page.path.split('/').map((seg) => encodeURIComponent(seg)).join('/')}`"
                         target="_blank"
                         rel="noopener noreferrer"
                         class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
@@ -491,6 +432,42 @@ onMounted(() => {
             <template #header>
               <AdminToolbar class="border-b-0">
                 <div class="flex items-center gap-2">
+                  <KeyRound class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="text-sm font-medium">{{ adminText('k00r0') }}</span>
+                </div>
+              </AdminToolbar>
+            </template>
+            <div class="grid gap-4 p-4 md:grid-cols-2">
+              <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="text-muted-foreground">{{ adminText('k00r1') }}</span>
+                  <Badge :variant="webhookConfigured ? 'secondary' : 'destructive'">
+                    {{ webhookConfigured ? adminText('k00r2') : adminText('k00r3') }}
+                  </Badge>
+                </div>
+                <p class="text-xs text-muted-foreground">{{ adminText('k00r4') }}</p>
+              </div>
+              <form class="flex items-end gap-2" @submit.prevent="saveWebhookSecret">
+                <label class="grid flex-1 gap-2 text-sm font-medium">
+                  {{ adminText('k00r5') }}
+                  <Input
+                    v-model="webhookSecretInput"
+                    type="password"
+                    autocomplete="new-password"
+                    :placeholder="adminText('k00r6')"
+                  />
+                </label>
+                <Button type="submit" size="sm" :disabled="webhookSaving || webhookLoading">
+                  {{ webhookSaving ? adminText('k005f') : adminText('k005g') }}
+                </Button>
+              </form>
+            </div>
+          </AdminSection>
+
+          <AdminSection>
+            <template #header>
+              <AdminToolbar class="border-b-0">
+                <div class="flex items-center gap-2">
                   <Clock class="size-4 shrink-0 text-muted-foreground" />
                   <span class="text-sm font-medium">{{ adminText('k00qn') }}</span>
                 </div>
@@ -534,36 +511,5 @@ onMounted(() => {
         </div>
       </TabsContent>
     </Tabs>
-
-    <Dialog :open="nsDialog !== null" @update:open="(open) => !open && (nsDialog = null)">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{{ nsDialog?.mode === 'edit' ? adminText('k00nd') : adminText('k00nc') }}</DialogTitle>
-        </DialogHeader>
-        <form class="grid gap-4" @submit.prevent="submitNamespace">
-          <label v-if="nsDialog?.mode === 'create'" class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00af') }}
-            <Input v-model="nsForm.name" :placeholder="adminText('k00o6')" :maxlength="MAX_NAMESPACE_NAME_LENGTH" />
-          </label>
-          <label class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00ag') }}
-            <Textarea v-model="nsForm.description" class="min-h-24 resize-y" :placeholder="adminText('k00ni')" />
-          </label>
-          <DialogFooter>
-            <Button variant="outline" type="button" @click="nsDialog = null">{{ adminText('k009q') }}</Button>
-            <Button type="submit" :disabled="nsSaving">{{ nsSaving ? adminText('k005f') : adminText('k005g') }}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    <AdminConfirmDialog
-      :open="deletingNs !== null"
-      :title="adminText('k00ne')"
-      :description="adminText('k00nf', { name: deletingNs?.name })"
-      :loading="nsDeleting"
-      @update:open="(open) => !open && (deletingNs = null)"
-      @confirm="confirmDeleteNamespace"
-    />
   </BasicPage>
 </template>

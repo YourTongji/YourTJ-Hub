@@ -15,6 +15,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
@@ -23,6 +24,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPageRevisions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -57,6 +59,11 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	conn.Unscoped().Where("id IN ?", []uint64{6001, 6002, 6003}).Delete(&topics.Entity{})
 	conn.Unscoped().Where("id IN ?", []uint64{11001, 11002, 11003}).Delete(&posts.Entity{})
 	conn.Where("permission_id = ?", permission.PageManager.Id()).Delete(&rolePermissionRs.Entity{})
+	// 清空 wiki 同步设置（webhook secret 密文/清除标记）：TestWikiWebhookSecretHTTPContract
+	// 会写入 page_config，不清空会污染共享测试库、令后续 webhook 验签测试 403
+	// （cleared=true 使 LoadWebhookSecret 恒返回空，fail-closed 生效）。
+	conn.Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	hotdataserve.ClearWikiSyncSettingsConfigCache()
 
 	wikiApi := router.Group("/api/wiki")
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
@@ -65,13 +72,12 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
 	wikiApi.POST("webhook", api.WikiWebhook)
 	adminWiki := router.Group("/api/admin/wiki", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.PageManager))
-	adminWiki.POST("namespaces", UpButterReq(api.WikiCreateNamespace))
-	adminWiki.PUT("namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace))
-	adminWiki.DELETE("namespaces/:name", UpUriReq(api.WikiDeleteNamespace))
 	adminWiki.GET("tree", UpButterReq(api.WikiAdminTree))
 	adminWiki.GET("sync/status", UpButterReq(api.WikiSyncStatus))
 	adminWiki.POST("sync", UpButterReq(api.WikiSyncRun))
 	adminWiki.GET("sync/runs", UpButterReq(api.WikiSyncRuns))
+	adminWiki.GET("sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret))
+	adminWiki.POST("sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret))
 	// 视图路由（与 route4api.go viewRoute 注册一致；JWTAuth 可选登录）。
 	wikiView := router.Group("/wiki")
 	wikiView.Use(middleware.JWTAuth)
@@ -222,7 +228,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 	t.Helper()
 	// 固定时间（CST +08:00），与 fixtures 中 updatedAt 一致。
 	base := time.Date(2026, 8, 10, 14, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
+	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Slug: &[]string{"guide"}[0], Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
 		t.Fatalf("create wiki namespace: %v", err)
 	}
 
@@ -247,7 +253,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 			t.Fatalf("create wiki first post %d: %v", id, err)
 		}
 		if err := conn.Create(&wikiPages.Entity{
-			Id: id, TopicId: topic.Id, Namespace: "guide", Path: path, SortOrder: sortOrder,
+			Id: id, TopicId: topic.Id, Namespace: "guide", Path: path, SourcePath: path, SortOrder: sortOrder,
 			Title: title, Content: content, RenderedHTML: content,
 			PublishedRevisionNo: 1, CreatedAt: createdAt, UpdatedAt: createdAt,
 		}).Error; err != nil {
@@ -349,41 +355,95 @@ func TestWikiHomeHTTPContract(t *testing.T) {
 	}
 }
 
-func TestWikiAdminNamespaceHTTPContract(t *testing.T) {
+func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 	conn, router := setupWikiContractTest(t)
 	bob := createHTTPContractUser(t, conn, contractTestID())
 	grantContractPermission(t, conn, bob.Id, permission.PageManager)
 	bobToken := contractSessionToken(t, bob)
 
-	t.Run("manager creates namespace", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/namespaces",
-			`{"name":"deploy","description":"部署手册"}`, bobToken)
+	// 该测试会持久化 wikiSyncSettings page_config 行，而 setupWikiContractTest
+	// 只清空 wiki 表；中断的子测试会留下该行，翻转下次运行的 configured=false
+	// 断言（共享测试库）。无论子测试结果如何都删除该行。
+	t.Cleanup(func() {
+		conn.Unscoped().Where("page_type = ?", pageConfig.WikiSyncSettings).Delete(&pageConfig.Entity{})
+	})
+
+	t.Run("unconfigured reports configured=false", func(t *testing.T) {
+		// 清空管理端设置与旧配置，保证未配置态。
+		prev := preferences.GetString("wiki.git.webhook_secret", "")
+		preferences.Set("wiki.git.webhook_secret", "")
+		t.Cleanup(func() { preferences.Set("wiki.git.webhook_secret", prev) })
+
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace create status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("webhook secret status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		env := decodeContractEnvelope(t, rec)
 		if env.Code != 0 {
-			t.Fatalf("admin namespace create code = %d, want 0: %s", env.Code, rec.Body.String())
+			t.Fatalf("webhook secret status code = %d, want 0", env.Code)
+		}
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status result: %v", err)
+		}
+		if result["configured"] != false {
+			t.Fatalf("webhook secret configured = %v, want false", result["configured"])
 		}
 	})
 
-	t.Run("duplicate namespace conflicts", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/namespaces",
-			`{"name":"deploy","description":"again"}`, bobToken)
+	t.Run("manager saves secret then status reports configured=true", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/webhook-secret",
+			`{"secret":"s3cret-value"}`, bobToken)
 		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace conflict status = %d, want 200: %s", rec.Code, rec.Body.String())
-		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-namespace-create-conflict.json"))
-	})
-
-	t.Run("manager deletes empty namespace", func(t *testing.T) {
-		rec := serveAuthSecurityJSON(router, http.MethodDelete, "/api/admin/wiki/namespaces/deploy", "", bobToken)
-		if rec.Code != http.StatusOK {
-			t.Fatalf("admin namespace delete status = %d, want 200: %s", rec.Code, rec.Body.String())
+			t.Fatalf("webhook secret save status = %d, want 200: %s", rec.Code, rec.Body.String())
 		}
 		env := decodeContractEnvelope(t, rec)
 		if env.Code != 0 {
-			t.Fatalf("admin namespace delete code = %d, want 0: %s", env.Code, rec.Body.String())
+			t.Fatalf("webhook secret save code = %d, want 0: %s", env.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-webhook-secret-save-success.json"))
+
+		// 保存后 status 应报告 configured=true（密文经 securestore 落库）。
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status after save: %v", err)
+		}
+		if result["configured"] != true {
+			t.Fatalf("webhook secret configured after save = %v, want true", result["configured"])
+		}
+
+		// 用保存的 secret 验证 webhook 签名可达（端到端：securestore 解密链路）。
+		body := `{"ref":"refs/heads/main"}`
+		req := httptest.NewRequest(http.MethodPost, "/api/wiki/webhook", strings.NewReader(body))
+		req.Header.Set("Content-Type", "application/json")
+		req.Header.Set("X-Hub-Signature-256", webhookSignature("s3cret-value", body))
+		rec = httptest.NewRecorder()
+		router.ServeHTTP(rec, req)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("webhook with saved secret status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+	})
+
+	t.Run("manager clears secret", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodPost, "/api/admin/wiki/sync/webhook-secret",
+			`{"secret":""}`, bobToken)
+		if rec.Code != http.StatusOK {
+			t.Fatalf("webhook secret clear status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("webhook secret clear code = %d, want 0", env.Code)
+		}
+		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
+		env = decodeContractEnvelope(t, rec)
+		var result map[string]any
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode webhook secret status after clear: %v", err)
+		}
+		if result["configured"] != false {
+			t.Fatalf("webhook secret configured after clear = %v, want false", result["configured"])
 		}
 	})
 }

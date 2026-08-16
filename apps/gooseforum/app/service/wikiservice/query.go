@@ -20,9 +20,12 @@ type TreePage struct {
 }
 
 // TreeNamespace 导航树中的一个 namespace 分组。
+// Name/Label = 显示名（中文目录名）；Slug = 有效 URL key（未分配 slug 时
+// 降级=显示名），消费方拼 href 用（D7：URL 用 slug）。
 type TreeNamespace struct {
 	Name  string     `json:"name"`
 	Label string     `json:"label"`
+	Slug  string     `json:"slug"`
 	Pages []TreePage `json:"pages"`
 }
 
@@ -31,22 +34,52 @@ type WikiTreeResult struct {
 	Namespaces []TreeNamespace `json:"namespaces"`
 }
 
+// ResolvePageByURLPath 按外部 URL path 解析页面（D7 路由语义：URL 用 slug）。
+// 解析顺序：
+//  1. 直查 path（slug 首段，新 URL）；
+//  2. 首段 = 显示名时按 name→urlKey 重建（存量/降级 URL，如中文目录声明
+//     slug 前发布的旧链接、或直接访问中文显示名 URL）。
+//
+// 返回零值实体表示未命中（404）。
+func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
+	if urlPath == "" {
+		return
+	}
+	entity = wikiPages.GetByPath(urlPath)
+	if entity.Id != 0 {
+		return entity
+	}
+	// 回退：首段按显示名解析 → 重建为 URL key 路径再直查。
+	first := NamespaceOf(urlPath)
+	if first == "" {
+		return
+	}
+	ns := wikiNamespaces.GetByName(first)
+	if ns.Id == 0 {
+		return
+	}
+	rebuilt := namespaceURLKey(&ns) + strings.TrimPrefix(urlPath, first)
+	return wikiPages.GetByPath(rebuilt)
+}
+
 // BuildTree 构建 wiki 导航树（按 namespace 分组，当前页 active）。
 // GitHub SSOT 后内容/标题直接来自 wiki_pages 投影列（不再查修订表）。
+// D7 URL key 语义：page.Namespace 列 = URL key（slug，降级=显示名），
+// 分组按 URL key；输出 Name/Label 用显示名（中文目录名）。
 func BuildTree(activePath string) []TreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
 		return []TreeNamespace{}
 	}
 	allPages := filterPublicPages(wikiPages.ListAll())
-	byNamespace := make(map[string][]*wikiPages.Entity)
+	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
-		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
+		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
 	}
 
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		pages := byNamespace[ns.Name]
+		pages := byURLKey[namespaceURLKey(ns)]
 		items := make([]TreePage, 0, len(pages))
 		for _, page := range pages {
 			items = append(items, TreePage{
@@ -59,6 +92,7 @@ func BuildTree(activePath string) []TreeNamespace {
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
+			Slug:  namespaceURLKey(ns),
 			Pages: items,
 		})
 	}
@@ -96,26 +130,27 @@ func BuildTreeAPI() WikiTreeResult {
 	return WikiTreeResult{Namespaces: buildTree("", true)}
 }
 
-// buildTree 构建导航树；relative=true 时 path 相对 namespace。
+// buildTree 构建导航树；relative=true 时 path 相对 namespace（URL key 前缀）。
 func buildTree(activePath string, contractShape bool) []TreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
 		return []TreeNamespace{}
 	}
 	allPages := filterPublicPages(wikiPages.ListAll())
-	byNamespace := make(map[string][]*wikiPages.Entity)
+	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
-		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
+		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
 	}
 
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		pages := byNamespace[ns.Name]
+		urlKey := namespaceURLKey(ns)
+		pages := byURLKey[urlKey]
 		items := make([]TreePage, 0, len(pages))
 		for _, page := range pages {
 			path := page.Path
 			if contractShape {
-				path = strings.TrimPrefix(path, ns.Name+"/")
+				path = strings.TrimPrefix(path, urlKey+"/")
 			}
 			items = append(items, TreePage{
 				PageId: page.Id,
@@ -127,6 +162,7 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
+			Slug:  urlKey,
 			Pages: items,
 		})
 	}
@@ -134,11 +170,14 @@ func buildTree(activePath string, contractShape bool) []TreeNamespace {
 }
 
 // AdminTreePage 管理端导航树中的一页。
+// Path 首段 = URL key（slug，降级=显示名）；SourcePath = 仓库真实路径
+// （GitHub 编辑/历史外链拼接用，与 URL 解耦，D7）。
 type AdminTreePage struct {
-	PageId    uint64 `json:"pageId"`
-	Path      string `json:"path"`
-	Title     string `json:"title"`
-	SortOrder int    `json:"sortOrder"`
+	PageId     uint64 `json:"pageId"`
+	Path       string `json:"path"`
+	SourcePath string `json:"sourcePath"`
+	Title      string `json:"title"`
+	SortOrder  int    `json:"sortOrder"`
 }
 
 // AdminTreeNamespace 管理端导航树中的一个 namespace 分组。
@@ -148,27 +187,28 @@ type AdminTreeNamespace struct {
 	Pages []AdminTreePage `json:"pages"`
 }
 
-// BuildAdminTree 构建管理端导航树（含 sortOrder；path 为完整路径，含 namespace 段）。
+// BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，含 URL key 段）。
 func BuildAdminTree() []AdminTreeNamespace {
 	namespaces := wikiNamespaces.List()
 	if len(namespaces) == 0 {
 		return []AdminTreeNamespace{}
 	}
 	allPages := wikiPages.ListAll()
-	byNamespace := make(map[string][]*wikiPages.Entity)
+	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
-		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
+		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
 	}
 	result := make([]AdminTreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		pages := byNamespace[ns.Name]
+		pages := byURLKey[namespaceURLKey(ns)]
 		items := make([]AdminTreePage, 0, len(pages))
 		for _, page := range pages {
 			items = append(items, AdminTreePage{
-				PageId:    page.Id,
-				Path:      page.Path,
-				Title:     page.Title,
-				SortOrder: page.SortOrder,
+				PageId:     page.Id,
+				Path:       page.Path,
+				SourcePath: page.SourcePath,
+				Title:      page.Title,
+				SortOrder:  page.SortOrder,
 			})
 		}
 		result = append(result, AdminTreeNamespace{
@@ -183,6 +223,7 @@ func BuildAdminTree() []AdminTreeNamespace {
 // NamespaceSummary 首页 namespace 卡。
 type NamespaceSummary struct {
 	Name          string    `json:"name"`
+	Slug          string    `json:"slug"`
 	Description   string    `json:"description"`
 	SortOrder     int       `json:"sortOrder"`
 	PageCount     int64     `json:"pageCount"`
@@ -191,16 +232,17 @@ type NamespaceSummary struct {
 }
 
 // BuildNamespaceSummaries 返回 namespace 摘要列表（页面数 + 最近更新时间）。
+// 分组按 URL key（page.Namespace），输出显示名/URL key 分离（D7）。
 func BuildNamespaceSummaries() []NamespaceSummary {
 	namespaces := wikiNamespaces.List()
 	pages := filterPublicPages(wikiPages.ListAll())
-	byNamespace := make(map[string][]*wikiPages.Entity)
+	byURLKey := make(map[string][]*wikiPages.Entity)
 	for _, p := range pages {
-		byNamespace[p.Namespace] = append(byNamespace[p.Namespace], p)
+		byURLKey[p.Namespace] = append(byURLKey[p.Namespace], p)
 	}
 	summaries := make([]NamespaceSummary, 0, len(namespaces))
 	for _, ns := range namespaces {
-		nsPages := byNamespace[ns.Name]
+		nsPages := byURLKey[namespaceURLKey(ns)]
 		updated := ns.UpdatedAt
 		firstPath := ""
 		for _, p := range nsPages {
@@ -213,6 +255,7 @@ func BuildNamespaceSummaries() []NamespaceSummary {
 		}
 		summaries = append(summaries, NamespaceSummary{
 			Name:          ns.Name,
+			Slug:          ns.SlugOrEmpty(),
 			Description:   ns.Description,
 			SortOrder:     ns.SortOrder,
 			PageCount:     int64(len(nsPages)),
@@ -336,11 +379,17 @@ type TocItem struct {
 }
 
 // LoadPageDetail 加载页面详情（topic 可见性由调用方把关）。
+// D7：Namespace 字段输出显示名（中文目录名），从 wiki_namespaces.name 反查；
+// 反查失败（数据异常）时降级输出 URL key。
 func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, error) {
+	displayName := page.Namespace
+	if ns := wikiNamespaces.GetBySlug(page.Namespace); ns.Id != 0 {
+		displayName = ns.Name
+	}
 	detail := PageDetail{
 		Id:                  page.Id,
 		TopicId:             topic.Id,
-		Namespace:           page.Namespace,
+		Namespace:           displayName,
 		Path:                page.Path,
 		Title:               page.Title,
 		Content:             page.RenderedHTML,

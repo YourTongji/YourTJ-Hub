@@ -436,6 +436,7 @@ export interface AdminAgentRotateResult {
 
 export interface WikiNamespace {
   name: string
+  slug: string
   description: string
   sortOrder: number
   pageCount: number
@@ -445,6 +446,7 @@ export interface WikiNamespace {
 export interface WikiPageNode {
   pageId: number
   path: string
+  sourcePath: string
   title: string
   sortOrder: number
 }

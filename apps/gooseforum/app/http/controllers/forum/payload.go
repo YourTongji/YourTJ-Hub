@@ -210,6 +210,7 @@ type SidebarPayload struct {
 type WikiTreeNamespacePayload struct {
 	Name  string                `json:"name"`
 	Label string                `json:"label"`
+	Slug  string                `json:"slug"`
 	Pages []WikiTreePagePayload `json:"pages"`
 }
 

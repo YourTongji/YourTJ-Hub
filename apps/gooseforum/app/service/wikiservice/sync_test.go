@@ -5,8 +5,11 @@ import (
 	"path/filepath"
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/dbconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/posts"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 )
 
@@ -287,13 +290,14 @@ func TestApplyRepoToDBRestore(t *testing.T) {
 }
 
 // TestParseMarkdownFileFrontmatter frontmatter 解析边界：
-// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文。
+// 无 frontmatter 用文件名、frontmatter 缺 title 兜底文件名、空正文、slug 解析。
 func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	cases := []struct {
 		name      string
 		file      repoFile
 		wantTitle string
 		wantOrder int
+		wantSlug  string
 		wantBody  string
 	}{
 		{
@@ -302,6 +306,13 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 			wantTitle: "完整",
 			wantOrder: 3,
 			wantBody:  "# 正文",
+		},
+		{
+			name:      "frontmatter with slug",
+			file:      repoFile{Path: "同济新手教程/index.md", Content: []byte("---\ntitle: 教程\nslug: tongji-freshman-guide\n---\n\n# 首页")},
+			wantTitle: "教程",
+			wantSlug:  "tongji-freshman-guide",
+			wantBody:  "# 首页",
 		},
 		{
 			name:      "no frontmatter uses filename",
@@ -334,12 +345,15 @@ func TestParseMarkdownFileFrontmatter(t *testing.T) {
 	}
 	for _, tc := range cases {
 		t.Run(tc.name, func(t *testing.T) {
-			title, order, _, body := parseMarkdownFile(tc.file)
+			title, order, _, slug, body := parseMarkdownFile(tc.file)
 			if title != tc.wantTitle {
 				t.Fatalf("title=%q, want %q", title, tc.wantTitle)
 			}
 			if order != tc.wantOrder {
 				t.Fatalf("order=%d, want %d", order, tc.wantOrder)
+			}
+			if slug != tc.wantSlug {
+				t.Fatalf("slug=%q, want %q", slug, tc.wantSlug)
 			}
 			if body != tc.wantBody {
 				t.Fatalf("body=%q, want %q", body, tc.wantBody)
@@ -377,5 +391,289 @@ func TestScanRepoFilesSkipsNonMarkdown(t *testing.T) {
 		if files[i].Path != want {
 			t.Fatalf("scan[%d]=%q, want %q (all=%v)", i, files[i].Path, want, wantPaths)
 		}
+	}
+}
+
+// TestApplyRepoToDBNamespaceMetaFromIndex 顶层目录 index.md 的 frontmatter
+// description/order → wiki_namespaces.description/sort_order（D4）。
+func TestApplyRepoToDBNamespaceMetaFromIndex(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	// index.md 携带 description/order；页面文件正常同步。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 社区使用指南\norder: 10\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	ns := wikiNamespaces.GetByName("guide")
+	if ns.Id == 0 {
+		t.Fatal("namespace guide missing")
+	}
+	if ns.Description != "社区使用指南" {
+		t.Fatalf("namespace description=%q, want 社区使用指南", ns.Description)
+	}
+	if ns.SortOrder != 10 {
+		t.Fatalf("namespace sort_order=%d, want 10", ns.SortOrder)
+	}
+
+	// 修改 index.md → 描述/排序更新；幂等检查。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\ndescription: 新版描述\norder: 20\n---\n\n# 指南首页")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	ns = wikiNamespaces.GetByName("guide")
+	if ns.Description != "新版描述" || ns.SortOrder != 20 {
+		t.Fatalf("namespace after update: desc=%q order=%d, want 新版描述/20", ns.Description, ns.SortOrder)
+	}
+}
+
+// TestApplyRepoToDBDeleteNamespace 仓库顶层目录消失 → 命名空间自动删除（D5）。
+// 页面先软删，命名空间行与贡献者记录一并清理。
+func TestApplyRepoToDBDeleteNamespace(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should exist after first sync")
+	}
+
+	// 贡献者记录预置一条，验证删除时一并清理。
+	if err := dbconnect.Connect().Create(&wikiNamespaceEditors.Entity{Namespace: "guide", UserId: 424242}).Error; err != nil {
+		t.Fatalf("seed editor: %v", err)
+	}
+
+	// 删除整个顶层目录 → 页面软删 + 命名空间删除。
+	if err := os.RemoveAll(filepath.Join(repo, "guide")); err != nil {
+		t.Fatal(err)
+	}
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("delete namespace sync: %v", err)
+	}
+	if res.PagesDeleted != 1 {
+		t.Fatalf("PagesDeleted=%d, want 1", res.PagesDeleted)
+	}
+	if res.NamespacesDeleted != 1 {
+		t.Fatalf("NamespacesDeleted=%d, want 1", res.NamespacesDeleted)
+	}
+	if wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be deleted")
+	}
+	page := wikiPages.GetByPathUnscoped("guide/start")
+	if page.Id == 0 || !page.DeletedAt.Valid {
+		t.Fatalf("page should be soft-deleted: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	// 贡献者记录清理。
+	var editors int64
+	if err := dbconnect.Connect().Table("wiki_namespace_editors").
+		Where("namespace = ?", "guide").Count(&editors).Error; err != nil {
+		t.Fatalf("count editors: %v", err)
+	}
+	if editors != 0 {
+		t.Fatalf("editors after namespace delete=%d, want 0", editors)
+	}
+
+	// 目录重新出现 → 命名空间重建 + 页面恢复（复用原 topic）。
+	// topic 已随页面软删，必须 Unscoped 读取（Get 带软删 scope 返回零值）。
+	topicID := topics.UnscopedGet(page.TopicId).Id
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	res = &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("restore namespace sync: %v", err)
+	}
+	if !wikiNamespaces.Exists("guide") {
+		t.Fatal("namespace guide should be recreated")
+	}
+	page = wikiPages.GetByPath("guide/start")
+	if page.Id == 0 || page.DeletedAt.Valid {
+		t.Fatalf("page should be restored: id=%d deletedAt.Valid=%v", page.Id, page.DeletedAt.Valid)
+	}
+	if page.TopicId != topicID {
+		t.Fatalf("topic changed after namespace restore: %d → %d, want reuse", topicID, page.TopicId)
+	}
+}
+func namespaceSlugOrEmpty(t *testing.T, name string) string {
+	t.Helper()
+	ns := wikiNamespaces.GetByName(name)
+	if ns.Id == 0 {
+		t.Fatalf("namespace %s missing", name)
+	}
+	return ns.SlugOrEmpty()
+}
+
+// TestApplyRepoToDBSlugDefaultsToASCIIDirName 纯 ASCII 目录名且未声明 slug →
+// 默认 slug=目录名，页面 path 首段=slug（URL 用 slug，D7）；index.md 变更
+// frontmatter slug 后 slug 与页面 path 首段同步迁移。
+func TestApplyRepoToDBSlugDefaultsToASCIIDirName(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\n---\n\n# 指南首页")
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "guide" {
+		t.Fatalf("slug=%q, want default dir name guide", got)
+	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id == 0 {
+		t.Fatal("page guide/start missing (path first segment = slug)")
+	}
+
+	// index.md 显式声明 slug → 覆盖目录名默认值，页面 path 首段跟随迁移。
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: tongji-guide\n---\n\n# 指南首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "tongji-guide" {
+		t.Fatalf("slug=%q, want tongji-guide from frontmatter", got)
+	}
+	if page := wikiPages.GetByPath("tongji-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to new slug tongji-guide/start")
+	}
+	if page := wikiPages.GetByPath("guide/start"); page.Id != 0 {
+		t.Fatal("old path guide/start should be gone after slug migration")
+	}
+}
+
+// TestApplyRepoToDBSlugKeepsChineseNameNull 中文目录名且 index.md 未声明 slug
+// → slug 保持 NULL，URL key 降级=显示名（页面 path 首段=中文目录名）；
+// 仓库声明 slug 后 slug 填充且页面 path 首段迁移为 slug（D7 降级策略）。
+func TestApplyRepoToDBSlugKeepsChineseNameNull(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "" {
+		t.Fatalf("slug=%q, want empty for chinese name without frontmatter slug", got)
+	}
+	// 降级：无 slug 时 URL key=显示名，页面 path 首段=中文目录名。
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("page 同济新手教程/start missing (URL key falls back to display name)")
+	}
+
+	// 仓库 index.md 声明 slug → 填充，页面 path 首段迁移为 slug。
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("update sync: %v", err)
+	}
+	if got := namespaceSlugOrEmpty(t, "同济新手教程"); got != "tongji-freshman-guide" {
+		t.Fatalf("slug=%q, want tongji-freshman-guide", got)
+	}
+	if page := wikiPages.GetByPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("page path first segment not migrated to slug after frontmatter slug added")
+	}
+	if page := wikiPages.GetByPath("同济新手教程/start"); page.Id != 0 {
+		t.Fatal("old path 同济新手教程/start should be gone after slug migration")
+	}
+}
+
+// TestApplyRepoToDBSlugConflictKeepsOldValue slug 已被其他命名空间占用 →
+// 报错并保留旧值（fail-fast，run 标记 failed）。
+// 两个命名空间同时索要 slug=guide：一个目录名默认（guide），一个 index.md
+// frontmatter 显式声明（指南）。map 遍历顺序不确定，但无论谁先处理，
+// 恰好一个持有 slug=guide、另一个冲突保留旧值（空），且同步报错。
+func TestApplyRepoToDBSlugConflictKeepsOldValue(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+	writeRepoFile(t, repo, "指南/index.md", "---\ntitle: 指南\nslug: guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "指南/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on slug conflict")
+	}
+	slugs := map[string]string{}
+	for _, ns := range wikiNamespaces.List() {
+		slugs[ns.Name] = ns.SlugOrEmpty()
+	}
+	guideHas := slugs["guide"] == "guide"
+	zhinanHas := slugs["指南"] == "guide"
+	if guideHas == zhinanHas {
+		t.Fatalf("slug=guide must be held by exactly one namespace, got guide=%q 指南=%q", slugs["guide"], slugs["指南"])
+	}
+}
+
+// TestApplyRepoToDBSlugInvalidFromFrontmatter 声明非法 slug（大写/特殊字符）→
+// fail-fast 报错且不落库（保留旧值 NULL）；页面本身仍正常同步。
+func TestApplyRepoToDBSlugInvalidFromFrontmatter(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "guide/index.md", "---\ntitle: 指南\nslug: Bad_Slug!\n---\n\n# 指南首页")
+
+	cfg := GitConfig{CloneDir: repo}
+	err := applyRepoToDB(cfg, &SyncResult{})
+	if err == nil {
+		t.Fatal("want error on invalid slug")
+	}
+	if got := namespaceSlugOrEmpty(t, "guide"); got != "" {
+		t.Fatalf("slug=%q, want empty (invalid slug rejected, keep old value)", got)
+	}
+	if page := wikiPages.GetByPath("guide/index"); page.Id == 0 {
+		t.Fatal("page should still be synced despite invalid namespace slug")
+	}
+}
+
+// TestResolvePageByURLPath D7 路由语义（URL 用 slug）：
+//  1. slug 首段路径直查命中（新 URL，如 /wiki/tongji-freshman-guide/start）；
+//  2. 中文显示名 URL 回退：无 slug 时 path 首段=显示名，直接命中；
+//  3. 声明 slug 后旧链接兼容：首段=显示名的 URL 按 name→urlKey 重建命中。
+func TestResolvePageByURLPath(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\nslug: tongji-freshman-guide\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	// 新 URL：slug 首段直查命中。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/start"); page.Id == 0 {
+		t.Fatal("slug URL tongji-freshman-guide/start should resolve directly")
+	}
+	// 旧链接兼容：中文显示名 URL（声明 slug 前的链接）按 name→slug 重建命中。
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("display-name URL 同济新手教程/start should resolve via name→slug rebuild")
+	}
+	// 未命中：不存在的页面。
+	if page := ResolvePageByURLPath("tongji-freshman-guide/nope"); page.Id != 0 {
+		t.Fatal("nonexistent page should not resolve")
+	}
+	if page := ResolvePageByURLPath("不存在的命名空间/start"); page.Id != 0 {
+		t.Fatal("nonexistent namespace should not resolve")
+	}
+}
+
+// TestResolvePageByURLPathFallbackUnassigned 中文目录未声明 slug 时
+// path 首段=显示名（降级），直查即命中（无需回退）。
+func TestResolvePageByURLPathFallbackUnassigned(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 新手教程\n---\n\n# 首页")
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	if page := ResolvePageByURLPath("同济新手教程/start"); page.Id == 0 {
+		t.Fatal("fallback URL (display name as URL key) should resolve directly")
 	}
 }

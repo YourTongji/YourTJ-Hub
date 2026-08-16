@@ -2598,13 +2598,17 @@ WikiTreePage:
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, pages]
+  required: [name, label, slug, pages]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name; may contain Unicode such as Chinese).
     label:
       type: string
       description: Display label of the namespace.
+    slug:
+      type: string
+      description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
     pages:
       type: array
       items:
@@ -2634,10 +2638,14 @@ WikiTreeResponse:
 
 WikiNamespaceSummary:
   type: object
-  required: [name, description, sortOrder, pageCount, updatedAt]
+  required: [name, slug, description, sortOrder, pageCount, updatedAt]
   properties:
     name:
       type: string
+      description: Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese).
+    slug:
+      type: string
+      description: URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned.
     description:
       type: string
     sortOrder:
@@ -2727,52 +2735,9 @@ WikiHomeResponse:
 
 
 
-WikiCreateNamespaceRequest:
-  type: object
-  required: [name, description]
-  properties:
-    name:
-      type: string
-      minLength: 1
-      maxLength: 64
-      pattern: '^[a-z0-9]+(-[a-z0-9]+)*$'
-      description: Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars).
-    description:
-      type: string
-  additionalProperties: false
-
-WikiUpdateNamespaceRequest:
-  type: object
-  required: [description]
-  properties:
-    description:
-      type: string
-  additionalProperties: false
-
-WikiNamespaceActionResult:
-  type: object
-  required: [ok]
-  properties:
-    ok:
-      type: boolean
-      const: true
-  additionalProperties: false
-
-WikiNamespaceActionResponse:
-  oneOf:
-    - allOf:
-        - $ref: '#/ApiSuccess'
-        - type: object
-          required: [result]
-          properties:
-            result:
-              $ref: '#/WikiNamespaceActionResult'
-    - $ref: '#/ApiFailure'
-
-
 WikiAdminTreePage:
   type: object
-  required: [pageId, path, title, sortOrder]
+  required: [pageId, path, sourcePath, title, sortOrder]
   properties:
     pageId:
       type: integer
@@ -2780,6 +2745,10 @@ WikiAdminTreePage:
       minimum: 1
     path:
       type: string
+      description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
+    sourcePath:
+      type: string
+      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
     title:
       type: string
     sortOrder:
@@ -2845,7 +2814,7 @@ WikiSyncRunView:
       description: Git commit SHA of the synced head.
     trigger:
       type: string
-      enum: [manual, schedule, webhook]
+      enum: [manual, schedule, webhook, startup]
       description: What started the sync run.
     status:
       type: string
@@ -2961,3 +2930,53 @@ WikiWebhookFailure:
     error:
       type: string
   additionalProperties: false
+
+WikiWebhookSecretStatus:
+  type: object
+  required: [configured]
+  properties:
+    configured:
+      type: boolean
+      description: Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config).
+  additionalProperties: false
+
+WikiWebhookSecretStatusResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretStatus'
+    - $ref: '#/ApiFailure'
+
+WikiWebhookSecretSaveRequest:
+  type: object
+  required: [secret]
+  properties:
+    secret:
+      type: string
+      maxLength: 1024
+      description: Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret.
+  additionalProperties: false
+
+WikiWebhookSecretSaveResult:
+  type: object
+  required: [ok]
+  properties:
+    ok:
+      type: boolean
+      const: true
+  additionalProperties: false
+
+WikiWebhookSecretSaveResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiWebhookSecretSaveResult'
+    - $ref: '#/ApiFailure'

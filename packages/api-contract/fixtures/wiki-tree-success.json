@@ -23,7 +23,8 @@
             "title": "草稿想法",
             "active": false
           }
-        ]
+        ],
+        "slug": "guide"
       }
     ]
   },

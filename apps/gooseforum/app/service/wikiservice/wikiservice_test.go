@@ -2,6 +2,7 @@ package wikiservice
 
 import (
 	"fmt"
+	"strings"
 	"testing"
 	"time"
 
@@ -11,6 +12,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topicUserAction"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaceEditors"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
@@ -29,6 +31,7 @@ func setupWikiTestDB(t *testing.T) {
 		&rolePermissionRs.Entity{},
 		&topicUserAction.Entity{},
 		&wikiNamespaces.Entity{},
+		&wikiNamespaceEditors.Entity{},
 		&wikiPages.Entity{},
 		&wikiSyncRuns.Entity{},
 	}
@@ -136,11 +139,18 @@ func TestValidatePath(t *testing.T) {
 		{"guide/getting-started", true},
 		{"deployment/waline", true},
 		{"guide/sub/page-name", true},
-		{"guide", false},                // 至少 namespace + 一个 slug 段
-		{"Guide/Getting-Started", true}, // 规范化小写
-		{"guide/..", false},             // 禁止 ..
-		{"guide/a b", false},            // 空格非法
-		{"guide/UPPER", true},           // 小写规范化后合法
+		{"同济新手教程/学校/简介", true},          // 中文命名空间与页面段（GitHub SSOT）
+		{"中文/目录/页面", true},               // 纯中文路径
+		{"Guide/Getting-Started", true},   // 保留大小写（不再小写归一）
+		{"guide/UPPER", true},             // 大写段合法
+		{"guide", false},                  // 至少 namespace + 一个 slug 段
+		{"guide/..", false},               // 禁止 ..
+		{"guide/.hidden", false},          // 禁止点开头段
+		{"guide/a b", false},              // 空格非法
+		{"guide/a\tb", false},             // 控制字符非法
+		{"guide/a:b", false},              // 保留字符非法
+		{"guide/a*b", false},              // 保留字符非法
+		{"guide/中文 空格", false},           // 中文路径含空格非法
 		{"", false},
 	}
 	for _, tc := range cases {
@@ -148,20 +158,10 @@ func TestValidatePath(t *testing.T) {
 		if ok != tc.ok {
 			t.Fatalf("ValidatePath(%q) ok=%v, want %v", tc.input, ok, tc.ok)
 		}
-		if ok && got != tc.input && got != lower(tc.input) {
-			t.Fatalf("ValidatePath(%q) normalized=%q", tc.input, got)
+		if ok && got != tc.input {
+			t.Fatalf("ValidatePath(%q) normalized=%q, want unchanged (no lowercasing)", tc.input, got)
 		}
 	}
-}
-
-func lower(s string) string {
-	b := []byte(s)
-	for i := range b {
-		if b[i] >= 'A' && b[i] <= 'Z' {
-			b[i] += 'a' - 'A'
-		}
-	}
-	return string(b)
 }
 
 func TestValidateNamespace(t *testing.T) {
@@ -172,15 +172,34 @@ func TestValidateNamespace(t *testing.T) {
 		{"guide", true},
 		{"deployment", true},
 		{"my-namespace", true},
-		{"Guide", true}, // 小写
+		{"同济新手教程", true}, // 中文命名空间（GitHub 顶层目录名）
+		{"使用指南", true},    // 中文命名空间
+		{"Guide", true},    // 保留大小写
+		{"UPPER", true},    // 保留大小写
 		{"has space", false},
+		{"中文 空格", false}, // 中间空格非法
+		{" 前导空格", true},  // 首尾空格被 trim 后为合法名称（trim 后再校验）
+		{".hidden", false},    // 点开头（隐藏目录）非法
+		{"a:b", false},        // 保留字符非法
+		{"a*b", false},        // 保留字符非法
 		{"", false},
-		{"UPPER", true},
 	}
 	for _, tc := range cases {
 		if got := ValidateNamespace(tc.input); got != tc.ok {
 			t.Fatalf("ValidateNamespace(%q) = %v, want %v", tc.input, got, tc.ok)
 		}
+	}
+}
+
+func TestValidateNamespaceLengthByRunes(t *testing.T) {
+	// 长度按字符（rune）计数：64 个中文字符合法，65 个非法。
+	short := strings.Repeat("济", 64)
+	if !ValidateNamespace(short) {
+		t.Fatalf("ValidateNamespace(64 中文) = false, want true (按字符计数)")
+	}
+	long := strings.Repeat("济", 65)
+	if ValidateNamespace(long) {
+		t.Fatalf("ValidateNamespace(65 中文) = true, want false")
 	}
 }
 
@@ -378,5 +397,72 @@ func TestHasPageManagerPermission(t *testing.T) {
 	}
 	if HasPageManagerPermission(0) {
 		t.Fatal("system user 0 should not have PageManager")
+	}
+}
+
+// TestValidatePathLengthByRunes 整路径长度按码点（rune）计数 ≤255：
+// 255 个 runes 合法、256 个非法；100 个中文字符（300 字节）按码点计数合法。
+// 与 DB varchar(255) 字符语义及前端码点计数对齐（review 建议 3）。
+// 注意：每段仍有 ≤64 的独立上限，构造长路径需多段分摊。
+func TestValidatePathLengthByRunes(t *testing.T) {
+	// ns=1 + 斜杠 + 四段 63/63/62/62 + 3 个斜杠 = 255 runes。
+	path255 := "a/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 62) + "/" +
+		strings.Repeat("b", 62)
+	if got, ok := ValidatePath(path255); !ok {
+		t.Fatalf("ValidatePath(255 ascii runes) = false, want true")
+	} else if got != path255 {
+		t.Fatalf("ValidatePath(255 runes) normalized=%q, want unchanged", got)
+	}
+	// 100 个中文字符（300 字节）：按码点计数合法（此前按字节会被误拒）。
+	chinese100 := "济/" + strings.Repeat("济", 63) + "/" + strings.Repeat("济", 34)
+	if _, ok := ValidatePath(chinese100); !ok {
+		t.Fatalf("ValidatePath(100 chinese runes, 300 bytes) = false, want true (counted by runes)")
+	}
+	// ns=1 + 四段 63/63/63/62 + 4 个斜杠 = 256 runes 非法。
+	path256 := "a/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 63) + "/" +
+		strings.Repeat("b", 62)
+	if _, ok := ValidatePath(path256); ok {
+		t.Fatalf("ValidatePath(256 runes) = true, want false")
+	}
+}
+
+// TestGitConfigEditURLPathEscapesSegments GitHub 外链逐段转义：
+// `#`/`%` 等仓库合法目录字符必须被 PathEscape，避免 `#` 开启 fragment
+// 或 `%` 被当转义前缀 → GitHub 404（review 建议 2）。
+// 调用方传不带 .md 的仓库相对路径（source_path），扩展名由 EditURL 追加。
+func TestGitConfigEditURLPathEscapesSegments(t *testing.T) {
+	cfg := GitConfig{Repo: "https://github.com/YourTongji/YourTJ-Wiki.git", Branch: "main"}
+	got := cfg.EditURL("C#/x")
+	want := "https://github.com/YourTongji/YourTJ-Wiki/edit/main/C%23/x.md"
+	if got != want {
+		t.Fatalf("EditURL(C#/x) = %q, want %q", got, want)
+	}
+	got = cfg.EditURL("100%/README")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/100%25/README.md"
+	if got != want {
+		t.Fatalf("EditURL(100%%) = %q, want %q", got, want)
+	}
+	// 普通 slug 路径保持原样（无转义副作用）。
+	got = cfg.EditURL("guide/getting-started")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/edit/main/guide/getting-started.md"
+	if got != want {
+		t.Fatalf("EditURL(guide/getting-started) = %q, want %q", got, want)
+	}
+	// 中文段被转义（URL 安全）。
+	got = cfg.EditURL("同济新手教程/start")
+	if !strings.Contains(got, "/edit/main/%E5%90%8C%E6%B5%8E%E6%96%B0%E6%89%8B%E6%95%99%E7%A8%8B/start.md") {
+		t.Fatalf("EditURL(chinese dir) = %q, want URL-escaped first segment", got)
+	}
+	// HistoryURL 同样逐段转义。
+	got = cfg.HistoryURL("C#/x")
+	want = "https://github.com/YourTongji/YourTJ-Wiki/commits/main/C%23/x.md"
+	if got != want {
+		t.Fatalf("HistoryURL(C#/x) = %q, want %q", got, want)
 	}
 }

@@ -27,6 +27,11 @@ function toggleCollapse(name: string) {
   else next.add(name)
   collapsed.value = next
 }
+
+// GitHub SSOT：路径保留中文等 Unicode（不再小写归一），URL 按段编码。
+function wikiHref(path: string): string {
+  return '/wiki/' + path.split('/').map((seg) => encodeURIComponent(seg)).join('/')
+}
 </script>
 
 <template>
@@ -64,7 +69,7 @@ function toggleCollapse(name: string) {
         <a
           v-for="page in group.pages"
           :key="page.pageId"
-          :href="`/wiki/${page.path}`"
+          :href="wikiHref(page.path)"
           class="flex h-7 items-center gap-2 rounded-md px-2 text-[13px] font-medium transition-colors duration-150"
           :class="page.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
         >
