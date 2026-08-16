@@ -1460,3 +1460,83 @@ components:
       $ref: ./components/schemas.yaml#/ForumSearchSuccess
     ForumSearchResponse:
       $ref: ./components/schemas.yaml#/ForumSearchResponse
+    AdminAgentCreateRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateRequest
+    AdminAgentCreateResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateResponse
+    AdminAgentCreateSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentCreateSuccess
+    AdminAgentDisableResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentDisableResponse
+    AdminAgentDisableSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentDisableSuccess
+    AdminAgentIdRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentIdRequest
+    AdminAgentItem:
+      $ref: ./components/schemas.yaml#/AdminAgentItem
+    AdminAgentListResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentListResponse
+    AdminAgentRotateTokenResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentRotateTokenResponse
+    AdminAgentRotateTokenSuccess:
+      $ref: ./components/schemas.yaml#/AdminAgentRotateTokenSuccess
+    AdminAgentUpdateRequest:
+      $ref: ./components/schemas.yaml#/AdminAgentUpdateRequest
+    AdminAgentUpdateResponse:
+      $ref: ./components/schemas.yaml#/AdminAgentUpdateResponse
+    AdminDailyTraffic:
+      $ref: ./components/schemas.yaml#/AdminDailyTraffic
+    AdminOptRecordItem:
+      $ref: ./components/schemas.yaml#/AdminOptRecordItem
+    AdminOptRecordPageRequest:
+      $ref: ./components/schemas.yaml#/AdminOptRecordPageRequest
+    AdminOptRecordPageResponse:
+      $ref: ./components/schemas.yaml#/AdminOptRecordPageResponse
+    AdminTrafficOverviewRequest:
+      $ref: ./components/schemas.yaml#/AdminTrafficOverviewRequest
+    AdminTrafficOverviewResponse:
+      $ref: ./components/schemas.yaml#/AdminTrafficOverviewResponse
+    CategorySearchPayload:
+      $ref: ./components/schemas.yaml#/CategorySearchPayload
+    CourseRelatedResponse:
+      $ref: ./components/schemas.yaml#/CourseRelatedResponse
+    CourseRelatedResult:
+      $ref: ./components/schemas.yaml#/CourseRelatedResult
+    CourseSearchPayload:
+      $ref: ./components/schemas.yaml#/CourseSearchPayload
+    PaginationPayload:
+      $ref: ./components/schemas.yaml#/PaginationPayload
+    PkSyncCalendarRequest:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarRequest
+    PkSyncCalendarResponse:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarResponse
+    PkSyncCalendarSuccess:
+      $ref: ./components/schemas.yaml#/PkSyncCalendarSuccess
+    PkSyncStatusItem:
+      $ref: ./components/schemas.yaml#/PkSyncStatusItem
+    PkSyncStatusResponse:
+      $ref: ./components/schemas.yaml#/PkSyncStatusResponse
+    PkSyncStatusSuccess:
+      $ref: ./components/schemas.yaml#/PkSyncStatusSuccess
+    RelatedCourseItem:
+      $ref: ./components/schemas.yaml#/RelatedCourseItem
+    RelatedTeacherOfferingItem:
+      $ref: ./components/schemas.yaml#/RelatedTeacherOfferingItem
+    ReportHandlerPayload:
+      $ref: ./components/schemas.yaml#/ReportHandlerPayload
+    TopicCategoryPayload:
+      $ref: ./components/schemas.yaml#/TopicCategoryPayload
+    TopicPayload:
+      $ref: ./components/schemas.yaml#/TopicPayload
+    UserSearchPayload:
+      $ref: ./components/schemas.yaml#/UserSearchPayload
+    WikiAssetCDNSaveRequest:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveRequest
+    WikiAssetCDNSaveResponse:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveResponse
+    WikiAssetCDNSaveResult:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNSaveResult
+    WikiAssetCDNStatus:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNStatus
+    WikiAssetCDNResponse:
+      $ref: ./components/schemas.yaml#/WikiAssetCDNResponse

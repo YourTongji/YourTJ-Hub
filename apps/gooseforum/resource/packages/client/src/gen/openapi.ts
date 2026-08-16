@@ -8665,6 +8665,324 @@ export interface components {
             result: components["schemas"]["SearchResultPayload"];
         };
         ForumSearchResponse: components["schemas"]["ForumSearchSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentCreateRequest: {
+            /** @description Bot username. Missing/blank fails request validation with `common.request.invalidParams` (HTTP 200); a value failing the format rule fails with `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with `admin.agent.usernameExists` (HTTP 200). */
+            username: string;
+            /** @description Optional display name; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Optional HTTP(S) webhook endpoint; non-HTTP(S) schemes, credentials, fragments, and local/private targets fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+        };
+        AdminAgentCreateResponse: components["schemas"]["AdminAgentCreateSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentCreateSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                agent: components["schemas"]["AdminAgentItem"];
+                /** @description Plaintext bearer token, returned exactly once at creation; only its hash is stored. */
+                token: string;
+            };
+        };
+        AdminAgentDisableResponse: components["schemas"]["AdminAgentDisableSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentDisableSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @constant */
+            result: "success";
+            /** @constant */
+            messageCode: "common.operation.success";
+        };
+        AdminAgentIdRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+        };
+        AdminAgentItem: {
+            /**
+             * Format: uint64
+             * @description Bot user id backing the Agent.
+             */
+            agentId: number;
+            username: string;
+            nickname: string;
+            avatarUrl: string;
+            /** @description Always empty — bot users carry no email. */
+            email: string;
+            /** @description Non-secret token prefix (`agt_` + 8 chars); the token and its hash never leave the server. */
+            tokenPrefix: string;
+            /** @description Optional HTTP(S) webhook endpoint; empty when unset. */
+            webhookEndpoint: string;
+            /**
+             * @description 1 enabled, 0 disabled. Disabling also revokes the stored credential.
+             * @enum {integer}
+             */
+            enabled: 0 | 1;
+            /**
+             * Format: uint64
+             * @description Admin user id that created the Agent.
+             */
+            createdBy: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp of the last authenticated use; null when never used.
+             */
+            lastUsedAt: number | null;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            createdAt: number;
+            /**
+             * Format: int64
+             * @description Millisecond timestamp.
+             */
+            updatedAt: number;
+        };
+        AdminAgentListResponse: components["schemas"]["ApiSuccess"] & {
+            /** @description All Agents, newest first. */
+            result: components["schemas"]["AdminAgentItem"][];
+        };
+        AdminAgentRotateTokenResponse: components["schemas"]["AdminAgentRotateTokenSuccess"] | components["schemas"]["ApiFailure"];
+        AdminAgentRotateTokenSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** Format: uint64 */
+                agentId: number;
+                /** @description New plaintext bearer token, returned exactly once; the previous token stops resolving immediately. */
+                token: string;
+            };
+        };
+        AdminAgentUpdateRequest: {
+            /**
+             * Format: uint64
+             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
+             */
+            agentId: number;
+            /** @description Applied only when present; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
+            nickname?: string;
+            /** @description Applied only when present; invalid endpoints fail with `admin.agent.webhookInvalid` (HTTP 200). */
+            webhookEndpoint?: string;
+            /**
+             * @description Applied only when present; other values fail with `common.request.invalidParams` (HTTP 200). Setting 0 revokes the stored credential; re-enabling an Agent whose credential was revoked fails with `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a new token.
+             * @enum {integer}
+             */
+            enabled?: 0 | 1;
+        };
+        AdminAgentUpdateResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["AdminAgentItem"];
+        }) | components["schemas"]["ApiFailure"];
+        AdminDailyTraffic: {
+            /** @description YYYY-MM-DD. */
+            date: string;
+            /**
+             * Format: int64
+             * @description Registered users that day; 0 when no stat row exists.
+             */
+            regCount: number;
+            /**
+             * Format: int64
+             * @description Published topics that day; 0 when no stat row exists.
+             */
+            topicCount: number;
+            /**
+             * Format: int64
+             * @description Published replies that day; 0 when no stat row exists.
+             */
+            replyCount: number;
+        };
+        AdminOptRecordItem: {
+            /** Format: uint64 */
+            id: number;
+            /**
+             * Format: uint64
+             * @description Operator user id.
+             */
+            optUserId: number;
+            optType: number;
+            targetType: number;
+            /** @description Target identifier stored as a string. */
+            targetId: string;
+            /** @description Operation detail payload (JSON-encoded message code and params). */
+            optInfo: string;
+            /** @description RFC 3339 timestamp. */
+            createdAt: string;
+        };
+        AdminOptRecordPageRequest: {
+            /** @description 1-based page; values below 1 are treated as the first page. The echoed `page` in the response is 0-based (requested page minus one, floored at 0). */
+            page?: number;
+            /** @description Bounded server-side into 10-50. */
+            pageSize?: number;
+            /**
+             * Format: uint64
+             * @description Optional operator filter; 0 or omitted lists all operators.
+             */
+            optUserId?: number;
+            /** @description Optional operation-type filter; 0 or omitted disables the filter. */
+            optType?: number;
+            /** @description Optional target-type filter; 0 or omitted disables the filter. */
+            targetType?: number;
+            /** @description Optional target-id filter; 0 or omitted disables the filter. */
+            targetId?: number;
+        };
+        AdminOptRecordPageResponse: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /** @description Records sorted by id descending. */
+                list: components["schemas"]["AdminOptRecordItem"][];
+                /** @description Echoed 0-based page (requested page minus one, floored at 0). */
+                page: number;
+                /** @description Effective page size after server-side bounding into 10-50. */
+                size: number;
+                /** Format: int64 */
+                total: number;
+                /** @description Omitted from the wire payload when false. */
+                hasNext?: boolean;
+            };
+        };
+        AdminTrafficOverviewRequest: {
+            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
+            startDate?: string;
+            /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
+            endDate?: string;
+        };
+        AdminTrafficOverviewResponse: (components["schemas"]["ApiSuccess"] & {
+            /** @description One entry per day in the range, ascending; every in-range day is present even without stat rows. */
+            result: components["schemas"]["AdminDailyTraffic"][];
+        }) | components["schemas"]["ApiFailure"];
+        CategorySearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            name: string;
+            slug: string;
+            icon: string;
+            color: string;
+            desc: string;
+        };
+        CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["CourseRelatedResult"];
+        };
+        CourseRelatedResult: {
+            /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
+            teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
+            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
+            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
+        };
+        CourseSearchPayload: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
+            creditX10: number;
+            aliases: string[];
+            instructors: string[];
+            terms: string[];
+            campus: string[];
+            /**
+             * Format: double
+             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             */
+            ratingAvg?: number;
+            /** @description Number of visible reviews (including unrated legacy ones). */
+            reviewCount?: number;
+        };
+        PaginationPayload: {
+            page: number;
+            nextPage: number;
+            hasNext: boolean;
+            nextUrl: string;
+        };
+        PkSyncCalendarRequest: {
+            /** @description 一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；首次同步尚未写入 pk_calendar 时只能传数字 calendarId。缺失/空白/无法解析失败于请求校验（HTTP 200）。 */
+            term: string;
+            /** @description 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。 */
+            depth?: number;
+        };
+        PkSyncCalendarResponse: components["schemas"]["PkSyncCalendarSuccess"] | components["schemas"]["ApiFailure"] | {
+            /** @description Up to 20 most recent export tasks, newest id first. */
+            result: components["schemas"]["AdminTaskQueueItem"][];
+        };
+        PkSyncCalendarSuccess: components["schemas"]["ApiSuccess"] & {
+            result: {
+                /**
+                 * @description 同步已作为后台异步任务启动（分页抓取可能持续数十秒到分钟级）。
+                 * @constant
+                 */
+                started: true;
+                /**
+                 * Format: uint64
+                 * @description 已解析出的一系统日历 ID。
+                 */
+                calendarId: number;
+                /** @description 归一化后的学期参数。 */
+                term: string;
+            };
+        };
+        PkSyncStatusItem: {
+            /**
+             * Format: uint64
+             * @description 一系统日历 ID（学期标识），即 pk_calendar.calendar_id。
+             */
+            calendarId: number;
+            /** @description 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。 */
+            calendarName: string;
+            /**
+             * @description 最近一次同步状态；超过断点续跑窗口（1 小时）的 running 会被判定为 failed。
+             * @enum {string}
+             */
+            status: "running" | "completed" | "failed";
+            /** @description 最近一次同步写入的行数。 */
+            rowsWritten: number;
+            /** @description 最近一次同步的抓取总页数。 */
+            totalPages: number;
+            /** @description 最近一次同步已提交的页数（断点续跑游标）。 */
+            lastCommittedPage: number;
+            /** @description 最近一次同步的失败说明；无错误时为空字符串。 */
+            errorMsg: string;
+            /**
+             * Format: date-time
+             * @description 最近一次同步开始时间；从未同步时为 null。
+             */
+            startedAt: string | null;
+            /**
+             * Format: date-time
+             * @description 最近一次同步结束时间；同步未结束或从未同步时为 null。
+             */
+            finishedAt: string | null;
+        };
+        PkSyncStatusResponse: components["schemas"]["PkSyncStatusSuccess"] | components["schemas"]["ApiFailure"];
+        PkSyncStatusSuccess: components["schemas"]["ApiSuccess"] & {
+            /** @description 各学期同步状态汇总，按 calendarId 倒序（最近学期在前）。 */
+            result: components["schemas"]["PkSyncStatusItem"][];
+        };
+        /** @description A canonical course taught by a teacher shared with the requested course. */
+        RelatedCourseItem: {
+            /** Format: uint64 */
+            id: number;
+            primaryCode: string;
+            name: string;
+            department: string;
+            instructors?: string[];
+            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
+            ratingAvg: number;
+            /** @description Number of visible reviews carrying a rating. */
+            ratingCount: number;
+            /** @description Number of visible reviews for this course. */
+            reviewCount: number;
+        };
+        /**
+         * @description An offering of the requested course taught by a teacher arrangement different from the most
+         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
+         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
+         */
+        RelatedTeacherOfferingItem: {
+            /** Format: uint64 */
+            offeringId: number;
+            termCode: string;
+            termName?: string;
+            campus?: string;
+            instructors?: string[];
+            ratingAvg: number;
+            ratingCount: number;
+            reviewCount: number;
+        };
         /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */
         ReportHandlerPayload: {
             /**
@@ -8718,261 +9036,20 @@ export interface components {
             avatarUrl: string;
             bio: string;
         };
-        CategorySearchPayload: {
-            /** Format: uint64 */
-            id: number;
-            name: string;
-            slug: string;
-            icon: string;
-            color: string;
-            desc: string;
-        };
-        CourseSearchPayload: {
-            /** Format: uint64 */
-            id: number;
-            primaryCode: string;
-            name: string;
-            department: string;
-            /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
-            creditX10: number;
-            aliases: string[];
-            instructors: string[];
-            terms: string[];
-            campus: string[];
+        WikiAssetCDNSaveRequest: {
             /**
-             * Format: double
-             * @description Non-NULL rating average; omitted when there are no rated reviews.
+             * @description Wiki asset CDN mode to persist.
+             * @enum {string}
              */
-            ratingAvg?: number;
-            /** @description Number of visible reviews (including unrated legacy ones). */
-            reviewCount?: number;
+            cdn: "self" | "jsDelivr";
         };
-        PaginationPayload: {
-            page: number;
-            nextPage: number;
-            hasNext: boolean;
-            nextUrl: string;
-        };
-        /** @description A canonical course taught by a teacher shared with the requested course. */
-        RelatedCourseItem: {
-            /** Format: uint64 */
-            id: number;
-            primaryCode: string;
-            name: string;
-            department: string;
-            instructors?: string[];
-            /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
-            ratingAvg: number;
-            /** @description Number of visible reviews carrying a rating. */
-            ratingCount: number;
-            /** @description Number of visible reviews for this course. */
-            reviewCount: number;
-        };
-        /**
-         * @description An offering of the requested course taught by a teacher arrangement different from the most
-         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
-         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
-         */
-        RelatedTeacherOfferingItem: {
-            /** Format: uint64 */
-            offeringId: number;
-            termCode: string;
-            termName?: string;
-            campus?: string;
-            instructors?: string[];
-            ratingAvg: number;
-            ratingCount: number;
-            reviewCount: number;
-        };
-        CourseRelatedResult: {
-            /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
-            teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
-            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
-            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
-        };
-        CourseRelatedResponse: components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["CourseRelatedResult"];
-        };
-        AdminAgentItem: {
-            /**
-             * Format: uint64
-             * @description Bot user id backing the Agent.
-             */
-            agentId: number;
-            username: string;
-            nickname: string;
-            avatarUrl: string;
-            /** @description Always empty — bot users carry no email. */
-            email: string;
-            /** @description Non-secret token prefix (`agt_` + 8 chars); the token and its hash never leave the server. */
-            tokenPrefix: string;
-            /** @description Optional HTTP(S) webhook endpoint; empty when unset. */
-            webhookEndpoint: string;
-            /**
-             * @description 1 enabled, 0 disabled. Disabling also revokes the stored credential.
-             * @enum {integer}
-             */
-            enabled: 0 | 1;
-            /**
-             * Format: uint64
-             * @description Admin user id that created the Agent.
-             */
-            createdBy: number;
-            /**
-             * Format: int64
-             * @description Millisecond timestamp of the last authenticated use; null when never used.
-             */
-            lastUsedAt: number | null;
-            /**
-             * Format: int64
-             * @description Millisecond timestamp.
-             */
-            createdAt: number;
-            /**
-             * Format: int64
-             * @description Millisecond timestamp.
-             */
-            updatedAt: number;
-        };
-        AdminAgentListResponse: components["schemas"]["ApiSuccess"] & {
-            /** @description All Agents, newest first. */
-            result: components["schemas"]["AdminAgentItem"][];
-        };
-        AdminAgentCreateRequest: {
-            /** @description Bot username. Missing/blank fails request validation with `common.request.invalidParams` (HTTP 200); a value failing the format rule fails with `admin.agent.usernameInvalid` (HTTP 200); a taken username fails with `admin.agent.usernameExists` (HTTP 200). */
-            username: string;
-            /** @description Optional display name; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
-            nickname?: string;
-            /** @description Optional HTTP(S) webhook endpoint; non-HTTP(S) schemes, credentials, fragments, and local/private targets fail with `admin.agent.webhookInvalid` (HTTP 200). */
-            webhookEndpoint?: string;
-        };
-        AdminAgentCreateSuccess: components["schemas"]["ApiSuccess"] & {
-            result: {
-                agent: components["schemas"]["AdminAgentItem"];
-                /** @description Plaintext bearer token, returned exactly once at creation; only its hash is stored. */
-                token: string;
-            };
-        };
-        AdminAgentCreateResponse: components["schemas"]["AdminAgentCreateSuccess"] | components["schemas"]["ApiFailure"];
-        AdminAgentUpdateRequest: {
-            /**
-             * Format: uint64
-             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
-             */
-            agentId: number;
-            /** @description Applied only when present; more than 64 runes fails with `common.request.invalidParams` (HTTP 200). */
-            nickname?: string;
-            /** @description Applied only when present; invalid endpoints fail with `admin.agent.webhookInvalid` (HTTP 200). */
-            webhookEndpoint?: string;
-            /**
-             * @description Applied only when present; other values fail with `common.request.invalidParams` (HTTP 200). Setting 0 revokes the stored credential; re-enabling an Agent whose credential was revoked fails with `admin.agent.needsRotate` (HTTP 200) until adminAgentRotateToken issues a new token.
-             * @enum {integer}
-             */
-            enabled?: 0 | 1;
-        };
-        AdminAgentUpdateResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["AdminAgentItem"];
+        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNSaveResult"];
         }) | components["schemas"]["ApiFailure"];
-        AdminAgentIdRequest: {
-            /**
-             * Format: uint64
-             * @description Unknown ids fail with `admin.agent.notFound` (HTTP 200); missing/zero fails request validation with `common.request.invalidParams` (HTTP 200).
-             */
-            agentId: number;
-        };
-        AdminAgentRotateTokenSuccess: components["schemas"]["ApiSuccess"] & {
-            result: {
-                /** Format: uint64 */
-                agentId: number;
-                /** @description New plaintext bearer token, returned exactly once; the previous token stops resolving immediately. */
-                token: string;
-            };
-        };
-        AdminAgentRotateTokenResponse: components["schemas"]["AdminAgentRotateTokenSuccess"] | components["schemas"]["ApiFailure"];
-        AdminAgentDisableSuccess: components["schemas"]["ApiSuccess"] & {
+        WikiAssetCDNSaveResult: {
             /** @constant */
-            result: "success";
-            /** @constant */
-            messageCode: "common.operation.success";
+            ok: true;
         };
-        AdminAgentDisableResponse: components["schemas"]["AdminAgentDisableSuccess"] | components["schemas"]["ApiFailure"];
-        AdminOptRecordPageRequest: {
-            /** @description 1-based page; values below 1 are treated as the first page. The echoed `page` in the response is 0-based (requested page minus one, floored at 0). */
-            page?: number;
-            /** @description Bounded server-side into 10-50. */
-            pageSize?: number;
-            /**
-             * Format: uint64
-             * @description Optional operator filter; 0 or omitted lists all operators.
-             */
-            optUserId?: number;
-            /** @description Optional operation-type filter; 0 or omitted disables the filter. */
-            optType?: number;
-            /** @description Optional target-type filter; 0 or omitted disables the filter. */
-            targetType?: number;
-            /** @description Optional target-id filter; 0 or omitted disables the filter. */
-            targetId?: number;
-        };
-        AdminOptRecordItem: {
-            /** Format: uint64 */
-            id: number;
-            /**
-             * Format: uint64
-             * @description Operator user id.
-             */
-            optUserId: number;
-            optType: number;
-            targetType: number;
-            /** @description Target identifier stored as a string. */
-            targetId: string;
-            /** @description Operation detail payload (JSON-encoded message code and params). */
-            optInfo: string;
-            /** @description RFC 3339 timestamp. */
-            createdAt: string;
-        };
-        AdminOptRecordPageResponse: components["schemas"]["ApiSuccess"] & {
-            result: {
-                /** @description Records sorted by id descending. */
-                list: components["schemas"]["AdminOptRecordItem"][];
-                /** @description Echoed 0-based page (requested page minus one, floored at 0). */
-                page: number;
-                /** @description Effective page size after server-side bounding into 10-50. */
-                size: number;
-                /** Format: int64 */
-                total: number;
-                /** @description Omitted from the wire payload when false. */
-                hasNext?: boolean;
-            };
-        };
-        AdminTrafficOverviewRequest: {
-            /** @description Inclusive range start (YYYY-MM-DD); empty defaults to 7 days ago. */
-            startDate?: string;
-            /** @description Inclusive range end (YYYY-MM-DD); empty defaults to today. */
-            endDate?: string;
-        };
-        AdminDailyTraffic: {
-            /** @description YYYY-MM-DD. */
-            date: string;
-            /**
-             * Format: int64
-             * @description Registered users that day; 0 when no stat row exists.
-             */
-            regCount: number;
-            /**
-             * Format: int64
-             * @description Published topics that day; 0 when no stat row exists.
-             */
-            topicCount: number;
-            /**
-             * Format: int64
-             * @description Published replies that day; 0 when no stat row exists.
-             */
-            replyCount: number;
-        };
-        AdminTrafficOverviewResponse: (components["schemas"]["ApiSuccess"] & {
-            /** @description One entry per day in the range, ascending; every in-range day is present even without stat rows. */
-            result: components["schemas"]["AdminDailyTraffic"][];
-        }) | components["schemas"]["ApiFailure"];
         WikiAssetCDNStatus: {
             /**
              * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
@@ -8983,83 +9060,6 @@ export interface components {
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
         }) | components["schemas"]["ApiFailure"];
-        WikiAssetCDNSaveRequest: {
-            /**
-             * @description Wiki asset CDN mode to persist.
-             * @enum {string}
-             */
-            cdn: "self" | "jsDelivr";
-        };
-        WikiAssetCDNSaveResult: {
-            /** @constant */
-            ok: true;
-        };
-        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiAssetCDNSaveResult"];
-        }) | components["schemas"]["ApiFailure"];
-        PkSyncCalendarRequest: {
-            /** @description 一系统数字 calendarId（如 121）或学期名（如 2025-2026-1）；首次同步尚未写入 pk_calendar 时只能传数字 calendarId。缺失/空白/无法解析失败于请求校验（HTTP 200）。 */
-            term: string;
-            /** @description 可向前回溯的学期数上限（默认 1；管理端上限 8）。小于 1 按 1 处理，超过上限按上限处理。 */
-            depth?: number;
-        };
-        PkSyncCalendarSuccess: components["schemas"]["ApiSuccess"] & {
-            result: {
-                /**
-                 * @description 同步已作为后台异步任务启动（分页抓取可能持续数十秒到分钟级）。
-                 * @constant
-                 */
-                started: true;
-                /**
-                 * Format: uint64
-                 * @description 已解析出的一系统日历 ID。
-                 */
-                calendarId: number;
-                /** @description 归一化后的学期参数。 */
-                term: string;
-            };
-        };
-        PkSyncCalendarResponse: components["schemas"]["PkSyncCalendarSuccess"] | components["schemas"]["ApiFailure"] | {
-            /** @description Up to 20 most recent export tasks, newest id first. */
-            result: components["schemas"]["AdminTaskQueueItem"][];
-        };
-        PkSyncStatusItem: {
-            /**
-             * Format: uint64
-             * @description 一系统日历 ID（学期标识），即 pk_calendar.calendar_id。
-             */
-            calendarId: number;
-            /** @description 学期显示名（calendar_id_i18n）；首次同步失败等尚未写入 calendar 的学期可能为空字符串。 */
-            calendarName: string;
-            /**
-             * @description 最近一次同步状态；超过断点续跑窗口（1 小时）的 running 会被判定为 failed。
-             * @enum {string}
-             */
-            status: "running" | "completed" | "failed";
-            /** @description 最近一次同步写入的行数。 */
-            rowsWritten: number;
-            /** @description 最近一次同步的抓取总页数。 */
-            totalPages: number;
-            /** @description 最近一次同步已提交的页数（断点续跑游标）。 */
-            lastCommittedPage: number;
-            /** @description 最近一次同步的失败说明；无错误时为空字符串。 */
-            errorMsg: string;
-            /**
-             * Format: date-time
-             * @description 最近一次同步开始时间；从未同步时为 null。
-             */
-            startedAt: string | null;
-            /**
-             * Format: date-time
-             * @description 最近一次同步结束时间；同步未结束或从未同步时为 null。
-             */
-            finishedAt: string | null;
-        };
-        PkSyncStatusSuccess: components["schemas"]["ApiSuccess"] & {
-            /** @description 各学期同步状态汇总，按 calendarId 倒序（最近学期在前）。 */
-            result: components["schemas"]["PkSyncStatusItem"][];
-        };
-        PkSyncStatusResponse: components["schemas"]["PkSyncStatusSuccess"] | components["schemas"]["ApiFailure"];
     };
     responses: never;
     parameters: never;
