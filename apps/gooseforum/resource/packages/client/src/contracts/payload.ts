@@ -263,11 +263,14 @@ export interface SidebarPayload {
   wikiTree?: WikiTreeNamespace[]
 }
 
-export interface WikiTreePage {
+export interface WikiTreeNode {
+  /** A Markdown page or a non-clickable repository directory. */
+  kind: 'page' | 'directory'
   pageId: number
   path: string
   title: string
   active: boolean
+  children: WikiTreeNode[]
 }
 
 export interface WikiTreeNamespace {
@@ -275,7 +278,7 @@ export interface WikiTreeNamespace {
   label: string
   /** 有效 URL key（slug，未分配时降级=显示名）；拼 /wiki/{slug}/{page.path} 用。 */
   slug: string
-  pages: WikiTreePage[]
+  nodes: WikiTreeNode[]
 }
 
 export interface FooterPayload {

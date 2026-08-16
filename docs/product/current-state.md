@@ -23,7 +23,8 @@
   （wiki.home/wiki.detail）与公开 API（tree/namespaces/home）；同步触发 = 每日定时（默认
   03:00，可配）+ 管理端手动 + GitHub webhook（push 事件，PR merge 后即时）；站内无写路径
   （编辑/历史按钮外链 GitHub）；topics.topic_type 隔离论坛 feed 与搜索；`wiki_sync_runs`
-  记录每次同步（running/success/failed + 变更计数）。
+  记录每次同步（running/success/failed + 变更计数）。仓库目录逐级投影为可折叠导航：目录
+  不要求 `index.md`，`index.md` 是该目录下的普通可点击页面，同级节点按 `order` 排序。
 - **Built-in OIDC Provider**: the forum issues standard OIDC tokens (authorization code + PKCE S256,
   RS256 id_token, opaque access tokens) for first-party clients; `sub` is always the numeric users.id.
 - Monorepo structure (apps/packages/services/deploy/docs) + CI (server/web/contract workflows).

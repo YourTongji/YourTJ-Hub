@@ -943,6 +943,13 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		result.PagesDeleted++
 	}
 
+	// 4.5 Rebuild page-to-index links after every create/update/delete pass.
+	// Navigation itself is path-derived so directories without index.md remain
+	// valid; parent_id is a reconciled cache for pages with an ancestor index.
+	if err := reconcileWikiPageParents(); err != nil {
+		errs = append(errs, fmt.Sprintf("reconcile wiki page parents: %v", err))
+	}
+
 	// 5. 命名空间元数据同步（D4/D7）：按 2.6 定稿的 plans 应用
 	//    description/order（仅 index.md 携带时）+ slug 列。
 	//    幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
@@ -1014,6 +1021,44 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	return nil
 }
 
+// reconcileWikiPageParents rebuilds parent_id from the nearest ancestor index
+// page. Root index pages and pages below directories without index.md attach to
+// the namespace root (0). Derived parent paths are always shorter, so a
+// successful reconciliation removes stale links and cannot create a cycle.
+func reconcileWikiPageParents() error {
+	pages := wikiPages.ListAll()
+	byPath := make(map[string]*wikiPages.Entity, len(pages))
+	for _, page := range pages {
+		byPath[page.Path] = page
+	}
+	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+		for _, page := range pages {
+			parentID := parentIndexID(page, byPath)
+			if page.ParentId == parentID {
+				continue
+			}
+			if err := tx.Table("wiki_pages").Where("id = ?", page.Id).Update("parent_id", parentID).Error; err != nil {
+				return err
+			}
+		}
+		return nil
+	})
+}
+
+func parentIndexID(page *wikiPages.Entity, byPath map[string]*wikiPages.Entity) uint64 {
+	parts := strings.Split(page.Path, "/")
+	for end := len(parts) - 1; end >= 1; end-- {
+		candidate := strings.Join(parts[:end], "/") + "/index"
+		if candidate == page.Path {
+			continue
+		}
+		if parent, ok := byPath[candidate]; ok {
+			return parent.Id
+		}
+	}
+	return 0
+}
+
 // listAllUnscoped 返回全部页面（含软删，供恢复检测）。
 func listAllUnscoped() []*wikiPages.Entity {
 	var entities []*wikiPages.Entity
@@ -1037,15 +1082,8 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if wp.displayName == "" {
 		return fmt.Errorf("empty display name for path %s", wp.path)
 	}
-	// 嵌套路径：parent_id 关联父页面。
-	parentID := uint64(0)
-	if segments := strings.Split(wp.path, "/"); len(segments) > 2 {
-		parentPath := strings.Join(segments[:len(segments)-1], "/")
-		if parent := wikiPages.GetByPath(parentPath); parent.Id != 0 {
-			parentID = parent.Id
-		}
-	}
-
+	// parent_id 由同步结束后的 reconcileWikiPageParents 统一重算（PR #303），
+	// 不在单页 upsert 内推导；renderedHTML 由引用解析器预渲染（review M1）。
 	rendered := wp.renderedHTML
 	toc := encodeTOCOrEmpty(markdown2html.ExtractHeadings(wp.body))
 
@@ -1087,11 +1125,14 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			return err
 		}
 		page = wikiPages.Entity{
-			TopicId:             topic.Id,
-			Namespace:           ns,
-			Path:                wp.path,
-			SourcePath:          wp.sourcePath,
-			ParentId:            parentID,
+			TopicId:    topic.Id,
+			Namespace:  ns,
+			Path:       wp.path,
+			SourcePath: wp.sourcePath,
+			// parent_id is rebuilt after the complete repository projection. A
+			// single upsert cannot safely derive it when ancestors appear later,
+			// move, delete, or restore in the same sync.
+			ParentId:            0,
 			SortOrder:           wp.order,
 			Title:               wp.title,
 			Content:             wp.body,

@@ -442,8 +442,8 @@ components:
       $ref: ./components/schemas.yaml#/SessionMessageSuccess
     UserSession:
       $ref: ./components/schemas.yaml#/UserSession
-    WikiTreePage:
-      $ref: ./components/schemas.yaml#/WikiTreePage
+    WikiTreeNode:
+      $ref: ./components/schemas.yaml#/WikiTreeNode
     WikiTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiTreeNamespace
     WikiTreeResult:
@@ -462,8 +462,8 @@ components:
       $ref: ./components/schemas.yaml#/WikiHomeResult
     WikiHomeResponse:
       $ref: ./components/schemas.yaml#/WikiHomeResponse
-    WikiAdminTreePage:
-      $ref: ./components/schemas.yaml#/WikiAdminTreePage
+    WikiAdminTreeNode:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeNode
     WikiAdminTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiAdminTreeNamespace
     WikiAdminTreeResult:

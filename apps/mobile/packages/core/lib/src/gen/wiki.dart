@@ -56,31 +56,46 @@ class WikiNamespace {
   }
 }
 
-/// 导航树中的一页（公开 `GET /api/wiki/tree`）。
-class WikiTreePage {
-  const WikiTreePage({
+/// 导航树节点（公开 `GET /api/wiki/tree`）。目录节点没有对应页面，pageId 为 0。
+class WikiTreeNode {
+  const WikiTreeNode({
+    required this.kind,
     required this.pageId,
     required this.path,
     required this.title,
     required this.active,
+    required this.children,
   });
 
+  final String kind;
   final int pageId;
   final String path;
   final String title;
   final bool active;
+  final List<WikiTreeNode> children;
 
-  factory WikiTreePage.fromJson(Map<String, dynamic> json) {
-    return WikiTreePage(
+  factory WikiTreeNode.fromJson(Map<String, dynamic> json) {
+    return WikiTreeNode(
+      kind: json['kind'] as String? ?? 'page',
       pageId: (json['pageId'] as num?)?.toInt() ?? 0,
       path: json['path'] as String? ?? '',
       title: json['title'] as String? ?? '',
       active: json['active'] as bool? ?? false,
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((item) => WikiTreeNode.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
-    return {'pageId': pageId, 'path': path, 'title': title, 'active': active};
+    return {
+      'kind': kind,
+      'pageId': pageId,
+      'path': path,
+      'title': title,
+      'active': active,
+      'children': children.map((node) => node.toJson()).toList(),
+    };
   }
 }
 
@@ -90,7 +105,7 @@ class WikiTreeNamespace {
     required this.name,
     required this.label,
     required this.slug,
-    required this.pages,
+    required this.nodes,
   });
 
   final String name;
@@ -99,15 +114,15 @@ class WikiTreeNamespace {
   /// 有效 URL key（slug，未分配时降级=显示名）；消费方拼
   /// `/wiki/{slug}/{page.path}` href 用。
   final String slug;
-  final List<WikiTreePage> pages;
+  final List<WikiTreeNode> nodes;
 
   factory WikiTreeNamespace.fromJson(Map<String, dynamic> json) {
     return WikiTreeNamespace(
       name: json['name'] as String? ?? '',
       label: json['label'] as String? ?? '',
       slug: json['slug'] as String? ?? '',
-      pages: (json['pages'] as List<dynamic>? ?? const [])
-          .map((item) => WikiTreePage.fromJson(item as Map<String, dynamic>))
+      nodes: (json['nodes'] as List<dynamic>? ?? const [])
+          .map((item) => WikiTreeNode.fromJson(item as Map<String, dynamic>))
           .toList(),
     );
   }
@@ -117,7 +132,7 @@ class WikiTreeNamespace {
       'name': name,
       'label': label,
       'slug': slug,
-      'pages': pages.map((page) => page.toJson()).toList(),
+      'nodes': nodes.map((node) => node.toJson()).toList(),
     };
   }
 }
@@ -305,16 +320,19 @@ class WikiTocItem {
   }
 }
 
-/// 管理端树中的一页（`GET /api/admin/wiki/tree`）。
-class WikiAdminTreePage {
-  const WikiAdminTreePage({
+/// 管理端树节点（`GET /api/admin/wiki/tree`）。目录节点没有对应页面。
+class WikiAdminTreeNode {
+  const WikiAdminTreeNode({
+    required this.kind,
     required this.pageId,
     required this.path,
     required this.sourcePath,
     required this.title,
     required this.sortOrder,
+    required this.children,
   });
 
+  final String kind;
   final int pageId;
 
   /// URL 友好路径（首段 = slug，降级 = 显示名）。
@@ -324,24 +342,31 @@ class WikiAdminTreePage {
   final String sourcePath;
   final String title;
   final int sortOrder;
+  final List<WikiAdminTreeNode> children;
 
-  factory WikiAdminTreePage.fromJson(Map<String, dynamic> json) {
-    return WikiAdminTreePage(
+  factory WikiAdminTreeNode.fromJson(Map<String, dynamic> json) {
+    return WikiAdminTreeNode(
+      kind: json['kind'] as String? ?? 'page',
       pageId: (json['pageId'] as num?)?.toInt() ?? 0,
       path: json['path'] as String? ?? '',
       sourcePath: json['sourcePath'] as String? ?? '',
       title: json['title'] as String? ?? '',
       sortOrder: (json['sortOrder'] as num?)?.toInt() ?? 0,
+      children: (json['children'] as List<dynamic>? ?? const [])
+          .map((item) => WikiAdminTreeNode.fromJson(item as Map<String, dynamic>))
+          .toList(),
     );
   }
 
   Map<String, dynamic> toJson() {
     return {
+      'kind': kind,
       'pageId': pageId,
       'path': path,
       'sourcePath': sourcePath,
       'title': title,
       'sortOrder': sortOrder,
+      'children': children.map((node) => node.toJson()).toList(),
     };
   }
 }
@@ -351,20 +376,20 @@ class WikiAdminTreeNamespace {
   const WikiAdminTreeNamespace({
     required this.name,
     required this.label,
-    required this.pages,
+    required this.nodes,
   });
 
   final String name;
   final String label;
-  final List<WikiAdminTreePage> pages;
+  final List<WikiAdminTreeNode> nodes;
 
   factory WikiAdminTreeNamespace.fromJson(Map<String, dynamic> json) {
     return WikiAdminTreeNamespace(
       name: json['name'] as String? ?? '',
       label: json['label'] as String? ?? '',
-      pages: (json['pages'] as List<dynamic>? ?? const [])
+      nodes: (json['nodes'] as List<dynamic>? ?? const [])
           .map(
-            (item) => WikiAdminTreePage.fromJson(item as Map<String, dynamic>),
+            (item) => WikiAdminTreeNode.fromJson(item as Map<String, dynamic>),
           )
           .toList(),
     );
@@ -374,7 +399,7 @@ class WikiAdminTreeNamespace {
     return {
       'name': name,
       'label': label,
-      'pages': pages.map((page) => page.toJson()).toList(),
+      'nodes': nodes.map((node) => node.toJson()).toList(),
     };
   }
 }
