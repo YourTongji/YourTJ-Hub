@@ -309,6 +309,8 @@ func TestBuildSyncStatusKeepsLiveRunningWhileLockHeld(t *testing.T) {
 	if status.LastRun == nil || status.LastRun.Status != "running" {
 		t.Fatalf("live run must stay running while lock held, got %+v", status.LastRun)
 	}
+}
+
 // seedTopicInteractions 给 topic 预置互动：回复 + 点赞/收藏/订阅（watcher）。
 // 返回回复 ID，供收养后断言互动仍在原 topic。
 func seedTopicInteractions(t *testing.T, topicID uint64, userIDs []uint64) uint64 {
@@ -1162,6 +1164,9 @@ func TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers(t *testing.T) {
 	}
 	if got := countNotifications(); got != 1 {
 		t.Fatalf("wiki_updated notifications after content change = %d, want 1", got)
+	}
+}
+
 // ---------- issue #288：重命名/移动收养 ----------
 
 // TestApplyRepoToDBRenamePreservesInteractions Git 重命名（内容不变）：
@@ -1282,13 +1287,14 @@ func TestApplyRepoToDBRenameWithContentChange(t *testing.T) {
 }
 
 // TestApplyRepoToDBMoveNestedDirectory 目录内移动（docs/guide/tips.md →
-// docs/other/tips.md）：同 topic 复用 + parent_id 重算到新父页面。
+// docs/other/tips.md）：同 topic 复用 + parent_id 重算到新父 index 页。
+// parent_id 语义（#303）：最近祖先 index 页；目录无 index.md 时归到 0。
 func TestApplyRepoToDBMoveNestedDirectory(t *testing.T) {
 	setupWikiTestDB(t)
 	repo := t.TempDir()
-	writeRepoFile(t, repo, "docs/guide.md", "---\ntitle: guide\n---\n\n# guide")
+	writeRepoFile(t, repo, "docs/guide/index.md", "---\ntitle: guide\n---\n\n# guide")
 	writeRepoFile(t, repo, "docs/guide/tips.md", "---\ntitle: tips\n---\n\n# tips")
-	writeRepoFile(t, repo, "docs/other.md", "---\ntitle: other\n---\n\n# other")
+	writeRepoFile(t, repo, "docs/other/index.md", "---\ntitle: other\n---\n\n# other")
 
 	cfg := GitConfig{CloneDir: repo}
 	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
@@ -1296,12 +1302,12 @@ func TestApplyRepoToDBMoveNestedDirectory(t *testing.T) {
 	}
 	tips := wikiPages.GetByPath("docs/guide/tips")
 	topicID := tips.TopicId
-	parentGuide := wikiPages.GetByPath("docs/guide")
+	parentGuide := wikiPages.GetByPath("docs/guide/index")
 	if tips.ParentId != parentGuide.Id {
-		t.Fatalf("parent_id=%d, want guide page %d", tips.ParentId, parentGuide.Id)
+		t.Fatalf("parent_id=%d, want guide index page %d", tips.ParentId, parentGuide.Id)
 	}
 
-	// 移动到 docs/other/tips.md（先建目标目录——git 中 other.md 文件与
+	// 移动到 docs/other/tips.md（先建目标目录——git 中 other/index.md 文件与
 	// other/ 目录可共存，文件系统 rename 需要目标目录存在）。
 	if err := os.MkdirAll(filepath.Join(repo, "docs/other"), 0o755); err != nil {
 		t.Fatal(err)
@@ -1320,9 +1326,9 @@ func TestApplyRepoToDBMoveNestedDirectory(t *testing.T) {
 	if moved.Id == 0 || moved.TopicId != topicID {
 		t.Fatalf("moved page: id=%d topic=%d, want same topic %d", moved.Id, moved.TopicId, topicID)
 	}
-	parentOther := wikiPages.GetByPath("docs/other")
+	parentOther := wikiPages.GetByPath("docs/other/index")
 	if moved.ParentId != parentOther.Id {
-		t.Fatalf("parent_id after move=%d, want other page %d", moved.ParentId, parentOther.Id)
+		t.Fatalf("parent_id after move=%d, want other index page %d", moved.ParentId, parentOther.Id)
 	}
 }
 
