@@ -1115,6 +1115,9 @@ func TestApplyRepoToDBCDNSwitchDoesNotNotifyWatchers(t *testing.T) {
 	}
 	if got := countNotifications(); got != 1 {
 		t.Fatalf("wiki_updated notifications after content change = %d, want 1", got)
+	}
+}
+
 // TestApplyRepoToDBInvalidNestedPathFailsFast 非法嵌套页面路径 → 同步整体
 // 失败（fail-fast），绝不静默跳过并报告成功（issue #283）。
 // 根级 README/CONTRIBUTING 等元文件仍显式排除、不阻断同步。
@@ -1123,8 +1126,10 @@ func TestApplyRepoToDBInvalidNestedPathFailsFast(t *testing.T) {
 	repo := t.TempDir()
 	// 合法中文路径页面（正常投影）。
 	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
-	// 非法嵌套路径：段含保留字符（冒号）→ 同步必须失败。
-	writeRepoFile(t, repo, "guide/foo:bar.md", "---\ntitle: 非法\n---\n\n# 非法")
+	// 非法嵌套路径：段含空格（保留字符，跨平台可创建；不用冒号——Windows
+	// 会把 "foo:bar" 解释为 NTFS Alternate Data Stream 语法，filepath.Walk
+	// 不会枚举到该文件，测试无法覆盖目标）。
+	writeRepoFile(t, repo, "guide/foo bar.md", "---\ntitle: 非法\n---\n\n# 非法")
 	// 根级元文件：显式排除，不阻断。
 	writeRepoFile(t, repo, "README.md", "# Wiki")
 	writeRepoFile(t, repo, "CONTRIBUTING.md", "# 贡献指南")
@@ -1134,7 +1139,7 @@ func TestApplyRepoToDBInvalidNestedPathFailsFast(t *testing.T) {
 	if err == nil {
 		t.Fatal("want error for invalid nested page path, got nil")
 	}
-	if !strings.Contains(err.Error(), "guide/foo:bar") {
+	if !strings.Contains(err.Error(), "guide/foo bar") {
 		t.Fatalf("error should name the invalid path, got: %v", err)
 	}
 	if !strings.Contains(err.Error(), "invalid segment") {
