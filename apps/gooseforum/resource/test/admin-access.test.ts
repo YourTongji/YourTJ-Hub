@@ -27,7 +27,7 @@ function whitelistPaths(): string[] {
   return [...block.matchAll(/'(\/admin[^']*)':/g)].map((m) => m[1])
 }
 
-describe('admin 权限白名单与菜单/路由一致性(回归: AI 课程总结跳转 bug)', () => {
+describe('admin 权限白名单与菜单/路由一致性(回归: AI 课程总结/滥用防护跳转 bug)', () => {
   test('侧边栏每个菜单项 URL 都在权限白名单中', () => {
     const urls = sidebarMenuUrls()
     const whitelist = whitelistPaths()
@@ -46,17 +46,31 @@ describe('admin 权限白名单与菜单/路由一致性(回归: AI 课程总结
     }
   })
 
-  test('授权 SiteManager 后可访问 AI 课程总结与限流设置页(修复目标)', () => {
+  test('授权后全部设置类菜单项均可通过守卫(12 项, 系统回归)', () => {
+    // SiteManager 覆盖 11/12, announcement 需 PageManager;Admin 兜底一切。
+    configureAdminAccess([AdminPermission.Admin])
+    const settings = sidebarMenuUrls().filter((u) => u.startsWith('/admin/settings'))
+    expect(settings.length).toBe(12)
+    for (const url of settings) {
+      expect(canVisitAdminPath(url), `设置菜单 ${url} 授权后应可通过守卫(不再 fallback /admin)`).toBe(true)
+    }
+  })
+
+  test('未授权时全部设置类菜单项被拒绝(守卫生效)', () => {
+    configureAdminAccess([])
+    const settings = sidebarMenuUrls().filter((u) => u.startsWith('/admin/settings'))
+    for (const url of settings) {
+      expect(canVisitAdminPath(url), `设置菜单 ${url} 未授权时应被守卫拦截`).toBe(false)
+    }
+  })
+
+  test('修复目标: AI 课程总结(ai-summary)与滥用防护(rate-limit)授权 SiteManager 后可访问', () => {
+    configureAdminAccess([])
+    expect(canVisitAdminPath('/admin/settings/ai-summary')).toBe(false)
+    expect(canVisitAdminPath('/admin/settings/rate-limit')).toBe(false)
     configureAdminAccess([AdminPermission.SiteManager])
     expect(canVisitAdminPath('/admin/settings/ai-summary')).toBe(true)
     expect(canVisitAdminPath('/admin/settings/rate-limit')).toBe(true)
-  })
-
-  test('未授权时 AI 课程总结路径被拒绝(守卫生效)', () => {
-    configureAdminAccess([])
-    expect(canVisitAdminPath('/admin/settings/ai-summary')).toBe(false)
-    configureAdminAccess([AdminPermission.SiteManager])
-    expect(canVisitAdminPath('/admin/settings/ai-summary')).toBe(true)
   })
 
   test('站点统计 /admin 不受影响: 需 Admin 权限', () => {
