@@ -64,6 +64,36 @@ describe('SiteSelect twMerge class 合并', () => {
     expect(trigger.classes()).toContain('gf-input')
     wrapper.unmount()
   })
+
+  // P2-1（review #320 第三轮）：$attrs.class 可能来自 :class 对象/数组形式，
+  // 必须先经 clsx 规范化再交 twMerge，否则对象内容被忽略、w-full 仍生效。
+  test('调用方对象形式 class（:class="{ \'w-44\': true }"）生效且覆盖 w-full', () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attrs: { class: { 'w-44': true, shrink: false } },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    const cls = trigger.classes()
+    expect(cls).toContain('w-44')
+    expect(cls).not.toContain('w-full')
+    // 值为 false 的键不渲染
+    expect(cls).not.toContain('shrink')
+    wrapper.unmount()
+  })
+
+  test('调用方数组形式 class（:class="[\'w-44\', \'mt-1\']"）生效', () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attrs: { class: ['w-44', 'mt-1'] },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    expect(trigger.classes()).toContain('w-44')
+    expect(trigger.classes()).toContain('mt-1')
+    expect(trigger.classes()).not.toContain('w-full')
+    wrapper.unmount()
+  })
 })
 
 // SelectContent teleport 到 body，与 site 弹窗（z-[2000]/z-[2100]）同层；

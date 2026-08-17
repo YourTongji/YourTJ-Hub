@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed, nextTick, ref, useAttrs, type ComponentPublicInstance } from 'vue'
+import { clsx, type ClassValue } from 'clsx'
 import { twMerge } from 'tailwind-merge'
 import { Check, ChevronDown } from '@lucide/vue'
 import {
@@ -34,13 +35,14 @@ const emit = defineEmits<{
 
 // SelectRoot 是 renderless 组件（inheritAttrs: false），调用方 attrs（如 class 间距/宽度）
 // 必须显式透传到 SelectTrigger，否则被整体丢弃（SettingsPage 语言选择/字号预设回归）。
-// class 用 twMerge 合并：调用方宽度（如 w-44）覆盖默认 w-full，避免 CSS 产物顺序导致覆盖失败。
+// class 先用 clsx 规范化 Vue 支持的 string/array/object 形式，再交 twMerge 合并：
+// 调用方宽度（如 w-44）覆盖默认 w-full，避免 CSS 产物顺序导致覆盖失败。
 defineOptions({ inheritAttrs: false })
 
 const attrs = useAttrs()
 const { class: callerClass, ...restAttrs } = attrs
 const triggerClass = computed(() =>
-  twMerge('gf-input flex w-full items-center justify-between gap-2 text-left', callerClass as string | undefined),
+  twMerge('gf-input flex w-full items-center justify-between gap-2 text-left', clsx(callerClass as ClassValue)),
 )
 
 // reka-ui@2.9.8 的 SelectContentImpl 对 Tab 无条件 preventDefault 且不关闭 Select

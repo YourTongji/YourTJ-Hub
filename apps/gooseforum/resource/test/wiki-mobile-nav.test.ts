@@ -176,6 +176,9 @@ describe('MobileDrawer wiki 模式', () => {
     matchMediaSpy.mockRestore()
     wrapper.unmount()
   })
+
+  // 建议项（review #320 第三轮）模态锁解除测试见 test/mobile-drawer-lock.test.ts
+  // （reka-ui body 锁是跨组件共享栈，同文件多抽屉残留会污染断言，独立文件保证干净锁栈）。
 })
 
 describe('AppShell 抽屉接线', () => {
@@ -224,6 +227,10 @@ describe('AppShell 抽屉接线', () => {
 
 beforeEach(() => {
   i18n.global.locale.value = 'zh'
+  // happy-dom 共享 document：前序测试的抽屉可能残留 reka-ui body 模态锁，
+  // 复位避免污染后续断言（与 i18n locale 复位同理）。
+  document.body.style.pointerEvents = ''
+  document.body.style.overflow = ''
 })
 
 afterEach(() => {

@@ -1996,5 +1996,3 @@ export default {
     resultsLabel: 'Search results',
   },
 }
-
-
