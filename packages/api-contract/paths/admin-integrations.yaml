@@ -9,15 +9,16 @@ adminGetMailSettings:
       `permission.denied` (params permission=<localized permission name>,
       `站点管理` in zh). Returns the stored mail settings, or the built-in
       default configuration when nothing has been saved yet. Exposure
-      boundary: `smtpPassword` is returned in cleartext — there is no
-      masking on this admin surface. JSON binding is lenient: query string
-      and body are ignored.
+      boundary (issue #324 S2): the SMTP password is never returned — only
+      `smtpPasswordConfigured` (whether an encrypted password is stored) is
+      reported, mirroring the onesystem `cookieConfigured` pattern. JSON
+      binding is lenient: query string and body are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     responses:
       '200':
-        description: Mail settings including the cleartext SMTP password (stored configuration or the built-in default).
+        description: Mail settings without the SMTP password (configured state only; stored configuration or the built-in default).
         content:
           application/json:
             schema:
@@ -173,15 +174,16 @@ adminGetStorageSettings:
       `permission.denied` (params permission=<localized permission name>,
       `站点管理` in zh). Returns the stored storage settings, or the built-in
       default (local provider) when nothing has been saved yet. Exposure
-      boundary: `accessKey`/`secretKey` are returned in cleartext — there is
-      no masking on this admin surface. JSON binding is lenient: query
+      boundary (issue #324 S3): `accessKey`/`secretKey` are never returned —
+      only `accessKeyConfigured`/`secretKeyConfigured` (whether encrypted
+      credentials are stored) are reported. JSON binding is lenient: query
       string and body are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     responses:
       '200':
-        description: Storage settings including cleartext object-storage credentials (stored configuration or the built-in default).
+        description: Storage settings without the object-storage credentials (configured state only; stored configuration or the built-in default).
         content:
           application/json:
             schema:

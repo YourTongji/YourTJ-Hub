@@ -7,7 +7,7 @@
         "name": "契约 webhook",
         "enabled": true,
         "url": "https://hook.example.test/notify",
-        "secret": "contract-secret",
+        "secretConfigured": true,
         "events": [
           "topic.created"
         ],

@@ -810,6 +810,7 @@ export default {
   "k00t7": "I dati dell'orario vengono scaricati a pagine da manualArrange (OneSystem Tongji). Serve un cookie di sessione valido. Il cookie è criptato in archivio e mai mostrato in chiaro.",
   "k00t8": "Configurato",
   "k00t9": "Non configurato",
+  "k00u0": "Salvando un valore vuoto si mantiene il segreto configurato; non viene mai mostrato in chiaro.",
   "k00ta": "Cookie header",
   "k00tb": "es. JWTUser=xxx; JSESSIONID=xxx",
   "k00tc": "Salvando un valore vuoto si cancellano le credenziali salvate. Anche la variabile d'ambiente ONESYSTEM_COOKIE è supportata.",

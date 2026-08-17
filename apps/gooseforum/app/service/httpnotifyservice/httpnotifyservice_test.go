@@ -109,3 +109,37 @@ func TestApplyDeliverySuccessResetsFailureCount(t *testing.T) {
 		t.Fatalf("success did not reset endpoint failure state: %+v", endpoint)
 	}
 }
+
+// TestMergeDeliveryStatePreservesSecrets 验证投递结果写回只更新状态字段，
+// 端点密文/存量明文 secret 原样保留（issue #324 S1：领域形状 json:"-" 不含密钥，
+// 若用领域形状覆盖落库会丢失密文）。
+func TestMergeDeliveryStatePreservesSecrets(t *testing.T) {
+	storage := pageConfig.HttpNotifyStorageConfig{
+		Enabled: true,
+		Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+			{Id: "ep1", Name: "webhook", Enabled: true, URL: "https://hook.example.com",
+				SecretEncrypted: "sealed-secret", Events: []string{"topic.created"}, TimeoutSeconds: 5},
+			{Id: "ep2", Name: "legacy", Enabled: true, URL: "https://legacy.example.com",
+				Secret: "legacy-plain", Events: []string{"topic.created"}, TimeoutSeconds: 5},
+		},
+	}
+	applied := storage.ToConfig()
+	applied, changed := applyDeliveryResult(applied, "ep1", "https://hook.example.com", false, "boom")
+	if !changed {
+		t.Fatal("expected delivery failure to change state")
+	}
+	merged := mergeDeliveryState(storage, applied)
+
+	if merged.Endpoints[0].SecretEncrypted != "sealed-secret" {
+		t.Fatalf("secretEncrypted lost after merge: %+v", merged.Endpoints[0])
+	}
+	if merged.Endpoints[0].FailureCount != 1 || merged.Endpoints[0].LastError != "boom" {
+		t.Fatalf("delivery state not applied: %+v", merged.Endpoints[0])
+	}
+	if merged.Endpoints[1].Secret != "legacy-plain" {
+		t.Fatalf("legacy secret lost after merge: %+v", merged.Endpoints[1])
+	}
+	if merged.Endpoints[1].FailureCount != 0 {
+		t.Fatalf("unrelated endpoint mutated: %+v", merged.Endpoints[1])
+	}
+}

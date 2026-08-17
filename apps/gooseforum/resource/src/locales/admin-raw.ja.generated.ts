@@ -810,6 +810,7 @@ export default {
   "k00t7": "時間割データは同济一系統の manualArrange からページ単位で取得します。有効なセッション Cookie が必要です。Cookie は暗号化して保存され、平文で表示されることはありません。",
   "k00t8": "設定済み",
   "k00t9": "未設定",
+  "k00u0": "空にして保存すると設定済みのシークレットを保持します。平文で表示されることはありません。",
   "k00ta": "Cookie header",
   "k00tb": "例: JWTUser=xxx; JSESSIONID=xxx",
   "k00tc": "空にして保存すると登録済みの認証情報を消去します。ONESYSTEM_COOKIE 環境変数でも指定できます。",

@@ -8,6 +8,7 @@ import (
 	"testing"
 
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/buildinfo"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/securestore"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/pageConfig"
@@ -508,13 +509,17 @@ func TestAdminSaveRateLimitSettingsHTTPContract(t *testing.T) {
 func TestAdminGetHttpNotifySettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/http-notify-settings"
 
-	t.Run("success returns the stored notify settings including the cleartext secret", func(t *testing.T) {
+	t.Run("success returns the stored notify settings with the secret configured state only", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
-		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyConfig{
+		sealed, err := securestore.EncryptPurpose("contract-secret", securestore.HttpNotifySecretPurpose)
+		if err != nil {
+			t.Fatalf("encrypt contract webhook secret: %v", err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
 			Enabled: true,
-			Endpoints: []pageConfig.HttpNotifyEndpoint{
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
 				{Id: "ep1", Name: "契约 webhook", Enabled: true, URL: "https://hook.example.test/notify",
-					Secret: "contract-secret", Events: []string{"topic.created"}, TimeoutSeconds: 5},
+					SecretEncrypted: sealed, Events: []string{"topic.created"}, TimeoutSeconds: 5},
 			},
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodGet, path, "", "admin-http-notify-settings-success.json")
@@ -526,17 +531,52 @@ func TestAdminGetHttpNotifySettingsHTTPContract(t *testing.T) {
 func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 	path := "/api/admin/save-http-notify-settings"
 
-	t.Run("success replaces the stored notify settings", func(t *testing.T) {
+	t.Run("success replaces the stored notify settings and encrypts the secret", func(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearHttpNotifyConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://new.example.test/hook","secret":"new-secret","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
 			"admin-agent-disable-success.json")
-		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyConfig{})
-		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Id != "ep9" || stored.Endpoints[0].Secret != "new-secret" {
+		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Id != "ep9" {
 			t.Fatalf("stored notify settings = %#v, want submitted endpoint", stored.Endpoints)
+		}
+		sealed := stored.Endpoints[0].SecretEncrypted
+		if sealed == "" {
+			t.Fatalf("stored notify settings = %#v, want an encrypted webhook secret", stored.Endpoints)
+		}
+		if plain, err := securestore.DecryptPurpose(sealed, securestore.HttpNotifySecretPurpose); err != nil || plain != "new-secret" {
+			t.Fatalf("stored webhook secret decrypt = %q, err %v; want %q", plain, err, "new-secret")
+		}
+	})
+
+	t.Run("blank secret keeps the stored secret for the matching endpoint", func(t *testing.T) {
+		conn, router := setupAdminSiteContractTest(t)
+		sealed, err := securestore.EncryptPurpose("keep-secret", securestore.HttpNotifySecretPurpose)
+		if err != nil {
+			t.Fatalf("encrypt: %v", err)
+		}
+		persistContractPageConfig(t, conn, pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{
+			Enabled: true,
+			Endpoints: []pageConfig.HttpNotifyStorageEndpoint{
+				{Id: "ep9", Name: "新 webhook", Enabled: true, URL: "https://new.example.test/hook",
+					SecretEncrypted: sealed, Events: []string{"post.created"}, TimeoutSeconds: 3},
+			},
+		})
+		hotdataserve.ClearHttpNotifyConfigCache()
+		t.Cleanup(func() {
+			conn.Where("page_type = ?", pageConfig.HttpNotify).Delete(&pageConfig.Entity{})
+			hotdataserve.ClearHttpNotifyConfigCache()
+		})
+		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
+			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://new.example.test/hook","secret":"","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
+			"admin-agent-disable-success.json")
+		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyStorageConfig{})
+		if plain, err := securestore.DecryptPurpose(stored.Endpoints[0].SecretEncrypted, securestore.HttpNotifySecretPurpose); err != nil || plain != "keep-secret" {
+			t.Fatalf("stored webhook secret decrypt = %q, err %v; want kept %q", plain, err, "keep-secret")
 		}
 	})
 

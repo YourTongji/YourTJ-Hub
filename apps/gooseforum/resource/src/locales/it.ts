@@ -1823,6 +1823,7 @@ export default {
       editUser: 'Operazione utente',
       editTopic: 'Modifica topic',
       editCategory: 'Modifica categoria',
+      exportData: 'Esportazione dati',
     },
     targetType: {
       system: 'Sistema',
@@ -1842,6 +1843,8 @@ export default {
       moderatorTopicStatusChanged: 'Il moderatore ha cambiato il topic "{title}" in {status}',
       categoryModeratorAdded: 'Aggiunto il moderatore {username} alla categoria "{categoryName}"',
       categoryModeratorRemoved: 'Rimosso il moderatore {userId} dalla categoria "{categoryName}"',
+      dataExported: 'Dati esportati: {tables} ({format})',
+      dataExportDownloaded: 'Scaricato il file di esportazione {fileName}',
     },
     status: {
       blocked: 'bloccato',

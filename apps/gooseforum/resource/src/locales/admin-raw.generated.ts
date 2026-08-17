@@ -810,6 +810,7 @@ export default {
   "k00t7": "排课数据从同济一系统 manualArrange 接口分页抓取，需要有效的会话 Cookie。Cookie 加密存储，不会明文回显。",
   "k00t8": "已配置",
   "k00t9": "未配置",
+  "k00u0": "留空保存将保留已配置的密钥；密钥不会明文回显。",
   "k00ta": "Cookie header",
   "k00tb": "例如 JWTUser=xxx; JSESSIONID=xxx",
   "k00tc": "留空保存可清除已存凭证；也可通过 ONESYSTEM_COOKIE 环境变量提供。",
