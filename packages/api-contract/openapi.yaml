@@ -121,6 +121,9 @@ paths:
   /api/wiki/home:
     get:
       $ref: ./paths/wiki.yaml#/getWikiHome/get
+  /api/wiki/search:
+    get:
+      $ref: ./paths/wiki.yaml#/searchWikiSearch/get
   /api/admin/wiki/tree:
     get:
       $ref: ./paths/wiki.yaml#/getAdminWikiTree/get

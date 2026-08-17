@@ -106,12 +106,14 @@ func seedCourseContractData(t *testing.T, conn *gorm.DB) {
 		t.Fatalf("create instructor 李四: %v", err)
 	}
 	offering := &course.OfferingEntity{
-		Id:       901,
-		CourseId: entity.Id,
-		TermId:   term.Id,
-		Campus:   "四平路校区",
-		Faculty:  "数学科学学院",
-		Status:   course.OfferingStatusVisible,
+		Id:        901,
+		CourseId:  entity.Id,
+		TermId:    term.Id,
+		Campus:    "四平路校区",
+		Faculty:   "数学科学学院",
+		ClassCode: "10000101",
+		ClassName: "01班",
+		Status:    course.OfferingStatusVisible,
 	}
 	if err := conn.Create(offering).Error; err != nil {
 		t.Fatalf("create offering: %v", err)
@@ -175,7 +177,7 @@ func TestCourseDetailMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course detail malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 // seedCourseRelatedData 写入与 course-related-success fixture 一致的相关课程数据：
@@ -267,7 +269,7 @@ func TestCourseRelatedMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course related malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }
 
 func TestCourseRelatedEmptyHTTPContract(t *testing.T) {

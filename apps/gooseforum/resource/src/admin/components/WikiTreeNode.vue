@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { ExternalLink, FileText, Folder } from '@lucide/vue'
 import type { WikiTreeNode } from '@/admin/types'
+import { wikiHref } from '@/runtime/wiki-path'
 
 defineOptions({ name: 'WikiTreeNode' })
 
@@ -11,10 +12,6 @@ const props = defineProps<{
   editTitle: string
   viewTitle: string
 }>()
-
-function wikiHref(path: string) {
-  return `/wiki/${path.split('/').map((segment) => encodeURIComponent(segment)).join('/')}`
-}
 </script>
 
 <template>

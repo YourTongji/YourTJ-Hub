@@ -71,7 +71,7 @@ listCourses:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/course-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '500':
         description: Catalog query failed.
         content:
@@ -169,7 +169,7 @@ getCourseRelated:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/course-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
               invalidParams:
                 summary: courseId parses as 0 and is rejected by the controller guard.
                 externalValue: ../fixtures/course-related-invalid-params.json
@@ -251,7 +251,7 @@ getCourseSummary:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/course-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '404':
         description: Course does not exist or is hidden.
         content:

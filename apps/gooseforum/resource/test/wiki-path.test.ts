@@ -1,5 +1,28 @@
 import { describe, expect, test } from 'vitest'
 import { isValidWikiPath } from '../src/admin/utils/wiki'
+import { wikiHref } from '../src/runtime/wiki-path'
+
+describe('wikiHref（共享实现，三处调用点同源）', () => {
+  test('普通路径前缀 /wiki/', () => {
+    expect(wikiHref('guide/getting-started')).toBe('/wiki/guide/getting-started')
+  })
+
+  test('中文路径按段编码，保留 / 分隔符', () => {
+    expect(wikiHref('同济新手教程/学校/简介')).toBe('/wiki/%E5%90%8C%E6%B5%8E%E6%96%B0%E6%89%8B%E6%95%99%E7%A8%8B/%E5%AD%A6%E6%A0%A1/%E7%AE%80%E4%BB%8B')
+    expect(wikiHref('guide/快速开始')).toBe('/wiki/guide/%E5%BF%AB%E9%80%9F%E5%BC%80%E5%A7%8B')
+  })
+
+  test('保留大小写与合法目录字符', () => {
+    expect(wikiHref('Guide/My_Page')).toBe('/wiki/Guide/My_Page')
+    expect(wikiHref('guide/my--page')).toBe('/wiki/guide/my--page')
+  })
+
+  test('空值返回 undefined', () => {
+    expect(wikiHref('')).toBeUndefined()
+    expect(wikiHref(null)).toBeUndefined()
+    expect(wikiHref(undefined)).toBeUndefined()
+  })
+})
 
 describe('isValidWikiPath（与后端 wikiservice.ValidatePath 对齐）', () => {
   test('接受 namespace/slug 与嵌套路径', () => {

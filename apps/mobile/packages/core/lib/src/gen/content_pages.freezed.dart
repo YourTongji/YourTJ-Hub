@@ -3120,19 +3120,18 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(
-        runtimeType,
-        keyword,
-        department,
-        term,
-        campus,
-        instructor,
-        onlyWithReviews,
-        sortBy,
-        page,
-        size,
-      );
+  int get hashCode => Object.hash(
+    runtimeType,
+    keyword,
+    department,
+    term,
+    campus,
+    instructor,
+    onlyWithReviews,
+    sortBy,
+    page,
+    size,
+  );
 
   /// Create a copy of CourseCatalogQueryPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3207,6 +3206,8 @@ mixin _$CourseOfferingPayload {
   String? get termName => throw _privateConstructorUsedError;
   String? get campus => throw _privateConstructorUsedError;
   String? get faculty => throw _privateConstructorUsedError;
+  String? get classCode => throw _privateConstructorUsedError;
+  String? get className => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
   double? get ratingAvg => throw _privateConstructorUsedError;
   int? get reviewCount => throw _privateConstructorUsedError;
@@ -3234,6 +3235,8 @@ abstract class $CourseOfferingPayloadCopyWith<$Res> {
     String? termName,
     String? campus,
     String? faculty,
+    String? classCode,
+    String? className,
     List<String>? instructors,
     double? ratingAvg,
     int? reviewCount,
@@ -3263,6 +3266,8 @@ class _$CourseOfferingPayloadCopyWithImpl<
     Object? termName = freezed,
     Object? campus = freezed,
     Object? faculty = freezed,
+    Object? classCode = freezed,
+    Object? className = freezed,
     Object? instructors = freezed,
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
@@ -3288,6 +3293,14 @@ class _$CourseOfferingPayloadCopyWithImpl<
             faculty: freezed == faculty
                 ? _value.faculty
                 : faculty // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            classCode: freezed == classCode
+                ? _value.classCode
+                : classCode // ignore: cast_nullable_to_non_nullable
+                      as String?,
+            className: freezed == className
+                ? _value.className
+                : className // ignore: cast_nullable_to_non_nullable
                       as String?,
             instructors: freezed == instructors
                 ? _value.instructors
@@ -3322,6 +3335,8 @@ abstract class _$$CourseOfferingPayloadImplCopyWith<$Res>
     String? termName,
     String? campus,
     String? faculty,
+    String? classCode,
+    String? className,
     List<String>? instructors,
     double? ratingAvg,
     int? reviewCount,
@@ -3348,6 +3363,8 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
     Object? termName = freezed,
     Object? campus = freezed,
     Object? faculty = freezed,
+    Object? classCode = freezed,
+    Object? className = freezed,
     Object? instructors = freezed,
     Object? ratingAvg = freezed,
     Object? reviewCount = freezed,
@@ -3373,6 +3390,14 @@ class __$$CourseOfferingPayloadImplCopyWithImpl<$Res>
         faculty: freezed == faculty
             ? _value.faculty
             : faculty // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        classCode: freezed == classCode
+            ? _value.classCode
+            : classCode // ignore: cast_nullable_to_non_nullable
+                  as String?,
+        className: freezed == className
+            ? _value.className
+            : className // ignore: cast_nullable_to_non_nullable
                   as String?,
         instructors: freezed == instructors
             ? _value._instructors
@@ -3400,6 +3425,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     this.termName,
     this.campus,
     this.faculty,
+    this.classCode,
+    this.className,
     final List<String>? instructors,
     this.ratingAvg,
     this.reviewCount,
@@ -3418,6 +3445,10 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
   final String? campus;
   @override
   final String? faculty;
+  @override
+  final String? classCode;
+  @override
+  final String? className;
   final List<String>? _instructors;
   @override
   List<String>? get instructors {
@@ -3435,7 +3466,7 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
 
   @override
   String toString() {
-    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, instructors: $instructors, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
+    return 'CourseOfferingPayload(id: $id, termCode: $termCode, termName: $termName, campus: $campus, faculty: $faculty, classCode: $classCode, className: $className, instructors: $instructors, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -3450,6 +3481,10 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
                 other.termName == termName) &&
             (identical(other.campus, campus) || other.campus == campus) &&
             (identical(other.faculty, faculty) || other.faculty == faculty) &&
+            (identical(other.classCode, classCode) ||
+                other.classCode == classCode) &&
+            (identical(other.className, className) ||
+                other.className == className) &&
             const DeepCollectionEquality().equals(
               other._instructors,
               _instructors,
@@ -3469,6 +3504,8 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
     termName,
     campus,
     faculty,
+    classCode,
+    className,
     const DeepCollectionEquality().hash(_instructors),
     ratingAvg,
     reviewCount,
@@ -3499,6 +3536,8 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
     final String? termName,
     final String? campus,
     final String? faculty,
+    final String? classCode,
+    final String? className,
     final List<String>? instructors,
     final double? ratingAvg,
     final int? reviewCount,
@@ -3517,6 +3556,10 @@ abstract class _CourseOfferingPayload implements CourseOfferingPayload {
   String? get campus;
   @override
   String? get faculty;
+  @override
+  String? get classCode;
+  @override
+  String? get className;
   @override
   List<String>? get instructors;
   @override

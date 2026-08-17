@@ -208,11 +208,6 @@ func ExistEmail(email string) bool {
 	return builder().Select("1").Where("email = ?", email).Limit(1).Scan(&id).RowsAffected > 0
 }
 
-func IncrementPrestige(addNumber int64, userId uint64) int64 {
-	result := builder().Exec("UPDATE users SET prestige = prestige+? where id = ?", addNumber, userId)
-	return result.RowsAffected
-}
-
 // IncrementTokenVersionWithDB increments token_version through the supplied database handle.
 // A missing user is an error so callers can roll back any coupled changes.
 func IncrementTokenVersionWithDB(conn *gorm.DB, userId uint64) error {

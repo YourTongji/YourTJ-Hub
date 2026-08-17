@@ -124,13 +124,15 @@ func DeleteTopicAs(topic topics.Entity, operatorID uint64, visibility string, re
 	// wiki 分站页面话题：同步清理 wiki_pages 及其修订，避免删除话题后残留
 	// 孤儿页面继续出现在公开导航树/首页（与 DeleteAllUserContent 级联一致）。
 	if topic.TopicType == topics.TopicTypeWiki {
-		if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
+		if page := wikiPages.GetByTopicIdUnscoped(topic.Id); page.Id != 0 {
+			pageID := page.Id
 			if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
 				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 			}
 			if err := wikiPages.Delete(page.Id); err != nil {
 				return component.NewMessageError(component.MessageContentDeleteFailed, "删除话题失败", component.MessageParams{"error": err.Error()})
 			}
+			deleteWikiPageSearchIndex(pageID)
 		}
 	}
 
@@ -457,6 +459,20 @@ func restoreWikiTopicPages(topic topics.Entity) {
 	if err := dbconnect.Connect().Unscoped().Table("wiki_page_revisions").
 		Where("page_id = ?", page.Id).Update("deleted_at", gorm.Expr("NULL")).Error; err != nil {
 		slog.Error("failed to restore wiki page revisions", "pageId", page.Id, "error", err)
+	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("failed to restore wiki page search index", "pageId", page.Id, "error", err)
+	}
+}
+
+// deleteWikiPageSearchIndex 清理 Wiki 页面删除后留下的段落索引。
+// 搜索索引是可重建投影，清理失败不应阻断内容删除；下一次全量重建或页面同步会修复它。
+func deleteWikiPageSearchIndex(pageID uint64) {
+	if pageID == 0 {
+		return
+	}
+	if err := searchservice.DeleteWikiPageDocuments(pageID); err != nil {
+		slog.Warn("failed to delete wiki page search index", "pageId", pageID, "error", err)
 	}
 }
 
@@ -861,14 +877,6 @@ func DeleteAllUserContent(userID uint64) error {
 			break
 		}
 		for _, topic := range activeWikiTopics {
-			if page := wikiPages.GetByTopicId(topic.Id); page.Id != 0 {
-				if err := wikiPageRevisions.DeleteByPage(page.Id); err != nil {
-					slog.Warn("delete wiki page revisions on account close failed", "userId", userID, "pageId", page.Id, "err", err)
-				}
-				if err := wikiPages.Delete(page.Id); err != nil {
-					slog.Warn("delete wiki page on account close failed", "userId", userID, "pageId", page.Id, "err", err)
-				}
-			}
 			if err := DeleteTopicByUser(userID, topic.Id); err != nil {
 				slog.Warn("delete user wiki topic on account close failed", "userId", userID, "topicId", topic.Id, "err", err)
 			}

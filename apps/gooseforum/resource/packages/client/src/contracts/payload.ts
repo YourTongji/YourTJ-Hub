@@ -816,11 +816,9 @@ export interface NotificationPayload {
   }
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段统一走 metadata。
 export interface NotificationTemplateParams {
   preview?: string
-  followerName?: string
-  badgeCode?: string
-  badgeName?: string
 }
 
 export interface MessagesPageProps {
@@ -1007,6 +1005,9 @@ export interface CourseDetailPageProps {
       termName?: string
       campus?: string
       faculty?: string
+      // 班号信息（如 32000101 / 01班）；旧数据包导入的 offering 无此字段。
+      classCode?: string
+      className?: string
       instructors?: string[]
       ratingAvg?: number
       reviewCount?: number

@@ -184,6 +184,8 @@ abstract class CourseOfferingPayload with _$CourseOfferingPayload {
     String? termName,
     String? campus,
     String? faculty,
+    String? classCode,
+    String? className,
     List<String>? instructors,
     double? ratingAvg,
     int? reviewCount,

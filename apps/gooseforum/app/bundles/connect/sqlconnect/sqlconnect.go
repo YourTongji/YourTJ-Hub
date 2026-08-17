@@ -45,6 +45,20 @@ func TestConfig() Config {
 	}
 }
 
+// ConnectByPrefix 按配置前缀建立数据库连接（测试模式走内存 sqlite），
+// 连接失败时立即 panic，避免 nil *gorm.DB 在后续 AutoMigrate 上解引用崩溃。
+func ConnectByPrefix(prefix string) Connect {
+	if preferences.IsTestMode() {
+		return GetConnect(TestConfig())
+	}
+	dbConfig := preferences.GetExclusivePreferences(prefix)
+	dbConnect := GetConnectByPreferences(dbConfig)
+	if dbConnect.Error != nil {
+		panic(fmt.Sprintf("dbconnect(%s): %v", prefix, dbConnect.Error))
+	}
+	return dbConnect
+}
+
 func (itself *Connect) IsSqlite() bool {
 	return itself.Config.Connection == "sqlite"
 }

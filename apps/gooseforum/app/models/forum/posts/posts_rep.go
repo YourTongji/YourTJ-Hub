@@ -46,12 +46,6 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-// GetTx 事务内按 id 获取帖子（避免单连接测试库下事务内走全局连接死锁）。
-func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
-	tx.Table(tableName).First(&entity, id)
-	return
-}
-
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)
@@ -118,10 +112,6 @@ func UpdateWikiSyncedContentTx(tx *gorm.DB, entity *Entity) error {
 			"wiki_synced_revision_no": entity.WikiSyncedRevisionNo,
 			"updated_at":              time.Now(),
 		}).Error
-}
-
-func DeleteEntity(entity *Entity) int64 {
-	return builder().Delete(entity).RowsAffected
 }
 
 // UnscopedGet 返回含已删除（软删）在内的回复，供恢复/清理/审计使用。
@@ -219,24 +209,6 @@ func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
 		"deleted_by":        deletedBy,
 		"delete_reason":     reason,
 	}).Error
-}
-
-// SoftDeleteByTopicId 将某话题下的所有回复软删（级联删除），返回受影响行数。
-// visibility 为空时默认 USER_DELETED；管理端级联应传 MODERATOR_REMOVED。
-func SoftDeleteByTopicId(topicId uint64, deletedBy uint64, reason string, visibility string) int64 {
-	if visibility == "" {
-		visibility = VisibilityUserDeleted
-	}
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Where("deleted_at IS NULL").
-		Updates(map[string]any{
-			"deleted_at":        time.Now(),
-			"visibility_status": visibility,
-			"retention_status":  RetentionRecoverable,
-			"deleted_by":        deletedBy,
-			"delete_reason":     reason,
-		}).RowsAffected
 }
 
 // SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
@@ -351,41 +323,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	})
 }
 
-// MarkPurgedByTopicID 将某话题下已删除的回复置为已永久删除（话题永久删除级联）。
-// 只处理已进入删除生命周期的回复（非 ACTIVE），其他用户仍 ACTIVE 的回复
-// 属于他人内容，不得被话题作者/自动过期的级联永久删除（PRD Out of Scope）。
-// 帖子行更新与版本清空在同一事务内，任一步失败整体回滚并返回错误。
-func MarkPurgedByTopicID(topicID uint64) (int64, error) {
-	var rows int64
-	err := db.Connect().Transaction(func(tx *gorm.DB) error {
-		var targets []uint64
-		if err := tx.Table(tableName).Unscoped().
-			Where(queryopt.Eq("topic_id", topicID)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Select("id").
-			Scan(&targets).Error; err != nil {
-			return err
-		}
-		result := tx.Table(tableName).Unscoped().
-			Where(queryopt.Eq("topic_id", topicID)).
-			Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-			Where(queryopt.Eq("retention_status", RetentionRecoverable)).
-			Updates(map[string]any{
-				"deleted_at":       time.Now(),
-				"retention_status": RetentionPurged,
-				"content":          "",
-				"rendered_html":    "",
-			})
-		if result.Error != nil {
-			return result.Error
-		}
-		rows = result.RowsAffected
-		return postRevisions.BlankContentByPostIdsTx(tx, targets)
-	})
-	return rows, err
-}
-
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
 func ListUnscopedByTopicID(topicID uint64, list *[]*Entity) error {
 	return builder().Unscoped().
@@ -417,21 +354,6 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 		Limit(pageutil.BoundPageSize(limit) + 1).
 		Find(&entities)
 	return
-}
-
-// RestoreDeletedByTopicID 恢复某话题下所有被级联软删的回复。
-func RestoreDeletedByTopicID(topicID uint64) int64 {
-	return builder().Unscoped().
-		Where(queryopt.Eq("topic_id", topicID)).
-		Where("deleted_at IS NOT NULL").
-		Where(queryopt.In("visibility_status", []string{VisibilityUserDeleted, VisibilityModeratorRemoved})).
-		Updates(map[string]any{
-			"deleted_at":        gorm.Expr("NULL"),
-			"visibility_status": VisibilityActive,
-			"retention_status":  RetentionNormal,
-			"deleted_by":        0,
-			"delete_reason":     "",
-		}).RowsAffected
 }
 
 // RestoreCascadeDeletedByTopicID restores only user-deleted rows changed by
@@ -471,16 +393,6 @@ func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {
 	return
 }
 
-func GetByTopicPostNoAsc(topicId uint64, limit int) (entities []*Entity) {
-	builder().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Limit(limit).
-		Order(queryopt.Asc("post_no")).
-		Order(queryopt.Asc("id")).
-		Find(&entities)
-	return
-}
-
 func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) (entities []*Entity, err error) {
 	if limit <= 0 {
 		return []*Entity{}, nil
@@ -494,17 +406,6 @@ func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) 
 		Order(queryopt.Asc("id")).
 		Limit(limit).
 		Find(&entities).Error
-	return
-}
-
-func GetByTopicPostNoDesc(topicId uint64, limit int) (entities []*Entity) {
-	builder().
-		Where(queryopt.Eq("topic_id", topicId)).
-		Limit(limit).
-		Order(queryopt.Desc("post_no")).
-		Order(queryopt.Desc("id")).
-		Find(&entities)
-	reversePosts(entities)
 	return
 }
 

@@ -85,7 +85,7 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 		"courses.jsonl": `{"id":"c1","code":"100001","name":"高等数学(A)上","department":"数学科学学院","credit":5,"aliases":["高数"]}` + "\n" +
 			`{"id":"c2","code":"100002","name":"线性代数","department":"数学科学学院","credit":3}` + "\n",
 		"instructors.jsonl": `{"id":"i1","name":"张三","department":"数学科学学院","title":"教授"}` + "\n",
-		"offerings.jsonl": `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","faculty":"数学科学学院","instructor_ids":["i1"]}` + "\n" +
+		"offerings.jsonl": `{"id":"o1","course_id":"c1","term":"2025-2026-1","campus":"四平路校区","faculty":"数学科学学院","class_code":"10000101","class_name":"01班","instructor_ids":["i1"]}` + "\n" +
 			`{"id":"o2","course_id":"c2","term":"2025-2026-1","campus":"嘉定校区","instructor_ids":["i1"]}` + "\n",
 		"reviews.jsonl": `{"offering_external_id":"o1","rating":4,"content":"老师讲得很清楚","created_at":"2023-06-01T08:00:00+08:00","legacy_helpful_count":3}` + "\n" +
 			`{"offering_external_id":"o2","rating":0,"content":"无评分历史评价","created_at":"2023-06-02T08:00:00+08:00","legacy_helpful_count":1}` + "\n",
@@ -185,6 +185,9 @@ func TestE2ELegacyImportFullChain(t *testing.T) {
 	}
 	if len(detail.Offerings) != 1 || detail.Offerings[0].TermCode != "2025-2026-1" {
 		t.Fatalf("course detail offerings unexpected: %+v", detail.Offerings)
+	}
+	if detail.Offerings[0].ClassCode != "10000101" || detail.Offerings[0].ClassName != "01班" {
+		t.Fatalf("course detail offering class info unexpected: %+v", detail.Offerings[0])
 	}
 	if detail.RatingAvg == nil || *detail.RatingAvg != 4.0 {
 		t.Fatalf("detail rating avg = %v, want 4.0", detail.RatingAvg)

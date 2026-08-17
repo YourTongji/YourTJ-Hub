@@ -6,7 +6,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/markdown2html"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/topics"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
@@ -79,33 +78,7 @@ func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 // 分组按 URL key；输出 Name/Label 用显示名（中文目录名）。
 // 返回查询错误：DB 故障必须区别于空 wiki（issue #287）。
 func BuildTree(activePath string) ([]TreeNamespace, error) {
-	namespaces, err := wikiNamespaces.List()
-	if err != nil {
-		return nil, fmt.Errorf("list wiki namespaces: %w", err)
-	}
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}, nil
-	}
-	allPages, err := filterPublicPages(wikiPages.ListAll())
-	if err != nil {
-		return nil, err
-	}
-	byURLKey := make(map[string][]*wikiPages.Entity)
-	for _, page := range allPages {
-		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
-	}
-
-	result := make([]TreeNamespace, 0, len(namespaces))
-	for _, ns := range namespaces {
-		pages := byURLKey[namespaceURLKey(ns)]
-		result = append(result, TreeNamespace{
-			Name:  ns.Name,
-			Label: ns.Name,
-			Slug:  namespaceURLKey(ns),
-			Nodes: buildTreeNodes(pages, namespaceURLKey(ns), activePath, false),
-		})
-	}
-	return result, nil
+	return buildTree(activePath, false)
 }
 
 // filterPublicPages 过滤出 topic 仍公开的页面：删除/隐藏的 wiki 页面不得
@@ -533,6 +506,7 @@ type PageDetail struct {
 	Title               string    `json:"title"`
 	Content             string    `json:"content"`
 	Toc                 []TocItem `json:"toc"`
+	ParaAnchors         []ParaAnchor `json:"paraAnchors,omitempty"`
 	UpdatedAt           string    `json:"updatedAt"`
 	LikeCount           uint64    `json:"likeCount"`
 	ViewCount           uint64    `json:"viewCount"`
@@ -581,17 +555,11 @@ func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, e
 			detail.Toc = items
 		}
 	}
+	if page.ParaAnchors != "" {
+		var anchors []ParaAnchor
+		if err := json.Unmarshal([]byte(page.ParaAnchors), &anchors); err == nil {
+			detail.ParaAnchors = anchors
+		}
+	}
 	return detail, nil
-}
-
-// DecodeTOC 解析 toc JSON 为条目（通用工具，供渲染/测试复用）。
-func DecodeTOC(raw string) []markdown2html.HeadingItem {
-	if raw == "" {
-		return nil
-	}
-	var items []markdown2html.HeadingItem
-	if err := json.Unmarshal([]byte(raw), &items); err != nil {
-		return nil
-	}
-	return items
 }
