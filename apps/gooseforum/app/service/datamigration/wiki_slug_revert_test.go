@@ -160,3 +160,64 @@ func TestRevertWikiNamespaceSlugsDropsLegacySlugSchema(t *testing.T) {
 		t.Fatal("slug unique index still exists after migration")
 	}
 }
+
+// TestRevertWikiNamespaceSlugsEmptySourcePathUsesLegacySlugMap review Blocker：
+// source_path 为空的 slug 行（v23 前已软删、未被 source_path 回填覆盖）不能
+// 跳过——drop slug 列前用遗留 slug→name 映射推导真实仓库路径，保留 slug 后
+// 的相对后缀；否则映射丢失后文件重新出现时无法收养原页面/topic。
+func TestRevertWikiNamespaceSlugsEmptySourcePathUsesLegacySlugMap(t *testing.T) {
+	conn := openSlugRevertDB(t)
+	// 模拟存量库：遗留 slug 列 + 映射（slug=freshman-guide → name=同济新手教程）。
+	if err := conn.Exec("ALTER TABLE wiki_namespaces ADD COLUMN slug varchar(64)").Error; err != nil {
+		t.Fatalf("add legacy slug column: %v", err)
+	}
+	if err := conn.Create(&wikiNamespaces.Entity{Name: "同济新手教程"}).Error; err != nil {
+		t.Fatalf("insert namespace: %v", err)
+	}
+	if err := conn.Exec("UPDATE wiki_namespaces SET slug = ? WHERE name = ?", "freshman-guide", "同济新手教程").Error; err != nil {
+		t.Fatalf("set legacy slug value: %v", err)
+	}
+	// 页面：path 首段 = slug、namespace = slug，但 source_path 为空（v23 回填未覆盖的软删行）。
+	insertSlugRevertPage(t, conn, 1, "freshman-guide/index", "", "freshman-guide")
+	insertSlugRevertPage(t, conn, 2, "freshman-guide/academics/课程", "", "freshman-guide")
+
+	result := RevertWikiNamespaceSlugsWithDB(conn)
+	if result.Failed != 0 {
+		t.Fatalf("RevertWikiNamespaceSlugsWithDB() failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if result.Migrated != 2 {
+		t.Fatalf("migrated = %d, want 2", result.Migrated)
+	}
+	if path, ns, hash := scanSlugRevertPage(t, conn, 1); path != "同济新手教程/index" || ns != "同济新手教程" || hash != "" {
+		t.Fatalf("page 1 after revert: path=%q namespace=%q hash=%q, want 同济新手教程/index/同济新手教程/empty", path, ns, hash)
+	}
+	if path, ns, _ := scanSlugRevertPage(t, conn, 2); path != "同济新手教程/academics/课程" || ns != "同济新手教程" {
+		t.Fatalf("page 2 after revert: path=%q namespace=%q, want 同济新手教程/academics/课程/同济新手教程", path, ns)
+	}
+}
+
+// TestRevertWikiNamespaceSlugsTempPrefixAvoidsRealPath review Should fix：
+// "__wiki_slug_revert__/N" 未被路径规则保留，仓库可合法存在同名页面路径；
+// 阶段 1 临时路径必须避开现有 path，否则撞 uniq_wiki_page_path 卡死迁移。
+func TestRevertWikiNamespaceSlugsTempPrefixAvoidsRealPath(t *testing.T) {
+	conn := openSlugRevertDB(t)
+	// 真实页面恰好占用默认临时前缀路径。
+	insertSlugRevertPage(t, conn, 1, "__wiki_slug_revert__/2", "", "other")
+	// 待迁移页面：source_path 推导（路径本身不同）。
+	insertSlugRevertPage(t, conn, 2, "freshman-guide/index", "同济新手教程/index", "freshman-guide")
+
+	result := RevertWikiNamespaceSlugsWithDB(conn)
+	if result.Failed != 0 {
+		t.Fatalf("RevertWikiNamespaceSlugsWithDB() failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if result.Migrated != 1 {
+		t.Fatalf("migrated = %d, want 1 (page 2 only; page 1 is real, untouched)", result.Migrated)
+	}
+	if path, ns, _ := scanSlugRevertPage(t, conn, 2); path != "同济新手教程/index" || ns != "同济新手教程" {
+		t.Fatalf("page 2 after revert: path=%q namespace=%q, want 同济新手教程/index/同济新手教程", path, ns)
+	}
+	// 真实页面必须原样保留。
+	if path, ns, hash := scanSlugRevertPage(t, conn, 1); path != "__wiki_slug_revert__/2" || ns != "other" || hash != "hash-__wiki_slug_revert__/2" {
+		t.Fatalf("real page 1 changed: path=%q namespace=%q hash=%q", path, ns, hash)
+	}
+}

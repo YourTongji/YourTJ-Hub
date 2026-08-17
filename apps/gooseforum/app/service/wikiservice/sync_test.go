@@ -20,6 +20,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiSyncRuns"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/datamigration"
 )
 
 func TestApplyRepoToDBRewritesRelativeReferences(t *testing.T) {
@@ -1460,5 +1461,98 @@ func TestApplyRepoToDBValidChinesePathProjects(t *testing.T) {
 	}
 	if page := wikiPages.GetByPath("同济新手教程/学校/社团活动"); page.Id == 0 {
 		t.Fatal("中文嵌套页面 同济新手教程/学校/社团活动 missing after sync")
+	}
+}
+
+// TestV24SlugRevertRestoresSoftDeletedPageRetainsTopic review Blocker 端到端
+// 升级回归：旧 v23 + 已软删页面 → slug 时代同步（path/namespace 迁为 slug、
+// source_path 为空）→ v24 回迁（用遗留 slug→name 映射推导真实路径 + 回填
+// source_path）→ 源文件重新出现且内容已变更 → 同步恢复原页面/topic，
+// 回复/点赞/收藏/订阅互动保留（不得新建 topic）。
+func TestV24SlugRevertRestoresSoftDeletedPageRetainsTopic(t *testing.T) {
+	setupWikiTestDB(t)
+	repo := t.TempDir()
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 首页\n---\n\n# 首页")
+	// start.md 保持活跃：软删 index 后命名空间行仍在（D5 只在目录无活跃
+	// 页面时删除命名空间），slug→name 映射才能保留到 v24 读取。
+	writeRepoFile(t, repo, "同济新手教程/start.md", "---\ntitle: 开始\n---\n\n# 开始")
+
+	cfg := GitConfig{CloneDir: repo}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("first sync: %v", err)
+	}
+	page := wikiPages.GetByPath("同济新手教程/index")
+	topicID := page.TopicId
+	replyID := seedTopicInteractions(t, topicID, []uint64{4242, 4243})
+
+	// 源文件删除 → 页面软删（topic 转 USER_DELETED，互动保留）。
+	if err := os.Remove(filepath.Join(repo, "同济新手教程/index.md")); err != nil {
+		t.Fatal(err)
+	}
+	if err := applyRepoToDB(cfg, &SyncResult{}); err != nil {
+		t.Fatalf("delete sync: %v", err)
+	}
+	page = wikiPages.GetByPathUnscoped("同济新手教程/index")
+	if page.Id == 0 || !page.DeletedAt.Valid {
+		t.Fatalf("page should be soft-deleted: id=%d deleted=%v", page.Id, page.DeletedAt.Valid)
+	}
+
+	// 模拟 slug 时代状态：path/namespace 迁为 slug、source_path 为空（v23
+	// 回填只覆盖 scoped 行，未覆盖已软删行）；wiki_namespaces 携带遗留
+	// slug 列与 slug→name 映射（freshman-guide → 同济新手教程）。
+	if err := dbconnect.Connect().Exec("ALTER TABLE wiki_namespaces ADD COLUMN slug varchar(64)").Error; err != nil {
+		t.Fatalf("add legacy slug column: %v", err)
+	}
+	if err := dbconnect.Connect().Table("wiki_namespaces").Where("name = ?", "同济新手教程").
+		Update("slug", "freshman-guide").Error; err != nil {
+		t.Fatalf("set legacy slug: %v", err)
+	}
+	if err := dbconnect.Connect().Unscoped().Table("wiki_pages").Where("id = ?", page.Id).
+		Updates(map[string]any{
+			"path":        "freshman-guide/index",
+			"namespace":   "freshman-guide",
+			"source_path": "",
+		}).Error; err != nil {
+		t.Fatalf("simulate slug-era state: %v", err)
+	}
+
+	// v24 回迁：用遗留 slug→name 映射推导真实路径、回填 source_path、
+	// 清空 content_hash、删除遗留 slug 列。
+	result := datamigration.RevertWikiNamespaceSlugsWithDB(dbconnect.Connect())
+	if result.Failed != 0 {
+		t.Fatalf("v24 revert failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if result.Migrated != 1 {
+		t.Fatalf("v24 migrated = %d, want 1", result.Migrated)
+	}
+	page = wikiPages.GetByPathUnscoped("同济新手教程/index")
+	if page.Id == 0 || page.SourcePath != "同济新手教程/index" || page.ContentHash != "" {
+		t.Fatalf("v24 result: id=%d source_path=%q hash=%q, want migrated + source_path backfilled + hash cleared",
+			page.Id, page.SourcePath, page.ContentHash)
+	}
+
+	// 源文件重新出现且内容变更 → 同步必须收养原页面（不得新建 topic）。
+	writeRepoFile(t, repo, "同济新手教程/index.md", "---\ntitle: 首页\n---\n\n# 首页\n\n新增内容")
+	res := &SyncResult{}
+	if err := applyRepoToDB(cfg, res); err != nil {
+		t.Fatalf("restore sync: %v", err)
+	}
+	if res.PagesAdded != 0 {
+		t.Fatalf("PagesAdded=%d, want 0 (must adopt existing page, not create)", res.PagesAdded)
+	}
+	restored := wikiPages.GetByPath("同济新手教程/index")
+	if restored.Id == 0 || restored.DeletedAt.Valid {
+		t.Fatalf("page not restored: id=%d deleted=%v", restored.Id, restored.DeletedAt.Valid)
+	}
+	if restored.TopicId != topicID {
+		t.Fatalf("topic changed after restore: %d → %d, want reuse", topicID, restored.TopicId)
+	}
+	if reply := posts.UnscopedGet(replyID); reply.Id == 0 || reply.TopicId != topicID {
+		t.Fatalf("reply lost after restore: id=%d topic=%d", reply.Id, reply.TopicId)
+	}
+	topic := topics.UnscopedGet(topicID)
+	if topic.Id == 0 || topic.DeletedAt.Valid || topic.VisibilityStatus != topics.VisibilityActive {
+		t.Fatalf("topic not restored: id=%d deleted=%v visibility=%q",
+			topic.Id, topic.DeletedAt.Valid, topic.VisibilityStatus)
 	}
 }
