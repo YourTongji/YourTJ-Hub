@@ -178,6 +178,25 @@ func FindCourseDetailByCodeAnyCalendar(code string) (CourseDetailRow, error) {
 	return row, nil
 }
 
+// ListClassCodesByCourseCode 不限学期返回某课程的全部教学班课号
+// （P13 教学班级课评摘要匹配 offering.class_code 用；按学期新旧、id 排序）。
+func ListClassCodesByCourseCode(courseCode string) ([]string, error) {
+	code := trimSpace(courseCode)
+	if code == "" {
+		return []string{}, nil
+	}
+	var codes []string
+	err := courseDetailBuilder().
+		Where("pk_course_detail.course_code = ?", code).
+		Where("pk_course_detail.code <> ''").
+		Order("pk_course_detail.calendar_id DESC, pk_course_detail.id ASC").
+		Pluck("pk_course_detail.code", &codes).Error
+	if err != nil {
+		return nil, err
+	}
+	return codes, nil
+}
+
 // CourseSearchQuery P9 course-search 过滤条件。
 type CourseSearchQuery struct {
 	CalendarId  int

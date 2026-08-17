@@ -8409,11 +8409,18 @@ export interface components {
             courses: components["schemas"]["PkSearchCourseItem"][];
         };
         PkReviewBrief: {
+            /**
+             * Format: uint64
+             * @description Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。
+             */
+            courseId: number;
             courseCode: string;
             courseName?: string;
             teacherName: string;
             ratingAvg?: number | null;
             reviewCount: number;
+            /** @description 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。 */
+            classes: components["schemas"]["PkReviewBriefClass"][];
         };
         PkCalendarListResponse: components["schemas"]["PkSuccess"] & {
             data: components["schemas"]["PkCalendarItem"][];
@@ -9118,6 +9125,18 @@ export interface components {
         WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiSearchResult"];
         }) | components["schemas"]["ApiFailure"];
+        PkReviewBriefClass: {
+            /** @description 教学班课号，与 course_offering.class_code 对齐（如 11000101）。 */
+            classCode: string;
+            /**
+             * Format: uint64
+             * @description Hub 开课实例主键，供 /courses/:courseId?offeringId=:offeringId 聚焦该班评价。
+             */
+            offeringId: number;
+            teachers: string[];
+            ratingAvg?: number | null;
+            reviewCount: number;
+        };
     };
     responses: never;
     parameters: never;

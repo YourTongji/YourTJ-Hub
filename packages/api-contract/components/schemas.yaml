@@ -2699,14 +2699,44 @@ PkCoursesByTimeResult:
 
 PkReviewBrief:
   type: object
-  required: [courseCode, teacherName, reviewCount]
+  required: [courseId, courseCode, teacherName, reviewCount, classes]
   properties:
+    courseId:
+      type: integer
+      format: uint64
+      description: Hub 课程目录主键（/courses/:courseId 详情页跳转用）；未匹配课评目录时为 0。
     courseCode:
       type: string
     courseName:
       type: string
     teacherName:
       type: string
+    ratingAvg:
+      type: [number, 'null']
+    reviewCount:
+      type: integer
+    classes:
+      type: array
+      description: 各教学班的 offering 级课评摘要（class_code 匹配；无匹配时为空数组）。
+      items:
+        $ref: '#/PkReviewBriefClass'
+  additionalProperties: false
+
+PkReviewBriefClass:
+  type: object
+  required: [classCode, offeringId, teachers, reviewCount]
+  properties:
+    classCode:
+      type: string
+      description: 教学班课号，与 course_offering.class_code 对齐（如 11000101）。
+    offeringId:
+      type: integer
+      format: uint64
+      description: Hub 开课实例主键，供 /courses/:courseId?offeringId=:offeringId 聚焦该班评价。
+    teachers:
+      type: array
+      items:
+        type: string
     ratingAvg:
       type: [number, 'null']
     reviewCount:

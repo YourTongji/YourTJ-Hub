@@ -310,6 +310,34 @@ func ListOfferingsByCourses(courseIds []uint64) (entities []OfferingEntity, err 
 	return
 }
 
+// ListVisibleOfferingsByClassCodes 按班号批量查可见开课实例（P13 教学班级课评摘要用）。
+// class_code 与 PK 教学班 code 对齐（如 11000101）；旧数据包导入的班号可能为空，跳过。
+func ListVisibleOfferingsByClassCodes(classCodes []string) (entities []OfferingEntity, err error) {
+	unique := make([]string, 0, len(classCodes))
+	seen := make(map[string]struct{}, len(classCodes))
+	for _, code := range classCodes {
+		code = strings.TrimSpace(code)
+		if code == "" {
+			continue
+		}
+		if _, ok := seen[code]; ok {
+			continue
+		}
+		seen[code] = struct{}{}
+		unique = append(unique, code)
+	}
+	if len(unique) == 0 {
+		return []OfferingEntity{}, nil
+	}
+	err = offeringBuilder().
+		Joins("LEFT JOIN course_term ON course_term.id = course_offering.term_id AND course_term.deleted_at IS NULL").
+		Where(queryopt.In("course_offering.class_code", unique)).
+		Where(queryopt.Eq("course_offering.status", OfferingStatusVisible)).
+		Order("course_offering.class_code ASC, COALESCE(CAST(course_term.starts_on AS TEXT), course_term.code) DESC, course_offering.id ASC").
+		Find(&entities).Error
+	return
+}
+
 // ---- Instructor ----
 
 // FindInstructorByNameDept 按 (normalized_name, department) 自然键查找教师。

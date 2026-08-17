@@ -95,6 +95,30 @@ function authorLabel(author: ReviewPayload['author']) {
   return t('courseDetailPage.authorAnonymous')
 }
 
+
+// ---- 教学班级课评聚焦（排课器跳转 /courses/:id?offeringId=:offeringId） ----
+// 打开详情页时若带 offeringId 查询参数，评价列表只显示该教学班的评价。
+const focusOfferingId = ref<number>(0)
+const OFFERING_QUERY_KEY = 'offeringId'
+
+function parseFocusOfferingId(): number {
+  const raw = new URLSearchParams(window.location.search).get(OFFERING_QUERY_KEY)
+  const value = Number(raw ?? '')
+  return Number.isInteger(value) && value > 0 ? value : 0
+}
+
+function activeOfferingId(): number {
+  return focusOfferingId.value || 0
+}
+
+function setOfferingFocus(offeringId: number) {
+  focusOfferingId.value = offeringId
+  // 切班聚焦后重新加载评价列表（offering 过滤），并回到顶部评价区。
+  reviewLoaded.value = false
+  void loadReviews()
+  const el = document.querySelector('#course-reviews')
+  el?.scrollIntoView({ behavior: 'smooth', block: 'start' })
+}
 // ---- 评价列表 ----
 const reviews = ref<ReviewPayload[]>([])
 const reviewTotal = ref(0)
@@ -137,7 +161,7 @@ async function loadReviews() {
   reviewLoading.value = true
   reviewError.value = ''
   try {
-    const reviewPage = await reviewLoader.load(0, '')
+    const reviewPage = await reviewLoader.load(activeOfferingId(), '')
     if (reviewPage === null) return // 过期响应：期间发生写操作，丢弃以保留本地状态
     // 代际守卫：期间有更新加载（写操作触发的重拉）发起，本结果作废。
     if (seq !== reviewsLoadSeq) return
@@ -164,7 +188,7 @@ async function loadMoreReviews() {
   reviewLoadingMore.value = true
   reviewLoadMoreError.value = ''
   try {
-    const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
+    const reviewPage = await reviewLoader.load(activeOfferingId(), reviewNextCursor.value)
     if (reviewPage === null) return // 过期响应：丢弃
     // 代际守卫：写操作已失效本代（旧 cursor 数据可能含已删除/旧内容），丢弃不 concat。
     if (seq !== reviewsLoadSeq) return
@@ -383,6 +407,7 @@ async function submitReport() {
 }
 
 onMounted(() => {
+  focusOfferingId.value = parseFocusOfferingId()
   loadReviews()
   loadRelated()
 })
@@ -590,7 +615,7 @@ onMounted(() => {
 
       </div>
 
-    <section class="min-w-0 xl:order-1">
+    <section id="course-reviews" class="min-w-0 scroll-mt-4 xl:order-1">
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
@@ -612,6 +637,22 @@ onMounted(() => {
         >
           {{ t('courseDetailPage.loginToReview') }}
         </a>
+      </div>
+
+      <div
+        v-if="focusOfferingId"
+        class="mb-3 flex items-center justify-between gap-2 rounded-lg border border-primary/25 bg-info/10 px-3 py-2 text-[12px] text-base-content/75"
+      >
+        <span class="min-w-0 truncate">
+          {{ t('courseDetailPage.offeringFocusLabel') }}：{{ offeringLabel(focusOfferingId) }}
+        </span>
+        <button
+          type="button"
+          class="shrink-0 font-medium text-primary hover:underline"
+          @click="setOfferingFocus(0)"
+        >
+          {{ t('courseDetailPage.offeringFocusClear') }}
+        </button>
       </div>
 
       <p v-if="reviewError" class="mb-3 rounded border border-error/25 bg-error/10 px-3 py-2 text-sm text-error">

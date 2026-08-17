@@ -54,6 +54,11 @@ func setupPkContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	if err := conn.AutoMigrate(append(pkModelList,
 		&course.Entity{},
 		&course.CourseStatsEntity{},
+		&course.TermEntity{},
+		&course.OfferingEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.OfferingStatsEntity{},
 	)...); err != nil {
 		t.Fatalf("migrate pk contract tables: %v", err)
 	}
@@ -96,6 +101,17 @@ func cleanupPkTables(t *testing.T, conn *gorm.DB) {
 	if err := conn.Unscoped().Where("1 = 1").Delete(&course.CourseStatsEntity{}).Error; err != nil {
 		t.Fatalf("clean course stats table: %v", err)
 	}
+	for _, model := range []any{
+		&course.OfferingStatsEntity{},
+		&course.OfferingInstructorEntity{},
+		&course.InstructorEntity{},
+		&course.OfferingEntity{},
+		&course.TermEntity{},
+	} {
+		if err := conn.Unscoped().Where("1 = 1").Delete(model).Error; err != nil {
+			t.Fatalf("clean course offering table: %v", err)
+		}
+	}
 }
 
 // seedPkContractData 写入与 pk-*-success fixture 一致的数据。
@@ -125,6 +141,14 @@ func seedPkContractData(t *testing.T, conn *gorm.DB) {
 		&pk.FetchLogEntity{Id: 1, CalendarId: 99999, Status: pk.FetchStatusCompleted, FinishedAt: &finishedAt},
 		&course.Entity{Id: 1, PrimaryCode: "CS101", Name: "计算机程序设计", Department: "计算机", CreditX10: 30, NormalizedName: "计算机程序设计", Status: course.StatusVisible},
 		&course.CourseStatsEntity{CourseId: 1, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
+		&course.TermEntity{Id: 1, Code: "2025-2026-2", Name: "2025-2026 第二学期", Status: 0},
+		&course.OfferingEntity{Id: 1, CourseId: 1, TermId: 1, Campus: "四平路校区", Faculty: "计算机", ClassCode: "TJCS10101", ClassName: "计算机程序设计-1班", Status: course.OfferingStatusVisible},
+		&course.OfferingEntity{Id: 2, CourseId: 1, TermId: 1, Campus: "四平路校区", Faculty: "计算机", ClassCode: "TJCS10102", ClassName: "计算机程序设计-2班", Status: course.OfferingStatusVisible},
+		&course.InstructorEntity{Id: 1, Name: "张伟", NormalizedName: "张伟"},
+		&course.InstructorEntity{Id: 2, Name: "李娜", NormalizedName: "李娜"},
+		&course.OfferingInstructorEntity{OfferingId: 1, InstructorId: 1},
+		&course.OfferingInstructorEntity{OfferingId: 2, InstructorId: 2},
+		&course.OfferingStatsEntity{OfferingId: 1, RatingCount: 1, RatingSum: 4, ReviewCount: 1},
 	}
 	for _, m := range models {
 		if err := conn.Create(m).Error; err != nil {

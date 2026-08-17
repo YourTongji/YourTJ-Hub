@@ -169,7 +169,7 @@ onBeforeUnmount(() => {
         v-if="open"
         :id="listboxId"
         role="listbox"
-        class="gf-menu-surface absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 overflow-hidden p-1"
+        class="gf-menu-surface gf-scrollbar-thin absolute left-0 right-0 top-[calc(100%+0.375rem)] z-30 max-h-72 overflow-y-auto overflow-x-hidden overscroll-contain p-1"
         @keydown="handleListKeydown"
       >
         <button

@@ -49,9 +49,12 @@ const parsed = computed(() => {
   }
 })
 
-/** 课评入口：跳转课程目录搜索该课程。 */
+/** 课评入口：能匹配到课程目录主键时直达详情页，否则回退课程搜索页。 */
 const reviewHref = computed(() => {
   const base = getCourseBaseCode(props.course?.code || '')
+  if (brief.value?.courseId) {
+    return `/courses/${brief.value.courseId}`
+  }
   return `/courses?keyword=${encodeURIComponent(base)}`
 })
 

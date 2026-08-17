@@ -1,1 +1,1 @@
-{"code":0,"msg":"查询成功","data":{"courseCode":"TJCS101","courseName":"计算机程序设计","teacherName":"张伟","ratingAvg":4.0,"reviewCount":1}}
+{"code":0,"msg":"查询成功","data":{"courseId":1,"courseCode":"TJCS101","courseName":"计算机程序设计","teacherName":"张伟","ratingAvg":4,"reviewCount":1,"classes":[{"classCode":"TJCS10101","offeringId":1,"teachers":["张伟"],"ratingAvg":4,"reviewCount":1},{"classCode":"TJCS10102","offeringId":2,"teachers":["李娜"],"ratingAvg":null,"reviewCount":0}]}}
