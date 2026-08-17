@@ -250,7 +250,7 @@ func TestPkGradesHTTPContract(t *testing.T) {
 	if recBad.Code != http.StatusBadRequest {
 		t.Fatalf("grades bad-request status = %d, want 400: %s", recBad.Code, recBad.Body.String())
 	}
-	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-grades-bad-request.json"))
+	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-bad-request.json"))
 }
 
 // TestPkMajorsHTTPContract P4
@@ -304,7 +304,7 @@ func TestPkOptionalTypesHTTPContract(t *testing.T) {
 	if recBad.Code != http.StatusBadRequest {
 		t.Fatalf("optional-types bad-request status = %d, want 400: %s", recBad.Code, recBad.Body.String())
 	}
-	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-optional-types-bad-request.json"))
+	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-bad-request.json"))
 }
 
 // TestPkCoursesByNatureHTTPContract P7
@@ -370,7 +370,7 @@ func TestPkCourseSearchHTTPContract(t *testing.T) {
 	if recBad.Code != http.StatusBadRequest {
 		t.Fatalf("course-search bad-request status = %d, want 400: %s", recBad.Code, recBad.Body.String())
 	}
-	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-course-search-bad-request.json"))
+	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-bad-request.json"))
 }
 
 // TestPkCoursesByTimeHTTPContract P10（未就绪 → 降级 + auxiliaryReady:false）
@@ -425,7 +425,7 @@ func TestPkCourseInfoSyncHTTPContract(t *testing.T) {
 	if recBad.Code != http.StatusBadRequest {
 		t.Fatalf("course-info-sync bad-request status = %d, want 400: %s", recBad.Code, recBad.Body.String())
 	}
-	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-course-info-sync-bad-request.json"))
+	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-bad-request.json"))
 }
 
 // TestPkCourseReviewBriefHTTPContract P13

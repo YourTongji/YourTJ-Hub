@@ -273,6 +273,23 @@ export interface AiSummarySettings {
   globalPerMinute: number
 }
 
+export interface OnesystemSettings {
+  cookieConfigured: boolean
+}
+
+/** 单个学期的排课数据同步状态（issue #248 管理端同步入口）。 */
+export interface PkSyncStatusItem {
+  calendarId: number
+  calendarName: string
+  status: string
+  rowsWritten: number
+  totalPages: number
+  lastCommittedPage: number
+  errorMsg: string
+  startedAt?: string | null
+  finishedAt?: string | null
+}
+
 export interface StorageSettings {
   provider: 'local' | 's3'
   endpoint: string
@@ -442,15 +459,18 @@ export interface WikiNamespace {
   updatedAt: string
 }
 
-export interface WikiPageNode {
+export interface WikiTreeNode {
+  kind: 'page' | 'directory'
   pageId: number
   path: string
+  sourcePath: string
   title: string
   sortOrder: number
+  children: WikiTreeNode[]
 }
 
 export interface WikiNamespaceTree {
   name: string
   label: string
-  pages: WikiPageNode[]
+  nodes: WikiTreeNode[]
 }

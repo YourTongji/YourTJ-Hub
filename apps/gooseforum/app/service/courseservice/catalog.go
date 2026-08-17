@@ -25,12 +25,15 @@ type CourseSummary struct {
 }
 
 // OfferingSummary 开课实例摘要（详情页；B1 携带 offering 级评分聚合）。
+// ClassCode/ClassName 为班号信息（如 32000101 / 01班），旧数据包导入时为空。
 type OfferingSummary struct {
 	Id          uint64   `json:"id"`
 	TermCode    string   `json:"termCode"`
 	TermName    string   `json:"termName,omitempty"`
 	Campus      string   `json:"campus,omitempty"`
 	Faculty     string   `json:"faculty,omitempty"`
+	ClassCode   string   `json:"classCode,omitempty"`
+	ClassName   string   `json:"className,omitempty"`
 	Instructors []string `json:"instructors,omitempty"`
 	RatingAvg   *float64 `json:"ratingAvg,omitempty"`
 	ReviewCount int      `json:"reviewCount,omitempty"`
@@ -239,6 +242,8 @@ func GetCourseDetail(id uint64) (CourseDetail, error) {
 			Id:          o.Id,
 			Campus:      o.Campus,
 			Faculty:     o.Faculty,
+			ClassCode:   o.ClassCode,
+			ClassName:   o.ClassName,
 			Instructors: instructorsByOffering[o.Id],
 		}
 		if s, ok := offeringStats[o.Id]; ok {

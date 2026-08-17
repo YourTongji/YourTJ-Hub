@@ -159,8 +159,6 @@ const (
 	MessageReviewRevealReasonReq  MessageCode = "review.reveal.reasonRequired" // 查看匿名作者必须填写理由。
 
 	// wiki 分站
-	MessageWikiNamespaceNotFound     MessageCode = "wiki.namespace.notFound"     // namespace 不存在。
-	MessageWikiNamespaceHasPages     MessageCode = "wiki.namespace.hasPages"     // namespace 下存在页面，无法删除。
 	MessageWikiNamespaceNameInvalid  MessageCode = "wiki.namespace.nameInvalid"  // namespace 名称非法。
 	MessageWikiPathInvalid           MessageCode = "wiki.path.invalid"           // wiki 路径非法。
 	MessageWikiPageNotFound          MessageCode = "wiki.page.notFound"          // wiki 页面不存在。
@@ -170,9 +168,10 @@ const (
 	MessageWikiSaveFailed            MessageCode = "wiki.saveFailed"             // wiki 保存失败。
 	MessageWikiNamespaceNameConflict MessageCode = "wiki.namespace.nameConflict" // namespace 名称已存在（契约 409 语义）。
 	MessageWikiPathConflict          MessageCode = "wiki.page.pathConflict"      // wiki 路径已存在（契约 409 语义）。
-	MessageWikiRevisionConflict      MessageCode = "wiki.revision.conflict"      // 版本 CAS 冲突：页面已被他人更新，需基于最新版本重编（409 语义）。
+	MessageWikiRevisionConflict      MessageCode = "wiki.revision.conflict"      // 页面 CAS 冲突：页面已被他人更新，需基于最新版本重编（409 语义）。
 	MessageWikiSyncRunning           MessageCode = "wiki.sync.running"           // wiki 同步已在运行中（防重入）。
 	MessageWikiSyncFailed            MessageCode = "wiki.sync.failed"            // wiki 同步失败。
+	MessageWikiReadFailed            MessageCode = "wiki.readFailed"             // wiki 读取失败（数据库故障；区别于空数据）。
 	// 课程管理（管理端课程/评价管理）
 	MessageCourseNotFound           MessageCode = "course.notFound"           // 课程不存在或已删除。
 	MessageCourseCodeRequired       MessageCode = "course.codeRequired"       // 主课号不能为空。

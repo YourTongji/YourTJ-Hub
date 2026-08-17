@@ -189,6 +189,49 @@ func TestFetchPageCodeZeroIsSuccess(t *testing.T) {
 	}
 }
 
+func TestFetchPageCode200IsSuccess(t *testing.T) {
+	// 一系统 manualArrange 实际成功码是 200（对照 serverless 上游 courseSync.ts code===200），
+	// 而非 0。带完整数据的 code=200 响应必须按成功页处理，否则同步永久失败。
+	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":200,"msg":"","data":{"total_":4155,"list":[` +
+			`{"id":1111111124948791,"code":"5000033001001","name":"01班"}]}}`))
+	}))
+	page, err := c.fetchPage(context.Background(), "cookie", 121, 1, 200)
+	if err != nil {
+		t.Fatalf("code=200 应视为成功页: %v", err)
+	}
+	if page.Data.Total_ != 4155 || len(page.Data.List) != 1 {
+		t.Errorf("code=200 数据未透传: total=%d list=%d", page.Data.Total_, len(page.Data.List))
+	}
+}
+
+func TestFetchPageCode200WithDataAndOtherCodeFails(t *testing.T) {
+	// 字符串形式 code="200" 同样按成功处理；其余非 0/200 code 仍按业务失败拦截。
+	str200 := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":"200","msg":"","data":{"total_":1,"list":[]}}`))
+	}))
+	if _, err := str200.fetchPage(context.Background(), "cookie", 121, 1, 200); err != nil {
+		t.Fatalf("字符串 code=\"200\" 应视为成功页: %v", err)
+	}
+
+	other := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+		w.Header().Set("Content-Type", "application/json")
+		w.WriteHeader(http.StatusOK)
+		_, _ = w.Write([]byte(`{"code":500,"msg":"服务端异常","data":null}`))
+	}))
+	_, err := other.fetchPage(context.Background(), "cookie", 121, 1, 200)
+	if err == nil {
+		t.Fatal("code=500 应视为业务失败")
+	}
+	if !strings.Contains(err.Error(), "code=500") {
+		t.Errorf("error should mention code=500, got: %v", err)
+	}
+}
+
 func TestFetchPageRejectsStringBusinessCode(t *testing.T) {
 	// 字符串形式的 code="1" 同样应拦截（勿因 JSON 字符串引号误判为成功）。
 	c := newTestClient(t, http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {

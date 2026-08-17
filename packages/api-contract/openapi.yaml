@@ -121,14 +121,9 @@ paths:
   /api/wiki/home:
     get:
       $ref: ./paths/wiki.yaml#/getWikiHome/get
-  /api/admin/wiki/namespaces:
-    post:
-      $ref: ./paths/wiki.yaml#/createWikiNamespace/post
-  /api/admin/wiki/namespaces/{name}:
-    put:
-      $ref: ./paths/wiki.yaml#/updateWikiNamespace/put
-    delete:
-      $ref: ./paths/wiki.yaml#/deleteWikiNamespace/delete
+  /api/wiki/search:
+    get:
+      $ref: ./paths/wiki.yaml#/searchWikiSearch/get
   /api/admin/wiki/tree:
     get:
       $ref: ./paths/wiki.yaml#/getAdminWikiTree/get
@@ -144,6 +139,16 @@ paths:
   /api/admin/wiki/sync/runs:
     get:
       $ref: ./paths/wiki-sync.yaml#/listWikiSyncRuns/get
+  /api/admin/wiki/sync/webhook-secret:
+    get:
+      $ref: ./paths/wiki-sync.yaml#/getWikiWebhookSecret/get
+    post:
+      $ref: ./paths/wiki-sync.yaml#/saveWikiWebhookSecret/post
+  /api/admin/wiki/sync/cdn:
+    get:
+      $ref: ./paths/wiki-sync.yaml#/getWikiAssetCDN/get
+    post:
+      $ref: ./paths/wiki-sync.yaml#/saveWikiAssetCDN/post
   # PK 排课器 13 端点（Issue #187）。
   /api/pk/calendars:
     get:
@@ -445,8 +450,8 @@ components:
       $ref: ./components/schemas.yaml#/SessionMessageSuccess
     UserSession:
       $ref: ./components/schemas.yaml#/UserSession
-    WikiTreePage:
-      $ref: ./components/schemas.yaml#/WikiTreePage
+    WikiTreeNode:
+      $ref: ./components/schemas.yaml#/WikiTreeNode
     WikiTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiTreeNamespace
     WikiTreeResult:
@@ -465,16 +470,8 @@ components:
       $ref: ./components/schemas.yaml#/WikiHomeResult
     WikiHomeResponse:
       $ref: ./components/schemas.yaml#/WikiHomeResponse
-    WikiCreateNamespaceRequest:
-      $ref: ./components/schemas.yaml#/WikiCreateNamespaceRequest
-    WikiUpdateNamespaceRequest:
-      $ref: ./components/schemas.yaml#/WikiUpdateNamespaceRequest
-    WikiNamespaceActionResult:
-      $ref: ./components/schemas.yaml#/WikiNamespaceActionResult
-    WikiNamespaceActionResponse:
-      $ref: ./components/schemas.yaml#/WikiNamespaceActionResponse
-    WikiAdminTreePage:
-      $ref: ./components/schemas.yaml#/WikiAdminTreePage
+    WikiAdminTreeNode:
+      $ref: ./components/schemas.yaml#/WikiAdminTreeNode
     WikiAdminTreeNamespace:
       $ref: ./components/schemas.yaml#/WikiAdminTreeNamespace
     WikiAdminTreeResult:
@@ -501,6 +498,16 @@ components:
       $ref: ./components/schemas.yaml#/WikiWebhookSuccess
     WikiWebhookFailure:
       $ref: ./components/schemas.yaml#/WikiWebhookFailure
+    WikiWebhookSecretStatus:
+      $ref: ./components/schemas.yaml#/WikiWebhookSecretStatus
+    WikiWebhookSecretStatusResponse:
+      $ref: ./components/schemas.yaml#/WikiWebhookSecretStatusResponse
+    WikiWebhookSecretSaveRequest:
+      $ref: ./components/schemas.yaml#/WikiWebhookSecretSaveRequest
+    WikiWebhookSecretSaveResult:
+      $ref: ./components/schemas.yaml#/WikiWebhookSecretSaveResult
+    WikiWebhookSecretSaveResponse:
+      $ref: ./components/schemas.yaml#/WikiWebhookSecretSaveResponse
     PkSuccess:
       $ref: ./components/schemas.yaml#/PkSuccess
     PkFailure:

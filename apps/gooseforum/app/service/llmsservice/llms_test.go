@@ -245,7 +245,7 @@ func TestBuildFullSkipsTopicWithBrokenFirstPost(t *testing.T) {
 		ClearCache()
 	})
 	now := time.Date(2026, 8, 9, 12, 0, 0, 0, time.UTC)
-	// 首帖 PostNo=2：GetPublishedAfterID 的 EXISTS 通过（normal 且未删），
+	// 首帖 PostNo=2：公开主题过滤的 EXISTS 通过（normal 且未删），
 	// 但 appendTopicDocument 因 postsBatch[0].PostNo != 1 返回 ErrTopicMissing。
 	if err := fixture.conn.Create(&posts.Entity{Id: brokenPostID, TopicId: brokenTopicID, PostNo: 2, Content: "broken first-post body", ProcessStatus: posts.ProcessStatusNormal, CreatedAt: now}).Error; err != nil {
 		t.Fatalf("create broken first post: %v", err)

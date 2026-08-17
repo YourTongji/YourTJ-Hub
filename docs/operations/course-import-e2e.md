@@ -4,10 +4,15 @@
 
 ## 数据包格式（上游导出器输出）
 
-`export_legacy_course_package.py` 输出**单包 4 文件 + 1 manifest**（同一目录）：
+`jcourse_to_manifest.py`（`import-data/`，上游 jcourse SQLite 快照 → manifest 包）输出**单包 4 文件 + 2 manifest**（同一目录）：
 
 - `courses.jsonl` / `instructors.jsonl` / `offerings.jsonl` / `reviews.jsonl`
-- `manifest.yaml`：`schema_version: 1` + `source` + `source_commit` + `exported_at` + `rights_approval_ref` + `files{sha256}` + `counts`
+- `manifest-catalog.yaml`：`schema_version: 1` + `source` + `files{sha256}` + `counts`
+- `manifest-reviews.yaml`：同 catalog，另含 `rights_approval_ref`（评价导入必填）
+
+`offerings.jsonl` 每行含 `class_code` / `class_name` 班号信息（如 `32000101` / `01班`），
+供 Hub 课程详情页按班展示；每个教学班只挂载一门课（班号课优先，其次主码课），
+避免同一教学班同时挂主码课与班号课造成目录双写（旧版多挂载行为已废弃）。
 
 Hub 导入器按命令消费同一包：`course-import`（catalog）只处理前三个 JSONL，`course-import reviews` 只处理 reviews.jsonl；manifest 中属于其他命令的文件与计数被跳过，由对应命令校验。
 
@@ -15,16 +20,16 @@ Hub 导入器按命令消费同一包：`course-import`（catalog）只处理前
 
 ```bash
 # 1) catalog dry-run：0 冲突、计数与 manifest 一致
-go run ./cmd/gooseforum course-import /path/to/package/manifest.yaml --dry-run
+go run ./cmd/gooseforum course-import /path/to/package/manifest-catalog.yaml --dry-run
 
 # 2) catalog 正式导入：import_run completed（重复执行 manifest 级幂等跳过）
-go run ./cmd/gooseforum course-import /path/to/package/manifest.yaml
+go run ./cmd/gooseforum course-import /path/to/package/manifest-catalog.yaml
 
 # 3) reviews dry-run：0 冲突、rights_approval_ref 必填
-go run ./cmd/gooseforum course-import reviews --manifest /path/to/package/manifest.yaml --dry-run
+go run ./cmd/gooseforum course-import reviews --manifest /path/to/package/manifest-reviews.yaml --dry-run
 
 # 4) reviews 正式导入（重复执行幂等）
-go run ./cmd/gooseforum course-import reviews --manifest /path/to/package/manifest.yaml
+go run ./cmd/gooseforum course-import reviews --manifest /path/to/package/manifest-reviews.yaml
 
 # 5) 统计投影重建（rebuild-course-stats 等价命令，成功即一致性）
 go run ./cmd/gooseforum rebuild-course-stats

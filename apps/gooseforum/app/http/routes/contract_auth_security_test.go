@@ -11,7 +11,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/jwtopt"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -22,6 +21,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/totpservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/userservice"
+	"github.com/gin-gonic/gin"
 	otptotp "github.com/pquerna/otp/totp"
 	"gorm.io/gorm"
 )
@@ -197,7 +197,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("TOTP verification status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-success.json"))
 		if recorder.Header().Get("New-Token") == "" {
 			t.Fatal("TOTP verification response missing New-Token header")
 		}
@@ -221,7 +221,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, replay),
-			contractFixture(t, "totp-verify-unauthenticated.json"),
+			contractFixture(t, "auth-required.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after challenge replay = %d, want 1", count)
@@ -281,7 +281,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if retry.Code != http.StatusOK {
 			t.Fatalf("unfrozen retry status = %d, want 200: %s", retry.Code, retry.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, retry), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, retry), contractFixture(t, "login-success.json"))
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after unfrozen retry = %d, want 1", count)
 		}
@@ -307,7 +307,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("recovery-code verification status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-success.json"))
 		if recorder.Header().Get("New-Token") == "" {
 			t.Fatal("recovery-code verification response missing New-Token header")
 		}
@@ -330,7 +330,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, replay),
-			contractFixture(t, "totp-verify-unauthenticated.json"),
+			contractFixture(t, "auth-required.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after recovery-code replay = %d, want 1", count)
@@ -386,7 +386,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if success.Code != http.StatusOK {
 			t.Fatalf("valid-code-with-recovery status = %d, want 200: %s", success.Code, success.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "login-success.json"))
 	})
 
 	t.Run("empty request with a valid challenge stays an HTTP 200 business failure", func(t *testing.T) {
@@ -430,7 +430,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-unauthenticated.json"),
+			contractFixture(t, "auth-required.json"),
 		)
 	})
 
@@ -454,7 +454,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("cookie-challenge status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-success.json"))
 	})
 
 	t.Run("missing challenge returns 401", func(t *testing.T) {
@@ -466,7 +466,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-unauthenticated.json"),
+			contractFixture(t, "auth-required.json"),
 		)
 	})
 
@@ -482,7 +482,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-invalid-format.json"),
+			contractFixture(t, "invalid-format.json"),
 		)
 	})
 
@@ -504,7 +504,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-invalid-format.json"),
+			contractFixture(t, "invalid-format.json"),
 		)
 	})
 
@@ -531,7 +531,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-invalid-format.json"),
+			contractFixture(t, "invalid-format.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 0 {
 			t.Fatalf("session count after trailing-value request = %d, want 0", count)
@@ -549,7 +549,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if success.Code != http.StatusOK {
 			t.Fatalf("well-formed retry status = %d, want 200: %s", success.Code, success.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "login-success.json"))
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after well-formed retry = %d, want 1", count)
 		}
@@ -574,7 +574,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-invalid-format.json"),
+			contractFixture(t, "invalid-format.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 0 {
 			t.Fatalf("session count after null-code request = %d, want 0", count)
@@ -596,7 +596,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if success.Code != http.StatusOK {
 			t.Fatalf("null-retry status = %d, want 200: %s", success.Code, success.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "login-success.json"))
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after null-retry = %d, want 1", count)
 		}
@@ -621,7 +621,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		assertFixtureEnvelope(
 			t,
 			decodeContractEnvelope(t, recorder),
-			contractFixture(t, "totp-verify-invalid-format.json"),
+			contractFixture(t, "invalid-format.json"),
 		)
 		if count := contractSessionCount(t, conn, user.Id); count != 0 {
 			t.Fatalf("session count after top-level-null request = %d, want 0", count)
@@ -641,7 +641,7 @@ func TestTotpVerifyHTTPContract(t *testing.T) {
 		if success.Code != http.StatusOK {
 			t.Fatalf("top-level-null retry status = %d, want 200: %s", success.Code, success.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "totp-verify-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, success), contractFixture(t, "login-success.json"))
 		if count := contractSessionCount(t, conn, user.Id); count != 1 {
 			t.Fatalf("session count after top-level-null retry = %d, want 1", count)
 		}

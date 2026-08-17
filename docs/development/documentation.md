@@ -50,3 +50,5 @@ When sources disagree, treat it as a defect and fix it in the same PR, or record
 3. Big decisions go into the project note's ADR record (yourtj-hub ADR note), append-only numbering,
    history never rewritten.
 4. Delete stale content instead of keeping "deprecated but useful" copies; git history owns archival.
+5. Any new feature PR must include documentation changes: user-visible features update the docs center
+   and status words; purely internal changes at least update the relevant README or code comments.

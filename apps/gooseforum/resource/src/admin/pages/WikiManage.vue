@@ -1,37 +1,23 @@
 <script setup lang="ts">
 import { adminText } from '@/admin/runtime/i18n-text'
-import {
-  isValidNamespaceName,
-  MAX_NAMESPACE_NAME_LENGTH,
-} from '@/admin/utils/wiki'
 
-import { computed, onMounted, reactive, ref } from 'vue'
+import { computed, onMounted, onUnmounted, ref } from 'vue'
 import {
   BookOpen,
   Clock,
-  ExternalLink,
-  FileText,
   History,
-  Pencil,
-  Plus,
+  Globe,
+  KeyRound,
   RefreshCw,
-  Trash2,
 } from '@lucide/vue'
-import AdminActionButton from '@/admin/components/AdminActionButton.vue'
-import AdminConfirmDialog from '@/admin/components/AdminConfirmDialog.vue'
 import AdminSection from '@/admin/components/AdminSection.vue'
 import AdminToolbar from '@/admin/components/AdminToolbar.vue'
+import WikiTreeNode from '@/admin/components/WikiTreeNode.vue'
 import { BasicPage } from '@/admin/components/global-layout'
 import { Badge } from '@/admin/components/ui/badge'
 import { Button } from '@/admin/components/ui/button'
-import {
-  Dialog,
-  DialogContent,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from '@/admin/components/ui/dialog'
 import { Input } from '@/admin/components/ui/input'
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/admin/components/ui/select'
 import {
   Table,
   TableBody,
@@ -46,26 +32,31 @@ import {
   TabsList,
   TabsTrigger,
 } from '@/admin/components/ui/tabs'
-import { Textarea } from '@/admin/components/ui/textarea'
 import {
-  createWikiNamespace,
-  deleteWikiNamespace,
+  getWikiAssetCDN,
   getWikiNamespaces,
   getWikiSyncRuns,
   getWikiSyncStatus,
   getWikiTree,
+  getWikiWebhookSecret,
+  saveWikiAssetCDN,
+  saveWikiWebhookSecret,
   triggerWikiSync,
-  updateWikiNamespace,
   type WikiSyncRunView,
   type WikiSyncStatus,
 } from '@/admin/runtime/api'
+import {
+  syncTerminalToastKey,
+  WIKI_SYNC_POLL_INTERVAL_MS,
+  WIKI_SYNC_POLL_MAX_ATTEMPTS,
+} from './wiki-sync-poll'
 import { adminToast } from '@/admin/runtime/toast'
 import type {
   AdminPayload,
   ManageHomeProps,
   WikiNamespace,
   WikiNamespaceTree,
-  WikiPageNode,
+  WikiTreeNode as WikiTreeNodeData,
 } from '@/admin/types'
 
 defineProps<{
@@ -77,11 +68,6 @@ const activeTab = ref('namespaces')
 const namespaces = ref<WikiNamespace[]>([])
 const nsLoading = ref(false)
 const nsError = ref('')
-const nsDialog = ref<{ mode: 'create' | 'edit', row: WikiNamespace | null } | null>(null)
-const nsForm = reactive({ name: '', description: '' })
-const nsSaving = ref(false)
-const deletingNs = ref<WikiNamespace | null>(null)
-const nsDeleting = ref(false)
 
 const tree = ref<WikiNamespaceTree[]>([])
 const treeLoading = ref(false)
@@ -94,7 +80,29 @@ const syncRuns = ref<WikiSyncRunView[]>([])
 const runsLoading = ref(false)
 const syncTriggering = ref(false)
 
-const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value)
+// 手动同步后的轮询状态（issue #290）：accepted 后持续轮询 status/runs
+// 直到出现比触发时更新的 run 行进入终态；组件卸载时清理定时器。
+const syncPollTimer = ref<ReturnType<typeof setInterval> | null>(null)
+
+function clearSyncPoll() {
+  if (syncPollTimer.value !== null) {
+    clearInterval(syncPollTimer.value)
+    syncPollTimer.value = null
+  }
+}
+
+// webhook 验签密钥（securestore 加密落库，仅回显是否已配置）
+const webhookConfigured = ref(false)
+const webhookSecretInput = ref('')
+const webhookSaving = ref(false)
+const webhookLoading = ref(false)
+
+// 资源 CDN（wiki 页面内图片/附件等静态资源的分发方式）
+const assetCDN = ref('self')
+const cdnLoading = ref(false)
+const cdnSaving = ref(false)
+
+const globalLoading = computed(() => nsLoading.value || treeLoading.value || syncLoading.value || runsLoading.value || webhookLoading.value || cdnLoading.value)
 
 function formatTime(value: string | undefined | null) {
   if (!value) return '-'
@@ -112,6 +120,7 @@ function triggerLabel(trigger: string) {
   if (trigger === 'manual') return adminText('k00qc')
   if (trigger === 'webhook') return adminText('k00qu')
   if (trigger === 'schedule') return adminText('k00qd')
+  if (trigger === 'startup') return adminText('k00qy')
   return trigger
 }
 
@@ -142,14 +151,21 @@ function repoEditBase() {
   return path.includes('/') ? path : ''
 }
 
-function editUrlFor(page: WikiPageNode) {
+function editUrlFor(page: WikiTreeNodeData) {
   const base = repoEditBase()
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
-  return `https://github.com/${base}/edit/${branch}/${page.path}.md`
+  // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段即仓库目录名）。
+  // 逐段转义：目录名/文件名允许 #/% 等字符，但 URL
+  // 拼接时 # 会开启 fragment、% 会被当转义前缀 → GitHub 404。
+  const repoPath = (page.sourcePath || page.path)
+    .split('/')
+    .map((seg) => encodeURIComponent(seg))
+    .join('/')
+  return `https://github.com/${base}/edit/${branch}/${repoPath}.md`
 }
 
-// ---------- Namespaces ----------
+// ---------- Namespaces（只读：GitHub SSOT，命名空间由仓库顶层目录驱动） ----------
 async function loadNamespaces() {
   nsLoading.value = true
   nsError.value = ''
@@ -162,76 +178,7 @@ async function loadNamespaces() {
   }
 }
 
-function openCreateNs() {
-  nsForm.name = ''
-  nsForm.description = ''
-  nsDialog.value = { mode: 'create', row: null }
-}
-
-function openEditNs(row: WikiNamespace) {
-  nsForm.name = row.name
-  nsForm.description = row.description
-  nsDialog.value = { mode: 'edit', row }
-}
-
-async function submitNamespace() {
-  if (!nsForm.name.trim()) {
-    adminToast.warning(adminText('k00ng'))
-    return
-  }
-  // 创建时名称需符合后端规则：小写字母、数字、连字符（与
-  // wikiservice.ValidateNamespace 对齐，见 app/service/wikiservice/path.go:47）。
-  if (nsDialog.value?.mode === 'create' && !isValidNamespaceName(nsForm.name)) {
-    adminToast.warning(adminText('k00o5'))
-    return
-  }
-  nsSaving.value = true
-  try {
-    if (nsDialog.value?.mode === 'create') {
-      await createWikiNamespace({ name: nsForm.name.trim(), description: nsForm.description.trim() })
-    } else if (nsDialog.value?.row) {
-      await updateWikiNamespace(nsDialog.value.row.name, nsForm.description.trim())
-    }
-    nsDialog.value = null
-    await loadNamespaces()
-    adminToast.success(adminText('k000e'))
-  } catch (err) {
-    adminToast.error(err, adminText('k00n0'))
-  } finally {
-    nsSaving.value = false
-  }
-}
-
-function requestDeleteNamespace(row: WikiNamespace) {
-  if (row.pageCount > 0) {
-    adminToast.warning(adminText('k00nk'))
-    return
-  }
-  deletingNs.value = row
-}
-
-async function confirmDeleteNamespace() {
-  if (!deletingNs.value) return
-  const name = deletingNs.value.name
-  nsDeleting.value = true
-  try {
-    await deleteWikiNamespace(name)
-    deletingNs.value = null
-    await Promise.all([loadNamespaces(), loadTree()])
-    adminToast.success(adminText('k002u'))
-  } catch (err) {
-    const messageCode = (err as { messageCode?: string } | null)?.messageCode
-    adminToast.error(err, messageCode === 'wiki.namespace.hasPages' ? adminText('k00nk') : adminText('k00n0'))
-  } finally {
-    nsDeleting.value = false
-  }
-}
-
 // ---------- Page tree（只读：GitHub SSOT，结构由仓库决定） ----------
-function sortedPages(group: WikiNamespaceTree) {
-  return [...(group.pages || [])].sort((a, b) => (a.sortOrder ?? 0) - (b.sortOrder ?? 0))
-}
-
 async function loadTree() {
   treeLoading.value = true
   treeError.value = ''
@@ -274,27 +221,119 @@ async function runSync() {
   if (syncTriggering.value || syncLoading.value || !syncStatus.value?.enabled) return
   syncTriggering.value = true
   try {
+    const beforeRunId = syncStatus.value?.lastRun?.id ?? 0
     await triggerWikiSync()
     adminToast.success(adminText('k00qw'))
-  } catch (err) {
-    const messageCode = (err as { messageCode?: string } | null)?.messageCode
-    if (messageCode === 'wiki.sync.running') {
-      adminToast.warning(adminText('k00qk'))
-    } else {
-      adminToast.error(err, adminText('k00ql'))
+    // accepted 后轮询（issue #290）：后端 run 行可能晚于响应创建，且同步
+    // 可能持续数分钟 → 轮询到比 beforeRunId 更新的 run 进入终态后刷新
+    // 状态/运行记录/页面树（同步结果投影到树）。
+    let attempts = 0
+    const poll = async () => {
+      if (attempts >= WIKI_SYNC_POLL_MAX_ATTEMPTS) {
+        clearSyncPoll()
+        syncTriggering.value = false
+        adminToast.warning(adminText('k00r8'))
+        return
+      }
+      attempts++
+      try {
+        const status = await getWikiSyncStatus()
+        const terminalToast = syncTerminalToastKey(status, beforeRunId)
+        if (terminalToast !== null) {
+          clearSyncPoll()
+          syncTriggering.value = false
+          syncStatus.value = status
+          await Promise.all([loadSyncRuns(), loadTree()])
+          // review #299：failed 终态必须提示「同步失败」（附 run error），
+          // 不能与 success 一样提示「同步完成」。
+          if (terminalToast === 'failed') {
+            const detail = status?.lastRun?.error
+            adminToast.error(detail ? new Error(detail) : undefined, adminText('k00ql'))
+          } else {
+            adminToast.success(adminText('k00qj'))
+          }
+          return
+        }
+      } catch {
+        // 单次轮询失败不中断：下次轮询重试；达到上限后以超时提示收尾。
+      }
     }
-  } finally {
+    await poll()
+    // 首轮已终态时 syncTriggering 已复位，不再启动轮询；否则进入定时间隔。
+    if (syncTriggering.value) {
+      syncPollTimer.value = setInterval(poll, WIKI_SYNC_POLL_INTERVAL_MS)
+    }
+  } catch (err) {
     syncTriggering.value = false
+    adminToast.error(err, adminText('k00ql'))
     await Promise.all([loadSyncStatus(), loadSyncRuns(), loadTree()])
   }
 }
 
-async function loadAll() {
-  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns()])
+// ---------- webhook 验签密钥（securestore 加密落库，仅回显是否已配置） ----------
+async function loadWebhookSecret() {
+  webhookLoading.value = true
+  try {
+    const status = await getWikiWebhookSecret()
+    webhookConfigured.value = status.configured
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    webhookLoading.value = false
+  }
 }
+
+async function saveWebhookSecret() {
+  if (webhookSaving.value) return
+  webhookSaving.value = true
+  try {
+    await saveWikiWebhookSecret(webhookSecretInput.value.trim())
+    webhookSecretInput.value = ''
+    await loadWebhookSecret()
+    adminToast.success(adminText('k000e'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    webhookSaving.value = false
+  }
+}
+
+async function loadAssetCDN() {
+  cdnLoading.value = true
+  try {
+    const status = await getWikiAssetCDN()
+    assetCDN.value = status.cdn || 'self'
+  } catch (err) {
+    adminToast.error(err, adminText('k00n0'))
+  } finally {
+    cdnLoading.value = false
+  }
+}
+
+async function saveAssetCDN() {
+  if (cdnSaving.value) return
+  cdnSaving.value = true
+  try {
+    await saveWikiAssetCDN(assetCDN.value)
+    adminToast.success(adminText('k00s6'))
+  } catch (err) {
+    adminToast.error(err, adminText('k00s7'))
+  } finally {
+    cdnSaving.value = false
+  }
+}
+
+async function loadAll() {
+  await Promise.all([loadNamespaces(), loadTree(), loadSyncStatus(), loadSyncRuns(), loadWebhookSecret(), loadAssetCDN()])
+}
+
 
 onMounted(() => {
   void loadAll()
+})
+
+onUnmounted(() => {
+  clearSyncPoll()
 })
 </script>
 
@@ -322,10 +361,7 @@ onMounted(() => {
                 <Badge variant="secondary" class="h-9 rounded-md px-3">
                   {{ namespaces.length }} {{ adminText('k00n6') }}
                 </Badge>
-                <Button type="button" @click="openCreateNs">
-                  <Plus class="size-4" />
-                  {{ adminText('k00nc') }}
-                </Button>
+                <span class="text-sm text-muted-foreground">{{ adminText('k00qz') }}</span>
               </div>
             </AdminToolbar>
           </template>
@@ -336,18 +372,17 @@ onMounted(() => {
                 <TableHead>{{ adminText('k00ag') }}</TableHead>
                 <TableHead class="w-24">{{ adminText('k00na') }}</TableHead>
                 <TableHead class="w-40">{{ adminText('k00nb') }}</TableHead>
-                <TableHead class="w-44 text-right">{{ adminText('k007m') }}</TableHead>
               </TableRow>
             </TableHeader>
             <TableBody>
               <TableRow v-if="nsLoading && namespaces.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
               </TableRow>
               <TableRow v-else-if="nsError">
-                <TableCell colspan="5" class="h-28 text-center text-destructive">{{ nsError }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-destructive">{{ nsError }}</TableCell>
               </TableRow>
               <TableRow v-else-if="namespaces.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k00nj') }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-muted-foreground">{{ adminText('k00nj') }}</TableCell>
               </TableRow>
               <template v-else>
                 <TableRow v-for="item in namespaces" :key="item.name">
@@ -355,18 +390,6 @@ onMounted(() => {
                   <TableCell class="max-w-md truncate text-muted-foreground">{{ item.description || '-' }}</TableCell>
                   <TableCell>{{ item.pageCount ?? 0 }}</TableCell>
                   <TableCell class="text-xs text-muted-foreground">{{ formatTime(item.updatedAt) }}</TableCell>
-                  <TableCell>
-                    <div class="flex justify-end gap-2">
-                      <AdminActionButton @click="openEditNs(item)">
-                        <Pencil class="size-3.5" />
-                        {{ adminText('k00nd') }}
-                      </AdminActionButton>
-                      <AdminActionButton tone="danger" @click="requestDeleteNamespace(item)">
-                        <Trash2 class="size-3.5" />
-                        {{ adminText('k00ne') }}
-                      </AdminActionButton>
-                    </div>
-                  </TableCell>
                 </TableRow>
               </template>
             </TableBody>
@@ -394,39 +417,20 @@ onMounted(() => {
                   <div class="flex min-w-0 items-center gap-2">
                     <BookOpen class="size-4 shrink-0 text-muted-foreground" />
                     <span class="truncate text-sm font-medium">{{ group.label || group.name }}</span>
-                    <span class="shrink-0 text-xs text-muted-foreground">{{ group.pages.length }}</span>
+                    <span class="shrink-0 text-xs text-muted-foreground">{{ group.nodes.length }}</span>
                   </div>
                 </div>
-                <div v-if="!group.pages.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ adminText('k00ny') }}</div>
+                <div v-if="!group.nodes.length" class="px-4 py-6 text-center text-sm text-muted-foreground">{{ adminText('k00ny') }}</div>
                 <div v-else class="divide-y">
-                  <div v-for="page in sortedPages(group)" :key="page.pageId" class="flex items-center gap-2 px-3 py-2 pl-6">
-                    <FileText class="size-4 shrink-0 text-muted-foreground" />
-                    <div class="min-w-0 flex-1">
-                      <div class="truncate text-sm font-medium">{{ page.title || page.path }}</div>
-                      <div class="truncate font-mono text-xs text-muted-foreground">{{ page.path }}</div>
-                    </div>
-                    <div class="flex shrink-0 items-center gap-1">
-                      <a
-                        v-if="editUrlFor(page)"
-                        :href="editUrlFor(page)"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        :title="adminText('k00q3')"
-                      >
-                        <ExternalLink class="size-3.5" />
-                      </a>
-                      <a
-                        :href="`/wiki/${page.path}`"
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        class="grid size-8 place-items-center rounded-md text-muted-foreground transition-colors hover:bg-muted hover:text-foreground"
-                        :title="adminText('k00nv')"
-                      >
-                        <ExternalLink class="size-3.5" />
-                      </a>
-                    </div>
-                  </div>
+                  <WikiTreeNode
+                    v-for="node in group.nodes"
+                    :key="`${node.kind}:${node.path}`"
+                    :node="node"
+                    :depth="0"
+                    :edit-url-for="editUrlFor"
+                    :edit-title="adminText('k00q3')"
+                    :view-title="adminText('k00nv')"
+                  />
                 </div>
               </div>
             </template>
@@ -491,6 +495,75 @@ onMounted(() => {
             <template #header>
               <AdminToolbar class="border-b-0">
                 <div class="flex items-center gap-2">
+                  <KeyRound class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="text-sm font-medium">{{ adminText('k00r0') }}</span>
+                </div>
+              </AdminToolbar>
+            </template>
+            <div class="grid gap-4 p-4 md:grid-cols-2">
+              <div class="space-y-2 text-sm">
+                <div class="flex items-center gap-2">
+                  <span class="text-muted-foreground">{{ adminText('k00r1') }}</span>
+                  <Badge :variant="webhookConfigured ? 'secondary' : 'destructive'">
+                    {{ webhookConfigured ? adminText('k00r2') : adminText('k00r3') }}
+                  </Badge>
+                </div>
+                <p class="text-xs text-muted-foreground">{{ adminText('k00r4') }}</p>
+              </div>
+              <form class="flex items-end gap-2" @submit.prevent="saveWebhookSecret">
+                <label class="grid flex-1 gap-2 text-sm font-medium">
+                  {{ adminText('k00r5') }}
+                  <Input
+                    v-model="webhookSecretInput"
+                    type="password"
+                    autocomplete="new-password"
+                    :placeholder="adminText('k00r6')"
+                  />
+                </label>
+                <Button type="submit" size="sm" :disabled="webhookSaving || webhookLoading">
+                  {{ webhookSaving ? adminText('k005f') : adminText('k005g') }}
+                </Button>
+              </form>
+            </div>
+          </AdminSection>
+
+          <AdminSection>
+            <template #header>
+              <AdminToolbar class="border-b-0">
+                <div class="flex items-center gap-2">
+                  <Globe class="size-4 shrink-0 text-muted-foreground" />
+                  <span class="text-sm font-medium">{{ adminText('k00s0') }}</span>
+                </div>
+              </AdminToolbar>
+            </template>
+            <div class="grid gap-4 p-4 md:grid-cols-2">
+              <div class="space-y-2 text-sm">
+                <p class="text-xs text-muted-foreground">{{ adminText('k00s1') }}</p>
+              </div>
+              <form class="flex items-end gap-2" @submit.prevent="saveAssetCDN">
+                <label class="grid flex-1 gap-2 text-sm font-medium">
+                  {{ adminText('k00s4') }}
+                  <Select v-model="assetCDN" :disabled="cdnLoading">
+                    <SelectTrigger class="h-9 w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="self">{{ adminText('k00s2') }}</SelectItem>
+                      <SelectItem value="jsDelivr">{{ adminText('k00s3') }}</SelectItem>
+                    </SelectContent>
+                  </Select>
+                </label>
+                <Button type="submit" size="sm" :disabled="cdnSaving || cdnLoading">
+                  {{ cdnSaving ? adminText('k005f') : adminText('k00s5') }}
+                </Button>
+              </form>
+            </div>
+          </AdminSection>
+
+          <AdminSection>
+            <template #header>
+              <AdminToolbar class="border-b-0">
+                <div class="flex items-center gap-2">
                   <Clock class="size-4 shrink-0 text-muted-foreground" />
                   <span class="text-sm font-medium">{{ adminText('k00qn') }}</span>
                 </div>
@@ -534,36 +607,5 @@ onMounted(() => {
         </div>
       </TabsContent>
     </Tabs>
-
-    <Dialog :open="nsDialog !== null" @update:open="(open) => !open && (nsDialog = null)">
-      <DialogContent class="sm:max-w-lg">
-        <DialogHeader>
-          <DialogTitle>{{ nsDialog?.mode === 'edit' ? adminText('k00nd') : adminText('k00nc') }}</DialogTitle>
-        </DialogHeader>
-        <form class="grid gap-4" @submit.prevent="submitNamespace">
-          <label v-if="nsDialog?.mode === 'create'" class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00af') }}
-            <Input v-model="nsForm.name" :placeholder="adminText('k00o6')" :maxlength="MAX_NAMESPACE_NAME_LENGTH" />
-          </label>
-          <label class="grid gap-2 text-sm font-medium">
-            {{ adminText('k00ag') }}
-            <Textarea v-model="nsForm.description" class="min-h-24 resize-y" :placeholder="adminText('k00ni')" />
-          </label>
-          <DialogFooter>
-            <Button variant="outline" type="button" @click="nsDialog = null">{{ adminText('k009q') }}</Button>
-            <Button type="submit" :disabled="nsSaving">{{ nsSaving ? adminText('k005f') : adminText('k005g') }}</Button>
-          </DialogFooter>
-        </form>
-      </DialogContent>
-    </Dialog>
-
-    <AdminConfirmDialog
-      :open="deletingNs !== null"
-      :title="adminText('k00ne')"
-      :description="adminText('k00nf', { name: deletingNs?.name })"
-      :loading="nsDeleting"
-      @update:open="(open) => !open && (deletingNs = null)"
-      @confirm="confirmDeleteNamespace"
-    />
   </BasicPage>
 </template>

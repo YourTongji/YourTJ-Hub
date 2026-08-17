@@ -1757,7 +1757,12 @@ func ReviewQueue(req component.BetterRequest[ReviewQueueReq]) component.Response
 		for _, p := range result.Data {
 			topicIDs = append(topicIDs, p.TopicId)
 		}
-		topicMap := topics.GetMapByIds(topicIDs)
+		topicMap, err := topics.GetMapByIds(topicIDs)
+		if err != nil {
+			slog.Error("admin review queue: load topics failed", "error", err)
+			return component.BuildResponse(http.StatusInternalServerError,
+				component.FailDataCode(component.MessageAdminReviewFailed, nil))
+		}
 		for _, p := range result.Data {
 			username := ""
 			if u, ok := userMap[p.UserId]; ok {

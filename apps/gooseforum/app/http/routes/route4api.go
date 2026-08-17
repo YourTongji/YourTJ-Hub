@@ -225,8 +225,12 @@ func apiRoute(ginApp *gin.Engine) {
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
+	// wiki 站内局内搜索（前端搜索面板；段落级 Meilisearch 索引，公开只读）。
+	wikiApi.GET("search", UpQueryReq(forum.WikiSearchJSON))
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
-	wikiApi.POST("webhook", api.WikiWebhook)
+	// 公开端点加限流（review MEDIUM）：防未认证调用方以超大 body 刷 HMAC
+	// 计算（CPU DoS）与重放触发全量同步。
+	wikiApi.POST("webhook", middleware.RateLimit(middleware.RateLimitWikiWebhook), api.WikiWebhook)
 	// 课程 AI 总结（B7, issue #181）：公开只读；可选 JWT 先于 RateLimit 解析
 	// 用户身份（course.summary 的 limitPerUser / skipAdmin 依赖 userId），
 	// 未登录调用者仍可读（JWTAuth 可选）。
@@ -358,13 +362,14 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-sponsors", UpButterReq(api.SaveSponsors)).
 		GET("announcement", UpButterReq(api.GetAnnouncement)).
 		POST("save-announcement", UpButterReq(api.SaveAnnouncement)).
-		POST("wiki/namespaces", UpButterReq(api.WikiCreateNamespace)).
-		PUT("wiki/namespaces/:name", UpUriJsonReq(api.WikiUpdateNamespace)).
-		DELETE("wiki/namespaces/:name", UpUriReq(api.WikiDeleteNamespace)).
 		GET("wiki/tree", UpButterReq(api.WikiAdminTree)).
 		GET("wiki/sync/status", UpButterReq(api.WikiSyncStatus)).
 		POST("wiki/sync", UpButterReq(api.WikiSyncRun)).
-		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns))
+		GET("wiki/sync/runs", UpButterReq(api.WikiSyncRuns)).
+		GET("wiki/sync/webhook-secret", UpButterReq(api.GetWikiWebhookSecret)).
+		POST("wiki/sync/webhook-secret", UpJsonReq(api.SaveWikiWebhookSecret)).
+		GET("wiki/sync/cdn", UpButterReq(api.GetWikiAssetCDN)).
+		POST("wiki/sync/cdn", UpJsonReq(api.SaveWikiAssetCDN))
 
 	adminApi.Group("", middleware.CheckPermission(permission.SiteManager)).
 		GET("server-version", UpButterReq(api.ServerVersion)).
@@ -396,6 +401,9 @@ func apiRoute(ginApp *gin.Engine) {
 		POST("save-mcp-settings", UpButterReq(api.SaveMCPSettings)).
 		GET("onesystem-settings", UpButterReq(api.GetOnesystemSettings)).
 		POST("save-onesystem-settings", UpButterReq(api.SaveOnesystemSettings)).
+		// 排课数据同步（issue #248 自愈入口）：触发同步 + 查询各学期状态。
+		POST("pk/sync-calendar", UpButterReq(api.SyncPkCalendar)).
+		GET("pk/sync-status", UpButterReq(api.PkSyncStatus)).
 		GET("ai-summary-settings", UpButterReq(api.GetAiSummarySettings)).
 		POST("save-ai-summary-settings", UpButterReq(api.SaveAiSummarySettings)).
 		POST("badge-save", UpButterReq(api.SaveBadge)).

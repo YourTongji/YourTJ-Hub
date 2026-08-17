@@ -63,13 +63,13 @@ register:
             examples:
               success:
                 summary: Account created and session issued (email verification disabled).
-                externalValue: ../fixtures/register-success.json
+                externalValue: ../fixtures/login-success.json
               emailVerify:
                 summary: Account created; the site requires email verification before the session is usable.
                 externalValue: ../fixtures/register-email-verify.json
               honeypot:
                 summary: Bot traffic silently accepted without creating an account; the envelope is byte-identical to a normal success.
-                externalValue: ../fixtures/register-success.json
+                externalValue: ../fixtures/login-success.json
               genericFailure:
                 summary: Username or email already taken, or account creation failed; the same envelope is used for the occupied and creation-failed cases so account state is never distinguishable.
                 externalValue: ../fixtures/register-failed.json
@@ -203,7 +203,7 @@ resetPassword:
                 externalValue: ../fixtures/reset-password-token-invalid.json
               accountFrozen:
                 summary: The account is frozen; the token is not consumed.
-                externalValue: ../fixtures/reset-password-account-frozen.json
+                externalValue: ../fixtures/account-frozen.json
               passwordInvalid:
                 summary: The new password does not meet the complexity rules.
                 externalValue: ../fixtures/reset-password-password-invalid.json

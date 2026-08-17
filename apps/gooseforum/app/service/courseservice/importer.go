@@ -79,6 +79,10 @@ type importOfferingRow struct {
 	Campus        string   `json:"campus"`
 	Faculty       string   `json:"faculty"`
 	InstructorIDs []string `json:"instructor_ids,omitempty"`
+	// 班号信息（上游导出器提供）：教学班 code（如 32000101）与班名（如 01班）。
+	// 用于详情页按班展示；旧数据包无此字段时为空。
+	ClassCode string `json:"class_code,omitempty"`
+	ClassName string `json:"class_name,omitempty"`
 }
 
 // --- 导入实现 ---
@@ -734,10 +738,12 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 		// 课程修正也一并更新，防止 offering 挂在旧课程上。
 		// 注意：更新路径不写 status——管理员隐藏的 offering 不能被重导静默复活。
 		updates := map[string]any{
-			"course_id": courseLocalID,
-			"term_id":   termEntity.Id,
-			"campus":    row.Campus,
-			"faculty":   row.Faculty,
+			"course_id":  courseLocalID,
+			"term_id":    termEntity.Id,
+			"campus":     row.Campus,
+			"faculty":    row.Faculty,
+			"class_code": row.ClassCode,
+			"class_name": row.ClassName,
 		}
 		if err := tx.Model(&course.OfferingEntity{}).Where("id = ?", offering.Id).Updates(updates).Error; err != nil {
 			return fmt.Errorf("update offering %d: %w", offering.Id, err)
@@ -763,11 +769,13 @@ func applyOfferingRow(tx *gorm.DB, runID uint64, source string, row importOfferi
 	}
 
 	offeringEntity := course.OfferingEntity{
-		CourseId: courseLocalID,
-		TermId:   termEntity.Id,
-		Campus:   row.Campus,
-		Faculty:  row.Faculty,
-		Status:   course.OfferingStatusVisible,
+		CourseId:  courseLocalID,
+		TermId:    termEntity.Id,
+		Campus:    row.Campus,
+		Faculty:   row.Faculty,
+		ClassCode: row.ClassCode,
+		ClassName: row.ClassName,
+		Status:    course.OfferingStatusVisible,
 	}
 	if err := tx.Model(&course.OfferingEntity{}).Create(&offeringEntity).Error; err != nil {
 		return fmt.Errorf("create offering: %w", err)

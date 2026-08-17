@@ -273,5 +273,48 @@ func runVersionedDataMigrations() {
 		pageConfig.SyncMigrationVersion(21)
 		currentVersion = 21
 	}
+	if currentVersion < 22 {
+		// 历史版本 v22（命名空间 slug 列回填）已随 slug 机制移除而删除：
+		// 旧部署迁移版本号可能已停在 22，直接推进到 23 继续执行后续步骤。
+		pageConfig.SyncMigrationVersion(22)
+		currentVersion = 22
+	}
+	if currentVersion < 23 {
+		// 页面仓库路径列 v23（review MEDIUM）：为存量 wiki_pages 行回填
+		// source_path（= path 首段即仓库目录名的存量语义）。外链必须用
+		// source_path，存量行为空会导致 SSR 编辑/历史链接畸形（管理端有回退、
+		// SSR 已补回退，但回填仍是根治）。幂等：source_path 非空的行跳过。
+		sourcePathResult := datamigration.BackfillWikiPageSourcePaths()
+		slog.Info("app migration wiki page source_path backfill done",
+			"backfilled", sourcePathResult.Backfilled,
+			"failed", sourcePathResult.Failed,
+			"lastFailed", sourcePathResult.LastFailed)
+		if sourcePathResult.Failed > 0 {
+			slog.Error("app migration wiki page source_path backfill has failures", "failed", sourcePathResult.Failed, "lastFailed", sourcePathResult.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(23)
+		currentVersion = 23
+	}
+	if currentVersion < 24 {
+		// slug 机制移除 v24：URL 语义回归"仓库顶层目录名即 path 首段"。
+		// 对已分配 slug 的存量命名空间，把其全部页面（含软删）的 path 首段
+		// 与 namespace 列迁回仓库目录名（显示名），并清空受影响页面的
+		// content_hash（下次同步重渲染投影，review P2）。AutoMigrate 不会
+		// 删除从模型消失的字段——wiki_namespaces.slug 列与
+		// uniq_wiki_namespace_slug 索引由迁移显式 DROP（review P2）。
+		// 幂等：仅对 namespace 列 ≠ 目录名的行生效；slug 列已删的库零操作。
+		slugRemoval := datamigration.RevertWikiNamespaceSlugs()
+		slog.Info("app migration wiki slug removal done",
+			"migrated", slugRemoval.Migrated,
+			"failed", slugRemoval.Failed,
+			"lastFailed", slugRemoval.LastFailed)
+		if slugRemoval.Failed > 0 {
+			slog.Error("app migration wiki slug removal has failures", "failed", slugRemoval.Failed, "lastFailed", slugRemoval.LastFailed)
+			return
+		}
+		pageConfig.SyncMigrationVersion(24)
+		currentVersion = 24
+	}
 	slog.Info("app migration end", "version", currentVersion)
 }

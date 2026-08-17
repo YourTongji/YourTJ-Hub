@@ -263,17 +263,20 @@ export interface SidebarPayload {
   wikiTree?: WikiTreeNamespace[]
 }
 
-export interface WikiTreePage {
+export interface WikiTreeNode {
+  /** A Markdown page or a non-clickable repository directory. */
+  kind: 'page' | 'directory'
   pageId: number
   path: string
   title: string
   active: boolean
+  children: WikiTreeNode[]
 }
 
 export interface WikiTreeNamespace {
   name: string
   label: string
-  pages: WikiTreePage[]
+  nodes: WikiTreeNode[]
 }
 
 export interface FooterPayload {
@@ -811,11 +814,9 @@ export interface NotificationPayload {
   }
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段统一走 metadata。
 export interface NotificationTemplateParams {
   preview?: string
-  followerName?: string
-  badgeCode?: string
-  badgeName?: string
 }
 
 export interface MessagesPageProps {
@@ -1002,6 +1003,9 @@ export interface CourseDetailPageProps {
       termName?: string
       campus?: string
       faculty?: string
+      // 班号信息（如 32000101 / 01班）；旧数据包导入的 offering 无此字段。
+      classCode?: string
+      className?: string
       instructors?: string[]
       ratingAvg?: number
       reviewCount?: number
@@ -1028,7 +1032,7 @@ export interface WikiNamespacePayload {
   description: string
   pageCount: number
   updatedAt: string
-  /** 首个 approved 页面的完整路径（namespace/slug），供首页 namespace 卡跳转。 */
+  /** 首个 approved 页面的完整路径（首段 = 命名空间目录名），供首页 namespace 卡跳转。 */
   firstPagePath?: string
 }
 
@@ -1037,8 +1041,6 @@ export interface WikiRecentPagePayload {
   path: string
   title: string
   updatedAt: string
-  editorId: number
-  editorName: string
 }
 
 export interface WikiHomeProps {
@@ -1057,7 +1059,10 @@ export interface WikiTocItem {
 export interface WikiContributorPayload {
   userId: number
   username: string
+  /** GitHub noreply 邮箱可解析时的动态头像直链；自定义邮箱贡献者为空。 */
   avatarUrl: string
+  /** GitHub 主页外链（{username}）；自定义邮箱贡献者为空。 */
+  githubUrl?: string
   count: number
   lastEditedAt: string
 }
@@ -1072,8 +1077,6 @@ export interface WikiPageDetailPayload {
   content: string
   toc: WikiTocItem[]
   updatedAt: string
-  editorId: number
-  editorName: string
   likeCount: number
   viewCount: number
   postCount: number

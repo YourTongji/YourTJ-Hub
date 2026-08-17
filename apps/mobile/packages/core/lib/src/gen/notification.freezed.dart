@@ -1227,9 +1227,6 @@ NotificationTemplateParams _$NotificationTemplateParamsFromJson(
 /// @nodoc
 mixin _$NotificationTemplateParams {
   String? get preview => throw _privateConstructorUsedError;
-  String? get followerName => throw _privateConstructorUsedError;
-  String? get badgeCode => throw _privateConstructorUsedError;
-  String? get badgeName => throw _privateConstructorUsedError;
 
   /// Serializes this NotificationTemplateParams to a JSON map.
   Map<String, dynamic> toJson() => throw _privateConstructorUsedError;
@@ -1254,9 +1251,6 @@ abstract class $NotificationTemplateParamsCopyWith<$Res> {
   @useResult
   $Res call({
     String? preview,
-    String? followerName,
-    String? badgeCode,
-    String? badgeName,
   });
 }
 
@@ -1279,27 +1273,12 @@ class _$NotificationTemplateParamsCopyWithImpl<
   @override
   $Res call({
     Object? preview = freezed,
-    Object? followerName = freezed,
-    Object? badgeCode = freezed,
-    Object? badgeName = freezed,
   }) {
     return _then(
       _value.copyWith(
             preview: freezed == preview
                 ? _value.preview
                 : preview // ignore: cast_nullable_to_non_nullable
-                      as String?,
-            followerName: freezed == followerName
-                ? _value.followerName
-                : followerName // ignore: cast_nullable_to_non_nullable
-                      as String?,
-            badgeCode: freezed == badgeCode
-                ? _value.badgeCode
-                : badgeCode // ignore: cast_nullable_to_non_nullable
-                      as String?,
-            badgeName: freezed == badgeName
-                ? _value.badgeName
-                : badgeName // ignore: cast_nullable_to_non_nullable
                       as String?,
           )
           as $Val,
@@ -1318,9 +1297,6 @@ abstract class _$$NotificationTemplateParamsImplCopyWith<$Res>
   @useResult
   $Res call({
     String? preview,
-    String? followerName,
-    String? badgeCode,
-    String? badgeName,
   });
 }
 
@@ -1343,27 +1319,12 @@ class __$$NotificationTemplateParamsImplCopyWithImpl<$Res>
   @override
   $Res call({
     Object? preview = freezed,
-    Object? followerName = freezed,
-    Object? badgeCode = freezed,
-    Object? badgeName = freezed,
   }) {
     return _then(
       _$NotificationTemplateParamsImpl(
         preview: freezed == preview
             ? _value.preview
             : preview // ignore: cast_nullable_to_non_nullable
-                  as String?,
-        followerName: freezed == followerName
-            ? _value.followerName
-            : followerName // ignore: cast_nullable_to_non_nullable
-                  as String?,
-        badgeCode: freezed == badgeCode
-            ? _value.badgeCode
-            : badgeCode // ignore: cast_nullable_to_non_nullable
-                  as String?,
-        badgeName: freezed == badgeName
-            ? _value.badgeName
-            : badgeName // ignore: cast_nullable_to_non_nullable
                   as String?,
       ),
     );
@@ -1375,9 +1336,6 @@ class __$$NotificationTemplateParamsImplCopyWithImpl<$Res>
 class _$NotificationTemplateParamsImpl implements _NotificationTemplateParams {
   const _$NotificationTemplateParamsImpl({
     this.preview,
-    this.followerName,
-    this.badgeCode,
-    this.badgeName,
   });
 
   factory _$NotificationTemplateParamsImpl.fromJson(
@@ -1386,16 +1344,10 @@ class _$NotificationTemplateParamsImpl implements _NotificationTemplateParams {
 
   @override
   final String? preview;
-  @override
-  final String? followerName;
-  @override
-  final String? badgeCode;
-  @override
-  final String? badgeName;
 
   @override
   String toString() {
-    return 'NotificationTemplateParams(preview: $preview, followerName: $followerName, badgeCode: $badgeCode, badgeName: $badgeName)';
+    return 'NotificationTemplateParams(preview: $preview)';
   }
 
   @override
@@ -1403,19 +1355,12 @@ class _$NotificationTemplateParamsImpl implements _NotificationTemplateParams {
     return identical(this, other) ||
         (other.runtimeType == runtimeType &&
             other is _$NotificationTemplateParamsImpl &&
-            (identical(other.preview, preview) || other.preview == preview) &&
-            (identical(other.followerName, followerName) ||
-                other.followerName == followerName) &&
-            (identical(other.badgeCode, badgeCode) ||
-                other.badgeCode == badgeCode) &&
-            (identical(other.badgeName, badgeName) ||
-                other.badgeName == badgeName));
+            (identical(other.preview, preview) || other.preview == preview));
   }
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(runtimeType, preview, followerName, badgeCode, badgeName);
+  int get hashCode => Object.hash(runtimeType, preview);
 
   /// Create a copy of NotificationTemplateParams
   /// with the given fields replaced by the non-null parameter values.
@@ -1438,9 +1383,6 @@ abstract class _NotificationTemplateParams
     implements NotificationTemplateParams {
   const factory _NotificationTemplateParams({
     final String? preview,
-    final String? followerName,
-    final String? badgeCode,
-    final String? badgeName,
   }) = _$NotificationTemplateParamsImpl;
 
   factory _NotificationTemplateParams.fromJson(Map<String, dynamic> json) =
@@ -1448,12 +1390,6 @@ abstract class _NotificationTemplateParams
 
   @override
   String? get preview;
-  @override
-  String? get followerName;
-  @override
-  String? get badgeCode;
-  @override
-  String? get badgeName;
 
   /// Create a copy of NotificationTemplateParams
   /// with the given fields replaced by the non-null parameter values.

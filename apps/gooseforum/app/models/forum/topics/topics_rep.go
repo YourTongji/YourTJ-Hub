@@ -98,12 +98,6 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-// GetTx 事务内按 id 获取话题（避免单连接测试库下事务内走全局连接死锁）。
-func GetTx(tx *gorm.DB, id uint64) (entity Entity) {
-	tx.Table(tableName).First(&entity, id)
-	return
-}
-
 // GetWithError 返回实体与查询错误，供需要区分“记录不存在”与“查询失败”的调用方使用。
 func GetWithError(id uint64) (entity Entity, err error) {
 	err = builder().First(&entity, id).Error
@@ -126,21 +120,25 @@ func QueryById(startId uint64, limit int) (entities []*Entity) {
 	return
 }
 
-func GetMapByIds(ids []uint64) map[uint64]Entity {
+// GetMapByIds 返回 id 集合对应的主题 map。
+// 显式返回查询错误：wiki 读路径（filterPublicPages）必须区分 DB 故障与空结果，
+// 不能把 topics 查询失败伪装成空 wiki（issue #287）。
+func GetMapByIds(ids []uint64) (map[uint64]Entity, error) {
 	var list []Entity
 	if len(ids) == 0 {
-		return map[uint64]Entity{}
+		return map[uint64]Entity{}, nil
 	}
-	builder().Where("id in ?", ids).Find(&list)
+	err := builder().Where("id in ?", ids).Find(&list).Error
 	result := make(map[uint64]Entity, len(list))
 	for _, item := range list {
 		result[item.Id] = item
 	}
-	return result
+	return result, err
 }
 
 func GetPointerMapByIds(ids []uint64) map[uint64]*Entity {
-	valueMap := GetMapByIds(ids)
+	// 展示层 hydration 保持 best-effort 语义：查询失败返回空 map（与历史行为一致）。
+	valueMap, _ := GetMapByIds(ids)
 	result := make(map[uint64]*Entity, len(valueMap))
 	for id, item := range valueMap {
 		entity := item
@@ -172,23 +170,6 @@ func GetLatestPublished(limit int) (entities []*Entity, err error) {
 		Where(queryopt.Eq("topic_type", TopicTypeForum)).
 		Order(queryopt.Desc("updated_at")).
 		Order(queryopt.Desc("id")).
-		Limit(limit).
-		Find(&entities).Error
-	return
-}
-
-func GetPublishedAfterID(afterID uint64, limit int) (entities []*Entity, err error) {
-	if limit <= 0 {
-		return []*Entity{}, nil
-	}
-	err = builder().
-		Where(queryopt.Gt("id", afterID)).
-		Where(queryopt.Eq("status", 1)).
-		Where(queryopt.Eq("process_status", ProcessStatusNormal)).
-		Where(queryopt.Eq("visibility_status", VisibilityActive)).
-		Where(queryopt.Eq("topic_type", TopicTypeForum)).
-		Where("EXISTS (SELECT 1 FROM posts WHERE posts.id = topics.first_post_id AND posts.topic_id = topics.id AND posts.process_status = ? AND posts.deleted_at IS NULL)", ProcessStatusNormal).
-		Order(queryopt.Asc("id")).
 		Limit(limit).
 		Find(&entities).Error
 	return

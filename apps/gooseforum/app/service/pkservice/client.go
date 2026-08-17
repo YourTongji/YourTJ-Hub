@@ -65,7 +65,7 @@ type TeacherRaw struct {
 }
 
 type manualArrangePage struct {
-	Code onesystemCode `json:"code"` // 0=成功；非 0=业务/鉴权失败（一系统 HTTP 200 信封）
+	Code onesystemCode `json:"code"` // 0 或 200=成功；其他=业务/鉴权失败（一系统 HTTP 200 信封，真实成功码为 200）
 	Msg  string        `json:"msg"`
 	Data struct {
 		Total_ int         `json:"total_"`
@@ -73,8 +73,9 @@ type manualArrangePage struct {
 	} `json:"data"`
 }
 
-// onesystemCode 解析一系统响应信封的 code 字段：0 表示成功，非 0 表示业务/鉴权失败。
-// 上游 code 通常为整数，但为稳健兼容整数、数字字符串与缺失（缺失/空/null 一律视为成功 0）。
+// onesystemCode 解析一系统响应信封的 code 字段：0 或 200 表示成功，其他表示业务/鉴权失败。
+// 对照 serverless 上游（courseSync.ts code===200、sync.ts 仅检查 HTTP res.ok），
+// 一系统 manualArrange 的成功码是 200；兼容历史假设的 0 一并视为成功。
 type onesystemCode int64
 
 // UnmarshalJSON 兼容数字（1）、数字字符串（"1"）、null 与缺失。
@@ -156,7 +157,9 @@ func (c *onesystemClient) fetchPage(ctx context.Context, cookie string, calendar
 	}
 
 	var lastErr error
+	attempts := 0
 	for attempt := 1; attempt <= c.maxAttempts; attempt++ {
+		attempts = attempt
 		page, retryable, err := c.tryFetch(ctx, cookie, body)
 		if err == nil {
 			return page, nil
@@ -167,7 +170,7 @@ func (c *onesystemClient) fetchPage(ctx context.Context, cookie string, calendar
 		}
 		c.sleep(c.backoff(attempt))
 	}
-	return nil, fmt.Errorf("一系统请求失败（已重试 %d 次）: %w", c.maxAttempts, lastErr)
+	return nil, fmt.Errorf("一系统请求失败（尝试 %d 次后失败）: %w", attempts, lastErr)
 }
 
 // tryFetch 执行单次 POST；返回 (page, 是否可重试, 错误)。
@@ -195,8 +198,8 @@ func (c *onesystemClient) tryFetch(ctx context.Context, cookie string, body []by
 		if err := json.Unmarshal(respBody, &page); err != nil {
 			return nil, false, fmt.Errorf("一系统返回无法解析: %w", err)
 		}
-		if code := int64(page.Code); code != 0 {
-			// HTTP 200 但业务/鉴权失败（code!=0）：勿当成功页，否则会误删存量数据（review HIGH）。
+		if code := int64(page.Code); code != 0 && code != 200 {
+			// HTTP 200 但业务/鉴权失败（code 非 0/200）：勿当成功页，否则会误删存量数据（review HIGH）。
 			// 鉴权失败不可重试，直接以明确错误中止；错误体需脱敏。
 			hint := redactCredentials(strings.TrimSpace(page.Msg))
 			if hint == "" {

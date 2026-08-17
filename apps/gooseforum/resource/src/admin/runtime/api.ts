@@ -27,6 +27,8 @@ import type {
   PostingSettings,
   MCPSettings,
   AiSummarySettings,
+  OnesystemSettings,
+  PkSyncStatusItem,
   RateLimitSettings,
   ReviewQueueItem,
   SecuritySettings,
@@ -392,6 +394,26 @@ export function saveAiSummarySettings(settings: AiSummarySettings) {
   return postJson<unknown>('/api/admin/save-ai-summary-settings', { settings }, adminText('k00p3'))
 }
 
+export function getOnesystemSettings() {
+  return getJson<OnesystemSettings>('/api/admin/onesystem-settings', adminText('k00s0'))
+}
+
+export function saveOnesystemSettings(cookie: string) {
+  return postJson<unknown>('/api/admin/save-onesystem-settings', { cookie }, adminText('k00s1'))
+}
+
+export function syncPkCalendar(term: string, depth = 1) {
+  return postJson<{ started: boolean, calendarId: number, term: string }>(
+    '/api/admin/pk/sync-calendar',
+    { term, depth },
+    adminText('k00s2'),
+  )
+}
+
+export function getPkSyncStatus() {
+  return getJson<PkSyncStatusItem[]>('/api/admin/pk/sync-status', adminText('k00s3'))
+}
+
 export function saveHttpNotifySettings(settings: HttpNotifySettings) {
   return postJson<unknown>('/api/admin/save-http-notify-settings', { settings }, adminText('k00ci'))
 }
@@ -486,18 +508,6 @@ export function getWikiNamespaces() {
   return getJson<WikiNamespace[]>('/api/wiki/namespaces', adminText('k00n0'))
 }
 
-export function createWikiNamespace(data: { name: string, description: string }) {
-  return postJson<unknown>('/api/admin/wiki/namespaces', data, adminText('k00n0'))
-}
-
-export function updateWikiNamespace(name: string, description: string) {
-  return putJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, { description }, adminText('k00n0'))
-}
-
-export function deleteWikiNamespace(name: string) {
-  return deleteJson<unknown>(`/api/admin/wiki/namespaces/${encodeURIComponent(name)}`, adminText('k00n0'))
-}
-
 export function getWikiTree() {
   return getJson<WikiNamespaceTree[]>('/api/admin/wiki/tree', adminText('k00n2'))
 }
@@ -541,4 +551,28 @@ export function triggerWikiSync() {
 
 export function getWikiSyncRuns() {
   return getJson<WikiSyncRunView[]>('/api/admin/wiki/sync/runs', adminText('k00n0'))
+}
+
+export interface WikiWebhookSecretStatus {
+  configured: boolean
+}
+
+export function getWikiWebhookSecret() {
+  return getJson<WikiWebhookSecretStatus>('/api/admin/wiki/sync/webhook-secret', adminText('k00n0'))
+}
+
+export function saveWikiWebhookSecret(secret: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/webhook-secret', { secret }, adminText('k00n0'))
+}
+
+export interface WikiAssetCDNStatus {
+  cdn: string
+}
+
+export function getWikiAssetCDN() {
+  return getJson<WikiAssetCDNStatus>('/api/admin/wiki/sync/cdn', adminText('k00n0'))
+}
+
+export function saveWikiAssetCDN(cdn: string) {
+  return postJson<unknown>('/api/admin/wiki/sync/cdn', { cdn }, adminText('k00n0'))
 }

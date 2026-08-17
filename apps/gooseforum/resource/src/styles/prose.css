@@ -132,25 +132,53 @@
     content: none;
   }
 
+  /* ---- Markdown 表格（better-* 系列优化）----
+     空间胜过线条：去掉四周粗框与纵向分隔线，只保留
+     「表头底线 + 行分隔线」；统一内边距与左对齐，表头加
+     微妙底色与加粗形成层级；支持 GFM 对齐语法（:---: / ---:）；
+     窄屏横向滚动不挤压。 */
   .gf-prose table {
-    @apply text-sm;
+    @apply my-2.5 w-full text-[13px] leading-relaxed text-base-content/85;
     display: block;
     max-width: 100%;
     overflow-x: auto;
+    overscroll-behavior-x: contain;
+    -webkit-overflow-scrolling: touch;
     border-collapse: collapse;
+    font-variant-numeric: tabular-nums;
   }
 
-  .gf-prose :where(thead, tbody, tr) {
-    border-color: var(--gf-color-line);
+  .gf-prose thead {
+    background: color-mix(in oklch, var(--gf-color-base-content) 5%, transparent);
   }
 
-  .gf-prose :where(th, td) {
-    border-width: 1px;
-    border-color: var(--gf-color-line);
+  .gf-prose th {
+    @apply px-3 py-2 text-left font-semibold text-base-content;
+    border-bottom: 1.5px solid var(--gf-color-line);
+    white-space: nowrap;
   }
 
-  .gf-prose :where(th) {
-    color: var(--gf-color-base-content);
+  .gf-prose td {
+    @apply px-3 py-2 text-left align-top;
+    border-bottom: 1px solid var(--gf-color-line);
+    word-break: break-word;
+  }
+
+  .gf-prose tbody tr:last-child td {
+    border-bottom: none;
+  }
+
+  .gf-prose tbody tr:hover td {
+    background: color-mix(in oklch, var(--gf-color-base-content) 4%, transparent);
+  }
+
+  /* GFM 表头对齐语法（居中 / 右对齐） */
+  .gf-prose :where(th, td)[align="center"] {
+    text-align: center;
+  }
+
+  .gf-prose :where(th, td)[align="right"] {
+    text-align: right;
   }
 
   .gf-prose img {

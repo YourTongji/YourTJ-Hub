@@ -34,6 +34,7 @@ function onSelect(id: string, content: string) {
 
 <template>
   <Teleport to="body">
+    <Transition name="gf-modal">
     <div
       v-if="open"
       class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
@@ -83,5 +84,6 @@ function onSelect(id: string, content: string) {
         </div>
       </div>
     </div>
+    </Transition>
   </Teleport>
 </template>

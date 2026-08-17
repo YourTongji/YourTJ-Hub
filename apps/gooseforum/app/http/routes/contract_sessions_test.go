@@ -10,12 +10,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/userSessions"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/sessionservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
@@ -253,7 +253,7 @@ func TestListSessionsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -336,7 +336,7 @@ func TestRevokeSessionHTTPContract(t *testing.T) {
 			if recorder.Code != http.StatusOK {
 				t.Fatalf("%s: status = %d, want 200", name, recorder.Code)
 			}
-			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-revoke-invalid.json"))
+			assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 		}
 	})
 
@@ -346,7 +346,7 @@ func TestRevokeSessionHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -387,6 +387,6 @@ func TestRevokeAllSessionsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "sessions-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }

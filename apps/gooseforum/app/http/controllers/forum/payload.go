@@ -210,15 +210,17 @@ type SidebarPayload struct {
 type WikiTreeNamespacePayload struct {
 	Name  string                `json:"name"`
 	Label string                `json:"label"`
-	Pages []WikiTreePagePayload `json:"pages"`
+	Nodes []WikiTreeNodePayload `json:"nodes"`
 }
 
-// WikiTreePagePayload wiki 导航树的一页。
-type WikiTreePagePayload struct {
-	PageId uint64 `json:"pageId"`
-	Path   string `json:"path"`
-	Title  string `json:"title"`
-	Active bool   `json:"active"`
+// WikiTreeNodePayload wiki 导航树的递归节点。
+type WikiTreeNodePayload struct {
+	Kind     string                `json:"kind"`
+	PageId   uint64                `json:"pageId"`
+	Path     string                `json:"path"`
+	Title    string                `json:"title"`
+	Active   bool                  `json:"active"`
+	Children []WikiTreeNodePayload `json:"children"`
 }
 
 type FooterPayload struct {

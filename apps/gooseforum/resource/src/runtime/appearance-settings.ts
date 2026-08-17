@@ -36,7 +36,7 @@ export const FONT_FAMILY_PRESETS: readonly FontFamilyPreset[] = [
 
 export const FONT_STACKS: Record<Exclude<FontFamilyPreset, 'custom'>, string> = {
   system: '-apple-system, BlinkMacSystemFont, "SF Pro Text", "PingFang SC", "Hiragino Sans GB", "Segoe UI", "Microsoft YaHei", "Noto Sans CJK SC", Arial, sans-serif',
-  serif: '"Songti SC", "SimSun", serif',
+  serif: '"Noto Serif SC", "Songti SC", "SimSun", serif',
   kai: '"Kaiti SC", "KaiTi", "STKaiti", serif',
   hei: '"Heiti SC", "SimHei", "Noto Sans CJK SC", sans-serif',
   mono: 'ui-monospace, SFMono-Regular, Menlo, Consolas, "Courier New", monospace',

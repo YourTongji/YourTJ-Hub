@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Clock, ExternalLink, FileText, Library } from '@lucide/vue'
 import { formatDateTime } from '@/runtime/format'
+import { wikiHref } from '@/runtime/wiki-path'
 import type { LayoutPayload, WikiHomeProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -44,7 +45,7 @@ const { t } = useI18n()
           <a
             v-for="namespace in props.namespaces"
             :key="namespace.name"
-            :href="namespace.firstPagePath ? `/wiki/${namespace.firstPagePath}` : undefined"
+            :href="wikiHref(namespace.firstPagePath)"
             class="gf-card group block p-4 transition-colors hover:border-primary/40"
             :aria-disabled="!namespace.firstPagePath"
           >
@@ -76,7 +77,7 @@ const { t } = useI18n()
           <a
             v-for="(item, index) in props.recent"
             :key="item.pageId"
-            :href="`/wiki/${item.path}`"
+            :href="wikiHref(item.path)"
             class="flex min-w-0 items-center gap-3 px-4 py-3 transition-colors hover:bg-base-200/60"
             :class="{ 'border-t border-line': index > 0 }"
           >
@@ -84,7 +85,6 @@ const { t } = useI18n()
               <div class="truncate text-sm font-semibold text-base-content hover:text-primary">{{ item.title }}</div>
               <div class="mt-0.5 flex min-w-0 flex-wrap items-center gap-x-3 gap-y-0.5 text-xs text-base-content/55">
                 <span class="truncate">{{ item.path }}</span>
-                <span v-if="item.editorName">@{{ item.editorName }}</span>
                 <span class="inline-flex items-center gap-1">
                   <Clock class="h-3 w-3" aria-hidden="true" />
                   {{ formatDateTime(item.updatedAt) }}

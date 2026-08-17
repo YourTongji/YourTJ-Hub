@@ -47,6 +47,7 @@ requirements and product semantics
 - [Project board workflow](project-board.md)
 - [Documentation governance](documentation.md)
 - [Contracts, data & derived projections](../architecture/contracts-and-data.md)
+- [Coding conventions](coding-conventions.md)
 
 ## Definition of done
 

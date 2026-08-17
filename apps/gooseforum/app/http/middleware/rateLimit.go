@@ -45,6 +45,9 @@ const (
 	RateLimitLLMSTopic     = "llms.topic"
 	RateLimitMCPAuth       = "mcp.auth"
 	RateLimitCourseCatalog = "course.catalog"
+	// RateLimitWikiWebhook wiki GitHub webhook（公开、无 JWT）：限流防
+	// 未认证调用方用 5MiB 请求体刷 HMAC 计算（CPU DoS），60s 窗口 per-IP。
+	RateLimitWikiWebhook   = "wiki.webhook"
 	RateLimitReviewWrite   = "course.review.write"
 	RateLimitReviewHelpful = "course.review.helpful"
 	RateLimitReviewReport  = "course.review.report"

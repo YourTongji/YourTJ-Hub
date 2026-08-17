@@ -161,7 +161,7 @@ func waitIndexTask(t *testing.T, client meilisearch.ServiceManager) {
 	deadline := time.Now().Add(10 * time.Second)
 	for time.Now().Before(deadline) {
 		tasks, err := client.GetTasks(&meilisearch.TasksQuery{
-			IndexUIDS: []string{TopicIndex, UserIndex, CategoryIndex},
+			IndexUIDS: []string{TopicIndex, UserIndex, CategoryIndex, WikiPageIndex},
 		})
 		if err != nil {
 			time.Sleep(100 * time.Millisecond)

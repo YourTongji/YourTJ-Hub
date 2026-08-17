@@ -784,7 +784,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public wiki page tree across namespaces */
+        /** Public hierarchical wiki tree across namespaces */
         get: operations["getWikiTree"];
         put?: never;
         post?: never;
@@ -818,7 +818,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Public wiki home feed with namespaces and recent approved revisions */
+        /** Public wiki home feed with namespaces and recently updated pages */
         get: operations["getWikiHome"];
         put?: never;
         post?: never;
@@ -828,36 +828,18 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
-    "/api/admin/wiki/namespaces": {
+    "/api/wiki/search": {
         parameters: {
             query?: never;
             header?: never;
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Search wiki pages at paragraph granularity */
+        get: operations["searchWikiSearch"];
         put?: never;
-        /** Create a wiki namespace (PageManager or Admin only) */
-        post: operations["createWikiNamespace"];
-        delete?: never;
-        options?: never;
-        head?: never;
-        patch?: never;
-        trace?: never;
-    };
-    "/api/admin/wiki/namespaces/{name}": {
-        parameters: {
-            query?: never;
-            header?: never;
-            path?: never;
-            cookie?: never;
-        };
-        get?: never;
-        /** Update a wiki namespace description (PageManager or Admin only) */
-        put: operations["updateWikiNamespace"];
         post?: never;
-        /** Delete a wiki namespace (PageManager or Admin only) */
-        delete: operations["deleteWikiNamespace"];
+        delete?: never;
         options?: never;
         head?: never;
         patch?: never;
@@ -870,7 +852,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Admin wiki page tree with sort order (PageManager or Admin only) */
+        /** Admin hierarchical wiki tree with sort order (PageManager or Admin only) */
         get: operations["getAdminWikiTree"];
         put?: never;
         post?: never;
@@ -942,6 +924,42 @@ export interface paths {
         get: operations["listWikiSyncRuns"];
         put?: never;
         post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync/webhook-secret": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Wiki webhook secret configuration status (PageManager or Admin only) */
+        get: operations["getWikiWebhookSecret"];
+        put?: never;
+        /** Save or clear the wiki webhook secret (PageManager or Admin only) */
+        post: operations["saveWikiWebhookSecret"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/admin/wiki/sync/cdn": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Get the wiki asset CDN mode (PageManager or Admin only) */
+        get: operations["getWikiAssetCDN"];
+        put?: never;
+        /** Save the wiki asset CDN mode (PageManager or Admin only) */
+        post: operations["saveWikiAssetCDN"];
         delete?: never;
         options?: never;
         head?: never;
@@ -1792,6 +1810,10 @@ export interface components {
             termName?: string;
             campus?: string;
             faculty?: string;
+            /** @description Class code for this offering (e.g. 32000101); empty for legacy packages without class info. */
+            classCode?: string;
+            /** @description Class name for this offering (e.g. 01班); empty for legacy packages without class info. */
+            className?: string;
             instructors?: string[];
             /**
              * Format: double
@@ -2206,20 +2228,30 @@ export interface components {
             /** @description True for the session that carries the current token. */
             isCurrent: boolean;
         };
-        WikiTreePage: {
-            /** Format: uint64 */
+        WikiTreeNode: {
+            /**
+             * @description page is a Markdown file; directory is a non-clickable repository directory container.
+             * @enum {string}
+             */
+            kind: "page" | "directory";
+            /**
+             * Format: uint64
+             * @description Non-zero for page nodes and zero for directory nodes.
+             */
             pageId: number;
-            /** @description Canonical page path within the namespace (slash-separated). */
+            /** @description Stable repository-relative page or directory path within the namespace (slash-separated). */
             path: string;
             title: string;
-            /** @description True when the page has at least one approved revision; pages with only pending revisions are drafts. */
+            /** @description True when this page is the active SSR route; always false for directory nodes. */
             active: boolean;
+            children: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeNamespace: {
+            /** @description Display name (top-level directory name; may contain Unicode such as Chinese). */
             name: string;
             /** @description Display label of the namespace. */
             label: string;
-            pages: components["schemas"]["WikiTreePage"][];
+            nodes: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeResult: {
             namespaces: components["schemas"]["WikiTreeNamespace"][];
@@ -2228,18 +2260,19 @@ export interface components {
             result: components["schemas"]["WikiTreeResult"];
         }) | components["schemas"]["ApiFailure"];
         WikiNamespaceSummary: {
+            /** @description Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese). */
             name: string;
             description: string;
             /** @description Ordering key; smaller values come first. */
             sortOrder: number;
             /**
              * Format: int64
-             * @description Number of pages with at least one approved revision.
+             * @description Number of public pages in this namespace (projected from the GitHub wiki repo).
              */
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
-            /** @description Full path (namespace/slug) of the first approved page in this namespace; empty when the namespace has no approved pages. */
+            /** @description Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages. */
             firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
@@ -2247,18 +2280,15 @@ export interface components {
         WikiNamespaceListResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiNamespaceListResult"];
         }) | components["schemas"]["ApiFailure"];
+        /** @description Recently updated page in the wiki home feed. GitHub SSOT: pages are a read-only projection of the wiki repository, so there is no forum editor — editorId/editorName are intentionally absent (issue #291); Git authorship is exposed via the page detail contributors list instead. */
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
-            /** @description Full path (namespace/slug) for direct linking (review P2). */
+            /** @description Full path (first segment is the namespace directory name) for direct linking (review P2). */
             path: string;
             title: string;
             /** Format: date-time */
             updatedAt: string;
-            /** Format: uint64 */
-            editorId: number;
-            /** @description Display name of the last approved-revision editor. */
-            editorName: string;
         };
         WikiHomeResult: {
             namespaces: components["schemas"]["WikiNamespaceSummary"][];
@@ -2267,32 +2297,26 @@ export interface components {
         WikiHomeResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiHomeResult"];
         }) | components["schemas"]["ApiFailure"];
-        WikiCreateNamespaceRequest: {
-            /** @description Namespace key, lowercase letters, digits, and single hyphens between segments (max 64 chars). */
-            name: string;
-            description: string;
-        };
-        WikiUpdateNamespaceRequest: {
-            description: string;
-        };
-        WikiNamespaceActionResult: {
-            /** @constant */
-            ok: true;
-        };
-        WikiNamespaceActionResponse: (components["schemas"]["ApiSuccess"] & {
-            result: components["schemas"]["WikiNamespaceActionResult"];
-        }) | components["schemas"]["ApiFailure"];
-        WikiAdminTreePage: {
-            /** Format: uint64 */
+        WikiAdminTreeNode: {
+            /** @enum {string} */
+            kind: "page" | "directory";
+            /**
+             * Format: uint64
+             * @description Non-zero for page nodes and zero for directory nodes.
+             */
             pageId: number;
+            /** @description Canonical page path with repository directory name as first segment. */
             path: string;
+            /** @description Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links. */
+            sourcePath: string;
             title: string;
             sortOrder: number;
+            children: components["schemas"]["WikiAdminTreeNode"][];
         };
         WikiAdminTreeNamespace: {
             name: string;
             label: string;
-            pages: components["schemas"]["WikiAdminTreePage"][];
+            nodes: components["schemas"]["WikiAdminTreeNode"][];
         };
         /** @description The raw namespace tree array; an empty listing is an empty array, never null. */
         WikiAdminTreeResult: components["schemas"]["WikiAdminTreeNamespace"][];
@@ -2320,7 +2344,7 @@ export interface components {
              * @description What started the sync run.
              * @enum {string}
              */
-            trigger: "manual" | "schedule" | "webhook";
+            trigger: "manual" | "schedule" | "webhook" | "startup";
             /** @enum {string} */
             status: "running" | "success" | "failed";
             pagesAdded: number;
@@ -2376,6 +2400,24 @@ export interface components {
         WikiWebhookFailure: {
             error: string;
         };
+        WikiWebhookSecretStatus: {
+            /** @description Whether a webhook secret is configured (securestore-encrypted admin setting or legacy plaintext config). */
+            configured: boolean;
+        };
+        WikiWebhookSecretStatusResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiWebhookSecretStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiWebhookSecretSaveRequest: {
+            /** @description Webhook secret in plaintext (present only during the save request); an empty string clears the stored secret. */
+            secret: string;
+        };
+        WikiWebhookSecretSaveResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiWebhookSecretSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiWebhookSecretSaveResult"];
+        }) | components["schemas"]["ApiFailure"];
         PkSuccess: {
             /**
              * @description PK 端点成功标志。业务失败不用 HTTP 200 + code 0，而是非零 code 与对应 HTTP 状态（对齐 PRD §5.4.4 统一信封）。
@@ -2737,6 +2779,71 @@ export interface components {
             nickname?: string;
             avatarUrl: string;
         };
+        /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
+        WikiSearchItem: {
+            /** @description Display name of the namespace (fallback: URL key). */
+            namespace: string;
+            /** @description Full page path (namespace/slug) for direct linking. */
+            path: string;
+            title: string;
+            /** @description True when the query matched the page title (vs only body text). */
+            titleHit: boolean;
+            /** @description Nearest section heading of the top hit paragraph; absent when the hit is in the title only. */
+            heading?: string;
+            /** @description Paragraph anchors (s-<n>) of every hit paragraph in this page, for in-page navigation. */
+            anchors: string[];
+            /** @description Highlighted paragraph excerpt (<mark> wraps matched terms). */
+            snippet: string;
+            /**
+             * Format: double
+             * @description Ranking score of the top paragraph hit (higher first).
+             */
+            score: number;
+            /**
+             * @description Whether the strongest hit is in the title or the body.
+             * @enum {string}
+             */
+            hitType: "title" | "body";
+        };
+        WikiSearchResult: {
+            /** @description Echoed (trimmed) search query. */
+            query: string;
+            /**
+             * Format: int64
+             * @description Page-level result count (distinct pages); never the paragraph hit count.
+             */
+            total: number;
+            items: components["schemas"]["WikiSearchItem"][];
+            /** @description True when the search backend is unavailable; items is then empty. */
+            searchUnavailable: boolean;
+        };
+        WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSearchResult"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAssetCDNStatus: {
+            /**
+             * @description Wiki asset CDN mode. `self` serves assets through /wiki/_assets/; `jsDelivr` serves them through the jsDelivr gh mirror of the configured repository.
+             * @enum {string}
+             */
+            cdn: "self" | "jsDelivr";
+        };
+        WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        WikiAssetCDNSaveRequest: {
+            /**
+             * @description Wiki asset CDN mode to persist.
+             * @enum {string}
+             */
+            cdn: "self" | "jsDelivr";
+        };
+        WikiAssetCDNSaveResult: {
+            /** @constant */
+            ok: true;
+        };
+        WikiAssetCDNSaveResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiAssetCDNSaveResult"];
+        }) | components["schemas"]["ApiFailure"];
     };
     responses: never;
     parameters: never;
@@ -4414,7 +4521,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace-labeled page tree with an active-page flag for each page. */
+            /** @description Namespace-labeled recursive directory/page tree with active-page flags. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4443,7 +4550,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespaces ordered by sort order then name, each with its approved-page count. */
+            /** @description Namespaces ordered by sort order then name, each with its public page count. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4492,159 +4599,33 @@ export interface operations {
             };
         };
     };
-    createWikiNamespace: {
+    searchWikiSearch: {
         parameters: {
-            query?: never;
+            query: {
+                /** @description Search keywords (trimmed; empty query returns an empty result without hitting the search backend). */
+                q: string;
+                /** @description Maximum number of page-level results (clamped to 12 when omitted or out of range). */
+                limit?: number;
+            };
             header?: never;
             path?: never;
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiCreateNamespaceRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Namespace created. Business failures are returned as legacy HTTP 200 envelopes:
-             *     malformed bodies degrade to `common.request.invalidParams` (non-strict binding),
-             *     an illegal name is `common.request.invalidParams`, and an existing name is
-             *     `wiki.namespace.nameConflict`.
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    updateWikiNamespace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
-            cookie?: never;
-        };
-        requestBody: {
-            content: {
-                "application/json": components["schemas"]["WikiUpdateNamespaceRequest"];
-            };
-        };
-        responses: {
-            /**
-             * @description Namespace updated. Business failures are returned as legacy HTTP 200 envelopes:
-             *     request-level validation failures (`common.request.invalidParams`) and an unknown
-             *     namespace (`wiki.namespace.notFound`).
-             */
-            200: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed URI or JSON request body (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-        };
-    };
-    deleteWikiNamespace: {
-        parameters: {
-            query?: never;
-            header?: never;
-            path: {
-                name: string;
-            };
             cookie?: never;
         };
         requestBody?: never;
         responses: {
             /**
-             * @description Namespace deleted. Business failures are returned as legacy HTTP 200 envelopes:
-             *     an unknown namespace (`wiki.namespace.notFound`) and a namespace that still
-             *     contains pages (`wiki.namespace.hasPages`).
+             * @description Page-level aggregated search results. Each item aggregates the paragraph hits of one
+             *     wiki page and carries its paragraph anchors for precise in-page navigation. When the
+             *     search backend is unavailable the response degrades to an empty items list with
+             *     `searchUnavailable: true` (still HTTP 200). `total` is the page-level result count
+             *     (distinct pages), not the paragraph hit count.
              */
             200: {
                 headers: {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["WikiNamespaceActionResponse"];
-                };
-            };
-            /** @description Malformed URI (strict binding failure). */
-            400: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description Missing, invalid, expired, or revoked access token. */
-            401: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
-                };
-            };
-            /** @description The account is not a PageManager or Admin (or it is frozen). */
-            403: {
-                headers: {
-                    [name: string]: unknown;
-                };
-                content: {
-                    "application/json": components["schemas"]["ApiFailure"];
+                    "application/json": components["schemas"]["WikiSearchResponse"];
                 };
             };
         };
@@ -4658,7 +4639,7 @@ export interface operations {
         };
         requestBody?: never;
         responses: {
-            /** @description Namespace-labeled page tree including sort order for admin editing. */
+            /** @description Namespace-labeled recursive directory/page tree including sort order for admin editing. */
             200: {
                 headers: {
                     [name: string]: unknown;
@@ -4678,6 +4659,15 @@ export interface operations {
             };
             /** @description The account is not a PageManager or Admin (or it is frozen). */
             403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Wiki tree query failed. */
+            500: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -4788,6 +4778,15 @@ export interface operations {
                     "application/json": components["schemas"]["ApiFailure"];
                 };
             };
+            /** @description Wiki sync status query failed (page/namespace counts or run history). */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
         };
     };
     runWikiSync: {
@@ -4800,13 +4799,14 @@ export interface operations {
         requestBody?: never;
         responses: {
             /**
-             * @description The sync run was accepted and executes asynchronously (git clone/fetch +
+             * @description The sync run is accepted and executes asynchronously (git clone/fetch +
              *     full projection can exceed the HTTP write timeout). Consumers poll
              *     `sync/status` and `sync/runs` for progress; a run row starts with
-             *     `status=running` and terminates with `success` or `failed`. Business
-             *     failures are returned as legacy HTTP 200 envelopes: a sync already in
-             *     progress (`wiki.sync.running`, merged into a pending rerun) and an
-             *     unconfigured repository (`wiki.sync.failed`).
+             *     `status=running` and terminates with `success` or `failed`. Requests
+             *     made while a sync is already in progress are also accepted and merged
+             *     into a pending rerun after the current run completes. The only business
+             *     failure is an unconfigured repository, returned as a legacy HTTP 200
+             *     envelope (`wiki.sync.failed`).
              */
             200: {
                 headers: {
@@ -4855,6 +4855,213 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["WikiSyncRunsResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Wiki sync runs query failed. */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Whether a webhook secret is configured. The secret itself is stored
+             *     encrypted (securestore) and is never returned; only the boolean flag
+             *     is exposed. A legacy plaintext secret in config.toml
+             *     `[wiki.git].webhook_secret` also counts as configured.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookSecretStatusResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveWikiWebhookSecret: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiWebhookSecretSaveRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Secret saved (encrypted at rest via securestore) or cleared when the
+             *     payload secret is empty. Business failures are returned as legacy
+             *     HTTP 200 envelopes (`common.request.invalidParams` for oversized
+             *     secrets).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiWebhookSecretSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    getWikiAssetCDN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description The configured wiki asset CDN mode: `self` (default; assets served by
+             *     the forum binary through /wiki/_assets/) or `jsDelivr` (assets served
+             *     through the jsDelivr gh mirror of the configured repository). Legacy
+             *     configs without the field report `self`.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAssetCDNResponse"];
+                };
+            };
+            /** @description Missing, invalid, expired, or revoked access token. */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+            /** @description The account is not a PageManager or Admin (or it is frozen). */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    saveWikiAssetCDN: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["WikiAssetCDNSaveRequest"];
+            };
+        };
+        responses: {
+            /**
+             * @description Asset CDN mode saved. The next sync (webhook / manual / scheduled)
+             *     rewrites rendered asset URLs according to the new mode. Business
+             *     failures are returned as legacy HTTP 200 envelopes
+             *     (`common.request.invalidParams` for an unknown mode).
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiAssetCDNSaveResponse"];
+                };
+            };
+            /** @description Malformed JSON request body (strict binding failure). */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ApiFailure"];
                 };
             };
             /** @description Missing, invalid, expired, or revoked access token. */

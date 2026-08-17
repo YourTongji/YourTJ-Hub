@@ -18,6 +18,7 @@ import { useFlashMessages } from '@/runtime/flash-message'
 import CourseReviewTemplateSelector from '@/site/components/CourseReviewTemplateSelector.vue'
 import AISummaryCard from '@/site/components/AISummaryCard.vue'
 import EmptyState from '@/site/components/EmptyState.vue'
+import InfiniteScrollFooter from '@/site/components/InfiniteScrollFooter.vue'
 import { COURSE_REVIEW_TEMPLATES } from '@/site/utils/course-review-templates'
 import {
   nextReviewTotalOnCreate,
@@ -48,7 +49,8 @@ function formatCredit(creditX10: number) {
 function offeringLabel(id: number) {
   const offering = page.props.course.offerings?.find((item) => item.id === id)
   if (!offering) return `#${id}`
-  return [offering.termCode, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
+  const classLabel = offering.className || offering.classCode || ''
+  return [offering.termCode, classLabel, offering.campus, offering.instructors?.join('、')].filter(Boolean).join(' · ')
 }
 
 function formatRating(avg: number) {
@@ -99,6 +101,9 @@ const reviewTotal = ref(0)
 const reviewNextCursor = ref('')
 const reviewLoadingMore = ref(false)
 const reviewLoading = ref(false)
+// 加载更多失败状态：就地展示于 InfiniteScrollFooter（错误态停止自动触发 + 手动重试），
+// 区别于首屏 reviewError 的顶部 banner 展示。
+const reviewLoadMoreError = ref('')
 // reviewsLoadSeq 列表加载代际：写操作（创建/编辑/删除）成功后递增，使 in-flight 的
 // 旧列表响应失效——否则初次 loadReviews 的旧快照会在写成功后返回并覆盖刚发布的
 // 评价（unshift 内容消失、计数回退，直到刷新）。
@@ -157,6 +162,7 @@ async function loadMoreReviews() {
   if (!reviewNextCursor.value || reviewLoadingMore.value) return
   const seq = reviewsLoadSeq
   reviewLoadingMore.value = true
+  reviewLoadMoreError.value = ''
   try {
     const reviewPage = await reviewLoader.load(0, reviewNextCursor.value)
     if (reviewPage === null) return // 过期响应：丢弃
@@ -166,7 +172,7 @@ async function loadMoreReviews() {
     reviewNextCursor.value = reviewPage.nextCursor ?? ''
   } catch (error) {
     if (seq !== reviewsLoadSeq) return
-    reviewError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
+    reviewLoadMoreError.value = error instanceof Error ? error.message : t('courseDetailPage.reviewsLoadFailed')
   } finally {
     reviewLoadingMore.value = false
   }
@@ -414,10 +420,13 @@ onMounted(() => {
       </span>
     </div>
 
-    <!-- 顶部统计区：平均分 + 评论数 + 评分分布条形 + 写评 CTA（B1 数据） -->
-    <section class="gf-panel mb-6 p-5">
-      <div class="flex flex-col gap-5 sm:flex-row sm:items-center sm:gap-8">
-        <div class="flex flex-col items-center sm:min-w-28">
+    <!-- 内容区：桌面端（xl+）评价列表为主列，评分分布/开课记录/相关课程/AI 总结收纳右栏；移动端按 DOM 顺序纵向堆叠。 -->
+    <div class="mt-6 grid gap-4 xl:grid-cols-[minmax(0,1fr)_minmax(0,340px)] xl:items-start">
+      <!-- 右栏（xl+ 排右侧；移动端先于评价列表显示，保持原顺序） -->
+      <div class="min-w-0 space-y-4 xl:order-2 xl:sticky xl:top-6">
+        <section class="gf-panel p-5">
+          <div class="flex flex-col gap-5">
+            <div class="flex flex-col items-center">
           <div class="text-4xl font-bold tracking-tight tabular-nums text-warning">
             {{ ratingAvg != null ? ratingAvg.toFixed(1) : '—' }}
           </div>
@@ -442,24 +451,6 @@ onMounted(() => {
           </div>
         </div>
 
-        <div class="flex shrink-0 flex-col items-stretch gap-2 sm:items-center">
-          <button
-            v-if="page.layout.viewer.isAuthenticated && props.course.offerings?.length"
-            type="button"
-            class="gf-button gf-button-md gf-button-primary"
-            @click="openCreateForm"
-          >
-            <MessageSquareText class="h-4 w-4" />
-            {{ t('courseDetailPage.writeReview') }}
-          </button>
-          <a
-            v-else-if="!page.layout.viewer.isAuthenticated"
-            :href="loginHref"
-            class="gf-button gf-button-md gf-button-outline"
-          >
-            {{ t('courseDetailPage.loginToReview') }}
-          </a>
-        </div>
       </div>
     </section>
 
@@ -480,6 +471,12 @@ onMounted(() => {
         >
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span class="gf-badge gf-badge-muted">{{ offering.termCode }}</span>
+            <span v-if="offering.className" class="gf-badge gf-badge-info text-[11px]">
+              {{ offering.className }}
+            </span>
+            <span v-else-if="offering.classCode" class="gf-badge gf-badge-info text-[11px]">
+              {{ offering.classCode }}
+            </span>
             <span v-if="offering.campus" class="text-[12px] text-base-content/55">{{ offering.campus }}</span>
             <span v-if="offering.faculty" class="text-[12px] text-base-content/55">{{ offering.faculty }}</span>
           </div>
@@ -491,8 +488,10 @@ onMounted(() => {
       </ul>
     </section>
 
-    <!-- 相关课程：桌面（sm+）常显；移动端折叠展开 -->
-    <section class="mt-6">
+      <AISummaryCard :course-id="page.props.course.id" />
+
+      <!-- 相关课程：桌面常显；移动端折叠展开 -->
+      <section>
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.relatedTitle') }}
@@ -520,7 +519,7 @@ onMounted(() => {
       <div
         v-else-if="!relatedError"
         id="course-related-panel"
-        :class="['sm:grid sm:grid-cols-2 sm:gap-4', relatedMobileExpanded ? 'block' : 'hidden']"
+        :class="['space-y-4 sm:block', relatedMobileExpanded ? 'block' : 'hidden']"
       >
         <div class="gf-panel p-4">
           <h3 class="mb-3 text-sm font-semibold text-base-content">
@@ -587,11 +586,11 @@ onMounted(() => {
           </ul>
         </div>
       </div>
-    </section>
+      </section>
 
-    <AISummaryCard :course-id="page.props.course.id" class="mt-6" />
+      </div>
 
-    <section class="mt-6">
+    <section class="min-w-0 xl:order-1">
       <div class="mb-3 flex items-center justify-between gap-2">
         <h2 class="text-base font-semibold text-base-content">
           {{ t('courseDetailPage.reviewsTitle') }}
@@ -620,6 +619,7 @@ onMounted(() => {
       </p>
 
       <!-- 写评 / 编辑表单 -->
+      <Transition name="gf-local-expand">
       <form
         v-if="formVisible"
         class="mb-4 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 p-4 sm:bg-base-100"
@@ -727,6 +727,7 @@ onMounted(() => {
           </button>
         </div>
       </form>
+      </Transition>
 
       <!-- 评价列表 -->
       <div v-if="reviewLoading" class="gf-panel">
@@ -810,20 +811,21 @@ onMounted(() => {
           </div>
         </li>
       </ul>
-      <div v-if="reviewNextCursor" class="mt-4 flex justify-center">
-        <button
-          type="button"
-          class="btn btn-sm btn-ghost"
-          :disabled="reviewLoadingMore"
-          @click="loadMoreReviews"
-        >
-          {{ reviewLoadingMore ? t('courseDetailPage.reviewsLoading') : t('courseDetailPage.loadMoreReviews') }}
-        </button>
-      </div>
+      <InfiniteScrollFooter
+        v-if="reviewLoaded && (reviews.length || reviewNextCursor)"
+        :has-next="!!reviewNextCursor"
+        :loading="reviewLoadingMore"
+        :error="reviewLoadMoreError"
+        :has-items="reviews.length > 0"
+        :load-label="t('courseDetailPage.loadMoreReviews')"
+        @load-more="loadMoreReviews"
+      />
     </section>
+    </div>
 
     <!-- 举报弹窗 -->
     <Teleport to="body">
+      <Transition name="gf-modal">
       <div
         v-if="pendingReport"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
@@ -879,10 +881,12 @@ onMounted(() => {
           </div>
         </div>
       </div>
+      </Transition>
     </Teleport>
 
     <!-- 删除确认 Dialog（受控，替代 window.confirm） -->
     <Teleport to="body">
+      <Transition name="gf-modal">
       <div
         v-if="pendingDelete"
         class="fixed inset-0 z-[80] flex items-center justify-center bg-black/40 p-4"
@@ -915,6 +919,7 @@ onMounted(() => {
           </div>
         </div>
       </div>
+      </Transition>
     </Teleport>
 
     <!-- 写评模板选择器 -->

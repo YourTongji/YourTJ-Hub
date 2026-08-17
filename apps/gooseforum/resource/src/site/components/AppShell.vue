@@ -37,6 +37,7 @@ import type { UserCardShowDetail } from '@/runtime/user-card-events'
 import UserAvatar from './UserAvatar.vue'
 import type UserCardComponent from './UserCard.vue'
 import WikiSidebar from './WikiSidebar.vue'
+import WikiSearchPanel from './WikiSearchPanel.vue'
 
 const props = defineProps<{
   layout: LayoutPayload
@@ -714,6 +715,8 @@ async function loadUserCard() {
       :resource-items="resourceItems"
       :sidebar-groups="sidebarGroups"
       :category-items="categoryItems"
+      :wiki-mode="isWikiMode"
+      :wiki-tree="wikiTree"
       :footer="layout.footer"
       :has-unread-messages="hasUnreadMessage"
       :has-unread-notifications="hasUnreadNotification"
@@ -727,5 +730,6 @@ async function loadUserCard() {
     />
 
     <component :is="UserCard" v-if="UserCard" />
+    <WikiSearchPanel v-if="isWikiMode" />
   </div>
 </template>

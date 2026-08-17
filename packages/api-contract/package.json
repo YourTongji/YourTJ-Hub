@@ -8,10 +8,13 @@
     "bundle": "redocly bundle openapi.yaml --output .tmp/openapi.bundle.yaml",
     "generate:ts": "openapi-typescript openapi.yaml -o ../../apps/gooseforum/resource/packages/client/src/gen/openapi.ts",
     "check:gen": "node scripts/check-ts-gen.mjs",
-    "check": "pnpm run lint && pnpm run bundle && pnpm run generate:ts && pnpm run check:gen"
+    "check:fixtures": "node scripts/validate-fixtures.mjs",
+    "check": "pnpm run lint && pnpm run bundle && pnpm run check:fixtures && pnpm run generate:ts && pnpm run check:gen"
   },
   "devDependencies": {
+    "@redocly/ajv": "8.11.2",
     "@redocly/cli": "2.45.0",
+    "js-yaml": "4.3.1",
     "openapi-typescript": "7.13.0"
   }
 }

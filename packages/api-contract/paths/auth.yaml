@@ -94,7 +94,7 @@ oidcExchange:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               invalidRequest:
-                externalValue: ../fixtures/oidc-exchange-invalid.json
+                externalValue: ../fixtures/invalid-format.json
       '401':
         description: The authorization code is invalid, already used, or the PKCE verifier / nonce did not match.
         content:
