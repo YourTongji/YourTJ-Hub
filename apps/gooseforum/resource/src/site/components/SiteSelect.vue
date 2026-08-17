@@ -29,6 +29,10 @@ const props = defineProps<{
 const emit = defineEmits<{
   'update:modelValue': [value: string]
 }>()
+
+// SelectRoot 是 renderless 组件（inheritAttrs: false），调用方 attrs（如 class 间距/宽度）
+// 必须显式透传到 SelectTrigger，否则被整体丢弃（SettingsPage 语言选择/字号预设回归）。
+defineOptions({ inheritAttrs: false })
 </script>
 
 <template>
@@ -37,6 +41,7 @@ const emit = defineEmits<{
     @update:model-value="(value) => emit('update:modelValue', String(value))"
   >
     <SelectTrigger
+      v-bind="$attrs"
       class="gf-input flex w-full items-center justify-between gap-2 text-left"
       :aria-label="props.label || undefined"
     >
@@ -55,7 +60,7 @@ const emit = defineEmits<{
 
     <SelectPortal>
       <SelectContent
-        class="gf-menu-surface z-50 min-w-[var(--reka-select-trigger-width)] overflow-hidden p-1"
+        class="gf-menu-surface z-[2100] min-w-[var(--reka-select-trigger-width)] overflow-hidden p-1"
         position="popper"
         :side-offset="6"
         align="start"
