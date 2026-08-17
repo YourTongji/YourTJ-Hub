@@ -14,11 +14,13 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/filemodel/filedata"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/fileUsage"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/optRecord"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/rolePermissionRs"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/taskQueue"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/dataservice"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/filemigrateservice"
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/optlogger"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/permission"
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
@@ -35,7 +37,7 @@ import (
 func setupAdminDataContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	t.Helper()
 	conn, router := setupHTTPContractTest(t)
-	if err := conn.AutoMigrate(&rolePermissionRs.Entity{}, &taskQueue.Entity{}); err != nil {
+	if err := conn.AutoMigrate(&rolePermissionRs.Entity{}, &taskQueue.Entity{}, &optRecord.Entity{}); err != nil {
 		t.Fatalf("migrate admin data contract tables: %v", err)
 	}
 	// filedata 走独立的 db4fileconnect 连接（测试模式同样各自 :memory:），
@@ -187,6 +189,17 @@ func TestAdminCreateExportTaskHTTPContract(t *testing.T) {
 		if !strings.Contains(entity.TaskJson, `"users"`) || !strings.Contains(entity.TaskJson, `"json"`) {
 			t.Fatalf("task taskJson = %q, want the submitted tables/format", entity.TaskJson)
 		}
+		// issue #324 S4：导出创建写操作审计（opt_record）。
+		var audit optRecord.Entity
+		if err := conn.Where("opt_type = ?", int(optlogger.ExportData)).Order("id desc").First(&audit).Error; err != nil {
+			t.Fatalf("load export audit record: %v", err)
+		}
+		if !strings.Contains(audit.OptInfo, "admin.opt.data.exported") || !strings.Contains(audit.OptInfo, `"users"`) {
+			t.Fatalf("export audit optInfo = %q, want admin.opt.data.exported with tables", audit.OptInfo)
+		}
+		t.Cleanup(func() {
+			conn.Delete(&optRecord.Entity{}, audit.Id)
+		})
 	})
 
 	t.Run("unsupported table fails with exportFailed", func(t *testing.T) {
@@ -257,6 +270,17 @@ func TestAdminDownloadExportTaskHTTPContract(t *testing.T) {
 		if disposition := recorder.Header().Get("Content-Disposition"); disposition != `attachment; filename="contract-export.json"` {
 			t.Fatalf("Content-Disposition = %q, want the attachment file name", disposition)
 		}
+		// issue #324 S4：导出下载也写操作审计。
+		var audit optRecord.Entity
+		if err := conn.Where("opt_type = ?", int(optlogger.ExportData)).Order("id desc").First(&audit).Error; err != nil {
+			t.Fatalf("load export download audit record: %v", err)
+		}
+		if !strings.Contains(audit.OptInfo, "admin.opt.data.exported.download") || !strings.Contains(audit.OptInfo, "contract-export.json") {
+			t.Fatalf("export download audit optInfo = %q, want admin.opt.data.exported.download with file name", audit.OptInfo)
+		}
+		t.Cleanup(func() {
+			conn.Delete(&optRecord.Entity{}, audit.Id)
+		})
 	})
 
 	t.Run("unknown task fails with 404 taskNotFound", func(t *testing.T) {

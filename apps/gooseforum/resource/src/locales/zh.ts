@@ -1823,6 +1823,7 @@ export default {
       editUser: '操作用户',
       editTopic: '编辑话题',
       editCategory: '编辑分类',
+      exportData: '数据导出',
     },
     targetType: {
       system: '系统',
@@ -1842,6 +1843,8 @@ export default {
       moderatorTopicStatusChanged: '版主将话题「{title}」调整为{status}',
       categoryModeratorAdded: '为分类「{categoryName}」添加版主 {username}',
       categoryModeratorRemoved: '移除分类「{categoryName}」的版主 {userId}',
+      dataExported: '导出数据：{tables}（{format}）',
+      dataExportDownloaded: '下载导出文件 {fileName}',
     },
     status: {
       blocked: '封禁',

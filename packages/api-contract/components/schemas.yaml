@@ -6628,7 +6628,37 @@ AdminHttpNotifyEndpoint:
       type: string
     secret:
       type: string
-      description: Webhook signing secret. Exposure boundary — returned in cleartext by adminGetHttpNotifySettings to any SiteManager caller; there is no masking.
+      description: Plaintext webhook signing secret accepted on save requests (issue #324 S1). Never stored or returned in plaintext — an empty value keeps the stored (encrypted) secret for the matching endpoint (matched by id, falling back to url).
+    events:
+      type: array
+      items:
+        type: string
+    timeoutSeconds:
+      type: integer
+    failureCount:
+      type: integer
+      description: Consecutive delivery failures recorded by the dispatcher.
+    lastError:
+      type: string
+    abnormalTerminated:
+      type: boolean
+  additionalProperties: false
+
+AdminHttpNotifyEndpointView:
+  type: object
+  required: [id, name, enabled, url, secretConfigured, events, timeoutSeconds, failureCount, lastError, abnormalTerminated]
+  properties:
+    id:
+      type: string
+    name:
+      type: string
+    enabled:
+      type: boolean
+    url:
+      type: string
+    secretConfigured:
+      type: boolean
+      description: Whether a webhook signing secret is stored for this endpoint (encrypted with AES-256-GCM). The secret itself is never returned (issue #324 S1).
     events:
       type: array
       items:
@@ -6656,6 +6686,18 @@ AdminHttpNotifySettingsConfig:
         $ref: '#/AdminHttpNotifyEndpoint'
   additionalProperties: false
 
+AdminHttpNotifySettingsView:
+  type: object
+  required: [enabled, endpoints]
+  properties:
+    enabled:
+      type: boolean
+    endpoints:
+      type: array
+      items:
+        $ref: '#/AdminHttpNotifyEndpointView'
+  additionalProperties: false
+
 AdminHttpNotifySettingsResponse:
   allOf:
     - $ref: '#/ApiSuccess'
@@ -6663,8 +6705,8 @@ AdminHttpNotifySettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminHttpNotifySettingsConfig'
-          description: Stored notify settings, or the built-in default (disabled, empty endpoint list) when nothing has been saved.
+          $ref: '#/AdminHttpNotifySettingsView'
+          description: Stored notify settings without endpoint secrets (configured state only), or the built-in default (disabled, empty endpoint list) when nothing has been saved.
 
 AdminSaveHttpNotifySettingsRequest:
   type: object
@@ -6672,7 +6714,7 @@ AdminSaveHttpNotifySettingsRequest:
     settings:
       $ref: '#/AdminHttpNotifySettingsConfig'
   additionalProperties: false
-  description: Replacement notify settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+  description: Replacement notify settings. A non-empty endpoint `secret` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored secret for the matching endpoint (issue #324 S1). The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
 
 AdminOnesystemSettingsResult:
   type: object
@@ -6798,7 +6840,30 @@ AdminMailSettingsConfig:
       type: string
     smtpPassword:
       type: string
-      description: SMTP credential returned in cleartext on this admin surface — there is no masking.
+      description: Plaintext SMTP password accepted on save/test requests (issue #324 S2). Never stored or returned in plaintext — an empty value on save keeps the stored (encrypted) password.
+    fromName:
+      type: string
+    fromEmail:
+      type: string
+  additionalProperties: false
+
+AdminMailSettingsView:
+  type: object
+  required: [enableMail, smtpHost, smtpPort, useSSL, smtpUsername, smtpPasswordConfigured, fromName, fromEmail]
+  properties:
+    enableMail:
+      type: boolean
+    smtpHost:
+      type: string
+    smtpPort:
+      type: integer
+    useSSL:
+      type: boolean
+    smtpUsername:
+      type: string
+    smtpPasswordConfigured:
+      type: boolean
+      description: Whether an SMTP password is stored (encrypted with AES-256-GCM). The password itself is never returned — the GET surface only reports configured state (issue #324 S2).
     fromName:
       type: string
     fromEmail:
@@ -6812,8 +6877,8 @@ AdminMailSettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminMailSettingsConfig'
-          description: Stored mail settings, or the built-in default when nothing has been saved.
+          $ref: '#/AdminMailSettingsView'
+          description: Stored mail settings without the SMTP password (configured state only), or the built-in default when nothing has been saved.
 
 AdminSaveMailSettingsRequest:
   type: object
@@ -6821,7 +6886,7 @@ AdminSaveMailSettingsRequest:
     settings:
       $ref: '#/AdminMailSettingsConfig'
   additionalProperties: false
-  description: Replacement mail settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
+  description: Replacement mail settings. A non-empty `smtpPassword` is encrypted (AES-256-GCM) before persistence; an empty one keeps the stored password (issue #324 S2). The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves a zero-value configuration.
 
 AdminTestMailConnectionRequest:
   type: object
@@ -6831,7 +6896,7 @@ AdminTestMailConnectionRequest:
     testEmail:
       type: string
       format: email
-      description: Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route).
+      description: Recipient of the probe email. Validated with `required,email`; a missing or malformed value fails with HTTP 200 `common.request.invalidParams` before the handler runs (the handler's own `admin.mail.testEmailRequired` branch is unreachable through this route). When `settings.smtpPassword` is empty, the stored (decrypted) password is used for the probe (issue #324 S2).
   additionalProperties: false
 
 AdminConnectionTestResult:
@@ -6883,13 +6948,40 @@ AdminStorageSettingsConfig:
       type: boolean
     accessKey:
       type: string
-      description: Returned in cleartext on this admin surface — there is no masking.
+      description: Plaintext access key accepted on save/test requests (issue #324 S3). Never stored or returned in plaintext — an empty value on save keeps the stored (encrypted) key.
     secretKey:
       type: string
-      description: Returned in cleartext on this admin surface — there is no masking.
+      description: Plaintext secret key accepted on save/test requests (issue #324 S3). Never stored or returned in plaintext — an empty value on save keeps the stored (encrypted) key.
     publicUrlPrefix:
       type: string
       description: Optional public (CDN) prefix; empty means files are served through the `/file/img` proxy.
+  additionalProperties: false
+
+AdminStorageSettingsView:
+  type: object
+  required: [provider, endpoint, bucket, region, bucketLookup, secure, accessKeyConfigured, secretKeyConfigured, publicUrlPrefix]
+  properties:
+    provider:
+      type: string
+      enum: [local, s3]
+    endpoint:
+      type: string
+    bucket:
+      type: string
+    region:
+      type: string
+    bucketLookup:
+      type: string
+    secure:
+      type: boolean
+    accessKeyConfigured:
+      type: boolean
+      description: Whether an access key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue #324 S3).
+    secretKeyConfigured:
+      type: boolean
+      description: Whether a secret key is stored (encrypted with AES-256-GCM). The key itself is never returned (issue #324 S3).
+    publicUrlPrefix:
+      type: string
   additionalProperties: false
 
 AdminStorageSettingsResponse:
@@ -6899,8 +6991,8 @@ AdminStorageSettingsResponse:
       required: [result]
       properties:
         result:
-          $ref: '#/AdminStorageSettingsConfig'
-          description: Stored storage settings, or the built-in default when nothing has been saved.
+          $ref: '#/AdminStorageSettingsView'
+          description: Stored storage settings without the credentials (configured state only), or the built-in default when nothing has been saved.
 
 AdminSaveStorageSettingsRequest:
   type: object
@@ -6908,7 +7000,7 @@ AdminSaveStorageSettingsRequest:
     settings:
       $ref: '#/AdminStorageSettingsConfig'
   additionalProperties: false
-  description: Replacement storage settings. The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`).
+  description: Replacement storage settings. Non-empty `accessKey`/`secretKey` are encrypted (AES-256-GCM) before persistence; empty ones keep the stored keys (issue #324 S3). The Go struct tags `settings` with `validate:"required"`, but struct-level required never fails — a missing/malformed body saves the normalized zero-value configuration (`provider=local`).
 
 AdminTestStorageConnectionRequest:
   type: object
@@ -6916,7 +7008,7 @@ AdminTestStorageConnectionRequest:
     settings:
       $ref: '#/AdminStorageSettingsConfig'
   additionalProperties: false
-  description: Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend.
+  description: Probe the submitted configuration without persisting it. `provider=local` (including an empty provider, which is normalized to `local`) always succeeds without touching any backend. When `accessKey`/`secretKey` are empty, the stored (decrypted) credentials are used for the probe (issue #324 S3).
 
 AdminTestStorageConnectionResponse:
   oneOf:

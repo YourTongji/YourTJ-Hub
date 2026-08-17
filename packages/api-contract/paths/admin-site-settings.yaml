@@ -712,16 +712,16 @@ adminGetHttpNotifySettings:
       `permission.denied` (params permission=<localized permission name>,
       `站点管理` in zh). Returns the stored notify settings, or the
       built-in default (disabled with an empty endpoint list) when nothing
-      has been saved yet. Exposure boundary: each endpoint's `secret`
-      (webhook signing secret) is returned in cleartext — there is no
-      masking on this admin surface. JSON binding is lenient: query string
-      and body are ignored.
+      has been saved yet. Exposure boundary (issue #324 S1): each endpoint's
+      `secret` (webhook signing secret) is never returned — only
+      `secretConfigured` (whether an encrypted secret is stored) is
+      reported. JSON binding is lenient: query string and body are ignored.
     security:
       - bearerAuth: []
       - accessTokenCookie: []
     responses:
       '200':
-        description: Notify settings including cleartext endpoint secrets (stored configuration or the built-in default).
+        description: Notify settings without endpoint secrets (configured state only; stored configuration or the built-in default).
         content:
           application/json:
             schema:
