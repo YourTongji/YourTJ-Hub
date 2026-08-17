@@ -1,0 +1,8 @@
+{
+  "result": "解绑成功",
+  "code": 0,
+  "messageCode": "oauth.unbind.success",
+  "params": {
+    "provider": "github"
+  }
+}

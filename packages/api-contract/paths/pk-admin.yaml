@@ -1,0 +1,111 @@
+adminSyncPkCalendar:
+  post:
+    tags: [Admin]
+    summary: Trigger a background PK calendar sync
+    operationId: adminSyncPkCalendar
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Triggers the 一系统 (onesystem) schedule-data sync
+      for a term (issue #248 self-healing entry): the credential resolves via
+      the same cookie priority as the CLI (admin-stored securestore setting,
+      then `ONESYSTEM_COOKIE` env), and the sync runs asynchronously in a
+      background goroutine (paged fetch can take tens of seconds to minutes).
+      The response returns `started: true` immediately; progress and outcome
+      are queried via `adminGetPkSyncStatus`. Resume-from-crash paging keeps
+      a retried trigger idempotent. A missing/blank/unparseable `term`
+      (neither a numeric calendarId nor a known term name) fails request
+      validation as `common.request.invalidParams` (HTTP 200). An audit
+      record (`admin.opt.pk.synced`) is written for the requesting operator.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/PkSyncCalendarRequest
+    responses:
+      '200':
+        description: Sync started (result started=true), or a legacy business failure envelope (`common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkSyncCalendarResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-sync-calendar-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
+
+adminGetPkSyncStatus:
+  get:
+    tags: [Admin]
+    summary: Summarize per-term PK sync status
+    operationId: adminGetPkSyncStatus
+    description: |
+      Admin console operation gated by the `SiteManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>,
+      `站点管理` in zh). Summarizes the latest sync status per term
+      (calendarId descending): the current `pk_calendar` terms form the
+      skeleton, each augmented with its most recent fetch-log state; terms
+      with a fetch log but no calendar row yet (e.g. a first-sync failure)
+      are also listed so failed attempts stay visible. With no terms or logs
+      the result is an empty list. JSON binding is lenient: query string and
+      body are ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Per-term sync status items (empty array when none exist).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PkSyncStatusResponse
+            examples:
+              success:
+                externalValue: ../fixtures/pk-sync-status-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the SiteManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

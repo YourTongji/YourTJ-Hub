@@ -375,7 +375,7 @@ func TestLoginHTTPContractBusinessFailureAndRateLimit(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("business failure status = %d, want 200", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "login-failure.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-close-invalid-credentials.json"))
 	})
 
 	t.Run("stale encrypted password payload stays an invalid-request business failure", func(t *testing.T) {

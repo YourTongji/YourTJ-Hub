@@ -248,7 +248,7 @@ agentCreatePost:
                 externalValue: ../fixtures/agent-post-create-success.json
               unknownTopic:
                 summary: Unknown topics keep the business 200 failure envelope.
-                externalValue: ../fixtures/agent-post-create-unknown-topic.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '400':
         description: Malformed JSON body or non-numeric path topicId.
         content:

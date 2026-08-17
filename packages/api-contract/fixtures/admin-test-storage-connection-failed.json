@@ -1,0 +1,10 @@
+{
+  "result": {
+    "success": false,
+    "messageCode": "admin.storage.testFailed",
+    "params": {
+      "error": "bucket check failed: dial tcp 127.0.0.1:1: connect: connection refused"
+    }
+  },
+  "code": 0
+}

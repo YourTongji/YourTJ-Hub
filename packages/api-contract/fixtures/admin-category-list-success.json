@@ -1,0 +1,33 @@
+{
+  "result": [
+    {
+      "id": 5001,
+      "category": "学习交流",
+      "desc": "课程与学习讨论",
+      "icon": "book",
+      "color": "#3b82f6",
+      "slug": "study",
+      "sort": 1,
+      "moderators": [
+        {
+          "id": 7001,
+          "userId": 8021,
+          "username": "mod_user",
+          "avatarUrl": "/static/pic/default-avatar.webp",
+          "status": 1
+        }
+      ]
+    },
+    {
+      "id": 5002,
+      "category": "生活广场",
+      "desc": "校园生活分享",
+      "icon": "life",
+      "color": "#f59e0b",
+      "slug": "life",
+      "sort": 2,
+      "moderators": []
+    }
+  ],
+  "code": 0
+}

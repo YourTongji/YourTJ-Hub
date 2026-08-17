@@ -1,0 +1,16 @@
+{
+  "result": {
+    "enabled": true,
+    "content": "契约公告",
+    "publishedAt": "2026-01-02T03:04:05Z",
+    "items": [
+      {
+        "id": "a1",
+        "title": "公告标题",
+        "content": "公告内容",
+        "enabled": true
+      }
+    ]
+  },
+  "code": 0
+}
