@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import { i18n } from '../src/runtime/i18n'
@@ -50,11 +50,23 @@ function setStoredSelection(selection: { calendarId?: number; grade?: number; ma
 }
 
 describe('ScheduleMajorSelector 初始化加载', () => {
+  /** 追踪当前 wrapper，afterEach 统一卸载并清理 portal 残留（全局 document 查询）。 */
+  let mounted: VueWrapper | null = null
+
   beforeEach(() => {
     vi.resetAllMocks()
     localStorage.clear()
     setStoredSelection({})
     getPkCalendars.mockResolvedValue([{ calendarId: 121, calendarName: '2025-2026学年第2学期' }])
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    // SiteSelect 选项经 SelectPortal 渲染到 body，卸载组件后清掉 portal 残留，
+    // 避免下一个测试的全局 [role="option"] 查询命中上一个测试的选项。
+    document.body.innerHTML = ''
   })
 
   test('无已存选择时：默认学期加载年级并写回 store，选年级可加载专业', async () => {
@@ -63,7 +75,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     // 默认第一个学期（121）已加载年级，且 store 中的学期已写回。
@@ -88,7 +101,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
@@ -105,7 +119,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
@@ -140,7 +155,7 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([])
 
-    mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
     await flushPromises()
 
     expect(store.state.commonLists.stagedCourses).toEqual([])

@@ -65,6 +65,30 @@ describe('MobileDrawer 跨断点模态锁恢复', () => {
     wrapper.unmount()
   })
 
+  // P2（review #320 第四轮）：异步挂载时窗口已处于桌面断点（>=1024px）不会再触发
+  // change 事件，但 Dialog 仍 open 且 lg:hidden 只隐藏内容。挂载后必须立即
+  // 检查 desktopQuery.matches && props.open 并关闭。
+  test('挂载时已处于桌面断点（matches=true）立即关闭抽屉', async () => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>()
+    const mql = {
+      matches: true,
+      media: '(min-width: 1024px)',
+      addEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.delete(fn),
+    }
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList)
+
+    const wrapper = mountDrawer()
+    await flushPromises()
+    // 初始 matches=true 且 open=true：onMounted 立即 close，无需 change 事件
+    expect(wrapper.emitted('close')).toHaveLength(1)
+    // 未触发任何 change 事件（listeners 为空）
+    expect(listeners.size).toBe(1) // 仅注册了监听，未触发
+
+    matchMediaSpy.mockRestore()
+    wrapper.unmount()
+  })
+
   afterEach(() => {
     document.body.style.pointerEvents = ''
     document.body.style.overflow = ''

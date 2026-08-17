@@ -93,6 +93,8 @@ function handleContentKeydown(event: KeyboardEvent) {
         position="popper"
         :side-offset="6"
         align="start"
+        :body-lock="false"
+        :disable-outside-pointer-events="false"
         @keydown="handleContentKeydown"
       >
         <SelectViewport class="max-h-64">

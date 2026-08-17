@@ -229,8 +229,19 @@ beforeEach(() => {
   // 复位避免污染后续断言（与 i18n locale 复位同理）。
   document.body.style.pointerEvents = ''
   document.body.style.overflow = ''
+  // happy-dom 默认窗口宽度 1024px，matchMedia('(min-width: 1024px)') 返回
+  // matches=true；而 MobileDrawer 现在挂载时立即检查初始 matches（P2 第四轮修复），
+  // 会把所有抽屉测试误判为桌面端并立即 close。这里 mock 移动端视口。
+  const mobileMql = {
+    matches: false,
+    media: '(min-width: 1024px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }
+  vi.spyOn(window, 'matchMedia').mockReturnValue(mobileMql as unknown as MediaQueryList)
 })
 
 afterEach(() => {
   i18n.global.locale.value = 'zh'
+  vi.restoreAllMocks()
 })

@@ -69,6 +69,9 @@ onMounted(() => {
   }
   // addEventListener 优于 addListener（happy-dom 两者都支持，真实浏览器以 addEventListener 为准）
   desktopQuery.addEventListener('change', desktopChangeHandler)
+  // 挂载时可能已处于桌面断点（异步挂载/打开后立即旋转或调整窗口）：change 事件不会触发，
+  // 但 Dialog 仍 open 且 lg:hidden 只隐藏内容，模态锁残留。立即处理初始 matches。
+  if (desktopQuery.matches && props.open) close()
 })
 
 onBeforeUnmount(() => {

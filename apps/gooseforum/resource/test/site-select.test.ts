@@ -114,6 +114,27 @@ describe('SiteSelect 下拉层级', () => {
   })
 })
 
+// P1（review #320 第四轮）：reka-ui@2.9.8 SelectContentImpl 默认 bodyLock=true
+// 且 disableOutsidePointerEvents=true，会把普通下拉变成页面级模态层
+// （body.pointerEvents=none + overflow 锁定）。SiteSelect 传
+// :body-lock="false" 与 :disable-outside-pointer-events="false"，
+// 打开下拉后 body 必须保持可交互。
+describe('SiteSelect 非模态行为', () => {
+  test('打开下拉后 body 不被锁定（pointerEvents/overflow 不变）', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attachTo: document.body,
+    })
+    await wrapper.get('[role="combobox"]').trigger('pointerdown', { button: 0, pageX: 10, pageY: 10 })
+    await flushPromises()
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull()
+    // 下拉打开时页面不应被模态锁定
+    expect(document.body.style.pointerEvents).toBe('')
+    expect(document.body.style.overflow).toBe('')
+    wrapper.unmount()
+  })
+})
+
 // P1-2（review #320 第二轮）：reka-ui@2.9.8 SelectContentImpl 对 Tab 无条件
 // preventDefault 且不关闭 Select，用户会被困在列表中。补 Tab 关闭 + 焦点回 trigger。
 describe('SiteSelect Tab 键盘行为', () => {
