@@ -7,12 +7,10 @@ import (
 	"gorm.io/gorm"
 )
 
-
 func GetByTopicId(topicId uint64) (entities []*Entity) {
 	builder().Where("topic_id = ?", topicId).Find(&entities)
 	return
 }
-
 
 func GetOneByCategoryId(categoryId uint64) (entity Entity) {
 	builder().

@@ -23,7 +23,6 @@ func SeedPostRevision(tx *gorm.DB, post *posts.Entity) error {
 	})
 }
 
-
 // AppendPostRevisionWithOld 与 AppendPostRevision 相同，但 oldContent
 // 非空时先播种 v1 快照（editor = 作者、内容 = oldContent、状态 =
 // oldProcessStatus——即正文被覆写前的帖子状态），再追加新版本。用于编辑

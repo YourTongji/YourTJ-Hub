@@ -91,7 +91,6 @@ func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
 		t.Fatalf("create published topics: %v", err)
 	}
 
-
 	// GetPublishedBeforeID 按 id 倒序（最新优先）分页，且同样过滤草稿/封禁/首帖异常。
 	beforeBatch, err := GetPublishedBeforeID(200, 1)
 	if err != nil {

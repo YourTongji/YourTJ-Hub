@@ -22,7 +22,6 @@ func (receiver OptEnum) TargetTypeEnum() TargetTypeEnum {
 	return System
 }
 
-
 func (receiver OptEnum) toInt() int {
 	return cast.ToInt(receiver)
 }
@@ -43,7 +42,6 @@ const (
 )
 
 type TargetTypeEnum int
-
 
 func (receiver TargetTypeEnum) toInt() int {
 	return cast.ToInt(receiver)

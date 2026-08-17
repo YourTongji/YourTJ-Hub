@@ -31,7 +31,6 @@ func TestPostRepositoryWindows(t *testing.T) {
 		t.Fatalf("GetFirstPageByTopicId() = %#v", postNos(first))
 	}
 
-
 	after := GetByTopicPostNoAfter(1, 1, 10)
 	if len(after) != 3 || after[0].PostNo != 2 || after[2].PostNo != 4 {
 		t.Fatalf("GetByTopicPostNoAfter() = %#v", postNos(after))

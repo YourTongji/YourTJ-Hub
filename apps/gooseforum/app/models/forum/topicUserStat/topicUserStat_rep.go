@@ -15,7 +15,6 @@ func SaveOrCreateById(entity *Entity) int64 {
 	return builder().Save(entity).RowsAffected
 }
 
-
 func IncrementUserPost(topicId, userId uint64) error {
 	now := time.Now()
 	return builder().Clauses(clause.OnConflict{

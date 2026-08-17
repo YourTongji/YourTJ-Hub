@@ -46,7 +46,6 @@ func Get(id uint64) (entity Entity) {
 	return
 }
 
-
 func GetMaxId() uint64 {
 	var entity Entity
 	builder().Order(queryopt.Desc("id")).Limit(1).First(&entity)
@@ -114,7 +113,6 @@ func UpdateWikiSyncedContentTx(tx *gorm.DB, entity *Entity) error {
 			"updated_at":              time.Now(),
 		}).Error
 }
-
 
 // UnscopedGet 返回含已删除（软删）在内的回复，供恢复/清理/审计使用。
 func UnscopedGet(id uint64) (entity Entity) {
@@ -212,7 +210,6 @@ func MarkModeratorRemoved(id uint64, deletedBy uint64, reason string) error {
 		"delete_reason":     reason,
 	}).Error
 }
-
 
 // SoftDeleteByIDs 按回复 ID 列表软删（级联删除），返回受影响行数。
 // 只处理删除瞬间已经收集到的活跃回复，避免删除动作与并发新回复之间的
@@ -326,7 +323,6 @@ func MarkPrivacyErased(id uint64, erasedBy uint64, reason string) error {
 	})
 }
 
-
 // ListUnscopedByTopicID 返回某话题下全部回复（含已软删行），用于级联恢复/统计。
 func ListUnscopedByTopicID(topicID uint64, list *[]*Entity) error {
 	return builder().Unscoped().
@@ -359,7 +355,6 @@ func GetActiveByUserPage(userId uint64, cursorID uint64, limit int) (entities []
 		Find(&entities)
 	return
 }
-
 
 // RestoreCascadeDeletedByTopicID restores only user-deleted rows changed by
 // the current topic deletion operation. Moderator removals and independently
@@ -398,7 +393,6 @@ func GetFirstPageByTopicId(topicId uint64) (entities []*Entity) {
 	return
 }
 
-
 func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) (entities []*Entity, err error) {
 	if limit <= 0 {
 		return []*Entity{}, nil
@@ -414,7 +408,6 @@ func GetNormalByTopicPostNoAfter(topicID uint64, afterPostNo uint64, limit int) 
 		Find(&entities).Error
 	return
 }
-
 
 func GetByTopicPostNoAfter(topicId uint64, postNo uint64, limit int) (entities []*Entity) {
 	builder().
