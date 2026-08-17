@@ -398,12 +398,30 @@ func TestBuildNamespaceSummaries(t *testing.T) {
 // TestBuildNamespaceSummariesIndexPreferred 命名空间存在 index 页时，
 // firstPagePath 优先指向 {namespace}/index（仓库规范：顶层目录 index.md 即
 // 命名空间首页），而非按 id/排序取首个页面（issue：首页冒号跳转不符）。
+// review P2：updatedAt 必须聚合全部公开页面（含 index 页自身），不得因
+// 命中 index 提前终止扫描。
 func TestBuildNamespaceSummariesIndexPreferred(t *testing.T) {
 	setupWikiTestDB(t)
-	base := time.Now().Add(-24 * time.Hour)
+	conn := dbconnect.Connect()
+	base := time.Now().Add(-24 * time.Hour).Truncate(time.Second)
 	// 模拟 id 顺序：academics 子页面先创建（id 更小），index 页后创建。
 	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/academics/课程、选择与培养", "课程", base)
 	seedProjectedWikiPage(t, "同济新手教程", "同济新手教程/index", "新手教程", base.Add(time.Hour))
+
+	// GORM autoUpdateTime 会在插入时把 updated_at 覆盖为 now：用 SQL 强制
+	// 写回确定性时间（页面/命名空间各自时间），才能验证 updatedAt 聚合语义。
+	if err := conn.Table("wiki_pages").Where("path = ?", "同济新手教程/academics/课程、选择与培养").
+		Update("updated_at", base).Error; err != nil {
+		t.Fatalf("set academics updated_at: %v", err)
+	}
+	if err := conn.Table("wiki_pages").Where("path = ?", "同济新手教程/index").
+		Update("updated_at", base.Add(time.Hour)).Error; err != nil {
+		t.Fatalf("set index updated_at: %v", err)
+	}
+	if err := conn.Table("wiki_namespaces").Where("name = ?", "同济新手教程").
+		Update("updated_at", base).Error; err != nil {
+		t.Fatalf("set namespace updated_at: %v", err)
+	}
 
 	summaries, err := BuildNamespaceSummaries()
 	if err != nil {
@@ -415,6 +433,11 @@ func TestBuildNamespaceSummariesIndexPreferred(t *testing.T) {
 	if summaries[0].FirstPagePath != "同济新手教程/index" {
 		t.Fatalf("firstPagePath=%q, want 同济新手教程/index (index preferred over first page)",
 			summaries[0].FirstPagePath)
+	}
+	// index 页是最新页面：updatedAt 必须反映 index 页时间（base+1h），
+	// 而不是 namespace 行时间或首个页面时间（review P2：不得提前 break）。
+	if want := base.Add(time.Hour); !summaries[0].UpdatedAt.Equal(want) {
+		t.Fatalf("updatedAt=%v, want %v (max across all pages incl. index)", summaries[0].UpdatedAt, want)
 	}
 }
 

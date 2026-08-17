@@ -387,13 +387,14 @@ func BuildNamespaceSummaries() ([]NamespaceSummary, error) {
 		indexPath := ns.Name + "/index"
 		// 首页链接优先指向命名空间 index 页（仓库规范：顶层目录 index.md 即
 		// 命名空间首页）；不存在时回退第一个页面（按 List 排序）。
+		// review P2：只记录首选路径，不提前 break——index 页自身与后续页面的
+		// UpdatedAt 必须继续参与聚合，否则命名空间卡「最近更新」显示陈旧时间。
 		for _, p := range nsPages {
 			if firstPath == "" {
 				firstPath = p.Path
 			}
 			if p.Path == indexPath {
 				firstPath = p.Path
-				break
 			}
 			if p.UpdatedAt.After(updated) {
 				updated = p.UpdatedAt

@@ -15,7 +15,6 @@ const wikiTree: WikiTreeNamespace[] = [
   {
     name: 'tongji-guide',
     label: '同济新手教程',
-    slug: 'tongji-guide',
     nodes: [
       { kind: 'page', pageId: 1, path: 'tongji-guide/intro', title: '学校简介', active: true, children: [] },
       { kind: 'page', pageId: 2, path: 'tongji-guide/选课指南', title: '选课指南', active: false, children: [] },
@@ -24,7 +23,6 @@ const wikiTree: WikiTreeNamespace[] = [
   {
     name: 'manual',
     label: '使用指南',
-    slug: 'manual',
     nodes: [{ kind: 'page', pageId: 3, path: 'manual/start', title: '快速开始', active: false, children: [] }],
   },
 ]

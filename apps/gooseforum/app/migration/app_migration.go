@@ -299,8 +299,10 @@ func runVersionedDataMigrations() {
 	if currentVersion < 24 {
 		// slug 机制移除 v24：URL 语义回归"仓库顶层目录名即 path 首段"。
 		// 对已分配 slug 的存量命名空间，把其全部页面（含软删）的 path 首段
-		// 与 namespace 列迁回仓库目录名（显示名），并删除 wiki_namespaces.slug
-		// 列（AutoMigrate 在启动时已按新模型移除；此处做数据迁移）。
+		// 与 namespace 列迁回仓库目录名（显示名），并清空受影响页面的
+		// content_hash（下次同步重渲染投影，review P2）。AutoMigrate 不会
+		// 删除从模型消失的字段——wiki_namespaces.slug 列与
+		// uniq_wiki_namespace_slug 索引由迁移显式 DROP（review P2）。
 		// 幂等：仅对 namespace 列 ≠ 目录名的行生效；slug 列已删的库零操作。
 		slugRemoval := datamigration.RevertWikiNamespaceSlugs()
 		slog.Info("app migration wiki slug removal done",

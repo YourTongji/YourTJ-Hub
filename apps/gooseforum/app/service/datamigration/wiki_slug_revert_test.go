@@ -3,6 +3,7 @@ package datamigration
 import (
 	"testing"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiNamespaces"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/wikiPages"
 	"github.com/glebarez/sqlite"
 	"gorm.io/gorm"
@@ -14,32 +15,32 @@ func openSlugRevertDB(t *testing.T) *gorm.DB {
 	if err != nil {
 		t.Fatalf("open sqlite: %v", err)
 	}
-	if err := conn.AutoMigrate(&wikiPages.Entity{}); err != nil {
-		t.Fatalf("auto migrate wiki_pages: %v", err)
+	if err := conn.AutoMigrate(&wikiPages.Entity{}, &wikiNamespaces.Entity{}); err != nil {
+		t.Fatalf("auto migrate wiki tables: %v", err)
 	}
 	return conn
 }
 
 func insertSlugRevertPage(t *testing.T, conn *gorm.DB, id uint64, path, sourcePath, namespace string) {
 	t.Helper()
-	p := wikiPages.Entity{Id: id, TopicId: 200000 + id, Path: path, SourcePath: sourcePath, Namespace: namespace}
+	p := wikiPages.Entity{Id: id, TopicId: 200000 + id, Path: path, SourcePath: sourcePath, Namespace: namespace, ContentHash: "hash-" + path}
 	if err := conn.Create(&p).Error; err != nil {
 		t.Fatalf("insert page %q: %v", path, err)
 	}
 }
 
-func scanSlugRevertPage(t *testing.T, conn *gorm.DB, id uint64) (path, namespace string) {
+func scanSlugRevertPage(t *testing.T, conn *gorm.DB, id uint64) (path, namespace, contentHash string) {
 	t.Helper()
 	var p wikiPages.Entity
-	if err := conn.Unscoped().Model(&wikiPages.Entity{}).Select("path", "namespace").Where("id = ?", id).Scan(&p).Error; err != nil {
+	if err := conn.Unscoped().Model(&wikiPages.Entity{}).Select("path", "namespace", "content_hash").Where("id = ?", id).Scan(&p).Error; err != nil {
 		t.Fatalf("scan page id %d: %v", id, err)
 	}
-	return p.Path, p.Namespace
+	return p.Path, p.Namespace, p.ContentHash
 }
 
 // TestRevertWikiNamespaceSlugsMovesSlugPathBackToDirName slug 已生效的存量
 // 页面（path 首段 = slug，namespace 列 = slug）：按 source_path（仓库真实
-// 相对路径）迁回目录名，namespace 列同步。
+// 相对路径）迁回目录名，namespace 列同步；content_hash 清空强制下次同步重渲染。
 func TestRevertWikiNamespaceSlugsMovesSlugPathBackToDirName(t *testing.T) {
 	conn := openSlugRevertDB(t)
 	// 模拟：中文目录"同济新手教程"曾声明 slug=freshman-guide，
@@ -54,11 +55,37 @@ func TestRevertWikiNamespaceSlugsMovesSlugPathBackToDirName(t *testing.T) {
 	if result.Migrated != 2 {
 		t.Fatalf("migrated = %d, want 2", result.Migrated)
 	}
-	if path, ns := scanSlugRevertPage(t, conn, 1); path != "同济新手教程/index" || ns != "同济新手教程" {
-		t.Fatalf("page 1 after revert: path=%q namespace=%q, want 同济新手教程/index/同济新手教程", path, ns)
+	if path, ns, hash := scanSlugRevertPage(t, conn, 1); path != "同济新手教程/index" || ns != "同济新手教程" || hash != "" {
+		t.Fatalf("page 1 after revert: path=%q namespace=%q hash=%q, want 同济新手教程/index/同济新手教程/empty", path, ns, hash)
 	}
-	if path, ns := scanSlugRevertPage(t, conn, 2); path != "同济新手教程/academics/课程" || ns != "同济新手教程" {
-		t.Fatalf("page 2 after revert: path=%q namespace=%q", path, ns)
+	if path, ns, hash := scanSlugRevertPage(t, conn, 2); path != "同济新手教程/academics/课程" || ns != "同济新手教程" || hash != "" {
+		t.Fatalf("page 2 after revert: path=%q namespace=%q hash=%q", path, ns, hash)
+	}
+}
+
+// TestRevertWikiNamespaceSlugsSwappedSlugs review P1：两个命名空间互为 slug
+// （目录 a 的 slug=b、目录 b 的 slug=a）时，逐行更新会因目标 path 仍被对方
+// 占用而违反 uniq_wiki_page_path。两阶段迁移（临时路径 → 最终路径）必须成功。
+func TestRevertWikiNamespaceSlugsSwappedSlugs(t *testing.T) {
+	conn := openSlugRevertDB(t)
+	// 目录 a 曾声明 slug=b；目录 b 曾声明 slug=a。同相对页存在：
+	// 页面 1 path=b/index、source_path=a/index（目标 a/index 被页面 2 占用）
+	// 页面 2 path=a/index、source_path=b/index（目标 b/index 被页面 1 占用）
+	insertSlugRevertPage(t, conn, 1, "b/index", "a/index", "b")
+	insertSlugRevertPage(t, conn, 2, "a/index", "b/index", "a")
+
+	result := RevertWikiNamespaceSlugsWithDB(conn)
+	if result.Failed != 0 {
+		t.Fatalf("RevertWikiNamespaceSlugsWithDB() failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if result.Migrated != 2 {
+		t.Fatalf("migrated = %d, want 2", result.Migrated)
+	}
+	if path, ns, _ := scanSlugRevertPage(t, conn, 1); path != "a/index" || ns != "a" {
+		t.Fatalf("page 1 after revert: path=%q namespace=%q, want a/index/a", path, ns)
+	}
+	if path, ns, _ := scanSlugRevertPage(t, conn, 2); path != "b/index" || ns != "b" {
+		t.Fatalf("page 2 after revert: path=%q namespace=%q, want b/index/b", path, ns)
 	}
 }
 
@@ -76,8 +103,8 @@ func TestRevertWikiNamespaceSlugsSkipsAlreadyDirNamePath(t *testing.T) {
 	if result.Migrated != 0 {
 		t.Fatalf("migrated = %d, want 0 (no slug-affected rows)", result.Migrated)
 	}
-	if path, ns := scanSlugRevertPage(t, conn, 1); path != "guide/start" || ns != "guide" {
-		t.Fatalf("page 1 changed unexpectedly: path=%q namespace=%q", path, ns)
+	if path, ns, hash := scanSlugRevertPage(t, conn, 1); path != "guide/start" || ns != "guide" || hash != "hash-guide/start" {
+		t.Fatalf("page 1 changed unexpectedly: path=%q namespace=%q hash=%q", path, ns, hash)
 	}
 }
 
@@ -96,5 +123,40 @@ func TestRevertWikiNamespaceSlugsIdempotent(t *testing.T) {
 	}
 	if result.Migrated != 0 {
 		t.Fatalf("second run migrated = %d, want 0", result.Migrated)
+	}
+}
+
+// TestRevertWikiNamespaceSlugsDropsLegacySlugSchema review P2：AutoMigrate
+// 不删除从模型消失的字段，存量库升级后 wiki_namespaces.slug 列与
+// uniq_wiki_namespace_slug 索引会残留；迁移必须显式删除。
+func TestRevertWikiNamespaceSlugsDropsLegacySlugSchema(t *testing.T) {
+	conn := openSlugRevertDB(t)
+	// 模拟存量库：手动重建 slug 列与唯一索引（新模型已无该字段，AutoMigrate 不会建）。
+	slug := "freshman-guide"
+	if err := conn.Exec("ALTER TABLE wiki_namespaces ADD COLUMN slug varchar(64)").Error; err != nil {
+		t.Fatalf("add legacy slug column: %v", err)
+	}
+	if err := conn.Exec("CREATE UNIQUE INDEX uniq_wiki_namespace_slug ON wiki_namespaces (slug)").Error; err != nil {
+		t.Fatalf("create legacy slug index: %v", err)
+	}
+	if err := conn.Create(&wikiNamespaces.Entity{Name: "同济新手教程"}).Error; err != nil {
+		t.Fatalf("insert namespace: %v", err)
+	}
+	if err := conn.Exec("UPDATE wiki_namespaces SET slug = ? WHERE name = ?", slug, "同济新手教程").Error; err != nil {
+		t.Fatalf("set legacy slug value: %v", err)
+	}
+
+	result := RevertWikiNamespaceSlugsWithDB(conn)
+	if result.Failed != 0 {
+		t.Fatalf("RevertWikiNamespaceSlugsWithDB() failed = %d last=%s", result.Failed, result.LastFailed)
+	}
+	if !result.SlugIndexDropped || !result.SlugColumnDropped {
+		t.Fatalf("legacy schema drop flags = index:%v column:%v, want true/true", result.SlugIndexDropped, result.SlugColumnDropped)
+	}
+	if conn.Migrator().HasColumn("wiki_namespaces", "slug") {
+		t.Fatal("slug column still exists after migration")
+	}
+	if conn.Migrator().HasIndex("wiki_namespaces", "uniq_wiki_namespace_slug") {
+		t.Fatal("slug unique index still exists after migration")
 	}
 }
