@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/connect/meiliconnect"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/preferences"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/forum"
@@ -69,6 +70,8 @@ func setupWikiContractTest(t *testing.T) (*gorm.DB, *gin.Engine) {
 	wikiApi.GET("tree", UpButterReq(api.WikiTree))
 	wikiApi.GET("namespaces", UpButterReq(api.WikiNamespaces))
 	wikiApi.GET("home", UpButterReq(api.WikiHome))
+	// wiki 站内局内搜索（段落级 Meilisearch 索引，公开只读；与 route4api.go 注册一致）。
+	wikiApi.GET("search", UpQueryReq(forum.WikiSearchJSON))
 	// wiki GitHub webhook：PR merge 后即时同步（独立验签，无 JWT）。
 	wikiApi.POST("webhook", api.WikiWebhook)
 	adminWiki := router.Group("/api/admin/wiki", middleware.JWTAuthCheck, middleware.CheckWritableAccount, middleware.CheckPermission(permission.PageManager))
@@ -230,7 +233,7 @@ func seedWikiContract(t *testing.T, conn *gorm.DB, aliceID uint64) {
 	t.Helper()
 	// 固定时间（CST +08:00），与 fixtures 中 updatedAt 一致。
 	base := time.Date(2026, 8, 10, 14, 0, 0, 0, time.FixedZone("CST", 8*3600))
-	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Slug: &[]string{"guide"}[0], Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
+	if err := conn.Create(&wikiNamespaces.Entity{Id: 1, Name: "guide", Description: "社区使用指南", SortOrder: 10, CreatedAt: base, UpdatedAt: base}).Error; err != nil {
 		t.Fatalf("create wiki namespace: %v", err)
 	}
 
@@ -311,6 +314,66 @@ func TestWikiNamespacesHTTPContract(t *testing.T) {
 	if ns["firstPagePath"] != "guide/getting-started" {
 		t.Fatalf("wiki namespaces[0].firstPagePath = %#v, want guide/getting-started", ns["firstPagePath"])
 	}
+}
+
+// TestWikiSearchHTTPContract 覆盖 /api/wiki/search 的公开只读契约：
+// 空 query 走确定性空结果（不依赖 Meilisearch，契约断言字段形状与语义）；
+// 非空 query 在 Meilisearch 不可用时应降级 searchUnavailable（HTTP 200）。
+func TestWikiSearchHTTPContract(t *testing.T) {
+	conn, router := setupWikiContractTest(t)
+	alice := createHTTPContractUser(t, conn, contractTestID())
+	seedWikiContract(t, conn, alice.Id)
+
+	t.Run("empty query returns deterministic empty result", func(t *testing.T) {
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/search?q=", "", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("wiki search empty-query status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-search-empty.json"))
+	})
+
+	t.Run("query without Meilisearch degrades to searchUnavailable", func(t *testing.T) {
+		if meiliconnect.IsAvailable() {
+			t.Skip("Meilisearch available in this environment; searchUnavailable fallback not testable")
+		}
+		rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/search?q=%E4%BF%9D%E7%A0%94", "", "")
+		if rec.Code != http.StatusOK {
+			t.Fatalf("wiki search unavailable status = %d, want 200: %s", rec.Code, rec.Body.String())
+		}
+		env := decodeContractEnvelope(t, rec)
+		if env.Code != 0 {
+			t.Fatalf("wiki search unavailable code = %d, want 0", env.Code)
+		}
+		var result struct {
+			Query             string `json:"query"`
+			Total             int64  `json:"total"`
+			Items             []any  `json:"items"`
+			SearchUnavailable bool   `json:"searchUnavailable"`
+		}
+		if err := json.Unmarshal(env.Result, &result); err != nil {
+			t.Fatalf("decode wiki search result %q: %v", env.Result, err)
+		}
+		if result.Query != "保研" {
+			t.Fatalf("wiki search unavailable query = %q, want 保研", result.Query)
+		}
+		if result.Total != 0 || len(result.Items) != 0 || !result.SearchUnavailable {
+			t.Fatalf("wiki search unavailable result = %+v, want empty + searchUnavailable=true", result)
+		}
+	})
+}
+
+// TestWikiSearchHTTPContractBadQuery 非数字 limit 参数应被严格绑定拒绝为 400
+// （UpQueryReq strict 模式：稳定 messageCode，不泄漏原始解析错误）。
+func TestWikiSearchHTTPContractBadQuery(t *testing.T) {
+	conn, router := setupWikiContractTest(t)
+	alice := createHTTPContractUser(t, conn, contractTestID())
+	seedWikiContract(t, conn, alice.Id)
+
+	rec := serveAuthSecurityJSON(router, http.MethodGet, "/api/wiki/search?q=x&limit=abc", "", "")
+	if rec.Code != http.StatusBadRequest {
+		t.Fatalf("wiki search bad limit status = %d, want 400: %s", rec.Code, rec.Body.String())
+	}
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "wiki-search-parse-failed.json"))
 }
 
 func TestWikiHomeHTTPContract(t *testing.T) {
@@ -414,7 +477,7 @@ func TestWikiWebhookSecretHTTPContract(t *testing.T) {
 		if env.Code != 0 {
 			t.Fatalf("webhook secret save code = %d, want 0: %s", env.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-webhook-secret-save-success.json"))
+		assertFixtureEnvelope(t, env, contractFixture(t, "result-ok.json"))
 
 		// 保存后 status 应报告 configured=true（密文经 securestore 落库）。
 		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/webhook-secret", "", bobToken)
@@ -506,7 +569,7 @@ func TestWikiAssetCDNHTTPContract(t *testing.T) {
 		if env.Code != 0 {
 			t.Fatalf("asset cdn save code = %d, want 0: %s", env.Code, rec.Body.String())
 		}
-		assertFixtureEnvelope(t, env, contractFixture(t, "wiki-asset-cdn-save-success.json"))
+		assertFixtureEnvelope(t, env, contractFixture(t, "result-ok.json"))
 
 		rec = serveAuthSecurityJSON(router, http.MethodGet, "/api/admin/wiki/sync/cdn", "", bobToken)
 		env = decodeContractEnvelope(t, rec)

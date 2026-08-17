@@ -1105,6 +1105,12 @@ OfferingSummary:
       type: string
     faculty:
       type: string
+    classCode:
+      type: string
+      description: Class code for this offering (e.g. 32000101); empty for legacy packages without class info.
+    className:
+      type: string
+      description: Class name for this offering (e.g. 01班); empty for legacy packages without class info.
     instructors:
       type: array
       items:
@@ -3031,7 +3037,7 @@ WikiTreeNode:
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, slug, nodes]
+  required: [name, label, nodes]
   properties:
     name:
       type: string
@@ -3039,9 +3045,6 @@ WikiTreeNamespace:
     label:
       type: string
       description: Display label of the namespace.
-    slug:
-      type: string
-      description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
     nodes:
       type: array
       items:
@@ -3071,14 +3074,11 @@ WikiTreeResponse:
 
 WikiNamespaceSummary:
   type: object
-  required: [name, slug, description, sortOrder, pageCount, updatedAt]
+  required: [name, description, sortOrder, pageCount, updatedAt]
   properties:
     name:
       type: string
       description: Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese).
-    slug:
-      type: string
-      description: URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned.
     description:
       type: string
     sortOrder:
@@ -3093,7 +3093,7 @@ WikiNamespaceSummary:
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
+      description: Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -3124,7 +3124,7 @@ WikiRecentPage:
       minimum: 1
     path:
       type: string
-      description: Full path (namespace/slug) for direct linking (review P2).
+      description: Full path (first segment is the namespace directory name) for direct linking (review P2).
     title:
       type: string
     updatedAt:
@@ -3157,6 +3157,74 @@ WikiHomeResponse:
               $ref: '#/WikiHomeResult'
     - $ref: '#/ApiFailure'
 
+WikiSearchItem:
+  type: object
+  description: Page-level wiki search result (aggregates the paragraph hits of one wiki page).
+  required: [namespace, path, title, titleHit, anchors, snippet, score, hitType]
+  properties:
+    namespace:
+      type: string
+      description: "Display name of the namespace (fallback: URL key)."
+    path:
+      type: string
+      description: Full page path (namespace/slug) for direct linking.
+    title:
+      type: string
+    titleHit:
+      type: boolean
+      description: True when the query matched the page title (vs only body text).
+    heading:
+      type: string
+      description: Nearest section heading of the top hit paragraph; absent when the hit is in the title only.
+    anchors:
+      type: array
+      items:
+        type: string
+      description: Paragraph anchors (s-<n>) of every hit paragraph in this page, for in-page navigation.
+    snippet:
+      type: string
+      description: Highlighted paragraph excerpt (<mark> wraps matched terms).
+    score:
+      type: number
+      format: double
+      description: Ranking score of the top paragraph hit (higher first).
+    hitType:
+      type: string
+      enum: [title, body]
+      description: Whether the strongest hit is in the title or the body.
+  additionalProperties: false
+
+WikiSearchResult:
+  type: object
+  required: [query, total, items, searchUnavailable]
+  properties:
+    query:
+      type: string
+      description: Echoed (trimmed) search query.
+    total:
+      type: integer
+      format: int64
+      description: Page-level result count (distinct pages); never the paragraph hit count.
+    items:
+      type: array
+      items:
+        $ref: '#/WikiSearchItem'
+    searchUnavailable:
+      type: boolean
+      description: True when the search backend is unavailable; items is then empty.
+  additionalProperties: false
+
+WikiSearchResponse:
+  oneOf:
+    - allOf:
+        - $ref: '#/ApiSuccess'
+        - type: object
+          required: [result]
+          properties:
+            result:
+              $ref: '#/WikiSearchResult'
+    - $ref: '#/ApiFailure'
+
 
 
 
@@ -3176,10 +3244,10 @@ WikiAdminTreeNode:
       description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
-      description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
+      description: Canonical page path with repository directory name as first segment.
     sourcePath:
       type: string
-      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
+      description: Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links.
     title:
       type: string
     sortOrder:

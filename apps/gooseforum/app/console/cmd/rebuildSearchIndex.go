@@ -35,5 +35,11 @@ func runRebuildSearchIndex(_ *cobra.Command, _ []string) error {
 		return fmt.Errorf("rebuild Meilisearch category index: %w", err)
 	}
 	fmt.Printf("Meilisearch category index rebuilt: processed %d categories, queued %d ghost document removals.\n", categoryResult.ProcessedCount, categoryResult.GhostRemoved)
+
+	wikiResult, err := searchservice.BuildWikiPageIndex()
+	if err != nil {
+		return fmt.Errorf("rebuild Meilisearch wiki page index: %w", err)
+	}
+	fmt.Printf("Meilisearch wiki page index rebuilt: processed %d pages, %d batches.\n", wikiResult.ProcessedCount, wikiResult.TotalBatches)
 	return nil
 }

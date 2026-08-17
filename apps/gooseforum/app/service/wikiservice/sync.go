@@ -612,14 +612,12 @@ type pageFrontmatter struct {
 	Title       string `yaml:"title"`
 	Order       int    `yaml:"order"`
 	Description string `yaml:"description"`
-	Slug        string `yaml:"slug"`
 }
 
 // parseMarkdownFile 解析 md：frontmatter + 正文（去掉 frontmatter 块）。
 // title 缺失时用文件名（去 .md）兜底。
-// 返回 (title, order, description, slug, body)；slug 仅在 frontmatter 显式
-// 声明时非空（命名空间 URL 标识，与显示名分离）。
-func parseMarkdownFile(f repoFile) (title string, order int, description string, slug string, body string) {
+// 返回 (title, order, description, body)。
+func parseMarkdownFile(f repoFile) (title string, order int, description string, body string) {
 	content := string(f.Content)
 	title = strings.TrimSuffix(filepath.Base(f.Path), ".md")
 	if strings.HasPrefix(content, "---") {
@@ -633,7 +631,6 @@ func parseMarkdownFile(f repoFile) (title string, order int, description string,
 				}
 				order = parsed.Order
 				description = parsed.Description
-				slug = strings.TrimSpace(parsed.Slug)
 			}
 			// 正文 = 第二个 --- 之后，去掉前导空行。
 			body = strings.TrimLeft(rest[idx+4:], "\n")
@@ -785,9 +782,8 @@ func syncOnce(cfg GitConfig, trigger string) (*SyncResult, error) {
 }
 
 // wantedPage 仓库 md 解析后的目标页面。
-// path 首段 = URL key（slug，降级=显示名）；displayName = 仓库目录名（显示名，
-// 可中文）；namespace = URL key（wiki_pages.namespace 列）；sourcePath = 仓库
-// 真实相对路径（GitHub 外链拼接用，与 URL 解耦）。
+// path = 仓库相对路径（去 .md，保留大小写/Unicode）；namespace = 仓库顶层
+// 目录名（显示名，即 URL 首段）；sourcePath 与 path 一致（GitHub 外链用）。
 type wantedPage struct {
 	path         string
 	sourcePath   string
@@ -797,19 +793,10 @@ type wantedPage struct {
 	order        int
 	body         string
 	renderedHTML string
+	paraAnchors  []ParaAnchor
 }
 
-// nsSlugPlan slug 定稿结果（D7：URL 用 slug，显示名与 URL key 分离）。
-// urlKey：该命名空间页面 path 首段/namespace 列的目标值；
-// setSlug：是否写入 slug 列（false = 非法/冲突时保持旧值）；
-// slug：要写入 slug 列的值（nil = 置 NULL，即仓库未声明且无法推导）。
-type nsSlugPlan struct {
-	urlKey  string
-	setSlug bool
-	slug    *string
-}
-
-// migratePagePath 迁移单页 path/namespace（slug 变更时 path 首段同步）。
+// migratePagePath 迁移单页 path/namespace（收养时按 wanted 目标值迁移）。
 // 幂等：目标 path 与当前一致时零变更。
 func migratePagePath(page *wikiPages.Entity, newPath, newNamespace string) error {
 	if page.Path == newPath && page.Namespace == newNamespace {
@@ -909,19 +896,6 @@ func adoptWikiPage(page *wikiPages.Entity, wp wantedPage) error {
 	return nil
 }
 
-// namespaceURLKey 返回命名空间的当前 URL key（slug 已分配时用 slug，
-// 未分配时降级用显示名——与同步器 2.6 的降级策略一致，供 D5 删除计数等
-// 按 URL key 查询 wiki_pages.namespace 列的场景使用）。
-func namespaceURLKey(ns *wikiNamespaces.Entity) string {
-	if ns == nil {
-		return ""
-	}
-	if s := ns.SlugOrEmpty(); s != "" {
-		return s
-	}
-	return ns.Name
-}
-
 // applyRepoToDB 把仓库当前文件树投影到 DB（核心幂等 diff）。
 func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	files, err := scanRepoFiles(cfg.CloneDir)
@@ -948,14 +922,12 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		}
 	}
 
-	// 2. 顶层目录 index.md → 命名空间元数据（D4/D7：description/sort_order/slug
-	// 跟随 frontmatter；slug 为 URL 友好标识，与显示名 name 分离）。
-	// 仅当 index.md 实际携带 description/order/slug 时才应用，
+	// 2. 顶层目录 index.md → 命名空间元数据（description/sort_order 跟随 frontmatter）。
+	// 仅当 index.md 实际携带 description/order 时才应用，
 	// 避免无 frontmatter 的 index.md 清空命名空间元数据。
 	type nsMeta struct {
 		description string
 		order       int
-		slug        string
 		carried     bool // index.md 实际携带元数据（review L1：缺失时不得用零值覆盖）
 	}
 	namespaceMeta := map[string]nsMeta{}
@@ -964,88 +936,20 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if len(parts) < 2 || parts[len(parts)-1] != "index.md" {
 			continue
 		}
-		_, order, description, slug, _ := parseMarkdownFile(f)
-		if description == "" && order == 0 && slug == "" {
+		_, order, description, _ := parseMarkdownFile(f)
+		if description == "" && order == 0 {
 			continue
 		}
-		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, slug: slug, carried: true}
+		namespaceMeta[parts[0]] = nsMeta{description: description, order: order, carried: true}
 	}
 
-	// 2.5 slug 定稿：推导每个仓库命名空间的目标 slug/URL key。
-	// 冲突策略：slug 已被其他命名空间占用 → 报错并保留旧值（fail-fast，
-	// run 标记 failed，避免 URL 与仓库不一致）；非法 slug 拒绝落库。
-	// 中文目录无 slug 声明 → 降级 URL key=显示名 + 告警（不 fail）。
-	// 仓库内部冲突：同一次同步中两个命名空间推导出相同 urlKey（如目录 guide
-	// 默认 slug=guide，另一目录 frontmatter 声明 slug: guide）→ 后处理方
-	// 报错并降级为显示名（唯一索引保护；两行都尚不存在时 DB 冲突检测不可用）。
 	var errs []string
 	// review M1：引用校验/渲染失败的页面跳过（保留旧版本），聚合为 run 错误。
 	skipWanted := make(map[string]bool, 0)
-	repoDisplayNames := make(map[string]struct{}, len(files))
-	for _, f := range files {
-		rel := strings.TrimSuffix(f.Path, ".md")
-		norm, ok := ValidatePath(rel)
-		if !ok {
-			continue
-		}
-		repoDisplayNames[NamespaceOf(norm)] = struct{}{}
-	}
-	plans := make(map[string]nsSlugPlan, len(repoDisplayNames))
-	urlKeyOwners := make(map[string]string, len(repoDisplayNames)) // urlKey → 显示名
-	for nsName := range repoDisplayNames {
-		ns := wikiNamespaces.GetByName(nsName)
-		meta := namespaceMeta[nsName]
-		wantSlug := meta.slug
-		if wantSlug == "" && isPureASCIISlug(nsName) {
-			wantSlug = nsName
-		}
-		keepCurrent := func() nsSlugPlan {
-			cur := ns.SlugOrEmpty()
-			if cur == "" {
-				cur = nsName
-			}
-			return nsSlugPlan{urlKey: cur}
-		}
-		if wantSlug != "" {
-			if !ValidateSlug(wantSlug) {
-				errs = append(errs, fmt.Sprintf("invalid slug for namespace %s: %q", nsName, wantSlug))
-				plans[nsName] = keepCurrent()
-				continue
-			}
-			if ns.Id != 0 && wantSlug != ns.SlugOrEmpty() && wikiNamespaces.SlugExists(wantSlug, ns.Id) {
-				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by another namespace (keep old value)", nsName, wantSlug))
-				plans[nsName] = keepCurrent()
-				continue
-			}
-			if owner, taken := urlKeyOwners[wantSlug]; taken {
-				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: %q already used by namespace %s in repo (keep old value)", nsName, wantSlug, owner))
-				plans[nsName] = keepCurrent()
-				continue
-			}
-			urlKeyOwners[wantSlug] = nsName
-			slug := wantSlug
-			plans[nsName] = nsSlugPlan{urlKey: wantSlug, setSlug: true, slug: &slug}
-		} else {
-			// 降级：无 slug 声明 → URL key=显示名；仓库权威，slug 列置 NULL。
-			if !isPureASCIISlug(nsName) {
-				slog.Warn("wiki sync: namespace without slug falls back to display name as URL key",
-					"namespace", nsName)
-			}
-			// 降级 urlKey=显示名也可能与已分配 slug 冲突（如中文目录名恰为另一
-			// 目录的 slug）；同样报错并退回自身显示名（保持可读，宁可告警）。
-			if owner, taken := urlKeyOwners[nsName]; taken {
-				errs = append(errs, fmt.Sprintf("slug conflict for namespace %s: display name %q already used as slug by namespace %s (keep old value)", nsName, nsName, owner))
-				plans[nsName] = keepCurrent()
-				continue
-			}
-			urlKeyOwners[nsName] = nsName
-			plans[nsName] = nsSlugPlan{urlKey: nsName, setSlug: true}
-		}
-	}
 
-	// 2.6 仓库 md 文件 → 页面（D7 URL key 语义：URL 用 slug）。
-	// path 首段 = plans[dir].urlKey（slug，降级=显示名）；source_path 恒存
-	// 仓库真实路径（去 .md，保留大小写/Unicode），与 URL 解耦。
+	// 2.6 仓库 md 文件 → 页面（URL 语义 = 仓库目录名）。
+	// path = 仓库相对路径（去 .md，保留大小写/Unicode）；namespace = 顶层目录名；
+	// source_path 与 path 一致（GitHub 外链即仓库真实路径）。
 	wanted := make([]wantedPage, 0, len(files))
 	wantedByPath := make(map[string]wantedPage, len(files))
 	var invalidPaths []string
@@ -1068,12 +972,11 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		if dir == "_assets" {
 			return fmt.Errorf("wiki namespace %q is reserved for repository assets", dir)
 		}
-		urlKey := plans[dir].urlKey
-		title, order, _, _, body := parseMarkdownFile(f)
+		title, order, _, body := parseMarkdownFile(f)
 		wp := wantedPage{
-			path:        urlKey + norm[len(dir):], // 首段替换为 URL key
+			path:        norm,
 			sourcePath:  rel,
-			namespace:   urlKey,
+			namespace:   dir,
 			displayName: dir,
 			title:       title,
 			order:       order,
@@ -1083,8 +986,8 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		wantedByPath[wp.path] = wp
 	}
 	if len(invalidPaths) > 0 {
-		// fail-fast 必须在任何 DB 写入（slug 迁移/upsert/软删/命名空间删除）
-		// 之前返回：非法路径未修正时同步整体失败，避免部分投影与误删。
+		// fail-fast 必须在任何 DB 写入（upsert/软删/命名空间删除）之前返回：
+		// 非法路径未修正时同步整体失败，避免部分投影与误删。
 		return fmt.Errorf("wiki sync: %d invalid page path(s): %s", len(invalidPaths), strings.Join(invalidPaths, "; "))
 	}
 
@@ -1111,49 +1014,12 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			skipWanted[wp.path] = true
 			continue
 		}
-		wp.renderedHTML = rendered
-	}
-
-	// 2.7 既有页面 path 迁移：URL key 变化（slug 变更/首回填）时，把该命名空间
-	// 全部页面（含软删）的 path 首段与 namespace 列迁移到新 URL key，并刷新
-	// byPath，保证后续 upsert 幂等命中（不误走 create 新建）。
-	// 无 slug 的中文目录：urlKey=显示名，与存量 path 首段一致 → 零迁移。
-	for nsName, plan := range plans {
-		ns := wikiNamespaces.GetByName(nsName)
-		if ns.Id == 0 {
-			continue // 首次同步：页面 upsert 阶段创建命名空间行
-		}
-		curKey := ns.SlugOrEmpty()
-		if curKey == "" {
-			curKey = nsName
-		}
-		if curKey == plan.urlKey {
-			continue
-		}
-		unscoped, err := listAllUnscoped()
-		if err != nil {
-			return fmt.Errorf("list unscoped wiki pages for path migration: %w", err)
-		}
-		for _, p := range unscoped {
-			if NamespaceOf(p.Path) != curKey {
-				continue
-			}
-			newPath := plan.urlKey + strings.TrimPrefix(p.Path, curKey)
-			if err := migratePagePath(p, newPath, plan.urlKey); err != nil {
-				errs = append(errs, fmt.Sprintf("migrate path %s: %v", p.Path, err))
-				continue
-			}
-			delete(byPath, p.Path)
-			p.Path = newPath
-			p.Namespace = plan.urlKey
-			byPath[newPath] = p
-			slog.Info("wiki sync: page path migrated for URL key change",
-				"namespace", nsName, "oldKey", curKey, "newKey", plan.urlKey, "page", newPath)
-		}
+		wp.renderedHTML = rendered.HTML
+		wp.paraAnchors = rendered.ParaAnchors
 	}
 
 	// 2.8 计算「仓库中消失的页面行」索引（issue #288：重命名/移动收养用）。
-	// 消失 = 当前 path（2.7 已迁移）不在 wanted 中的页面行（含软删——先删除
+	// 消失 = 当前 path 不在 wanted 中的页面行（含软删——先删除
 	// 后重建的两步 rename 需要软删候选）。按 content_hash 分组；同 hash 多
 	// 候选时由收养逻辑判定歧义（fail-safe，不猜测合并）。
 	disappearedByHash := make(map[string][]*wikiPages.Entity)
@@ -1259,7 +1125,7 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 	}
 
 	// 4. 删除：仓库中不存在的已发布页面 → 软删（保留评论/互动）。
-	//    重新扫描最新 path（2.7 可能迁移过 URL key），按 URL key 匹配 wanted。
+	//    重新扫描最新 path（收养可能迁移过），按 path 匹配 wanted。
 	unscopedPages, err = listAllUnscoped()
 	if err != nil {
 		return fmt.Errorf("list unscoped wiki pages for deletion pass: %w", err)
@@ -1285,33 +1151,21 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 		errs = append(errs, fmt.Sprintf("reconcile wiki page parents: %v", err))
 	}
 
-	// 5. 命名空间元数据同步（D4/D7）：按 2.6 定稿的 plans 应用
-	//    description/order（仅 index.md 携带时）+ slug 列。
-	//    幂等：描述/排序/slug 都未变时跳过（CompareAndSwap 语义）。
-	for nsName, plan := range plans {
+	// 5. 命名空间元数据同步：应用 description/order（仅 index.md 携带时）。
+	//    幂等：描述/排序都未变时跳过（CompareAndSwap 语义）。
+	for nsName, meta := range namespaceMeta {
 		ns := wikiNamespaces.GetByName(nsName)
 		if ns.Id == 0 {
 			continue // 页面 upsert 阶段会创建；此处仅更新已存在的
 		}
-		meta := namespaceMeta[nsName]
-		curSlug := ns.SlugOrEmpty()
-		wantSlug := ""
-		if plan.slug != nil {
-			wantSlug = *plan.slug
-		}
 		// 仅 index.md 实际携带 description/order 时应用（review L1：缺失或
 		// frontmatter 字段被删时，不得用零值清空已同步的命名空间元数据）。
 		metaChanged := meta.carried && (ns.Description != meta.description || ns.SortOrder != meta.order)
-		if !metaChanged && curSlug == wantSlug {
+		if !metaChanged {
 			continue
 		}
-		if meta.carried {
-			ns.Description = meta.description
-			ns.SortOrder = meta.order
-		}
-		if plan.setSlug {
-			ns.Slug = plan.slug
-		}
+		ns.Description = meta.description
+		ns.SortOrder = meta.order
 		if err := wikiNamespaces.Save(&ns); err != nil {
 			errs = append(errs, fmt.Sprintf("update namespace meta %s: %v", nsName, err))
 		}
@@ -1334,10 +1188,10 @@ func applyRepoToDB(cfg GitConfig, result *SyncResult) error {
 			continue
 		}
 		// 仍有未软删页面（页面删除失败保护）→ 不删除命名空间。
-		// namespace 列 = URL key，按当前 key 计数。
+		// namespace 列 = 仓库目录名，按目录名计数。
 		var activePages int64
 		if err := dbconnect.Connect().Table("wiki_pages").
-			Where("namespace = ? AND deleted_at IS NULL", namespaceURLKey(ns)).
+			Where("namespace = ? AND deleted_at IS NULL", ns.Name).
 			Count(&activePages).Error; err != nil {
 			errs = append(errs, fmt.Sprintf("count pages for namespace %s: %v", ns.Name, err))
 			continue
@@ -1415,7 +1269,7 @@ func sha256Hex(s string) string {
 }
 
 // createPageFromRepo 从仓库文件新建 wiki 页面（topic + 首楼 + wiki_pages 投影）。
-// path/namespace 列均存 URL key（slug，降级=显示名）；命名空间行由 upsert
+// path/namespace 列均存仓库相对路径/顶层目录名；命名空间行由 upsert
 // 循环按显示名创建（此处只做防御性校验）。
 func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	ns := wp.namespace
@@ -1481,6 +1335,7 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 			Content:             wp.body,
 			RenderedHTML:        rendered,
 			Toc:                 toc,
+			ParaAnchors:         encodeParaAnchorsOrEmpty(wp.paraAnchors),
 			ContentHash:         sha256Hex(wp.body),
 			PublishedRevisionNo: 1,
 		}
@@ -1489,10 +1344,13 @@ func createPageFromRepo(cfg GitConfig, wp wantedPage) error {
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索索引 + 发布事件 + git 溯源快照。
+	// 提交后副作用：文件引用 + 搜索索引（话题索引 + wiki 段落索引） + 发布事件 + git 溯源快照。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}
 	eventbus.Publish(context.Background(), &eventhandlers.TopicPublishedEvent{Topic: &topic, FirstPost: &firstPost})
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
@@ -1534,6 +1392,7 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 			"content":       wp.body,
 			"rendered_html": rendered,
 			"toc":           toc,
+			"para_anchors":  encodeParaAnchorsOrEmpty(wp.paraAnchors),
 			"content_hash":  curHash,
 			"sort_order":    wp.order,
 			"source_path":   wp.sourcePath,
@@ -1558,10 +1417,13 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 	if err != nil {
 		return err
 	}
-	// 提交后副作用：文件引用 + 搜索 + git 溯源快照 + watcher 通知。
+	// 提交后副作用：文件引用 + 搜索（话题索引 + wiki 段落索引） + git 溯源快照 + watcher 通知。
 	fileusageservice.ReplaceTopic(topic.Id, wikiSystemUserID, wp.body)
 	if _, err := searchservice.BuildSingleTopicSearchDocument(&topic, &firstPost); err != nil {
 		slog.Warn("wiki sync: search index failed", "topicId", topic.Id, "error", err)
+	}
+	if err := searchservice.IndexWikiPageDocuments(page.Id); err != nil {
+		slog.Warn("wiki sync: wiki page index failed", "pageId", page.Id, "error", err)
 	}
 	updateGitTrace(cfg, page.Id, wp.sourcePath)
 	if contentChanged {
@@ -1572,7 +1434,7 @@ func updatePageFromRepo(cfg GitConfig, page *wikiPages.Entity, wp wantedPage, cu
 
 // softDeleteWikiPage 仓库中已移除的页面 → 论坛软删（保留互动，走删除生命周期）。
 func softDeleteWikiPage(page *wikiPages.Entity) error {
-	return dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
+	if err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
 		if err := tx.Table("topics").Unscoped().Where("id = ?", page.TopicId).Updates(map[string]any{
 			"deleted_at":        time.Now(),
 			"visibility_status": topics.VisibilityUserDeleted,
@@ -1584,7 +1446,14 @@ func softDeleteWikiPage(page *wikiPages.Entity) error {
 			return err
 		}
 		return tx.Table("wiki_pages").Where("id = ?", page.Id).Delete(&wikiPages.Entity{}).Error
-	})
+	}); err != nil {
+		return err
+	}
+	// 数据库软删提交后立即清理段落索引，避免已移除页面继续出现在搜索结果中。
+	if err := searchservice.DeleteWikiPageDocuments(page.Id); err != nil {
+		return fmt.Errorf("清理 wiki 页面 %d 搜索索引: %w", page.Id, err)
+	}
+	return nil
 }
 
 // updateGitTrace 同步后更新页面的 git 溯源列（贡献者快照 + 最后提交 SHA/时间）。
@@ -1645,6 +1514,18 @@ func rebuildGitTraces(cfg GitConfig) {
 // encodeTOCOrEmpty 编码 TOC，失败返回空串（不阻断同步）。
 func encodeTOCOrEmpty(items []markdown2html.HeadingItem) string {
 	data, err := json.Marshal(items)
+	if err != nil {
+		return ""
+	}
+	return string(data)
+}
+
+// encodeParaAnchorsOrEmpty 编码段落锚点索引，失败/为空返回空串（不阻断同步）。
+func encodeParaAnchorsOrEmpty(anchors []ParaAnchor) string {
+	if len(anchors) == 0 {
+		return ""
+	}
+	data, err := json.Marshal(anchors)
 	if err != nil {
 		return ""
 	}

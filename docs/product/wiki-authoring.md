@@ -11,7 +11,30 @@
 Wiki content is authored in the public `YourTongji/YourTJ-Wiki` Git repository. The forum is a
 read-only projection: merge changes through GitHub, then wait for the scheduled sync or trigger the
 admin Wiki sync. Pages are Markdown files beneath a top-level namespace directory; page URLs omit the
-`.md` suffix and use the namespace slug where one is declared.
+`.md` suffix; the URL path segment is the top-level namespace directory name (the display name).
+
+## Wiki local search (Current)
+
+Wiki has its own paragraph-level search, separate from the site's forum search. The desktop sidebar
+and mobile Wiki drawer expose the search entry; `/` and `Ctrl/Cmd+K` open the same search panel while
+the user is in Wiki mode.
+
+The public endpoint is `GET /api/wiki/search`:
+
+- `q` is the trimmed query, limited to 100 characters. An empty query returns an empty result without
+  contacting Meilisearch.
+- `limit` requests up to 20 page results and defaults to 12 when omitted or out of range.
+- Results are aggregated at the page level. Each item represents one public page and carries all
+  matching paragraph anchors, so `total` counts distinct pages rather than paragraph hits.
+- Paragraph anchors use the form `s-<n>`. Selecting a result opens the page at its first matching
+  paragraph and briefly highlights the target; subsequent matches can be cycled from the page.
+- `searchUnavailable: true` means the optional Meilisearch backend is unavailable. The API keeps HTTP
+  200 and returns an empty item list so Wiki reading remains available.
+
+Search snippets contain `<mark>` tags only for matched text. Search-rendering code escapes all other
+HTML, so Markdown text that looks like an HTML tag remains visible as text rather than executable
+markup. The index contains only currently public Wiki pages; page updates, empty pages, and soft
+deletions remove the page's old paragraph documents.
 
 ## Links And Assets
 
@@ -25,10 +48,10 @@ path and `.md` suffix, and author images or attachments with their repository-re
 ```
 
 During sync, page links are resolved from the source Markdown file and rendered as normalized
-`/wiki/<namespace-slug>/...` URLs without `.md`. Images and non-Markdown attachments are served by the
+`/wiki/<namespace-directory>/...` URLs without `.md`. Images and non-Markdown attachments are served by the
 single forum binary through `/wiki/_assets/<repository-path>`. Query strings, fragments, URL encoding,
-and nested paths are preserved. This lets an author keep links valid when a namespace directory has a
-display name different from its URL slug.
+and nested paths are preserved. Since the namespace directory name is the URL path segment,
+renaming a directory changes the page URL; update in-repo links in the same change.
 
 Absolute URLs, protocol-relative URLs, site-root URLs such as `/static/logo.svg`, and anchor-only or
 query-only links are left unchanged. Do not use relative links without a file extension for pages: page

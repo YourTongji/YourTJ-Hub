@@ -14,7 +14,7 @@ const RESERVED_PATH_CHARS = /[/\\:*?"<>|]/
 const CONTROL_OR_SPACE = /[\p{C}\p{Z}]/u
 
 /**
- * 校验单个路径段（命名空间或 slug）。
+ * 校验单个路径段（命名空间或路径段）。
  * 与后端 validSegment 对齐：非空、非 "." / ".."、非点开头、
  * 长度 ≤64（按码点）、无空白/控制字符/保留字符。
  */
@@ -43,15 +43,15 @@ export function isValidNamespaceName(name: string): boolean {
 
 // 与后端 wikiservice.ValidatePath 的判定保持一致，
 // 见 apps/gooseforum/app/service/wikiservice/path.go。
-// 页面路径：namespace/slug[/slug...]，每段与目录名兼容（支持中文），
+// 页面路径：namespace/path[/path...]，每段与目录名兼容（支持中文），
 // 至少 2 段、每段 ≤64（按码点）、总长 ≤255。
 
-const MAX_SLUG_LENGTH = 64
+const MAX_SEGMENT_LENGTH = 64
 const MAX_PATH_LENGTH = 255
 
 /**
  * 校验 wiki 页面路径（前端镜像后端规则：先 trim，再按 '/' 分段检查每段格式与长度，
- * 不做小写归一）。返回 false 时调用方应提示「路径格式：namespace/slug」。
+ * 不做小写归一）。返回 false 时调用方应提示「路径格式：namespace/path」。
  */
 export function isValidWikiPath(path: string): boolean {
   if (typeof path !== 'string') return false
@@ -63,7 +63,7 @@ export function isValidWikiPath(path: string): boolean {
   }
   const segments = normalized.split('/')
   if (segments.length < 2) {
-    return false // 至少 namespace + 一个 slug 段
+    return false // 至少 namespace + 一个路径段
   }
   return segments.every(isValidSegment)
 }

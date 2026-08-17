@@ -81,9 +81,8 @@ func WikiDetail(c *gin.Context) {
 		wikiAsset(c, assetPath)
 		return
 	}
-	// D7 URL 语义（URL 用 slug）：path 首段 = URL key（slug，降级=显示名）。
-	// ResolvePageByURLPath 先直查 slug 路径，未命中时回退按显示名解析重建
-	// （兼容中文目录声明 slug 前的旧链接 / 直接访问中文显示名 URL）。
+	// URL 语义 = 仓库目录名：path 即仓库相对路径（去 .md），首段即目录名，
+	// 直查即可（ResolvePageByURLPath 不做 slug 映射或回退解析）。
 	// gin 已解码 URL 段，按原样查询。
 	if path == "" || strings.Contains(path, "//") {
 		renderNotFound(c)
@@ -128,8 +127,7 @@ func WikiDetail(c *gin.Context) {
 		props.Page.Watched = action.WatchedAt != nil
 	}
 	// GitHub SSOT：编辑/历史走仓库外链（公开 fork + PR），站内无编辑。
-	// D7：外链必须用仓库真实路径 source_path（path 首段已是 URL key=slug，
-	// 与仓库目录名解耦，不能再用于 GitHub 文件定位）。
+	// 外链必须用仓库真实路径 source_path（与 path 一致，即仓库相对路径）。
 	// 存量页面 source_path 可能为空（v23 回填前/同步失败窗口），降级用 path
 	// 保证外链可点（review MEDIUM：管理端已有同款回退，SSR 此处补齐）。
 	cfg := wikiservice.LoadGitConfig()
@@ -260,7 +258,6 @@ func wikiTreePayload(activePath string) ([]WikiTreeNamespacePayload, error) {
 		result = append(result, WikiTreeNamespacePayload{
 			Name:  ns.Name,
 			Label: ns.Label,
-			Slug:  ns.Slug,
 			Nodes: wikiTreeNodesPayload(ns.Nodes),
 		})
 	}
@@ -276,4 +273,41 @@ func wikiTreeNodesPayload(nodes []wikiservice.TreeNode) []WikiTreeNodePayload {
 		})
 	}
 	return result
+}
+
+// WikiSearchJSONReq wiki 站内搜索请求（前端局内搜索面板调用）。
+type WikiSearchJSONReq struct {
+	Q     string `form:"q"`
+	Limit int    `form:"limit"`
+}
+
+// WikiSearchJSONResp wiki 站内搜索响应。
+type WikiSearchJSONResp struct {
+	Query             string                        `json:"query"`
+	Total             int64                         `json:"total"`
+	Items             []wikiservice.PageSearchResult `json:"items"`
+	SearchUnavailable bool                          `json:"searchUnavailable"`
+}
+
+// WikiSearchJSON 提供 wiki 站内局内搜索 JSON API（复用段落级 Meilisearch 索引，
+// 聚合为页面级结果；搜索不可用时降级返回空结果并标记 searchUnavailable）。
+func WikiSearchJSON(req component.BetterRequest[WikiSearchJSONReq]) component.Response {
+	query := strings.TrimSpace(req.Params.Q)
+	limit := req.Params.Limit
+	if limit <= 0 || limit > 20 {
+		limit = 12
+	}
+	resp := &WikiSearchJSONResp{Query: query, Items: []wikiservice.PageSearchResult{}}
+	if query == "" {
+		return component.SuccessResponse(resp)
+	}
+	props, err := wikiservice.SearchPages(query, limit)
+	if err != nil {
+		slog.Warn("wiki search unavailable", "query", query, "error", err)
+		resp.SearchUnavailable = true
+		return component.SuccessResponse(resp)
+	}
+	resp.Total = props.Total
+	resp.Items = props.Items
+	return component.SuccessResponse(resp)
 }

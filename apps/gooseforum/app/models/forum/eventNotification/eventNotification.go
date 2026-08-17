@@ -67,11 +67,10 @@ type NotificationPayload struct {
 	Extra Extra `json:"metadata"`
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段
+// 统一走 Extra（metadata），不再双写（简化落地中候选1）。
 type NotificationTemplateParams struct {
-	Preview      string `json:"preview,omitempty"`
-	FollowerName string `json:"followerName,omitempty"`
-	BadgeCode    string `json:"badgeCode,omitempty"`
-	BadgeName    string `json:"badgeName,omitempty"`
+	Preview string `json:"preview,omitempty"`
 }
 
 type Extra struct {

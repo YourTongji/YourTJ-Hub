@@ -408,6 +408,9 @@ paths:
     $ref: ./paths/admin-data.yaml#/adminDownloadExportTask
   /api/admin/data/import:
     $ref: ./paths/admin-data.yaml#/adminImportData
+  /api/wiki/search:
+    get:
+      $ref: ./paths/wiki.yaml#/searchWikiSearch/get
   /api/admin/wiki/tree:
     get:
       $ref: ./paths/wiki.yaml#/getAdminWikiTree/get

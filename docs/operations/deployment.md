@@ -56,7 +56,7 @@
 
 1. 旧 VitePress 站点仓库的 `docs/`（Markdown 源文件）按新仓库结构整理：
    顶层目录 = namespace，文件 = 页面，front-matter 的 `title` 作为页面标题
-   （旧站路径映射为 `<namespace>/<slug>.md`）。
+   （旧站路径映射为 `<namespace>/<path>.md`）。
 2. 旧站的静态资源（图片/附件）随文件一并提交到仓库。同步器只将 `.md` 作为页面投影，
    但会把页面中的仓库相对资源引用重写为论坛二进制提供的受控
    `/wiki/_assets/<repository-path>` 路由；不需要 GitHub raw URL。相对页面链接保留 `.md`
@@ -101,8 +101,8 @@ webhook_secret = ""         # 兼容旧配置的明文密钥；推荐改用管�
 - **运行要求**：服务器需可出站访问 `github.com`（:443）；容器镜像需含 `git` 二进制
   （镜像升级后首次同步会保留仓库原始大小写/Unicode——此前实现做小写归一。对混合
   大小写仓库，首次同步会软删旧的小写路径页面并以仓库实际大小写重建（新 topic，
-  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响。中文目录在
-  `index.md` 声明 `slug` 后，页面 URL 首段迁移为 slug，旧链接仍可经显示名回退解析）。
+  原评论/互动不迁移）；当前 `YourTJ-Wiki` 仓库全小写目录，零影响）。
+  URL 首段 = 仓库顶层目录名，重命名目录即改变 URL（旧链接不回退解析）。
   （同步用全量 `clone --single-branch` + `fetch` + `reset --hard`，**不使用 pull**；
   全量历史用于页面贡献者统计。存量浅克隆（旧版 `--depth=1`）在下次同步自动
   `fetch --unshallow` 补全历史并重建全部页面贡献者缓存，升级首轮耗时取决于仓库大小）。

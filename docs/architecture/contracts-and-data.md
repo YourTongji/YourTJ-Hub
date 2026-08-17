@@ -43,6 +43,13 @@ and CI rejects any route that is neither contracted nor listed. By domain:
   隐私邮箱解析出 `username` → 前端拼 `avatarUrl`（`github.com/{user}.png`）与 `githubUrl`
   外链；自定义邮箱贡献者两者为空（前端降级首字母占位）（issues #291/#310）。
 
+- Wiki 局内搜索 `GET /api/wiki/search` 使用 Meilisearch 的 `wiki_pages` 段落索引：每个段落
+  一个文档，公开 API 再按页面聚合结果。`q` 最长 100 个字符，`limit` 默认 12、最大 20；
+  `total` 是去重后的公开页面数，不是段落命中数；Meilisearch 不可用时返回 HTTP 200、空
+  `items` 与 `searchUnavailable: true`。结果中的 `anchors` 来源于 `wiki_pages.para_anchors`
+  投影，前端用 `#s-<n>` 精确跳转。页面更新、无段落页面和 Wiki 软删都会先清理该页面旧
+  段落文档，搜索索引只作为可重建投影。
+
 The remaining **Partial** gaps are not missing routes but: the OIDC Provider standard endpoint
 suite (separate OAuth/OIDC contract track), AI-readable text surfaces (`/llms.txt` etc.), and
 hand-maintained Dart mirrors (generation remains Planned).
@@ -145,6 +152,10 @@ complete operation coverage and the precondition for such a gate is met.
   out of rendered SQL instead of relying on an otherwise inert configuration flag.
 - Search index sync is event-driven: topic publish/update/delete events keep Meilisearch documents in
   sync; the index is a rebuildable projection (`rebuild-search-index` CLI), not the only truth.
+- Wiki paragraph search follows the same projection rule: `wiki_pages.para_anchors` is derived from
+  rendered Wiki Markdown, and the `wiki_pages` Meilisearch index is rebuilt from the database or
+  incrementally replaced per page. Public search applies the page visibility boundary both in the
+  index filter and in the service aggregation defense check.
 
 ## Task queue & background workers
 

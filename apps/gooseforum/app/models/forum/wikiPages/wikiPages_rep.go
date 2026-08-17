@@ -26,6 +26,13 @@ func GetByTopicId(topicId uint64) (entity Entity) {
 	return
 }
 
+// GetByTopicIdUnscoped 按话题取页面（含软删行）：内容删除生命周期清理已
+// 被提前软删页面的搜索投影时使用，避免旧索引因页面不可见而无法定位 pageId。
+func GetByTopicIdUnscoped(topicId uint64) (entity Entity) {
+	builder().Unscoped().Where(queryopt.Eq("topic_id", topicId)).First(&entity)
+	return
+}
+
 // ListAll 返回全部页面（按 namespace/sort_order/id 升序）。
 // 显式返回查询错误：公开读必须区分 DB 故障与真实空数据，不能吞错（issue #287）。
 func ListAll() ([]*Entity, error) {

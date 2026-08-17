@@ -4520,6 +4520,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/wiki/search": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search wiki pages at paragraph granularity */
+        get: operations["searchWikiSearch"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/admin/wiki/tree": {
         parameters: {
             query?: never;
@@ -6180,6 +6197,10 @@ export interface components {
             termName?: string;
             campus?: string;
             faculty?: string;
+            /** @description Class code for this offering (e.g. 32000101); empty for legacy packages without class info. */
+            classCode?: string;
+            /** @description Class name for this offering (e.g. 01班); empty for legacy packages without class info. */
+            className?: string;
             instructors?: string[];
             /**
              * Format: double
@@ -8095,8 +8116,6 @@ export interface components {
             name: string;
             /** @description Display label of the namespace. */
             label: string;
-            /** @description Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}. */
-            slug: string;
             nodes: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeResult: {
@@ -8108,8 +8127,6 @@ export interface components {
         WikiNamespaceSummary: {
             /** @description Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese). */
             name: string;
-            /** @description URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned. */
-            slug: string;
             description: string;
             /** @description Ordering key; smaller values come first. */
             sortOrder: number;
@@ -8120,7 +8137,7 @@ export interface components {
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
-            /** @description Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages. */
+            /** @description Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages. */
             firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
@@ -8132,7 +8149,7 @@ export interface components {
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
-            /** @description Full path (namespace/slug) for direct linking (review P2). */
+            /** @description Full path (first segment is the namespace directory name) for direct linking (review P2). */
             path: string;
             title: string;
             /** Format: date-time */
@@ -8153,9 +8170,9 @@ export interface components {
              * @description Non-zero for page nodes and zero for directory nodes.
              */
             pageId: number;
-            /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
+            /** @description Canonical page path with repository directory name as first segment. */
             path: string;
-            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. */
+            /** @description Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links. */
             sourcePath: string;
             title: string;
             sortOrder: number;
@@ -9059,6 +9076,47 @@ export interface components {
         };
         WikiAssetCDNResponse: (components["schemas"]["ApiSuccess"] & {
             result: components["schemas"]["WikiAssetCDNStatus"];
+        }) | components["schemas"]["ApiFailure"];
+        /** @description Page-level wiki search result (aggregates the paragraph hits of one wiki page). */
+        WikiSearchItem: {
+            /** @description Display name of the namespace (fallback: URL key). */
+            namespace: string;
+            /** @description Full page path (namespace/slug) for direct linking. */
+            path: string;
+            title: string;
+            /** @description True when the query matched the page title (vs only body text). */
+            titleHit: boolean;
+            /** @description Nearest section heading of the top hit paragraph; absent when the hit is in the title only. */
+            heading?: string;
+            /** @description Paragraph anchors (s-<n>) of every hit paragraph in this page, for in-page navigation. */
+            anchors: string[];
+            /** @description Highlighted paragraph excerpt (<mark> wraps matched terms). */
+            snippet: string;
+            /**
+             * Format: double
+             * @description Ranking score of the top paragraph hit (higher first).
+             */
+            score: number;
+            /**
+             * @description Whether the strongest hit is in the title or the body.
+             * @enum {string}
+             */
+            hitType: "title" | "body";
+        };
+        WikiSearchResult: {
+            /** @description Echoed (trimmed) search query. */
+            query: string;
+            /**
+             * Format: int64
+             * @description Page-level result count (distinct pages); never the paragraph hit count.
+             */
+            total: number;
+            items: components["schemas"]["WikiSearchItem"][];
+            /** @description True when the search backend is unavailable; items is then empty. */
+            searchUnavailable: boolean;
+        };
+        WikiSearchResponse: (components["schemas"]["ApiSuccess"] & {
+            result: components["schemas"]["WikiSearchResult"];
         }) | components["schemas"]["ApiFailure"];
     };
     responses: never;
@@ -16417,6 +16475,37 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ApiFailure"];
+                };
+            };
+        };
+    };
+    searchWikiSearch: {
+        parameters: {
+            query: {
+                /** @description Search keywords (trimmed; empty query returns an empty result without hitting the search backend). */
+                q: string;
+                /** @description Maximum number of page-level results (clamped to 12 when omitted or out of range). */
+                limit?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /**
+             * @description Page-level aggregated search results. Each item aggregates the paragraph hits of one
+             *     wiki page and carries its paragraph anchors for precise in-page navigation. When the
+             *     search backend is unavailable the response degrades to an empty items list with
+             *     `searchUnavailable: true` (still HTTP 200). `total` is the page-level result count
+             *     (distinct pages), not the paragraph hit count.
+             */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["WikiSearchResponse"];
                 };
             };
         };
