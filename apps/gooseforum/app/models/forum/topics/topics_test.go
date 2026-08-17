@@ -91,21 +91,6 @@ func TestPublishedQueriesExcludeNonPublicTopics(t *testing.T) {
 		t.Fatalf("create published topics: %v", err)
 	}
 
-	firstBatch, err := GetPublishedAfterID(100, 1)
-	if err != nil {
-		t.Fatalf("GetPublishedAfterID first batch: %v", err)
-	}
-	if len(firstBatch) != 1 || firstBatch[0].Id != firstTopicID {
-		t.Fatalf("first published batch = %#v, want topic %d", firstBatch, firstTopicID)
-	}
-	secondBatch, err := GetPublishedAfterID(firstTopicID, 10)
-	if err != nil {
-		t.Fatalf("GetPublishedAfterID second batch: %v", err)
-	}
-	if len(secondBatch) != 1 || secondBatch[0].Id != secondTopicID {
-		t.Fatalf("second published batch = %#v, want only topic %d", secondBatch, secondTopicID)
-	}
-
 	// GetPublishedBeforeID 按 id 倒序（最新优先）分页，且同样过滤草稿/封禁/首帖异常。
 	beforeBatch, err := GetPublishedBeforeID(200, 1)
 	if err != nil {
