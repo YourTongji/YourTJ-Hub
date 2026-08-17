@@ -105,6 +105,26 @@ describe('ScheduleCellPicker 时段备选课程选择框', () => {
     expect(wrapper.emitted('conflict')).toBeUndefined()
   })
 
+  test('点击候选课程：即使上次打开的是别的课程，课表行也用候选课程信息（review P1）', async () => {
+    const store = useScheduleStore()
+    const detail = makeDetail('122004.01', 1, [3, 4])
+    store.pushStagedCourse(makeStaged('122004', [detail]))
+    // 故意把 clickedCourseInfo 设成另一门课：候选课程名/代码必须覆盖陈旧上下文。
+    store.setClickedCourseInfo({ courseCode: '999999', courseName: '上次打开的课程' })
+
+    const wrapper = mountPicker(1, 3)
+    await flushPromises()
+    await wrapper.find('li button').trigger('click')
+    await flushPromises()
+
+    // 课表行与占用格使用候选课程名（而非上次打开的课程名）。
+    expect(store.state.timeTableData[0].courseName).toBe('课程122004')
+    expect(store.state.timeTableData[0].code).toBe('122004.01')
+    expect(store.state.occupied[2][0][0].courseName).toBe('课程122004')
+    expect(store.state.clickedCourseInfo.courseCode).toBe('122004')
+    expect(store.state.clickedCourseInfo.courseName).toBe('课程122004')
+  })
+
   test('点击候选课程：冲突时 emit conflict 并关闭弹窗', async () => {
     const store = useScheduleStore()
     const detail = makeDetail('122004.01', 1, [3, 4])

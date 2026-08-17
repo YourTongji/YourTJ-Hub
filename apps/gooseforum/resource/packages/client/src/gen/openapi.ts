@@ -17608,6 +17608,8 @@ export interface operations {
             query: {
                 courseCode: string;
                 teacherName?: string;
+                /** @description 限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
+                calendarId?: number;
             };
             header?: never;
             path?: never;

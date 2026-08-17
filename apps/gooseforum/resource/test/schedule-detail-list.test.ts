@@ -76,6 +76,7 @@ describe('ScheduleDetailList 课评摘要与跳转', () => {
     expect(getPkCourseReviewBrief).toHaveBeenCalledWith({
       courseCode: '110001',
       teacherName: '',
+      calendarId: 121,
     })
     // 摘要区显示平均分与条数（happy-dom 下 i18n 为 en）。
     expect(wrapper.text()).toContain('4.2')

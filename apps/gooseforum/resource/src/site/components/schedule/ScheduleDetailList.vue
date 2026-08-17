@@ -71,6 +71,7 @@ async function loadBrief(courseCode: string) {
     const result = await getPkCourseReviewBrief({
       courseCode,
       teacherName: '',
+      calendarId: store.state.majorSelected.calendarId ?? 0,
     })
     if (seq !== briefRequestSeq) return
     brief.value = result

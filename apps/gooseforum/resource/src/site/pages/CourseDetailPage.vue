@@ -104,7 +104,10 @@ const OFFERING_QUERY_KEY = 'offeringId'
 function parseFocusOfferingId(): number {
   const raw = new URLSearchParams(window.location.search).get(OFFERING_QUERY_KEY)
   const value = Number(raw ?? '')
-  return Number.isInteger(value) && value > 0 ? value : 0
+  if (!Number.isInteger(value) || value <= 0) return 0
+  // 只接受当前课程可见开课实例中的 offeringId：
+  // 防跨课程 offering（/courses/A?offeringId=<B 的班>）与隐藏 offering 泄露。
+  return page.props.course.offerings?.some((item) => item.id === value) ? value : 0
 }
 
 function activeOfferingId(): number {
@@ -146,9 +149,14 @@ const reviewError = ref('')
 const reviewLoaded = ref(false)
 const helpfulBusyIds = ref<number[]>([])
 
-// 统计卡评论数：评价列表加载完成后以 reviewTotal（客户端、删除/创建后实时更新）为准，
-// 未加载时回退 SSR 的 reviewCount，避免顶部统计卡与评价区计数口径分叉。
-const statsReviewCount = computed(() => resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value))
+// 统计卡评论数：聚焦教学班时保持课程级口径（与 ratingAvg/分布一致，SSR 课程级值），
+// 避免过滤后的 offering 级 total 与课程级均分/分布混搭；未聚焦时维持现有行为
+// （加载后以客户端 reviewTotal 实时值为准，未加载回退 SSR reviewCount）。
+const statsReviewCount = computed(() =>
+  focusOfferingId.value
+    ? reviewCount.value
+    : resolveStatsReviewCount(reviewLoaded.value, reviewTotal.value, reviewCount.value),
+)
 
 // 列表加载协调器：用请求版本号避免 onMounted 的首屏 GET 在创建/删除后返回旧快照
 // 覆盖本地状态（issue #178 review P1 竞态）。
@@ -221,7 +229,8 @@ const formTemplateId = ref('')
 
 function openCreateForm() {
   editingReviewId.value = null
-  formOfferingId.value = page.props.course.offerings?.[0]?.id ?? 0
+  // 聚焦教学班时写评默认选该班，否则回退第一个开课实例。
+  formOfferingId.value = activeOfferingId() || (page.props.course.offerings?.[0]?.id ?? 0)
   formRating.value = 0
   formContent.value = ''
   formAnonymous.value = true
@@ -299,11 +308,16 @@ async function submitForm() {
         isAnonymous: formAnonymous.value,
       })
       reviewLoader.invalidate() // 使进行中的首屏 GET 过期，避免旧快照覆盖刚创建的评价
-      reviews.value.unshift(created)
-      // 同步计数：创建后 +1（与下方删除路径递减口径一致），否则统计卡/评价区标题
-      // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
-      // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
-      reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      // 创建的评价与当前过滤（聚焦教学班）一致时才本地插入/计数；
+      // 不一致（用户改了表单中的教学班）只做失效重拉，避免把别的班的评价
+      // 插进当前过滤列表（review P1）。
+      if (!activeOfferingId() || created.offeringId === activeOfferingId()) {
+        reviews.value.unshift(created)
+        // 同步计数：创建后 +1（与删除路径递减口径一致），否则统计卡/评价区标题
+        // 会一直显示旧值直到刷新。能提交评价说明列表已加载或已具备客户端最新态，
+        // 兜底置 reviewLoaded 为 true，确保统计卡走 reviewTotal 而非回退 SSR 旧值。
+        reviewTotal.value = nextReviewTotalOnCreate(reviewTotal.value)
+      }
       reviewLoaded.value = true
     }
     invalidateReviews()

@@ -75,6 +75,10 @@ function teacherText(detail: PkCourseDetail): string {
 }
 
 function tryStage(candidate: CellCandidate) {
+  // 用候选课程填充点击上下文：stageCourse/forceReplaceCourse 依赖
+  // clickedCourseInfo 生成课表行与占用格标签，避免暂存后课程名/代码
+  // 串成上次打开的课程（review P1）。
+  store.setClickedCourseInfo({ courseCode: candidate.courseCode, courseName: candidate.courseName })
   const result = store.stageCourse(candidate.detail)
   if (result.added) {
     store.solidify()

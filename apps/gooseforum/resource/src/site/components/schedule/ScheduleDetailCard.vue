@@ -5,12 +5,14 @@
 import { computed, ref, watch } from 'vue'
 import { useI18n } from 'vue-i18n'
 import { useDialogAccessibility } from '@/site/composables/useDialogAccessibility'
+import { useScheduleStore } from '@/site/composables/useScheduleStore'
 import { X } from '@lucide/vue'
 import { getPkCourseReviewBrief } from '@/runtime/pk-api'
 import { getCourseBaseCode } from '@/site/utils/pkConflict'
 import type { PkCourseOnTable, PkCourseReviewBrief } from '@/site/types/pk'
 
 const { t } = useI18n()
+const store = useScheduleStore()
 
 const props = defineProps<{
   course: PkCourseOnTable | null
@@ -69,6 +71,7 @@ async function loadBrief() {
     const result = await getPkCourseReviewBrief({
       courseCode: getCourseBaseCode(course.code),
       teacherName: '',
+      calendarId: store.state.majorSelected.calendarId ?? 0,
     })
     if (seq !== briefRequestSeq) return // 过期响应丢弃
     brief.value = result

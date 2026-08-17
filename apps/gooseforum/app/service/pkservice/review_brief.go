@@ -32,7 +32,7 @@ type ReviewBriefClass struct {
 	ReviewCount int      `json:"reviewCount"`
 }
 
-func FindCourseReviewBrief(courseCode, teacherName string) (ReviewBrief, error) {
+func FindCourseReviewBrief(courseCode, teacherName string, calendarId uint64) (ReviewBrief, error) {
 	brief := ReviewBrief{
 		CourseCode:  normalizeText(courseCode),
 		TeacherName: normalizeText(teacherName),
@@ -68,7 +68,7 @@ func FindCourseReviewBrief(courseCode, teacherName string) (ReviewBrief, error) 
 		}
 	}
 
-	if err := fillClassBriefs(&brief); err != nil {
+	if err := fillClassBriefs(&brief, calendarId); err != nil {
 		return brief, err
 	}
 	return brief, nil
@@ -76,19 +76,27 @@ func FindCourseReviewBrief(courseCode, teacherName string) (ReviewBrief, error) 
 
 // fillClassBriefs 填充教学班级课评摘要：PK 教学班课号 → offering.class_code 匹配，
 // 聚合 offering 级统计与教师；无匹配（旧数据包班号为空）时保持空数组。
-func fillClassBriefs(brief *ReviewBrief) error {
-	classCodes, err := pk.ListClassCodesByCourseCode(brief.CourseCode)
+// calendarId > 0 时班级课号只在指定学期内匹配，并进一步把 offering 限定到该学期
+// （calendar_id_i18n ↔ course_term.code 映射；跨学期班号复用不串学期）。
+func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
+	classCodes, err := pk.ListClassCodesByCourseCode(brief.CourseCode, calendarId)
 	if err != nil {
 		return err
 	}
-	offerings, err := course.ListVisibleOfferingsByClassCodes(classCodes)
+	// calendarId → calendar_id_i18n（如 "2025-2026-1"）→ course_term.id：
+	// 同一班号跨学期都有 offering 时，只返回所选学期的那个（review P3）。
+	var termId uint64
+	if calendarId > 0 {
+		if cal, err := pk.GetCalendarByID(calendarId); err == nil && cal.CalendarIdI18n != "" {
+			if term, err := course.GetTermByCode(cal.CalendarIdI18n); err == nil {
+				termId = term.Id
+			}
+		}
+	}
+	offerings, err := course.ListVisibleOfferingsByClassCodes(classCodes, termId)
 	if err != nil {
 		return err
 	}
-	if len(offerings) == 0 {
-		return nil
-	}
-
 	offeringIds := make([]uint64, 0, len(offerings))
 	for _, o := range offerings {
 		offeringIds = append(offeringIds, o.Id)
@@ -99,10 +107,15 @@ func fillClassBriefs(brief *ReviewBrief) error {
 		return err
 	}
 	for _, o := range offerings {
+		// 无教师关联的 offering 序列化为空数组而非 null（契约要求 teachers: array）。
+		teacherNames := teachers[o.Id]
+		if teacherNames == nil {
+			teacherNames = []string{}
+		}
 		item := ReviewBriefClass{
 			ClassCode:  o.ClassCode,
 			OfferingId: o.Id,
-			Teachers:   teachers[o.Id],
+			Teachers:   teacherNames,
 		}
 		if s, ok := stats[o.Id]; ok {
 			item.ReviewCount = s.ReviewCount

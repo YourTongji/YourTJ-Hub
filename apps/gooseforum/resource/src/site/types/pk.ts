@@ -183,6 +183,8 @@ export type PkCourseInfoSyncResult = Record<string, PkCourseDetail[]>
 export interface PkCourseReviewBriefInput {
   courseCode: string
   teacherName: string
+  /** 可选：限定教学班课号只在该学期内匹配（跨学期班号复用时不串学期）。 */
+  calendarId?: number
 }
 
 /** P13 /api/pk/course-review-brief 响应（复用课评 API 语义）。 */

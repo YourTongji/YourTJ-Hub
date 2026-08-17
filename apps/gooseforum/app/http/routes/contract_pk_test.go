@@ -468,6 +468,14 @@ func TestPkCourseReviewBriefHTTPContract(t *testing.T) {
 		t.Fatalf("course-review-brief bad-request status = %d, want 400: %s", recBad.Code, recBad.Body.String())
 	}
 	assertPkFixture(t, decodePkEnvelope(t, recBad), pkContractFixture(t, "pk-course-review-brief-bad-request.json"))
+
+	// calendarId 可选参数：限定教学班课号只在该学期内匹配。seed 中两个 TJCS101
+	// 班级均属 calendarId=99999，故 classes 与不带 calendarId 时一致（契约不破坏）。
+	recCal := servePkGET(router, "/api/pk/course-review-brief?courseCode=TJCS101&teacherName=张伟&calendarId=99999")
+	if recCal.Code != http.StatusOK {
+		t.Fatalf("course-review-brief with calendarId status = %d, want 200: %s", recCal.Code, recCal.Body.String())
+	}
+	assertPkFixture(t, decodePkEnvelope(t, recCal), pkContractFixture(t, "pk-course-review-brief-success.json"))
 }
 
 // float64Ptr 返回 v 的地址（dev 侧 CourseDetailEntity 可空指针字段的 fixture 用）。
