@@ -3,7 +3,10 @@ description: Stage the built binary and push the GHCR image with a parameterized
 
 inputs:
   tag:
-    description: Image tag suffix, e.g. dev-${{ github.sha }} or main-${{ github.sha }}
+    description: Image tag suffix, e.g. dev-<sha> or main-<sha>
+    required: true
+  github-token:
+    description: GITHUB_TOKEN for GHCR login (composite actions cannot read the secrets context directly)
     required: true
 
 runs:
@@ -26,7 +29,7 @@ runs:
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+        password: ${{ inputs.github-token }}
     # GHCR 包首次创建默认 private: 首次运行后需手动把包设为 public,
     # 否则服务器匿名 pull 401(见 docs/operations/deployment.md 迁移 runbook)
     - name: Build and push image

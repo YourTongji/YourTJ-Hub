@@ -34,9 +34,11 @@ jobs:
       contents: read
       packages: write
     steps:
+      - uses: actions/checkout@v4
       - uses: ./.github/actions/push-image
         with:
           tag: dev-${{ github.sha }}
+          github-token: ${{ secrets.GITHUB_TOKEN }}
 
   deploy:
     needs: [build, build-image]
