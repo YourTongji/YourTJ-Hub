@@ -453,7 +453,6 @@ export interface AdminAgentRotateResult {
 
 export interface WikiNamespace {
   name: string
-  slug: string
   description: string
   sortOrder: number
   pageCount: number

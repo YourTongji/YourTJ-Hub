@@ -2251,8 +2251,6 @@ export interface components {
             name: string;
             /** @description Display label of the namespace. */
             label: string;
-            /** @description Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}. */
-            slug: string;
             nodes: components["schemas"]["WikiTreeNode"][];
         };
         WikiTreeResult: {
@@ -2264,8 +2262,6 @@ export interface components {
         WikiNamespaceSummary: {
             /** @description Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese). */
             name: string;
-            /** @description URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned. */
-            slug: string;
             description: string;
             /** @description Ordering key; smaller values come first. */
             sortOrder: number;
@@ -2276,7 +2272,7 @@ export interface components {
             pageCount: number;
             /** Format: date-time */
             updatedAt: string;
-            /** @description Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages. */
+            /** @description Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages. */
             firstPagePath?: string;
         };
         /** @description The raw namespace array; an empty listing is an empty array, never null. */
@@ -2288,7 +2284,7 @@ export interface components {
         WikiRecentPage: {
             /** Format: uint64 */
             pageId: number;
-            /** @description Full path (namespace/slug) for direct linking (review P2). */
+            /** @description Full path (first segment is the namespace directory name) for direct linking (review P2). */
             path: string;
             title: string;
             /** Format: date-time */
@@ -2309,9 +2305,9 @@ export interface components {
              * @description Non-zero for page nodes and zero for directory nodes.
              */
             pageId: number;
-            /** @description Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned). */
+            /** @description Canonical page path with repository directory name as first segment. */
             path: string;
-            /** @description Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links. */
+            /** @description Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links. */
             sourcePath: string;
             title: string;
             sortOrder: number;

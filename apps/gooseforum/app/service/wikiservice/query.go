@@ -30,12 +30,10 @@ type TreeNode struct {
 }
 
 // TreeNamespace 导航树中的一个 namespace 分组。
-// Name/Label = 显示名（中文目录名）；Slug = 有效 URL key（未分配 slug 时
-// 降级=显示名），消费方拼 href 用（D7：URL 用 slug）。
+// Name/Label = 仓库顶层目录名（显示名，即 URL 首段），消费方拼 href 用。
 type TreeNamespace struct {
 	Name  string     `json:"name"`
 	Label string     `json:"label"`
-	Slug  string     `json:"slug"`
 	Nodes []TreeNode `json:"nodes"`
 }
 
@@ -44,38 +42,19 @@ type WikiTreeResult struct {
 	Namespaces []TreeNamespace `json:"namespaces"`
 }
 
-// ResolvePageByURLPath 按外部 URL path 解析页面（D7 路由语义：URL 用 slug）。
-// 解析顺序：
-//  1. 直查 path（slug 首段，新 URL）；
-//  2. 首段 = 显示名时按 name→urlKey 重建（存量/降级 URL，如中文目录声明
-//     slug 前发布的旧链接、或直接访问中文显示名 URL）。
-//
-// 返回零值实体表示未命中（404）。
+// ResolvePageByURLPath 按外部 URL path 解析页面。
+// URL 语义 = 仓库目录名：path 即仓库相对路径（去 .md），首段即目录名，
+// 直查即可，无需 slug 映射或回退解析。
 func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 	if urlPath == "" {
 		return
 	}
-	entity = wikiPages.GetByPath(urlPath)
-	if entity.Id != 0 {
-		return entity
-	}
-	// 回退：首段按显示名解析 → 重建为 URL key 路径再直查。
-	first := NamespaceOf(urlPath)
-	if first == "" {
-		return
-	}
-	ns := wikiNamespaces.GetByName(first)
-	if ns.Id == 0 {
-		return
-	}
-	rebuilt := namespaceURLKey(&ns) + strings.TrimPrefix(urlPath, first)
-	return wikiPages.GetByPath(rebuilt)
+	return wikiPages.GetByPath(urlPath)
 }
 
 // BuildTree 构建 wiki 导航树（按 namespace 分组，当前页 active）。
 // GitHub SSOT 后内容/标题直接来自 wiki_pages 投影列（不再查修订表）。
-// D7 URL key 语义：page.Namespace 列 = URL key（slug，降级=显示名），
-// 分组按 URL key；输出 Name/Label 用显示名（中文目录名）。
+// page.Namespace 列 = 仓库顶层目录名，分组按目录名。
 // 返回查询错误：DB 故障必须区别于空 wiki（issue #287）。
 func BuildTree(activePath string) ([]TreeNamespace, error) {
 	return buildTree(activePath, false)
@@ -122,7 +101,7 @@ func BuildTreeAPI() (WikiTreeResult, error) {
 	return WikiTreeResult{Namespaces: tree}, nil
 }
 
-// buildTree 构建导航树；relative=true 时 path 相对 namespace（URL key 前缀）。
+// buildTree 构建导航树；relative=true 时 path 相对 namespace（目录名前缀）。
 func buildTree(activePath string, contractShape bool) ([]TreeNamespace, error) {
 	namespaces, err := wikiNamespaces.List()
 	if err != nil {
@@ -135,20 +114,18 @@ func buildTree(activePath string, contractShape bool) ([]TreeNamespace, error) {
 	if err != nil {
 		return nil, err
 	}
-	byURLKey := make(map[string][]*wikiPages.Entity)
+	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
-		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
+		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
 	}
 
 	result := make([]TreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		urlKey := namespaceURLKey(ns)
-		pages := byURLKey[urlKey]
+		pages := byNamespace[ns.Name]
 		result = append(result, TreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
-			Slug:  urlKey,
-			Nodes: buildTreeNodes(pages, urlKey, activePath, contractShape),
+			Nodes: buildTreeNodes(pages, ns.Name, activePath, contractShape),
 		})
 	}
 	return result, nil
@@ -238,8 +215,8 @@ func flattenTreeChildren(parent *treeNodeBuilder) []TreeNode {
 
 // AdminTreeNode 管理端导航树节点。directory 节点没有 GitHub 文件，pageId
 // 为零且 sourcePath 为空；page 节点保留 GitHub 外链所需的 sourcePath。
-// Path 首段 = URL key（slug，降级=显示名）；SourcePath = 仓库真实路径
-// （GitHub 编辑/历史外链拼接用，与 URL 解耦，D7）。
+// Path 首段 = 仓库顶层目录名；SourcePath = 仓库真实路径
+// （GitHub 编辑/历史外链拼接用，与 URL 一致）。
 type AdminTreeNode struct {
 	Kind       string          `json:"kind"`
 	PageId     uint64          `json:"pageId"`
@@ -257,7 +234,7 @@ type AdminTreeNamespace struct {
 	Nodes []AdminTreeNode `json:"nodes"`
 }
 
-// BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，含 URL key 段）。
+// BuildAdminTree 构建管理端导航树（含 sortOrder/sourcePath；path 为完整路径，首段为仓库目录名）。
 func BuildAdminTree() ([]AdminTreeNamespace, error) {
 	namespaces, err := wikiNamespaces.List()
 	if err != nil {
@@ -270,17 +247,17 @@ func BuildAdminTree() ([]AdminTreeNamespace, error) {
 	if err != nil {
 		return nil, fmt.Errorf("list wiki pages: %w", err)
 	}
-	byURLKey := make(map[string][]*wikiPages.Entity)
+	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, page := range allPages {
-		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
+		byNamespace[page.Namespace] = append(byNamespace[page.Namespace], page)
 	}
 	result := make([]AdminTreeNamespace, 0, len(namespaces))
 	for _, ns := range namespaces {
-		pages := byURLKey[namespaceURLKey(ns)]
+		pages := byNamespace[ns.Name]
 		result = append(result, AdminTreeNamespace{
 			Name:  ns.Name,
 			Label: ns.Name,
-			Nodes: buildAdminTreeNodes(pages, namespaceURLKey(ns)),
+			Nodes: buildAdminTreeNodes(pages, ns.Name),
 		})
 	}
 	return result, nil
@@ -354,7 +331,6 @@ func flattenAdminTreeChildren(parent *adminTreeNodeBuilder) []AdminTreeNode {
 // NamespaceSummary 首页 namespace 卡。
 type NamespaceSummary struct {
 	Name          string    `json:"name"`
-	Slug          string    `json:"slug"`
 	Description   string    `json:"description"`
 	SortOrder     int       `json:"sortOrder"`
 	PageCount     int64     `json:"pageCount"`
@@ -363,7 +339,7 @@ type NamespaceSummary struct {
 }
 
 // BuildNamespaceSummaries 返回 namespace 摘要列表（页面数 + 最近更新时间）。
-// 分组按 URL key（page.Namespace），输出显示名/URL key 分离（D7）。
+// 分组按仓库目录名（page.Namespace），目录名即显示名与 URL 首段（slug 已移除）。
 func BuildNamespaceSummaries() ([]NamespaceSummary, error) {
 	namespaces, err := wikiNamespaces.List()
 	if err != nil {
@@ -373,17 +349,25 @@ func BuildNamespaceSummaries() ([]NamespaceSummary, error) {
 	if err != nil {
 		return nil, err
 	}
-	byURLKey := make(map[string][]*wikiPages.Entity)
+	byNamespace := make(map[string][]*wikiPages.Entity)
 	for _, p := range pages {
-		byURLKey[p.Namespace] = append(byURLKey[p.Namespace], p)
+		byNamespace[p.Namespace] = append(byNamespace[p.Namespace], p)
 	}
 	summaries := make([]NamespaceSummary, 0, len(namespaces))
 	for _, ns := range namespaces {
-		nsPages := byURLKey[namespaceURLKey(ns)]
+		nsPages := byNamespace[ns.Name]
 		updated := ns.UpdatedAt
 		firstPath := ""
+		indexPath := ns.Name + "/index"
+		// 首页链接优先指向命名空间 index 页（仓库规范：顶层目录 index.md 即
+		// 命名空间首页）；不存在时回退第一个页面（按 List 排序）。
+		// review P2：只记录首选路径，不提前 break——index 页自身与后续页面的
+		// UpdatedAt 必须继续参与聚合，否则命名空间卡「最近更新」显示陈旧时间。
 		for _, p := range nsPages {
 			if firstPath == "" {
+				firstPath = p.Path
+			}
+			if p.Path == indexPath {
 				firstPath = p.Path
 			}
 			if p.UpdatedAt.After(updated) {
@@ -392,7 +376,6 @@ func BuildNamespaceSummaries() ([]NamespaceSummary, error) {
 		}
 		summaries = append(summaries, NamespaceSummary{
 			Name:          ns.Name,
-			Slug:          ns.SlugOrEmpty(),
 			Description:   ns.Description,
 			SortOrder:     ns.SortOrder,
 			PageCount:     int64(len(nsPages)),
@@ -499,23 +482,23 @@ func BuildContributors(pageId uint64) []Contributor {
 
 // PageDetail 详情页数据（渲染 wiki_pages 投影快照）。
 type PageDetail struct {
-	Id                  uint64    `json:"id"`
-	TopicId             uint64    `json:"topicId"`
-	Namespace           string    `json:"namespace"`
-	Path                string    `json:"path"`
-	Title               string    `json:"title"`
-	Content             string    `json:"content"`
-	Toc                 []TocItem `json:"toc"`
+	Id                  uint64       `json:"id"`
+	TopicId             uint64       `json:"topicId"`
+	Namespace           string       `json:"namespace"`
+	Path                string       `json:"path"`
+	Title               string       `json:"title"`
+	Content             string       `json:"content"`
+	Toc                 []TocItem    `json:"toc"`
 	ParaAnchors         []ParaAnchor `json:"paraAnchors,omitempty"`
-	UpdatedAt           string    `json:"updatedAt"`
-	LikeCount           uint64    `json:"likeCount"`
-	ViewCount           uint64    `json:"viewCount"`
-	PostCount           uint64    `json:"postCount"`
-	Liked               bool      `json:"liked"`
-	Bookmarked          bool      `json:"bookmarked"`
-	Watched             bool      `json:"watched"`
-	PublishedRevisionNo int       `json:"publishedRevisionNo"`
-	CanEdit             bool      `json:"canEdit"`
+	UpdatedAt           string       `json:"updatedAt"`
+	LikeCount           uint64       `json:"likeCount"`
+	ViewCount           uint64       `json:"viewCount"`
+	PostCount           uint64       `json:"postCount"`
+	Liked               bool         `json:"liked"`
+	Bookmarked          bool         `json:"bookmarked"`
+	Watched             bool         `json:"watched"`
+	PublishedRevisionNo int          `json:"publishedRevisionNo"`
+	CanEdit             bool         `json:"canEdit"`
 	// GitHub 外链（前端「编辑此页」/「历史」按钮；由 forum 控制器注入仓库配置）。
 	EditUrl    string `json:"editUrl,omitempty"`
 	HistoryUrl string `json:"historyUrl,omitempty"`
@@ -529,17 +512,12 @@ type TocItem struct {
 }
 
 // LoadPageDetail 加载页面详情（topic 可见性由调用方把关）。
-// D7：Namespace 字段输出显示名（中文目录名），从 wiki_namespaces.name 反查；
-// 反查失败（数据异常）时降级输出 URL key。
+// Namespace 字段直接输出 page.Namespace（仓库顶层目录名，即显示名/URL 首段）。
 func LoadPageDetail(page *wikiPages.Entity, topic *topics.Entity) (PageDetail, error) {
-	displayName := page.Namespace
-	if ns := wikiNamespaces.GetBySlug(page.Namespace); ns.Id != 0 {
-		displayName = ns.Name
-	}
 	detail := PageDetail{
 		Id:                  page.Id,
 		TopicId:             topic.Id,
-		Namespace:           displayName,
+		Namespace:           page.Namespace,
 		Path:                page.Path,
 		Title:               page.Title,
 		Content:             page.RenderedHTML,

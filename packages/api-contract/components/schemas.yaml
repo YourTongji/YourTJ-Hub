@@ -2613,7 +2613,7 @@ WikiTreeNode:
 
 WikiTreeNamespace:
   type: object
-  required: [name, label, slug, nodes]
+  required: [name, label, nodes]
   properties:
     name:
       type: string
@@ -2621,9 +2621,6 @@ WikiTreeNamespace:
     label:
       type: string
       description: Display label of the namespace.
-    slug:
-      type: string
-      description: Effective URL key for this namespace (index.md frontmatter `slug`, or directory name when pure ASCII; falls back to display name when unassigned). Consumers build hrefs as /wiki/{slug}/{page.path}.
     nodes:
       type: array
       items:
@@ -2653,14 +2650,11 @@ WikiTreeResponse:
 
 WikiNamespaceSummary:
   type: object
-  required: [name, slug, description, sortOrder, pageCount, updatedAt]
+  required: [name, description, sortOrder, pageCount, updatedAt]
   properties:
     name:
       type: string
       description: Display name (top-level directory name in the GitHub wiki repo; may contain Unicode such as Chinese).
-    slug:
-      type: string
-      description: URL-friendly identifier (^[a-z0-9]+(-[a-z0-9]+)*$ ≤64), derived from index.md frontmatter `slug` or defaulting to the directory name when it is pure ASCII; empty when unassigned.
     description:
       type: string
     sortOrder:
@@ -2675,7 +2669,7 @@ WikiNamespaceSummary:
       format: date-time
     firstPagePath:
       type: string
-      description: Full path (namespace/slug) of the first public page in this namespace; empty when the namespace has no public pages.
+      description: Full path (first segment is the namespace directory name) of the first public page in this namespace; empty when the namespace has no public pages.
   additionalProperties: false
 
 WikiNamespaceListResult:
@@ -2706,7 +2700,7 @@ WikiRecentPage:
       minimum: 1
     path:
       type: string
-      description: Full path (namespace/slug) for direct linking (review P2).
+      description: Full path (first segment is the namespace directory name) for direct linking (review P2).
     title:
       type: string
     updatedAt:
@@ -2826,10 +2820,10 @@ WikiAdminTreeNode:
       description: Non-zero for page nodes and zero for directory nodes.
     path:
       type: string
-      description: Canonical page path with URL key as first segment (slug, or display name as fallback when slug is unassigned).
+      description: Canonical page path with repository directory name as first segment.
     sourcePath:
       type: string
-      description: Real repository-relative path (de-slugified, keeps original case/Unicode); used for GitHub edit/history links.
+      description: Real repository-relative path (keeps original case/Unicode); used for GitHub edit/history links.
     title:
       type: string
     sortOrder:

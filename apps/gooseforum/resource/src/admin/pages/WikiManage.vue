@@ -155,8 +155,8 @@ function editUrlFor(page: WikiTreeNodeData) {
   const base = repoEditBase()
   if (!base) return ''
   const branch = syncStatus.value?.branch || 'main'
-  // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段已是 slug，
-  // 与仓库目录名解耦）。逐段转义：目录名/文件名允许 #/% 等字符，但 URL
+  // D7：GitHub 外链必须用仓库真实路径 sourcePath（path 首段即仓库目录名）。
+  // 逐段转义：目录名/文件名允许 #/% 等字符，但 URL
   // 拼接时 # 会开启 fragment、% 会被当转义前缀 → GitHub 404。
   const repoPath = (page.sourcePath || page.path)
     .split('/')
@@ -369,7 +369,6 @@ onUnmounted(() => {
             <TableHeader>
               <TableRow>
                 <TableHead>{{ adminText('k00af') }}</TableHead>
-                <TableHead>{{ adminText('k00r7') }}</TableHead>
                 <TableHead>{{ adminText('k00ag') }}</TableHead>
                 <TableHead class="w-24">{{ adminText('k00na') }}</TableHead>
                 <TableHead class="w-40">{{ adminText('k00nb') }}</TableHead>
@@ -377,18 +376,17 @@ onUnmounted(() => {
             </TableHeader>
             <TableBody>
               <TableRow v-if="nsLoading && namespaces.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-muted-foreground">{{ adminText('k0046') }}</TableCell>
               </TableRow>
               <TableRow v-else-if="nsError">
-                <TableCell colspan="5" class="h-28 text-center text-destructive">{{ nsError }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-destructive">{{ nsError }}</TableCell>
               </TableRow>
               <TableRow v-else-if="namespaces.length === 0">
-                <TableCell colspan="5" class="h-28 text-center text-muted-foreground">{{ adminText('k00nj') }}</TableCell>
+                <TableCell colspan="4" class="h-28 text-center text-muted-foreground">{{ adminText('k00nj') }}</TableCell>
               </TableRow>
               <template v-else>
                 <TableRow v-for="item in namespaces" :key="item.name">
                   <TableCell class="font-medium">{{ item.name }}</TableCell>
-                  <TableCell class="font-mono text-xs text-muted-foreground">{{ item.slug || '-' }}</TableCell>
                   <TableCell class="max-w-md truncate text-muted-foreground">{{ item.description || '-' }}</TableCell>
                   <TableCell>{{ item.pageCount ?? 0 }}</TableCell>
                   <TableCell class="text-xs text-muted-foreground">{{ formatTime(item.updatedAt) }}</TableCell>

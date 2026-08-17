@@ -44,10 +44,9 @@ The contract capability is **Partial**. The controlled OpenAPI 3.1 entry point i
   CRUD 等站内写端点已**退役**（编辑/审核/历史/贡献者走 GitHub PR，命名空间由仓库顶层目录
   同步驱动）；保留管理端 `/api/admin/wiki/*`（PageManager：只读树 + `sync/status` /
   `sync` / `sync/runs` / `sync/webhook-secret` 读写）与公开 `POST /api/wiki/webhook`
-  （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；**URL 语义 = slug**：页面
-  `path` 首段与 `namespace` 列存 URL key（frontmatter `slug` 优先，目录名纯 ASCII 时
-  默认 slug=目录名，中文目录无 slug 时降级=显示名），显示名从 `wiki_namespaces.name`
-  取，`source_path` 恒存仓库真实路径（GitHub 外链用，与 URL 解耦）；公开与管理端树均返回递归
+  （GitHub push 事件，HMAC-SHA256 验签，触发即时同步）；**URL 语义 = 仓库目录名**：
+  `wiki_pages.path` 首段与 `namespace` 列即仓库顶层目录名（= 显示名），
+  `source_path` 恒存仓库真实相对路径（GitHub 外链用）；公开与管理端树均返回递归
   `nodes`：`page` 节点对应 Markdown，`directory` 节点由路径投影且 `pageId=0`，完整路径在每层
   保持稳定；管理端页面节点带 `sourcePath` 字段；生成 TS 类型 + 手写 Dart mirror
   （`apps/mobile/packages/core/lib/src/gen/wiki.dart`）。公开读与

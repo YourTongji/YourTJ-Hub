@@ -8,7 +8,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gin-gonic/gin"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/bundles/algorithm"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/controllers/api"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/http/middleware"
@@ -19,6 +18,7 @@ import (
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/forum/users"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/models/hotdataserve"
 	"github.com/YourTongji/YourTJ-Hub/apps/gooseforum/app/service/tokenservice"
+	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 

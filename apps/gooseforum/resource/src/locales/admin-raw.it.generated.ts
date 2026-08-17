@@ -791,7 +791,6 @@ export default {
   "k00r4": "Quando il segreto corrisponde a quello impostato in GitHub → Settings → Webhooks, i merge delle PR attivano automaticamente la sincronizzazione. Il segreto è cifrato e mai mostrato.",
   "k00r5": "Nuovo segreto (lasciare vuoto e salvare per cancellare)",
   "k00r6": "Inserisci il segreto del webhook GitHub",
-  "k00r7": "Slug",
   "k00r8": "Polling di sincronizzazione scaduto; aggiorna la pagina per vedere il risultato",
   "k00s0": "CDN risorse",
   "k00s1": "Quale CDN distribuisce le risorse statiche (immagini/allegati) referenziate nelle pagine Wiki.",
