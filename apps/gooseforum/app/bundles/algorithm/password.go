@@ -2,13 +2,13 @@
 package algorithm
 
 import (
+	"crypto/pbkdf2"
 	"crypto/rand"
 	"crypto/sha256"
+	"crypto/subtle"
 	"encoding/base64"
 	"errors"
 	"strings"
-
-	"golang.org/x/crypto/pbkdf2"
 )
 
 const (
@@ -61,7 +61,10 @@ func EncryptPassword(password string) (string, string, error) {
 		return "", "", err
 	}
 
-	hash := pbkdf2SHA256([]byte(password), salt, hashIterations, hashKeyLen)
+	hash, err := pbkdf2SHA256(password, salt, hashIterations, hashKeyLen)
+	if err != nil {
+		return "", "", err
+	}
 	encodedHash := base64.StdEncoding.EncodeToString(hash)
 	encodedSalt := base64.StdEncoding.EncodeToString(salt)
 
@@ -79,7 +82,10 @@ func VerifyPassword(encodedHash, encodedSalt, inputPassword string) error {
 		return errors.New("invalid password salt")
 	}
 
-	inputHash := pbkdf2SHA256([]byte(inputPassword), salt, hashIterations, hashKeyLen)
+	inputHash, err := pbkdf2SHA256(inputPassword, salt, hashIterations, hashKeyLen)
+	if err != nil {
+		return err
+	}
 
 	if !equalHashes(hash, inputHash) {
 		return errors.New("incorrect password")
@@ -89,18 +95,9 @@ func VerifyPassword(encodedHash, encodedSalt, inputPassword string) error {
 }
 
 func equalHashes(a, b []byte) bool {
-	if len(a) != len(b) {
-		return false
-	}
-	var diff byte
-	for i := range a {
-		diff |= a[i] ^ b[i]
-	}
-	return diff == 0
+	return subtle.ConstantTimeCompare(a, b) == 1
 }
 
-func pbkdf2SHA256(password []byte, salt []byte, iterations int, keyLen int) []byte {
-	hashFunc := sha256.New
-	dk := pbkdf2.Key(password, salt, iterations, keyLen, hashFunc)
-	return dk
+func pbkdf2SHA256(password string, salt []byte, iterations int, keyLen int) ([]byte, error) {
+	return pbkdf2.Key(sha256.New, password, salt, iterations, keyLen)
 }
