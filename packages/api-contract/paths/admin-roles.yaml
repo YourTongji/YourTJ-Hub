@@ -31,7 +31,7 @@ adminGetPermissionList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-get-permission-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the RoleManager permission.
         content:
@@ -40,7 +40,7 @@ adminGetPermissionList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-get-permission-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
 
@@ -77,7 +77,7 @@ adminRoleList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-role-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the RoleManager permission.
         content:
@@ -86,9 +86,9 @@ adminRoleList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-role-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-role-list-permission-denied.json
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
 
 adminRoleSave:
   post:
@@ -126,9 +126,9 @@ adminRoleSave:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-role-save-success.json
+                externalValue: ../fixtures/result-true.json
               invalidParams:
-                externalValue: ../fixtures/admin-role-save-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -137,7 +137,7 @@ adminRoleSave:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-role-save-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the RoleManager permission.
         content:
@@ -146,9 +146,9 @@ adminRoleSave:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-role-save-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-role-save-permission-denied.json
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
 
 adminRoleDelete:
   post:
@@ -182,7 +182,7 @@ adminRoleDelete:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-role-delete-success.json
+                externalValue: ../fixtures/result-true.json
               roleNotFound:
                 externalValue: ../fixtures/admin-role-delete-not-found.json
       '401':
@@ -193,7 +193,7 @@ adminRoleDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-role-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the RoleManager permission.
         content:
@@ -202,6 +202,6 @@ adminRoleDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-role-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-role-delete-permission-denied.json
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json

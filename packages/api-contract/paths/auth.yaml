@@ -30,7 +30,7 @@ login:
               success:
                 externalValue: ../fixtures/login-success.json
               invalidCredentials:
-                externalValue: ../fixtures/login-failure.json
+                externalValue: ../fixtures/account-close-invalid-credentials.json
               invalidRequest:
                 summary: Undecryptable or stale password payload (encrypt within ±3 minutes of `serverTs` from GET /api/login-public-key).
                 externalValue: ../fixtures/login-invalid-request.json

@@ -4,11 +4,11 @@
 
 路由快照来自 `TestRoutesSnapshot`（`fixtures/routes-snapshot.json`，默认配置装配，不含 OIDC `/api/oauth/*` 端点——OIDC 另有专项）。
 
-- 快照路由总数：263
-- /api JSON 路由：207，已入契约：205（99%），已知未覆盖：0
+- 快照路由总数：264
+- /api JSON 路由：208，已入契约：206（99%），已知未覆盖：0
 - 非 API 排除路由：58
 
-## 已覆盖（205）
+## 已覆盖（206）
 
 | Method | Path | operationId |
 | --- | --- | --- |
@@ -73,6 +73,7 @@
 | GET | `/api/v1/agent/topics/:topicId/posts` | `agentPostList` |
 | GET | `/api/wiki/home` | `getWikiHome` |
 | GET | `/api/wiki/namespaces` | `listWikiNamespaces` |
+| GET | `/api/wiki/search` | `searchWikiSearch` |
 | GET | `/api/wiki/tree` | `getWikiTree` |
 | PATCH | `/api/forum/course-reviews/:reviewId` | `updateCourseReview` |
 | POST | `/api/admin/agent-create` | `adminAgentCreate` |

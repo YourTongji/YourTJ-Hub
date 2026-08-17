@@ -146,7 +146,7 @@ func adminSiteGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -159,7 +159,7 @@ func adminSiteGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
@@ -169,7 +169,7 @@ func adminSiteGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-settings-permission-denied.json"))
 	})
 }
 
@@ -236,7 +236,7 @@ func TestAdminSaveSiteSettingsHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"siteName":"新站点","siteLogo":"","siteDescription":"d","siteKeywords":"k","siteUrl":"https://new.example.test","siteEmail":"","externalLinks":""}}`,
-			"admin-save-site-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SiteSettings, pageConfig.SiteSettingsConfig{})
 		if stored.SiteName != "新站点" || stored.SiteUrl != "https://new.example.test" {
 			t.Fatalf("stored site settings = %#v, want submitted values", stored)
@@ -289,7 +289,7 @@ func TestAdminSaveSiteChromeHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"header":[],"mainMenu":[],"resources":[],"sidebarGroups":[],"footerInfo":{"primary":[],"list":[]},"brandType":"text","brandText":"新品牌","brandImage":""}}`,
-			"admin-save-site-chrome-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SiteChrome, pageConfig.SiteChromeConfig{})
 		if stored.BrandText != "新品牌" {
 			t.Fatalf("stored chrome = %#v, want submitted brandText", stored)
@@ -413,7 +413,7 @@ func TestAdminSaveSecuritySettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enableSignup":false,"enableEmailVerification":true,"allowedDomains":[],"reservedUsernames":[],"bannedUsernames":["banned-contract-new"],"sensitiveWords":[],"sensitiveAction":"block","captchaRequired":true}}`,
-			"admin-save-security-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SecuritySettings, pageConfig.SecurityAndRegistration{})
 		if stored.EnableSignup || !stored.CaptchaRequired || stored.SensitiveAction != "block" {
 			t.Fatalf("stored security settings = %#v, want submitted values", stored)
@@ -457,7 +457,7 @@ func TestAdminSavePostingSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"textControl":{"minPostLength":1,"maxPostLength":1000,"minTitleLength":2,"maxTitleLength":50,"newUserPostCooldownMinutes":0},"uploadControl":{"allowAttachments":false,"authorizedExtensions":["webp"],"maxAttachmentSizeKb":512,"maxDailyUploadsPerUser":5,"newUserUploadCooldownMinutes":0},"llms":{"enabled":false,"fullText":true,"files":false}}}`,
-			"admin-save-posting-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.PostingSettings, pageConfig.PostingContent{})
 		if stored.TextControl.MaxPostLength != 1000 || stored.UploadControl.MaxAttachmentSizeKb != 512 || !stored.LLMS.FullText {
 			t.Fatalf("stored posting settings = %#v, want submitted values", stored)
@@ -495,7 +495,7 @@ func TestAdminSaveRateLimitSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminSiteContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enabled":false,"skipAdmin":false,"actions":[{"action":"login","windowSeconds":30,"limitPerIp":10,"limitPerUser":0}],"newUserCaptchaAfterPosts":0,"newUserCaptchaDays":0,"minSubmitSeconds":0}}`,
-			"admin-save-rate-limit-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.RateLimitSettings, pageConfig.RateLimitConfig{})
 		if stored.Enabled || len(stored.Actions) != 1 || stored.Actions[0].Action != "login" {
 			t.Fatalf("stored rate-limit settings = %#v, want submitted values", stored)
@@ -533,7 +533,7 @@ func TestAdminSaveHttpNotifySettingsHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enabled":true,"endpoints":[{"id":"ep9","name":"新 webhook","enabled":true,"url":"https://new.example.test/hook","secret":"new-secret","events":["post.created"],"timeoutSeconds":3,"failureCount":0,"lastError":"","abnormalTerminated":false}]}}`,
-			"admin-save-http-notify-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.HttpNotify, pageConfig.HttpNotifyConfig{})
 		if len(stored.Endpoints) != 1 || stored.Endpoints[0].Id != "ep9" || stored.Endpoints[0].Secret != "new-secret" {
 			t.Fatalf("stored notify settings = %#v, want submitted endpoint", stored.Endpoints)
@@ -570,7 +570,7 @@ func TestAdminSaveOnesystemSettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearOnesystemSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"cookie":"session=contract-cookie"}`, "admin-save-onesystem-settings-success.json")
+			`{"cookie":"session=contract-cookie"}`, "admin-agent-disable-success.json")
 		stored := pageConfig.GetByPageType(pageConfig.OneSystemSettings)
 		if !strings.Contains(stored.Config, `"cookieEncrypted"`) {
 			t.Fatalf("stored onesystem config = %q, want a cookieEncrypted field", stored.Config)
@@ -591,9 +591,9 @@ func TestAdminSaveOnesystemSettingsHTTPContract(t *testing.T) {
 			hotdataserve.ClearOnesystemSettingsConfigCache()
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"cookie":"session=contract-cookie"}`, "admin-save-onesystem-settings-success.json")
+			`{"cookie":"session=contract-cookie"}`, "admin-agent-disable-success.json")
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"cookie":"  "}`, "admin-save-onesystem-settings-success.json")
+			`{"cookie":"  "}`, "admin-agent-disable-success.json")
 		result := decodeSiteResult(t, serveAdminSiteRaw(t, conn, router, http.MethodGet, "/api/admin/onesystem-settings", ""))
 		if result["cookieConfigured"] != false {
 			t.Fatalf("cookieConfigured = %#v, want false after clearing", result["cookieConfigured"])
@@ -608,7 +608,7 @@ func TestAdminSaveOnesystemSettingsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("validation failure status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-save-onesystem-settings-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	adminSiteGuardScenarios(t, http.MethodPost, path, "admin-save-onesystem-settings")
@@ -638,7 +638,7 @@ func TestAdminSaveAiSummarySettingsHTTPContract(t *testing.T) {
 			conn.Where("page_type = ?", pageConfig.AiSummarySettings).Delete(&pageConfig.Entity{})
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"globalPerMinute":20}}`, "admin-save-ai-summary-settings-success.json")
+			`{"settings":{"enabled":true,"globalPerMinute":20}}`, "admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.AiSummarySettings, pageConfig.AiSummaryConfig{})
 		if !stored.Enabled || stored.GlobalPerMinute != 20 {
 			t.Fatalf("stored AI summary settings = %#v, want submitted values", stored)
@@ -672,7 +672,7 @@ func TestAdminSaveTermsOfServiceHTTPContract(t *testing.T) {
 			conn.Where("page_type = ?", pageConfig.TermsOfService).Delete(&pageConfig.Entity{})
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":true,"content":"# 新条款"}}`, "admin-save-terms-of-service-success.json")
+			`{"settings":{"enabled":true,"content":"# 新条款"}}`, "admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.TermsOfService, pageConfig.TermsOfServiceConfig{})
 		if !stored.Enabled || stored.Content != "# 新条款" {
 			t.Fatalf("stored terms = %#v, want submitted values", stored)
@@ -710,7 +710,7 @@ func TestAdminSavePrivacyPolicyHTTPContract(t *testing.T) {
 			conn.Where("page_type = ?", pageConfig.PrivacyPolicy).Delete(&pageConfig.Entity{})
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"settings":{"enabled":false,"content":"# 新政策"}}`, "admin-save-privacy-policy-success.json")
+			`{"settings":{"enabled":false,"content":"# 新政策"}}`, "admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.PrivacyPolicy, pageConfig.PrivacyPolicyConfig{})
 		if stored.Enabled || stored.Content != "# 新政策" {
 			t.Fatalf("stored policy = %#v, want submitted values", stored)

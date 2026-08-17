@@ -60,7 +60,7 @@ func adminPkGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -73,7 +73,7 @@ func adminPkGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
@@ -83,7 +83,7 @@ func adminPkGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-settings-permission-denied.json"))
 	})
 }
 
@@ -111,7 +111,7 @@ func TestAdminSyncPkCalendarHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "pk-sync-calendar-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	adminPkGuardScenarios(t, http.MethodPost, path, "pk-sync-calendar")

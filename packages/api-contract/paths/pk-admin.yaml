@@ -38,7 +38,7 @@ adminSyncPkCalendar:
               success:
                 externalValue: ../fixtures/pk-sync-calendar-success.json
               invalidParams:
-                externalValue: ../fixtures/pk-sync-calendar-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -47,7 +47,7 @@ adminSyncPkCalendar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/pk-sync-calendar-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -56,9 +56,9 @@ adminSyncPkCalendar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/pk-sync-calendar-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/pk-sync-calendar-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetPkSyncStatus:
   get:
@@ -97,7 +97,7 @@ adminGetPkSyncStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/pk-sync-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -106,6 +106,6 @@ adminGetPkSyncStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/pk-sync-status-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/pk-sync-status-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

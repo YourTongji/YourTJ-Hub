@@ -263,23 +263,23 @@ func TestModerationTopicStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("topic status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-topic-status-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-topic-status-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, "moderation-topic-status-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without moderation scope returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		assertModerationPermissionDenied(t, conn, router, path, `{"topicId":1201,"action":"ban"}`, "moderation-topic-status-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, `{"topicId":1201,"action":"ban"}`, "permission-denied.json")
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
@@ -289,7 +289,7 @@ func TestModerationTopicStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown topic status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-topic-status-topic-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 
 	t.Run("invalid action stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -299,7 +299,7 @@ func TestModerationTopicStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-topic-status-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -314,23 +314,23 @@ func TestModerationPostStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("post status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-post-status-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-post-status-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, "moderation-post-status-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without moderation scope returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		assertModerationPermissionDenied(t, conn, router, path, `{"postId":1301,"action":"ban"}`, "moderation-post-status-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, `{"postId":1301,"action":"ban"}`, "permission-denied.json")
 	})
 
 	t.Run("unknown post returns business failure", func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestModerationPostStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-post-status-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 }
 
@@ -361,12 +361,12 @@ func TestModerationReportListHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-reports-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("user without moderation access returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertModerationPermissionDenied(t, conn, router, path, `{}`, "moderation-reports-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, `{}`, "permission-denied.json")
 	})
 
 	t.Run("invalid status filter stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -376,7 +376,7 @@ func TestModerationReportListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-reports-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -392,24 +392,24 @@ func TestModerationReportStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("report status status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-report-status-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-report-status-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, "moderation-report-status-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without scope over report target returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
 		prepareContractModerationTopic(t, conn)
 		createContractModerationReport(t, conn)
-		assertModerationPermissionDenied(t, conn, router, path, `{"id":9012,"action":"resolve"}`, "moderation-report-status-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, `{"id":9012,"action":"resolve"}`, "permission-denied.json")
 	})
 
 	t.Run("unknown report returns business failure", func(t *testing.T) {
@@ -440,12 +440,12 @@ func TestModerationLogListHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-logs-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("user without moderation access returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertModerationPermissionDenied(t, conn, router, path, `{}`, "moderation-logs-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, `{}`, "permission-denied.json")
 	})
 }
 
@@ -467,18 +467,18 @@ func TestModerationViewDeletedContentHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumModerationContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, "moderation-view-deleted-content-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, "moderation-view-deleted-content-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without moderation access returns business failure", func(t *testing.T) {
 		conn, router := setupForumModerationContractTest(t)
 		body := `{"contentType":"topic","contentId":1201,"reason":"核对删除原因与原文"}`
-		assertModerationPermissionDenied(t, conn, router, path, body, "moderation-view-deleted-content-permission-denied.json")
+		assertModerationPermissionDenied(t, conn, router, path, body, "permission-denied.json")
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
@@ -489,7 +489,7 @@ func TestModerationViewDeletedContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown topic status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-view-deleted-content-topic-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 
 	t.Run("missing reason stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -499,6 +499,6 @@ func TestModerationViewDeletedContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "moderation-view-deleted-content-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }

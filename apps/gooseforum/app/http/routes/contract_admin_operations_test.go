@@ -80,17 +80,17 @@ func assertAdminOpsPermissionDenied(t *testing.T, conn *gorm.DB, router *gin.Eng
 func adminOpsGuardScenarios(t *testing.T, path string, fixturePrefix string) {
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAdminOpsContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, fixturePrefix+"-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, fixturePrefix+"-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without Admin permission returns 403", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		assertAdminOpsPermissionDenied(t, conn, router, path, fixturePrefix+"-permission-denied.json")
+		assertAdminOpsPermissionDenied(t, conn, router, path, "admin-agent-create-permission-denied.json")
 	})
 }
 
@@ -250,7 +250,7 @@ func TestAdminAgentCreateHTTPContract(t *testing.T) {
 
 	t.Run("missing username stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		serveAdminOpsOK(t, conn, router, path, `{}`, "admin-agent-create-invalid-params.json")
+		serveAdminOpsOK(t, conn, router, path, `{}`, "invalid-params.json")
 	})
 
 	adminOpsGuardScenarios(t, path, "admin-agent-create")
@@ -287,7 +287,7 @@ func TestAdminAgentUpdateHTTPContract(t *testing.T) {
 
 	t.Run("unknown agent returns business failure", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		serveAdminOpsOK(t, conn, router, path, `{"agentId":987654321,"nickname":"X"}`, "admin-agent-update-not-found.json")
+		serveAdminOpsOK(t, conn, router, path, `{"agentId":987654321,"nickname":"X"}`, "admin-agent-disable-not-found.json")
 	})
 
 	t.Run("re-enabling a disabled agent requires rotation first", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestAdminAgentUpdateHTTPContract(t *testing.T) {
 	t.Run("enabled outside 0-1 stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
 		agentID, _ := createContractAgent(t, conn, router, "contract-enb-bot")
-		serveAdminOpsOK(t, conn, router, path, `{"agentId":`+strconv.FormatUint(agentID, 10)+`,"enabled":5}`, "admin-agent-update-invalid-params.json")
+		serveAdminOpsOK(t, conn, router, path, `{"agentId":`+strconv.FormatUint(agentID, 10)+`,"enabled":5}`, "invalid-params.json")
 	})
 
 	adminOpsGuardScenarios(t, path, "admin-agent-update")
@@ -340,7 +340,7 @@ func TestAdminAgentRotateTokenHTTPContract(t *testing.T) {
 
 	t.Run("unknown agent returns business failure", func(t *testing.T) {
 		conn, router := setupAdminOpsContractTest(t)
-		serveAdminOpsOK(t, conn, router, path, `{"agentId":987654321}`, "admin-agent-rotate-token-not-found.json")
+		serveAdminOpsOK(t, conn, router, path, `{"agentId":987654321}`, "admin-agent-disable-not-found.json")
 	})
 
 	adminOpsGuardScenarios(t, path, "admin-agent-rotate-token")

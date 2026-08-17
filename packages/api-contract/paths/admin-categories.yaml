@@ -39,7 +39,7 @@ adminCategoryList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-category-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -48,9 +48,9 @@ adminCategoryList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-category-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-category-list-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminCategorySave:
   post:
@@ -89,7 +89,7 @@ adminCategorySave:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-category-save-success.json
+                externalValue: ../fixtures/result-true.json
               nameRequired:
                 externalValue: ../fixtures/admin-category-save-name-required.json
               dataNotFound:
@@ -102,7 +102,7 @@ adminCategorySave:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-category-save-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -111,9 +111,9 @@ adminCategorySave:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-category-save-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-category-save-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminCategoryDelete:
   post:
@@ -149,7 +149,7 @@ adminCategoryDelete:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-category-delete-success.json
+                externalValue: ../fixtures/result-true.json
               categoryNotFound:
                 externalValue: ../fixtures/admin-category-delete-not-found.json
               keepOne:
@@ -164,7 +164,7 @@ adminCategoryDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-category-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -173,7 +173,7 @@ adminCategoryDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-category-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
@@ -209,7 +209,7 @@ adminGlobalModeratorList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-global-moderator-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -218,9 +218,9 @@ adminGlobalModeratorList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-global-moderator-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-global-moderator-list-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminGlobalModeratorAdd:
   post:
@@ -256,13 +256,13 @@ adminGlobalModeratorAdd:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-global-moderator-add-success.json
+                externalValue: ../fixtures/result-true.json
               userRequired:
-                externalValue: ../fixtures/admin-global-moderator-add-user-required.json
+                externalValue: ../fixtures/admin-category-moderator-add-user-required.json
               userNotFound:
-                externalValue: ../fixtures/admin-global-moderator-add-user-not-found.json
+                externalValue: ../fixtures/admin-category-moderator-add-user-not-found.json
               agentRoleNotAllowed:
-                externalValue: ../fixtures/admin-global-moderator-add-agent-role-not-allowed.json
+                externalValue: ../fixtures/admin-category-moderator-add-agent-role-not-allowed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -271,7 +271,7 @@ adminGlobalModeratorAdd:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-global-moderator-add-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -280,9 +280,9 @@ adminGlobalModeratorAdd:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-global-moderator-add-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-global-moderator-add-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminGlobalModeratorDelete:
   post:
@@ -316,11 +316,11 @@ adminGlobalModeratorDelete:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-global-moderator-delete-success.json
+                externalValue: ../fixtures/result-true.json
               moderatorNotFound:
-                externalValue: ../fixtures/admin-global-moderator-delete-not-found.json
+                externalValue: ../fixtures/admin-category-moderator-delete-not-found.json
               invalidParams:
-                externalValue: ../fixtures/admin-global-moderator-delete-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -329,7 +329,7 @@ adminGlobalModeratorDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-global-moderator-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -338,9 +338,9 @@ adminGlobalModeratorDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-global-moderator-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-global-moderator-delete-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminCategoryModeratorAdd:
   post:
@@ -380,9 +380,9 @@ adminCategoryModeratorAdd:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-category-moderator-add-success.json
+                externalValue: ../fixtures/result-true.json
               categoryNotFound:
-                externalValue: ../fixtures/admin-category-moderator-add-category-not-found.json
+                externalValue: ../fixtures/admin-category-delete-not-found.json
               userRequired:
                 externalValue: ../fixtures/admin-category-moderator-add-user-required.json
               userNotFound:
@@ -397,7 +397,7 @@ adminCategoryModeratorAdd:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-category-moderator-add-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -406,9 +406,9 @@ adminCategoryModeratorAdd:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-category-moderator-add-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-category-moderator-add-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminCategoryModeratorDelete:
   post:
@@ -443,7 +443,7 @@ adminCategoryModeratorDelete:
               $ref: ../components/schemas.yaml#/AdminBoolResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-category-moderator-delete-success.json
+                externalValue: ../fixtures/result-true.json
               moderatorNotFound:
                 externalValue: ../fixtures/admin-category-moderator-delete-not-found.json
       '401':
@@ -454,7 +454,7 @@ adminCategoryModeratorDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-category-moderator-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -463,6 +463,6 @@ adminCategoryModeratorDelete:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-category-moderator-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-category-moderator-delete-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json

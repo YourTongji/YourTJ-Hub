@@ -70,7 +70,7 @@ func adminIntegrationsGuardScenarios(t *testing.T, method, path, fixturePrefix s
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -83,7 +83,7 @@ func adminIntegrationsGuardScenarios(t *testing.T, method, path, fixturePrefix s
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
@@ -93,7 +93,7 @@ func adminIntegrationsGuardScenarios(t *testing.T, method, path, fixturePrefix s
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-settings-permission-denied.json"))
 	})
 }
 
@@ -153,7 +153,7 @@ func TestAdminSaveMailSettingsHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enableMail":true,"smtpHost":"smtp.new.example.test","smtpPort":587,"useSSL":false,"smtpUsername":"u","smtpPassword":"p","fromName":"新站务","fromEmail":"hi@new.example.test"}}`,
-			"admin-save-mail-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.EmailSettings, pageConfig.MailSettingsConfig{})
 		if stored.SmtpHost != "smtp.new.example.test" || stored.SmtpPort != 587 || stored.FromName != "新站务" {
 			t.Fatalf("stored mail settings = %#v, want submitted values", stored)
@@ -170,7 +170,7 @@ func TestAdminTestMailConnectionHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"smtpHost":"smtp.contract.example.test"}}`,
-			"admin-test-mail-connection-invalid-params.json")
+			"invalid-params.json")
 	})
 
 	t.Run("unreachable SMTP reports a testFailed result inside the success envelope", func(t *testing.T) {
@@ -221,7 +221,7 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"provider":"local","endpoint":"","bucket":"","region":"","bucketLookup":"","secure":false,"accessKey":"","secretKey":"","publicUrlPrefix":""}}`,
-			"admin-save-storage-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.StorageSettingsPage, pageConfig.StorageSettings{})
 		if stored.Provider != "local" {
 			t.Fatalf("stored storage settings = %#v, want provider local", stored)
@@ -239,7 +239,7 @@ func TestAdminSaveStorageSettingsHTTPContract(t *testing.T) {
 		conn, router := setupAdminIntegrationsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"provider":"ftp"}}`,
-			"admin-save-storage-settings-invalid-params.json")
+			"invalid-params.json")
 	})
 
 	adminIntegrationsGuardScenarios(t, http.MethodPost, path, "admin-save-storage-settings")
@@ -321,7 +321,7 @@ func TestAdminSaveMcpSettingsHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enabled":true,"writes":false}}`,
-			"admin-save-mcp-settings-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.MCPSettings, pageConfig.MCPSettingsConfig{})
 		if !stored.Enabled || stored.Writes {
 			t.Fatalf("stored MCP settings = %#v, want submitted values", stored)

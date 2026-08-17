@@ -100,7 +100,7 @@ func TestMyContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("my-content invalid status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "my-content-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("malformed cursorId returns strict 400", func(t *testing.T) {
@@ -110,7 +110,7 @@ func TestMyContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("my-content parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "my-content-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
@@ -119,7 +119,7 @@ func TestMyContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("my-content unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "my-content-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -143,7 +143,7 @@ func TestDeletedContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("deleted-content invalid status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "deleted-content-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("malformed cursorId returns strict 400", func(t *testing.T) {
@@ -153,7 +153,7 @@ func TestDeletedContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("deleted-content parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "deleted-content-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
@@ -162,7 +162,7 @@ func TestDeletedContentListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("deleted-content unauthenticated status = %d, want 401", recorder.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "deleted-content-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -176,7 +176,7 @@ func TestRestoreContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-restore status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-restore-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-restore-success.json"))
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
@@ -186,7 +186,7 @@ func TestRestoreContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-restore not found status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-restore-topic-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 
 	t.Run("active topic is not recoverable", func(t *testing.T) {
@@ -197,22 +197,22 @@ func TestRestoreContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-restore not recoverable status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-restore-not-recoverable.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-restore-not-recoverable.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-restore", `{}`, "content-restore-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-restore", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-restore", `{}`, "content-restore-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-restore", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-restore", "{", "content-restore-rate-limited.json", middleware.RateLimitInteract)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-restore", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 
@@ -253,17 +253,17 @@ func TestBatchDeleteContentHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-batch-delete", `{}`, "content-batch-delete-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-batch-delete", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-batch-delete", `{}`, "content-batch-delete-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-batch-delete", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-batch-delete", "{", "content-batch-delete-rate-limited.json", middleware.RateLimitInteract)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-batch-delete", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 
@@ -288,22 +288,22 @@ func TestPurgeContentHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-purge not recoverable status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-purge-not-recoverable.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-restore-not-recoverable.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-purge", `{}`, "content-purge-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-purge", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-purge", `{}`, "content-purge-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-purge", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-purge", "{", "content-purge-rate-limited.json", middleware.RateLimitInteract)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-purge", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 
@@ -321,17 +321,17 @@ func TestPrivacyEraseContentHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-privacy-erase", `{}`, "content-privacy-erase-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-privacy-erase", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-privacy-erase", `{}`, "content-privacy-erase-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-privacy-erase", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-privacy-erase", "{", "content-privacy-erase-rate-limited.json", middleware.RateLimitInteract)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-privacy-erase", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 
@@ -343,7 +343,7 @@ func TestReportContentEventHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-event status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-event-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("backend-owned event types are rejected", func(t *testing.T) {
@@ -353,22 +353,22 @@ func TestReportContentEventHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("content-event invalid status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "content-event-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-event", `{}`, "content-event-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/content-event", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-event", `{}`, "content-event-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/content-event", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-event", "{", "content-event-rate-limited.json", middleware.RateLimitInteract)
+		assertInteractionRateLimited(t, conn, router, "/api/forum/user/content-event", "{", "account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 }
 
@@ -381,7 +381,7 @@ func TestAccountCloseHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("account-close status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-close-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 		// 注销后 token_version 自增：旧会话立即失效。
 		followUp := serveAuthSecurityJSON(router, http.MethodGet, "/api/forum/user/my-content?contentType=topic", "", token)
 		if followUp.Code != http.StatusUnauthorized {
@@ -401,12 +401,12 @@ func TestAccountCloseHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupUserContentContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/user/account-close", `{}`, "account-close-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/user/account-close", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupUserContentContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/user/account-close", `{}`, "account-close-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/user/account-close", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {

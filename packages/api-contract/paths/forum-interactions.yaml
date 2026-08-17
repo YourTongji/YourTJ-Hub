@@ -26,11 +26,11 @@ followUser:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/follow-user-success.json
+                externalValue: ../fixtures/result-true.json
               userNotFound:
-                externalValue: ../fixtures/follow-user-user-not-found.json
+                externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
               invalidParams:
-                externalValue: ../fixtures/follow-user-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -39,7 +39,7 @@ followUser:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/follow-user-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -48,7 +48,7 @@ followUser:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/follow-user-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -63,7 +63,7 @@ followUser:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/follow-user-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 createReport:
   post:
@@ -96,11 +96,11 @@ createReport:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/report-create-success.json
+                externalValue: ../fixtures/result-true.json
               targetInvalid:
-                externalValue: ../fixtures/report-create-target-invalid.json
+                externalValue: ../fixtures/course-review-report-target-invalid.json
               duplicate:
-                externalValue: ../fixtures/report-create-duplicate.json
+                externalValue: ../fixtures/course-review-report-duplicate.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -109,7 +109,7 @@ createReport:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/report-create-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -118,7 +118,7 @@ createReport:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/report-create-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -133,4 +133,4 @@ createReport:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/report-create-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json

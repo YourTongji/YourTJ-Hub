@@ -50,7 +50,7 @@ myContentList:
               posts:
                 externalValue: ../fixtures/my-content-posts-success.json
               invalidParams:
-                externalValue: ../fixtures/my-content-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '400':
         description: Malformed query parameters.
         content:
@@ -59,7 +59,7 @@ myContentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/my-content-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -68,7 +68,7 @@ myContentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/my-content-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 deletedContentList:
   get:
@@ -119,7 +119,7 @@ deletedContentList:
               success:
                 externalValue: ../fixtures/deleted-content-success.json
               invalidParams:
-                externalValue: ../fixtures/deleted-content-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '400':
         description: Malformed query parameters.
         content:
@@ -128,7 +128,7 @@ deletedContentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/deleted-content-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -137,7 +137,7 @@ deletedContentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/deleted-content-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 restoreContent:
   post:
@@ -176,11 +176,11 @@ restoreContent:
               $ref: ../components/schemas.yaml#/ContentLifecycleResponse
             examples:
               success:
-                externalValue: ../fixtures/content-restore-success.json
+                externalValue: ../fixtures/admin-topic-restore-success.json
               topicNotFound:
-                externalValue: ../fixtures/content-restore-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               notRecoverable:
-                externalValue: ../fixtures/content-restore-not-recoverable.json
+                externalValue: ../fixtures/admin-topic-restore-not-recoverable.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -189,7 +189,7 @@ restoreContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/content-restore-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -198,7 +198,7 @@ restoreContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/content-restore-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -213,7 +213,7 @@ restoreContent:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/content-restore-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 batchDeleteContent:
   post:
@@ -263,7 +263,7 @@ batchDeleteContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/content-batch-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -272,7 +272,7 @@ batchDeleteContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/content-batch-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -287,7 +287,7 @@ batchDeleteContent:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/content-batch-delete-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 purgeContent:
   post:
@@ -331,7 +331,7 @@ purgeContent:
               success:
                 externalValue: ../fixtures/content-purge-success.json
               notRecoverable:
-                externalValue: ../fixtures/content-purge-not-recoverable.json
+                externalValue: ../fixtures/admin-topic-restore-not-recoverable.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -340,7 +340,7 @@ purgeContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/content-purge-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -349,7 +349,7 @@ purgeContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/content-purge-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -364,7 +364,7 @@ purgeContent:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/content-purge-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 privacyEraseContent:
   post:
@@ -410,7 +410,7 @@ privacyEraseContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/content-privacy-erase-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -419,7 +419,7 @@ privacyEraseContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/content-privacy-erase-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -434,7 +434,7 @@ privacyEraseContent:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/content-privacy-erase-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 reportContentEvent:
   post:
@@ -469,9 +469,9 @@ reportContentEvent:
               $ref: ../components/schemas.yaml#/ContentActionResponse
             examples:
               success:
-                externalValue: ../fixtures/content-event-success.json
+                externalValue: ../fixtures/result-true.json
               invalidParams:
-                externalValue: ../fixtures/content-event-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -480,7 +480,7 @@ reportContentEvent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/content-event-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -489,7 +489,7 @@ reportContentEvent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/content-event-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -504,7 +504,7 @@ reportContentEvent:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/content-event-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 closeAccount:
   post:
@@ -543,7 +543,7 @@ closeAccount:
               $ref: ../components/schemas.yaml#/ContentActionResponse
             examples:
               success:
-                externalValue: ../fixtures/account-close-success.json
+                externalValue: ../fixtures/result-true.json
               invalidCredentials:
                 externalValue: ../fixtures/account-close-invalid-credentials.json
       '401':
@@ -554,7 +554,7 @@ closeAccount:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/account-close-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -563,7 +563,7 @@ closeAccount:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/account-close-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:

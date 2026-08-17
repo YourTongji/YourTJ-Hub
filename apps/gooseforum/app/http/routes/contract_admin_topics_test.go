@@ -76,17 +76,17 @@ func assertAdminTopicsPermissionDenied(t *testing.T, conn *gorm.DB, router *gin.
 func adminTopicsGuardScenarios(t *testing.T, path string, fixturePrefix string) {
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAdminTopicsContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, fixturePrefix+"-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, fixturePrefix+"-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without TopicsManager returns 403", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		assertAdminTopicsPermissionDenied(t, conn, router, path, fixturePrefix+"-permission-denied.json")
+		assertAdminTopicsPermissionDenied(t, conn, router, path, "admin-category-delete-permission-denied.json")
 	})
 }
 
@@ -125,7 +125,7 @@ func TestAdminTopicSourceHTTPContract(t *testing.T) {
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321}`, "admin-topic-source-topic-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321}`, "admin-topic-categories-edit-topic-not-found.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-source")
@@ -137,17 +137,17 @@ func TestAdminTopicEditHTTPContract(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"processStatus":1}`, "admin-topic-edit-success.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"processStatus":1}`, "admin-post-delete-success.json")
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"processStatus":1}`, "admin-topic-edit-topic-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"processStatus":1}`, "admin-topic-categories-edit-topic-not-found.json")
 	})
 
 	t.Run("invalid processStatus stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"processStatus":5}`, "admin-topic-edit-invalid-params.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"processStatus":5}`, "invalid-params.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-edit")
@@ -159,7 +159,7 @@ func TestAdminTopicDeleteHTTPContract(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"reason":"违反社区规范"}`, "admin-topic-delete-success.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"reason":"违反社区规范"}`, "admin-post-delete-success.json")
 	})
 
 	t.Run("wiki topic returns operation denied", func(t *testing.T) {
@@ -175,12 +175,12 @@ func TestAdminTopicDeleteHTTPContract(t *testing.T) {
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"reason":"违反社区规范"}`, "admin-topic-delete-topic-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"reason":"违反社区规范"}`, "admin-topic-categories-edit-topic-not-found.json")
 	})
 
 	t.Run("missing reason stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201}`, "admin-topic-delete-invalid-params.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201}`, "invalid-params.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-delete")
@@ -204,7 +204,7 @@ func TestAdminTopicRestoreHTTPContract(t *testing.T) {
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321}`, "admin-topic-restore-topic-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321}`, "admin-topic-categories-edit-topic-not-found.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-restore")
@@ -227,7 +227,7 @@ func TestAdminPostDeleteHTTPContract(t *testing.T) {
 
 	t.Run("missing reason stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"postId":1302}`, "admin-post-delete-invalid-params.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"postId":1302}`, "invalid-params.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-post-delete")
@@ -239,17 +239,17 @@ func TestAdminTopicPinEditHTTPContract(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"pinWeight":10}`, "admin-topic-pin-edit-success.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"pinWeight":10}`, "admin-post-delete-success.json")
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"pinWeight":10}`, "admin-topic-pin-edit-topic-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":987654321,"pinWeight":10}`, "admin-topic-categories-edit-topic-not-found.json")
 	})
 
 	t.Run("pinWeight out of range stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"pinWeight":1000001}`, "admin-topic-pin-edit-invalid-params.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"pinWeight":1000001}`, "invalid-params.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-pin-edit")
@@ -261,13 +261,13 @@ func TestAdminTopicCategoriesEditHTTPContract(t *testing.T) {
 	t.Run("success", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[3]}`, "admin-topic-categories-edit-success.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[3]}`, "admin-post-delete-success.json")
 	})
 
 	t.Run("unknown category returns business failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
 		prepareContractModerationTopic(t, conn)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[999999999]}`, "admin-topic-categories-edit-category-not-found.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[999999999]}`, "admin-category-delete-not-found.json")
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
@@ -278,7 +278,7 @@ func TestAdminTopicCategoriesEditHTTPContract(t *testing.T) {
 
 	t.Run("empty category list stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminTopicsContractTest(t)
-		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[]}`, "admin-topic-categories-edit-invalid-params.json")
+		serveAdminTopicsOK(t, conn, router, path, `{"topicId":1201,"categoryId":[]}`, "invalid-params.json")
 	})
 
 	adminTopicsGuardScenarios(t, path, "admin-topic-categories-edit")

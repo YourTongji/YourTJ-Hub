@@ -113,7 +113,7 @@ func adminUsersGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -126,7 +126,7 @@ func adminUsersGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without UserManager returns 403", func(t *testing.T) {
@@ -136,7 +136,7 @@ func adminUsersGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-get-all-role-item-permission-denied.json"))
 	})
 }
 
@@ -214,7 +214,7 @@ func TestAdminUserEditHTTPContract(t *testing.T) {
 		conn, router := setupAdminUsersContractTest(t)
 		createContractEditableUser(t, conn, contractUserEditTargetID, "edit_target")
 		serveAdminUsersOK(t, conn, router, http.MethodPost, path,
-			`{"userId":8012,"status":1,"validate":1,"roleId":0}`, "admin-user-edit-success.json")
+			`{"userId":8012,"status":1,"validate":1,"roleId":0}`, "admin-agent-disable-success.json")
 		target, err := users.Get(contractUserEditTargetID)
 		if err != nil || target.IsFrozen != users.StatusFrozen {
 			t.Fatalf("target user IsFrozen = %v, want frozen: %v", target.IsFrozen, err)
@@ -234,7 +234,7 @@ func TestAdminUserEditHTTPContract(t *testing.T) {
 			t.Fatalf("mark contract user as bot: %v", err)
 		}
 		serveAdminUsersOK(t, conn, router, http.MethodPost, path,
-			`{"userId":8013,"status":0,"validate":1,"roleId":9001}`, "admin-user-edit-agent-role-not-allowed.json")
+			`{"userId":8013,"status":0,"validate":1,"roleId":9001}`, "admin-category-moderator-add-agent-role-not-allowed.json")
 	})
 
 	adminUsersGuardScenarios(t, http.MethodPost, path, "admin-user-edit")
@@ -264,7 +264,7 @@ func TestAdminSaveUserBadgesHTTPContract(t *testing.T) {
 			conn.Where("user_id = ?", contractBadgeTargetID).Delete(&eventNotification.Entity{})
 		})
 		serveAdminUsersOK(t, conn, router, http.MethodPost, path,
-			`{"userId":8014,"badgeCodes":["early_member"]}`, "admin-save-user-badges-success.json")
+			`{"userId":8014,"badgeCodes":["early_member"]}`, "admin-agent-disable-success.json")
 		active := userBadges.GetActiveByUserID(contractBadgeTargetID)
 		if len(active) != 1 || active[0].BadgeCode != badgeservice.CodeEarlyMember {
 			t.Fatalf("active badges = %#v, want early_member", active)

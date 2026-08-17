@@ -67,7 +67,7 @@ func adminDataGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -80,7 +80,7 @@ func adminDataGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
@@ -90,7 +90,7 @@ func adminDataGuardScenarios(t *testing.T, method, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-settings-permission-denied.json"))
 	})
 }
 
@@ -198,7 +198,7 @@ func TestAdminCreateExportTaskHTTPContract(t *testing.T) {
 	t.Run("unknown format fails request validation", func(t *testing.T) {
 		conn, router := setupAdminDataContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"tables":["users"],"format":"yaml"}`, "admin-data-export-invalid-params.json")
+			`{"tables":["users"],"format":"yaml"}`, "invalid-params.json")
 	})
 
 	adminDataGuardScenarios(t, http.MethodPost, path, "admin-data-export")

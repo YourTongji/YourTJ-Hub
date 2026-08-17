@@ -32,7 +32,7 @@ adminGetFriendLinks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-friend-links-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -41,9 +41,9 @@ adminGetFriendLinks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-friend-links-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-friend-links-permission-denied.json
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
 
 adminSaveFriendLinks:
   post:
@@ -77,7 +77,7 @@ adminSaveFriendLinks:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-friend-links-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -86,7 +86,7 @@ adminSaveFriendLinks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-friend-links-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -95,9 +95,9 @@ adminSaveFriendLinks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-friend-links-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-friend-links-permission-denied.json
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
 
 adminGetSponsors:
   get:
@@ -133,7 +133,7 @@ adminGetSponsors:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-sponsors-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -142,9 +142,9 @@ adminGetSponsors:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-sponsors-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-sponsors-permission-denied.json
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
 
 adminSaveSponsors:
   post:
@@ -178,7 +178,7 @@ adminSaveSponsors:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-sponsors-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -187,7 +187,7 @@ adminSaveSponsors:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-sponsors-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -196,9 +196,9 @@ adminSaveSponsors:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-sponsors-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-sponsors-permission-denied.json
+                externalValue: ../fixtures/admin-announcement-permission-denied.json
 
 adminGetAnnouncement:
   get:
@@ -235,7 +235,7 @@ adminGetAnnouncement:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-announcement-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -244,7 +244,7 @@ adminGetAnnouncement:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-announcement-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-announcement-permission-denied.json
 
@@ -281,7 +281,7 @@ adminSaveAnnouncement:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-announcement-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -290,7 +290,7 @@ adminSaveAnnouncement:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-announcement-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the PageManager permission.
         content:
@@ -299,6 +299,6 @@ adminSaveAnnouncement:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-announcement-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-announcement-permission-denied.json
+                externalValue: ../fixtures/admin-announcement-permission-denied.json

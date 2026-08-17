@@ -54,7 +54,7 @@ getUserCard:
               success:
                 externalValue: ../fixtures/user-card-success.json
               userNotFound:
-                externalValue: ../fixtures/user-card-user-not-found.json
+                externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
       '400':
         description: Missing or malformed userId query parameter.
         content:
@@ -63,7 +63,7 @@ getUserCard:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/user-card-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
 
 setUserInfo:
   post:
@@ -95,7 +95,7 @@ setUserInfo:
               $ref: ../components/schemas.yaml#/UserUpdateResponse
             examples:
               success:
-                externalValue: ../fixtures/set-user-info-success.json
+                externalValue: ../fixtures/set-user-email-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -104,7 +104,7 @@ setUserInfo:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/set-user-info-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -113,7 +113,7 @@ setUserInfo:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/set-user-info-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 setUserProfileCover:
   post:
@@ -144,7 +144,7 @@ setUserProfileCover:
               $ref: ../components/schemas.yaml#/UserUpdateResponse
             examples:
               success:
-                externalValue: ../fixtures/set-user-profile-cover-success.json
+                externalValue: ../fixtures/set-user-email-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -153,7 +153,7 @@ setUserProfileCover:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/set-user-profile-cover-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -162,7 +162,7 @@ setUserProfileCover:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/set-user-profile-cover-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 setUserEmail:
   post:
@@ -200,7 +200,7 @@ setUserEmail:
               success:
                 externalValue: ../fixtures/set-user-email-success.json
               invalidParams:
-                externalValue: ../fixtures/set-user-email-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -209,7 +209,7 @@ setUserEmail:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/set-user-email-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -218,7 +218,7 @@ setUserEmail:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/set-user-email-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Email-change rate limit (action `email.change`) exceeded.
         headers:
@@ -271,7 +271,7 @@ resendActivationEmail:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/resend-activation-email-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -280,7 +280,7 @@ resendActivationEmail:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/resend-activation-email-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 setUserName:
   post:
@@ -313,7 +313,7 @@ setUserName:
               $ref: ../components/schemas.yaml#/UserUpdateResponse
             examples:
               success:
-                externalValue: ../fixtures/set-user-name-success.json
+                externalValue: ../fixtures/set-user-email-success.json
               invalidUsername:
                 externalValue: ../fixtures/set-user-name-invalid.json
       '401':
@@ -324,7 +324,7 @@ setUserName:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/set-user-name-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -333,7 +333,7 @@ setUserName:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/set-user-name-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 setPresetAvatar:
   post:
@@ -367,7 +367,7 @@ setPresetAvatar:
               success:
                 externalValue: ../fixtures/set-preset-avatar-success.json
               invalidParams:
-                externalValue: ../fixtures/set-preset-avatar-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -376,7 +376,7 @@ setPresetAvatar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/set-preset-avatar-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -385,7 +385,7 @@ setPresetAvatar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/set-preset-avatar-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 wearBadge:
   post:
@@ -416,9 +416,9 @@ wearBadge:
               $ref: ../components/schemas.yaml#/UserUpdateResponse
             examples:
               success:
-                externalValue: ../fixtures/wear-badge-success.json
+                externalValue: ../fixtures/set-user-email-success.json
               invalidParams:
-                externalValue: ../fixtures/wear-badge-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -427,7 +427,7 @@ wearBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/wear-badge-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -436,7 +436,7 @@ wearBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/wear-badge-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 uploadAvatar:
   post:
@@ -478,7 +478,7 @@ uploadAvatar:
               success:
                 externalValue: ../fixtures/upload-avatar-success.json
               fileMissing:
-                externalValue: ../fixtures/upload-avatar-file-missing.json
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -487,7 +487,7 @@ uploadAvatar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/upload-avatar-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`).
         content:
@@ -496,7 +496,7 @@ uploadAvatar:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/upload-avatar-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Upload rate limit (action `upload`) exceeded.
         headers:
@@ -559,7 +559,7 @@ changePassword:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/change-password-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -568,7 +568,7 @@ changePassword:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/change-password-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Password-change rate limit (action `password.change`) exceeded.
         headers:
@@ -617,7 +617,7 @@ getOAuthBindings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/oauth-bindings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 unbindOAuth:
   post:
@@ -660,7 +660,7 @@ unbindOAuth:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/oauth-unbind-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -669,4 +669,4 @@ unbindOAuth:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/oauth-unbind-forbidden.json
+                externalValue: ../fixtures/account-frozen.json

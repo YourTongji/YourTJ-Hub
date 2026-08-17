@@ -204,7 +204,7 @@ func TestUserCardHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown user status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-user-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-save-user-badges-user-not-found.json"))
 	})
 
 	t.Run("non-numeric userId returns strict 400", func(t *testing.T) {
@@ -213,7 +213,7 @@ func TestUserCardHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "user-card-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 }
 
@@ -226,17 +226,17 @@ func TestSetUserInfoHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("set user info status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-info-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-email-success.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/set-user-info", `{}`, "set-user-info-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/set-user-info", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/set-user-info", `{}`, "set-user-info-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/set-user-info", `{}`, "account-frozen.json")
 	})
 }
 
@@ -253,17 +253,17 @@ func TestSetUserProfileCoverHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("set profile cover status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-profile-cover-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-email-success.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/set-user-profile-cover", `{}`, "set-user-profile-cover-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/set-user-profile-cover", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/set-user-profile-cover", `{}`, "set-user-profile-cover-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/set-user-profile-cover", `{}`, "account-frozen.json")
 	})
 }
 
@@ -281,12 +281,12 @@ func TestSetUserEmailHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/set-user-email", `{}`, "set-user-email-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/set-user-email", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/set-user-email", `{}`, "set-user-email-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/set-user-email", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -303,7 +303,7 @@ func TestSetUserEmailHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid email status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-email-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -332,12 +332,12 @@ func TestResendActivationEmailHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/resend-activation-email", `{}`, "resend-activation-email-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/resend-activation-email", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/resend-activation-email", `{}`, "resend-activation-email-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/resend-activation-email", `{}`, "account-frozen.json")
 	})
 
 	t.Run("consecutive resend hits cooldown", func(t *testing.T) {
@@ -368,17 +368,17 @@ func TestSetUserNameHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("set username status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-name-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-email-success.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/set-user-name", `{}`, "set-user-name-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/set-user-name", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/set-user-name", `{}`, "set-user-name-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/set-user-name", `{}`, "account-frozen.json")
 	})
 
 	t.Run("too short username returns business failure", func(t *testing.T) {
@@ -405,12 +405,12 @@ func TestSetPresetAvatarHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/set-preset-avatar", `{}`, "set-preset-avatar-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/set-preset-avatar", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/set-preset-avatar", `{}`, "set-preset-avatar-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/set-preset-avatar", `{}`, "account-frozen.json")
 	})
 
 	t.Run("non-preset avatar stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -420,7 +420,7 @@ func TestSetPresetAvatarHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid preset avatar status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-preset-avatar-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -442,17 +442,17 @@ func TestWearBadgeHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("wear badge status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "wear-badge-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "set-user-email-success.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/wear-badge", `{}`, "wear-badge-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/wear-badge", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/wear-badge", `{}`, "wear-badge-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/wear-badge", `{}`, "account-frozen.json")
 	})
 
 	t.Run("unknown badge stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -462,7 +462,7 @@ func TestWearBadgeHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown badge status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "wear-badge-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -503,7 +503,7 @@ func TestUploadAvatarHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "upload-avatar-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -516,7 +516,7 @@ func TestUploadAvatarHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "upload-avatar-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -546,7 +546,7 @@ func TestUploadAvatarHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("missing file status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "upload-avatar-file-missing.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-img-upload-file-missing.json"))
 	})
 }
 
@@ -569,12 +569,12 @@ func TestChangePasswordHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/change-password", `{}`, "change-password-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/change-password", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/change-password", `{}`, "change-password-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/change-password", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -622,7 +622,7 @@ func TestOAuthBindingsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "oauth-bindings-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -643,12 +643,12 @@ func TestUnbindOAuthHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAccountContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/auth/github/unbind", `{}`, "oauth-unbind-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/auth/github/unbind", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAccountContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/auth/github/unbind", `{}`, "oauth-unbind-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/auth/github/unbind", `{}`, "account-frozen.json")
 	})
 
 	t.Run("last login method returns business failure", func(t *testing.T) {

@@ -101,17 +101,17 @@ func serveAdminCategoriesRaw(t *testing.T, conn *gorm.DB, router *gin.Engine, pa
 func adminCategoriesGuardScenarios(t *testing.T, path, fixturePrefix string) {
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAdminCategoriesContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, fixturePrefix+"-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, fixturePrefix+"-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without TopicsManager returns 403", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		assertAdminTopicsPermissionDenied(t, conn, router, path, fixturePrefix+"-permission-denied.json")
+		assertAdminTopicsPermissionDenied(t, conn, router, path, "admin-category-delete-permission-denied.json")
 	})
 }
 
@@ -194,7 +194,7 @@ func TestAdminCategorySaveHTTPContract(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		serveAdminCategoriesOK(t, conn, router, path,
 			`{"id":0,"category":"契约新板块","desc":"契约测试板块","slug":"contract-board","sort":9}`,
-			"admin-category-save-success.json")
+			"result-true.json")
 		var created category.Entity
 		if err := conn.Where("slug = ?", "contract-board").First(&created).Error; err != nil {
 			t.Fatalf("created category not found: %v", err)
@@ -230,7 +230,7 @@ func TestAdminCategoryDeleteHTTPContract(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		seedContractCategory(t, conn, contractCategoryID, "学习交流", "课程与学习讨论", "book", "#3b82f6", "study", 1)
 		seedContractCategory(t, conn, contractCategorySecondID, "生活广场", "校园生活分享", "life", "#f59e0b", "life", 2)
-		serveAdminCategoriesOK(t, conn, router, path, `{"id":5002}`, "admin-category-delete-success.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"id":5002}`, "result-true.json")
 		if got := category.Get(contractCategorySecondID); got.Id != 0 {
 			t.Fatalf("category %d still readable after delete", contractCategorySecondID)
 		}
@@ -286,7 +286,7 @@ func TestAdminGlobalModeratorAddHTTPContract(t *testing.T) {
 	t.Run("success grants the global scope", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		createContractModeratorCandidate(t, conn, contractGlobalModTargetID, "global_mod_target", false)
-		serveAdminCategoriesOK(t, conn, router, path, `{"userId":8022}`, "admin-global-moderator-add-success.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"userId":8022}`, "result-true.json")
 		granted := moderators.GetByUserScope(contractGlobalModTargetID, moderators.ScopeGlobal, 0)
 		if granted.Id == 0 || granted.Status != moderators.StatusEnabled {
 			t.Fatalf("global moderator grant = %#v, want enabled row", granted)
@@ -298,18 +298,18 @@ func TestAdminGlobalModeratorAddHTTPContract(t *testing.T) {
 
 	t.Run("missing user reference returns business failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		serveAdminCategoriesOK(t, conn, router, path, `{}`, "admin-global-moderator-add-user-required.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{}`, "admin-category-moderator-add-user-required.json")
 	})
 
 	t.Run("unknown user returns business failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		serveAdminCategoriesOK(t, conn, router, path, `{"userId":987654321}`, "admin-global-moderator-add-user-not-found.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"userId":987654321}`, "admin-category-moderator-add-user-not-found.json")
 	})
 
 	t.Run("bot account returns business failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		createContractModeratorCandidate(t, conn, contractGlobalModBotID, "global_mod_bot", true)
-		serveAdminCategoriesOK(t, conn, router, path, `{"userId":8023}`, "admin-global-moderator-add-agent-role-not-allowed.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"userId":8023}`, "admin-category-moderator-add-agent-role-not-allowed.json")
 	})
 
 	adminCategoriesGuardScenarios(t, path, "admin-global-moderator-add")
@@ -322,7 +322,7 @@ func TestAdminGlobalModeratorDeleteHTTPContract(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		createContractModeratorCandidate(t, conn, contractModeratorUserID, "mod_user", false)
 		seedContractModerator(t, conn, contractGlobalModeratorID, contractModeratorUserID, moderators.ScopeGlobal, 0)
-		serveAdminCategoriesOK(t, conn, router, path, `{"id":7002}`, "admin-global-moderator-delete-success.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"id":7002}`, "result-true.json")
 		if got := moderators.Get(contractGlobalModeratorID); got.Id != 0 {
 			t.Fatalf("moderator %d still readable after delete", contractGlobalModeratorID)
 		}
@@ -330,12 +330,12 @@ func TestAdminGlobalModeratorDeleteHTTPContract(t *testing.T) {
 
 	t.Run("unknown moderator returns business failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		serveAdminCategoriesOK(t, conn, router, path, `{"id":987654321}`, "admin-global-moderator-delete-not-found.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"id":987654321}`, "admin-category-moderator-delete-not-found.json")
 	})
 
 	t.Run("missing id stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
-		serveAdminCategoriesOK(t, conn, router, path, `{}`, "admin-global-moderator-delete-invalid-params.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{}`, "invalid-params.json")
 	})
 
 	adminCategoriesGuardScenarios(t, path, "admin-global-moderator-delete")
@@ -349,7 +349,7 @@ func TestAdminCategoryModeratorAddHTTPContract(t *testing.T) {
 		createContractModeratorCandidate(t, conn, contractCategoryModTargetID, "cat_mod_target", false)
 		seedContractCategory(t, conn, contractCategoryID, "学习交流", "课程与学习讨论", "book", "#3b82f6", "study", 1)
 		serveAdminCategoriesOK(t, conn, router, path,
-			`{"categoryId":5001,"userId":8024}`, "admin-category-moderator-add-success.json")
+			`{"categoryId":5001,"userId":8024}`, "result-true.json")
 		granted := moderators.GetByUserScope(contractCategoryModTargetID, moderators.ScopeCategory, contractCategoryID)
 		if granted.Id == 0 || granted.Status != moderators.StatusEnabled {
 			t.Fatalf("category moderator grant = %#v, want enabled row", granted)
@@ -362,7 +362,7 @@ func TestAdminCategoryModeratorAddHTTPContract(t *testing.T) {
 	t.Run("unknown category returns business failure", func(t *testing.T) {
 		conn, router := setupAdminCategoriesContractTest(t)
 		serveAdminCategoriesOK(t, conn, router, path,
-			`{"categoryId":987654321,"userId":8024}`, "admin-category-moderator-add-category-not-found.json")
+			`{"categoryId":987654321,"userId":8024}`, "admin-category-delete-not-found.json")
 	})
 
 	t.Run("missing user reference returns business failure", func(t *testing.T) {
@@ -398,7 +398,7 @@ func TestAdminCategoryModeratorDeleteHTTPContract(t *testing.T) {
 		createContractModeratorCandidate(t, conn, contractModeratorUserID, "mod_user", false)
 		seedContractCategory(t, conn, contractCategoryID, "学习交流", "课程与学习讨论", "book", "#3b82f6", "study", 1)
 		seedContractModerator(t, conn, contractCategoryModeratorID2, contractModeratorUserID, moderators.ScopeCategory, contractCategoryID)
-		serveAdminCategoriesOK(t, conn, router, path, `{"id":7003}`, "admin-category-moderator-delete-success.json")
+		serveAdminCategoriesOK(t, conn, router, path, `{"id":7003}`, "result-true.json")
 		if got := moderators.Get(contractCategoryModeratorID2); got.Id != 0 {
 			t.Fatalf("moderator %d still readable after delete", contractCategoryModeratorID2)
 		}

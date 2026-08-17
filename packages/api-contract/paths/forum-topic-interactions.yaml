@@ -29,11 +29,11 @@ updateTopicStatus:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/topic-status-success.json
+                externalValue: ../fixtures/result-true.json
               topicNotFound:
-                externalValue: ../fixtures/topic-status-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/topic-status-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -42,7 +42,7 @@ updateTopicStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/topic-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -51,7 +51,7 @@ updateTopicStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/topic-status-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Topic-status rate limit (action `topic.status`) exceeded.
         headers:
@@ -102,9 +102,9 @@ deleteTopic:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/topic-delete-success.json
+                externalValue: ../fixtures/result-true.json
               topicNotFound:
-                externalValue: ../fixtures/topic-delete-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -113,7 +113,7 @@ deleteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/topic-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -122,7 +122,7 @@ deleteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/topic-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -137,7 +137,7 @@ deleteTopic:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/topic-delete-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 likeTopic:
   post:
@@ -169,11 +169,11 @@ likeTopic:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/topic-like-success.json
+                externalValue: ../fixtures/result-true.json
               topicNotFound:
-                externalValue: ../fixtures/topic-like-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/topic-like-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -182,7 +182,7 @@ likeTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/topic-like-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -191,7 +191,7 @@ likeTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/topic-like-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -207,7 +207,7 @@ likeTopic:
             examples:
               rateLimited:
 
-                externalValue: ../fixtures/topic-like-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 bookmarkTopic:
   post:
@@ -239,11 +239,11 @@ bookmarkTopic:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/topic-bookmark-success.json
+                externalValue: ../fixtures/result-true.json
               topicNotFound:
-                externalValue: ../fixtures/topic-bookmark-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/topic-bookmark-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -252,7 +252,7 @@ bookmarkTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/topic-bookmark-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -261,7 +261,7 @@ bookmarkTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/topic-bookmark-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -276,7 +276,7 @@ bookmarkTopic:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/topic-bookmark-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 watchTopic:
   post:
@@ -308,11 +308,11 @@ watchTopic:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/topic-watch-success.json
+                externalValue: ../fixtures/result-true.json
               topicNotFound:
-                externalValue: ../fixtures/topic-watch-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/topic-watch-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -321,7 +321,7 @@ watchTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/topic-watch-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -330,7 +330,7 @@ watchTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/topic-watch-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -345,4 +345,4 @@ watchTopic:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/topic-watch-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json

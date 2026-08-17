@@ -31,7 +31,7 @@ adminAgentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-agent-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -40,9 +40,9 @@ adminAgentList:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-agent-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-agent-list-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
 adminAgentCreate:
   post:
@@ -88,7 +88,7 @@ adminAgentCreate:
               webhookInvalid:
                 externalValue: ../fixtures/admin-agent-create-webhook-invalid.json
               invalidParams:
-                externalValue: ../fixtures/admin-agent-create-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -97,7 +97,7 @@ adminAgentCreate:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-agent-create-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -106,7 +106,7 @@ adminAgentCreate:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-agent-create-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
@@ -148,11 +148,11 @@ adminAgentUpdate:
               success:
                 externalValue: ../fixtures/admin-agent-update-success.json
               notFound:
-                externalValue: ../fixtures/admin-agent-update-not-found.json
+                externalValue: ../fixtures/admin-agent-disable-not-found.json
               needsRotate:
                 externalValue: ../fixtures/admin-agent-update-needs-rotate.json
               invalidParams:
-                externalValue: ../fixtures/admin-agent-update-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -161,7 +161,7 @@ adminAgentUpdate:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-agent-update-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -170,9 +170,9 @@ adminAgentUpdate:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-agent-update-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-agent-update-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
 adminAgentRotateToken:
   post:
@@ -211,7 +211,7 @@ adminAgentRotateToken:
               success:
                 externalValue: ../fixtures/admin-agent-rotate-token-success.json
               notFound:
-                externalValue: ../fixtures/admin-agent-rotate-token-not-found.json
+                externalValue: ../fixtures/admin-agent-disable-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -220,7 +220,7 @@ adminAgentRotateToken:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-agent-rotate-token-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -229,9 +229,9 @@ adminAgentRotateToken:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-agent-rotate-token-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-agent-rotate-token-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
 adminAgentDisable:
   post:
@@ -279,7 +279,7 @@ adminAgentDisable:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-agent-disable-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -288,9 +288,9 @@ adminAgentDisable:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-agent-disable-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-agent-disable-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
 adminOptRecordPage:
   post:
@@ -331,7 +331,7 @@ adminOptRecordPage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-opt-record-page-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -340,9 +340,9 @@ adminOptRecordPage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-opt-record-page-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-opt-record-page-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json
 
 adminTrafficOverview:
   post:
@@ -384,7 +384,7 @@ adminTrafficOverview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-traffic-overview-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the Admin permission.
         content:
@@ -393,6 +393,6 @@ adminTrafficOverview:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-traffic-overview-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-traffic-overview-permission-denied.json
+                externalValue: ../fixtures/admin-agent-create-permission-denied.json

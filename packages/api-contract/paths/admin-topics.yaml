@@ -37,7 +37,7 @@ adminListTopics:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topics-list-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -46,9 +46,9 @@ adminListTopics:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topics-list-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topics-list-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminGetTopicSource:
   post:
@@ -81,7 +81,7 @@ adminGetTopicSource:
               success:
                 externalValue: ../fixtures/admin-topic-source-success.json
               topicNotFound:
-                externalValue: ../fixtures/admin-topic-source-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -90,7 +90,7 @@ adminGetTopicSource:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-source-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -99,9 +99,9 @@ adminGetTopicSource:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-source-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-source-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminEditTopic:
   post:
@@ -135,11 +135,11 @@ adminEditTopic:
               $ref: ../components/schemas.yaml#/AdminOperationResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-topic-edit-success.json
+                externalValue: ../fixtures/admin-post-delete-success.json
               topicNotFound:
-                externalValue: ../fixtures/admin-topic-edit-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/admin-topic-edit-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -148,7 +148,7 @@ adminEditTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-edit-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -157,9 +157,9 @@ adminEditTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-edit-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-edit-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminDeleteTopic:
   post:
@@ -195,13 +195,13 @@ adminDeleteTopic:
               $ref: ../components/schemas.yaml#/AdminOperationResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-topic-delete-success.json
+                externalValue: ../fixtures/admin-post-delete-success.json
               topicNotFound:
-                externalValue: ../fixtures/admin-topic-delete-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               operationDenied:
                 externalValue: ../fixtures/admin-topic-delete-operation-denied.json
               invalidParams:
-                externalValue: ../fixtures/admin-topic-delete-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -210,7 +210,7 @@ adminDeleteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -219,9 +219,9 @@ adminDeleteTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-delete-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminRestoreTopic:
   post:
@@ -256,7 +256,7 @@ adminRestoreTopic:
               success:
                 externalValue: ../fixtures/admin-topic-restore-success.json
               topicNotFound:
-                externalValue: ../fixtures/admin-topic-restore-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               notRecoverable:
                 externalValue: ../fixtures/admin-topic-restore-not-recoverable.json
       '401':
@@ -267,7 +267,7 @@ adminRestoreTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-restore-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -276,9 +276,9 @@ adminRestoreTopic:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-restore-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-restore-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminDeletePost:
   post:
@@ -318,7 +318,7 @@ adminDeletePost:
               postNotFound:
                 externalValue: ../fixtures/admin-post-delete-post-not-found.json
               invalidParams:
-                externalValue: ../fixtures/admin-post-delete-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -327,7 +327,7 @@ adminDeletePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-post-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -336,9 +336,9 @@ adminDeletePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-post-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-post-delete-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminEditTopicPin:
   post:
@@ -373,11 +373,11 @@ adminEditTopicPin:
               $ref: ../components/schemas.yaml#/AdminOperationResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-topic-pin-edit-success.json
+                externalValue: ../fixtures/admin-post-delete-success.json
               topicNotFound:
-                externalValue: ../fixtures/admin-topic-pin-edit-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/admin-topic-pin-edit-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -386,7 +386,7 @@ adminEditTopicPin:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-pin-edit-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -395,9 +395,9 @@ adminEditTopicPin:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-pin-edit-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-pin-edit-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json
 
 adminEditTopicCategories:
   post:
@@ -435,13 +435,13 @@ adminEditTopicCategories:
               $ref: ../components/schemas.yaml#/AdminOperationResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-topic-categories-edit-success.json
+                externalValue: ../fixtures/admin-post-delete-success.json
               topicNotFound:
                 externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               categoryNotFound:
-                externalValue: ../fixtures/admin-topic-categories-edit-category-not-found.json
+                externalValue: ../fixtures/admin-category-delete-not-found.json
               invalidParams:
-                externalValue: ../fixtures/admin-topic-categories-edit-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -450,7 +450,7 @@ adminEditTopicCategories:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-topic-categories-edit-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the TopicsManager permission.
         content:
@@ -459,6 +459,6 @@ adminEditTopicCategories:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-topic-categories-edit-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-topic-categories-edit-permission-denied.json
+                externalValue: ../fixtures/admin-category-delete-permission-denied.json

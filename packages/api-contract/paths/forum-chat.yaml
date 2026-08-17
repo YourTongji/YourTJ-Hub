@@ -34,7 +34,7 @@ sendChatMessage:
               success:
                 externalValue: ../fixtures/chat-send-success.json
               invalidParams:
-                externalValue: ../fixtures/chat-send-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -43,7 +43,7 @@ sendChatMessage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/chat-send-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -52,7 +52,7 @@ sendChatMessage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/chat-send-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Message-send rate limit (action `message.send`) exceeded.
         headers:
@@ -113,7 +113,7 @@ getChatMessages:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/chat-messages-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 markChatRead:
   post:
@@ -157,7 +157,7 @@ markChatRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/chat-mark-read-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -166,4 +166,4 @@ markChatRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/chat-mark-read-forbidden.json
+                externalValue: ../fixtures/account-frozen.json

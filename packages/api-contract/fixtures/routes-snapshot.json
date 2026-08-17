@@ -277,6 +277,10 @@
   },
   {
     "method": "GET",
+    "path": "/api/wiki/search"
+  },
+  {
+    "method": "GET",
     "path": "/api/wiki/tree"
   },
   {

@@ -69,6 +69,6 @@ func TestSearchJSONHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("search parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "forum-search-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 }

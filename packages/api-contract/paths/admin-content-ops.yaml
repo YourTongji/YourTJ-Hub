@@ -35,7 +35,7 @@ adminListBadges:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-badges-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -44,9 +44,9 @@ adminListBadges:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-badges-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-badges-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveBadge:
   post:
@@ -87,13 +87,13 @@ adminSaveBadge:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-badge-save-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
               nameRequired:
                 externalValue: ../fixtures/admin-badge-save-name-required.json
               typeInvalid:
                 externalValue: ../fixtures/admin-badge-save-type-invalid.json
               codeRequired:
-                externalValue: ../fixtures/admin-badge-save-code-required.json
+                externalValue: ../fixtures/admin-badge-delete-code-required.json
               grantModeInvalid:
                 externalValue: ../fixtures/admin-badge-save-grant-mode-invalid.json
               systemNotFound:
@@ -106,7 +106,7 @@ adminSaveBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-badge-save-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -115,9 +115,9 @@ adminSaveBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-badge-save-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-badge-save-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminDeleteBadge:
   post:
@@ -152,7 +152,7 @@ adminDeleteBadge:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-badge-delete-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
               codeRequired:
                 externalValue: ../fixtures/admin-badge-delete-code-required.json
               systemDeleteBlocked:
@@ -165,7 +165,7 @@ adminDeleteBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-badge-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -174,9 +174,9 @@ adminDeleteBadge:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-badge-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-badge-delete-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminListReviewQueue:
   post:
@@ -216,7 +216,7 @@ adminListReviewQueue:
               success:
                 externalValue: ../fixtures/admin-review-queue-success.json
               invalidKind:
-                externalValue: ../fixtures/admin-review-queue-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -225,7 +225,7 @@ adminListReviewQueue:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-review-queue-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -234,9 +234,9 @@ adminListReviewQueue:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-review-queue-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-review-queue-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminReviewAction:
   post:
@@ -276,7 +276,7 @@ adminReviewAction:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-review-action-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
               notFound:
                 externalValue: ../fixtures/admin-review-action-not-found.json
               alreadyProcessed:
@@ -284,7 +284,7 @@ adminReviewAction:
               wikiTargetInvalid:
                 externalValue: ../fixtures/admin-review-action-target-invalid.json
               invalidParams:
-                externalValue: ../fixtures/admin-review-action-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -293,7 +293,7 @@ adminReviewAction:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-review-action-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -302,9 +302,9 @@ adminReviewAction:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-review-action-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-review-action-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminListFileResources:
   post:
@@ -347,7 +347,7 @@ adminListFileResources:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-file-resources-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -356,6 +356,6 @@ adminListFileResources:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-file-resources-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-file-resources-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

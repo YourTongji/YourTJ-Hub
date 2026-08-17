@@ -60,7 +60,7 @@ searchForum:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/forum-search-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
 
 getSiteStatistics:
   get:

@@ -62,7 +62,7 @@ adminUploadImage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-img-upload-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -71,9 +71,9 @@ adminUploadImage:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-img-upload-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-img-upload-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminCreateExportTask:
   post:
@@ -114,7 +114,7 @@ adminCreateExportTask:
               success:
                 externalValue: ../fixtures/admin-data-export-success.json
               invalidParams:
-                externalValue: ../fixtures/admin-data-export-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
               unsupportedTable:
                 externalValue: ../fixtures/admin-data-export-export-failed.json
       '401':
@@ -125,7 +125,7 @@ adminCreateExportTask:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-data-export-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -134,9 +134,9 @@ adminCreateExportTask:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-data-export-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-data-export-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminListExportTasks:
   get:
@@ -173,7 +173,7 @@ adminListExportTasks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-data-export-tasks-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -182,9 +182,9 @@ adminListExportTasks:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-data-export-tasks-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-data-export-tasks-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminDownloadExportTask:
   get:
@@ -241,7 +241,7 @@ adminDownloadExportTask:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-data-export-download-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -250,9 +250,9 @@ adminDownloadExportTask:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-data-export-download-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-data-export-download-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
       '404':
         description: Unknown task id, or the task is not an export task.
         content:
@@ -332,7 +332,7 @@ adminImportData:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-data-import-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -341,6 +341,6 @@ adminImportData:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-data-import-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-data-import-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

@@ -70,7 +70,7 @@ func adminContentOpsGuardScenarios(t *testing.T, method, path, fixturePrefix str
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -83,7 +83,7 @@ func adminContentOpsGuardScenarios(t *testing.T, method, path, fixturePrefix str
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without SiteManager returns 403", func(t *testing.T) {
@@ -93,7 +93,7 @@ func adminContentOpsGuardScenarios(t *testing.T, method, path, fixturePrefix str
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-ai-summary-settings-permission-denied.json"))
 	})
 }
 
@@ -146,7 +146,7 @@ func TestAdminSaveBadgeHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			`{"code":"custom_contract_badge","type":"custom","grantMode":"manual","name":"契约徽章","description":"契约测试徽章","iconType":"asset","iconUrl":"/static/badges/custom.svg","color":"blue","level":"bronze","isEnabled":true,"isWearable":true,"sortOrder":5}`,
-			"admin-badge-save-success.json")
+			"admin-agent-disable-success.json")
 		stored := badges.GetByCode("custom_contract_badge")
 		if stored.Id == 0 || stored.Name != "契约徽章" || stored.Type != badges.TypeCustom {
 			t.Fatalf("stored badge = %#v, want the submitted custom badge", stored)
@@ -168,7 +168,7 @@ func TestAdminSaveBadgeHTTPContract(t *testing.T) {
 	t.Run("system badge without a code fails with codeRequired", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"name":"契约徽章","type":"system"}`, "admin-badge-save-code-required.json")
+			`{"name":"契约徽章","type":"system"}`, "admin-badge-delete-code-required.json")
 	})
 
 	t.Run("unknown grantMode fails with grantModeInvalid", func(t *testing.T) {
@@ -197,9 +197,9 @@ func TestAdminDeleteBadgeHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, "/api/admin/badge-save",
 			`{"code":"custom_contract_badge","type":"custom","name":"契约徽章"}`,
-			"admin-badge-save-success.json")
+			"admin-agent-disable-success.json")
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"code":"custom_contract_badge"}`, "admin-badge-delete-success.json")
+			`{"code":"custom_contract_badge"}`, "admin-agent-disable-success.json")
 		if stored := badges.GetByCode("custom_contract_badge"); stored.Id != 0 {
 			t.Fatalf("badge still present after delete: %#v", stored)
 		}
@@ -305,7 +305,7 @@ func TestAdminListReviewQueueHTTPContract(t *testing.T) {
 	t.Run("unknown kind fails request validation", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{"kind":"comment"}`, "admin-review-queue-invalid-params.json")
+			`{"kind":"comment"}`, "invalid-params.json")
 	})
 
 	adminContentOpsGuardScenarios(t, http.MethodPost, path, "admin-review-queue")
@@ -351,7 +351,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			fmt.Sprintf(`{"kind":"topic","id":%d,"approve":true}`, topicID),
-			"admin-review-action-success.json")
+			"admin-agent-disable-success.json")
 		if got := topics.Get(topicID); got.ProcessStatus != topics.ProcessStatusNormal {
 			t.Fatalf("topic processStatus = %d, want normal after approve", got.ProcessStatus)
 		}
@@ -385,7 +385,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 		})
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
 			fmt.Sprintf(`{"kind":"post","id":%d,"approve":false}`, post.Id),
-			"admin-review-action-success.json")
+			"admin-agent-disable-success.json")
 		if got := posts.Get(post.Id); got.ProcessStatus != posts.ProcessStatusBlocked {
 			t.Fatalf("post processStatus = %d, want blocked after reject", got.ProcessStatus)
 		}
@@ -436,7 +436,7 @@ func TestAdminReviewActionHTTPContract(t *testing.T) {
 	t.Run("missing kind and id fail request validation", func(t *testing.T) {
 		conn, router := setupAdminContentOpsContractTest(t)
 		serveAdminSiteOK(t, conn, router, http.MethodPost, path,
-			`{}`, "admin-review-action-invalid-params.json")
+			`{}`, "invalid-params.json")
 	})
 
 	adminContentOpsGuardScenarios(t, http.MethodPost, path, "admin-review-action")

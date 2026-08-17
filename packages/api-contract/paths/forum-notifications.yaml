@@ -29,7 +29,7 @@ getUnreadStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/unread-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 getNotifications:
   get:
@@ -77,7 +77,7 @@ getNotifications:
               success:
                 externalValue: ../fixtures/notifications-success.json
               invalidFilter:
-                externalValue: ../fixtures/notifications-invalid-filter.json
+                externalValue: ../fixtures/invalid-params.json
       '400':
         description: Malformed query parameters.
         content:
@@ -86,7 +86,7 @@ getNotifications:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/notifications-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -95,7 +95,7 @@ getNotifications:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/notifications-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 markNotificationRead:
   post:
@@ -136,7 +136,7 @@ markNotificationRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/notification-mark-read-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -145,7 +145,7 @@ markNotificationRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/notification-mark-read-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 markAllNotificationsRead:
   post:
@@ -177,7 +177,7 @@ markAllNotificationsRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/notification-mark-all-read-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -186,4 +186,4 @@ markAllNotificationsRead:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/notification-mark-all-read-forbidden.json
+                externalValue: ../fixtures/account-frozen.json

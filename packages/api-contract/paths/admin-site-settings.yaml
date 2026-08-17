@@ -31,7 +31,7 @@ adminGetServerVersion:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-server-version-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -40,9 +40,9 @@ adminGetServerVersion:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-server-version-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-server-version-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetSiteSettings:
   get:
@@ -78,7 +78,7 @@ adminGetSiteSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-site-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -87,9 +87,9 @@ adminGetSiteSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-site-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-site-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveSiteSettings:
   post:
@@ -121,7 +121,7 @@ adminSaveSiteSettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-site-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -130,7 +130,7 @@ adminSaveSiteSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-site-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -139,9 +139,9 @@ adminSaveSiteSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-site-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-site-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetSiteChrome:
   get:
@@ -176,7 +176,7 @@ adminGetSiteChrome:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-site-chrome-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -185,9 +185,9 @@ adminGetSiteChrome:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-site-chrome-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-site-chrome-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveSiteChrome:
   post:
@@ -219,7 +219,7 @@ adminSaveSiteChrome:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-site-chrome-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -228,7 +228,7 @@ adminSaveSiteChrome:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-site-chrome-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -237,9 +237,9 @@ adminSaveSiteChrome:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-site-chrome-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-site-chrome-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetSiteTheme:
   get:
@@ -279,7 +279,7 @@ adminGetSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-site-theme-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -288,9 +288,9 @@ adminGetSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-site-theme-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-site-theme-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveSiteTheme:
   post:
@@ -338,7 +338,7 @@ adminSaveSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-site-theme-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -347,9 +347,9 @@ adminSaveSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-site-theme-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-site-theme-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminPublishSiteTheme:
   post:
@@ -387,7 +387,7 @@ adminPublishSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-publish-site-theme-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -396,9 +396,9 @@ adminPublishSiteTheme:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-publish-site-theme-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-publish-site-theme-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetSecuritySettings:
   get:
@@ -433,7 +433,7 @@ adminGetSecuritySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-security-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -442,9 +442,9 @@ adminGetSecuritySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-security-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-security-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveSecuritySettings:
   post:
@@ -480,7 +480,7 @@ adminSaveSecuritySettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-security-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -489,7 +489,7 @@ adminSaveSecuritySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-security-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -498,9 +498,9 @@ adminSaveSecuritySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-security-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-security-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetPostingSettings:
   get:
@@ -535,7 +535,7 @@ adminGetPostingSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-posting-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -544,9 +544,9 @@ adminGetPostingSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-posting-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-posting-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSavePostingSettings:
   post:
@@ -579,7 +579,7 @@ adminSavePostingSettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-posting-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -588,7 +588,7 @@ adminSavePostingSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-posting-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -597,9 +597,9 @@ adminSavePostingSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-posting-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-posting-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetRateLimitSettings:
   get:
@@ -634,7 +634,7 @@ adminGetRateLimitSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-rate-limit-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -643,9 +643,9 @@ adminGetRateLimitSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-rate-limit-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-rate-limit-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveRateLimitSettings:
   post:
@@ -679,7 +679,7 @@ adminSaveRateLimitSettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-rate-limit-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -688,7 +688,7 @@ adminSaveRateLimitSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-rate-limit-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -697,9 +697,9 @@ adminSaveRateLimitSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-rate-limit-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-rate-limit-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetHttpNotifySettings:
   get:
@@ -737,7 +737,7 @@ adminGetHttpNotifySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-http-notify-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -746,9 +746,9 @@ adminGetHttpNotifySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-http-notify-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-http-notify-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveHttpNotifySettings:
   post:
@@ -781,7 +781,7 @@ adminSaveHttpNotifySettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-http-notify-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -790,7 +790,7 @@ adminSaveHttpNotifySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-http-notify-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -799,9 +799,9 @@ adminSaveHttpNotifySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-http-notify-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-http-notify-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetOnesystemSettings:
   get:
@@ -838,7 +838,7 @@ adminGetOnesystemSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-onesystem-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -847,9 +847,9 @@ adminGetOnesystemSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-onesystem-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-onesystem-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveOnesystemSettings:
   post:
@@ -886,9 +886,9 @@ adminSaveOnesystemSettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-onesystem-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
               cookieTooLong:
-                externalValue: ../fixtures/admin-save-onesystem-settings-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -897,7 +897,7 @@ adminSaveOnesystemSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-onesystem-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -906,9 +906,9 @@ adminSaveOnesystemSettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-onesystem-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-onesystem-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetAiSummarySettings:
   get:
@@ -947,7 +947,7 @@ adminGetAiSummarySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-ai-summary-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -956,7 +956,7 @@ adminGetAiSummarySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-ai-summary-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
                 externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
@@ -990,7 +990,7 @@ adminSaveAiSummarySettings:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-ai-summary-settings-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -999,7 +999,7 @@ adminSaveAiSummarySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-ai-summary-settings-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -1008,9 +1008,9 @@ adminSaveAiSummarySettings:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-ai-summary-settings-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-ai-summary-settings-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetTermsOfService:
   get:
@@ -1047,7 +1047,7 @@ adminGetTermsOfService:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-terms-of-service-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -1056,9 +1056,9 @@ adminGetTermsOfService:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-terms-of-service-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-terms-of-service-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSaveTermsOfService:
   post:
@@ -1092,7 +1092,7 @@ adminSaveTermsOfService:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-terms-of-service-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -1101,7 +1101,7 @@ adminSaveTermsOfService:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-terms-of-service-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -1110,9 +1110,9 @@ adminSaveTermsOfService:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-terms-of-service-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-terms-of-service-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminGetPrivacyPolicy:
   get:
@@ -1148,7 +1148,7 @@ adminGetPrivacyPolicy:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-privacy-policy-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -1157,9 +1157,9 @@ adminGetPrivacyPolicy:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-privacy-policy-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-privacy-policy-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json
 
 adminSavePrivacyPolicy:
   post:
@@ -1193,7 +1193,7 @@ adminSavePrivacyPolicy:
               $ref: ../components/schemas.yaml#/AdminPageConfigSaveResponse
             examples:
               success:
-                externalValue: ../fixtures/admin-save-privacy-policy-success.json
+                externalValue: ../fixtures/admin-agent-disable-success.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -1202,7 +1202,7 @@ adminSavePrivacyPolicy:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/admin-save-privacy-policy-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Frozen account, or caller lacks the SiteManager permission.
         content:
@@ -1211,6 +1211,6 @@ adminSavePrivacyPolicy:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/admin-save-privacy-policy-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
               permissionDenied:
-                externalValue: ../fixtures/admin-save-privacy-policy-permission-denied.json
+                externalValue: ../fixtures/admin-ai-summary-settings-permission-denied.json

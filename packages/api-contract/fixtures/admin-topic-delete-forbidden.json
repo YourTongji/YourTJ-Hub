@@ -1,9 +1,0 @@
-{
-  "result": null,
-  "code": 1,
-  "messageCode": "permission.userFrozen",
-  "params": {
-    "action": "写入",
-    "actionCode": "write"
-  }
-}

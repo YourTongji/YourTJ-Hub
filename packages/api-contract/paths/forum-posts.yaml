@@ -35,7 +35,7 @@ createPost:
               success:
                 externalValue: ../fixtures/post-create-success.json
               topicNotFound:
-                externalValue: ../fixtures/post-create-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -44,7 +44,7 @@ createPost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/post-create-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -53,7 +53,7 @@ createPost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/post-create-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Post-creation rate limit (action `post.create`) exceeded.
         headers:
@@ -68,7 +68,7 @@ createPost:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/post-create-rate-limited.json
+                externalValue: ../fixtures/agent-post-create-rate-limited.json
 
 updatePost:
   post:
@@ -103,7 +103,7 @@ updatePost:
               success:
                 externalValue: ../fixtures/post-update-success.json
               postNotFound:
-                externalValue: ../fixtures/post-update-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -112,7 +112,7 @@ updatePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/post-update-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -121,7 +121,7 @@ updatePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/post-update-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Post-update rate limit (action `post.update`) exceeded.
         headers:
@@ -172,7 +172,7 @@ deletePost:
               success:
                 externalValue: ../fixtures/post-delete-success.json
               postNotFound:
-                externalValue: ../fixtures/post-delete-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -181,7 +181,7 @@ deletePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/post-delete-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -190,7 +190,7 @@ deletePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/post-delete-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Post-deletion rate limit (action `post.delete`) exceeded.
         headers:
@@ -275,7 +275,7 @@ getPostWindow:
               success:
                 externalValue: ../fixtures/post-window-success.json
               topicNotFound:
-                externalValue: ../fixtures/post-window-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
       '400':
         description: Malformed query parameters.
         content:
@@ -284,7 +284,7 @@ getPostWindow:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/post-window-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
 
 getPostRevisions:
   get:
@@ -332,7 +332,7 @@ getPostRevisions:
               success:
                 externalValue: ../fixtures/post-revisions-success.json
               postNotFound:
-                externalValue: ../fixtures/post-revisions-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
       '400':
         description: Malformed query parameters.
         content:
@@ -341,7 +341,7 @@ getPostRevisions:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               parseFailed:
-                externalValue: ../fixtures/post-revisions-parse-failed.json
+                externalValue: ../fixtures/parse-failed.json
 
 likePost:
   post:
@@ -373,11 +373,11 @@ likePost:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/post-like-success.json
+                externalValue: ../fixtures/result-true.json
               postNotFound:
-                externalValue: ../fixtures/post-like-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
               invalidParams:
-                externalValue: ../fixtures/post-like-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -386,7 +386,7 @@ likePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/post-like-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -395,7 +395,7 @@ likePost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/post-like-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -410,7 +410,7 @@ likePost:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/post-like-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json
 
 bookmarkPost:
   post:
@@ -442,11 +442,11 @@ bookmarkPost:
               $ref: ../components/schemas.yaml#/InteractionResponse
             examples:
               success:
-                externalValue: ../fixtures/post-bookmark-success.json
+                externalValue: ../fixtures/result-true.json
               postNotFound:
-                externalValue: ../fixtures/post-bookmark-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
               invalidParams:
-                externalValue: ../fixtures/post-bookmark-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -455,7 +455,7 @@ bookmarkPost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/post-bookmark-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -464,7 +464,7 @@ bookmarkPost:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/post-bookmark-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
       '429':
         description: Interaction rate limit (action `interact`) exceeded.
         headers:
@@ -479,4 +479,4 @@ bookmarkPost:
               $ref: ../components/schemas.yaml#/RateLimitedFailure
             examples:
               rateLimited:
-                externalValue: ../fixtures/post-bookmark-rate-limited.json
+                externalValue: ../fixtures/account-close-rate-limited.json

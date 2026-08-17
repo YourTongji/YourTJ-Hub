@@ -1,8 +1,0 @@
-{
-  "result": null,
-  "code": 1,
-  "messageCode": "permission.denied",
-  "params": {
-    "permission": "角色管理"
-  }
-}

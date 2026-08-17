@@ -234,19 +234,19 @@ func TestCreatePostHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/posts/create", `{}`, "post-create-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/posts/create", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/posts/create", `{}`, "post-create-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/posts/create", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		assertInteractionRateLimited(t, conn, router, "/api/forum/posts/create",
 			`{"topicId":987654321,"content":"Contract rate limit probe content."}`,
-			"post-create-rate-limited.json", middleware.RateLimitPostCreate)
+			"agent-post-create-rate-limited.json", middleware.RateLimitPostCreate)
 	})
 
 	t.Run("unknown topic returns business failure", func(t *testing.T) {
@@ -257,7 +257,7 @@ func TestCreatePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown topic status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-create-topic-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 }
 
@@ -317,12 +317,12 @@ func TestUpdatePostHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/posts/update", `{}`, "post-update-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/posts/update", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/posts/update", `{}`, "post-update-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/posts/update", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -340,7 +340,7 @@ func TestUpdatePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-update-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 }
 
@@ -363,12 +363,12 @@ func TestDeletePostHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/posts/delete", `{}`, "post-delete-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/posts/delete", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/posts/delete", `{}`, "post-delete-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/posts/delete", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -385,7 +385,7 @@ func TestDeletePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-delete-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 }
 
@@ -408,7 +408,7 @@ func TestPostWindowHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown topic status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-window-topic-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 
 	t.Run("non-numeric topicId returns strict 400", func(t *testing.T) {
@@ -417,7 +417,7 @@ func TestPostWindowHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-window-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 }
 
@@ -454,7 +454,7 @@ func TestPostRevisionsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-revisions-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 
 	t.Run("non-numeric postId returns strict 400", func(t *testing.T) {
@@ -463,7 +463,7 @@ func TestPostRevisionsHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-revisions-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 }
 
@@ -481,24 +481,24 @@ func TestLikePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("like post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-like-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/posts/like", `{}`, "post-like-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/posts/like", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/posts/like", `{}`, "post-like-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/posts/like", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		assertInteractionRateLimited(t, conn, router, "/api/forum/posts/like",
 			`{"postId":987654321,"action":1}`,
-			"post-like-rate-limited.json", middleware.RateLimitInteract)
+			"account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 
 	t.Run("unknown post returns business failure", func(t *testing.T) {
@@ -508,7 +508,7 @@ func TestLikePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-like-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 
 	t.Run("invalid action stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -518,7 +518,7 @@ func TestLikePostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-like-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -536,24 +536,24 @@ func TestBookmarkPostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("bookmark post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-bookmark-success.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "result-true.json"))
 	})
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupForumInteractionContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/posts/bookmark", `{}`, "post-bookmark-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/posts/bookmark", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/posts/bookmark", `{}`, "post-bookmark-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/posts/bookmark", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
 		conn, router := setupForumInteractionContractTest(t)
 		assertInteractionRateLimited(t, conn, router, "/api/forum/posts/bookmark",
 			`{"postId":987654321,"action":1}`,
-			"post-bookmark-rate-limited.json", middleware.RateLimitInteract)
+			"account-close-rate-limited.json", middleware.RateLimitInteract)
 	})
 
 	t.Run("unknown post returns business failure", func(t *testing.T) {
@@ -563,7 +563,7 @@ func TestBookmarkPostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("unknown post status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-bookmark-post-not-found.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-post-delete-post-not-found.json"))
 	})
 
 	t.Run("invalid action stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -573,6 +573,6 @@ func TestBookmarkPostHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "post-bookmark-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }

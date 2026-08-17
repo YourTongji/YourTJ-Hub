@@ -31,13 +31,13 @@ moderationUpdateTopicStatus:
               $ref: ../components/schemas.yaml#/ModerationActionResponse
             examples:
               success:
-                externalValue: ../fixtures/moderation-topic-status-success.json
+                externalValue: ../fixtures/result-true.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-topic-status-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               topicNotFound:
-                externalValue: ../fixtures/moderation-topic-status-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/moderation-topic-status-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -46,7 +46,7 @@ moderationUpdateTopicStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-topic-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -55,7 +55,7 @@ moderationUpdateTopicStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/moderation-topic-status-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 moderationUpdatePostStatus:
   post:
@@ -90,11 +90,11 @@ moderationUpdatePostStatus:
               $ref: ../components/schemas.yaml#/ModerationActionResponse
             examples:
               success:
-                externalValue: ../fixtures/moderation-post-status-success.json
+                externalValue: ../fixtures/result-true.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-post-status-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               postNotFound:
-                externalValue: ../fixtures/moderation-post-status-post-not-found.json
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -103,7 +103,7 @@ moderationUpdatePostStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-post-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -112,7 +112,7 @@ moderationUpdatePostStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/moderation-post-status-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 listModerationReports:
   post:
@@ -149,9 +149,9 @@ listModerationReports:
               success:
                 externalValue: ../fixtures/moderation-reports-success.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-reports-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               invalidParams:
-                externalValue: ../fixtures/moderation-reports-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -160,7 +160,7 @@ listModerationReports:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-reports-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 moderationUpdateReportStatus:
   post:
@@ -195,9 +195,9 @@ moderationUpdateReportStatus:
               $ref: ../components/schemas.yaml#/ModerationActionResponse
             examples:
               success:
-                externalValue: ../fixtures/moderation-report-status-success.json
+                externalValue: ../fixtures/result-true.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-report-status-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               reportNotFound:
                 externalValue: ../fixtures/moderation-report-status-report-not-found.json
       '401':
@@ -208,7 +208,7 @@ moderationUpdateReportStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-report-status-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -217,7 +217,7 @@ moderationUpdateReportStatus:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/moderation-report-status-forbidden.json
+                externalValue: ../fixtures/account-frozen.json
 
 listModerationLogs:
   post:
@@ -252,7 +252,7 @@ listModerationLogs:
               success:
                 externalValue: ../fixtures/moderation-logs-success.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-logs-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -261,7 +261,7 @@ listModerationLogs:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-logs-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
 
 viewDeletedContent:
   post:
@@ -299,11 +299,11 @@ viewDeletedContent:
               success:
                 externalValue: ../fixtures/moderation-view-deleted-content-success.json
               permissionDenied:
-                externalValue: ../fixtures/moderation-view-deleted-content-permission-denied.json
+                externalValue: ../fixtures/permission-denied.json
               topicNotFound:
-                externalValue: ../fixtures/moderation-view-deleted-content-topic-not-found.json
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
               invalidParams:
-                externalValue: ../fixtures/moderation-view-deleted-content-invalid-params.json
+                externalValue: ../fixtures/invalid-params.json
       '401':
         description: Missing, invalid, expired, or revoked access token.
         content:
@@ -312,7 +312,7 @@ viewDeletedContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               unauthenticated:
-                externalValue: ../fixtures/moderation-view-deleted-content-unauthenticated.json
+                externalValue: ../fixtures/auth-required.json
       '403':
         description: Authenticated account is frozen or its account information cannot be resolved.
         content:
@@ -321,4 +321,4 @@ viewDeletedContent:
               $ref: ../components/schemas.yaml#/ApiFailure
             examples:
               frozenAccount:
-                externalValue: ../fixtures/moderation-view-deleted-content-forbidden.json
+                externalValue: ../fixtures/account-frozen.json

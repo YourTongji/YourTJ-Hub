@@ -244,7 +244,7 @@ func TestAgentContractPostWindowAndCreate(t *testing.T) {
 		if rec.Code != http.StatusOK {
 			t.Fatalf("unknown topic status = %d, want 200", rec.Code)
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "agent-post-create-unknown-topic.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "admin-topic-categories-edit-topic-not-found.json"))
 	})
 }
 

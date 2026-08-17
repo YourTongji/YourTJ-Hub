@@ -209,7 +209,7 @@ resetPassword:
                 externalValue: ../fixtures/reset-password-password-invalid.json
               userNotFound:
                 summary: The token is well-formed but its user no longer exists.
-                externalValue: ../fixtures/reset-password-user-not-found.json
+                externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
       '429':
         description: Reset-password rate limit exceeded (default 10 requests/hour/IP).
         headers:

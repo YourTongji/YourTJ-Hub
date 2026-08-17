@@ -113,7 +113,7 @@ func TestUnreadStatusHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "unread-status-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 }
 
@@ -148,7 +148,7 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("unknown filter stays a legacy HTTP 200 validation failure", func(t *testing.T) {
@@ -158,7 +158,7 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid filter status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-invalid-filter.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 
 	t.Run("non-numeric cursor returns strict 400", func(t *testing.T) {
@@ -168,7 +168,7 @@ func TestNotificationListHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusBadRequest {
 			t.Fatalf("parse failed status = %d, want 400: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "notifications-parse-failed.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "parse-failed.json"))
 	})
 }
 
@@ -189,12 +189,12 @@ func TestNotificationMarkReadHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-read", `{}`, "notification-mark-read-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-read", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-read", `{}`, "notification-mark-read-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-read", `{}`, "account-frozen.json")
 	})
 }
 
@@ -213,12 +213,12 @@ func TestNotificationMarkAllReadHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-all-read", `{}`, "notification-mark-all-read-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/notification/mark-all-read", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-all-read", `{}`, "notification-mark-all-read-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/notification/mark-all-read", `{}`, "account-frozen.json")
 	})
 }
 
@@ -251,12 +251,12 @@ func TestChatSendHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/chat/send", `{}`, "chat-send-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/send", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/chat/send", `{}`, "chat-send-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/chat/send", `{}`, "account-frozen.json")
 	})
 
 	t.Run("rate limit returns 429 with retry metadata", func(t *testing.T) {
@@ -273,7 +273,7 @@ func TestChatSendHTTPContract(t *testing.T) {
 		if recorder.Code != http.StatusOK {
 			t.Fatalf("invalid params status = %d, want 200: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "chat-send-invalid-params.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "invalid-params.json"))
 	})
 }
 
@@ -297,7 +297,7 @@ func TestChatMessagesHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/chat/messages", `{}`, "chat-messages-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/messages", `{}`, "auth-required.json")
 	})
 
 	t.Run("non-member conversation returns business failure", func(t *testing.T) {
@@ -329,12 +329,12 @@ func TestChatMarkReadHTTPContract(t *testing.T) {
 
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupNotificationChatContractTest(t)
-		assertInteractionUnauthenticated(t, router, "/api/forum/chat/mark-read", `{}`, "chat-mark-read-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, "/api/forum/chat/mark-read", `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupNotificationChatContractTest(t)
-		assertInteractionForbidden(t, conn, router, "/api/forum/chat/mark-read", `{}`, "chat-mark-read-forbidden.json")
+		assertInteractionForbidden(t, conn, router, "/api/forum/chat/mark-read", `{}`, "account-frozen.json")
 	})
 
 	t.Run("non-member conversation returns business failure", func(t *testing.T) {

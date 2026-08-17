@@ -89,7 +89,7 @@ func adminPagesGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusUnauthorized {
 			t.Fatalf("unauthenticated status = %d, want 401: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-unauthenticated.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "auth-required.json"))
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
@@ -102,7 +102,7 @@ func adminPagesGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("frozen account status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-forbidden.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "account-frozen.json"))
 	})
 
 	t.Run("user without PageManager returns 403", func(t *testing.T) {
@@ -112,7 +112,7 @@ func adminPagesGuardScenarios(t *testing.T, method, path, fixturePrefix string) 
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-announcement-permission-denied.json"))
 	})
 }
 
@@ -148,7 +148,7 @@ func TestAdminSaveFriendLinksHTTPContract(t *testing.T) {
 		})
 		serveAdminPagesOK(t, conn, router, http.MethodPost, path,
 			`{"linksInfo":[{"name":"新分组","links":[{"name":"A","desc":"d","url":"https://a.test","logoUrl":"","status":1}]}]}`,
-			"admin-save-friend-links-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.FriendShipLinks, []pageConfig.FriendLinksGroup(nil))
 		if len(stored) != 1 || stored[0].Name != "新分组" || len(stored[0].Links) != 1 {
 			t.Fatalf("stored friend links = %#v, want one group with one link", stored)
@@ -194,7 +194,7 @@ func TestAdminSaveSponsorsHTTPContract(t *testing.T) {
 		})
 		serveAdminPagesOK(t, conn, router, http.MethodPost, path,
 			`{"sponsorsInfo":{"sponsors":{"level1":[{"link":"https://b.test","message":"m","avatarUrl":"","name":"B"}]},"content":{"title":"赞助","description":"感谢"},"contact":{"title":"","description":"","buttonText":"","buttonLink":""},"rules":[]}}`,
-			"admin-save-sponsors-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.SponsorsPage, pageConfig.SponsorsConfig{})
 		if len(stored.Sponsors.Level1) != 1 || stored.Sponsors.Level1[0].Name != "B" {
 			t.Fatalf("stored sponsors = %#v, want one level1 sponsor", stored.Sponsors)
@@ -239,7 +239,7 @@ func TestAdminSaveAnnouncementHTTPContract(t *testing.T) {
 		})
 		serveAdminPagesOK(t, conn, router, http.MethodPost, path,
 			`{"settings":{"enabled":true,"content":"新公告","publishedAt":"2000-01-01T00:00:00Z"}}`,
-			"admin-save-announcement-success.json")
+			"admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.Announcement, pageConfig.AnnouncementConfig{})
 		if !stored.Enabled || stored.Content != "新公告" {
 			t.Fatalf("stored announcement = %#v, want enabled with submitted content", stored)
@@ -256,7 +256,7 @@ func TestAdminSaveAnnouncementHTTPContract(t *testing.T) {
 		t.Cleanup(func() {
 			conn.Where("page_type = ?", pageConfig.Announcement).Delete(&pageConfig.Entity{})
 		})
-		serveAdminPagesOK(t, conn, router, http.MethodPost, path, `{}`, "admin-save-announcement-success.json")
+		serveAdminPagesOK(t, conn, router, http.MethodPost, path, `{}`, "admin-agent-disable-success.json")
 		stored := pageConfig.GetConfigByPageType(pageConfig.Announcement, pageConfig.AnnouncementConfig{})
 		if stored.Enabled || stored.Content != "" {
 			t.Fatalf("stored announcement = %#v, want zero-value settings", stored)

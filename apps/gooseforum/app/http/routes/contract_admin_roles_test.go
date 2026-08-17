@@ -83,12 +83,12 @@ func serveAdminRolesRaw(t *testing.T, conn *gorm.DB, router *gin.Engine, path, b
 func adminRolesGuardScenarios(t *testing.T, path, fixturePrefix string) {
 	t.Run("missing session returns 401", func(t *testing.T) {
 		_, router := setupAdminRolesContractTest(t)
-		assertInteractionUnauthenticated(t, router, path, `{}`, fixturePrefix+"-unauthenticated.json")
+		assertInteractionUnauthenticated(t, router, path, `{}`, "auth-required.json")
 	})
 
 	t.Run("frozen account returns 403", func(t *testing.T) {
 		conn, router := setupAdminRolesContractTest(t)
-		assertInteractionForbidden(t, conn, router, path, `{}`, fixturePrefix+"-forbidden.json")
+		assertInteractionForbidden(t, conn, router, path, `{}`, "account-frozen.json")
 	})
 
 	t.Run("user without RoleManager returns 403", func(t *testing.T) {
@@ -98,7 +98,7 @@ func adminRolesGuardScenarios(t *testing.T, path, fixturePrefix string) {
 		if recorder.Code != http.StatusForbidden {
 			t.Fatalf("permission denied status = %d, want 403: %s", recorder.Code, recorder.Body.String())
 		}
-		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, fixturePrefix+"-permission-denied.json"))
+		assertFixtureEnvelope(t, decodeContractEnvelope(t, recorder), contractFixture(t, "admin-get-permission-list-permission-denied.json"))
 	})
 }
 
@@ -148,7 +148,7 @@ func TestAdminRoleSaveHTTPContract(t *testing.T) {
 	t.Run("success creates the role with the submitted permission set", func(t *testing.T) {
 		conn, router := setupAdminRolesContractTest(t)
 		serveAdminRolesOK(t, conn, router, path,
-			`{"id":0,"roleName":"契约角色","permissions":[2]}`, "admin-role-save-success.json")
+			`{"id":0,"roleName":"契约角色","permissions":[2]}`, "result-true.json")
 		var created role.Entity
 		if err := conn.Where("role_name = ?", "契约角色").First(&created).Error; err != nil {
 			t.Fatalf("created role not found: %v", err)
@@ -166,7 +166,7 @@ func TestAdminRoleSaveHTTPContract(t *testing.T) {
 	t.Run("missing permissions stays a legacy HTTP 200 validation failure", func(t *testing.T) {
 		conn, router := setupAdminRolesContractTest(t)
 		serveAdminRolesOK(t, conn, router, path,
-			`{"id":0,"roleName":"只有名字"}`, "admin-role-save-invalid-params.json")
+			`{"id":0,"roleName":"只有名字"}`, "invalid-params.json")
 	})
 
 	adminRolesGuardScenarios(t, path, "admin-role-save")
@@ -178,7 +178,7 @@ func TestAdminRoleDeleteHTTPContract(t *testing.T) {
 	t.Run("success soft-deletes the role and its grants", func(t *testing.T) {
 		conn, router := setupAdminRolesContractTest(t)
 		seedContractRoleEntity(t, conn, contractRoleDeleteRoleID, "待删角色")
-		serveAdminRolesOK(t, conn, router, path, `{"id":9002}`, "admin-role-delete-success.json")
+		serveAdminRolesOK(t, conn, router, path, `{"id":9002}`, "result-true.json")
 		if got := role.Get(contractRoleDeleteRoleID); got.Id != 0 {
 			t.Fatalf("role %d still readable after delete", contractRoleDeleteRoleID)
 		}
