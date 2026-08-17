@@ -529,7 +529,7 @@ func applyCourseRow(tx *gorm.DB, runID uint64, source string, row importCourseRo
 		insID, err := sourceRefLocalID(tx, source, tc, course.EntityTypeInstructor)
 		if err != nil {
 			report.Quarantined++
-			return nil
+			return nil //nolint:nilerr // 教师引用不可解析 → 隔离该行（与 offering 引用不可解析同语义），不中断整批导入
 		}
 		teacherId = insID
 	}
