@@ -164,8 +164,18 @@ func aggregatePkCourses(calendarIds []uint64) ([]*pkCourseAgg, error) {
 	return out, nil
 }
 
-// upsertPkCourseTx 在事务内 upsert 一门一系统课程（含教师/别名），返回课程实体与是否新建。
 func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]uint64, report *MaterializeReport) (*course.Entity, bool, error) {
+	// 先对齐教师（填充 instructorCache），再解析课程身份教师：
+	// (code, teacher) 复合身份下课程行身份教师取教学班首位教师（合班课其余教师
+	// 保留在 offering 教师名单），无教师时 teacher_id=0。
+	if err := upsertPkInstructorsTx(tx, agg.TeacherNames, agg.Department, instructorCache, report); err != nil {
+		return nil, false, err
+	}
+	var teacherId uint64
+	if len(agg.TeacherNames) > 0 {
+		norm := Normalize(agg.TeacherNames[0])
+		teacherId = instructorCache[norm+"\x00"+agg.Department]
+	}
 	pinyin, initials := searchservice.PinyinFields(agg.Name)
 	entity := course.Entity{
 		PrimaryCode:    agg.CourseCode,
@@ -175,10 +185,11 @@ func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]
 		NormalizedName: Normalize(agg.Name),
 		NamePinyin:     pinyin,
 		NameInitials:   initials,
+		TeacherId:      teacherId,
 		Status:         course.StatusVisible,
 	}
 
-	existing, err := course.GetCourseByPrimaryCodeTx(tx, agg.CourseCode)
+	existing, err := course.GetCourseByCodeTeacherTx(tx, agg.CourseCode, teacherId)
 	inserted := false
 	switch {
 	case err == nil:
@@ -205,9 +216,6 @@ func upsertPkCourseTx(tx *gorm.DB, agg *pkCourseAgg, instructorCache map[string]
 		return nil, false, fmt.Errorf("materialize: lookup course %s: %w", agg.CourseCode, err)
 	}
 
-	if err := upsertPkInstructorsTx(tx, agg.TeacherNames, agg.Department, instructorCache, report); err != nil {
-		return nil, false, err
-	}
 	if err := upsertPkAliasesTx(tx, &entity, agg.Aliases, report); err != nil {
 		return nil, false, err
 	}

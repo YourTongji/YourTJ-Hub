@@ -92,6 +92,10 @@ func migrateSchema() {
 		slog.Error("dbconnect course_import_run index upgrade failed", "err", err)
 		os.Exit(1)
 	}
+	if err = upgradeCourseTeacherIdentity(db); err != nil {
+		slog.Error("dbconnect course teacher identity upgrade failed", "err", err)
+		os.Exit(1)
+	}
 	if err = db.AutoMigrate(SchemaModels()...); err != nil {
 		// 迁移失败必须立即退出（非零码），否则服务会带着残缺 schema 继续启动，
 		// 登录/注册等依赖新表的接口在运行期才会报错，故障被发现时已影响线上。
@@ -141,6 +145,34 @@ func upgradeImportRunCompositeIndex(db *gorm.DB) error {
 			return fmt.Errorf("drop legacy course_import_run unique index: %w", err)
 		}
 		slog.Info("dbconnect course_import_run legacy unique index dropped, will be recreated as (kind, manifest_hash)")
+	}
+	return nil
+}
+
+// upgradeCourseTeacherIdentity 把 course 身份从「一门课一个 primary_code」
+// 升级为「(primary_code, teacher_id) 复合身份」（issue #326）：
+//  1. teacher_id 列：存量库显式 ALTER TABLE ADD COLUMN（NOT NULL DEFAULT 0，
+//     0 = 无教师哨兵值），不依赖 AutoMigrate——SQLite 依赖 AutoMigrate 补列会
+//     整表重建丢数据。
+//  2. 唯一索引 uniq_course_primary_code（单列）→ uniq_course_code_teacher
+//     (primary_code, teacher_id) 复合：GORM AutoMigrate 按索引名判重，
+//     同名旧索引不会被重建，必须先显式 DropIndex 旧索引。
+func upgradeCourseTeacherIdentity(db *gorm.DB) error {
+	if !db.Migrator().HasTable(courseTableName) {
+		return nil // 全新库：AutoMigrate 直接建全表 + 复合索引。
+	}
+	if !db.Migrator().HasColumn(&course.Entity{}, "teacher_id") {
+		// 带默认值 0（无教师）的 NOT NULL 列：存量行回填 0，符合新模型。
+		if err := db.Exec("ALTER TABLE course ADD COLUMN teacher_id BIGINT NOT NULL DEFAULT 0").Error; err != nil {
+			return fmt.Errorf("add course.teacher_id column: %w", err)
+		}
+		slog.Info("dbconnect course.teacher_id column added (default 0)")
+	}
+	if db.Migrator().HasIndex(&course.Entity{}, "uniq_course_primary_code") {
+		if err := db.Migrator().DropIndex(&course.Entity{}, "uniq_course_primary_code"); err != nil {
+			return fmt.Errorf("drop legacy course primary_code unique index: %w", err)
+		}
+		slog.Info("dbconnect course legacy unique index dropped, will be recreated as (primary_code, teacher_id)")
 	}
 	return nil
 }
@@ -390,6 +422,8 @@ func upgradeCourseReviewLegacySchema(db *gorm.DB) error {
 }
 
 const courseReviewTableName = "course_review"
+
+const courseTableName = "course"
 
 // dedupeWikiRevisionNumbers 在 AutoMigrate 创建 uniq_wiki_rev_page_no 唯一索引前，
 // 清理存量 wiki_page_revisions 中 (page_id, revision_no) 重复的行（旧版并发写入

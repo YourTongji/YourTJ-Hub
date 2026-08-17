@@ -223,8 +223,8 @@ watch(
                 <div class="min-w-0">
                   <p class="truncate text-sm font-semibold text-base-content">{{ course.name }}</p>
                   <p class="mt-0.5 truncate text-xs text-base-content/55">{{ course.primaryCode }} · {{ course.department }}</p>
-                  <p v-if="course.instructors?.length" class="mt-0.5 truncate text-xs text-base-content/45">
-                    {{ course.instructors.join('、') }}
+                  <p class="mt-0.5 truncate text-xs text-base-content/45">
+                    {{ course.teacherName || t('coursesPage.noTeacher') }}
                   </p>
                 </div>
               </a>

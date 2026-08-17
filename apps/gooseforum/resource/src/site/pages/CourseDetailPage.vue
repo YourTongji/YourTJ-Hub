@@ -405,6 +405,10 @@ onMounted(() => {
             <Building2 class="h-3.5 w-3.5" />
             {{ props.course.department }}
           </span>
+          <span class="inline-flex items-center gap-1">
+            <UsersRound class="h-3.5 w-3.5" />
+            {{ props.course.teacherName || t('courseDetailPage.noTeacher') }}
+          </span>
           <span v-if="formatCredit(props.course.creditX10)" class="inline-flex items-center gap-1">
             <span class="h-1 w-1 rounded-full bg-base-content/30" />
             {{ t('courseDetailPage.credit') }}：{{ formatCredit(props.course.creditX10) }}
@@ -565,23 +569,25 @@ onMounted(() => {
           <ul v-else class="space-y-2">
             <li
               v-for="item in related.sameCourseOtherTeachers"
-              :key="item.offeringId"
-              class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2"
+              :key="item.id"
             >
-              <span class="min-w-0">
-                <span class="block truncate text-sm font-medium text-base-content">
-                  {{ item.instructors?.join('、') || t('courseDetailPage.instructors') }}
+              <a
+                :href="`/courses/${item.id}`"
+                class="flex items-center justify-between gap-3 rounded-[var(--gf-radius-box)] border border-line/70 bg-base-200/45 px-3 py-2 transition hover:bg-base-200/70"
+              >
+                <span class="min-w-0">
+                  <span class="block truncate text-sm font-medium text-base-content">{{ item.name }}</span>
+                  <span class="block truncate text-[12px] text-base-content/50">
+                    {{ item.primaryCode }}<template v-if="item.teacherName"> · {{ item.teacherName }}</template>
+                  </span>
                 </span>
-                <span class="block truncate text-[12px] text-base-content/50">
-                  {{ [item.termCode, item.campus].filter(Boolean).join(' · ') }}
+                <span class="shrink-0 text-right">
+                  <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
+                  <span class="block text-[11px] tabular-nums text-base-content/45">
+                    {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
+                  </span>
                 </span>
-              </span>
-              <span class="shrink-0 text-right">
-                <span class="block text-sm font-semibold tabular-nums text-warning">{{ formatRating(item.ratingAvg) }}</span>
-                <span class="block text-[11px] tabular-nums text-base-content/45">
-                  {{ t('courseDetailPage.relatedReviews', { count: item.reviewCount }, item.reviewCount) }}
-                </span>
-              </span>
+              </a>
             </li>
           </ul>
         </div>

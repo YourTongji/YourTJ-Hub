@@ -1906,10 +1906,10 @@ export interface paths {
         /**
          * Related courses and teachers for a canonical course
          * @description Public read endpoint. Returns up to 5 other visible courses sharing any teacher with the
-         *     requested course (`teacherOtherCourses`) and up to 5 offerings of the same course taught by
-         *     a different teacher arrangement (`sameCourseOtherTeachers`), each with rating stats. Hub
-         *     keeps one canonical course per primary_code, so "other teachers for the same course" is
-         *     expressed at the offering level.
+         *     requested course (`teacherOtherCourses`) and up to 5 course cards with the same
+         *     primary_code but a different (code, teacher) identity (`sameCourseOtherTeachers`), each
+         *     with rating stats. With the composite identity model, same-code different-teacher rows are
+         *     independent course cards, so both blocks return the same card structure.
          */
         get: operations["getCourseRelated"];
         put?: never;
@@ -6170,6 +6170,13 @@ export interface components {
             department: string;
             /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
             creditX10: number;
+            /**
+             * Format: uint64
+             * @description Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+             */
+            teacherId?: number;
+            /** @description Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师). */
+            teacherName?: string;
             aliases?: string[];
             instructors?: string[];
             recentTerms?: string[];
@@ -6219,6 +6226,13 @@ export interface components {
             name: string;
             department: string;
             creditX10: number;
+            /**
+             * Format: uint64
+             * @description Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+             */
+            teacherId?: number;
+            /** @description Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师). */
+            teacherName?: string;
             aliases?: string[];
             offerings?: components["schemas"]["OfferingSummary"][];
             /**
@@ -8879,8 +8893,8 @@ export interface components {
         CourseRelatedResult: {
             /** @description Other visible courses sharing any teacher with the requested course, top 5 by review count. */
             teacherOtherCourses: components["schemas"]["RelatedCourseItem"][];
-            /** @description Offerings of the same course taught by a different teacher arrangement, top 5 by review count. */
-            sameCourseOtherTeachers: components["schemas"]["RelatedTeacherOfferingItem"][];
+            /** @description Other course cards with the same primary_code (different teacher identity), top 5 by review count. */
+            sameCourseOtherTeachers: components["schemas"]["RelatedCourseItem"][];
         };
         CourseSearchPayload: {
             /** Format: uint64 */
@@ -8888,6 +8902,13 @@ export interface components {
             primaryCode: string;
             name: string;
             department: string;
+            /**
+             * Format: uint64
+             * @description Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+             */
+            teacherId?: number;
+            /** @description Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师). */
+            teacherName?: string;
             /** @description Credit multiplied by 10 to stay integral (2.5 credit -> 25). */
             creditX10: number;
             aliases: string[];
@@ -8971,35 +8992,25 @@ export interface components {
             /** @description 各学期同步状态汇总，按 calendarId 倒序（最近学期在前）。 */
             result: components["schemas"]["PkSyncStatusItem"][];
         };
-        /** @description A canonical course taught by a teacher shared with the requested course. */
+        /**
+         * @description A related course card. With the (code, teacher) composite identity model, courses with the
+         *     same primary_code but different teachers are independent cards, so both "other courses by the
+         *     same teacher" and "other teachers for the same course" blocks return this structure.
+         */
         RelatedCourseItem: {
             /** Format: uint64 */
             id: number;
             primaryCode: string;
             name: string;
             department: string;
+            /** @description Identity teacher name of the card; omitted when the course has no teacher. */
+            teacherName?: string;
             instructors?: string[];
             /** @description Average rating (ratingSum / ratingCount), 0 when no ratings exist. */
             ratingAvg: number;
             /** @description Number of visible reviews carrying a rating. */
             ratingCount: number;
             /** @description Number of visible reviews for this course. */
-            reviewCount: number;
-        };
-        /**
-         * @description An offering of the requested course taught by a teacher arrangement different from the most
-         *     recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
-         *     course" is expressed at the offering level, where per-teacher ratings do not exist.
-         */
-        RelatedTeacherOfferingItem: {
-            /** Format: uint64 */
-            offeringId: number;
-            termCode: string;
-            termName?: string;
-            campus?: string;
-            instructors?: string[];
-            ratingAvg: number;
-            ratingCount: number;
             reviewCount: number;
         };
         /** @description Report handler payload. Unlike TopicAuthorPayload the id may be 0 for open reports. */

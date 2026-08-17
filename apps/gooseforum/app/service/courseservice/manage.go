@@ -179,7 +179,8 @@ func CreateCourse(input CourseCreateInput) (AdminCourseItem, error) {
 	department := strings.TrimSpace(input.Department)
 	var item AdminCourseItem
 	err := dbconnect.Connect().Transaction(func(tx *gorm.DB) error {
-		existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
+		// 手动新增的课程无教师（teacher_id=0），冲突检查按 (code, 无教师) 复合身份。
+		existing, err := course.GetCourseByCodeTeacherTx(tx, code, 0)
 		if err == nil && existing.Id > 0 {
 			return ErrCourseCodeConflict
 		}
@@ -248,7 +249,8 @@ func UpdateCourse(courseId uint64, input CourseUpdateInput) (AdminCourseItem, er
 			if code == "" {
 				return ErrCourseCodeRequired
 			}
-			existing, err := course.GetCourseByPrimaryCodeTx(tx, code)
+			// 改课号冲突检查按 (新 code, 当前教师) 复合身份。
+			existing, err := course.GetCourseByCodeTeacherTx(tx, code, entity.TeacherId)
 			if err == nil && existing.Id > 0 && existing.Id != courseId {
 				return ErrCourseCodeConflict
 			}

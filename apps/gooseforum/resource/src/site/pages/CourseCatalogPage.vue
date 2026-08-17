@@ -219,9 +219,9 @@ async function loadMore() {
               </h2>
               <span class="gf-badge gf-badge-muted shrink-0 text-[11px]">{{ course.primaryCode }}</span>
             </div>
-            <p class="mt-1 truncate text-[12px] text-base-content/55">{{ course.department }}</p>
-            <div v-if="course.instructors?.length" class="mt-2 truncate text-[12px] text-base-content/75">
-              {{ t('coursesPage.instructors', { names: course.instructors.join('、') }) }}
+            <!-- (code, teacher) 复合身份：卡片只显示身份教师（无教师显示「无教师」）。 -->
+            <div class="mt-2 truncate text-[12px] text-base-content/75">
+              {{ course.teacherName || t('coursesPage.noTeacher') }}
             </div>
             <div v-if="course.recentTerms?.length" class="mt-1 truncate text-[11px] text-base-content/45">
               {{ t('coursesPage.terms') }}：{{ course.recentTerms.join(' / ') }}

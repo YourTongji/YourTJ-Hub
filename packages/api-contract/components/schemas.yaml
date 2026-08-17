@@ -894,6 +894,13 @@ CourseSearchPayload:
       type: string
     department:
       type: string
+    teacherId:
+      type: integer
+      format: uint64
+      description: Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+    teacherName:
+      type: string
+      description: Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师).
     creditX10:
       type: integer
       description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
@@ -1041,6 +1048,13 @@ CourseSummary:
     creditX10:
       type: integer
       description: Credit multiplied by 10 to stay integral (2.5 credit -> 25).
+    teacherId:
+      type: integer
+      format: uint64
+      description: Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+    teacherName:
+      type: string
+      description: Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师).
     aliases:
       type: array
       items:
@@ -1139,6 +1153,13 @@ CourseDetail:
       type: string
     creditX10:
       type: integer
+    teacherId:
+      type: integer
+      format: uint64
+      description: Identity teacher id of this course card (0 = no teacher); omitted when the course has no teacher.
+    teacherName:
+      type: string
+      description: Identity teacher name of this course card; omitted when the course has no teacher (frontend shows 无教师).
     aliases:
       type: array
       items:
@@ -1257,7 +1278,10 @@ CourseSummaryResponse:
 
 RelatedCourseItem:
   type: object
-  description: A canonical course taught by a teacher shared with the requested course.
+  description: |
+    A related course card. With the (code, teacher) composite identity model, courses with the
+    same primary_code but different teachers are independent cards, so both "other courses by the
+    same teacher" and "other teachers for the same course" blocks return this structure.
   required: [id, primaryCode, name, department, ratingAvg, ratingCount, reviewCount]
   properties:
     id:
@@ -1269,6 +1293,9 @@ RelatedCourseItem:
       type: string
     department:
       type: string
+    teacherName:
+      type: string
+      description: Identity teacher name of the card; omitted when the course has no teacher.
     instructors:
       type: array
       items:
@@ -1284,35 +1311,6 @@ RelatedCourseItem:
       description: Number of visible reviews for this course.
   additionalProperties: false
 
-RelatedTeacherOfferingItem:
-  type: object
-  description: |
-    An offering of the requested course taught by a teacher arrangement different from the most
-    recent one. Hub keeps one canonical course per primary_code, so "other teachers for the same
-    course" is expressed at the offering level, where per-teacher ratings do not exist.
-  required: [offeringId, termCode, ratingAvg, ratingCount, reviewCount]
-  properties:
-    offeringId:
-      type: integer
-      format: uint64
-    termCode:
-      type: string
-    termName:
-      type: string
-    campus:
-      type: string
-    instructors:
-      type: array
-      items:
-        type: string
-    ratingAvg:
-      type: number
-    ratingCount:
-      type: integer
-    reviewCount:
-      type: integer
-  additionalProperties: false
-
 CourseRelatedResult:
   type: object
   required: [teacherOtherCourses, sameCourseOtherTeachers]
@@ -1324,9 +1322,9 @@ CourseRelatedResult:
         $ref: '#/RelatedCourseItem'
     sameCourseOtherTeachers:
       type: array
-      description: Offerings of the same course taught by a different teacher arrangement, top 5 by review count.
+      description: Other course cards with the same primary_code (different teacher identity), top 5 by review count.
       items:
-        $ref: '#/RelatedTeacherOfferingItem'
+        $ref: '#/RelatedCourseItem'
   additionalProperties: false
 
 CourseRelatedResponse:

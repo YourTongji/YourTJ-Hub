@@ -205,6 +205,7 @@ _$RelatedCourseItemImpl _$$RelatedCourseItemImplFromJson(
   primaryCode: json['primaryCode'] as String,
   name: json['name'] as String,
   department: json['department'] as String,
+  teacherName: json['teacherName'] as String?,
   instructors: (json['instructors'] as List<dynamic>?)
       ?.map((e) => e as String)
       .toList(),
@@ -220,34 +221,7 @@ Map<String, dynamic> _$$RelatedCourseItemImplToJson(
   'primaryCode': instance.primaryCode,
   'name': instance.name,
   'department': instance.department,
-  'instructors': instance.instructors,
-  'ratingAvg': instance.ratingAvg,
-  'ratingCount': instance.ratingCount,
-  'reviewCount': instance.reviewCount,
-};
-
-_$RelatedTeacherOfferingItemImpl _$$RelatedTeacherOfferingItemImplFromJson(
-  Map<String, dynamic> json,
-) => _$RelatedTeacherOfferingItemImpl(
-  offeringId: (json['offeringId'] as num).toInt(),
-  termCode: json['termCode'] as String?,
-  termName: json['termName'] as String?,
-  campus: json['campus'] as String?,
-  instructors: (json['instructors'] as List<dynamic>?)
-      ?.map((e) => e as String)
-      .toList(),
-  ratingAvg: (json['ratingAvg'] as num).toDouble(),
-  ratingCount: (json['ratingCount'] as num).toInt(),
-  reviewCount: (json['reviewCount'] as num).toInt(),
-);
-
-Map<String, dynamic> _$$RelatedTeacherOfferingItemImplToJson(
-  _$RelatedTeacherOfferingItemImpl instance,
-) => <String, dynamic>{
-  'offeringId': instance.offeringId,
-  'termCode': instance.termCode,
-  'termName': instance.termName,
-  'campus': instance.campus,
+  'teacherName': instance.teacherName,
   'instructors': instance.instructors,
   'ratingAvg': instance.ratingAvg,
   'ratingCount': instance.ratingCount,
@@ -261,9 +235,7 @@ _$CourseRelatedResultImpl _$$CourseRelatedResultImplFromJson(
       .map((e) => RelatedCourseItem.fromJson(e as Map<String, dynamic>))
       .toList(),
   sameCourseOtherTeachers: (json['sameCourseOtherTeachers'] as List<dynamic>)
-      .map(
-        (e) => RelatedTeacherOfferingItem.fromJson(e as Map<String, dynamic>),
-      )
+      .map((e) => RelatedCourseItem.fromJson(e as Map<String, dynamic>))
       .toList(),
 );
 

@@ -44,6 +44,20 @@ func ListOtherCourseIDsByInstructors(instructorIds []uint64, excludeCourseId uin
 	return ids, err
 }
 
+// ListOtherCoursesByPrimaryCode 返回同 primary_code 的其他可见课程行
+// （(code, teacher) 复合身份模型下同一课号的不同教师卡），排除自身，按 id 升序。
+// 供"同课程其他教师"相关区块使用：拆卡后该区块退化为同课号其他卡片。
+func ListOtherCoursesByPrimaryCode(code string, excludeCourseId uint64) ([]Entity, error) {
+	var entities []Entity
+	err := courseBuilder().
+		Where(queryopt.Eq("primary_code", code)).
+		Where(queryopt.Ne("id", excludeCourseId)).
+		Where(queryopt.Eq("status", StatusVisible)).
+		Order("id ASC").
+		Find(&entities).Error
+	return entities, err
+}
+
 // GetCourseStatsMap 批量返回课程级评价统计（id -> stats）。
 // 读取失败如实返回错误（相关课程依赖统计做排序/展示，吞错会让接口以 200 返回全零评分）。
 func GetCourseStatsMap(courseIds []uint64) (map[uint64]CourseStatsEntity, error) {

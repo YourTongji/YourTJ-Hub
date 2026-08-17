@@ -549,7 +549,10 @@ mixin _$CourseSearchPayload {
   String get primaryCode => throw _privateConstructorUsedError;
   String get name => throw _privateConstructorUsedError;
   String get department => throw _privateConstructorUsedError;
-  int get creditX10 => throw _privateConstructorUsedError;
+  int get creditX10 =>
+      throw _privateConstructorUsedError; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  int? get teacherId => throw _privateConstructorUsedError;
+  String? get teacherName => throw _privateConstructorUsedError;
   List<String>? get aliases => throw _privateConstructorUsedError;
   List<String>? get instructors => throw _privateConstructorUsedError;
   List<String>? get terms => throw _privateConstructorUsedError;
@@ -580,6 +583,8 @@ abstract class $CourseSearchPayloadCopyWith<$Res> {
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? terms,
@@ -609,6 +614,8 @@ class _$CourseSearchPayloadCopyWithImpl<$Res, $Val extends CourseSearchPayload>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? terms = freezed,
@@ -638,6 +645,14 @@ class _$CourseSearchPayloadCopyWithImpl<$Res, $Val extends CourseSearchPayload>
                 ? _value.creditX10
                 : creditX10 // ignore: cast_nullable_to_non_nullable
                       as int,
+            teacherId: freezed == teacherId
+                ? _value.teacherId
+                : teacherId // ignore: cast_nullable_to_non_nullable
+                      as int?,
+            teacherName: freezed == teacherName
+                ? _value.teacherName
+                : teacherName // ignore: cast_nullable_to_non_nullable
+                      as String?,
             aliases: freezed == aliases
                 ? _value.aliases
                 : aliases // ignore: cast_nullable_to_non_nullable
@@ -683,6 +698,8 @@ abstract class _$$CourseSearchPayloadImplCopyWith<$Res>
     String name,
     String department,
     int creditX10,
+    int? teacherId,
+    String? teacherName,
     List<String>? aliases,
     List<String>? instructors,
     List<String>? terms,
@@ -711,6 +728,8 @@ class __$$CourseSearchPayloadImplCopyWithImpl<$Res>
     Object? name = null,
     Object? department = null,
     Object? creditX10 = null,
+    Object? teacherId = freezed,
+    Object? teacherName = freezed,
     Object? aliases = freezed,
     Object? instructors = freezed,
     Object? terms = freezed,
@@ -740,6 +759,14 @@ class __$$CourseSearchPayloadImplCopyWithImpl<$Res>
             ? _value.creditX10
             : creditX10 // ignore: cast_nullable_to_non_nullable
                   as int,
+        teacherId: freezed == teacherId
+            ? _value.teacherId
+            : teacherId // ignore: cast_nullable_to_non_nullable
+                  as int?,
+        teacherName: freezed == teacherName
+            ? _value.teacherName
+            : teacherName // ignore: cast_nullable_to_non_nullable
+                  as String?,
         aliases: freezed == aliases
             ? _value._aliases
             : aliases // ignore: cast_nullable_to_non_nullable
@@ -778,6 +805,8 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
     required this.name,
     required this.department,
     required this.creditX10,
+    this.teacherId,
+    this.teacherName,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? terms,
@@ -802,6 +831,11 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
   final String department;
   @override
   final int creditX10;
+  // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  final int? teacherId;
+  @override
+  final String? teacherName;
   final List<String>? _aliases;
   @override
   List<String>? get aliases {
@@ -849,7 +883,7 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
 
   @override
   String toString() {
-    return 'CourseSearchPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, aliases: $aliases, instructors: $instructors, terms: $terms, campus: $campus, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
+    return 'CourseSearchPayload(id: $id, primaryCode: $primaryCode, name: $name, department: $department, creditX10: $creditX10, teacherId: $teacherId, teacherName: $teacherName, aliases: $aliases, instructors: $instructors, terms: $terms, campus: $campus, ratingAvg: $ratingAvg, reviewCount: $reviewCount)';
   }
 
   @override
@@ -865,6 +899,10 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
                 other.department == department) &&
             (identical(other.creditX10, creditX10) ||
                 other.creditX10 == creditX10) &&
+            (identical(other.teacherId, teacherId) ||
+                other.teacherId == teacherId) &&
+            (identical(other.teacherName, teacherName) ||
+                other.teacherName == teacherName) &&
             const DeepCollectionEquality().equals(other._aliases, _aliases) &&
             const DeepCollectionEquality().equals(
               other._instructors,
@@ -887,6 +925,8 @@ class _$CourseSearchPayloadImpl implements _CourseSearchPayload {
     name,
     department,
     creditX10,
+    teacherId,
+    teacherName,
     const DeepCollectionEquality().hash(_aliases),
     const DeepCollectionEquality().hash(_instructors),
     const DeepCollectionEquality().hash(_terms),
@@ -919,6 +959,8 @@ abstract class _CourseSearchPayload implements CourseSearchPayload {
     required final String name,
     required final String department,
     required final int creditX10,
+    final int? teacherId,
+    final String? teacherName,
     final List<String>? aliases,
     final List<String>? instructors,
     final List<String>? terms,
@@ -939,7 +981,11 @@ abstract class _CourseSearchPayload implements CourseSearchPayload {
   @override
   String get department;
   @override
-  int get creditX10;
+  int get creditX10; // (code, teacher) 复合身份：卡片身份教师（无教师时省略）。
+  @override
+  int? get teacherId;
+  @override
+  String? get teacherName;
   @override
   List<String>? get aliases;
   @override
