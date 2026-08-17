@@ -1,4 +1,6 @@
 <script setup lang="ts">
+import { computed, nextTick, ref, useAttrs, type ComponentPublicInstance } from 'vue'
+import { twMerge } from 'tailwind-merge'
 import { Check, ChevronDown } from '@lucide/vue'
 import {
   SelectContent,
@@ -32,17 +34,42 @@ const emit = defineEmits<{
 
 // SelectRoot 是 renderless 组件（inheritAttrs: false），调用方 attrs（如 class 间距/宽度）
 // 必须显式透传到 SelectTrigger，否则被整体丢弃（SettingsPage 语言选择/字号预设回归）。
+// class 用 twMerge 合并：调用方宽度（如 w-44）覆盖默认 w-full，避免 CSS 产物顺序导致覆盖失败。
 defineOptions({ inheritAttrs: false })
+
+const attrs = useAttrs()
+const { class: callerClass, ...restAttrs } = attrs
+const triggerClass = computed(() =>
+  twMerge('gf-input flex w-full items-center justify-between gap-2 text-left', callerClass as string | undefined),
+)
+
+// reka-ui@2.9.8 的 SelectContentImpl 对 Tab 无条件 preventDefault 且不关闭 Select
+// （SelectContentImpl.js handleKeyDown），补明确的 Tab 关闭 + 焦点回到 trigger。
+const open = ref(false)
+const triggerRef = ref<ComponentPublicInstance | null>(null)
+
+function handleContentKeydown(event: KeyboardEvent) {
+  if (event.key !== 'Tab') return
+  event.preventDefault()
+  open.value = false
+  // reka-ui 组件 ref 通过 useForwardExpose 暴露 $el，先取 DOM 元素再聚焦。
+  void nextTick(() => {
+    const el = triggerRef.value?.$el
+    if (el instanceof HTMLElement) el.focus()
+  })
+}
 </script>
 
 <template>
   <SelectRoot
+    v-model:open="open"
     :model-value="props.modelValue"
     @update:model-value="(value) => emit('update:modelValue', String(value))"
   >
     <SelectTrigger
-      v-bind="$attrs"
-      class="gf-input flex w-full items-center justify-between gap-2 text-left"
+      ref="triggerRef"
+      v-bind="restAttrs"
+      :class="triggerClass"
       :aria-label="props.label || undefined"
     >
       <SelectValue :placeholder="props.placeholder ?? ''">
@@ -64,6 +91,7 @@ defineOptions({ inheritAttrs: false })
         position="popper"
         :side-offset="6"
         align="start"
+        @keydown="handleContentKeydown"
       >
         <SelectViewport class="max-h-64">
           <SelectItem

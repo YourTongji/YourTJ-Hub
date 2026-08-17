@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: '请选择',
     majorHint: '如需跨学科选课，在「选择课程」-「高级检索」中直接检索即可。',
     openPicker: '选择课程',
+    pickerDescription: '从计划内课程、通识选修课或高级检索结果中勾选课程加入课表。',
     saveTimetable: '保存课表',
     export: '导出',
     exportCsv: '导出课表 CSV',
@@ -1991,6 +1992,9 @@ export default {
     close: '关闭搜索',
     openSearch: '打开搜索',
     panelLabel: '搜索 Wiki',
+    panelDescription: '输入关键词，在 Wiki 站内精准搜索，支持标题与正文命中。',
     resultsLabel: '搜索结果',
   },
 }
+
+

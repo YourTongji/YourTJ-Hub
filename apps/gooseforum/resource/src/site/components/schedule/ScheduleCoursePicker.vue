@@ -288,6 +288,7 @@ async function submit() {
       >
         <div class="flex items-center justify-between border-b border-line/60 px-4 py-3">
           <DialogTitle class="text-sm font-bold text-base-content">{{ t('schedule.openPicker') }}</DialogTitle>
+          <DialogDescription class="sr-only">{{ t('schedule.pickerDescription') }}</DialogDescription>
           <button type="button" class="gf-icon-button" :aria-label="t('common.close')" @click="emit('close')">
             <X class="h-4 w-4" />
           </button>

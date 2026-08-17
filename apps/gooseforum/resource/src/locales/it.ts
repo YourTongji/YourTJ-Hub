@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: 'Seleziona',
     majorHint: 'Per corsi interdisciplinari, cerca direttamente in "Seleziona Corsi" → "Ricerca Avanzata".',
     openPicker: 'Seleziona Corsi',
+    pickerDescription: 'Seleziona i corsi da quelli previsti, opzionali o dai risultati della ricerca avanzata per aggiungerli al tuo orario.',
     saveTimetable: 'Salva Orario',
     export: 'Esporta',
     exportCsv: 'Esporta Orario CSV',
@@ -1991,6 +1992,9 @@ export default {
     close: 'Chiudi ricerca',
     openSearch: 'Apri la ricerca',
     panelLabel: 'Cerca nella Wiki',
+    panelDescription: 'Digita parole chiave per cercare nella Wiki, tra titoli e contenuti.',
     resultsLabel: 'Risultati di ricerca',
   },
 }
+
+

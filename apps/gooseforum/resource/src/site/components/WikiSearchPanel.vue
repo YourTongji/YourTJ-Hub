@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { computed, onBeforeUnmount, onMounted, ref, watch } from 'vue'
 import { ArrowDown, ArrowUp, CornerDownLeft, Search, X } from '@lucide/vue'
-import { DialogContent, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
+import { DialogContent, DialogDescription, DialogOverlay, DialogPortal, DialogRoot, DialogTitle } from 'reka-ui'
 import { useI18n } from 'vue-i18n'
 import {
   closePanel,
@@ -206,8 +206,10 @@ const sanitizeMarkup = sanitizeHighlightMarkup
       <DialogOverlay class="fixed inset-0 z-[80] bg-neutral/30 backdrop-blur-[2px]" />
       <DialogContent
         class="fixed inset-0 z-[80] flex items-center justify-center px-3 outline-none"
+        @pointerdown.self="closePanel"
       >
         <DialogTitle class="sr-only">{{ t('wikiSearch.panelLabel') }}</DialogTitle>
+        <DialogDescription class="sr-only">{{ t('wikiSearch.panelDescription') }}</DialogDescription>
         <div class="gf-card max-h-[85vh] w-full max-w-xl overflow-hidden bg-base-100/85 shadow-lg backdrop-blur-xl">
           <div class="flex h-12 items-center gap-2 border-b border-line px-4">
             <Search class="h-5 w-5 shrink-0 text-icon-muted" aria-hidden="true" />

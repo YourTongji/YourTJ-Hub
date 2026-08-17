@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { LayoutPayload, WikiTreeNamespace } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
@@ -136,6 +136,45 @@ describe('MobileDrawer wiki 模式', () => {
     const drawer = wrapper.get('[role="dialog"]')
     expect(drawer.text()).toContain('Wiki')
     expect(drawer.text()).not.toContain('同济新手教程')
+  })
+
+  // P2-7（review #320 第二轮）：forum 模式导航需要 nav landmark（旧实现 Motion as="nav"）。
+  test('forum 模式渲染 nav landmark（aria-label=菜单）', () => {
+    const wrapper = mountDrawer({
+      wikiMode: false,
+      primaryItems: [
+        { key: 'home', label: '首页', url: '/', active: false },
+        { key: 'messages', label: '消息', url: '/messages', active: false },
+      ],
+    })
+    const nav = wrapper.get('nav[aria-label="菜单"]')
+    expect(nav.find('a[href="/"]').text()).toBe('首页')
+    expect(nav.find('a[href="/messages"]').text()).toBe('消息')
+  })
+
+  // P2-4（review #320 第二轮）：resize 到 lg 后抽屉仍 mounted/open，
+  // reka-ui 继续 trap focus + body 锁定，必须监听 matchMedia 断点变化自动关闭。
+  test('断点变化到桌面宽度时自动关闭抽屉', async () => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>()
+    const mql = {
+      matches: false,
+      media: '(min-width: 1024px)',
+      addEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.delete(fn),
+    }
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList)
+
+    const wrapper = mountDrawer({ wikiMode: false })
+    expect(wrapper.emitted('close')).toBeUndefined()
+
+    // 模拟跨过 lg 断点（如旋转/窗口放大）：触发 matchMedia change 事件
+    mql.matches = true
+    for (const fn of listeners) fn({ matches: true } as MediaQueryListEvent)
+    await flushPromises()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+
+    matchMediaSpy.mockRestore()
+    wrapper.unmount()
   })
 })
 

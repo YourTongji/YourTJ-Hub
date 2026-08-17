@@ -14,12 +14,11 @@ describe('SiteSelect attrs 透传', () => {
   test('调用方 class 完整落到 trigger 上', () => {
     const wrapper = mount(SiteSelect, {
       props: { modelValue: 'zh', options },
-      attrs: { class: 'mt-1 w-44 shrink-0' },
+      attrs: { class: 'mt-1 shrink-0' },
       attachTo: document.body,
     })
     const trigger = wrapper.get('[role="combobox"]')
     expect(trigger.classes()).toContain('mt-1')
-    expect(trigger.classes()).toContain('w-44')
     expect(trigger.classes()).toContain('shrink-0')
     wrapper.unmount()
   })
@@ -32,6 +31,37 @@ describe('SiteSelect attrs 透传', () => {
     const trigger = wrapper.get('[role="combobox"]')
     expect(trigger.classes()).toContain('gf-input')
     expect(trigger.classes()).toContain('w-full')
+    wrapper.unmount()
+  })
+})
+
+// P1-1（review #320 第二轮）：$attrs.class 与静态 w-full 同时传给 trigger 时，
+// Tailwind 产物顺序会让 w-full 覆盖调用方 w-44。twMerge 必须让调用方宽度胜出。
+describe('SiteSelect twMerge class 合并', () => {
+  test('调用方 w-44 覆盖默认 w-full（SettingsPage 字号预设）', () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attrs: { class: 'w-44 shrink-0' },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    const cls = trigger.classes()
+    expect(cls).toContain('w-44')
+    // twMerge 把冲突的 w-full 移除，避免 CSS 产物顺序导致 width:100% 覆盖
+    expect(cls).not.toContain('w-full')
+    expect(cls).toContain('shrink-0')
+    wrapper.unmount()
+  })
+
+  test('调用方 mt-1 与默认类共存（SettingsPage 语言选择）', () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attrs: { class: 'mt-1' },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    expect(trigger.classes()).toContain('mt-1')
+    expect(trigger.classes()).toContain('gf-input')
     wrapper.unmount()
   })
 })
@@ -50,6 +80,49 @@ describe('SiteSelect 下拉层级', () => {
     const listbox = document.querySelector('[role="listbox"]')
     expect(listbox).not.toBeNull()
     expect(listbox?.classList.contains('z-[2100]')).toBe(true)
+    wrapper.unmount()
+  })
+})
+
+// P1-2（review #320 第二轮）：reka-ui@2.9.8 SelectContentImpl 对 Tab 无条件
+// preventDefault 且不关闭 Select，用户会被困在列表中。补 Tab 关闭 + 焦点回 trigger。
+describe('SiteSelect Tab 键盘行为', () => {
+  async function openSelect(wrapper: ReturnType<typeof mount>) {
+    await wrapper.get('[role="combobox"]').trigger('pointerdown', { button: 0, pageX: 10, pageY: 10 })
+    await flushPromises()
+    expect(document.querySelector('[role="listbox"]')).not.toBeNull()
+  }
+
+  test('在列表中按 Tab 关闭列表并把焦点移回 trigger', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attachTo: document.body,
+    })
+    const trigger = wrapper.get('[role="combobox"]')
+    await openSelect(wrapper)
+
+    const listbox = document.querySelector('[role="listbox"]')!
+    listbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', bubbles: true }))
+    await flushPromises()
+
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
+    await new Promise((r) => setTimeout(r, 0)) // nextTick 聚焦
+    expect(document.activeElement).toBe(trigger.element)
+    wrapper.unmount()
+  })
+
+  test('按 Shift+Tab 同样关闭列表', async () => {
+    const wrapper = mount(SiteSelect, {
+      props: { modelValue: 'zh', options },
+      attachTo: document.body,
+    })
+    await openSelect(wrapper)
+
+    const listbox = document.querySelector('[role="listbox"]')!
+    listbox.dispatchEvent(new KeyboardEvent('keydown', { key: 'Tab', shiftKey: true, bubbles: true }))
+    await flushPromises()
+
+    expect(document.querySelector('[role="listbox"]')).toBeNull()
     wrapper.unmount()
   })
 })
