@@ -85,19 +85,11 @@ func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
 	}
 	// calendarId → calendar_id_i18n（如 "2025-2026-1"）→ course_term.id：
 	// 同一班号跨学期都有 offering 时，只返回所选学期的那个（review P3）。
-	// calendarId > 0 而日历/term 映射缺失（该学期未物化到课程目录）时返回空 classes：
-	// 契约承诺「限定该学期内匹配」，不得退化为全学期查询（review CHANGES_REQUESTED）。
-	var termId uint64
-	if calendarId > 0 {
-		cal, err := pk.GetCalendarByID(calendarId)
-		if err != nil || cal.CalendarIdI18n == "" {
-			return nil
-		}
-		term, err := course.GetTermByCode(cal.CalendarIdI18n)
-		if err != nil {
-			return nil
-		}
-		termId = term.Id
+	termId, ok := resolveTermIdForCalendar(calendarId)
+	if !ok {
+		// calendarId > 0 而日历/term 映射缺失（该学期未物化到课程目录）时保持空 classes：
+		// 契约承诺「限定该学期内匹配」，不得退化为全学期查询（review CHANGES_REQUESTED）。
+		return nil
 	}
 	offerings, err := course.ListVisibleOfferingsByClassCodes(classCodes, termId)
 	if err != nil {
@@ -133,6 +125,25 @@ func fillClassBriefs(brief *ReviewBrief, calendarId uint64) error {
 		brief.Classes = append(brief.Classes, item)
 	}
 	return nil
+}
+
+// resolveTermIdForCalendar 将 PK 学期（calendarId）映射到课程目录学期（course_term.id）：
+// calendarId <= 0 时直接返回 (0, true)（不限定学期）；calendarId > 0 时要求
+// calendar 存在、calendar_id_i18n 非空且能在 course_term 中找到对应学期，
+// 任一环节缺失返回 (0, false)——调用方须保持空 classes，不得退化为全学期查询。
+func resolveTermIdForCalendar(calendarId uint64) (uint64, bool) {
+	if calendarId == 0 {
+		return 0, true
+	}
+	cal, err := pk.GetCalendarByID(calendarId)
+	if err != nil || cal.CalendarIdI18n == "" {
+		return 0, false
+	}
+	term, err := course.GetTermByCode(cal.CalendarIdI18n)
+	if err != nil {
+		return 0, false
+	}
+	return term.Id, true
 }
 
 // classTeacherNames 批量返回 offering → 教师姓名列表（按关联顺序）。
