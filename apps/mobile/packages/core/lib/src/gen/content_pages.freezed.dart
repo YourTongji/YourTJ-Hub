@@ -3120,19 +3120,18 @@ class _$CourseCatalogQueryPayloadImpl implements _CourseCatalogQueryPayload {
 
   @JsonKey(includeFromJson: false, includeToJson: false)
   @override
-  int get hashCode =>
-      Object.hash(
-        runtimeType,
-        keyword,
-        department,
-        term,
-        campus,
-        instructor,
-        onlyWithReviews,
-        sortBy,
-        page,
-        size,
-      );
+  int get hashCode => Object.hash(
+    runtimeType,
+    keyword,
+    department,
+    term,
+    campus,
+    instructor,
+    onlyWithReviews,
+    sortBy,
+    page,
+    size,
+  );
 
   /// Create a copy of CourseCatalogQueryPayload
   /// with the given fields replaced by the non-null parameter values.
@@ -3303,6 +3302,7 @@ class _$CourseOfferingPayloadCopyWithImpl<
                 ? _value.className
                 : className // ignore: cast_nullable_to_non_nullable
                       as String?,
+            instructors: freezed == instructors
                 ? _value.instructors
                 : instructors // ignore: cast_nullable_to_non_nullable
                       as List<String>?,
@@ -3479,6 +3479,7 @@ class _$CourseOfferingPayloadImpl implements _CourseOfferingPayload {
                 other.termCode == termCode) &&
             (identical(other.termName, termName) ||
                 other.termName == termName) &&
+            (identical(other.campus, campus) || other.campus == campus) &&
             (identical(other.faculty, faculty) || other.faculty == faculty) &&
             (identical(other.classCode, classCode) ||
                 other.classCode == classCode) &&

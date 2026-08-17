@@ -76,29 +76,34 @@ _SEM_PATTERNS = [
 
 
 def norm_semester(raw: str):
-    """自由文本学期 -> "YYYY-YYYY-N"，识别不了返回 None。"""
-    s = (raw or "").strip().replace(" ", "")
-    if not s:
+    """自由文本学期 -> "YYYY-YYYY-N"，识别不了返回 None。
+
+    先按原样匹配（覆盖 "2025-2026 1" / "2025-2026 w" 这类带空格形式），
+    匹配不上再去掉所有空格重试（覆盖 "2025-2026第二学期" 等紧凑形式）。
+    """
+    s0 = (raw or "").strip()
+    if not s0:
         return None
-    for pat, fixed_n in _SEM_PATTERNS:
-        m = pat.match(s)
-        if not m:
-            continue
-        g = m.groups()
-        if fixed_n is not None:  # 学年 + 固定学期（无捕获组或固定为 2）
-            nums = [x for x in g if x]
-            if len(nums) == 2:
-                return f"{nums[0]}-{nums[1]}-{fixed_n}"
-            return None
-        if len(g) == 2:  # 学年 + 中文数字学期
-            return f"{g[0]}-{g[1]}-{_CN_NUM[g[1]]}"
-        if len(g) == 3:
-            a, b, n = g
-            if len(a) == 2:
-                a, b = "20" + a, "20" + b
-            if n in _CN_NUM:
-                n = _CN_NUM[n]
-            return f"{a}-{b}-{n}"
+    for s in dict.fromkeys((s0, s0.replace(" ", ""))):
+        for pat, fixed_n in _SEM_PATTERNS:
+            m = pat.match(s)
+            if not m:
+                continue
+            g = m.groups()
+            if fixed_n is not None:  # 学年 + 固定学期（无捕获组或固定为 2）
+                nums = [x for x in g if x]
+                if len(nums) == 2:
+                    return f"{nums[0]}-{nums[1]}-{fixed_n}"
+                return None
+            if len(g) == 2:  # 学年 + 中文数字学期
+                return f"{g[0]}-{g[1]}-{_CN_NUM[g[1]]}"
+            if len(g) == 3:
+                a, b, n = g
+                if len(a) == 2:
+                    a, b = "20" + a, "20" + b
+                if n in _CN_NUM:
+                    n = _CN_NUM[n]
+                return f"{a}-{b}-{n}"
     return None
 
 
@@ -308,7 +313,7 @@ def main() -> int:
                     "faculty": faculty_names.get(r["faculty"], "") or "",
                     "instructor_ids": instructor_ids,
                     # 班号信息：教学班 code（如 32000101）与班名（如 01班）。
-                    # hub importer 当前忽略未知字段，模型支持后可按班展示/分组。
+                    # hub importer 落库 class_code/class_name，详情页按班展示。
                     "class_code": (r["code"] or "").strip(),
                     "class_name": (r["name"] or "").strip(),
                 }

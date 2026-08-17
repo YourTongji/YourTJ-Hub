@@ -471,10 +471,10 @@ onMounted(() => {
         >
           <div class="flex flex-wrap items-center gap-x-3 gap-y-1">
             <span class="gf-badge gf-badge-muted">{{ offering.termCode }}</span>
-            <span v-if="offering.className" class="gf-badge gf-badge-primary/10 text-[11px]">
+            <span v-if="offering.className" class="gf-badge gf-badge-info text-[11px]">
               {{ offering.className }}
             </span>
-            <span v-else-if="offering.classCode" class="gf-badge gf-badge-primary/10 text-[11px]">
+            <span v-else-if="offering.classCode" class="gf-badge gf-badge-info text-[11px]">
               {{ offering.classCode }}
             </span>
             <span v-if="offering.campus" class="text-[12px] text-base-content/55">{{ offering.campus }}</span>
