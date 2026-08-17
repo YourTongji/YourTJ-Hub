@@ -1,0 +1,18 @@
+{
+  "result": {
+    "enabled": true,
+    "skipAdmin": true,
+    "actions": [
+      {
+        "action": "topic-write",
+        "windowSeconds": 60,
+        "limitPerIp": 5,
+        "limitPerUser": 3
+      }
+    ],
+    "newUserCaptchaAfterPosts": 3,
+    "newUserCaptchaDays": 7,
+    "minSubmitSeconds": 2
+  },
+  "code": 0
+}

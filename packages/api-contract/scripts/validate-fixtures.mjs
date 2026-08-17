@@ -16,7 +16,7 @@ import Ajv2020 from "@redocly/ajv/dist/2020.js";
 const root = join(dirname(fileURLToPath(import.meta.url)), "..");
 const bundlePath = join(root, ".tmp", "openapi.bundle.yaml");
 
-const doc = yaml.load(readFileSync(bundlePath, "utf8"));
+const doc = yaml.load(readFileSync(bundlePath, "utf8"), { schema: yaml.CORE_SCHEMA });
 
 // Resolve an internal JSON pointer like '#/components/schemas/WikiHomeResponse'.
 function resolveRef(doc, ref) {

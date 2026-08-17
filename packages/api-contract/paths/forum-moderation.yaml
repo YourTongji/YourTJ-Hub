@@ -1,0 +1,324 @@
+moderationUpdateTopicStatus:
+  post:
+    tags: [Forum]
+    summary: Ban or unban a topic from the moderation workbench
+    operationId: moderationUpdateTopicStatus
+    description: |
+      Moderator workbench operation. Authorization is decided inside the controller
+      (`CanModerateAnyCategory`: Admin, global moderator, or a moderator of one of the
+      topic's categories) — it does NOT use the role-permission middleware, so a
+      caller without moderation scope fails with HTTP 200 and `permission.denied`,
+      not 403. Unknown topics fail with `topic.notFound` (HTTP 200) before the
+      permission check. The operation is idempotent: re-applying the current status
+      returns true. JSON binding is lenient: a malformed body binds to zero values
+      and fails validation as `common.request.invalidParams` (HTTP 200). Other
+      business failures: `common.operation.failed` (HTTP 200).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationTopicStatusRequest
+    responses:
+      '200':
+        description: Status applied, or a legacy business failure envelope (`topic.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+moderationUpdatePostStatus:
+  post:
+    tags: [Forum]
+    summary: Ban or unban a reply post from the moderation workbench
+    operationId: moderationUpdatePostStatus
+    description: |
+      Moderator workbench operation. Authorization is decided inside the controller
+      against the categories of the post's topic (`CanModerateAnyCategory`) — it does
+      NOT use the role-permission middleware, so a caller without moderation scope
+      fails with HTTP 200 and `permission.denied`, not 403. Unknown posts fail with
+      `post.notFound` (HTTP 200) before the permission check. The operation is
+      idempotent: re-applying the current status returns true. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200). Other business failures:
+      `common.operation.failed` (HTTP 200).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationPostStatusRequest
+    responses:
+      '200':
+        description: Status applied, or a legacy business failure envelope (`post.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+              postNotFound:
+                externalValue: ../fixtures/admin-post-delete-post-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+listModerationReports:
+  post:
+    tags: [Forum]
+    summary: Page through the moderation report queue
+    operationId: listModerationReports
+    description: |
+      Read endpoint of the moderation workbench. Authorization is decided inside the
+      controller (`CanAccessModeration`: Admin or any moderator grant) — a caller
+      without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+      Results are restricted to the caller's category scope; the optional category
+      filter is intersected with that scope. This route is mounted without the
+      writable-account middleware, so frozen accounts can still read the queue.
+      JSON binding is lenient: a malformed body binds to zero values and returns the
+      first page of open reports; an invalid status filter fails validation as
+      `common.request.invalidParams` (HTTP 200).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationReportListRequest
+    responses:
+      '200':
+        description: Report page, or a legacy business failure envelope (`permission.denied` / `common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationReportListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-reports-success.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+moderationUpdateReportStatus:
+  post:
+    tags: [Forum]
+    summary: Resolve or reject a report from the moderation workbench
+    operationId: moderationUpdateReportStatus
+    description: |
+      Moderator workbench operation. Authorization is decided inside the controller
+      against the categories of the report target (course-review reports instead
+      require the course-review moderation capability) — it does NOT use the
+      role-permission middleware, so a caller without scope over the target fails
+      with HTTP 200 and `permission.denied`, not 403. Unknown reports fail with
+      `report.notFound` (HTTP 200) before the permission check. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200). Other business failures:
+      `common.operation.failed` (HTTP 200).
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationReportStatusRequest
+    responses:
+      '200':
+        description: Report handled, or a legacy business failure envelope (`report.notFound` / `permission.denied` / `common.operation.failed` / `common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationActionResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+              reportNotFound:
+                externalValue: ../fixtures/moderation-report-status-report-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+listModerationLogs:
+  post:
+    tags: [Forum]
+    summary: Page through the moderation audit log
+    operationId: listModerationLogs
+    description: |
+      Read endpoint of the moderation workbench. Authorization is decided inside the
+      controller (`CanAccessModeration` plus a non-empty moderation scope) — a caller
+      without moderation access fails with HTTP 200 and `permission.denied`, not 403.
+      Entries are restricted to the caller's category scope; Admins and global
+      moderators see all entries. This route is mounted without the writable-account
+      middleware, so frozen accounts can still read the log. JSON binding is lenient:
+      a malformed body binds to zero values and returns the first page.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ModerationLogListRequest
+    responses:
+      '200':
+        description: Log page, or a legacy business failure envelope (`permission.denied`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ModerationLogListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-logs-success.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+viewDeletedContent:
+  post:
+    tags: [Forum]
+    summary: View the raw content of a deleted topic or post (audited)
+    operationId: viewDeletedContent
+    description: |
+      Moderator workbench operation. Authorization is decided inside the controller
+      in two steps (`CanAccessModeration`, then `CanModerateAnyCategory` against the
+      content's categories) — it does NOT use the role-permission middleware, so a
+      caller without moderation scope fails with HTTP 200 and `permission.denied`,
+      not 403. The audit reason is mandatory and every view is written to the
+      moderation log. Unknown, still-visible, or permanently purged content fails
+      with `topic.notFound` / `post.notFound` (HTTP 200). JSON binding is lenient:
+      a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200), which is also returned for a blank
+      reason or an unknown contentType.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ViewDeletedContentRequest
+    responses:
+      '200':
+        description: Deleted content view, or a legacy business failure envelope (`topic.notFound` / `post.notFound` / `permission.denied` / `common.request.invalidParams`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ViewDeletedContentResponse
+            examples:
+              success:
+                externalValue: ../fixtures/moderation-view-deleted-content-success.json
+              permissionDenied:
+                externalValue: ../fixtures/permission-denied.json
+              topicNotFound:
+                externalValue: ../fixtures/admin-topic-categories-edit-topic-not-found.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json

@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.storage.migrateFailed",
+  "params": {
+    "error": "file migration requires an s3-compatible storage provider"
+  }
+}

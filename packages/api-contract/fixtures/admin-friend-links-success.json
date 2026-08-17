@@ -1,0 +1,22 @@
+{
+  "result": [
+    {
+      "name": "契约分组",
+      "emoji": "🔗",
+      "color": "#123456",
+      "links": [
+        {
+          "name": "同济",
+          "desc": "契约链接",
+          "url": "https://example.test",
+          "logoUrl": "/static/logo.webp",
+          "status": 1
+        }
+      ]
+    },
+    {
+      "links": []
+    }
+  ],
+  "code": 0
+}

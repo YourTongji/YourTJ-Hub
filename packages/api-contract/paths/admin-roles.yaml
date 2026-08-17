@@ -1,0 +1,207 @@
+adminGetPermissionList:
+  post:
+    tags: [Admin]
+    summary: List all assignable permissions as options
+    operationId: adminGetPermissionList
+    description: |
+      Admin console operation gated by the `RoleManager` role permission
+      (Admin role is a superset); callers without it fail with HTTP 403 and
+      `permission.denied` (params permission=<localized permission name>).
+      Returns every permission enum (ids 0-6) as name/label/value options with
+      names localized to the request locale. JSON binding is lenient: the
+      request body is ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: All permissions as localized options.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminPermissionListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-get-permission-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the RoleManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
+
+adminRoleList:
+  post:
+    tags: [Admin]
+    summary: Page through roles with their permissions
+    operationId: adminRoleList
+    description: |
+      Admin console operation gated by the `RoleManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Results
+      sort by role id descending; each role carries its permission ids with
+      request-locale localized names. The request body binds to an empty
+      struct (no filters): the echoed `page` is always 0 and `size` defaults
+      to 10. JSON binding is lenient: the request body is ignored.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Role page.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminRoleListResponse
+            examples:
+              success:
+                externalValue: ../fixtures/admin-role-list-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the RoleManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
+
+adminRoleSave:
+  post:
+    tags: [Admin]
+    summary: Create a role or replace a role's name and permission set
+    operationId: adminRoleSave
+    description: |
+      Admin console operation gated by the `RoleManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. `id` 0
+      creates a new role (effective=1); a positive `id` renames the role and
+      replaces its permission set with exactly the submitted ids — permissions
+      missing from the submission are marked ineffective, unknown permission
+      ids are stored as-is. A positive `id` matching no role silently creates
+      a new role instead of failing. A blank `roleName` or a permission list
+      that is empty or longer than 100 fails request validation with
+      `common.request.invalidParams` (HTTP 200); persistence failures surface
+      as `common.operation.failed` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because roleName is required.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminRoleSaveRequest
+    responses:
+      '200':
+        description: Role saved (result true), or a legacy business failure envelope (`common.request.invalidParams` / `common.operation.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the RoleManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json
+
+adminRoleDelete:
+  post:
+    tags: [Admin]
+    summary: Delete a role and its permission grants
+    operationId: adminRoleDelete
+    description: |
+      Admin console operation gated by the `RoleManager` role permission;
+      callers without it fail with HTTP 403 and `permission.denied`. Deletes
+      the role's permission-grant rows and then the role itself (both
+      soft-deleted). There is no built-in-role or in-use protection: a role
+      still assigned to users can be deleted, leaving those users with a
+      dangling roleId. Unknown ids (including a missing/zero id) fail with
+      `admin.role.notFound` (HTTP 200). JSON binding is lenient: a malformed
+      body binds to zero values and fails as `admin.role.notFound`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/AdminRoleDeleteRequest
+    responses:
+      '200':
+        description: Role deleted (result true), or a legacy business failure envelope (`admin.role.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/AdminBoolResponse
+            examples:
+              success:
+                externalValue: ../fixtures/result-true.json
+              roleNotFound:
+                externalValue: ../fixtures/admin-role-delete-not-found.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account, or caller lacks the RoleManager permission.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+              permissionDenied:
+                externalValue: ../fixtures/admin-get-permission-list-permission-denied.json

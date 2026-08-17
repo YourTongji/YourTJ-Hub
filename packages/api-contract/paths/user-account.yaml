@@ -1,0 +1,672 @@
+getCaptcha:
+  get:
+    tags: [User]
+    summary: Generate a captcha challenge
+    operationId: getCaptcha
+    description: |
+      Fully public endpoint: no authentication, no rate limit, no input. Returns a
+      fresh captcha id plus the image as a `data:image/png;base64` data URI. The id
+      is echoed back as captchaId on captcha-guarded operations (for example
+      posts/create when risk controls request a captcha). This endpoint has no
+      business failure branch.
+    security: []
+    responses:
+      '200':
+        description: Fresh captcha challenge.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/CaptchaSuccess
+            examples:
+              success:
+                externalValue: ../fixtures/captcha-success.json
+
+getUserCard:
+  get:
+    tags: [User]
+    summary: Read the compact public profile card of a user
+    operationId: getUserCard
+    description: |
+      Public read endpoint with no rate limit. Note the route group mounts no JWT
+      middleware, so the viewer-specific flags isSelf and isFollowing are always
+      false. Query binding is strict: a missing or non-numeric userId fails with
+      HTTP 400 and `common.request.parseFailed`. An unknown user id fails with
+      `user.notFound` (HTTP 200); a closed (soft-deleted) account instead returns a
+      successful minimal tombstone card (userId/avatarUrl/isAccountClosed set, the
+      remaining fields zero-valued).
+    security: []
+    parameters:
+      - name: userId
+        in: query
+        required: true
+        schema:
+          type: integer
+          format: uint64
+          minimum: 1
+    responses:
+      '200':
+        description: User card, or a legacy business failure envelope (`user.notFound`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserCardResponse
+            examples:
+              success:
+                externalValue: ../fixtures/user-card-success.json
+              userNotFound:
+                externalValue: ../fixtures/admin-save-user-badges-user-not-found.json
+      '400':
+        description: Missing or malformed userId query parameter.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              parseFailed:
+                externalValue: ../fixtures/parse-failed.json
+
+setUserInfo:
+  post:
+    tags: [User]
+    summary: Update the caller's profile fields
+    operationId: setUserInfo
+    description: |
+      Full-overwrite update of nickname/bio/signature/website/websiteName/
+      externalInformation; every field is optional in the request, and bio/signature
+      accept an empty string to clear the stored value. locale is applied only when
+      non-empty after trimming. JSON binding is lenient: a malformed body binds to
+      zero values and still succeeds as an all-empty overwrite. Business failures:
+      `user.fetchFailed`, `user.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetUserInfoRequest
+    responses:
+      '200':
+        description: Profile updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+setUserProfileCover:
+  post:
+    tags: [User]
+    summary: Update the caller's profile cover image
+    operationId: setUserProfileCover
+    description: |
+      Sets the profile cover URL (trimmed server-side; an empty string clears the
+      cover). Accounts with RoleId 0 are rejected with `permission.denied` (HTTP
+      200). JSON binding is lenient: a malformed body binds to zero values and
+      clears the cover. Other business failures: `user.fetchFailed`,
+      `user.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetUserProfileCoverRequest
+    responses:
+      '200':
+        description: Cover updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+setUserEmail:
+  post:
+    tags: [User]
+    summary: Change the caller's email address
+    operationId: setUserEmail
+    description: |
+      Changes the account email behind a password second-factor check. On success
+      the account activation state flips back to pending, an activation email is
+      sent to the new address, a change notification is queued to the old address,
+      and the new address cannot be used for forgot-password within 24 hours of the
+      change (EmailChangedAt cooldown). JSON binding is lenient: a malformed body
+      binds to zero values and fails validation as `common.request.invalidParams`
+      (HTTP 200). Business failures: `common.request.invalidParams`,
+      `auth.password.oldInvalid`, `auth.password.oauthRequired` (OAuth-only account
+      without a password), `auth.emailDomain.notAllowed`, `auth.email.exists`,
+      `user.fetchFailed`, `user.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetUserEmailRequest
+    responses:
+      '200':
+        description: Email updated (activation email sent to the new address), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Email-change rate limit (action `email.change`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/set-user-email-rate-limited.json
+
+resendActivationEmail:
+  post:
+    tags: [User]
+    summary: Resend the account activation email
+    operationId: resendActivationEmail
+    description: |
+      Resends the activation email to the caller's pending-verification address.
+      The route mounts no rate-limit middleware; throttling is enforced inside the
+      service and surfaces as business failure codes: `auth.activation.disabled`
+      (site-wide email verification off), `auth.activation.alreadyVerified`,
+      `auth.activation.resendCooldown` (params retryAfterSeconds),
+      `auth.activation.resendDaily` (params limit, daily cap 3) and
+      `auth.activation.resendFailed`. The request takes no body.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Activation email resent (result and params carry remainingToday), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ResendActivationResponse
+            examples:
+              success:
+                externalValue: ../fixtures/resend-activation-email-success.json
+              cooldown:
+                externalValue: ../fixtures/resend-activation-email-cooldown.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+setUserName:
+  post:
+    tags: [User]
+    summary: Change the caller's username
+    operationId: setUserName
+    description: |
+      Renames the account. The new username must match `^[a-zA-Z0-9_-]{6,32}$`
+      (`auth.username.invalid`) and survives the reserved/banned lists
+      (`auth.username.reserved` / `auth.username.banned`) and the uniqueness check
+      (`auth.username.exists`). JSON binding is lenient: a malformed body binds to
+      zero values and fails validation as `common.request.invalidParams` (HTTP 200)
+      because username is required. Other business failures: `user.fetchFailed`,
+      `user.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetUserNameRequest
+    responses:
+      '200':
+        description: Username updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+              invalidUsername:
+                externalValue: ../fixtures/set-user-name-invalid.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+setPresetAvatar:
+  post:
+    tags: [User]
+    summary: Switch the caller to a built-in preset avatar
+    operationId: setPresetAvatar
+    description: |
+      Applies one of the twelve built-in avatars (/static/pic/1.webp through
+      /static/pic/12.webp); any other value fails with
+      `common.request.invalidParams` (HTTP 200). JSON binding is lenient: a
+      malformed body binds to zero values and fails validation the same way because
+      avatarUrl is required. The success envelope carries no messageCode. Other
+      business failures: `user.fetchFailed`, `user.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/SetPresetAvatarRequest
+    responses:
+      '200':
+        description: Preset avatar applied, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/PresetAvatarResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-preset-avatar-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+wearBadge:
+  post:
+    tags: [User]
+    summary: Wear or take off a badge
+    operationId: wearBadge
+    description: |
+      Pins one of the caller's granted badges on the profile; an empty (or omitted)
+      badgeCode takes the current badge off. Every rejection — unknown code, badge
+      not owned, badge not wearable — collapses into `common.request.invalidParams`
+      (HTTP 200). JSON binding is lenient: a malformed body binds to zero values and
+      takes the badge off.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/WearBadgeRequest
+    responses:
+      '200':
+        description: Badge updated, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UserUpdateResponse
+            examples:
+              success:
+                externalValue: ../fixtures/set-user-email-success.json
+              invalidParams:
+                externalValue: ../fixtures/invalid-params.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+
+uploadAvatar:
+  post:
+    tags: [User]
+    summary: Upload a custom avatar image
+    operationId: uploadAvatar
+    description: |
+      Multipart upload of a custom avatar. The `avatar` file part is required;
+      `avatarMedium` is an optional pre-cropped medium file stored alongside.
+      Business failures (HTTP 200): `upload.attachment.disabled`, `upload.cooldown`
+      (new-account upload cooldown, params minutes/availableAt),
+      `upload.file.missing`, `upload.filename.required`,
+      `upload.dailyLimit.avatar` (params count/fileCount), `upload.file.tooLarge`
+      (params maxSizeKb), `upload.extension.unsupported` (params extensions),
+      `upload.image.unsupported`, `upload.image.invalidContent`,
+      `upload.saveFailed` (params error). Frozen accounts are rejected by the
+      route-level CheckWritableAccount middleware with the standard params
+      action=写入 / actionCode=write (the controller's own 上传附件 /
+      uploadAttachment permission check is unreachable behind that middleware).
+      When the site mandates verified email, the same controller check can
+      reject pending-activation accounts with HTTP 403 `permission.emailRequired`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        multipart/form-data:
+          schema:
+            $ref: ../components/schemas.yaml#/UploadAvatarRequest
+    responses:
+      '200':
+        description: Avatar stored, or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UploadAvatarResponse
+            examples:
+              success:
+                externalValue: ../fixtures/upload-avatar-success.json
+              fileMissing:
+                externalValue: ../fixtures/admin-img-upload-file-missing.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Frozen account (standard middleware params action=写入, actionCode=write) or unverified email under mandatory verification (`permission.emailRequired`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Upload rate limit (action `upload`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/upload-avatar-rate-limited.json
+
+changePassword:
+  post:
+    tags: [User]
+    summary: Change the caller's password
+    operationId: changePassword
+    description: |
+      Changes the account password. On success the account TokenVersion increments,
+      so every previously issued JWT — including the one used for this request —
+      is immediately invalid and no replacement token is minted; the client must log
+      in again. The new password must be 6-64 characters and contain at least one
+      letter and one digit (`auth.password.tooShort` params minLength=6,
+      `auth.password.tooLong`, `auth.password.needsLetterNumber`). Bot (Agent)
+      accounts are rejected with `auth.password.oldInvalid`. JSON binding is
+      lenient: a malformed body binds to zero values and fails validation as
+      `common.request.invalidParams` (HTTP 200) because both fields are required.
+      Other business failures: `auth.password.oldInvalid`,
+      `auth.password.updateFailed`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    requestBody:
+      required: true
+      content:
+        application/json:
+          schema:
+            $ref: ../components/schemas.yaml#/ChangePasswordRequest
+    responses:
+      '200':
+        description: Password changed (all existing sessions invalidated), or a legacy business failure envelope.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ChangePasswordResponse
+            examples:
+              success:
+                externalValue: ../fixtures/change-password-success.json
+              oldPasswordInvalid:
+                externalValue: ../fixtures/change-password-old-invalid.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json
+      '429':
+        description: Password-change rate limit (action `password.change`) exceeded.
+        headers:
+          Retry-After:
+            required: true
+            schema:
+              type: integer
+              minimum: 1
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/RateLimitedFailure
+            examples:
+              rateLimited:
+                externalValue: ../fixtures/change-password-rate-limited.json
+
+getOAuthBindings:
+  get:
+    tags: [User]
+    summary: List the caller's OAuth bindings
+    operationId: getOAuthBindings
+    description: |
+      Read-only endpoint guarded by authentication only (no writable-account
+      check), so frozen accounts can still read their binding state. The result is
+      keyed by provider and always carries the fixed github and google entries; a
+      bound entry includes provider/createdAt/updatedAt, an unbound entry is just
+      `{bound: false}`.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    responses:
+      '200':
+        description: Binding state keyed by provider.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/OAuthBindingsResponse
+            examples:
+              success:
+                externalValue: ../fixtures/oauth-bindings-success.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+
+unbindOAuth:
+  post:
+    tags: [User]
+    summary: Unbind an OAuth provider from the caller's account
+    operationId: unbindOAuth
+    description: |
+      Removes the OAuth binding named by the provider path parameter (the value is
+      not validated against a provider list). Unbinding the last remaining login
+      method — an account without an email address whose other OAuth bindings count
+      to zero — is refused, and any service-side failure surfaces as HTTP 200
+      `oauth.unbind.failed` with params error/provider. The request takes no body.
+    security:
+      - bearerAuth: []
+      - accessTokenCookie: []
+    parameters:
+      - name: provider
+        in: path
+        required: true
+        schema:
+          type: string
+        description: Provider key as registered at bind time (for example github or google); not validated by the server.
+    responses:
+      '200':
+        description: Provider unbound, or a legacy business failure envelope (`oauth.unbind.failed`).
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/UnbindOAuthResponse
+            examples:
+              success:
+                externalValue: ../fixtures/oauth-unbind-success.json
+              unbindFailed:
+                externalValue: ../fixtures/oauth-unbind-failed.json
+      '401':
+        description: Missing, invalid, expired, or revoked access token.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              unauthenticated:
+                externalValue: ../fixtures/auth-required.json
+      '403':
+        description: Authenticated account is frozen or its account information cannot be resolved.
+        content:
+          application/json:
+            schema:
+              $ref: ../components/schemas.yaml#/ApiFailure
+            examples:
+              frozenAccount:
+                externalValue: ../fixtures/account-frozen.json

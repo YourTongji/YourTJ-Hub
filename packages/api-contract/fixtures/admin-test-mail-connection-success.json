@@ -1,0 +1,10 @@
+{
+  "result": {
+    "success": true,
+    "messageCode": "admin.mail.testSuccess",
+    "params": {
+      "email": "admin@contract.example.test"
+    }
+  },
+  "code": 0
+}

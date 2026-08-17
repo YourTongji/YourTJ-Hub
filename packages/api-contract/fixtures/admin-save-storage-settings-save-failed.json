@@ -1,0 +1,8 @@
+{
+  "result": null,
+  "code": 1,
+  "messageCode": "admin.storage.saveFailed",
+  "params": {
+    "error": "S3 模式需要填写 Endpoint 与 Bucket"
+  }
+}
