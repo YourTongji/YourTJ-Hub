@@ -21,6 +21,24 @@ function comboboxes(wrapper: VueWrapper) {
   return wrapper.findAll('[role="combobox"]')
 }
 
+/**
+ * 打开第 index 个下拉并返回其选项。
+ * SiteSelect 迁移 reka-ui 后：Trigger 用 pointerdown 打开（SelectTrigger.js
+ * handlePointerOpen），选项经 SelectPortal 渲染到 body，须从 document 查询。
+ */
+async function openCombobox(wrapper: VueWrapper, index: number): Promise<Element[]> {
+  await comboboxes(wrapper)[index].trigger('pointerdown', { button: 0, pageX: 10, pageY: 10 })
+  await flushPromises()
+  return [...document.querySelectorAll('[role="option"]')]
+}
+
+/** reka-ui SelectItem 用 pointerup 触发选择（SelectItem.js handleSelectCustomEvent）。 */
+async function selectOption(wrapper: VueWrapper, option: Element) {
+  option.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+  option.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }))
+  await flushPromises()
+}
+
 /** 预置 store 中的已存选择（SchedulePage 挂载时 loadSolidify 的职责，测试直接设置）。 */
 function setStoredSelection(selection: { calendarId?: number; grade?: number; major?: string }) {
   const store = useScheduleStore()
@@ -54,16 +72,14 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(store.state.majorSelected.calendarId).toBe(121)
 
     // Grade 下拉应包含年级选项（打开后可见 2025/2024）。
-    await comboboxes(wrapper)[1].trigger('click')
-    await flushPromises()
-    const options = wrapper.findAll('[role="option"]').map((o) => o.text())
-    expect(options).toContain('2025')
-    expect(options).toContain('2024')
+    const options = await openCombobox(wrapper, 1)
+    const optionTexts = options.map((o) => o.textContent)
+    expect(optionTexts).toContain('2025')
+    expect(optionTexts).toContain('2024')
 
     // 用户选择年级 2025 → watch 触发 → 用已写回的 calendarId 加载专业。
-    const option = wrapper.findAll('[role="option"]').find((o) => o.text() === '2025')
-    await option!.trigger('click')
-    await flushPromises()
+    const option = options.find((o) => o.textContent === '2025')
+    await selectOption(wrapper, option!)
     expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
   })
 
@@ -101,9 +117,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(store.state.majorSelected.major).toBeUndefined()
 
     // 回退后年级下拉有数据，且用户重新选年级可用新学期加载专业。
-    await comboboxes(wrapper)[1].trigger('click')
-    await flushPromises()
-    expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toContain('2025')
+    const options = await openCombobox(wrapper, 1)
+    expect(options.map((o) => o.textContent)).toContain('2025')
   })
 
   test('localStorage 学期已不存在时清空旧学期已选课程', async () => {
