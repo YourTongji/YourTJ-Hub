@@ -1810,6 +1810,10 @@ export interface components {
             termName?: string;
             campus?: string;
             faculty?: string;
+            /** @description Class code for this offering (e.g. 32000101); empty for legacy packages without class info. */
+            classCode?: string;
+            /** @description Class name for this offering (e.g. 01班); empty for legacy packages without class info. */
+            className?: string;
             instructors?: string[];
             /**
              * Format: double
