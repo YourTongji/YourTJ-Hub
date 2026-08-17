@@ -114,18 +114,12 @@ _$NotificationTemplateParamsImpl _$$NotificationTemplateParamsImplFromJson(
   Map<String, dynamic> json,
 ) => _$NotificationTemplateParamsImpl(
   preview: json['preview'] as String?,
-  followerName: json['followerName'] as String?,
-  badgeCode: json['badgeCode'] as String?,
-  badgeName: json['badgeName'] as String?,
 );
 
 Map<String, dynamic> _$$NotificationTemplateParamsImplToJson(
   _$NotificationTemplateParamsImpl instance,
 ) => <String, dynamic>{
   'preview': instance.preview,
-  'followerName': instance.followerName,
-  'badgeCode': instance.badgeCode,
-  'badgeName': instance.badgeName,
 };
 
 _$NotificationMetadataImpl _$$NotificationMetadataImplFromJson(

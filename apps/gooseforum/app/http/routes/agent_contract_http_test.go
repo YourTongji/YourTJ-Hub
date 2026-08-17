@@ -17,7 +17,7 @@ import (
 func TestAgentContractUnauthorizedMatchesCanonicalFixture(t *testing.T) {
 	setupAgentForumTestDB(t)
 	router := agentForumRouter()
-	canonical := contractFixture(t, "agent-unauthorized.json")
+	canonical := contractFixture(t, "auth-required.json")
 
 	for _, tc := range []struct {
 		name   string
@@ -184,15 +184,15 @@ func TestAgentContractPostWindowAndCreate(t *testing.T) {
 				IsBookmarked bool   `json:"isBookmarked"`
 			} `json:"posts"`
 			ReplyTargets []struct {
-				ID uint64 `json:"id"`
+				ID     uint64 `json:"id"`
 				Author struct {
 					ID uint64 `json:"id"`
 				} `json:"author"`
 				Unavailable bool `json:"unavailable"`
 			} `json:"replyTargets"`
-			HasBefore bool  `json:"hasBefore"`
-			HasAfter  bool  `json:"hasAfter"`
-			Total     int64 `json:"total"`
+			HasBefore bool   `json:"hasBefore"`
+			HasAfter  bool   `json:"hasAfter"`
+			Total     int64  `json:"total"`
 			MaxPostNo uint64 `json:"maxPostNo"`
 		}
 		if err := json.Unmarshal(response.Result, &window); err != nil {
@@ -263,7 +263,7 @@ func TestAgentContractWriteRateLimits(t *testing.T) {
 			t.Fatalf("rate limited topic write status = %d, want 429", recorder.Code)
 		}
 		response := decodeContractEnvelope(t, recorder)
-		assertFixtureEnvelope(t, response, contractFixture(t, "agent-topic-write-rate-limited.json"))
+		assertFixtureEnvelope(t, response, contractFixture(t, "topic-write-rate-limited.json"))
 		assertRetryAfter(t, recorder, response, middleware.RateLimitTopicWrite)
 	})
 
@@ -301,18 +301,18 @@ func TestAgentContractSearch(t *testing.T) {
 		t.Fatalf("search envelope = %#v", response)
 	}
 	var search struct {
-		Query             string   `json:"query"`
-		Scope             string   `json:"scope"`
-		Topics            []any    `json:"topics"`
-		Users             []any    `json:"users"`
-		Categories        []any    `json:"categories"`
-		Courses           []any    `json:"courses"`
-		Total             int64    `json:"total"`
-		UsersTotal        int64    `json:"usersTotal"`
-		CategoriesTotal   int64    `json:"categoriesTotal"`
-		CoursesTotal      int64    `json:"coursesTotal"`
-		TotalPages        int      `json:"totalPages"`
-		Pagination        struct {
+		Query           string `json:"query"`
+		Scope           string `json:"scope"`
+		Topics          []any  `json:"topics"`
+		Users           []any  `json:"users"`
+		Categories      []any  `json:"categories"`
+		Courses         []any  `json:"courses"`
+		Total           int64  `json:"total"`
+		UsersTotal      int64  `json:"usersTotal"`
+		CategoriesTotal int64  `json:"categoriesTotal"`
+		CoursesTotal    int64  `json:"coursesTotal"`
+		TotalPages      int    `json:"totalPages"`
+		Pagination      struct {
 			Page     int    `json:"page"`
 			NextPage int    `json:"nextPage"`
 			HasNext  bool   `json:"hasNext"`

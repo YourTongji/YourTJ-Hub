@@ -156,5 +156,5 @@ func TestCourseSummaryMalformedIDHTTPContract(t *testing.T) {
 	if rec.Code != http.StatusBadRequest {
 		t.Fatalf("course summary malformed id status = %d, want 400: %s", rec.Code, rec.Body.String())
 	}
-	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "course-parse-failed.json"))
+	assertFixtureEnvelope(t, decodeContractEnvelope(t, rec), contractFixture(t, "parse-failed.json"))
 }

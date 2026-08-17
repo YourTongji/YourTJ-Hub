@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import { Clock, ExternalLink, FileText, Library } from '@lucide/vue'
 import { formatDateTime } from '@/runtime/format'
+import { wikiHref } from '@/runtime/wiki-path'
 import type { LayoutPayload, WikiHomeProps } from '@gooseforum/client'
 import { useI18n } from 'vue-i18n'
 
@@ -10,13 +11,6 @@ const page = defineProps<{
 }>()
 
 const { t } = useI18n()
-
-// GitHub SSOT：路径保留中文等 Unicode（不再小写归一），URL 按段编码。
-// 只编码每段，保留 "/" 分隔符。
-function wikiHref(path: string | undefined | null): string | undefined {
-  if (!path) return undefined
-  return '/wiki/' + path.split('/').map((seg) => encodeURIComponent(seg)).join('/')
-}
 </script>
 
 <template>

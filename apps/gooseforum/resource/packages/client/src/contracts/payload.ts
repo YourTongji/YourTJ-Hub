@@ -814,11 +814,9 @@ export interface NotificationPayload {
   }
 }
 
+// NotificationTemplateParams 只承载正文预览；徽章/关注等结构化字段统一走 metadata。
 export interface NotificationTemplateParams {
   preview?: string
-  followerName?: string
-  badgeCode?: string
-  badgeName?: string
 }
 
 export interface MessagesPageProps {

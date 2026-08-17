@@ -57,32 +57,7 @@ func ResolvePageByURLPath(urlPath string) (entity wikiPages.Entity) {
 // page.Namespace 列 = 仓库顶层目录名，分组按目录名。
 // 返回查询错误：DB 故障必须区别于空 wiki（issue #287）。
 func BuildTree(activePath string) ([]TreeNamespace, error) {
-	namespaces, err := wikiNamespaces.List()
-	if err != nil {
-		return nil, fmt.Errorf("list wiki namespaces: %w", err)
-	}
-	if len(namespaces) == 0 {
-		return []TreeNamespace{}, nil
-	}
-	allPages, err := filterPublicPages(wikiPages.ListAll())
-	if err != nil {
-		return nil, err
-	}
-	byURLKey := make(map[string][]*wikiPages.Entity)
-	for _, page := range allPages {
-		byURLKey[page.Namespace] = append(byURLKey[page.Namespace], page)
-	}
-
-	result := make([]TreeNamespace, 0, len(namespaces))
-	for _, ns := range namespaces {
-		pages := byURLKey[ns.Name]
-		result = append(result, TreeNamespace{
-			Name:  ns.Name,
-			Label: ns.Name,
-			Nodes: buildTreeNodes(pages, ns.Name, activePath, false),
-		})
-	}
-	return result, nil
+	return buildTree(activePath, false)
 }
 
 // filterPublicPages 过滤出 topic 仍公开的页面：删除/隐藏的 wiki 页面不得
@@ -507,23 +482,23 @@ func BuildContributors(pageId uint64) []Contributor {
 
 // PageDetail 详情页数据（渲染 wiki_pages 投影快照）。
 type PageDetail struct {
-	Id                  uint64    `json:"id"`
-	TopicId             uint64    `json:"topicId"`
-	Namespace           string    `json:"namespace"`
-	Path                string    `json:"path"`
-	Title               string    `json:"title"`
-	Content             string    `json:"content"`
-	Toc                 []TocItem `json:"toc"`
+	Id                  uint64       `json:"id"`
+	TopicId             uint64       `json:"topicId"`
+	Namespace           string       `json:"namespace"`
+	Path                string       `json:"path"`
+	Title               string       `json:"title"`
+	Content             string       `json:"content"`
+	Toc                 []TocItem    `json:"toc"`
 	ParaAnchors         []ParaAnchor `json:"paraAnchors,omitempty"`
-	UpdatedAt           string    `json:"updatedAt"`
-	LikeCount           uint64    `json:"likeCount"`
-	ViewCount           uint64    `json:"viewCount"`
-	PostCount           uint64    `json:"postCount"`
-	Liked               bool      `json:"liked"`
-	Bookmarked          bool      `json:"bookmarked"`
-	Watched             bool      `json:"watched"`
-	PublishedRevisionNo int       `json:"publishedRevisionNo"`
-	CanEdit             bool      `json:"canEdit"`
+	UpdatedAt           string       `json:"updatedAt"`
+	LikeCount           uint64       `json:"likeCount"`
+	ViewCount           uint64       `json:"viewCount"`
+	PostCount           uint64       `json:"postCount"`
+	Liked               bool         `json:"liked"`
+	Bookmarked          bool         `json:"bookmarked"`
+	Watched             bool         `json:"watched"`
+	PublishedRevisionNo int          `json:"publishedRevisionNo"`
+	CanEdit             bool         `json:"canEdit"`
 	// GitHub 外链（前端「编辑此页」/「历史」按钮；由 forum 控制器注入仓库配置）。
 	EditUrl    string `json:"editUrl,omitempty"`
 	HistoryUrl string `json:"historyUrl,omitempty"`

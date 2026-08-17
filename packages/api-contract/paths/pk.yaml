@@ -103,7 +103,7 @@ findGrades:
               $ref: ../components/schemas.yaml#/PkFailure
             examples:
               badRequest:
-                externalValue: ../fixtures/pk-grades-bad-request.json
+                externalValue: ../fixtures/pk-bad-request.json
       '500':
         description: Internal error.
         content:
@@ -246,7 +246,7 @@ findOptionalTypes:
               $ref: ../components/schemas.yaml#/PkFailure
             examples:
               badRequest:
-                externalValue: ../fixtures/pk-optional-types-bad-request.json
+                externalValue: ../fixtures/pk-bad-request.json
       '500':
         description: Internal error.
         content:
@@ -413,7 +413,7 @@ searchCourses:
               $ref: ../components/schemas.yaml#/PkFailure
             examples:
               badRequest:
-                externalValue: ../fixtures/pk-course-search-bad-request.json
+                externalValue: ../fixtures/pk-bad-request.json
       '500':
         description: Internal error.
         content:
@@ -552,7 +552,7 @@ syncCourseInfo:
               $ref: ../components/schemas.yaml#/PkFailure
             examples:
               badRequest:
-                externalValue: ../fixtures/pk-course-info-sync-bad-request.json
+                externalValue: ../fixtures/pk-bad-request.json
       '500':
         description: Internal error.
         content:
