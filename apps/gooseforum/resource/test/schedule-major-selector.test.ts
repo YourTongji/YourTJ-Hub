@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { beforeEach, describe, expect, test, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount, type VueWrapper } from '@vue/test-utils'
 
 import { i18n } from '../src/runtime/i18n'
@@ -21,6 +21,24 @@ function comboboxes(wrapper: VueWrapper) {
   return wrapper.findAll('[role="combobox"]')
 }
 
+/**
+ * 打开第 index 个下拉并返回其选项。
+ * SiteSelect 迁移 reka-ui 后：Trigger 用 pointerdown 打开（SelectTrigger.js
+ * handlePointerOpen），选项经 SelectPortal 渲染到 body，须从 document 查询。
+ */
+async function openCombobox(wrapper: VueWrapper, index: number): Promise<Element[]> {
+  await comboboxes(wrapper)[index].trigger('pointerdown', { button: 0, pageX: 10, pageY: 10 })
+  await flushPromises()
+  return [...document.querySelectorAll('[role="option"]')]
+}
+
+/** reka-ui SelectItem 用 pointerup 触发选择（SelectItem.js handleSelectCustomEvent）。 */
+async function selectOption(wrapper: VueWrapper, option: Element) {
+  option.dispatchEvent(new PointerEvent('pointerdown', { bubbles: true, button: 0 }))
+  option.dispatchEvent(new PointerEvent('pointerup', { bubbles: true, button: 0 }))
+  await flushPromises()
+}
+
 /** 预置 store 中的已存选择（SchedulePage 挂载时 loadSolidify 的职责，测试直接设置）。 */
 function setStoredSelection(selection: { calendarId?: number; grade?: number; major?: string }) {
   const store = useScheduleStore()
@@ -32,11 +50,23 @@ function setStoredSelection(selection: { calendarId?: number; grade?: number; ma
 }
 
 describe('ScheduleMajorSelector 初始化加载', () => {
+  /** 追踪当前 wrapper，afterEach 统一卸载并清理 portal 残留（全局 document 查询）。 */
+  let mounted: VueWrapper | null = null
+
   beforeEach(() => {
     vi.resetAllMocks()
     localStorage.clear()
     setStoredSelection({})
     getPkCalendars.mockResolvedValue([{ calendarId: 121, calendarName: '2025-2026学年第2学期' }])
+    mounted = null
+  })
+
+  afterEach(() => {
+    mounted?.unmount()
+    mounted = null
+    // SiteSelect 选项经 SelectPortal 渲染到 body，卸载组件后清掉 portal 残留，
+    // 避免下一个测试的全局 [role="option"] 查询命中上一个测试的选项。
+    document.body.innerHTML = ''
   })
 
   test('无已存选择时：默认学期加载年级并写回 store，选年级可加载专业', async () => {
@@ -45,7 +75,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     // 默认第一个学期（121）已加载年级，且 store 中的学期已写回。
@@ -54,16 +85,14 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(store.state.majorSelected.calendarId).toBe(121)
 
     // Grade 下拉应包含年级选项（打开后可见 2025/2024）。
-    await comboboxes(wrapper)[1].trigger('click')
-    await flushPromises()
-    const options = wrapper.findAll('[role="option"]').map((o) => o.text())
-    expect(options).toContain('2025')
-    expect(options).toContain('2024')
+    const options = await openCombobox(wrapper, 1)
+    const optionTexts = options.map((o) => o.textContent)
+    expect(optionTexts).toContain('2025')
+    expect(optionTexts).toContain('2024')
 
     // 用户选择年级 2025 → watch 触发 → 用已写回的 calendarId 加载专业。
-    const option = wrapper.findAll('[role="option"]').find((o) => o.text() === '2025')
-    await option!.trigger('click')
-    await flushPromises()
+    const option = options.find((o) => o.textContent === '2025')
+    await selectOption(wrapper, option!)
     expect(getPkMajors).toHaveBeenCalledWith(2025, 121)
   })
 
@@ -72,7 +101,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([{ code: '00301', name: '2025(00301 数学类)' }])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
@@ -89,7 +119,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([])
 
-    const wrapper = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    const wrapper = mounted
     await flushPromises()
 
     expect(getPkGrades).toHaveBeenCalledWith(121)
@@ -101,9 +132,8 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     expect(store.state.majorSelected.major).toBeUndefined()
 
     // 回退后年级下拉有数据，且用户重新选年级可用新学期加载专业。
-    await comboboxes(wrapper)[1].trigger('click')
-    await flushPromises()
-    expect(wrapper.findAll('[role="option"]').map((o) => o.text())).toContain('2025')
+    const options = await openCombobox(wrapper, 1)
+    expect(options.map((o) => o.textContent)).toContain('2025')
   })
 
   test('localStorage 学期已不存在时清空旧学期已选课程', async () => {
@@ -125,7 +155,7 @@ describe('ScheduleMajorSelector 初始化加载', () => {
     getPkGrades.mockResolvedValue([2025, 2024])
     getPkMajors.mockResolvedValue([])
 
-    mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
+    mounted = mount(ScheduleMajorSelector, { global: { plugins: [i18n] } })
     await flushPromises()
 
     expect(store.state.commonLists.stagedCourses).toEqual([])

@@ -1,8 +1,7 @@
 <script setup lang="ts">
-import { computed } from 'vue'
-import { AnimatePresence, Motion } from 'motion-v'
+import { computed, onBeforeUnmount, onMounted } from 'vue'
 import { X } from '@lucide/vue'
-import { mobileDrawerMotion, motionTransitions, overlayMotion } from '@/runtime/motion'
+import { DialogContent, DialogOverlay, DialogRoot, DialogTitle } from 'reka-ui'
 import type { FooterPayload, WikiTreeNamespace } from '@gooseforum/client'
 import WikiSidebar from './WikiSidebar.vue'
 
@@ -55,27 +54,44 @@ const hasFooter = computed(() => props.footer.links.length > 0 || props.footer.p
 function close() {
   emit('close')
 }
+
+// 抽屉仅在小屏（<lg）展示。resize 到 lg 后遮罩/抽屉被 lg:hidden 隐藏，但
+// DialogRoot 仍 mounted/open——reka-ui 会继续 trap focus 并锁定 body 滚动，
+// 页面会变得不可点。监听断点变化，进入 lg 时自动关闭 drawer。
+let desktopQuery: MediaQueryList | null = null
+let desktopChangeHandler: ((event: MediaQueryListEvent) => void) | null = null
+
+onMounted(() => {
+  if (typeof window.matchMedia !== 'function') return
+  desktopQuery = window.matchMedia('(min-width: 1024px)')
+  desktopChangeHandler = (event) => {
+    if (event.matches && props.open) close()
+  }
+  // addEventListener 优于 addListener（happy-dom 两者都支持，真实浏览器以 addEventListener 为准）
+  desktopQuery.addEventListener('change', desktopChangeHandler)
+  // 挂载时可能已处于桌面断点（异步挂载/打开后立即旋转或调整窗口）：change 事件不会触发，
+  // 但 Dialog 仍 open 且 lg:hidden 只隐藏内容，模态锁残留。立即处理初始 matches。
+  if (desktopQuery.matches && props.open) close()
+})
+
+onBeforeUnmount(() => {
+  if (desktopQuery && desktopChangeHandler) {
+    desktopQuery.removeEventListener('change', desktopChangeHandler)
+  }
+})
 </script>
 
 <template>
-  <AnimatePresence>
-    <div v-if="open" class="fixed inset-0 z-[60] lg:hidden" role="dialog" aria-modal="true">
-      <Motion
-        as="button"
-        class="absolute inset-0 bg-neutral/40"
-        :aria-label="closeLabel"
-        v-bind="overlayMotion"
-        :transition="motionTransitions.fast"
-        @click="close"
-      />
-      <Motion
-        as="nav"
-        class="gf-drawer-surface relative h-full w-80 max-w-[85vw] overflow-y-auto p-3"
-        v-bind="mobileDrawerMotion"
-        :transition="motionTransitions.comfortable"
-      >
+  <DialogRoot :open="props.open" @update:open="(open) => { if (!open) close() }">
+    <DialogOverlay
+      class="fixed inset-0 z-[60] bg-neutral/40 duration-200 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:fade-out-0 data-[state=open]:fade-in-0 lg:hidden"
+    />
+    <DialogContent
+      class="gf-drawer-surface fixed inset-y-0 left-0 z-[60] h-full w-80 max-w-[85vw] overflow-y-auto p-3 outline-none duration-300 data-[state=open]:animate-in data-[state=closed]:animate-out data-[state=closed]:slide-out-to-left data-[state=open]:slide-in-from-left lg:hidden"
+      :aria-describedby="undefined"
+    >
         <div class="mb-3 flex h-10 items-center justify-between">
-          <div class="font-bold text-base-content">{{ menuLabel }}</div>
+          <DialogTitle class="text-base font-bold text-base-content">{{ menuLabel }}</DialogTitle>
           <button class="inline-flex h-8 w-8 items-center justify-center rounded-md text-icon-muted hover:bg-base-300 hover:text-base-content" type="button" :aria-label="closeLabel" @click="close">
             <X class="h-5 w-5" />
           </button>
@@ -84,81 +100,83 @@ function close() {
           <WikiSidebar :tree="wikiTree || []" @navigate="close" />
         </div>
         <template v-else>
-          <div class="space-y-0.5">
-            <a
-              v-for="item in primaryItems"
-              :key="item.key"
-              :href="item.url"
-              class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
-              :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+          <nav :aria-label="menuLabel">
+            <div class="space-y-0.5">
+              <a
+                v-for="item in primaryItems"
+                :key="item.key"
+                :href="item.url"
+                class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
+                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+              >
+                <component
+                  :is="sidebarIcon(item)"
+                  v-if="sidebarIcon(item)"
+                  class="h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+                <span
+                  v-if="(item.key === 'messages' && hasUnreadMessages) || (item.key === 'notifications' && hasUnreadNotifications) || (item.key === 'moderation' && hasModerationReports)"
+                  class="h-2 w-2 shrink-0 rounded-full bg-error/100"
+                  aria-hidden="true"
+                />
+              </a>
+            </div>
+            <div v-if="resourceItems.length" class="mt-4 space-y-0.5">
+              <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ resourcesLabel }}</div>
+              <a
+                v-for="item in resourceItems"
+                :key="item.key"
+                :href="item.url"
+                class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
+                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+              >
+                <component
+                  :is="sidebarIcon(item)"
+                  v-if="sidebarIcon(item)"
+                  class="h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+              </a>
+            </div>
+            <div
+              v-for="group in sidebarGroups"
+              :key="group.key"
+              class="mt-4 space-y-0.5"
             >
-              <component
-                :is="sidebarIcon(item)"
-                v-if="sidebarIcon(item)"
-                class="h-4 w-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-              <span
-                v-if="(item.key === 'messages' && hasUnreadMessages) || (item.key === 'notifications' && hasUnreadNotifications) || (item.key === 'moderation' && hasModerationReports)"
-                class="h-2 w-2 shrink-0 rounded-full bg-error/100"
-                aria-hidden="true"
-              />
-            </a>
-          </div>
-          <div v-if="resourceItems.length" class="mt-4 space-y-0.5">
-            <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ resourcesLabel }}</div>
-            <a
-              v-for="item in resourceItems"
-              :key="item.key"
-              :href="item.url"
-              class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
-              :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-            >
-              <component
-                :is="sidebarIcon(item)"
-                v-if="sidebarIcon(item)"
-                class="h-4 w-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-            </a>
-          </div>
-          <div
-            v-for="group in sidebarGroups"
-            :key="group.key"
-            class="mt-4 space-y-0.5"
-          >
-            <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ group.title }}</div>
-            <a
-              v-for="item in group.items"
-              :key="item.key"
-              :href="item.url"
-              class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
-              :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-            >
-              <component
-                :is="sidebarIcon(item)"
-                v-if="sidebarIcon(item)"
-                class="h-4 w-4 shrink-0"
-                aria-hidden="true"
-              />
-              <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
-            </a>
-          </div>
-          <div v-if="categoryItems.length" class="mt-4 space-y-0.5">
-            <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ categoriesLabel }}</div>
-            <a
-              v-for="category in categoryItems"
-              :key="category.key"
-              :href="category.url"
-              class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
-              :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
-            >
-              <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
-              <span class="min-w-0 flex-1 truncate">{{ category.label }}</span>
-            </a>
-          </div>
+              <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ group.title }}</div>
+              <a
+                v-for="item in group.items"
+                :key="item.key"
+                :href="item.url"
+                class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
+                :class="item.active ? 'bg-info/10 text-primary' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+              >
+                <component
+                  :is="sidebarIcon(item)"
+                  v-if="sidebarIcon(item)"
+                  class="h-4 w-4 shrink-0"
+                  aria-hidden="true"
+                />
+                <span class="min-w-0 flex-1 truncate">{{ item.label }}</span>
+              </a>
+            </div>
+            <div v-if="categoryItems.length" class="mt-4 space-y-0.5">
+              <div class="px-2 text-[10px] font-bold uppercase tracking-wide text-base-content/55">{{ categoriesLabel }}</div>
+              <a
+                v-for="category in categoryItems"
+                :key="category.key"
+                :href="category.url"
+                class="flex h-9 items-center gap-2 rounded-md px-2 text-sm font-medium"
+                :class="category.active ? 'bg-base-300 text-base-content' : 'text-base-content/75 hover:bg-base-300 hover:text-base-content'"
+              >
+                <span class="h-2 w-2 rounded-[3px]" :style="{ backgroundColor: category.color }" />
+                <span class="min-w-0 flex-1 truncate">{{ category.label }}</span>
+              </a>
+            </div>
+          </nav>
           <footer v-if="hasFooter" class="mt-2 border-t border-line px-2 pt-2 text-xs leading-5 text-base-content/75">
             <div v-if="footer.links.length" class="flex flex-wrap items-center gap-x-3 gap-y-0.5">
               <a
@@ -181,7 +199,6 @@ function close() {
             </div>
           </footer>
         </template>
-      </Motion>
-    </div>
-  </AnimatePresence>
+      </DialogContent>
+  </DialogRoot>
 </template>

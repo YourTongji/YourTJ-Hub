@@ -1,5 +1,5 @@
 // @vitest-environment happy-dom
-import { afterEach, beforeEach, describe, expect, test } from 'vitest'
+import { afterEach, beforeEach, describe, expect, test, vi } from 'vitest'
 import { flushPromises, mount } from '@vue/test-utils'
 import type { LayoutPayload, WikiTreeNamespace } from '@gooseforum/client'
 import { i18n } from '../src/runtime/i18n'
@@ -7,9 +7,7 @@ import AppShell from '../src/site/components/AppShell.vue'
 import MobileDrawer from '../src/site/components/MobileDrawer.vue'
 import WikiSidebar from '../src/site/components/WikiSidebar.vue'
 
-// motion-v 的 Motion/AnimatePresence 依赖浏览器动画 API，测试环境用纯渲染 stub 替代。
-const MotionStub = { template: '<div><slot /></div>' }
-const AnimatePresenceStub = { template: '<div><slot /></div>' }
+// reka-ui Dialog 在测试环境（happy-dom）可直接渲染，无需 stub 动画原语。
 
 const wikiTree: WikiTreeNamespace[] = [
   {
@@ -66,7 +64,6 @@ function makeLayout(mode: 'forum' | 'wiki'): LayoutPayload {
   }
 }
 
-const stubs = { Motion: MotionStub, AnimatePresence: AnimatePresenceStub }
 
 describe('WikiSidebar 导航事件', () => {
   test('点击页面链接发出 navigate 事件，且中文路径按段编码', async () => {
@@ -98,7 +95,7 @@ describe('MobileDrawer wiki 模式', () => {
         sidebarIcon: () => null,
         ...overrides,
       },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
   }
 
@@ -138,13 +135,55 @@ describe('MobileDrawer wiki 模式', () => {
     expect(drawer.text()).toContain('Wiki')
     expect(drawer.text()).not.toContain('同济新手教程')
   })
+
+  // P2-7（review #320 第二轮）：forum 模式导航需要 nav landmark（旧实现 Motion as="nav"）。
+  test('forum 模式渲染 nav landmark（aria-label=菜单）', () => {
+    const wrapper = mountDrawer({
+      wikiMode: false,
+      primaryItems: [
+        { key: 'home', label: '首页', url: '/', active: false },
+        { key: 'messages', label: '消息', url: '/messages', active: false },
+      ],
+    })
+    const nav = wrapper.get('nav[aria-label="菜单"]')
+    expect(nav.find('a[href="/"]').text()).toBe('首页')
+    expect(nav.find('a[href="/messages"]').text()).toBe('消息')
+  })
+
+  // P2-4（review #320 第二轮）：resize 到 lg 后抽屉仍 mounted/open，
+  // reka-ui 继续 trap focus + body 锁定，必须监听 matchMedia 断点变化自动关闭。
+  test('断点变化到桌面宽度时自动关闭抽屉', async () => {
+    const listeners = new Set<(event: MediaQueryListEvent) => void>()
+    const mql = {
+      matches: false,
+      media: '(min-width: 1024px)',
+      addEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.add(fn),
+      removeEventListener: (_type: string, fn: (event: MediaQueryListEvent) => void) => listeners.delete(fn),
+    }
+    const matchMediaSpy = vi.spyOn(window, 'matchMedia').mockReturnValue(mql as unknown as MediaQueryList)
+
+    const wrapper = mountDrawer({ wikiMode: false })
+    expect(wrapper.emitted('close')).toBeUndefined()
+
+    // 模拟跨过 lg 断点（如旋转/窗口放大）：触发 matchMedia change 事件
+    mql.matches = true
+    for (const fn of listeners) fn({ matches: true } as MediaQueryListEvent)
+    await flushPromises()
+    expect(wrapper.emitted('close')).toHaveLength(1)
+
+    matchMediaSpy.mockRestore()
+    wrapper.unmount()
+  })
+
+  // 建议项（review #320 第三轮）模态锁解除测试见 test/mobile-drawer-lock.test.ts
+  // （reka-ui body 锁是跨组件共享栈，同文件多抽屉残留会污染断言，独立文件保证干净锁栈）。
 })
 
 describe('AppShell 抽屉接线', () => {
   test('wiki 布局下抽屉收到 wiki 树（移动端可浏览命名空间与页面）', async () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('wiki') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     await wrapper.get('button[aria-label="打开菜单"]').trigger('click')
     await flushPromises()
@@ -156,7 +195,7 @@ describe('AppShell 抽屉接线', () => {
   test('forum 布局下抽屉不渲染 wiki 树', async () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('forum') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     await wrapper.get('button[aria-label="打开菜单"]').trigger('click')
     await flushPromises()
@@ -167,7 +206,7 @@ describe('AppShell 抽屉接线', () => {
   test('桌面侧栏在 wiki 模式下渲染 wiki 树（桌面行为不变）', () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('wiki') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     const sidebar = wrapper.get('aside[aria-label="Sidebar"]')
     expect(sidebar.text()).toContain('同济新手教程')
@@ -177,7 +216,7 @@ describe('AppShell 抽屉接线', () => {
   test('桌面侧栏在 forum 模式下不渲染 wiki 树', () => {
     const wrapper = mount(AppShell, {
       props: { layout: makeLayout('forum') },
-      global: { plugins: [i18n], stubs },
+      global: { plugins: [i18n] },
     })
     const sidebar = wrapper.get('aside[aria-label="Sidebar"]')
     expect(sidebar.text()).not.toContain('同济新手教程')
@@ -186,8 +225,23 @@ describe('AppShell 抽屉接线', () => {
 
 beforeEach(() => {
   i18n.global.locale.value = 'zh'
+  // happy-dom 共享 document：前序测试的抽屉可能残留 reka-ui body 模态锁，
+  // 复位避免污染后续断言（与 i18n locale 复位同理）。
+  document.body.style.pointerEvents = ''
+  document.body.style.overflow = ''
+  // happy-dom 默认窗口宽度 1024px，matchMedia('(min-width: 1024px)') 返回
+  // matches=true；而 MobileDrawer 现在挂载时立即检查初始 matches（P2 第四轮修复），
+  // 会把所有抽屉测试误判为桌面端并立即 close。这里 mock 移动端视口。
+  const mobileMql = {
+    matches: false,
+    media: '(min-width: 1024px)',
+    addEventListener: () => {},
+    removeEventListener: () => {},
+  }
+  vi.spyOn(window, 'matchMedia').mockReturnValue(mobileMql as unknown as MediaQueryList)
 })
 
 afterEach(() => {
   i18n.global.locale.value = 'zh'
+  vi.restoreAllMocks()
 })

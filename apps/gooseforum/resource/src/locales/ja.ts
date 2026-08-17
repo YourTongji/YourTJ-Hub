@@ -390,6 +390,7 @@ export default {
     selectPlaceholder: '選択してください',
     majorHint: '他分野の科目は「履修選択」→「高度検索」で直接検索してください。',
     openPicker: '履修を選択',
+    pickerDescription: '計画内・一般教養・詳細検索の結果から履修を選択して時間割に追加します。',
     saveTimetable: '時間割を保存',
     export: 'エクスポート',
     exportCsv: '時間割 CSV を出力',
@@ -1994,6 +1995,7 @@ export default {
     close: '検索を閉じる',
     openSearch: '検索を開く',
     panelLabel: 'Wiki を検索',
+    panelDescription: 'キーワードを入力して Wiki 内を検索します（タイトル・本文の一致）。',
     resultsLabel: '検索結果',
   },
 }
